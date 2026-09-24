@@ -1,6 +1,6 @@
 # RF4S Modding Toolkit — Python dependencies
 #
-# Two third-party packages cover everything image-related. Both are imported
+# Two third-party packages cover everything image-related (plus numpy, optional, for fast encoding). Both are imported
 # inside try/except blocks, so the CLI's non-image features (bplist, mbundle,
 # textdb, AIBN, strings, NLCL, gen, MOBJ/MAPJ edit, selftest) work without them.
 # Install both for the full GUI + map-editor + texture experience.
@@ -15,6 +15,11 @@ Pillow>=9.0
 # textures are BC7). Without this, .texture files in compressed formats fall
 # back to a hex dump.
 texture2ddecoder>=1.0
+#
+# Optional but recommended: accelerates the BC7/BC3/BC1 ENCODERS (texture import,
+# ground-texture import). Without it rf4s_modkit.bcenc falls back to pure Python,
+# which takes tens of seconds per 512x512 texture.
+numpy>=1.21
 #
 # Everything else is the Python standard library: tkinter (GUI),
 # pathlib, struct, csv, json, re, dataclasses, collections, etc.
