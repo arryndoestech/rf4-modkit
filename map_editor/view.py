@@ -1,0 +1,452 @@
+"""The map canvas: draws the background and the overlay groups as tagged layers,
+hit-tests the pointer, zooms around the cursor, pans, and reports the hovered tile.
+
+Redraws are incremental: `invalidate("sel")` re-creates only the selection ring, a
+moved entity only the entity group, and so on. The background image (texture + ATTR)
+is rebuilt only when the grid, zoom or a background setting changes."""
+from __future__ import annotations
+
+import tkinter as tk
+from tkinter import ttk
+
+from rf4s_modkit import mobj_types
+
+from . import attrs, render
+
+ZOOMS = (1, 2, 3, 4, 6, 8, 12, 16, 24)
+MAX_CANVAS_PX = 8192          # PhotoImage conversion above this gets slow
+
+
+class ViewState:
+    """What the overlay builders read (see render.overlay)."""
+
+    def __init__(self):
+        self.doc = None
+        self.cp = 6
+        self.layers = {}
+        self.sel = None
+        self.active_gate = None
+        self.spawns = []
+        self.sprites = render.Sprites()
+
+
+class MapView(ttk.Frame):
+    def __init__(self, parent, *, on_hover_tile=None):
+        super().__init__(parent)
+        self.st = ViewState()
+        self.colors = {}
+        self._colors_for = None                  # doc the colours were assigned for
+        self.background = render.Background()
+        self.ground = render.GroundLoader(self, self._ground_ready)
+        self.ground_sel = "all"                  # display: off / all / '<n> <name>'
+        self.attr_alpha = 180
+        self.on_hover_tile = on_hover_tile       # fn(tile | None)
+        self.on_zoom = None                      # fn() after the zoom changed
+        self._items = {}                         # canvas item -> selection key
+        self._dirty = set()
+        self._pending = False
+        self._bg_photo = None
+        self._photos = {}                        # (type_id, size) -> PhotoImage
+        self._tip = None
+
+        hbar = ttk.Scrollbar(self, orient="horizontal")
+        vbar = ttk.Scrollbar(self, orient="vertical")
+        self.canvas = tk.Canvas(self, bg="#101014", highlightthickness=0,
+                                xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+        hbar.config(command=self.canvas.xview)
+        vbar.config(command=self.canvas.yview)
+        self.status = ttk.Label(self, anchor="w", font=("Segoe UI", 8), padding=(4, 1))
+        self.status.pack(side="bottom", fill="x")
+        hbar.pack(side="bottom", fill="x")
+        vbar.pack(side="right", fill="y")
+        self.canvas.pack(side="left", fill="both", expand=True)
+        c = self.canvas
+        c.bind("<MouseWheel>", self._wheel)
+        c.bind("<Shift-MouseWheel>", lambda e: c.xview_scroll(-(e.delta // 120) * 3, "units"))
+        c.bind("<Control-MouseWheel>", self._ctrl_wheel)
+        c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
+        c.bind("<B2-Motion>", lambda e: c.scan_dragto(e.x, e.y, gain=1))
+        c.bind("<Motion>", self._motion, add="+")
+        c.bind("<Leave>", lambda _e: (self.hide_tip(), self._hover(None)), add="+")
+
+    # ---- document / settings ------------------------------------------- #
+    @property
+    def doc(self):
+        return self.st.doc
+
+    @property
+    def cp(self):
+        return self.st.cp
+
+    def set_doc(self, doc):
+        self.st.doc = doc
+        self.st.sel = None
+        self.st.active_gate = None
+        self.st.spawns = []
+        self.colors = attrs.assign_colors(doc.grid[2]) if doc.grid else {}
+        self._colors_for = doc
+        self.background.invalidate()
+        self.invalidate_all()
+
+    def set_reader(self, reader):
+        if reader != self.ground.reader:
+            self.ground.reader = reader
+            self.ground.reset()
+            self.st.sprites.reader = reader
+            self.st.sprites.reset()
+            self._photos.clear()
+            self.background.invalidate()
+
+    def grid_changed(self):
+        """ATTR cells changed: give new values a colour and rebuild the background."""
+        if self.doc is not None and self.doc.grid:
+            attrs.assign_colors(self.doc.grid[2], self.colors)
+        self.invalidate("bg")
+
+    # ---- ground ------------------------------------------------------------ #
+    def ground_key(self):
+        return (self.doc.base, self.ground_sel) if self.doc is not None else None
+
+    def request_ground(self):
+        d = self.doc
+        if d is None or d.grid is None or self.ground_sel == "off":
+            return
+        self.ground.request(d.base, self.ground_sel, d.grid[0], d.grid[1])
+
+    def _ground_ready(self, key):
+        if key == self.ground_key():
+            self.invalidate("bg")
+
+    def ground_image(self, block=False):
+        d = self.doc
+        if d is None or d.grid is None or self.ground_sel == "off" or not render.HAS_PIL:
+            return None
+        if block:
+            return self.ground.get_blocking(d.base, self.ground_sel, d.grid[0], d.grid[1])
+        return self.ground.get(self.ground_key())
+
+    def background_image(self, block=False):
+        d = self.doc
+        L = self.st.layers
+        return self.background.image(
+            d.grid, self.colors, self.cp, self.ground_image(block), attr_on=L.get("attr", True),
+            alpha=self.attr_alpha, edges_on=L.get("edges", True), attr_version=d.attr_version)
+
+    # ---- redraw scheduling -------------------------------------------------- #
+    def invalidate(self, *groups):
+        self._dirty.update(groups or ("bg",) + render.GROUPS)
+        if not self._pending:
+            self._pending = True
+            self.after_idle(self.flush)
+
+    def invalidate_all(self):
+        self.invalidate("bg", *render.GROUPS)
+
+    def flush(self):
+        """Redraw everything invalidated so far (normally runs on idle)."""
+        self._pending = False
+        dirty, self._dirty = self._dirty, set()
+        if not dirty:
+            return
+        c = self.canvas
+        d = self.doc
+        if d is None or d.grid is None:
+            c.delete("all")
+            self._items.clear()
+            c.create_text(20, 20, anchor="nw", fill="#aaa",
+                          text="(no map)" if d is None else "(this map has no ATTR grid)")
+            return
+        W, H, cells = d.grid
+        if "bg" in dirty:
+            c.delete("bg")
+            img = self.background_image()
+            if img is not None:
+                from PIL import ImageTk
+                self._bg_photo = ImageTk.PhotoImage(img)
+                c.create_image(0, 0, anchor="nw", image=self._bg_photo, tags=("bg",))
+            elif not render.HAS_PIL and self.st.layers.get("attr", True):
+                cp = self.cp
+                for y in range(H):
+                    for x in range(W):
+                        rgb = self.colors.get(cells[y * W + x], attrs.ATTR_FLOOR)
+                        c.create_rectangle(x * cp, y * cp, x * cp + cp, y * cp + cp,
+                                           fill="#%02x%02x%02x" % rgb, width=0, tags=("bg",))
+            c.config(scrollregion=(0, 0, W * self.cp, H * self.cp))
+        for g in render.GROUPS:
+            if g in dirty:
+                self._draw_group(g)
+        self._restack()
+
+    def _draw_group(self, g):
+        c = self.canvas
+        for it in c.find_withtag(g):
+            self._items.pop(it, None)
+        c.delete(g)
+        for p in render.overlay(g, self.st):
+            o = p.opt
+            tags = (g,)
+            if p.kind == "line":
+                it = c.create_line(*p.xy, fill=o.get("fill"), tags=tags)
+            elif p.kind == "rect":
+                it = c.create_rectangle(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
+                                        width=o.get("width", 1), tags=tags)
+            elif p.kind == "oval":
+                it = c.create_oval(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
+                                   width=o.get("width", 1), tags=tags)
+            elif p.kind == "poly":
+                it = c.create_polygon(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
+                                      width=o.get("width", 1), tags=tags)
+            elif p.kind == "text":
+                font = ("Segoe UI", o.get("size", 8)) + (("bold",) if o.get("bold") else ())
+                it = c.create_text(*p.xy, text=o["text"], fill=o.get("fill"), font=font,
+                                   anchor=o.get("anchor", "center"), tags=tags)
+            elif p.kind == "sprite":
+                it = c.create_image(*p.xy, image=self._sprite_photo(o["tid"], o["size"]),
+                                    anchor="s", tags=tags)
+            else:
+                continue
+            if p.key is not None:
+                self._items[it] = p.key
+
+    def _sprite_photo(self, tid, size):
+        key = (tid, size)
+        ph = self._photos.get(key)
+        if ph is None:
+            from PIL import ImageTk
+            ph = self._photos[key] = ImageTk.PhotoImage(self.st.sprites.pil(tid, size))
+            if len(self._photos) > 512:
+                self._photos.pop(next(iter(self._photos)))
+        return ph
+
+    def _restack(self):
+        c = self.canvas
+        for g in ("bg",) + render.GROUPS + ("stroke", "preview"):
+            c.tag_raise(g)
+
+    # ---- previews drawn by tools ------------------------------------------- #
+    def preview_rect(self, tiles, color="#ffffff", tag="preview", dash=(3, 2)):
+        """Outline a tile rectangle (x0, y0, x1, y1 inclusive), or clear it with None."""
+        c = self.canvas
+        c.delete(tag)
+        if tiles is None:
+            return
+        cp = self.cp
+        x0, y0, x1, y1 = tiles
+        c.create_rectangle(min(x0, x1) * cp, min(y0, y1) * cp, (max(x0, x1) + 1) * cp,
+                           (max(y0, y1) + 1) * cp, outline=color, dash=dash, width=1, tags=(tag,))
+        c.tag_raise(tag)
+
+    def stroke_cells(self, cells, value):
+        """Draw painted cells straight onto the canvas while a stroke is in progress; the
+        background is rebuilt once when the stroke ends."""
+        cp = self.cp
+        rgb = self.colors.get(value) or attrs.ATTR_PALETTE[len(self.colors) % len(attrs.ATTR_PALETTE)]
+        col = "#%02x%02x%02x" % rgb
+        for (x, y) in cells:
+            self.canvas.create_rectangle(x * cp, y * cp, x * cp + cp, y * cp + cp, fill=col,
+                                         outline="", tags=("stroke",))
+        self.canvas.tag_raise("stroke")
+
+    def clear_stroke(self):
+        self.canvas.delete("stroke")
+
+    # ---- coordinates + hit-testing ----------------------------------------- #
+    def canvas_xy(self, e):
+        return self.canvas.canvasx(e.x), self.canvas.canvasy(e.y)
+
+    def tile_at(self, e, clamp=False):
+        d = self.doc
+        if d is None or d.grid is None:
+            return None
+        x, y = self.canvas_xy(e)
+        W, H, _ = d.grid
+        tx, ty = int(x // self.cp), int(y // self.cp)
+        if clamp:
+            return max(0, min(W - 1, tx)), max(0, min(H - 1, ty))
+        return (tx, ty) if 0 <= tx < W and 0 <= ty < H else None
+
+    def subunit_at(self, e):
+        """Pointer position in sub-units (8 per tile), clamped to the grid."""
+        d = self.doc
+        x, y = self.canvas_xy(e)
+        W, H, _ = d.grid
+        return (max(0, min(W * 8 - 1, int(x * 8 / self.cp))),
+                max(0, min(H * 8 - 1, int(y * 8 / self.cp))))
+
+    def edge_at(self, e):
+        """Nearest tile boundary (0..W, 0..H) under the pointer."""
+        d = self.doc
+        x, y = self.canvas_xy(e)
+        W, H, _ = d.grid
+        return (max(0, min(W, round(x / self.cp))), max(0, min(H, round(y / self.cp))))
+
+    def keys_at(self, e, slop=3):
+        """Selection keys under the pointer, topmost first."""
+        x, y = self.canvas_xy(e)
+        out = []
+        for it in reversed(self.canvas.find_overlapping(x - slop, y - slop, x + slop, y + slop)):
+            k = self._items.get(it)
+            if k is not None and k not in out:
+                out.append(k)
+        return out
+
+    def warp_at(self, e):
+        """Index of the warp zone containing the pointer (smallest zone wins)."""
+        t = self.tile_at(e)
+        d = self.doc
+        if t is None or not self.st.layers.get("mapj"):
+            return None
+        best = None
+        for j, rec in enumerate(d.map.mapj_records()):
+            x0, y0, x1, y1 = rec[1] >> 3, rec[2] >> 3, (rec[1] + rec[3]) >> 3, (rec[2] + rec[4]) >> 3
+            if x0 <= t[0] <= max(x1, x0) and y0 <= t[1] <= max(y1, y0):
+                area = (x1 - x0 + 1) * (y1 - y0 + 1)
+                if best is None or area < best[0]:
+                    best = (area, j)
+        return best[1] if best else None
+
+    # ---- zoom / scroll ------------------------------------------------------- #
+    def max_zoom(self):
+        d = self.doc
+        if d is None or d.grid is None:
+            return ZOOMS[-1]
+        W, H, _ = d.grid
+        return max(z for z in ZOOMS if z == ZOOMS[0] or max(W, H) * z <= MAX_CANVAS_PX)
+
+    def set_zoom(self, cp, anchor=None):
+        """Zoom to `cp` px per tile, keeping the canvas point under `anchor` (widget x, y)
+        fixed; without an anchor the view centre stays put."""
+        cp = max(ZOOMS[0], min(self.max_zoom(), int(cp)))
+        if cp == self.cp:
+            return
+        c = self.canvas
+        ax, ay = anchor if anchor else (c.winfo_width() / 2, c.winfo_height() / 2)
+        mx, my = c.canvasx(ax) / self.cp, c.canvasy(ay) / self.cp        # tile coords
+        self.st.cp = cp
+        self.invalidate_all()
+        self.flush()
+        if self.on_zoom:
+            self.on_zoom()
+        d = self.doc
+        if d is not None and d.grid:
+            W, H, _ = d.grid
+            tw, th = max(1, W * cp), max(1, H * cp)
+            c.xview_moveto(max(0.0, (mx * cp - ax) / tw))
+            c.yview_moveto(max(0.0, (my * cp - ay) / th))
+
+    def zoom_step(self, direction, anchor=None):
+        zs = [z for z in ZOOMS if z <= self.max_zoom()]
+        if direction > 0:
+            nxt = next((z for z in zs if z > self.cp), zs[-1])
+        else:
+            nxt = next((z for z in reversed(zs) if z < self.cp), zs[0])
+        self.set_zoom(nxt, anchor)
+
+    def fit(self):
+        """Largest zoom at which the whole map is visible. Before the canvas has been laid
+        out it has no size yet, so the fit waits for its first <Configure>."""
+        d = self.doc
+        if d is None or d.grid is None:
+            return
+        if self.canvas.winfo_width() < 50 or self.canvas.winfo_height() < 50:
+            if not getattr(self, "_fit_pending", False):
+                self._fit_pending = True
+
+                def later(_e=None):
+                    if self.canvas.winfo_width() >= 50:
+                        self._fit_pending = False
+                        self.canvas.unbind("<Configure>", self._fit_bind)
+                        self.fit()
+                self._fit_bind = self.canvas.bind("<Configure>", later, add="+")
+            return
+        W, H, _ = d.grid
+        cw = self.canvas.winfo_width()
+        ch = self.canvas.winfo_height()
+        fits = [z for z in ZOOMS if W * z <= cw and H * z <= ch and z <= self.max_zoom()]
+        self.set_zoom(fits[-1] if fits else ZOOMS[0])
+        if self.on_zoom:
+            self.on_zoom()
+        self.canvas.xview_moveto(0)
+        self.canvas.yview_moveto(0)
+
+    def center_on(self, tx, ty):
+        d = self.doc
+        if d is None or d.grid is None:
+            return
+        W, H, _ = d.grid
+        c = self.canvas
+        cw, ch = c.winfo_width(), c.winfo_height()
+        c.xview_moveto(max(0.0, (tx * self.cp - cw / 2) / max(1, W * self.cp)))
+        c.yview_moveto(max(0.0, (ty * self.cp - ch / 2) / max(1, H * self.cp)))
+
+    def _wheel(self, e):
+        self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
+
+    def _ctrl_wheel(self, e):
+        self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
+        return "break"
+
+    # ---- hover -------------------------------------------------------------- #
+    def _motion(self, e):
+        t = self.tile_at(e)
+        self._hover(t)
+        if e.state & 0x0004 and t is not None:          # Ctrl: ATTR inspector tooltip
+            v = self.doc.cell(*t)
+            self.show_tip(e, f"tile ({t[0]}, {t[1]})   ATTR = 0x{v:X}\n{attrs.attr_notes(v)}")
+            return
+        keys = self.keys_at(e)
+        k = next((k for k in keys if k[0] != "handle"), None)
+        text = self.describe_key(k) if k else None
+        if text:
+            self.show_tip(e, text)
+        else:
+            self.hide_tip()
+
+    def _hover(self, t):
+        d = self.doc
+        if t is None or d is None or d.grid is None:
+            self.status.config(text=f"zoom {self.cp} px/tile" if d else "")
+        else:
+            v = d.cell(*t)
+            self.status.config(text=f"tile ({t[0]}, {t[1]})   ATTR 0x{v:X}  {attrs.attr_notes(v)}"
+                                    f"      zoom {self.cp} px/tile")
+        if self.on_hover_tile:
+            self.on_hover_tile(t)
+
+    def describe_key(self, k):
+        d = self.doc
+        kind, i = k
+        if kind == "mobj" and i < len(d.objs):
+            o = d.objs[i]
+            tid = o["type_id"] & 0xFFFF
+            head = mobj_types.mobj_note(tid) or mobj_types.mobj_display_name(tid) or f"type {tid}"
+            return f"#{i}  {head}\n{o['category']}  tile ({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
+        if kind == "si" and d.si is not None and i < len(d.si.spots):
+            sp = d.si.spots[i]
+            return f"search spot #{i}  tile ({sp.tile_x}, {sp.tile_y})  {len(sp.pool.entries)} drop(s)"
+        if kind in ("gpos", "mpos"):
+            for pk, off, x, y, users in d.gate_points():
+                if (pk, off) == k:
+                    what = "gate position" if pk == "gpos" else "monster spawn point"
+                    return f"{what}  tile ({x >> 3}, {y >> 3})  used by {len(users)} gate(s)"
+        if kind == "spawn" and self.st.spawns and i < len(self.st.spawns):
+            sp = self.st.spawns[i]
+            return (f"{sp['name']} (char {sp['char_id']}, instance {sp['instance']})\n"
+                    f"placed by the event script -- click to open the line")
+        return None
+
+    def show_tip(self, e, text):
+        if self._tip is None:
+            self._tip = tk.Toplevel(self.canvas)
+            self._tip.wm_overrideredirect(True)
+            self._tip_label = tk.Label(self._tip, justify="left", bg="#222", fg="#eee",
+                                       font=("Consolas", 8), bd=1, relief="solid", padx=4, pady=2)
+            self._tip_label.pack()
+        if self._tip_label.cget("text") != text:
+            self._tip_label.config(text=text)
+        self._tip.wm_geometry(f"+{e.x_root + 14}+{e.y_root + 14}")
+
+    def hide_tip(self):
+        if self._tip is not None:
+            self._tip.destroy()
+            self._tip = None

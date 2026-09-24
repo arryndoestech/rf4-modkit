@@ -28,7 +28,8 @@ each format's spec and the IDA functions it was verified against are in
 tools/modding/
 ├── rf4mod.py            # the command-line tool (start here)
 ├── rf4mod_gui.py        # the graphical asset explorer (Tkinter)
-├── map_explorer.py      # the interactive map editor (render + place/move/paint/save)
+├── map_explorer.py      # launches the map editor (the map_editor/ package)
+├── map_editor/          # the map editor: map + SI + Gen editing with one undo history
 ├── script_explorer.py   # the cutscene / event-script editor (rf3.mc + rf3mc.<locale>)
 ├── gen_opcode_reference.py  # regenerates CUTSCENE_OPCODES.md + opcodes_list.csv from opcode_meta
 ├── gen_map_names_json.py    # regenerates docs/map_names.json (map id -> name, MAP_* file, minimap sheet)
@@ -172,9 +173,9 @@ You need a C build toolchain for the wheel-less platforms. Modern wheels exist f
 Windows / macOS / Linux x86_64 + arm64 — upgrade pip first
 (`pip install --upgrade pip`) and the wheel should grab the right binary.
 
-**Performance: map editor is slow on huge maps.** Reduce the cell-pixel zoom in
-the editor — every redraw rebuilds the composite PIL image at `(w*cp, h*cp)`. A
-78×75 grid at `cp=10` is 780×750 px; at `cp=20` it's 1560×1500 px (4× the work).
+**Performance: map editor is slow on huge maps at high zoom.** The background image is
+`(w*cp, h*cp)` pixels and is rebuilt when the grid or zoom changes (selections, drags and
+paint strokes do not rebuild it). Zoom out, or turn the ground texture off in the View tab.
 
 ## GUI: the asset explorer
 
@@ -195,7 +196,7 @@ files **read-on-demand** (so the 4.7 GB `bundleMain` is never loaded whole), or 
 | `.model` | **Textures** tab: every embedded BNTX card with preview / Export / Export all; **Replace texture…** swaps the selected card in place from a PNG · Structure tab |
 | `rf3mc.*` / TEXT | searchable string table; **Export → JSON** |
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON** |
-| `.rf4m` | **embedded Map editor** tab (rendered map + place/move/delete/paint + Save) · chunk list · ATTR heatmap · MOBJ table · read-only Hex |
+| `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*) · Events · Chunks · read-only Hex |
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
 | `Gen*.bin` | monster encounter table editor (gates/spawns, names, weights) |
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
@@ -217,77 +218,81 @@ a hex view if `Pillow`/`texture2ddecoder` aren't installed.
 
 ```bash
 python tools/modding/map_explorer.py                 # browse all 872 maps
-python tools/modding/map_explorer.py MAP_DUNG_A04     # open one map
+python tools/modding/map_explorer.py MAP_DUNG_A04     # open one map (name or .rf4m path)
 python tools/modding/rf4mod.py mapview MAP_DUNG_A04   # same, via the CLI
 ```
 
-The editor core (`MapEditorPanel`) is **embedded directly in the main GUI**: selecting
-any `.rf4m` opens it as the front **Map (edit)** tab, and its edits flow into the GUI's
-working copy (so `Extract…` saves them). The same panel also runs as a standalone window
-(below / the toolbar **Map Explorer** button) with a built-in map list.
+The editor (`map_editor.MapEditorPanel`) is **embedded in the main GUI**: selecting any
+`.rf4m` opens it as the front **Map (edit)** tab, and map edits flow into the GUI's working
+copy (so `Extract…` saves them). The same panel runs as a standalone window with a map list
+(`map_explorer.py`, or the GUI toolbar's **Map Explorer** button).
 
-It renders the `.rf4m` **ATTR collision/attribute grid** as a coloured
-image and overlays the placed **MOBJ entities** at their true tile position (`pos >> 3`,
-verified against `Tile_GetAttrAt`), coloured by category — 🟠 forage spawn points,
-🔴 actors (effects / gimmicks / doors), 🔵 objects, 🟢 decorations — plus 🟨 **MAPJ**
-transition zones. MOBJ types 9–19 are **map parameter records** (tint colours, UV scroll,
-ground depth …): they have no position, so they only appear in the **Entities** list.
+It edits a map **together with its two sidecar files** -- the search-item spots
+(`SI_*.bin`) and the area's encounter table (`Gen*.bin`) -- with **one undo history**
+across all three.
 
-**Object sprites:** toggle **"object sprites"** to draw each placed object as its real 2D
-billboard (the game renders objects as sprites, not 3D meshes) instead of a coloured dot —
-its `type_id` resolves to the `map_obj` sprite, decoded to an RGBA image and drawn at the
-object's tile. Structural objects (doors, walls, props; ~92% of object types) show their
-art; effect/trigger objects with no extractable sprite keep the dot.
+**Layout.** A toolbar (Save menu, Undo / Redo, tools, zoom, Validate) above the map canvas
+and a sidebar with six tabs:
 
-**View:** layer toggles (ATTR / grid lines / each entity category / object sprites / map-jumps),
-zoom (3–12 px/tile), pan, info panel (dimensions, map id, decoded MGRP group bits, display
-layers, linked `Gen*.bin` monster roster; the resource id too when an optional
-`rf4s_rooms.csv` is present), and **Export PNG**.
+| Tab | What it does |
+|---|---|
+| **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
+| **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, encounter points, script NPCs) and filterable; picking a row selects it and scrolls it into view |
+| **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
+| **Encounters** | the `Gen*.bin`: gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
+| **View** | layer toggles (ATTR fill, cell edges, grid lines, each entity category, object sprites, name labels, warps, warp destinations, search spots, encounter points, script NPCs), ground texture display + ATTR opacity, ground-art export / import, over-model preview |
+| **Problems** | validation of all three files; selecting an issue selects its object |
 
-**Edit** — a complete editor covering *every* aspect of the map, organised into tabs:
-- **Edit** tab — tool palette: **Select** (click an entity or warp to inspect/edit),
-  **Move** (drag an entity), **Add** (place a new entity of a chosen `type_id`),
-  **Delete**, **Paint ATTR** (set collision/attribute cells). Entity editor exposes
-  **all 16 MOBJ fields**.
-- **Props** tab — map header, labelled by what the loader does with each chunk:
-  **Season tag** (MSEA — stored, never read), **Group bits** (MGRP — fixed ambience
-  season, no-weather bit, one-hot area group for BGM/minimap; decoded live; the loader
-  crashes without it), **Day / Evening / Night tint** (MLIG — `r,g,b`, blank = engine
-  default; stock maps leave these default and use three type-12 records instead),
-  **display layers** (the MTXN chunk *count*: 1 = ground only, 2 = ground + overlay;
-  the MTXN value is never read).
-- **Warps** tab — the **MAPJ** map-transitions: list / add / edit / delete, with the
-  zone rectangle (x, y, w, h in sub-units), the destination map id, arrival (x, y) in
-  the target map, the arrival **facing** in degrees, and the **off-flag** (a per-map
-  scene-flag id that disables the warp while set, -1 = always on). Clicking a warp on
-  the map selects it here.
-- **Chunks** tab — **raw hex editor for ANY chunk** (incl. PALD palettes), plus
-  add/delete arbitrary chunks — the catch-all for anything not covered by a structured
-  editor. (Note the loader stops at the first tag it does not know — Validate tells you.)
-- **Validate** — checks the map against the loader's actual rules: unknown chunk tags,
-  missing MGRP / ATTR / MTXN, the fixed pointer-array capacities (10 MAPJ, 40 MOBJ,
-  6 MTXN chunks), multi-record chunks (only the first record is read), MOBJ types past
-  the sprite band, objects and zones off the grid, warps to unknown maps, **and the
-  ground atlas against the ATTR grid** (below). Same checks as `rf4mod map validate`.
+**Tools** (toolbar or key while the map has focus):
 
-- **Undo / Redo** (40-deep, Ctrl+Z / Ctrl+Y) covers every map edit, including the
-  Resize grid dialog. An Apply that changes nothing records no step, and a half-applied
-  form (say MSEA set, then a bad MGRP value) is rolled back as a whole.
-- **Click vs. drag** — a press only becomes a drag after the pointer travels 4 px, so
-  selecting an entity or warp never nudges it. A dragged warp keeps its exact sub-unit offset
-  and size; only a dragged *edge* snaps to the tile boundary under the cursor.
-- **Resize grid…** (Props tab) — change the ATTR grid size with a live preview of everything
-  it invalidates (the list below), then apply it as one undoable step.
-- **Unsaved changes are guarded** — switching map (list, File, or Ctrl+click through a warp)
-  or closing asks first, for the map *and* its search-item / encounter files. **Save map…**
-  warns before writing a map the loader would choke on. Search-item edits save through a
-  Save dialog like everything else (they used to overwrite the extracted `SI_*.bin` in place).
-- The **chunk editor** refuses a raw edit that would leave the map unreadable (e.g. an ATTR
-  payload that no longer matches its width × height), instead of crashing mid-reload.
+| Tool | Key | Use |
+|---|---|---|
+| Select | V | click selects, drag moves (whole tiles, keeping the sub-tile offset; hold Shift for free placement); a selected warp shows 8 handles to resize it; double-click / Ctrl+click a warp opens its destination |
+| Paint | B | paint the ATTR value with a 1-9 tile brush (`[` / `]`); right-click picks a value; Shift+click draws a line from the last painted tile |
+| Fill | G | flood-fill the clicked region, or replace that value on the whole map |
+| Rectangle | R | drag a rectangle and fill it |
+| Pick | I | take a tile's value, then return to the previous tool |
+| Add | A | place an entity (searchable type list), a search spot, a gate position or a monster spawn point |
+| Warp | W | drag out a new warp zone |
 
-Every edit goes through verified `rf4m` writers (`add/delete/set_mobj_record`,
-`add/delete/set_mapj_record`, `set_attr_cell`, `get/set_ints`, `add/delete/set_chunk*`)
-and re-serialises a byte-valid map.
+The ATTR value for Paint / Fill / Rectangle is set with one checkbox per flag, a dropdown
+for the surface field (the loader keeps at most one of those per tile, so two cannot be
+picked), presets, a raw hex entry, or a click in the list of values the map already uses.
+Hover any flag for what the game does with it (and whether that is known at all).
+
+**Keys:** Ctrl+Z / Ctrl+Y undo / redo · Ctrl+S saves every changed file · Delete removes
+the selection · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
+/ `0` zoom / fit · Ctrl+wheel zooms at the pointer · middle-drag pans · Ctrl+hover a tile
+shows its ATTR decode.
+
+**Editing rules.** Every field commits on Enter or when it loses focus, as one undo step,
+and only when the value changed; a failed edit restores the files and says why. A press
+becomes a drag only after 4 px, so clicking never nudges anything, and a whole drag or
+paint stroke is one step. **Unsaved changes are guarded** -- switching map (list, file,
+warp) or closing asks first, for the map *and* its sidecars -- and every file saves through
+its own Save dialog (never over the game's extracted files); **Save map** warns before
+writing a map the loader would choke on. The raw chunk editor refuses an edit that would
+leave the map unreadable. **Export PNG** (Save menu) writes exactly the current view,
+transparent where no base layer is drawn.
+
+**Validate** checks the map against the loader's actual rules: unknown chunk tags, missing
+MGRP / ATTR / MTXN, the fixed pointer-array capacities (10 MAPJ, 40 MOBJ, 6 MTXN chunks),
+multi-record chunks (only the first record is read), MOBJ types past the sprite band,
+objects and zones off the grid, warps to unknown maps, **the ground atlas against the ATTR
+grid** (below) -- the same checks as `rf4mod map validate` -- plus the encounter table
+(weights vs. spawn points, empty tables, ids outside the gate / monster ranges) and the
+search spots (empty pools, one-byte weight wrap, spots off the grid).
+
+**Script NPCs:** actors the map's *event script* places (`EventSpawnNpc` in the map's
+`rf3.mc` bank -- NPCs and interactibles such as char 269 "Search") are not in the `.rf4m`;
+the *script NPCs* layer shows them, and clicking one opens its script line in the
+Cutscene editor.
+
+Code: `map_editor/` -- `document` (files, undo, dirty tracking), `render` (ground loader,
+background, overlay primitives shared by canvas and PNG), `view` (canvas), `tools`,
+`inspector`, `tabs`, `dialogs`, `panel`, `app`, `attrs` (what every ATTR bit means),
+`data` (map ids, sidecar files, names). Every map edit goes through the verified `rf4m`
+writers and re-serialises a byte-valid map.
 
 ### Resizing a map, and why the atlas check exists
 

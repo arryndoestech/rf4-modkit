@@ -1,4 +1,4 @@
-"""Small Tk helpers shared by the toolkit's GUIs (rf4mod_gui, map_explorer, script_explorer)."""
+"""Small Tk helpers shared by the toolkit's GUIs (rf4mod_gui, map_editor, script_explorer)."""
 from __future__ import annotations
 
 import tkinter as tk

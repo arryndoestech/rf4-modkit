@@ -81,10 +81,10 @@ def _load_item_names() -> dict[int, str]:
 
 def _find_extracted(basename: str):
     """Locate a bundle file by basename (for cross-file resolution, e.g. rf3PresentCategory).
-    Uses map_explorer's cached index of the extracted tree instead of an rglob per call."""
+    Uses the map editor's cached index of the extracted tree instead of an rglob per call."""
     try:
-        import map_explorer
-        hit = map_explorer.find_extracted(basename)
+        import map_editor
+        hit = map_editor.find_extracted(basename)
         return hit.read_bytes() if hit else None
     except Exception:
         return None
@@ -251,10 +251,8 @@ class App:
     def _warm_caches(self):
         def work():
             try:
-                import map_explorer
-                map_explorer.extracted_index()
-                map_explorer._load_rooms()
-                map_explorer.load_item_name_cache()
+                import map_editor
+                map_editor.warm_caches()
             except Exception:
                 pass
         import threading
@@ -849,9 +847,9 @@ class App:
             return nb, panel
         nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
         try:
-            import map_explorer
+            import map_editor
             mapframe = ttk.Frame(nb); nb.add(mapframe, text="Map (edit)")
-            panel = map_explorer.MapEditorPanel(
+            panel = map_editor.MapEditorPanel(
                 mapframe, m, name,
                 status_fn=lambda s_: self.status.config(text=s_),
                 on_change=lambda b: setattr(self, "cur_data", b),
@@ -959,14 +957,14 @@ class App:
         """'Events' tab: the cutscene/event scenes tied to THIS map. rf3.mc's 872 tail
         banks are 1:1 with the 872 rooms, so a map's events live in tail[mapId]. Lists
         those scenes with dialogue previews; opens them in the full Cutscene Editor."""
-        import map_explorer
+        import map_editor
         frame = ttk.Frame(nb)
         nb.add(frame, text="Events")
         info = ttk.Label(frame, anchor="w", wraplength=940, justify="left")
         info.pack(fill="x", padx=6, pady=(6, 2))
 
         stem = pathlib.Path(name).stem
-        rooms = map_explorer._load_rooms()             # {name: (mapId, resourceId)}
+        rooms = map_editor.load_rooms()                # {name: (mapId, resourceId)}
         mid, resolved = None, stem
         for cand in (stem, *self._season_bases(stem)):
             if cand in rooms:
@@ -2867,12 +2865,12 @@ class App:
 
     # ---- extract / export ------------------------------------------------ #
     def cmd_map_explorer(self):
-        """Open the full map explorer in a separate window, seeded with the current map."""
-        import map_explorer
+        """Open the standalone map editor in a separate window, seeded with the current map."""
+        import map_editor
         seed = None
         if self.cur_name and self.cur_name.lower().endswith(".rf4m"):
             seed = self.cur_name
-        map_explorer.MapExplorer(tk.Toplevel(self.root), initial=seed)
+        map_editor.MapExplorer(tk.Toplevel(self.root), initial=seed)
 
     def cmd_cutscene_editor(self):
         """Open the cutscene / event-script editor (rf3.mc + rf3mc.<locale>) in a window.

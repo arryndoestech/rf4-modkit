@@ -2816,8 +2816,8 @@ def cmd_gen_validate(a):
 # --------------------------------------------------------------------------- #
 def cmd_mapview(a):
     """Launch the graphical map explorer (optionally seeded with a map)."""
-    import map_explorer
-    map_explorer.main([a.map] if a.map else [])
+    import map_editor
+    map_editor.main([a.map] if a.map else [])
 
 
 def cmd_selftest(a):

@@ -4681,15 +4681,46 @@ def test_script_explorer_authoring():
                 pass
 
 
+def _headless_dialogs():
+    """Replace every blocking tk dialog with a scripted answer; returns the answer box."""
+    from tkinter import messagebox, filedialog, simpledialog
+    box = {"yesnocancel": None, "yesno": True, "save": "", "msgs": []}
+    for fn in ("showinfo", "showerror", "showwarning"):
+        setattr(messagebox, fn, lambda t="", m="", **k: box["msgs"].append((t, str(m))))
+    messagebox.askyesnocancel = lambda *a, **k: box["yesnocancel"]
+    messagebox.askyesno = lambda *a, **k: box["yesno"]
+    filedialog.asksaveasfilename = lambda *a, **k: box["save"]
+    filedialog.askopenfilename = lambda *a, **k: ""
+    simpledialog.askstring = lambda *a, **k: box.get("askstring")
+    return box
+
+
+def _map_editor():
+    """Import the map_editor package (the modding folder is already on sys.path)."""
+    import map_editor
+    return map_editor
+
+
+def _headless_panel(name, B, reader=None):
+    """(root, panel, errors) for a hidden MapEditorPanel on `name` from folder B."""
+    import tkinter as tk
+    me = _map_editor()
+    from rf4s_modkit import rf4m as _rf4m
+    root = tk.Tk()
+    root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    panel = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / (name + ".rf4m")), name,
+                              tex_reader=reader)
+    root.update_idletasks()
+    return root, panel, errs
+
+
 def test_attr_tooltips():
     """The Paint ATTR controls must cover every bit that occurs in a shipped map,
     describe each one honestly, and make an impossible tile impossible to paint."""
-    print("map editor: Paint ATTR controls + Ctrl-hover help:")
-    import importlib.util, pathlib
-    p = pathlib.Path(__file__).with_name("map_explorer.py")
-    spec = importlib.util.spec_from_file_location("map_explorer_t", p)
-    mx = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mx)
+    print("map editor: Paint ATTR controls + hover help:")
+    mx = _map_editor()
 
     boxes = [b for _a, b in mx.PAINT_FLAGS]
     surf = [b for _a, b in mx.SURFACE_CHOICES if b]
@@ -4714,7 +4745,7 @@ def test_attr_tooltips():
            "%d distinct" % len(set(boxes)))
 
     nohelp = [hex(b) for b in sorted(controls) if b not in mx.ATTR_BIT_HELP]
-    _check("every control has Ctrl-hover help", not nohelp,
+    _check("every control has hover help", not nohelp,
            nohelp or "%d described" % len(controls))
     orphan = [hex(b) for b in mx.ATTR_BIT_HELP if b not in controls]
     _check("no help for a control that isn't there", not orphan, orphan or "none")
@@ -4747,25 +4778,24 @@ def test_attr_tooltips():
            "dropdown tooltip names all 7")
     _check("attr_bit_help tolerates an unknown bit",
            "No description" in mx.attr_bit_help(0x80000000), "falls back cleanly")
+    from map_editor import attrs as A
+    v = A.compose_value(0x80000001, {0x2}, "snow")
+    _check("the flag controls keep bits they do not own and set one surface",
+           v == 0x80020002 and A.surface_label(v) == "snow", hex(v))
 
 
 def test_ground_texture_replacement():
     """The map editor's ground export/import must round-trip a real map: same grid,
     same tile count, same per-tile dimensions, same format, and visually lossless."""
     print("map editor: ground-texture export/import:")
-    import importlib.util, pathlib, tempfile
+    import tempfile
     try:
-        import tkinter as tk
+        import tkinter as tk  # noqa: F401
         from PIL import Image, ImageChops  # noqa: F401
     except Exception as e:
         _check("ground replacement", True, "skipped (no tkinter/PIL: %s)" % e)
         return
-    p = pathlib.Path(__file__).with_name("map_explorer.py")
-    spec = importlib.util.spec_from_file_location("map_explorer_g", p)
-    mx = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mx)
-    from rf4s_modkit import rf4m, texture
-
+    from rf4s_modkit import texture, mapground
     B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
     if not B.exists():
         _check("ground replacement", True, "skipped (no extracted bundleMain)")
@@ -4775,35 +4805,31 @@ def test_ground_texture_replacement():
         f = B / n
         return f.read_bytes() if f.exists() else None
 
-    root = tk.Tk()
-    root.withdraw()
+    name = "MAP_CITY_00"
+    root, panel, _errs = _headless_panel(name, B, reader)
     try:
-        name = "MAP_CITY_00"
-        m = rf4m.Rf4mMap.load(B / (name + ".rf4m"))
-        panel = mx.MapEditorPanel(root, m, name, tex_reader=reader)
-        root.update_idletasks()
-
-        layer, note = panel._ground_layer_choice()
+        from map_editor.tabs import LAYER_NAMES
+        layer, note = panel.ground_layer_choice()
         _check("a ground layer is resolvable", layer is not None, note or "layer %s" % layer)
         if layer is None:
             return
 
-        info = panel._ground_info(layer)
+        info = panel.ground_info(layer)
         # the set is resolved from the game's table, not assumed to be the map name
         _check("grid matches ceil(24*ATTR/512)",
-               (info["cols"], info["rows"]) == mx.mapground.grid_dims(180, 45),
+               (info["cols"], info["rows"]) == mapground.grid_dims(180, 45),
                "%dx%d for a 180x45 map" % (info["cols"], info["rows"]))
         _check("tile count == cols*rows",
                len(info["tiles"]) == info["cols"] * info["rows"],
                "%d tiles" % len(info["tiles"]))
 
         tmp = pathlib.Path(tempfile.mkdtemp())
-        lay = panel._ground_export_to(tmp / "g.png", layer)
+        lay = panel.ground_export_to(tmp / "g.png", layer)
         _check("export writes a PNG at the atlas extent",
                (tmp / "g.png").exists() and lay["image_size"] == (180 * 24, 45 * 24),
                "%dx%d == ATTR 180x45 * 24" % lay["image_size"])
 
-        names = panel._ground_import_from(tmp / "g.png", tmp / "out", layer, "keep")
+        names = panel.ground_import_from(tmp / "g.png", tmp / "out", layer, "keep")
         _check("import writes one file per tile", len(names) == len(info["tiles"]),
                "%d files" % len(names))
 
@@ -4828,38 +4854,35 @@ def test_ground_texture_replacement():
                "worst tile mean abs error %.2f / 255" % worst)
 
         # a wrong-sized image must be refused, not silently rescaled
-        bad = Image.new("RGBA", (64, 64), (255, 0, 0, 255))
-        bad.save(tmp / "bad.png")
+        Image.new("RGBA", (64, 64), (255, 0, 0, 255)).save(tmp / "bad.png")
         refused = False
         try:
-            panel._ground_import_from(tmp / "bad.png", tmp / "out2", layer, "keep")
+            panel.ground_import_from(tmp / "bad.png", tmp / "out2", layer, "keep")
         except Exception:
             refused = True
         _check("a wrong-sized PNG is refused", refused, "import validates the extent")
 
-        # --- the export layer must be chosen explicitly, not inherited from the
-        # --- display dropdown, and layer 1 must work as well as layer 0
-        avail = mx.mapground.available_layers(reader, name)
-        picker = list(panel.ground_layer_combo["values"])
+        # --- the export layer is chosen explicitly, not inherited from the display
+        # --- dropdown, and layer 1 works as well as layer 0
+        avail = mapground.available_layers(reader, name)
+        picker = list(panel.viewtab.glayer_cb["values"])
         _check("layer picker lists exactly the real layers",
-               picker == [panel._LAYER_NAMES.get(l, str(l)) for l in avail],
+               picker == [LAYER_NAMES.get(l, str(l)) for l in avail],
                "%s for layers %s" % (picker, avail))
 
-        panel.tex_layer.set("all")          # display says "all"...
-        panel.ground_layer.set(picker[-1])  # ...picker says the last layer
-        got, _n = panel._ground_layer_choice()
+        panel.set_ground_display("all")          # display says "all"...
+        panel.viewtab.glayer.set(picker[-1])     # ...picker says the last layer
+        got, _n = panel.ground_layer_choice()
         _check("display dropdown does not decide the export layer",
                got == avail[-1], "picker %r wins over display 'all' -> layer %s" % (picker[-1], got))
 
         if len(avail) > 1:
             l1 = avail[-1]
-            panel.ground_layer.set(picker[-1])
-            lay1 = panel._ground_export_to(tmp / "g1.png", l1)
-            n1 = panel._ground_import_from(tmp / "g1.png", tmp / "out1", l1, "keep")
+            lay1 = panel.ground_export_to(tmp / "g1.png", l1)
+            n1 = panel.ground_import_from(tmp / "g1.png", tmp / "out1", l1, "keep")
             _check("layer %d exports and re-imports" % l1,
                    len(n1) == len(lay1["tiles"]) and (tmp / "g1.png").exists(),
                    "%d tiles, image %dx%d" % (len(n1), lay1["image_size"][0], lay1["image_size"][1]))
-            # the overlay is mostly transparent, so alpha has to survive the round-trip
             import numpy as _np
             worst_a = 0.0
             has_alpha = False
@@ -4879,191 +4902,246 @@ def test_ground_texture_replacement():
 
 
 def test_map_editor_undo():
-    """Undo/redo must move the DISPLAYED attribute grid, not just the map object.
-
-    The renderer draws from a cached grid, so a restore that only swapped the map left
-    painted cells on screen until the next paint refreshed the cache by accident."""
-    print("map editor: undo/redo refreshes the displayed ATTR grid:")
-    import importlib.util, pathlib
+    """Undo/redo covers the map AND its sidecars as one history, moves the DISPLAYED grid
+    (the renderer draws from a cache), and an undone edit is not 'unsaved'."""
+    print("map editor: one undo history across map / search items / encounters:")
     try:
-        import tkinter as tk
+        import tkinter as tk  # noqa: F401
     except Exception as e:
-        _check("undo refresh", True, "skipped (no tkinter: %s)" % e)
-        return
-    p = pathlib.Path(__file__).with_name("map_explorer.py")
-    spec = importlib.util.spec_from_file_location("map_explorer_u", p)
-    mx = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mx)
-    from rf4s_modkit import rf4m
-
+        _skip("map editor undo", "no tkinter: %s" % e); return
     B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
-    mp = B / "MAP_FIELD_81.rf4m"
-    if not mp.exists():
-        _check("undo refresh", True, "skipped (no extracted bundleMain)")
-        return
-
-    root = tk.Tk()
-    root.withdraw()
+    if not (B / "MAP_DUNG_A04.rf4m").exists():
+        _skip("map editor undo", "no extracted bundleMain"); return
+    root, panel, errs = _headless_panel("MAP_DUNG_A04", B)
     try:
-        panel = mx.MapEditorPanel(root, rf4m.Rf4mMap.load(mp), "MAP_FIELD_81")
-        root.update_idletasks()
-        w, _h, _c = panel.grid
+        d = panel.doc
+        w = d.grid[0]
+        orig = {p: d._bytes(p) for p in ("map", "si", "gen")}
 
         def shown(x, y):
-            return panel.grid[2][y * w + x]
+            return d.grid[2][y * w + x]
 
-        def actual(x, y):
-            return panel.map.attr_grid()[2][y * w + x]
-
-        base = shown(20, 20)
-        _check("display starts in sync with the map", base == actual(20, 20),
-               "0x%X" % base)
-
-        # paint three different cells, snapshotting like the paint tool does
         painted = [(20, 20, 0x20001), (21, 20, 0x2), (22, 21, 0x4001)]
         for x, y, v in painted:
-            panel._snapshot()
-            panel.map.set_attr_cell(x, y, v)
-            panel.grid = panel.map.attr_grid()
-        _check("paints landed", all(shown(x, y) == v for x, y, v in painted),
-               "3 cells painted")
-
-        # undo them one at a time; the display must follow every step
+            with d.edit("paint", "attr"):
+                d.set_cells({(x, y): v})
+        _check("paints landed and each is one step", all(shown(x, y) == v for x, y, v in painted)
+               and len(d.undo_stack) == 3)
         ok = True
         for x, y, _v in reversed(painted):
-            panel._undo_op()
-            if shown(x, y) != actual(x, y):
-                ok = False
-        _check("undo moves the displayed grid, not just the map", ok,
-               "display == map after each of 3 undos")
-        _check("undo restored the original value", shown(20, 20) == base,
-               "back to 0x%X" % shown(20, 20))
-
-        # and redo puts them back, still in sync
-        ok = True
-        for x, y, v in painted:
-            panel._redo_op()
-            if shown(x, y) != v or shown(x, y) != actual(x, y):
-                ok = False
-        _check("redo re-applies and stays in sync", ok, "3 redos")
-
-        # a value that only exists after a restore must still get a colour, or the
-        # renderer would raise on it
-        missing = [v for v in set(panel.grid[2]) if v not in panel._value_colors]
-        _check("every displayed value has a colour", not missing,
-               [hex(v) for v in missing] or "%d values" % len(set(panel.grid[2])))
+            panel.undo()
+            ok &= shown(x, y) == d.map.attr_grid()[2][y * w + x]
+        _check("undo moves the displayed grid, not just the map", ok, "display == map after 3 undos")
+        for _ in painted:
+            panel.redo()
+        _check("redo re-applies", all(shown(x, y) == v for x, y, v in painted))
+        root.update()
+        missing = [hex(v) for v in set(d.grid[2]) if v not in panel.view.colors]
+        _check("every displayed value has a colour", not missing, missing or "%d values" % len(set(d.grid[2])))
+        # sidecar edits share the history
+        with d.edit("move spot", "si"):
+            d.si.spots[0].x += 8
+        with d.edit("add monster", "gen"):
+            d.gen.add_spawn(next(d.gen.all_entries())[2], 60, 5)
+        _check("map, SI and Gen edits all count as unsaved",
+               panel.dirty_parts() == ["map", "search items", "encounters"], panel.dirty_parts())
+        while d.undo_stack:
+            panel.undo()
+        _check("undoing everything restores all three files byte-exact",
+               all(d._bytes(p) == orig[p] for p in orig) and not panel.is_dirty())
+        # a failing edit leaves no trace
+        try:
+            with d.edit("bad", "mobj"):
+                d.map.set_mobj_record(0, [7] * 16)
+                raise ValueError("refused")
+        except ValueError:
+            pass
+        _check("a failed edit is rolled back and records nothing",
+               d._bytes("map") == orig["map"] and not d.undo_stack)
+        _check("no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()
 
 
-
-def _headless_dialogs():
-    """Replace every blocking tk dialog with a scripted answer; returns the answer box."""
-    from tkinter import messagebox, filedialog, simpledialog
-    box = {"yesnocancel": None, "yesno": True, "save": "", "msgs": []}
-    for fn in ("showinfo", "showerror", "showwarning"):
-        setattr(messagebox, fn, lambda t="", m="", **k: box["msgs"].append((t, str(m))))
-    messagebox.askyesnocancel = lambda *a, **k: box["yesnocancel"]
-    messagebox.askyesno = lambda *a, **k: box["yesno"]
-    filedialog.asksaveasfilename = lambda *a, **k: box["save"]
-    filedialog.askopenfilename = lambda *a, **k: ""
-    simpledialog.askstring = lambda *a, **k: box.get("askstring")
-    return box
-
-
 def test_map_editor_workflows():
-    """Map editor bugs fixed 2026-09-24: a click (with pointer jitter) on an entity or warp
-    must not move/re-snap it; no-op Apply buttons must not record undo steps; undo must drop
-    the stale entity fields (a focus-out used to re-apply the undone edit); real drags keep a
-    warp's sub-unit offset; the chunk editor refuses edits that leave the map unreadable;
-    unsaved map / SI / Gen edits are guarded; SI saves never overwrite the game's file."""
-    print("map editor: workflows (click vs drag, no-op applies, undo, unsaved guard):")
-    import importlib.util, tempfile, types
+    """The map editor as a user drives it: a click with pointer jitter moves nothing; a
+    drag is one undo step and keeps a warp's sub-unit offset; forms commit only real
+    changes and never re-apply an undone value; paint / fill / rectangle / pick; the Add
+    and Warp tools; the chunk editor refuses edits that break the map; validation lists
+    problems and jumps to them; the export matches the view; unsaved edits are guarded and
+    sidecar saves never overwrite the game's files."""
+    print("map editor: workflows (tools, forms, chunks, validation, unsaved guard):")
+    import tempfile, types
     try:
-        import tkinter as tk
+        import tkinter as tk  # noqa: F401
     except Exception as e:
         _skip("map editor workflows", "no tkinter: %s" % e); return
     B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
-    mp = B / "MAP_CITY_06.rf4m"
-    if not mp.exists():
+    if not (B / "MAP_CITY_06.rf4m").exists():
         _skip("map editor workflows", "no extracted bundleMain"); return
-    spec = importlib.util.spec_from_file_location("map_explorer_w", pathlib.Path(__file__).with_name("map_explorer.py"))
-    mx = importlib.util.module_from_spec(spec); spec.loader.exec_module(mx)
     box = _headless_dialogs()
-    root = tk.Tk(); root.withdraw()
-    errs = []
-    root.report_callback_exception = lambda *a: errs.append(a)
+    root, panel, errs = _headless_panel("MAP_CITY_06", B)
     try:
-        orig = mp.read_bytes()
-        panel = mx.MapEditorPanel(tk.Frame(root), rf4m.Rf4mMap.parse(orig), "MAP_CITY_06")
-        panel._set_zoom(6); root.update_idletasks()
-        cp = panel.cellpx
-        E = lambda x, y: types.SimpleNamespace(x=int(x), y=int(y), widget=panel.canvas, state=0)
-        # no-op applies: entity / props / warp / chunk
-        for i in range(len(panel.objs)):
-            panel._show_entity(i); panel._apply_entity(silent=True)
-        panel._apply_props()
-        for j in range(len(panel.map.mapj_records())):
-            panel.warp_list.selection_clear(0, "end"); panel.warp_list.selection_set(j)
-            panel._warp_selected(); panel._warp_apply()
-        for i in range(len(panel.map.chunks)):
-            panel.chunk_tree.selection_set(str(i)); panel._chunk_selected(); panel._chunk_apply()
-        _check("no-op Apply (entity/props/warp/chunk) changes nothing and records no undo",
-               panel.map.build() == orig and not panel._undo, f"{len(panel._undo)} undo steps")
-        # click with 1px jitter on an entity near a tile edge (143 = 7/8 into its tile) + a warp
-        o = next(o for o in panel.objs if o["pos_x"] == 143)
-        cx, cy = o["pos_x"] * cp / 8.0, o["pos_y"] * cp / 8.0
-        panel.tool.set("select")
-        panel._on_press(E(cx, cy)); panel._on_drag(E(cx + 1, cy)); panel._on_release(E(cx + 1, cy))
-        w0 = panel.map.mapj_records()[0]
-        tx, ty = (w0[1] + w0[3] // 2) >> 3, (w0[2] + w0[4] // 2) >> 3
-        panel._select(None); panel._redraw()
-        wx, wy = tx * cp + cp // 2, ty * cp + cp // 2
-        panel._on_press(E(wx, wy)); panel._on_drag(E(wx + 1, wy)); panel._on_release(E(wx + 1, wy))
+        d = panel.doc
+        orig = d.map.build()
+        panel.view.set_zoom(6)
+        root.update_idletasks()
+        cp = panel.view.cp
+        c = panel.view.canvas
+
+        def E(x, y, state=0):          # canvas coordinates -> a synthetic event
+            return types.SimpleNamespace(x=int(x - c.canvasx(0)), y=int(y - c.canvasy(0)),
+                                         state=state, widget=c, x_root=0, y_root=0)
+
+        def click_drag(x0, y0, x1, y1, state=0):
+            panel._press(E(x0, y0, state)); panel._drag(E(x1, y1, state)); panel._release(E(x1, y1, state))
+            panel.view.flush()
+
+        # ---- forms: committing unchanged values is a no-op -------------------------
+        ef = panel.inspector.forms["mobj"]
+        for i in range(len(d.objs)):
+            panel.select(("mobj", i))
+            ef._commit_pos(); ef._commit_field(6, ef.vscale); ef._commit_field(7, ef.vrot)
+            for fi in range(16):
+                if ef.rows[fi][1].winfo_manager():
+                    ef._commit_param(fi)
+        wf = panel.inspector.forms["warp"]
+        for j in range(len(d.map.mapj_records())):
+            panel.select(("warp", j)); wf._commit()
+        mt = panel.maptab
+        mt._commit_msea(); mt._commit_mgrp_hex(); mt._commit_mgrp_controls()
+        for i in range(3):
+            mt._commit_tint_text(i)
+        _check("committing every form unchanged changes nothing and records no undo",
+               d.map.build() == orig and not d.undo_stack, f"{len(d.undo_stack)} steps")
+        panel.select(None)
+
+        # ---- select tool: jitter is a click, a drag is one step -------------------
+        panel.set_tool("select")
+        o = next(o for o in d.objs if o["pos_x"] == 143)          # 7/8 into its tile
+        ox, oy = o["pos_x"] * cp / 8.0, o["pos_y"] * cp / 8.0
+        click_drag(ox, oy, ox + 1, oy)
+        w0 = d.map.mapj_records()[0]
+        wx, wy = ((w0[1] + w0[3] // 2) >> 3) * cp + cp // 2, ((w0[2] + w0[4] // 2) >> 3) * cp + cp // 2
+        panel.select(None)
+        click_drag(wx, wy, wx + 1, wy)
         _check("a click with pointer jitter moves neither an entity near a tile edge nor a warp",
-               panel.map.build() == orig and not panel._undo)
-        # a real warp drag keeps the sub-unit offset and size
-        panel._select(None); panel._redraw()
-        panel._on_press(E(wx, wy)); panel._on_drag(E(wx, wy + 2 * cp)); panel._on_release(E(wx, wy + 2 * cp))
-        w1 = panel.map.mapj_records()[0]
-        _check("dragging a warp 2 tiles keeps its exact sub-unit x / w / h",
-               (w1[1], w1[2], w1[3], w1[4]) == (w0[1], w0[2] + 16, w0[3], w0[4]), f"{w0[1:5]} -> {w1[1:5]}")
-        panel._undo_op()
-        # edit an entity, undo, then focus-out must not bring the edit back
-        i = next(i for i, o in enumerate(panel.objs) if o["category"] != "mapparam")
-        panel._show_entity(i)
-        panel.ent_fields[14].set(str(panel.map.mobj_records()[i][14] + 8))
-        panel._apply_entity(silent=True); panel._undo_op(); panel._apply_entity(silent=True)
-        _check("undo then focus-out does not re-apply the undone entity edit", panel.map.build() == orig)
-        # chunk editor: a truncated ATTR is refused and rolled back
-        ai = next(k for k, c in enumerate(panel.map.chunks) if c.tag == b"ATTR")
-        panel.chunk_tree.selection_set(str(ai)); panel._chunk_selected()
-        panel.chunk_hex.delete("1.0", "end"); panel.chunk_hex.insert("end", "00" * 20)
-        panel._chunk_apply()
-        panel.new_chunk_tag.set("ÄBCD"); panel._chunk_add()
+               d.map.build() == orig and not d.undo_stack)
+        panel.select(None)
+        click_drag(wx, wy, wx, wy + 2 * cp)
+        w1 = d.map.mapj_records()[0]
+        _check("dragging a warp 2 tiles is one step and keeps its exact sub-unit x / w / h",
+               (w1[1], w1[2], w1[3], w1[4]) == (w0[1], w0[2] + 16, w0[3], w0[4]) and len(d.undo_stack) == 1,
+               f"{w0[1:5]} -> {w1[1:5]}")
+        panel.undo()
+        i = next(k for k, o in enumerate(d.objs) if o["category"] != "mapparam" and o["pos_x"] and o["pos_y"])
+        r0 = d.map.mobj_records()[i]
+        ex, ey = r0[14] * cp / 8.0, r0[15] * cp / 8.0
+        click_drag(ex, ey, ex + 3 * cp, ey + cp)
+        r1 = d.map.mobj_records()[i]
+        _check("dragging an entity moves it by whole tiles and keeps its sub-tile offset",
+               (r1[14] - r0[14], r1[15] - r0[15]) == (24, 8) and panel.sel == ("mobj", i),
+               f"{r0[14:16]} -> {r1[14:16]}")
+        panel.undo()
+
+        # ---- a form edit, undo, then the old focus-out must not bring it back -----
+        panel.select(("mobj", i))
+        ef.vx.set(str(r0[14] + 8)); ef._commit_pos()
+        panel.undo(); ef._commit_pos()
+        _check("undo then focus-out does not re-apply the undone entity edit", d.map.build() == orig)
+
+        # ---- paint tools ----------------------------------------------------------
+        panel.set_tool("paint"); panel.set_paint_value(0x4001); panel.set_brush(3)
+        click_drag(10 * cp + 1, 10 * cp + 1, 16 * cp + 1, 10 * cp + 1)
+        stroke = sum(1 for y in range(9, 12) for x in range(9, 18) if d.cell(x, y) == 0x4001)
+        _check("a brush stroke paints a 3-wide band and is one undo step",
+               stroke == 27 and len(d.undo_stack) == 1, f"{stroke} cells, {len(d.undo_stack)} steps")
+        panel.set_tool("pick")
+        panel._press(E(40 * cp + 1, 20 * cp + 1))
+        _check("the pick tool takes the tile's value and returns to the paint tool",
+               panel.paint_value == d.cell(40, 20) and panel.tool.name == "paint")
+        panel.set_tool("rect"); panel.set_paint_value(0x2)
+        click_drag(2 * cp + 1, 2 * cp + 1, 5 * cp + 1, 4 * cp + 1)
+        _check("the rectangle tool fills the dragged tiles",
+               all(d.cell(x, y) == 0x2 for x in range(2, 6) for y in range(2, 5)))
+        panel.set_tool("fill"); panel.set_paint_value(0x8)
+        before = d.cell(12, 10)
+        panel._press(E(12 * cp + 1, 10 * cp + 1))
+        _check("flood fill replaces the connected region", d.cell(12, 10) == 0x8 and d.cell(16, 11) == 0x8
+               and before == 0x4001)
+        while d.undo_stack:
+            panel.undo()
+        _check("paint, rectangle and fill all undo cleanly", d.map.build() == orig)
+
+        # ---- add + warp tools ------------------------------------------------------
+        panel.set_tool("add"); panel.set_add_kind("entity"); panel.add_type = 68
+        panel._press(E(30 * cp + 2, 12 * cp + 2))
+        rec = d.map.mobj_records()[-1]
+        _check("the Add tool places an entity at the tile centre and selects it",
+               panel.sel == ("mobj", len(d.objs) - 1) and rec[0] == 68 and (rec[14], rec[15]) == (244, 100))
+        panel.set_tool("warp")
+        click_drag(3 * cp + 1, 3 * cp + 1, 6 * cp + 1, 5 * cp + 1)
+        wr = d.map.mapj_records()[-1]
+        _check("the Warp tool creates a zone from the dragged rectangle",
+               panel.sel == ("warp", len(d.map.mapj_records()) - 1) and tuple(wr[1:5]) == (24, 24, 32, 24),
+               wr[1:5])
+        while d.undo_stack:
+            panel.undo()
+
+        # ---- chunk editor refuses breaking edits -----------------------------------
+        cd = panel.open_chunks()
+        ai = next(k for k, ch in enumerate(d.map.chunks) if ch.tag == b"ATTR")
+        cd.tree.selection_set(str(ai)); cd._selected()
+        cd.hex.delete("1.0", "end"); cd.hex.insert("end", "00" * 20)
+        cd.apply()
+        cd.tag.set("ÄBCD"); cd.add()
         _check("chunk editor refuses a truncated ATTR and a non-ASCII tag (map untouched, no crash)",
-               panel.map.build() == orig and not errs, f"{len(errs)} callback errors")
-        # unsaved-changes guard + SI save goes through a dialog
-        panel.prop_vars["msea"].set("3"); panel._apply_props()
+               d.map.build() == orig and not errs and not d.undo_stack, f"{len(errs)} callback errors")
+        cd.win.destroy()
+
+        # ---- validation lists problems and jumps to them ---------------------------
+        with d.edit("break a warp", "mapj"):
+            r = list(d.map.mapj_records()[0]); r[5] = 9999; d.map.set_mapj_record(0, r)
+        issues = panel.run_validation()
+        k = next((n for n, (s, _w, m) in enumerate(issues) if s == "ERROR" and "warp #0" in m), None)
+        if k is not None:
+            panel.problems.tree.selection_set(str(k)); panel.problems._picked()
+        _check("validation flags a warp to an unknown map and selecting it selects the warp",
+               k is not None and panel.sel == ("warp", 0))
+        panel.undo()
+
+        # ---- export is the view --------------------------------------------------
+        img = panel.render_to_image()
+        W, H, _ = d.grid
+        _check("PNG export matches the canvas extent at the current zoom",
+               img is not None and img.size == (W * cp, H * cp), img.size if img else None)
+
+        # ---- unsaved-changes guard + saves go through a dialog ---------------------
+        mt.msea.set("3 winter"); mt._commit_msea()
         box["yesnocancel"] = None
         stays = panel.confirm_discard("switch") is False
         box["yesnocancel"] = False
         goes = panel.confirm_discard("switch") is True
         _check("unsaved map edits: Cancel stays, No discards", stays and goes and panel.dirty_parts() == ["map"])
-        panel._undo_op()
+        panel.undo()
         _check("an undone edit is not 'unsaved'", not panel.is_dirty())
-        si_map = next((q for q in sorted(B.glob("MAP_FIELD_*.rf4m")) if mx.si_file_for_map(q.name)), None)
+        si_map = next((q for q in sorted(B.glob("MAP_FIELD_*.rf4m")) if _map_editor().si_file_for_map(q.name)), None)
         if si_map is not None:
-            si_path = pathlib.Path(mx.si_file_for_map(si_map.name)); si_orig = si_path.read_bytes()
-            panel.set_map(rf4m.Rf4mMap.load(si_map), si_map.stem)
-            panel.si_list.selection_set(0); panel._si_select()
-            panel.si_x.set(str(panel._si_file.spots[0].x + 8)); panel._si_apply_pos()
+            from rf4s_modkit import rf4m as _rf4m
+            si_path = pathlib.Path(_map_editor().si_file_for_map(si_map.name))
+            si_orig = si_path.read_bytes()
+            panel.set_map(_rf4m.Rf4mMap.load(si_map), si_map.stem)
+            panel.select(("si", 0))
+            sf = panel.inspector.forms["si"]
+            sf.vx.set(str(panel.doc.si.spots[0].x + 8)); sf._commit_pos()
             out = pathlib.Path(tempfile.mkdtemp()) / "SI_out.bin"
             box["save"] = str(out)
-            saved = panel._si_save()
+            saved = panel.save_si()
             _check("SI save writes through a Save dialog; the game's SI file is untouched",
                    saved and out.is_file() and si_path.read_bytes() == si_orig and not panel.is_dirty())
+        _check("the workflows raised no callback errors", not errs, f"{len(errs)}")
     finally:
+        box["save"] = ""
         root.destroy()
 
 
@@ -5214,14 +5292,14 @@ def test_asset_explorer_gui():
         empty_before = hx_text.get("1.0", "end-1c") == ""
         nb.select(hx_tab); app._on_map_tab_changed()
         _check("Hex tab fills only when first opened", empty_before and hx_text.get("1.0", "3.0").strip() != "")
-        gen0 = p2._ground_gen
+        gen0 = p2.view.ground.generation
         show("MAP_FIELD_01_0000.texture")
         _check("a non-map view hides the editor (kept alive) and suspends its decode",
                app._map_panel is None and nb.winfo_exists() and nb.winfo_manager() == ""
-               and p2._ground_gen > gen0)
+               and p2.view.ground.generation > gen0)
         show("MAP_FIELD_01.rf4m")
         _check("back to a map: the same editor is shown again", app._map_panel is p1 and nb.winfo_manager() == "pack")
-        p1.prop_vars["msea"].set("3"); p1._apply_props()
+        p1.maptab.msea.set("3 winter"); p1.maptab._commit_msea()
         box["yesnocancel"] = None
         _check("unsaved-edits guard still covers the reused map editor",
                app._guard_map_edits("open another file") is False)
