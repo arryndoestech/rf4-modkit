@@ -42,9 +42,9 @@ RF4S (Steam). No game data is included here; the tools read the game's own files
    It opens the game's bundles on its own. Pick a map for the **map editor**, or
    use the **Cutscenes** button for the **cutscene editor**. The command-line tool
    is `py tools\modding\rf4mod.py --help`.
-4. *(Optional)* check the install: `py tools\modding\rf4mod.py selftest`. It
-   should end with `N/N checks passed`. Checks that need extracted files are
-   *skipped*, not failed.
+4. *(Optional)* check the install: `py tools\modding\rf4mod.py selftest --quick`
+   (about a minute; drop `--quick` for the full run, several minutes). It should end
+   with `N/N checks passed`. Checks that need extracted files are *skipped*, not failed.
 
 Edits are saved as separate files and never overwrite the game's bundles unless you
 choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod). You can
@@ -525,16 +525,22 @@ names, grammar help, xrefs), `app` (the window).
 
 ## Three ways to install a mod
 
-The engine resolves a requested file by walking its mounted filesystem list and
-taking the **first** match, and it mounts loose-directory filesystems **ahead of**
-the `.mbundle` archives (verified in `BundleManager_LoadManifest` +
-`MFFileManager::fileExistsAtPath`). So:
+At startup the game indexes **every file under `Bundle\`** (all sub-folders, by file
+name) and mounts that index **ahead of** the `.mbundle` archives; the first match
+wins. A missing `.mbundle` is just skipped, so the game also runs from a fully
+extracted `Bundle\` (verified in `BundleManager_LoadManifest`, the `Bundle/**`
+file-system index, and the game's own log). Files next to `RF4S.exe` are **not**
+looked at. So:
 
-1. **Loose file (recommended — no repack).** Drop your modified file next to the
-   game with the same bundle-relative name; it shadows the packed copy.
+1. **Loose file (recommended — no repack, uninstall by deleting it).**
    ```bash
    python rf4mod.py install "C:/Games/RF4S" rf3mc.eng my_translation.eng
    ```
+   This copies it to `Bundle\00_mods\rf3mc.eng`. **Restart the game** to load it.
+   `00_mods` sorts before the `bundle…` folders, so it also wins over an extracted
+   original (when a name exists twice under `Bundle\`, the path that sorts first wins).
+   `python rf4mod.py mods "C:/Games/RF4S"` lists everything that currently overrides
+   the game.
 2. **In-place patch (same or smaller size).** Overwrites bytes inside a bundle and
    updates `Manifest.plist`.
    ```bash
@@ -546,6 +552,13 @@ the `.mbundle` archives (verified in `BundleManager_LoadManifest` +
    ```bash
    python rf4mod.py bundle add bundleMain.mbundle ui/Foo.minterface Foo.minterface
    ```
+
+**Unpacking everything.** `python rf4mod.py unpack "C:/Games/RF4S"` extracts every
+bundle into `Bundle\<bundle>\` (about 5 GB; a second run resumes). The game and the
+toolkit both work from that layout, and you can then edit files in place. The voice
+bundles are left packed by default (`--voice en|jp|both` to include them): EN and JP
+share every file name, so extracted, the English clips always win whatever the
+voice setting says.
 
 > **Always back up `Manifest.plist` and any bundle you patch.** Prefer loose files
 > while iterating — they leave the originals untouched.

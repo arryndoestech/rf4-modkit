@@ -222,6 +222,27 @@ def test_mbundle():
             _esc = True
         _check("install_loose refuses a path that climbs out of the game root",
                _esc and not (tmp / "escape.txt").exists())
+        # loose files: the game indexes Bundle/** by name at startup (earliest sorted path
+        # wins) ahead of the .mbundle archives, so installs go to Bundle/00_mods/
+        _ins = mbundle.install_loose(tmp, "x.bin", _srcd / "x.bin")      # tmp holds Manifest.plist
+        _check("install_loose writes <Bundle>/00_mods/<name> (Bundle/** is what the game indexes)",
+               _ins == tmp / "00_mods" / "x.bin" and _ins.read_bytes() == b"x"
+               and mbundle.install_loose(tmp / "game", "y.bin", _srcd / "x.bin")
+               == tmp / "game" / "Bundle" / "00_mods" / "y.bin")
+        _mu = mbundle.Manifest(cm)
+        _r1 = mbundle.unpack(tmp, _mu)
+        _stem = mbundle.unpack_dir_name(small)
+        _chk = mbundle.Bundle(cb, manifest=_mu)
+        _same = all((tmp / _stem / n).read_bytes() == _chk.read(n) for n in _chk.names())
+        _r2 = mbundle.unpack(tmp, _mu)
+        _check("unpack extracts a bundle to Bundle/<name>/ byte-exact and resumes (2nd run writes 0)",
+               _same and _r1.get(small, (0, 0))[0] == len(_chk.names())
+               and _r2.get(small) == (0, len(_chk.names())), f"{_r1} then {_r2}")
+        _nm0 = _chk.names()[0].split("/")[-1]
+        (tmp / "00_mods" / _nm0).write_bytes(b"mod")
+        _win = mbundle.loose_index(tmp).get(_nm0.lower(), [""])[0]
+        _check("a 00_mods copy wins over the extracted original (earliest sorted path)",
+               _win == "00_mods/" + _nm0, _win)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -2026,7 +2047,7 @@ def test_script():
         _istage = _iroot / "_stage.mc"
         _istage.write_bytes(_built)
         _idest = mbundle.install_loose(_iroot / "game", "rf3.mc", str(_istage))
-        _iok = (_idest == _iroot / "game" / "rf3.mc" and _idest.is_file()
+        _iok = (_idest == _iroot / "game" / "Bundle" / "00_mods" / "rf3.mc" and _idest.is_file()
                 and _idest.read_bytes() == _built
                 and script.Container(_idest.read_bytes()).build() == _built)
     finally:

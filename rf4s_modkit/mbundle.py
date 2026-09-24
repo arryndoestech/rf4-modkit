@@ -25,6 +25,19 @@ How the game finds files (verified in IDA -- see docs/15-modding-toolkit.md):
     appends, and LoadManifest mounts the loose-directory filesystems first and then
     the bundles in manifest order -- so a loose file shadows every bundle, and an
     earlier bundle shadows a later one.
+  * WHICH loose folders: the shipped game mounts two -- the storage folder
+    (%APPDATA%/Rune Factory 4 Special) and `Bundle/**` (the game log prints
+    "Application Root Path: Bundle/**"; the plain game folder is only mounted in a
+    mode the shipped game does not use). A root ending in `**` is indexed ONCE at
+    startup, recursively, by bare file name (MFFileSystemExtension_Standard vslot 078
+    builds name -> path from MFBundle vslot 066's sorted pre-order walk; lookups try
+    the full path, then the name, vslot 063). So a file anywhere under Bundle/ --
+    any sub-folder -- overrides the packed copy after a game restart; a file next to
+    RF4S.exe does NOT. A missing .mbundle is simply not mounted ("could not find
+    bundle"), which is why a fully extracted Bundle/<bundleName>/ tree runs too.
+    When two loose files share a name, the index is filled from the end of the
+    sorted walk, so the path that sorts FIRST wins (the log shows bundleVoiceEN's
+    clips replacing bundleVoiceJP's) -- hence install_loose's `00_mods` folder.
 
 Practical consequences for this module:
 
@@ -45,6 +58,7 @@ install_loose), which needs no bundle/manifest edits at all.
 from __future__ import annotations
 
 import mmap
+import os
 import pathlib
 import shutil
 import struct
@@ -378,19 +392,122 @@ def rebuild_from_dir(src_dir, out_bundle, manifest: "Manifest | None" = None,
 # --------------------------------------------------------------------------- #
 # Loose-file install (recommended, no bundle/manifest edits)
 # --------------------------------------------------------------------------- #
-def install_loose(game_root, filename: str, src_file) -> pathlib.Path:
-    """
-    Install a modded asset as a LOOSE FILE that the engine will load in preference
-    to the bundled copy. The engine mounts loose-directory filesystems ahead of the
-    .mbundle archives and takes the first match, so a file at <game_root>/<filename>
-    (and, as a fallback, <game_root>/Bundle/<filename>) shadows the packed version.
+MOD_FOLDER = "00_mods"
 
-    `filename` is the bundle-relative path (e.g. "ui/foo.minterface" or just
-    "Foo.texture"). Returns the path written.
+
+def bundle_dir(game_root) -> pathlib.Path:
+    """The game's Bundle folder for a game root OR the Bundle folder itself (the one
+    holding Manifest.plist)."""
+    p = pathlib.Path(game_root)
+    if (p / "Manifest.plist").is_file() and not (p / "Bundle").is_dir():
+        return p
+    return p / "Bundle"
+
+
+def install_loose(game_root, filename: str, src_file, *, folder: str = MOD_FOLDER) -> pathlib.Path:
     """
-    game_root = pathlib.Path(game_root)
+    Install a modded asset as a LOOSE FILE the engine loads instead of the packed
+    copy: <Bundle>/<folder>/<filename>, i.e. `Bundle/00_mods/rf3.mc` by default
+    (see the module notes: the game indexes every file under Bundle/ by name at
+    startup, ahead of the .mbundle archives). `00_mods` sorts before the
+    `bundle*` folders of a fully extracted game, so it also wins over an extracted
+    original. Restart the game to pick it up; delete the folder to uninstall.
+    `game_root` may be the game folder or its Bundle folder. Returns the path written.
+    """
+    base = bundle_dir(game_root) / folder
     safe = filename.replace("\\", "/").lstrip("/")
-    dest = _safe_join(game_root, safe)
+    dest = _safe_join(base, safe)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src_file, dest)
     return dest
+
+
+def loose_index(game_root) -> dict:
+    """{lower-case file name: [paths under Bundle/, the winning one first]} the way the
+    game's `Bundle/**` index resolves them: a sorted pre-order walk, earliest path wins
+    (see the module notes). Paths are relative to the Bundle folder, '/'-separated."""
+    root = bundle_dir(game_root)
+    out = {}
+
+    def walk(d, rel):
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            return
+        for n in names:
+            if n.startswith("."):
+                continue
+            p = os.path.join(d, n)
+            r = n if not rel else rel + "/" + n
+            if os.path.isdir(p):
+                walk(p, r)
+            else:
+                out.setdefault(n.lower(), []).append(r)
+    walk(str(root), "")
+    return out
+
+
+def overrides(game_root, manifest: "Manifest | None" = None) -> list:
+    """Loose files under Bundle/ that replace a packed game file, plus name clashes
+    between loose files: [(name, winning path, [other loose paths], bundle or None)].
+    With `manifest`, only names the manifest knows are listed and the owning bundle is
+    given; the shipped Manifest.plist itself is skipped."""
+    idx = loose_index(game_root)
+    known = {}
+    if manifest is not None:
+        for bn in manifest.bundle_names():
+            for f in manifest.files(bn):
+                known.setdefault(f.split("/")[-1].lower(), bn)
+    rows = []
+    for name, paths in sorted(idx.items()):
+        if name == "manifest.plist":
+            continue
+        if manifest is not None and name not in known:
+            continue
+        rows.append((paths[0].split("/")[-1], paths[0], paths[1:], known.get(name)))
+    return rows
+
+
+VOICE_BUNDLES = {"en": "bundleVoiceEN.mbundle", "jp": "bundleVoiceJP.mbundle"}
+
+
+def unpack_dir_name(bundle_name: str) -> str:
+    """Folder an unpacked bundle goes to: 'bundleMain.mbundle' -> 'bundleMain' (the
+    shipped names; anything without the extension gets '<name>.d')."""
+    return bundle_name[:-8] if bundle_name.lower().endswith(".mbundle") else bundle_name + ".d"
+
+
+def unpack(game_root, manifest: "Manifest", *, voice: str = "none", progress=None) -> dict:
+    """Extract every .mbundle the manifest lists into <Bundle>/<bundle name>/ (the
+    layout the game also runs from). Files already there with the right size are
+    kept, so a second run resumes. `voice` = 'none' (default), 'en', 'jp' or 'both':
+    the voice bundles share every file name, and extracted, the one that sorts first
+    (EN) always wins whatever the voice setting says -- so only one should be
+    extracted, or leave both packed. Returns {bundle: (written, kept)}."""
+    root = bundle_dir(game_root)
+    want_voice = {"none": set(), "both": set(VOICE_BUNDLES.values()),
+                  "en": {VOICE_BUNDLES["en"]}, "jp": {VOICE_BUNDLES["jp"]}}[voice]
+    done = {}
+    for bn in manifest.bundle_names():
+        if bn in VOICE_BUNDLES.values() and bn not in want_voice:
+            continue
+        src = root / bn
+        if not src.is_file():
+            continue
+        dest_dir = root / unpack_dir_name(bn)
+        b = Bundle(src, manifest=manifest)
+        wrote = kept = 0
+        with open(src, "rb") as f:
+            for name, (off, size) in b._toc.items():
+                dest = _safe_join(dest_dir, name.replace("\\", "/").lstrip("/"))
+                if dest.is_file() and dest.stat().st_size == size:
+                    kept += 1
+                    continue
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                f.seek(off)
+                dest.write_bytes(f.read(size))
+                wrote += 1
+                if progress and (wrote + kept) % 500 == 0:
+                    progress(bn, wrote + kept)
+        done[bn] = (wrote, kept)
+    return done

@@ -185,7 +185,42 @@ def cmd_install(a):
     root = pathlib.Path(a.game_root)
     dest = mbundle.install_loose(root, a.name, a.file)
     print(f"installed loose file -> {dest}")
-    print("  (the engine loads loose files ahead of the bundles -- no repack needed)")
+    print("  the game indexes every file under Bundle\\ at startup, ahead of the .mbundle archives:"
+          " restart it to load the change; delete the file (or the whole "
+          f"{mbundle.MOD_FOLDER} folder) to uninstall")
+
+
+def cmd_mods(a):
+    """What overrides the game right now: loose files under Bundle\\ that replace packed ones."""
+    bdir = mbundle.bundle_dir(a.game_root)
+    mani = bdir / "Manifest.plist"
+    man = mbundle.Manifest(mani) if mani.is_file() else None
+    packed = {bn for bn in (man.bundle_names() if man else []) if (bdir / bn).is_file()}
+    rows = mbundle.overrides(a.game_root, man)
+    shadow = [r for r in rows if r[3] in packed]
+    clash = [r for r in rows if r[2]]
+    if not a.all:
+        rows = [r for r in rows if r[3] in packed or r[2] or r[3] is None]
+    for name, win, others, bn in rows[: a.limit]:
+        what = f"replaces {bn}" if bn in packed else ("loose (extracted)" if bn else "not a game file")
+        print(f"  {win:<60} {what}" + (f"  -- wins over {', '.join(others[:3])}" if others else ""))
+    print(f"{len(shadow)} loose file(s) replace packed ones; {len(clash)} name(s) exist more than once "
+          f"under {bdir} (the path that sorts first wins); packed bundles present: {len(packed)}")
+
+
+def cmd_unpack(a):
+    bdir = mbundle.bundle_dir(a.game_root)
+    man = mbundle.Manifest(bdir / "Manifest.plist")
+    res = mbundle.unpack(a.game_root, man, voice=a.voice,
+                         progress=lambda bn, k: print(f"  {bn}: {k} files", end="\r"))
+    print()
+    for bn, (w, k) in res.items():
+        print(f"  {bn:<24} -> {bdir / mbundle.unpack_dir_name(bn)}   {w} written, {k} already there")
+    if not res:
+        print("nothing to unpack: no .mbundle archive found next to Manifest.plist")
+    else:
+        print("the game runs from these folders even with the .mbundle files moved away "
+              "(missing archives are skipped); keep one copy of them as your backup")
 
 
 # --------------------------------------------------------------------------- #
@@ -2974,6 +3009,8 @@ def cmd_mapview(a):
 
 def cmd_selftest(a):
     import importlib
+    if getattr(a, "quick", False) and "--quick" not in sys.argv:
+        sys.argv.append("--quick")               # selftest reads the flag at import
     st = importlib.import_module("selftest")
     sys.exit(st.run())
 
@@ -3032,9 +3069,24 @@ def build_parser():
     b7.set_defaults(func=cmd_bundle_rebuild)
 
     # install
-    pin = sub.add_parser("install", help="install a loose-file override (recommended)")
-    pin.add_argument("game_root"); pin.add_argument("name"); pin.add_argument("file")
+    pin = sub.add_parser("install", help="install a loose-file override (recommended): "
+                         "copies FILE to <game>\\Bundle\\00_mods\\NAME")
+    pin.add_argument("game_root", help="the game folder (or its Bundle folder)")
+    pin.add_argument("name", help="the game file it replaces, e.g. rf3.mc")
+    pin.add_argument("file", help="your modified file")
     pin.set_defaults(func=cmd_install)
+    pmo = sub.add_parser("mods", help="list the loose files that override the game right now")
+    pmo.add_argument("game_root", help="the game folder (or its Bundle folder)")
+    pmo.add_argument("--all", action="store_true", help="also list extracted files that replace nothing")
+    pmo.add_argument("--limit", type=int, default=200)
+    pmo.set_defaults(func=cmd_mods)
+    pun = sub.add_parser("unpack", help="extract every .mbundle into Bundle\\<bundle>\\ "
+                         "(resumable; the game runs from the extracted folders too)")
+    pun.add_argument("game_root", help="the game folder (or its Bundle folder)")
+    pun.add_argument("--voice", choices=("none", "en", "jp", "both"), default="none",
+                     help="voice bundles to extract (default none: they share every file name, "
+                          "and extracted, EN wins whatever the voice setting says)")
+    pun.set_defaults(func=cmd_unpack)
 
     # plist
     pp = sub.add_parser("plist", help="bplist (.minterface/.plist) <-> JSON")
@@ -3800,6 +3852,8 @@ def build_parser():
 
     # selftest
     pst = sub.add_parser("selftest", help="validate the toolkit against your installed bundles")
+    pst.add_argument("--quick", action="store_true",
+                     help="about a minute: skip / slice the full-corpus cutscene sweeps")
     pst.set_defaults(func=cmd_selftest)
 
     return p

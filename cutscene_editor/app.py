@@ -854,7 +854,7 @@ class CutsceneExplorer:
         """Install every edited file as a loose override under a chosen game root."""
         if self.doc.container is None:
             return False
-        root = filedialog.askdirectory(title="Game root (loose files install under it)")
+        root = filedialog.askdirectory(title="Game folder (overrides go to Bundle\\00_mods)")
         if not root:
             return False
         import tempfile
@@ -873,8 +873,10 @@ class CutsceneExplorer:
             return False
         self.doc.mark_saved(script_=True, locales=self.doc.dirty_locales(), em="em.bin" in files)
         self._chrome()
-        messagebox.showinfo("Install", "Installed loose override(s): %s\n(the game loads loose files "
-                                       "before the bundles, so no repack is needed)." % ", ".join(files))
+        messagebox.showinfo("Install", "Installed %s into %s.\nRestart the game to load them (it "
+                                       "indexes Bundle\\ at startup, ahead of the .mbundle archives); "
+                                       "delete the folder to uninstall."
+                            % (", ".join(files), mbundle.bundle_dir(root) / mbundle.MOD_FOLDER))
         self.status("Installed " + ", ".join(files))
         return True
 
