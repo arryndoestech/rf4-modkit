@@ -7,7 +7,7 @@ Ghidra installation's Ghidra/Processors/ directory), so rf3.mc imports with lang
 named mnemonics straight from rf4s_modkit.opcode_meta, operand lists, and native
 control flow (CALL/JMP/branches produce Ghidra flow + xrefs by themselves).
 
-Model (matches docs/script_vm.md and the shipped-corpus statement sizes):
+Model (matches docs/18-cutscene-scripts.md and the shipped-corpus statement sizes):
   action op   [op16][cnt16][cnt16 x u16]   named per op; argc<=16 inlined, argc>16
                                            renders header-only with no fall-through
                                            (the apply script types the tail as data)
@@ -28,7 +28,7 @@ apply script sets over each bank's byte range before disassembling.
 
 Usage (from tools/modding):
     python ghidra/gen_sleigh_module.py                     # write ghidra/RF4MC/
-    python ghidra/gen_sleigh_module.py --install "C:/Users/arryn/ghidra_12.1.2_PUBLIC"
+    python ghidra/gen_sleigh_module.py --install "<your Ghidra install folder>"
 """
 from __future__ import annotations
 

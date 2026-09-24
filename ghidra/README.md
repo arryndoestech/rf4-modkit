@@ -16,7 +16,7 @@ it to the raw import. That keeps a single source of truth for the bytecode forma
    bytecode disassembles into real instructions, not just comments):
 
    ```bash
-   python ghidra/gen_sleigh_module.py --install "C:/Users/arryn/ghidra_12.1.2_PUBLIC"
+   python ghidra/gen_sleigh_module.py --install "<your Ghidra install folder>"
    ```
 
    Restart Ghidra afterwards so it picks up the new language. Regenerate + reinstall

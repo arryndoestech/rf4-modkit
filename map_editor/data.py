@@ -20,8 +20,8 @@ REPO = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 BUNDLE_DIR = REPO / "Bundle"
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
 ROOMS_CSV_CANDIDATES = [
+    pathlib.Path(__file__).resolve().parent.parent / "refdata" / "rf4s_rooms.csv",
     REPO / "tools" / "rf4s_rooms.csv",
-    pathlib.Path.home() / ".claude" / "projects" / "C--Users-arryn-Documents" / "memory" / "rf4s_rooms.csv",
 ]
 SEASON_RE = re.compile(r"_(SPRING|SUMMER|AUTUMN|FALL|WINTER)$", re.I)
 

@@ -882,7 +882,7 @@ def decode_statement(buf, pc):
         return Statement(pc, op, "RET", 2, falls_through=False, terminator=True)
     if op == 0xFFF1:                                  # FRAME: op + u16 local-slot count
         # NOT a return (the old "RET" reading was wrong — corrected 2026-08-06, see
-        # decomp docs/script_vm.md §2.3 and the Script_VMStep IDB comment): 0xFFF1 is
+        # the Script_VMStep IDB comment): 0xFFF1 is
         # FRAME SETUP. Script_VMStep sets frame base = stack top, reserves n operand
         # slots for locals (n = u16 at +2, always even: locals are value/kind pairs),
         # then PC += 4 and execution FALLS THROUGH. The real return is RET (0xFFFF).

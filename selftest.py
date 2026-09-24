@@ -2492,7 +2492,7 @@ def test_script():
         and "name-seeded" in _d631 and len(om.arg_names(631)) == 2
         and "daily" in _d632 and "usually a random item id" not in _d632 and len(om.arg_names(632)) == 2
         and ("product" in _d691 and ("not an rng" in _d691 or "no rng" in _d691))
-        # 2026-09-01 decomp-port tiebreak: every arg is a factor (the count is the
+        # 2026-09-01 engine tiebreak: every arg is a factor (the count is the
         # encoding's own packed slot), so a single variadic hint is correct.
         and len(om.arg_names(691)) == 1)
     _check("opcode_meta: op631/632/691 have corrected (non-generic) descriptions + args",
@@ -2954,8 +2954,8 @@ def test_save():
     named GameFlag edit (MSB-first, via emflags @ save+0x1E8C4). Skipped w/o a real save."""
     print("save (rf4_sNN.sav editor):")
     from rf4s_modkit import save
-    p = pathlib.Path(r"C:/Users/arryn/Documents/rf4_s08.sav")
-    if not p.is_file():
+    p = next(iter(sorted(REPO.glob("rf4_s[0-9][0-9].sav"))), None)   # a real save next to Bundle/
+    if p is None:
         _skip("save editor", "no real rf4_sNN.sav present")
         return
     orig = p.read_bytes()

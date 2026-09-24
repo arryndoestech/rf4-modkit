@@ -100,13 +100,13 @@ GIMMICKS = {
     22: dict(name="fe034", role="Ambient sound emitter (delegates to type-21)", params=list(_SND)),
     23: dict(name="fe035", role="Ambient sound emitter (delegates to type-21)", params=list(_SND)),
     24: dict(name="fe036", role="FISHING SPOT (zone): registers into g_fishingMngTask (16 slots); "
-                  "spot only registers while its flag is set (-1 = always). Fields per docs/fishing.md §2.1.",
+                  "spot only registers while its flag is set (-1 = always). Fields per docs/13 (fishing).",
              params=[(8, 2, "max-fish cap (spot 0's value doubles as the map-wide cap)"),
                      (9, 2, "scatter radius, sub-units"),
                      (10, 2, "fast-swim flag (fish speed 200 su/f)"),
                      (11, 2, "fish_kind_seed: 0 = season/weather column, N = rate column N-1"), _DIS4]),
     25: dict(name="fe037", role="FISHING SPOT (fixed-species variant): forces one species instead of the "
-                  "season/weather table. Fields per docs/fishing.md §2.1.",
+                  "season/weather table. Fields per docs/13 (fishing).",
              params=[(8, 2, "species = f8+985 when f10 == 0"), (9, 2, "scatter radius, sub-units"),
                      (10, 4, "species item id (0 = use f8+985)"), _DIS4]),
     26: dict(name="gmk00_eater", role="Animated 'eater' gimmick (frame-cycling + sfx)",
@@ -319,7 +319,7 @@ def gather_kind_sprite(kind: int) -> str | None:
     return None
 
 # MapOre_Rate.bin — the ore/mineral CONFIG table indexed by a type-0 spawn's f10.
-# VERIFIED layout (decomp Mining_Init, = TileObject_ApplyToolHit's reads at
+# VERIFIED layout (TileObject_ApplyToolHit's reads at
 # RF4S.exe+0x18B100/+0x18B32A) — replaces the older guessed schema:
 #   +0  u32 kind          gatherable kind 26..37 (selects the rock SPRITE +
 #                         the "Mineral" display char 459+kind)
@@ -331,8 +331,8 @@ def gather_kind_sprite(kind: int) -> str | None:
 MAPORE_RATE_RECORD = "see mobj_params source — verified layout above"
 
 
-# Kind semantics decoded from the decomp's spawn core (mining.c spawn_from_record,
-# = Map_HandleSpecialTriggerEntity) + the gathering kind table (docs/gathering.md):
+# Kind semantics decoded from the spawn core (Map_HandleSpecialTriggerEntity) + the
+# gathering kind table:
 # stone family {1 small rock, 2 big rock, 22 boulder, 24 hard rock}, wood family
 # {3 branch, 4 stump, 5 log, 23 = its rare hard node}, 26..37 = ORE ROCKS,
 # 0..31 herb/grass band, 38+ = crop range (wild spawns come up fully grown).
@@ -369,7 +369,7 @@ FORAGE = {
                  "weight column), spawns fully grown.", params=list(_FOR)),
     8: dict(name="kind_from_f10", role="Gatherable kind taken directly from f10 (crop-range kinds spawn "
                  "grown).",
-            params=_FOR + [(10, 4, "gatherable kind index (see docs/gathering.md kind table)")]),
+            params=_FOR + [(10, 4, "gatherable kind index (see docs/22 §1 kind table)")]),
 }
 
 

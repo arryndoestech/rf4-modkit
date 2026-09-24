@@ -438,7 +438,6 @@ def find_extra():
 def find_emdeb():
     """Locate emdeb.bin in the game bundle (a few common roots)."""
     cands = [
-        r"C:/Users/arryn/Documents/Bundle/bundleMain/emdeb.bin",
         os.path.join(os.path.dirname(__file__), "..", "..", "..",
                      "Bundle", "bundleMain", "emdeb.bin"),
     ]

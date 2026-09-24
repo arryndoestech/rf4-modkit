@@ -59,7 +59,7 @@ CONTROL = {
                           "value/kind pairs, 2 per local), then execution FALLS THROUGH to the "
                           "next statement. Typically the first statement of a CALLed "
                           "subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep "
-                          "case 0xFFF1, corrected 2026-08-06 (decomp docs/script_vm.md 2.3)."),
+                          "case 0xFFF1, corrected 2026-08-06."),
     "CALL":      ("flow", "Call a subroutine: push the caller's frame base and the return PC "
                           "onto the operand stack, then jump. The subroutine comes back here "
                           "when it executes RET (the VM's return)."),
@@ -4594,7 +4594,7 @@ for _eco in ((153, 0), (154, 0), (155, 0), (156, 0)):
 # shared arg stack (argbuf[cursor-5]), not this bytecode token. A villager picker here never
 # decodes and its dropdown would let an author write a wrong value, so drop it (leave it raw). The
 # label/semantics (npc vs category, front-vs-back arg mapping) are left unresolved -- only the
-# demonstrably-wrong picker is removed. See project_rf4s_script_vm.md.
+# demonstrably-wrong picker is removed.
 ENUM_ARG_VALUES.pop((437, 1), None)
 
 # Town-development / Prince-Points effect ids (TriggerEffect 643, GetEffectState 644, GetEffectCost
@@ -4844,8 +4844,7 @@ def control_tooltip(mnem):
 # ---- 2026-09-01 full opcode audit (8-agent IDB verification sweep) ----------------
 # Every bound opcode was re-checked against its IDB handler (decompile + function
 # comment) and the shipped rf3.mc corpus (arg-count histograms + in-context reads).
-# These entries override earlier metadata; per-op evidence is logged in DIFFS.md
-# (decomp repo) for that session. Applied AFTER the generated fallbacks on purpose -
+# These entries override earlier metadata. Applied AFTER the generated fallbacks on purpose -
 # explicit verified knowledge wins.
 _AUDIT_2026_09_01 = {
     3: ('WaitReset', 'flow',
@@ -5035,7 +5034,7 @@ _AUDIT_2026_09_01 = {
         "Put an NPC back on a daily-schedule state. arg0 = npc (char id), arg1 = state. Two distinct paths: arg1 != -1 -> Npc_ResetDailyScheduleAndAi(npc, state) (resets schedule AND AI) and returns WITHOUT touching the scene reservation; arg1 == -1 -> recompute today's state (record +17, or Schedule_GetNpcStateForToday when the computed bit +228&1 is clear), apply via Npc_ApplyScheduleState, and clear this scene's placed-actor/reservation bit (ctx+352 bit npc). Heavier than op 296; use at scene end to hand an NPC back to normal life.",
         ['npc (char id)', 'state (-1 = auto)']),
     302: ('SetNpcActionDelay', 'actor',
-        "Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship — the old name came from a mislabeled IDB function and was settled as wrong (2026-08 analysis; implemented in the decomp as TitleNpcPlacement.timer). arg0 = npc (char id), arg1 = base wait (ticks).",
+        "Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship — the old name came from a mislabeled IDB function and was settled as wrong (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).",
         ['npc (char id)', 'base wait (ticks, jittered 0.75x-1.125x)']),
     303: ('SetNpcActionDelay', 'actor',
         "Alias of op 302 (same handler). Despite the old name it does NOT touch friendship: writes a jittered WAIT into the NPC's schedule countdown (npc record +212, decremented once per NpcSchedule_Tick; on expiry the NPC performs its next scheduled action). Written value is uniform in [0.75 x arg1, 1.125 x arg1); arg1 <= 0 writes nothing. Starting a move or interaction clears the timer. arg0 = npc (char id, < 48), arg1 = requested delay (ticks).",
@@ -5167,31 +5166,31 @@ _AUDIT_2026_09_01 = {
 for _op, (_m, _c, _d, _a) in _AUDIT_2026_09_01.items():
     _add(_op, _m, _c, _d, _a)
 
-# ---- 2026-09-01 addendum: engine tiebreaks from the decomp port -------------------
-# Porting the audit into the behavioral decomp surfaced places where the AUDITED
-# reference itself was wrong and the decomp (written straight from the binary) was
-# right. Each entry below is engine-decompile-confirmed; RVAs in the descriptions.
+# ---- 2026-09-01 addendum: engine tiebreaks -----------------------------------------
+# A second handler-by-handler read found places where the AUDITED reference above was
+# wrong. Each entry below is confirmed against the engine's decompiled handler;
+# RF4S.exe+RVA in the descriptions.
 _AUDIT_2026_09_01B = {
     202: ("SetCameraZoom", "screen",
           "Set the camera zoom / pull-back distance: the engine stores (arg0 - 1500) in the "
           "player camera struct (+68 target). arg1 != 0 SNAPS (writes current +64 AND target "
           "+68); arg1 == 0 eases (target only, view drifts to the new framing). Both paths "
           "apply the zoom - the old 'arg1 = reset to default rig' reading was wrong "
-          "(IDB-corrected 2026-08-25; re-confirmed in the 2026-09-01 decomp port). "
+          "(IDB-corrected 2026-08-25; re-confirmed 2026-09-01). "
           "Magnification = 1 + arg0/1800.",
           ["zoom (distance = arg-1500)", "snap (0=ease to it, 1=jump)"]),
     227: ("QueryNpcScheduleIsOneOf", "query",
           "Read 1 iff an NPC's current schedule id matches ANY id in the list. arg0 = npc "
           "(char id; 0 tests the PLAYER's scene/menu-state field, 22 the current child id). "
           "args[1..] = the schedule ids - there is NO count argument: the 'count' is the "
-          "statement's own packed arg-count slot (engine 0x7ff7c1fbd9f0 reads it from the "
-          "encoding, decomp-port confirmed 2026-09-01).",
+          "statement's own packed arg-count slot (the handler at RF4S.exe+0x1FD9F0 reads it from "
+          "the encoding, confirmed 2026-09-01).",
           ["npc (char id, 0=player, 22=current child)", "schedule id …"]),
     257: ("QueryAllNpcsEligibleForComment", "query",
           "Read 1 iff EVERY listed NPC is eligible to deliver an ambient flavor comment "
           "(present, not busy, in the current area, not story-gated). ALL-must-pass, not any: "
           "eligible_found starts at 1 and the FIRST failing candidate zeroes it; ids >= 0x30 "
-          "are skipped (engine 0x7ff7c1fc07e0, decomp-port confirmed 2026-09-01). Variadic: "
+          "are skipped (RF4S.exe+0x2007E0, confirmed 2026-09-01). Variadic: "
           "each arg is one candidate char id; no count argument.",
           ["npc id … (candidate char ids, variadic)"]),
     258: ("QueryAllNpcsEligibleForComment", "query",
@@ -5213,7 +5212,7 @@ _AUDIT_2026_09_01B = {
           "and the gated callee spawns a task literally named 'baby' (MCModel 4*flag+1167) "
           "held by the actor. The gate reads GF_REG_CHILD_NUM then bit 287+(num-1) - the "
           "per-child variant flag choosing which baby model rides along. (Old "
-          "'TriggerActorTalkAnim + talk indicator' reading retired; decomp port 2026-09-01.)",
+          "'TriggerActorTalkAnim + talk indicator' reading retired 2026-09-01.)",
           ["actor (char id, 0=player)"]),
     308: ("GetDateSnapshot", "time",
           "Read a full calendar snapshot into 5 VM outputs: reg0 = YEAR (+20), reg1 = SEASON "
@@ -5223,15 +5222,15 @@ _AUDIT_2026_09_01B = {
           []),
     380: ("StopMusic", "audio",
           "STOP the current BGM with a crossfade out: the handler computes a volume target "
-          "from arg/100 but passes track id -1 to BGM_SwitchWithCrossfade (0x7ff7c1f5aa00), "
+          "from arg/100 but passes track id -1 to BGM_SwitchWithCrossfade (RF4S.exe+0x19AA00), "
           "whose a1<0 branch stops the channel voice and discards the target. So the op "
           "halts music; it does not ramp to a level (old 'FadeMusic volume ramp' reading "
-          "retired - decomp port 2026-09-01). The single corpus arg is effectively ignored.",
+          "retired 2026-09-01). The single corpus arg is effectively ignored.",
           ["volume arg (computed, then discarded by the stop branch)"]),
     541: ("PopulateQuestKind4ChainedRandom", "quest",
           "Populate the current NPC's daily quest-request slot from template KIND 4. Despite "
           "the 'Chained' name, the chained-roll path is DEAD CODE: the per-iteration arg "
-          "read always succeeds (index < count at 0x7ff7c1fd6b20), so each category-seed arg "
+          "read always succeeds (index < count at RF4S.exe+0x216B20), so each category-seed arg "
           "gets exactly one independent roll. arg0 = target item id, arg1/arg2 = template "
           "bytes 4/5, args[3..] = per-roll category seeds.",
           ["target item id", "param (byte4)", "param (byte5)", "category seed … (one roll each)"]),
@@ -5240,7 +5239,7 @@ _AUDIT_2026_09_01B = {
           "write it to reg0. Deterministic - no RNG (the old 'Roll' name was wrong). There "
           "is NO separate count argument: the count is the statement's own packed arg-count "
           "slot, every script arg is a factor, and an EMPTY call yields 0, not 1 "
-          "(0x7ff7c1fdfc40; decomp-port confirmed 2026-09-01).",
+          "(RF4S.exe+0x21FC40; confirmed 2026-09-01).",
           ["factors (variadic; every arg is one factor)"]),
 }
 for _op, (_m, _c, _d, _a) in _AUDIT_2026_09_01B.items():

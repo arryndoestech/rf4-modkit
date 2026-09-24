@@ -44,9 +44,8 @@ from PIL import Image
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 BUNDLE = REPO / "Bundle"
 ROOMS_CSV = [
+    pathlib.Path(__file__).resolve().parent / "refdata" / "rf4s_rooms.csv",
     REPO / "tools" / "rf4s_rooms.csv",
-    pathlib.Path.home() / ".claude" / "projects" / "C--Users-arryn-Documents"
-    / "memory" / "rf4s_rooms.csv",
 ]
 SEASON = re.compile(r"_(SUMMER|AUTUMN|WINTER)$")
 Image.MAX_IMAGE_PIXELS = None            # world posters are legitimately huge

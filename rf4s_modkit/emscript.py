@@ -1058,7 +1058,6 @@ class EmScript(object):
 def find_em():
     """Locate em.bin next to emdeb.bin in the game bundle."""
     cands = [
-        r"C:/Users/arryn/Documents/Bundle/bundleMain/em.bin",
         os.path.join(os.path.dirname(__file__), "..", "..", "..",
                      "Bundle", "bundleMain", "em.bin"),
     ]

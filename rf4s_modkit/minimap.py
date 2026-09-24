@@ -9,7 +9,7 @@ one 256-byte path per id) turns that into `rom:/map_mini/<name>.bntx` -- the PC 
 the same basename as `<name>.texture`. 104 sheets exist (ids 12199..12302): 88 static
 pictures, then 16 `mini_map_rnd_*` room tiles used only to compose the Sharance Maze picture.
 
-Verified against RF4S.exe (RVAs; the IDB used for the trace was rebased to 0x7ff7c1dc0000):
+Verified against RF4S.exe (RF4S.exe+RVA):
 
   MiniMap_BuildInitialIcons      +0x139160  loads 11839, table = data + 28 (minimap work +56)
   Minimap_BuildForMap(mapId)     +0x13B3F0  sheet = rec[0]; resource = 12199 + sheet; the swaps

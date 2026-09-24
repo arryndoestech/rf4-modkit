@@ -20,9 +20,10 @@ at `<anywhere>/Bundle/` — or just use the in-app open dialogs to point at
 any location. `emdeb.bin` inside the bundle powers the named-flag features.
 
 Everything is grounded in the `RF4S.exe` loader code (reverse-engineered in IDA);
-each format's spec and the IDA functions it was verified against are in
-[`docs/09-file-formats.md`](../../docs/09-file-formats.md) and
-[`docs/15-modding-toolkit.md`](../../docs/15-modding-toolkit.md).
+code comments cite the IDA function names and `RF4S.exe+RVA` each fact was verified
+against. Comments of the form `docs/NN` refer to the numbered RF4S documentation set
+(e.g. `docs/09-file-formats.md`, `docs/15-modding-toolkit.md`), which is kept separately
+and is not part of this folder.
 
 ```
 tools/modding/

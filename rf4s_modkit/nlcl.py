@@ -65,12 +65,11 @@ FIELD_SCHEMAS = {
     "MapOre_Rate": {
         # 25 records x 32 B — the ORE/MINERAL CONFIG table indexed by a type-0
         # MOBJ spawn's f10 (mining-rock spawn points). CORRECTED 2026-09-01
-        # against the decomp's Mining_Init (= TileObject_ApplyToolHit reads,
-        # RF4S.exe+0x18B100/+0x18B32A): field 0 is the gatherable KIND
+        # against TileObject_ApplyToolHit's reads (RF4S.exe+0x18B100/
+        # +0x18B32A): field 0 is the gatherable KIND
         # (26..37 -> the rock sprite + "Mineral" char 459+kind), NOT an
         # "area id"; +4/+8 are the deplete/scrap probability bases, and the
         # weights sit at +12/16/20 pairing items +24/26/28 with rare at +30.
-        # Full decoded table (config -> ores) in decomp docs/gathering.md.
         "fields": [
             ("kind", 0, "u32"), ("deplete_prob", 4, "u16"), ("scrap_prob", 8, "u16"),
             ("weight0", 12, "u16"), ("weight1", 16, "u16"), ("weight2", 20, "u16"),
@@ -496,7 +495,7 @@ FIELD_SCHEMAS = {
         #   festival_id 0 for birthdays; for festivals: the PP-ORDER FESTIVAL SUB ID —
         #               the calendar board shows the row only while that bit is set in
         #               the festival-scheduled bitmap g_effectAppliedBits.d1 (order
-        #               effect 0 sets it; see decomp pp_orders.md/calendar.md)
+        #               effect 0 sets it)
         # Engine reader traced 2026-08-31: CalendarEvent_IsVisibleAtDate
         # (RF4S.exe+0x1B860) — matches season+day, then gates festivals on the
         # scheduled bitmap and birthdays on GameFlags bit 1007+char_id (NPC met).

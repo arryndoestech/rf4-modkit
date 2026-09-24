@@ -9,7 +9,7 @@
 // falls back to comments + manual references only (the pre-processor behavior).
 //
 // WORKFLOW
-//   1. python ghidra/gen_sleigh_module.py --install "C:/Users/arryn/ghidra_12.1.2_PUBLIC"
+//   1. python ghidra/gen_sleigh_module.py --install "<your Ghidra install folder>"
 //      (once; restart Ghidra afterwards so it sees the new language)
 //   2. Import rf3.mc as Raw Binary, language RF4MC:LE:32:default, base 0x0, no analysis.
 //   3. From tools/modding:  python ghidra/gen_ghidra_plan.py --banks 210,211

@@ -1322,7 +1322,7 @@ Args:
 ### `op 202` — SetCameraZoom(zoom, snap)
 *handler:* `Script_VMOp_SetCameraZoom`
 
-Set the camera zoom / pull-back distance: the engine stores (arg0 - 1500) in the player camera struct (+68 target). arg1 != 0 SNAPS (writes current +64 AND target +68); arg1 == 0 eases (target only, view drifts to the new framing). Both paths apply the zoom - the old 'arg1 = reset to default rig' reading was wrong (IDB-corrected 2026-08-25; re-confirmed in the 2026-09-01 decomp port). Magnification = 1 + arg0/1800.
+Set the camera zoom / pull-back distance: the engine stores (arg0 - 1500) in the player camera struct (+68 target). arg1 != 0 SNAPS (writes current +64 AND target +68); arg1 == 0 eases (target only, view drifts to the new framing). Both paths apply the zoom - the old 'arg1 = reset to default rig' reading was wrong (IDB-corrected 2026-08-25; re-confirmed 2026-09-01). Magnification = 1 + arg0/1800.
 
 Args:
   0. zoom (distance = arg-1500)
@@ -4579,7 +4579,7 @@ Args:
 ### `op 289` — CarryBaby(actor)
 *handler:* `ScriptVMOp_ActorCarryBaby_Dakko240`
 
-Family-scene beat: the target actor picks up the newest child. Anim ordinal 240 resolves to 00_470_dakko.bfskl (the baby-CARRY pose, not a 'talking gesture'), and the gated callee spawns a task literally named 'baby' (MCModel 4*flag+1167) held by the actor. The gate reads GF_REG_CHILD_NUM then bit 287+(num-1) - the per-child variant flag choosing which baby model rides along. (Old 'TriggerActorTalkAnim + talk indicator' reading retired; decomp port 2026-09-01.)
+Family-scene beat: the target actor picks up the newest child. Anim ordinal 240 resolves to 00_470_dakko.bfskl (the baby-CARRY pose, not a 'talking gesture'), and the gated callee spawns a task literally named 'baby' (MCModel 4*flag+1167) held by the actor. The gate reads GF_REG_CHILD_NUM then bit 287+(num-1) - the per-child variant flag choosing which baby model rides along. (Old 'TriggerActorTalkAnim + talk indicator' reading retired 2026-09-01.)
 
 Args:
   0. actor (char id, 0=player)
@@ -4946,7 +4946,7 @@ Args:
 ### `op 302` — SetNpcActionDelay(npc, base wait)
 *handler:* `Script_VMOp_SetNpcActionDelayWithJitter`
 
-Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship — the old name came from a mislabeled IDB function and was settled as wrong (2026-08 analysis; implemented in the decomp as TitleNpcPlacement.timer). arg0 = npc (char id), arg1 = base wait (ticks).
+Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship — the old name came from a mislabeled IDB function and was settled as wrong (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).
 
 Args:
   0. npc (char id)
@@ -6376,7 +6376,7 @@ Args:
 ### `op 380` — StopMusic(volume arg)
 *handler:* `Script_VMOp_StopBGMWithCrossfade`
 
-STOP the current BGM with a crossfade out: the handler computes a volume target from arg/100 but passes track id -1 to BGM_SwitchWithCrossfade (0x7ff7c1f5aa00), whose a1<0 branch stops the channel voice and discards the target. So the op halts music; it does not ramp to a level (old 'FadeMusic volume ramp' reading retired - decomp port 2026-09-01). The single corpus arg is effectively ignored.
+STOP the current BGM with a crossfade out: the handler computes a volume target from arg/100 but passes track id -1 to BGM_SwitchWithCrossfade (RF4S.exe+0x19AA00), whose a1<0 branch stops the channel voice and discards the target. So the op halts music; it does not ramp to a level (old 'FadeMusic volume ramp' reading retired 2026-09-01). The single corpus arg is effectively ignored.
 
 Args:
   0. volume arg (computed, then discarded by the stop branch)
@@ -7629,7 +7629,7 @@ Populate the current NPC's daily quest-request slot using request template KIND 
 ### `op 541` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
-Populate the current NPC's daily quest-request slot from template KIND 4. Despite the 'Chained' name, the chained-roll path is DEAD CODE: the per-iteration arg read always succeeds (index < count at 0x7ff7c1fd6b20), so each category-seed arg gets exactly one independent roll. arg0 = target item id, arg1/arg2 = template bytes 4/5, args[3..] = per-roll category seeds.
+Populate the current NPC's daily quest-request slot from template KIND 4. Despite the 'Chained' name, the chained-roll path is DEAD CODE: the per-iteration arg read always succeeds (index < count at RF4S.exe+0x216B20), so each category-seed arg gets exactly one independent roll. arg0 = target item id, arg1/arg2 = template bytes 4/5, args[3..] = per-roll category seeds.
 
 Args:
   0. target item id
@@ -8679,7 +8679,7 @@ Args:
 ### `op 227` — QueryNpcScheduleIsOneOf(npc, schedule id …)
 *handler:* `ScriptVM_Op_QueryNpcCurrentScheduleIsOneOf`
 
-Read 1 iff an NPC's current schedule id matches ANY id in the list. arg0 = npc (char id; 0 tests the PLAYER's scene/menu-state field, 22 the current child id). args[1..] = the schedule ids - there is NO count argument: the 'count' is the statement's own packed arg-count slot (engine 0x7ff7c1fbd9f0 reads it from the encoding, decomp-port confirmed 2026-09-01).
+Read 1 iff an NPC's current schedule id matches ANY id in the list. arg0 = npc (char id; 0 tests the PLAYER's scene/menu-state field, 22 the current child id). args[1..] = the schedule ids - there is NO count argument: the 'count' is the statement's own packed arg-count slot (the handler at RF4S.exe+0x1FD9F0 reads it from the encoding, confirmed 2026-09-01).
 
 Args:
   0. npc (char id, 0=player, 22=current child)
@@ -9111,7 +9111,7 @@ Args:
 ### `op 257` — QueryAllNpcsEligibleForComment(npc id …)
 *handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
-Read 1 iff EVERY listed NPC is eligible to deliver an ambient flavor comment (present, not busy, in the current area, not story-gated). ALL-must-pass, not any: eligible_found starts at 1 and the FIRST failing candidate zeroes it; ids >= 0x30 are skipped (engine 0x7ff7c1fc07e0, decomp-port confirmed 2026-09-01). Variadic: each arg is one candidate char id; no count argument.
+Read 1 iff EVERY listed NPC is eligible to deliver an ambient flavor comment (present, not busy, in the current area, not story-gated). ALL-must-pass, not any: eligible_found starts at 1 and the FIRST failing candidate zeroes it; ids >= 0x30 are skipped (RF4S.exe+0x2007E0, confirmed 2026-09-01). Variadic: each arg is one candidate char id; no count argument.
 
 Args:
   0. npc id … (candidate char ids, variadic)
@@ -10607,7 +10607,7 @@ Args:
 ### `op 691` — MultiplyValues(factors)
 *handler:* `Script_VMOp_ComputeProductSeries`
 
-Multiply ALL the statement's args together, cap the product at 999,999,999, and write it to reg0. Deterministic - no RNG (the old 'Roll' name was wrong). There is NO separate count argument: the count is the statement's own packed arg-count slot, every script arg is a factor, and an EMPTY call yields 0, not 1 (0x7ff7c1fdfc40; decomp-port confirmed 2026-09-01).
+Multiply ALL the statement's args together, cap the product at 999,999,999, and write it to reg0. Deterministic - no RNG (the old 'Roll' name was wrong). There is NO separate count argument: the count is the statement's own packed arg-count slot, every script arg is a factor, and an EMPTY call yields 0, not 1 (RF4S.exe+0x21FC40; confirmed 2026-09-01).
 
 Args:
   0. factors (variadic; every arg is one factor)
@@ -10701,7 +10701,7 @@ Weighted-random branch: pick one of N targets at random, each weighted by an exp
 
 ### `0xFFF1` — FRAME
 
-Frame setup (formerly mislabeled 'RET' -- it does NOT return): sets the frame base to the current operand-stack top and reserves [local slots] entries for locals (always even -- the stack holds value/kind pairs, 2 per local), then execution FALLS THROUGH to the next statement. Typically the first statement of a CALLed subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep case 0xFFF1, corrected 2026-08-06 (decomp docs/script_vm.md 2.3).
+Frame setup (formerly mislabeled 'RET' -- it does NOT return): sets the frame base to the current operand-stack top and reserves [local slots] entries for locals (always even -- the stack holds value/kind pairs, 2 per local), then execution FALLS THROUGH to the next statement. Typically the first statement of a CALLed subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep case 0xFFF1, corrected 2026-08-06.
 
 ## Expression operands (argument encoding)
 

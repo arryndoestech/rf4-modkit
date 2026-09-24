@@ -8,8 +8,7 @@ RF4S.exe+0x23DAB0 into sceneCtx+184).  Each list entry is
 PC of the scene inside the same bank, the 5-byte sub-records are the entry's
 KEYS.  This module names each type, says which runtime value every key index is
 compared against, how the winning entry is chosen and what consumes the chosen
-event_id.  Evidence is cited as IDB function names plus RF4S.exe+RVA
-(image base 0x7FF7BE8F0000).
+event_id.  Evidence is cited as IDB function names plus RF4S.exe+RVA.
 
 Bank slots (sceneCtx+200/+208/+216, built by ScriptTask_FirstTimeInit
 RF4S.exe+0x1EE060 with modes 0/1/2):
@@ -36,7 +35,6 @@ Only the standard library is used; nothing here imports other toolkit modules.
 
 from __future__ import annotations
 
-IMAGE_BASE = 0x7FF7BE8F0000
 SENTINEL_NONE = 33060          # event_id meaning "no scene"
 TYPE_TABLE_SLOTS = 74          # MYCF header word 14 (byte 56) in the shipped rf3.mc
 
@@ -902,7 +900,7 @@ CORPUS_STATS = {
 # ---------------------------------------------------------------------------
 __all__ = [
     "ENTRY_TYPES", "CORPUS_STATS", "CODE_ONLY_TYPES", "CHAR_NAMES", "TAG_NAMES",
-    "BANK_SLOTS", "SENTINEL_NONE", "TYPE_TABLE_SLOTS", "IMAGE_BASE",
+    "BANK_SLOTS", "SENTINEL_NONE", "TYPE_TABLE_SLOTS",
     "type_name", "key_spec", "describe_entry", "corpus_types",
 ]
 
