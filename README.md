@@ -4,20 +4,53 @@ A complete, self-contained toolkit for modding **Rune Factory 4 Special** (PC /
 Steam, the XSEED Muteki-engine port). It can read **and write** every asset format
 that ships in the game's `.mbundle` archives.
 
-## Sharing this toolkit
+## Quick start (Windows, fresh Python)
 
-Zipping THIS folder is enough: the reference name tables it needs
-(char/actor/item/monster names, char models) are vendored in
-[`refdata/`](refdata/) and resolved by `rf4s_modkit/refdata.py` (a full
-workspace's `tools/` copies still win as this repo's source of truth — the
-vendored copies are refreshed from them).
+You need **Python 3.10 or newer** from <https://python.org> and your own copy of
+RF4S (Steam). No game data is included here; the tools read the game's own files.
 
-**Game data is never included.** The recipient must supply their own
-`Bundle/` (the game's `.mbundle` files, or an extracted `bundleMain/`) from
-their own copy of RF4S. The tools look for it at `../../Bundle` relative to
-this folder — i.e. unzip as `<anywhere>/tools/modding/` and put `Bundle/`
-at `<anywhere>/Bundle/` — or just use the in-app open dialogs to point at
-any location. `emdeb.bin` inside the bundle powers the named-flag features.
+1. **Put this folder inside the game folder** as `tools\modding`. In Steam:
+   right-click *Rune Factory 4 Special* → *Manage* → *Browse local files*. That opens
+   the folder holding `RF4S.exe` and `Bundle\`. Create `tools\` there and unzip into
+   it, so you end up with:
+
+   ```
+   Rune Factory 4 Special\
+   ├── Bundle\            ← the game's (Manifest.plist, bundleMain.mbundle, …)
+   ├── RF4S.exe
+   └── tools\
+       └── modding\       ← this folder (rf4mod.py, rf4mod_gui.py, README.md, …)
+   ```
+
+   The tools look for the game at `..\..\Bundle` from this folder, so nothing has
+   to be copied or extracted.
+2. **Open a terminal in the game folder** (in Explorer: click the address bar,
+   type `cmd`, press Enter) and install the three libraries once:
+
+   ```bat
+   py -m pip install -r tools\modding\requirements.txt
+   ```
+
+   (`py` is the launcher the python.org installer always adds; `python` works too
+   if you ticked *Add Python to PATH*.)
+3. **Start the GUI:**
+
+   ```bat
+   py tools\modding\rf4mod_gui.py
+   ```
+
+   It opens the game's bundles on its own. Pick a map for the **map editor**, or
+   use the **Cutscenes** button for the **cutscene editor**. The command-line tool
+   is `py tools\modding\rf4mod.py --help`.
+4. *(Optional)* check the install: `py tools\modding\rf4mod.py selftest`. It
+   should end with `N/N checks passed`. Checks that need extracted files are
+   *skipped*, not failed.
+
+Edits are saved as separate files and never overwrite the game's bundles unless you
+choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod). You can
+also keep the toolkit elsewhere: put it at `<anywhere>\tools\modding\` with the
+game's `Bundle\` (or a link to it) at `<anywhere>\Bundle\`, or use the GUI's
+*Open Manifest…* to point at the game.
 
 Everything is grounded in the `RF4S.exe` loader code (reverse-engineered in IDA);
 code comments cite the IDA function names and `RF4S.exe+RVA` each fact was verified
@@ -80,12 +113,14 @@ non-image features (`bplist`, `mbundle`, `textdb`, `aibn`, `strings`, `nlcl`, `g
 MOBJ/MAPJ edit, `selftest`) still work without them — but for the GUI, the map editor,
 and any texture work, install both.
 
-### Standard install (pip + virtualenv, recommended)
+### Standard install (pip + virtualenv)
+
+The [Quick start](#quick-start-windows-fresh-python) above is enough on Windows. For
+an isolated environment, run this from the folder that contains `tools/` (the game
+folder, if you followed the Quick start):
 
 ```bash
-# 1. Clone (or download) the repo containing tools/modding/
-git clone <repo-url>
-cd <repo-root>
+# 1. Unzip so this folder is tools/modding/ (see Quick start)
 
 # 2. Create + activate a virtualenv (optional but recommended)
 python -m venv .venv
@@ -98,7 +133,7 @@ pip install -r tools/modding/requirements.txt
 
 # 4. Verify against your installed RF4S bundles (see "Bundle layout" below)
 python tools/modding/rf4mod.py selftest
-# expect: "NN/NN checks passed" (around 40+ on a stock install)
+# expect: "N/N checks passed"; checks that need extracted files are skipped
 ```
 
 ### Conda install
@@ -113,13 +148,17 @@ python tools/modding/rf4mod.py selftest
 ### Bundle layout
 
 The toolkit needs to find your RF4S install's `Bundle/` directory (the one
-containing `Manifest.plist` and the `bundleMain/`, `bundleMuteki/`, … subfolders).
-It auto-detects two layouts:
+containing `Manifest.plist` and the `bundle*.mbundle` archives).
+It looks at `../../Bundle` from this folder and accepts three layouts:
 
-- **`<repo>/Bundle/`** — drop or symlink your RF4S install's `Bundle/` directory
-  next to `tools/`. This is the layout the selftest defaults to.
-- **`<repo>/Bundle/extracted/`** — if you've extracted bundle contents to a flat
-  directory, the toolkit picks that up automatically too.
+- **The game's own `Bundle/`** (`Manifest.plist` + `bundle*.mbundle`) — what a
+  Steam install has. The GUI, map editor and cutscene editor read the archives
+  directly; nothing needs extracting. Easiest: unzip the toolkit into the game
+  folder as `tools/modding/` (see Quick start), or link the game's `Bundle/` next
+  to `tools/` (`mklink /J Bundle "<game folder>\Bundle"`).
+- **`Bundle/<bundle>/`** — bundles extracted into folders (`bundleMain/`, …) with
+  `rf4mod bundle extract-all`. The selftest's per-file checks use this layout.
+- **`Bundle/extracted/`** — extracted contents in one flat directory.
 
 For the GUI's "Open Manifest…" + map editor "Open .rf4m…" buttons, you can also
 point at any directory containing those files at runtime — no fixed layout
@@ -140,7 +179,7 @@ are *skipped*, not failed. A green run looks like:
   [PASS] mapground tile 0 at screen top-left  (tile-0 pixel matches stitched (4,4))
   [PASS] MAPJ f5 = dest_map (Selphia exits)   (f5 ids=[4, 28, 32, …])
 …
-45/45 checks passed
+66/66 checks passed
 ```
 
 If you see fewer-than-expected passes:
