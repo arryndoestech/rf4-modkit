@@ -6,8 +6,8 @@ references** for every CALL / JMP / branch / choice — so Ghidra's own XREF pan
 "References To" (Ctrl+Shift+F), and label navigation answer "who calls this scene"
 natively, exactly like machine code.
 
-No SLEIGH processor is involved: the toolkit's Python decoder (the same one behind
-`script_explorer.py`) pre-renders a *listing plan*, and a small Jython script applies
+No SLEIGH processor is involved: the toolkit's Python decoder (the same one behind the
+cutscene editor) pre-renders a *listing plan*, and a small Jython script applies
 it to the raw import. That keeps a single source of truth for the bytecode format.
 
 ## Setup (once)

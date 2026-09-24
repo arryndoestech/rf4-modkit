@@ -30,7 +30,8 @@ tools/modding/
 ├── rf4mod_gui.py        # the graphical asset explorer (Tkinter)
 ├── map_explorer.py      # launches the map editor (the map_editor/ package)
 ├── map_editor/          # the map editor: map + SI + Gen editing with one undo history
-├── script_explorer.py   # the cutscene / event-script editor (rf3.mc + rf3mc.<locale>)
+├── script_explorer.py   # launches the cutscene editor (the cutscene_editor/ package)
+├── cutscene_editor/     # the cutscene editor: rf3.mc + rf3mc.<locale> + em.bin, one undo history
 ├── gen_opcode_reference.py  # regenerates CUTSCENE_OPCODES.md + opcodes_list.csv from opcode_meta
 ├── gen_map_names_json.py    # regenerates docs/map_names.json (map id -> name, MAP_* file, minimap sheet)
 ├── gen_minimap_sheets.py    # renders docs/minimap_sheets/: every minimap picture with its rf3MapMiniPos rows drawn on
@@ -202,7 +203,7 @@ files **read-on-demand** (so the 4.7 GB `bundleMain` is never loaded whole), or 
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
 | `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. See `docs/16`. |
 | `rf3*.bin` (NLCL) | param-table grid editor (named fields where decoded); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown above the editor |
-| `em.bin` / `emdeb.bin` | identified + **Open Event Manager…** (the decoder/editor lives in the Cutscene editor's Event Mgr window: value edits plus **Add entry** / **Remove entry**) |
+| `em.bin` / `emdeb.bin` | identified + **Open Event Manager…** (the Cutscene editor's Event Manager window: value edits, add / remove entries, conditions and actions) |
 | `.strings` | key/value table |
 | `as_atk_*.bin` | attack timeline: rendered per-frame view + **Edit** tab (canonical listing, *Assemble & apply*) |
 | `rf3PresentNpc*.bin` / `rf3MonsterPresent.bin` | gift preferences / taming foods with **set / signature / remove** controls and Save |
@@ -371,116 +372,86 @@ room-by-room fog-of-war reveal. Full field list: `rf4s_modkit/minimap.py`.
 
 ```bash
 python tools/modding/rf4mod_gui.py     # open the Manifest, then toolbar "Cutscenes"
+python tools/modding/script_explorer.py [folder with rf3.mc]   # or on its own
 python tools/modding/gen_opcode_reference.py   # (re)build CUTSCENE_OPCODES.md
 ```
 
 Edits the game's cutscene/event scripts: **`rf3.mc`** (the compiled Script-VM bytecode —
-tens of thousands of scenes) plus the per-locale **`rf3mc.<locale>`** dialogue text. Reached from the main
-GUI's **Cutscenes** toolbar button, or the **Open in Cutscene Editor →** button on a map's
-scene list. It reads the script files by basename from the loaded source, so it works best
-with a **Manifest** open (it can then reach both `bundlePatch1` and `bundleMain`).
+tens of thousands of scenes), the per-locale **`rf3mc.<locale>`** dialogue text, and the Event
+Manager conditions in **`em.bin`**, with **one undo history** across all three. Reached from the
+main GUI's **Cutscenes** toolbar button, the **Open in Cutscene Editor →** button on a map's
+scene list, or by clicking a *script NPC* in the map editor (it opens on that exact line). It
+reads the files by basename from the loaded source, so it works best with a **Manifest** open.
 
-Its foundation is a **complete reverse-engineering of the Script VM opcode table** (702 dispatchable slots)
-(`g_sceneActionHandlerTable`): every reachable opcode has a curated author-facing **name,
-argument labels, and description** (see `rf4s_modkit/opcode_meta.py`, and the greppable
-[`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference). That metadata surfaces three ways:
-- **disassembly line** — the friendly call with values decoded to names, e.g.
-  `GiveItem(258=Pineapple Juice)`, `SetWeather(2=Snow)`;
-- **selection panel** (click a statement) — mnemonic, args, a one-line *what it does*, raw bytes;
-- **Ctrl-hover tooltip** — full prototype, description, per-arg enum-decoded value + hint,
-  plus speaker/portrait and Event-Manager (em.bin) entry resolution.
+Its foundation is a **complete reverse-engineering of the Script VM opcode table** (702
+dispatchable slots, `g_sceneActionHandlerTable`): every reachable opcode has a curated
+author-facing **name, argument labels and description** (`rf4s_modkit/opcode_meta.py`, and the
+greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
 
-**Finding a scene** — search the whole `rf3.mc` by **dialogue text** (every scene whose lines
-contain a phrase, case-insensitive), or **structurally** by opcode name/number, speaker, or
-Event-Manager entry; or list one bank's scenes directly. Each result previews its first dialogue
-line (or, for a dialogue-less scene, its first meaningful op, e.g. `→ FadeScreen`). The finder
-runs a discovery pass that also surfaces scenes registered only in the global index — invisible
-to the per-bank type table — so nothing is unreachable.
+**The window** has three panes:
 
-**Event scripts (em.bin)** — the **Event Mgr** browses the em.bin entries that scenes bridge to
-(the "plays when" conditions and effects), with each condition/action decoded to `FLG_`/`REG_`
-names; you can edit a condition's threshold or comparison operator and an action's operator in
-place (byte-safe), and save em.bin as a loose override. Its **Filter** matches the *decoded*
-entry — name, JP label and the condition/action text — so typing a flag or query name lists every
-entry that reads it (`IS_WBED` → `EV_PROPOSE_DISABLE`; `REG_DATE_COUNT` → all 11 marriage gates).
-Selecting `em.bin` in the asset explorer opens the same window.
-The operator picker shows a live one-line explanation of the selected op (e.g. `MUL_S → t = t * v (signed multiply)`, `SET_EQ_ZERO → t = (v == 0) ? 1 : 0`)
-so the terse `_S`/`_U` (signed/unsigned) mnemonics are self-documenting. On the CLI, `em set` is the
-full editor — besides `--value`/`--op` it can repoint a `CALL`/condition reference (`--entry-ref`) and
-**retarget which `FLG_`/`REG_` an action writes** (`--target FLG_SUBEV_B`, resolved by name to its bit
-offset), so every part of a condition/action is editable.
+- **Browser** (left) — banks grouped and named: *Characters* (`Nancy  (bank 19)`), *Villager
+  behaviour*, *Maps* (`Map 274 · MAP_DUNG_A04 (Yokmir Forest)`), sub-events, quests. Each bank
+  lists its triggered scenes first, then subroutines. The search box finds scenes by **dialogue**
+  (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
+  jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked.
+- **Script** (middle) — the open scene. The **Story** view reads like a script:
+  `Nancy: “…”` in the speaker's colour, actions by name (`▸ GiveItem(reg1, 1, reg3)`),
+  flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
+  **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly; *addresses*
+  adds byte offsets. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
+  Delete deletes. **Hold Ctrl over a line** for the full explanation (prototype, every argument
+  decoded, speaker, Event Manager entry).
+- **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
+  leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
+  *As new line* (a fresh id in every locale) and *Show other locales*; a **speaker** picker with
+  the portrait side; each **action argument** in listing syntax (`actor(Forte)`,
+  `map(MAP_CITY_00)`, `(FLG_X + 1)`, `@0xNNNN` for an existing expression) with a named-value
+  picker where the argument has one; the **numbers in a condition or STORE** (branch targets and
+  every other offset are untouched); each **choice option**'s text, line id and destination.
+  *Add after* inserts a spoken line (speaker + text) or any statements in listing syntax,
+  *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
+  on it, and *What it does* repeats the explanation.
 
-**Authoring by name** — the reversed names are input, not just display:
-- **Insert action** accepts an opcode **NAME or number** (`GiveItem 258 1 0` ≡ `423 258 1 0`);
-  an unknown name offers **"did you mean…"** matches (`op discovery search`).
-- **Edit an arg value** via a type-aware **dropdown picker** (item / character / room /
-  skill / outfit / effect ids, weather, …) or a raw value; portrait/speaker ops get a
-  speaker + face/emote picker.
-- **Edit a branch/STORE value** — a control op whose guard or value expression contains an
-  in-place integer literal exposes it in the *same* value row: **arg#** picks which literal
-  (in reading order), **Set value** rewrites it. In practice that's a **`STORE` value**
-  (`reg9 = 22`) or a **`RAND_BR`** random-branch probability — plus any branch guard that
-  compares against a byte/word immediate; guards that only test a variable or register (most
-  `BR_Z`/`BR_NZ`, and every `SWITCH`) carry no editable literal and simply offer nothing to
-  set. Byte-safe — only the immediate changes, so branch targets and every other offset are
-  preserved; it retunes *what* a variable is set to (or a branch's odds), not the flow.
-- **Edit a whole argument list** — the **args** row shows the selected action's arguments in
-  listing syntax (`actor(Illuminata), map(MAP_CITY_04), 494, 415, …`), the same text the Source
-  view uses. Type values, names, `(FLG_X + 1)` expressions, or `@0xNNNN` to point at an existing
-  expression; untouched arguments stay byte-identical. (This row used to show and write raw
-  expression *offsets*, so typing a value silently pointed the argument at that byte.)
-- **Structural edits** — insert / delete / rewrite statements via a byte-safe trampoline;
-  branches, choices and jumps disassemble with resolved targets and choice text.
-- **Undo / Redo** for every script and dialogue edit (toolbar, or Ctrl+Z / Ctrl+Y in the
-  disassembly), byte-exact — including Assemble & replace, new scenes and *Add line*'s padding
-  of the other locales. A step stores only the banks and lines that changed. Edits that change
-  nothing (same value, untouched listing, same text) record nothing and leave the file clean,
-  and closing the editor or opening another `rf3.mc` asks about unsaved files first.
+The **Source** tab shows the scene as a re-assemblable listing — labels,
+`BR_Z (REG_WIFE_ID == 11) -> L1`, `STORE (FLG_X = 1)`, `PROMPT_CHOICE CANCEL->L2, #123->L3`,
+actions by name with expression arguments; *Check* reports the failing line inline and *Apply to
+scene* re-assembles it (the scene's entry jumps to the new body, so nothing else moves). The
+**Triggers** tab lists the bank's type table (every registration with its decoded keys) and mints
+**new scenes**: pick when it plays (the trigger catalogue supplies a recipe per type: which bank,
+which keys, the ordering caveat), its keys and a body; a note warns when a registration would
+**shadow** the bank's existing scene of that type. *Change keys…* and *Remove* edit existing
+registrations. The **Overview** tab summarises the scene: speakers, every dialogue line,
+the Event Manager entries it gates on or runs, the flags and variables it writes, and its
+control flow.
 
-**Dialogue text** — edit `rf3mc.<locale>` in any of **7 locales** (eng/jpn/deu/fra/kor/twn/chn,
-switchable live): rewrite an existing line's text, **add a brand-new line** (author new dialogue
-for a new beat or a missing translation — the new id is prefilled so you can Retarget/Insert a
-`DIALOG` to it), retarget a `DIALOG` to a different line id, and insert/delete `DIALOG` beats,
-with unsaved-edit protection on locale switch. *Add-line appends to the **current locale** and
-its id is that archive's length; since a `DIALOG` id is shared across all locales, add the line
-in each locale you ship (the stock archives can differ by a line — `rf3mc.eng` ships one line
-longer than the rest — so ids won't always align by default). To land a new line at the **same
-id in every locale**, use the CLI: `rf4mod text add rf3mc.<loc> --text "…" --pad-to N -o …`,
-passing the same `N` (the longest archive's length) for each locale.*
+**Event Manager…** opens the em.bin window: entries decoded to `FLG_`/`REG_` names, a **Filter**
+that matches the decoded text (`IS_WBED` → `EV_PROPOSE_DISABLE`; `REG_DATE_COUNT` → all 11
+marriage gates), the scenes that use the selected entry, in-place value and operator edits (with a
+one-line explanation of each operator, e.g. `MUL_S → t = t * v`), and whole conditions / actions
+added from text (`Hour >= 6 AND (12 > Hour OR FLG_RAINBOW == 1)`, `alt: REG_WIFE_ID = 3`,
+`CALL EV_FOO`) or removed. Selecting `em.bin` in the asset explorer opens the same window.
 
-**Choice dialogs** — a `PROMPT_CHOICE` / `PROMPT_CHOICE_FORCED` option's text lives in `rf3mc.<locale>`
-like any other line, but the option is an embedded line id, not a standalone `DIALOG`. Ctrl-hover the
-choice to see each option's `#id` (and its branch target); to reword an option in place, type that `#id`
-in the line# field and hit **Apply text** (Apply text edits the selected `DIALOG`, or the line# field
-when no `DIALOG` is selected). To **retarget** an option to a *different* line entirely (e.g. one just
-appended with `text add`), select the choice and use the **Set value** row: arg# = which option, value =
-the new `rf3mc` line id — or on the CLI, `script set-val <file> --bank B --pc PC --index OPT --value LINE`.
-To change where an option (or any branch/jump) *goes*, `script set-target` retargets its destination to
-another statement pc (validated to be a real statement start, so it can't crash the VM) — for a
-`PROMPT_CHOICE`, `--index 0` is the cancel branch and `1..N` the per-option branches. Selecting a branch
-op in the editor shows its `targets: [i]→0xpc` list, so you can read the index + destination pc to feed
-`set-target` (and see where every choice/branch currently leads).
+**Undo / Redo** (↶ ↷, Ctrl+Z / Ctrl+Y) cover every edit — script, dialogue in every locale and
+em.bin — byte-exact. A step stores only what changed; an edit that changes nothing records
+nothing. *Unsaved* is a byte comparison against what was loaded or saved, so undoing back to it
+makes the file clean again, and closing or opening another `rf3.mc` asks first. **Save** writes the
+changed files (all at once with Ctrl+S, or one at a time) or installs them into the game as loose
+files. *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
+(untranslated), so it shows in every language.
 
-**Author, not just tweak (2026-09-19).** The **Source** tab shows the selected scene as a
-re-assemblable listing — labels, `BR_Z (REG_WIFE_ID == 11) -> L1`, `STORE (FLG_X = 1)`,
-`PROMPT_CHOICE CANCEL->L2, #123->L3`, actions by name with expression arguments — edit it and
-**Assemble & replace**; "Insert" takes the same syntax (several lines), so a conditional beat or
-a flag write is one paste. The **Triggers** panel lists the bank's type table (every scene
-registration with its decoded keys) and mints **brand-new scenes**: pick the action type, the
-keys and a body, and the scene is registered in an empty map bank or next to existing ones
-(`rf4s_modkit.scriptasm` + `Container.add_entry`; CLI `script listing/asm/check/expr/entries/
-add-entry/remove-entry/set-entry`). The trigger catalogue supplies a **recipe** per type (which
-bank, which keys, the ordering caveat) and the editor warns when a registration would **shadow**
-the map's existing scene. The map editor's Events tab has **New scene on this map…**, and the
-Event Manager window edits whole conditions and actions, not just their values. Corpus-verified:
-every operand in the shipped file compiles back to identical bytes-or-text, and the type tables are
-read count-exact (10,169 registered scenes — the old walker over-ran into neighbouring lists).
+Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
+set-val / set-target / set-speaker / entries / add-entry / remove-entry / set-entry`, `rf4mod em …`,
+`rf4mod text add --pad-to N`). Corpus-verified: every operand in the shipped file compiles back to
+identical bytes-or-text, and the type tables are read count-exact (10,169 registered scenes).
+`selftest.py` covers the container round-trip, in-place and repointed argument edits, literal
+edits, trampoline insert/rewrite, dialogue rewrite, search, the explanation for every opcode, and a
+headless drive of the editor (`test_cutscene_editor_authoring`, `test_cutscene_editor_workflows`).
 
-**Save** the edited `rf3.mc` / `rf3mc.<locale>` as loose files, or install them into a bundle.
-Every path is verified byte-exact (`selftest.py test_script` / `test_text`): container
-round-trip, in-place + append/repoint arg edits, control-op guard/value literal edits, trampoline
-insert/rewrite, and dialogue-text rewrite all reparse cleanly, and metadata rendering/search/export
-are regression-guarded.
+Code: `cutscene_editor/` — `document` (the files, one undo history, unsaved tracking), `render`
+(story rows, listing lines, explanations, overview), `browser`, `view` (Script tab), `inspector`,
+`tabs` (Source / Triggers / Overview), `dialogs`, `em_window`, `catalog` (trigger types, bank
+names, grammar help, xrefs), `app` (the window).
 
 ## What can be modded, and how
 
@@ -636,7 +607,7 @@ python rf4mod.py script add-entry rf3.mc --bank 248 --type 6 --stmt "FRAME 0 / D
 python rf4mod.py em show EV_BOSS_SP_DEAD    # decode a scene's "plays when" condition + effects
 python rf4mod.py em new-var FLG_MY_QUEST_DONE          # a NEW game flag (free bit of the 4096-bit store; sidecar emdeb_extra.json)
 python rf4mod.py em new-var REG_MY_COUNTER --width 4   # …or a register; usable in em conditions and cutscene listings at once
-python tools/modding/script_explorer.py     # …or edit cutscenes visually (search / browse / hover-tooltip opcode help)
+python tools/modding/script_explorer.py     # …or edit cutscenes visually (story view, inspector, one undo history)
 
 # Inspect a map, then edit a placed-entity (MOBJ) record and save a new map
 python rf4mod.py map info MAP_DUNG_A04.rf4m

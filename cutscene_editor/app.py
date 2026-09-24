@@ -1,0 +1,910 @@
+"""CutsceneExplorer: the cutscene editor window (browser | script view + tabs | Inspector)
+and every edit it can make. Hosted standalone (`python script_explorer.py`) and by
+rf4mod_gui (Cutscenes button, a map's Events tab, the map editor's NPC-spawn markers).
+
+Host API: CutsceneExplorer(parent, reader=None, status_fn=None, focus_bank=None,
+focus_entry=None, focus_pc=None); .show_bank(pos, entry_pc=None);
+.open_new_scene_dialog(pos, default_type=None); .open_event_manager();
+.confirm_discard(action); .unsaved()."""
+from __future__ import annotations
+
+import difflib
+import pathlib
+import re
+import sys
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+
+from guiutil import Paned, Tip, later
+from rf4s_modkit import mbundle, script, scriptasm
+
+from . import catalog, dialogs
+from .browser import Browser
+from .document import ScriptDocument
+from .em_window import EventManagerWindow
+from .inspector import Inspector
+from .render import SceneText
+from .tabs import OverviewTab, SourceTab, TriggersTab, count_statements
+from .view import ScriptView
+
+TABS = ("Script", "Source", "Triggers", "Overview")
+
+
+class CutsceneExplorer:
+    def __init__(self, parent, reader=None, status_fn=None, focus_bank=None, focus_entry=None,
+                 focus_pc=None):
+        self.parent = parent
+        self.status_fn = status_fn
+        self.doc = ScriptDocument(reader)
+        self.doc.subscribe(self._doc_changed)
+        self.bank_pos = None
+        self.bank = None
+        self.scene = None
+        self.sel = None                      # (pc, option)
+        self.pad_locales = tk.BooleanVar(value=True)
+        self._em_window = None
+        self._em_uses = None
+        self._build()
+        if isinstance(parent, (tk.Tk, tk.Toplevel)):
+            parent.protocol("WM_DELETE_WINDOW", self._on_close)
+        if reader is not None:
+            self._load()
+        if focus_bank is not None:
+            self.show_bank(focus_bank, focus_entry)
+            if focus_pc is not None:
+                later(self.frame, lambda: self.view.focus_pc(focus_pc))
+
+    # ------------------------------------------------------------------ #
+    # layout
+    # ------------------------------------------------------------------ #
+    def _build(self):
+        self.frame = ttk.Frame(self.parent)
+        self.frame.pack(fill="both", expand=True)
+        self._build_toolbar()
+        paned = Paned(self.frame, orient="horizontal")
+        paned.pack(fill="both", expand=True)
+        self.browser = Browser(paned, self)
+        paned.add(self.browser, weight=0, minsize=220, width=330)
+        mid = ttk.Frame(paned)
+        paned.add(mid, weight=4, minsize=300)
+        self.nb = ttk.Notebook(mid)
+        self.nb.pack(fill="both", expand=True)
+        self.view = ScriptView(self.nb, self)
+        self.source = SourceTab(self.nb, self)
+        self.triggers = TriggersTab(self.nb, self)
+        self.overview = OverviewTab(self.nb, self)
+        for w, t in zip((self.view, self.source, self.triggers, self.overview), TABS):
+            self.nb.add(w, text=t)
+        side = ttk.Frame(paned, width=380)
+        side.pack_propagate(False)
+        paned.add(side, weight=0, minsize=300, width=380)
+        self.inspector = Inspector(side, self)
+        self.inspector.pack(fill="both", expand=True)
+        self.status_lbl = ttk.Label(self.frame, anchor="w", padding=(6, 2), font=("Segoe UI", 8))
+        self.status_lbl.pack(fill="x", side="bottom")
+        tag = "CutEd%d" % id(self)
+        for seq, fn in (("<Control-z>", self.undo), ("<Control-y>", self.redo),
+                        ("<Control-Z>", self.redo), ("<Control-s>", self.save_all),
+                        ("<Control-f>", self.focus_search)):
+            self.frame.bind_class(tag, seq, lambda _e, fn=fn: (fn(), "break")[1])
+
+        def add_tag(w):
+            tags = w.bindtags()
+            if tag not in tags:
+                w.bindtags((tags[0], tag) + tags[1:])
+            for ch in w.winfo_children():
+                add_tag(ch)
+        add_tag(self.frame)
+        self._bindtag = tag
+
+    def _build_toolbar(self):
+        bar = ttk.Frame(self.frame, padding=(2, 2))
+        bar.pack(fill="x")
+        ob = ttk.Button(bar, text="Open rf3.mc…", command=self.open_file)
+        ob.pack(side="left")
+        Tip(ob, "Open a rf3.mc cutscene container (its rf3mc.<locale> and em.bin are looked "
+                "up next to it, then in the loaded game source).")
+        mb = ttk.Menubutton(bar, text="Save")
+        m = tk.Menu(mb, tearoff=False)
+        m.add_command(label="Save all changed files…", accelerator="Ctrl+S", command=self.save_all)
+        m.add_separator()
+        m.add_command(label="Save rf3.mc (scenes)…", command=self.save_script)
+        m.add_command(label="Save dialogue (rf3mc.<locale>)…", command=self.save_text)
+        m.add_command(label="Save em.bin (Event Manager)…", command=self.save_em)
+        m.add_separator()
+        m.add_command(label="Install into the game as loose files…", command=self.install)
+        mb["menu"] = m
+        mb.pack(side="left", padx=4)
+        Tip(mb, "Write the changed files: rf3.mc (scenes), rf3mc.<locale> (dialogue), em.bin "
+                "(Event Manager). Install copies them into the game as loose files.")
+        self.undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo)
+        self.undo_btn.pack(side="left")
+        Tip(self.undo_btn, lambda: self._undo_tip("undo"))
+        self.redo_btn = ttk.Button(bar, text="↷", width=3, command=self.redo)
+        self.redo_btn.pack(side="left")
+        Tip(self.redo_btn, lambda: self._undo_tip("redo"))
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+        ttk.Label(bar, text="Locale").pack(side="left")
+        self.loc = tk.StringVar(value=self.doc.locale)
+        lc = ttk.Combobox(bar, textvariable=self.loc, values=catalog.LOCALES, width=5, state="readonly")
+        lc.pack(side="left", padx=4)
+        lc.bind("<<ComboboxSelected>>", lambda _e: self.set_locale(self.loc.get()))
+        Tip(lc, "Which language's dialogue is shown and edited. Line ids are shared by every locale.")
+        pc = ttk.Checkbutton(bar, text="new lines in all locales", variable=self.pad_locales)
+        pc.pack(side="left", padx=4)
+        Tip(pc, "When a new dialogue line is added, give it the same id in every other locale "
+                "(untranslated) so it shows everywhere.")
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+        self.mode = tk.StringVar(value="story")
+        for val, text, tip in (("story", "Story", "Readable: who says what, actions in words, "
+                                                   "branches as if / go to."),
+                               ("code", "Code", "The technical listing (the disassembly).")):
+            rb = ttk.Radiobutton(bar, text=text, value=val, variable=self.mode, style="Toolbutton",
+                                 command=self._view_mode)
+            rb.pack(side="left")
+            Tip(rb, tip)
+        self.addr = tk.BooleanVar(value=False)
+        ac = ttk.Checkbutton(bar, text="addresses", variable=self.addr, command=self._view_mode)
+        ac.pack(side="left", padx=4)
+        Tip(ac, "Show each statement's byte address in the story view (the code view always has "
+                "labels).")
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+        nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
+        nb.pack(side="left")
+        Tip(nb, "Mint a new scene in the open bank: pick when it plays, its keys and its body.")
+        eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
+        eb.pack(side="left", padx=4)
+        Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
+        self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=("Segoe UI", 8))
+        self.dirty_lbl.pack(side="right", padx=6)
+
+    # ------------------------------------------------------------------ #
+    # loading
+    # ------------------------------------------------------------------ #
+    def _load(self):
+        try:
+            ok = self.doc.load_from_reader()
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("rf3.mc", "Could not read rf3.mc: %s" % e)
+            return
+        if not ok:
+            self.status("rf3.mc was not found in the loaded source — Open rf3.mc…")
+            return
+        self.browser.rebuild()
+        self.status("rf3.mc: %d banks. Pick a scene on the left or search for a line." % len(self.doc.container.banks))
+        self._chrome()
+
+    def open_file(self):
+        if not self.confirm_discard("open another rf3.mc"):
+            return
+        f = filedialog.askopenfilename(title="Open rf3.mc", filetypes=[("MYCF script", "*.mc"), ("All", "*.*")])
+        if not f:
+            return
+        try:
+            self.doc.load_file(f)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("rf3.mc", str(e))
+            return
+        self.bank = self.scene = self.bank_pos = None
+        self.browser.rebuild()
+        self._show_scene()
+        self.status("Opened %s: %d banks" % (pathlib.Path(f).name, len(self.doc.container.banks)))
+
+    # ------------------------------------------------------------------ #
+    # navigation
+    # ------------------------------------------------------------------ #
+    def show_bank(self, index, entry_pc=None):
+        """Open bank `index` (container position) and its scene at `entry_pc` (or the first)."""
+        c = self.doc.container
+        if c is None or not 0 <= index < len(c.banks):
+            return False
+        from .browser import scene_rows
+        scenes = scene_rows(c.banks[index])
+        if not scenes:
+            self.open_bank(index)
+            return True
+        pick = next((s for s in scenes if s.entry_pc == entry_pc), scenes[0])
+        self.open_scene(index, pick.entry_pc)
+        return True
+
+    def open_bank(self, pos):
+        """Show a bank: its first scene, and its triggers."""
+        from .browser import scene_rows
+        c = self.doc.container
+        scenes = scene_rows(c.banks[pos])
+        self.bank_pos, self.bank = pos, c.banks[pos]
+        self.triggers.show(pos)
+        self.browser.reveal(pos)
+        if scenes:
+            self.open_scene(pos, scenes[0].entry_pc, reveal=False)
+        else:
+            self.scene = None
+            self._show_scene()
+            self.nb.select(TABS.index("Triggers"))
+            self.status("%s has no scenes yet — New scene… mints the first one" % catalog.bank_title(self.bank))
+
+    def open_scene(self, pos, entry_pc, *, focus_pc=None, tab=None, reveal=True):
+        self.flush_edits()
+        c = self.doc.container
+        bank = c.banks[pos]
+        scenes = [s for s in script.disassemble_bank(bank) if s.entry_pc == entry_pc]
+        if scenes:
+            sc = next((s for s in scenes if s.action_type >= 0), scenes[0])
+        else:
+            sc = script.disassemble_scene(bank, -1, entry_pc)
+        new_bank = pos != self.bank_pos
+        self.bank_pos, self.bank, self.scene = pos, bank, sc
+        self.sel = None
+        if new_bank or self.triggers.bank_pos != pos:
+            self.triggers.show(pos)
+        if reveal:
+            self.browser.reveal(pos, entry_pc)
+        self._show_scene()
+        if tab:
+            self.nb.select(TABS.index(tab))
+        if focus_pc is not None:
+            self.view.focus_pc(focus_pc)
+        self.status("%s · scene @0x%04x · %d statements" % (catalog.bank_title(bank), entry_pc, len(sc.stmts)))
+
+    def _show_scene(self):
+        self.view.render(keep_sel=False)
+        self.source.load(force=True)
+        self.overview.render()
+        self.inspector.show(None)
+
+    def refresh_scene(self):
+        """Re-read the open scene after an edit or undo (bank objects may be new)."""
+        if self.bank_pos is None or self.doc.container is None:
+            return
+        self.bank = self.doc.container.banks[self.bank_pos]
+        if self.scene is not None:
+            if self.scene.entry_pc >= len(self.bank.data):     # an undone new scene
+                self.scene = None
+            else:
+                self.scene = script.disassemble_scene(self.bank, self.scene.action_type, self.scene.entry_pc)
+        self.view.render(keep_sel=True)
+        self.source.load()
+        self.overview.render()
+        self.triggers.refresh()
+        self.browser.refresh_bank(self.bank_pos)
+        if self.sel is not None and self.stmt(self.sel[0]) is None:
+            self.sel = None
+        self.inspector.show(self.sel)
+
+    def stmt(self, pc):
+        return self.scene.stmts.get(pc) if (self.scene is not None and pc is not None) else None
+
+    def select(self, key):
+        self.flush_edits()
+        if key is not None and self.stmt(key[0]) is None:
+            key = None
+        self.sel = key
+        self.view.set_selection(key)
+        self.inspector.show(key)
+
+    def goto(self, pc):
+        """Select the statement at `pc` in the open scene (a branch / choice target)."""
+        if self.stmt(pc) is not None:
+            self.nb.select(0)
+            self.select((pc, None))
+        else:
+            self.open_scene(self.bank_pos, pc)
+
+    def speaker_before(self, pc):
+        """Who speaks a DIALOG: the last SetSpeaker before it in reading order."""
+        who = None
+        for p, st in script.linearize(self.scene):
+            if p == pc:
+                return who
+            if script.is_portrait_op(st.op):
+                name, side, _c = SceneText(self.doc, self.bank, self.scene).speaker_of(st)
+                who = "%s (%s, @0x%04x)" % (name, side, p)
+            elif st.op == 92:
+                who = None
+        return who
+
+    def focus_editor(self):
+        self.inspector.focus_primary()
+
+    def focus_search(self):
+        self.browser.search_entry.focus_set()
+
+    def _view_mode(self):
+        self.view.mode = self.mode.get()
+        self.view.show_addr = self.addr.get()
+        self.view.render()
+
+    def set_locale(self, loc):
+        self.flush_edits()
+        self.doc.locale = loc
+        if self.doc.textarc is None:
+            self.status("rf3mc.%s is not in this source" % loc)
+        self.browser.rebuild()
+        if self.bank_pos is not None:
+            self.browser.reveal(self.bank_pos, self.scene.entry_pc if self.scene else None)
+        self.refresh_scene()
+
+    # ------------------------------------------------------------------ #
+    # editing
+    # ------------------------------------------------------------------ #
+    def apply(self, label, fn, view=None):
+        """Run `fn` as one undoable edit and re-read the scene. False if it failed.
+        `view` = (bank pos, scene entry) that undo reopens (default: what is open now)."""
+        if view is None:
+            view = (self.bank_pos, self.scene.entry_pc if self.scene else None)
+        try:
+            with self.doc.edit(label, view):
+                fn()
+        except Exception as e:  # noqa: BLE001 - the document rolled back; say why
+            messagebox.showerror("Not applied", "%s:\n%s" % (label, e))
+            return False
+        self.status(label)
+        return True
+
+    def _doc_changed(self, what):
+        self._em_uses = None
+        self.refresh_scene()
+        self._chrome()
+
+    def flush_edits(self):
+        try:
+            w = self.frame.focus_get()
+        except (KeyError, tk.TclError):
+            w = None
+        fn = getattr(w, "_commit", None)
+        if fn is not None:
+            fn()
+
+    # ---- dialogue ---------------------------------------------------------------- #
+    def set_text(self, line_id, text):
+        arc = self.doc.textarc
+        if arc is None:
+            self.status("rf3mc.%s is not loaded" % self.doc.locale)
+            return False
+        return self.apply("Edit line #%d (%s)" % (line_id, self.doc.locale), lambda: arc.set_text(line_id, text))
+
+    def retarget(self, pc, line_id):
+        return self.apply("Point DIALOG @0x%04x at line #%d" % (pc, line_id),
+                          lambda: self.bank.set_dialog_id(pc, line_id))
+
+    def add_line(self, text):
+        """Append a new dialogue line (in every locale when the toolbar box is ticked)."""
+        box = {}
+
+        def do():
+            box["id"], box["locs"] = self.doc.add_line(text, self.pad_locales.get())
+        if not self.apply("Add dialogue line", do):
+            return None
+        return box["id"]
+
+    def detach_line(self, pc, text):
+        """Save `text` as a new line and point the DIALOG at it (in one step)."""
+        if not text.strip():
+            self.status("type the line's text first")
+            return None
+        box = {}
+
+        def do():
+            box["id"], _l = self.doc.add_line(text, self.pad_locales.get())
+            self.bank.set_dialog_id(pc, box["id"])
+        if self.apply("New line for DIALOG @0x%04x" % pc, do):
+            return box["id"]
+        return None
+
+    def pick_line(self, then):
+        lid = dialogs.pick_line(self.frame, self.doc)
+        if lid is not None:
+            then(lid)
+
+    # ---- actions ------------------------------------------------------------------- #
+    def set_speaker(self, pc, slot, side):
+        return self.apply("Set speaker @0x%04x" % pc,
+                          lambda: self.bank.set_action_opcode(pc, script.portrait_opcode(slot, side)))
+
+    def set_arg(self, pc, index, text):
+        """Set one action argument from listing syntax. A plain 16-bit number keeps a typed
+        constant (actor(..) / map(..)) typed and is patched in place when it fits; other
+        text (and wider numbers) is assembled and patched in place or appended and repointed."""
+        st = self.stmt(pc)
+        if st is None or index >= len(st.args):
+            return False
+        buf = self.bank.data
+        text = text.strip()
+        if text == scriptasm.operand_text(buf, st.args[index], st.op, index):
+            return False
+        try:
+            num = int(text, 0)
+        except ValueError:
+            num = None
+        if num is not None and -0x8000 <= num <= 0xFFFF:     # one literal token (wider: assembled)
+            def do():
+                self.doc.container.set_action_arg_value_or_repoint(self.bank, pc, index, num)
+            return self.apply("Set %s arg %d" % (script.opcode_mnemonic(st.op), index), do)
+        asm = scriptasm.Assembler(resolver=getattr(self.doc.container, "asm_resolver", None))
+        try:
+            kind, val = asm.operand(text, st.op, index)
+        except Exception as e:  # noqa: BLE001 - AsmError / ValueError
+            messagebox.showerror("Argument", "arg %d: %s" % (index, e))
+            return False
+
+        def do():
+            b = self.bank
+            off = st.args[index]
+            if kind == "abs":
+                if not (0 <= val < len(b.data)) or script.disasm_expr(b.data, val)[0] in ("?", ""):
+                    raise ValueError("@0x%04x is not an expression in this bank" % val)
+                b.set_action_arg(pc, index, val)
+            elif bytes(b.data[off:off + len(val)]) == val:
+                return
+            elif script.disasm_expr(b.data, off)[1] == len(val):
+                b.data[off:off + len(val)] = val
+            else:
+                b.set_action_arg(pc, index, self.doc.container.grow_bank(b, val))
+        return self.apply("Set %s arg %d" % (script.opcode_mnemonic(st.op), index), do)
+
+    def set_literal(self, pc, k, value):
+        st = self.stmt(pc)
+        lits = []
+        for e in st.expr_refs or ():
+            if e is not None:
+                lits.extend(script.expr_literals(self.bank.data, e))
+        if not 0 <= k < len(lits):
+            return False
+        off = lits[k][0]
+        return self.apply("Set %s number %d = %d" % (st.mnem, k + 1, value),
+                          lambda: self.bank.set_expr_value(off, value))
+
+    def set_choice_item(self, pc, k, line_id):
+        return self.apply("Choice option %d → line #%d" % (k + 1, line_id),
+                          lambda: self.bank.set_choice_item(pc, k, line_id))
+
+    # ---- structure ----------------------------------------------------------------- #
+    def assemble_check(self, text, base=None):
+        """(region, labels, None) or (None, None, error) without applying anything."""
+        if base is None:
+            base = len(self.bank.data) if self.bank is not None else 0
+        resolver = self.doc.container.asm_resolver if self.doc.container is not None else None
+        try:
+            region, labels = scriptasm.assemble(text, base, resolver=resolver)
+        except script.ScriptError as e:
+            return None, None, self._suggest(str(e))
+        except Exception as e:  # noqa: BLE001
+            return None, None, "%s: %s" % (type(e).__name__, e)
+        return region, labels, None
+
+    _names = None
+
+    @classmethod
+    def _suggest(cls, msg):
+        """Add 'did you mean' to an unknown-opcode error (fuzzy, catches plain typos)."""
+        m = re.search(r"unknown opcode '([^']+)'", msg or "")
+        if not m or "did you mean" in msg:
+            return msg
+        if cls._names is None:
+            pool = {}
+            for o in range(763):
+                for nm in (script.opcode_mnemonic(o), script.opcode_name(o)):
+                    if nm and not re.fullmatch(r"op\d+", nm) and nm.lower() not in pool:
+                        pool[nm.lower()] = (nm, o)
+            cls._names = pool
+        hits = difflib.get_close_matches(m.group(1).lower(), list(cls._names), n=6, cutoff=0.6)
+        return msg + (" -- did you mean: " + ", ".join("%s (op %d)" % cls._names[h] for h in hits) if hits else "")
+
+    def insert_after(self, pc, listing):
+        err = self.assemble_check(listing)[2]
+        if err:
+            messagebox.showinfo("Insert", err)
+            return False
+        n = count_statements(listing)
+        ok = self.apply("Insert %d statement%s after @0x%04x" % (n, "" if n == 1 else "s", pc),
+                        lambda: self.doc.container.insert_after(self.bank, pc, listing))
+        if ok:
+            self._select_after(pc)
+        return ok
+
+    def insert_dialogue_after(self, pc, speaker, text):
+        """Add a new line (all locales) and insert [SetSpeaker] + DIALOG after `pc`."""
+        box = {}
+
+        def do():
+            nid, _l = self.doc.add_line(text, self.pad_locales.get())
+            box["id"] = nid
+            specs = []
+            if speaker is not None:
+                # both sides share one mnemonic, so name the opcode by number; (0, 0) = the
+                # default face and no emote, what 47,833 of the shipped speaker cues carry
+                specs.append("op%d 0, 0" % script.portrait_opcode(*speaker))
+            specs.append("DIALOG #%d" % nid)
+            self.doc.container.insert_after(self.bank, pc, "\n".join(specs))
+        if self.apply("Add dialogue after @0x%04x" % pc, do):
+            self._select_after(pc)
+            return box["id"]
+        return None
+
+    def _select_after(self, pc):
+        """After an insert: select the first new statement (the old one now jumps to it)."""
+        st = self.stmt(pc)
+        if st is not None and st.mnem == "JMP" and st.code_targets:
+            tgt = st.code_targets[0]
+            if self.stmt(tgt) is not None:
+                self.select((tgt, None))
+
+    def ask_insert_listing(self):
+        if self.sel is None:
+            self.status("select a statement first — new beats go after it")
+            return None
+        text = dialogs.ask_listing(self.frame, "Insert after @0x%04x" % self.sel[0], catalog.INSERT_PROMPT,
+                                   lambda t: self.assemble_check(t)[2])
+        return self.insert_after(self.sel[0], text) if text else None
+
+    def ask_insert_dialogue(self):
+        if self.sel is None:
+            self.status("select a statement first — the new line goes after it")
+            return None
+        if self.doc.textarc is None:
+            self.status("rf3mc.%s is not loaded" % self.doc.locale)
+            return None
+        spec = dialogs.ask_dialogue(self.frame)
+        if not spec:
+            return None
+        return self.insert_dialogue_after(self.sel[0], spec["speaker"], spec["text"])
+
+    def delete_selected(self):
+        if self.sel is None:
+            return False
+        pc = self.sel[0]
+        st = self.stmt(pc)
+        if not messagebox.askyesno("Delete", "Skip %s @0x%04x? (the scene jumps over it)"
+                                   % (script.opcode_mnemonic(st.op) if st.op < 0xFFF0 else st.mnem, pc)):
+            return False
+        return self.apply("Delete statement @0x%04x" % pc,
+                          lambda: self.doc.container.delete_statement(self.bank, pc))
+
+    def show_callers(self):
+        if self.scene is None:
+            return None
+        target = self.sel[0] if self.sel else self.scene.entry_pc
+        rows = catalog.collect_xrefs(self.bank, target)
+        dispatch = sorted({sc.action_type for sc in script.disassemble_bank(self.bank)
+                           if sc.entry_pc == target and sc.action_type >= 0})
+        return dialogs.callers_window(self.frame, self, rows, dispatch, target)
+
+    # ---- triggers (the type table) --------------------------------------------------- #
+    def default_keys_text(self, bank, type_id):
+        names = catalog.type_key_names(type_id)
+        n = len(names) if names is not None else None
+        if n is None:
+            try:
+                recs = bank.entry_records(type_id)
+            except Exception:
+                recs = []
+            n = len(recs[0].subs) if recs else None
+        return ", ".join(["-1"] * n) if n else ""
+
+    def new_scene_template(self):
+        lid = None
+        if self.sel is not None:
+            st = self.stmt(self.sel[0])
+            if st is not None and st.mnem == "DIALOG":
+                lid = st.dialog_id
+        if lid is None and self.scene is not None:
+            lid = next((st.dialog_id for st in self.scene.stmts.values() if st.mnem == "DIALOG"), None)
+        return "FRAME 0\nDIALOG #%d\nEND\n" % (lid if lid is not None else 0)
+
+    def shadow_note(self, bank, type_id, position=None):
+        try:
+            return self.doc.container.entry_shadow_note(bank, type_id, position) or ""
+        except Exception:
+            return ""
+
+    def ask_new_scene(self, default_type=None, pos=None):
+        if self.doc.container is None:
+            self.status("open rf3.mc first")
+            return None
+        pos = self.bank_pos if pos is None else pos
+        if pos is None:
+            self.status("open a bank first (pick one on the left), then New scene…")
+            return None
+        bank = self.doc.container.banks[pos]
+        if default_type is None:
+            typ, _r = self.triggers.selected()
+            default_type = typ if typ is not None else (
+                self.scene.action_type if (self.scene is not None and self.scene.action_type >= 0) else None)
+        spec = dialogs.ask_new_scene(self.frame, self, bank, default_type)
+        if not spec:
+            return None
+        return self.add_entry(pos, spec["type_id"], spec["keys"], spec["body"], spec["position"])
+
+    def add_entry(self, pos, type_id, keys, body, position=None):
+        """Mint a scene: assemble `body`, append it, register it under `type_id` with `keys`
+        at `position` ('append' / 'first' / an index), then open it. (event pc, index) or None."""
+        bank = self.doc.container.banks[pos]
+        try:
+            subs = catalog.parse_entry_keys(keys) if isinstance(keys, str) else list(keys or ())
+        except ValueError as e:
+            messagebox.showinfo("New scene", str(e))
+            return None
+        err = self.assemble_check(body, base=len(bank.data))[2] if (body or "").strip() else \
+            "the body needs at least one statement (FRAME 0 / DIALOG #id / END)"
+        if err:
+            messagebox.showinfo("New scene", err)
+            return None
+        at = None if position in (None, "", "append", "last") else (0 if position == "first" else int(position))
+        note = self.shadow_note(bank, int(type_id), at)
+        box = {}
+
+        def do():
+            box["r"] = self.doc.container.add_entry(bank, int(type_id), subs, listing=body, position=at)
+        if not self.apply("New %s scene" % catalog.type_label(int(type_id)), do, view=(pos, None)):
+            return None
+        event_pc, idx = box["r"]
+        self.browser.refresh_bank(pos)
+        self.open_scene(pos, event_pc)
+        self.status("new scene @0x%04x registered as %s entry #%d" % (event_pc, catalog.type_label(int(type_id)), idx)
+                    + (("   ⚠ " + note) if note else ""))
+        return event_pc, idx
+
+    def remove_entry(self, pos, type_id, index):
+        bank = self.doc.container.banks[pos]
+        ok = self.apply("Remove %s entry #%d" % (catalog.type_label(type_id), index),
+                        lambda: self.doc.container.remove_entry(bank, type_id, index))
+        if ok:
+            self.browser.refresh_bank(pos)
+        return ok
+
+    def set_entry_keys(self, pos, type_id, index, keys):
+        try:
+            subs = catalog.parse_entry_keys(keys) if isinstance(keys, str) else list(keys or ())
+        except ValueError as e:
+            messagebox.showinfo("Keys", str(e))
+            return False
+        bank = self.doc.container.banks[pos]
+        return self.apply("Keys of %s entry #%d" % (catalog.type_label(type_id), index),
+                          lambda: self.doc.container.set_entry(bank, type_id, index, subs=subs))
+
+    def open_new_scene_dialog(self, bank_index, default_type=None):
+        """Host entry point ('New scene on this map…'): open the bank, then the New scene
+        dialog with `default_type` (MapEnterScene for a map bank when None)."""
+        c = self.doc.container
+        if c is None or not 0 <= bank_index < len(c.banks):
+            self.status("rf3.mc has no bank %s" % bank_index)
+            return None
+        if self.bank_pos != bank_index:
+            self.show_bank(bank_index)
+        self.nb.select(TABS.index("Triggers"))
+        if default_type is None and c.banks[bank_index].kind == "tail":
+            default_type = catalog.map_enter_type()
+        return self.ask_new_scene(default_type, pos=bank_index)
+
+    # ---- Event Manager ----------------------------------------------------------------- #
+    def open_event_manager(self):
+        if self.doc.em is None:
+            messagebox.showerror("Event Manager", "em.bin / emdeb.bin were not found in the game source.")
+            return None
+        w = self._em_window
+        if w is not None and w.win.winfo_exists():
+            w.win.deiconify()
+            w.win.lift()
+            return w
+        self._em_window = EventManagerWindow(self)
+        return self._em_window
+
+    def em_uses(self, entry_idx):
+        """[(bank pos, scene entry, pc, stmt)] of every scene op naming em entry `entry_idx`."""
+        if self._em_uses is None:
+            uses, seen = {}, set()
+            for pos, bk in enumerate(self.doc.container.banks):
+                for sc in script.disassemble_bank(bk):
+                    for pc, st in sc.stmts.items():
+                        if st.op not in script.EMF_ENTRY_OPS or (pos, pc) in seen:
+                            continue
+                        ai = script.EMF_ENTRY_OPS[st.op]
+                        if ai >= len(st.args):
+                            continue
+                        seen.add((pos, pc))
+                        try:
+                            eid = int(script.arg_repr(bk.data, st.args[ai]))
+                        except (ValueError, TypeError):
+                            continue
+                        uses.setdefault(eid, []).append((pos, sc.entry_pc, pc, st))
+            self._em_uses = uses
+        return self._em_uses.get(entry_idx, [])
+
+    def ask_spec(self, title, prompt, validate, initial=""):
+        return dialogs.ask_spec(self.frame, title, prompt, validate, initial)
+
+    # ------------------------------------------------------------------ #
+    # undo, saving
+    # ------------------------------------------------------------------ #
+    def undo(self):
+        self.flush_edits()
+        step = self.doc.undo()
+        self._after_history(step, "Undid")
+
+    def redo(self):
+        self.flush_edits()
+        step = self.doc.redo()
+        self._after_history(step, "Redid")
+
+    def _after_history(self, step, verb):
+        if step is None:
+            self.status("Nothing to undo" if verb == "Undid" else "Nothing to redo")
+            return
+        view = step.get("view")
+        c = self.doc.container
+        if view and view[0] is not None and c is not None and 0 <= view[0] < len(c.banks):
+            here = (self.bank_pos, self.scene.entry_pc if self.scene else None)
+            if view[1] is None or view[1] >= len(c.banks[view[0]].data):
+                if here[0] != view[0] or self.scene is None:
+                    self.show_bank(view[0])
+            elif here != tuple(view):
+                self.open_scene(view[0], view[1])
+        self.status("%s: %s" % (verb, step["label"]))
+
+    def _undo_tip(self, which):
+        st = self.doc.undo_stack if which == "undo" else self.doc.redo_stack
+        return ("%s: %s  (%s)" % (which.capitalize(), st[-1]["label"], "Ctrl+Z" if which == "undo" else "Ctrl+Y")
+                if st else "Nothing to %s" % which)
+
+    def _chrome(self):
+        parts = self.doc.dirty_parts()
+        self.dirty_lbl.config(text=("● unsaved: " + ", ".join(parts)) if parts else "")
+        self.undo_btn.state(["!disabled"] if self.doc.undo_stack else ["disabled"])
+        self.redo_btn.state(["!disabled"] if self.doc.redo_stack else ["disabled"])
+
+    def unsaved(self):
+        return self.doc.dirty_parts()
+
+    def confirm_discard(self, action="continue"):
+        self.flush_edits()
+        parts = self.unsaved()
+        if not parts:
+            return True
+        ans = messagebox.askyesnocancel("Unsaved changes", "Unsaved changes to %s.\n\nSave before you %s?\n"
+                                        "(Yes = save, No = discard, Cancel = stay here)"
+                                        % (", ".join(parts), action), parent=self.parent)
+        if ans is None:
+            return False
+        return self.save_all() if ans else True
+
+    def _on_close(self):
+        if self.confirm_discard("close the cutscene editor"):
+            self.parent.destroy()
+
+    def save_all(self):
+        self.flush_edits()
+        parts = self.unsaved()
+        if not parts:
+            self.status("Nothing to save")
+            return True
+        if "rf3.mc" in parts and not self.save_script():
+            return False
+        if any(p.startswith("rf3mc.") for p in parts) and not self.save_text():
+            return False
+        if "em.bin" in parts and not self.save_em():
+            return False
+        return True
+
+    def save_script(self):
+        if self.doc.container is None:
+            return False
+        f = filedialog.asksaveasfilename(title="Save rf3.mc", defaultextension=".mc", initialfile="rf3.mc")
+        if not f:
+            return False
+        try:
+            pathlib.Path(f).write_bytes(self.doc.container.build())
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Save rf3.mc", str(e))
+            return False
+        self.doc.mark_saved(script_=True)
+        self._chrome()
+        self.status("Saved %s" % f)
+        return True
+
+    def save_text(self):
+        """Save the shown locale's dialogue; every other edited locale is written next to it
+        under its own rf3mc.<locale> name, so line ids stay aligned."""
+        if self.doc.textarc is None:
+            messagebox.showinfo("Save dialogue", "rf3mc.%s is not loaded." % self.doc.locale)
+            return False
+        f = filedialog.asksaveasfilename(title="Save rf3mc.%s" % self.doc.locale,
+                                         initialfile="rf3mc.%s" % self.doc.locale)
+        if not f:
+            return False
+        folder = pathlib.Path(f).parent
+        written = []
+        try:
+            pathlib.Path(f).write_bytes(self.doc.textarc.build())
+            written.append(pathlib.Path(f).name)
+            for loc in self.doc.dirty_locales():
+                if loc != self.doc.locale:
+                    (folder / ("rf3mc.%s" % loc)).write_bytes(self.doc.arcs[loc].build())
+                    written.append("rf3mc.%s" % loc)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Save dialogue", str(e))
+            return False
+        self.doc.mark_saved(locales=set(self.doc.dirty_locales()) | {self.doc.locale})
+        self._chrome()
+        self.status("Saved %s -> %s" % (", ".join(written), folder))
+        return True
+
+    def save_em(self):
+        em = self.doc.em
+        if em is None:
+            return False
+        f = filedialog.asksaveasfilename(title="Save em.bin", defaultextension=".bin", initialfile="em.bin")
+        if not f:
+            return False
+        try:
+            pathlib.Path(f).write_bytes(em.build())
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Save em.bin", str(e))
+            return False
+        self.doc.mark_saved(em=True)
+        self._chrome()
+        self.status("Saved %s" % f)
+        return True
+
+    def install(self):
+        """Install every edited file as a loose override under a chosen game root."""
+        if self.doc.container is None:
+            return False
+        root = filedialog.askdirectory(title="Game root (loose files install under it)")
+        if not root:
+            return False
+        import tempfile
+        stage = pathlib.Path(tempfile.mkdtemp())
+        files = {"rf3.mc": self.doc.container.build()}
+        for loc in self.doc.dirty_locales():
+            files["rf3mc.%s" % loc] = self.doc.arcs[loc].build()
+        if self.doc.em_dirty():
+            files["em.bin"] = self.doc.em.build()
+        try:
+            for name, blob in files.items():
+                (stage / name).write_bytes(blob)
+                mbundle.install_loose(pathlib.Path(root), name, str(stage / name))
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Install", str(e))
+            return False
+        self.doc.mark_saved(script_=True, locales=self.doc.dirty_locales(), em="em.bin" in files)
+        self._chrome()
+        messagebox.showinfo("Install", "Installed loose override(s): %s\n(the game loads loose files "
+                                       "before the bundles, so no repack is needed)." % ", ".join(files))
+        self.status("Installed " + ", ".join(files))
+        return True
+
+    # ---- status ----------------------------------------------------------------------- #
+    def status(self, s):
+        if self.status_fn:
+            self.status_fn(s)
+        try:
+            self.status_lbl.config(text=s)
+        except (tk.TclError, AttributeError):
+            pass
+
+    def busy(self, on):
+        try:
+            self.frame.config(cursor="watch" if on else "")
+            self.frame.update_idletasks()
+        except tk.TclError:
+            pass
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    root = tk.Tk()
+    root.title("RF4S Cutscene Editor")
+    root.geometry("1400x860")
+    reader = None
+    if argv:
+        d = pathlib.Path(argv[0])
+        if d.is_dir():
+            from map_editor.data import folder_reader
+            reader = folder_reader(d)
+    if reader is None:
+        from map_editor import data
+        mc = data.find_extracted("rf3.mc")
+        if mc is not None:
+            reader = data.folder_reader(mc.parent)
+    CutsceneExplorer(root, reader=reader)
+    root.mainloop()

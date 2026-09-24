@@ -1853,61 +1853,51 @@ def test_script():
                len(_sh) > 50 and _sh_ok and _sh_ci and _sh_none and _sh_disc)
     else:
         _skip("dialogue search", "no rf3mc.eng catalog")
-    # structural search (the Find feature's opcode/speaker modes -> _search_structural). Drive it
-    # headless with a mock self and confirm each mode returns scenes that GENUINELY match: opcode
-    # search finds scenes containing the op (by-mnemonic count == by-number count, every hit has
-    # it), speaker search finds scenes with the matching SetSpeaker, nonsense returns nothing.
-    # Pairs with the dialogue-search guard (the other half of Find).
+    # structural search (the browser's opcode/speaker modes -> cutscene_editor.browser.find_scenes).
+    # Run it headless on a stub document and confirm each mode returns scenes that GENUINELY
+    # match: opcode search finds scenes containing the op (by-mnemonic count == by-number count,
+    # every hit has it), speaker search finds scenes with the matching SetSpeaker, nonsense
+    # returns nothing. Pairs with the dialogue-search guard (the other half of the search box).
     try:
-        import script_explorer as _se2
+        from cutscene_editor import browser as _ceb, catalog as _cec, render as _cer
     except Exception:
-        _se2 = None
+        _ceb = _cec = _cer = None
     if QUICK:
-        _skip("structural search (Find)", "quick mode: full-corpus sweep")
-    elif _se2 is not None:
-        class _SearchMock:
-            def __init__(_s):
-                _s.container = c
-                _s._results = []
-            def _em_get(_s):
-                return None
-            def _fill_scene_list(_s, _status):
-                pass
-        _sm = _SearchMock()
-        _ssf = _se2.CutsceneExplorer._search_structural
+        _skip("structural search", "quick mode: full-corpus sweep")
+    elif _ceb is not None:
+        class _SearchDoc:
+            container, em, textarc = c, None, None
+        _sdoc = _SearchDoc()
         _give = script.op_from_name("GiveItem")
-        _ssf(_sm, "opcode", "GiveItem")
-        _n1, _op_ok = len(_sm._results), all(any(_st.op == _give for _st in _sc.stmts.values())
-                                             for _bk, _sc in _sm._results[:100])
-        _ssf(_sm, "opcode", str(_give))
-        _n2 = len(_sm._results)
-        _ssf(_sm, "speaker", "Arthur")
-        _n3, _spk_ok = len(_sm._results), all(
-            any(script.is_portrait_op(_st.op)
-                and "arthur" in (script.portrait_speaker_name(_st.op) or "").lower()
-                for _st in _sc.stmts.values()) for _bk, _sc in _sm._results[:100])
-        _ssf(_sm, "opcode", "zznotanop")
-        _n4 = len(_sm._results)
-        _check("structural search (Find: opcode/speaker) matches genuinely + by-number == by-name",
-               _n1 > 5 and _op_ok and _n2 == _n1 and _n3 > 5 and _spk_ok and _n4 == 0)
+        _r1 = _ceb.find_scenes(_sdoc, "opcode", "GiveItem")
+        _op_ok = all(any(_st.op == _give for _st in _sc.stmts.values()) for _pos, _sc in _r1[:100])
+        _r2 = _ceb.find_scenes(_sdoc, "opcode", str(_give))
+        _r3 = _ceb.find_scenes(_sdoc, "speaker", "Arthur")
+        _spk_ok = all(any(script.is_portrait_op(_st.op)
+                          and "arthur" in (script.portrait_speaker_name(_st.op) or "").lower()
+                          for _st in _sc.stmts.values()) for _pos, _sc in _r3[:100])
+        _r4 = _ceb.find_scenes(_sdoc, "opcode", "zznotanop")
+        _check("structural search (opcode/speaker) matches genuinely + by-number == by-name",
+               len(_r1) > 5 and _op_ok and len(_r2) == len(_r1) and len(_r3) > 5 and _spk_ok
+               and not _r4, f"{len(_r1)}/{len(_r2)}/{len(_r3)}/{len(_r4)}")
     else:
-        _skip("structural search", "script_explorer not importable")
-    # xrefs (the explorer's "who calls this" reverse lookup, 2026-09-01): control-flow
-    # callers over one bank. Bank 210 ground truth: the shared close-bubbles subroutine
-    # @0x114C has hundreds of CALL sites; the FRAME subroutine @0x17CE has exactly one
-    # caller (CALL @0x0508), attributed to its typed parent scene; the Eliza-chat
-    # dispatcher @0x6394 has none (engine/event dispatch only, shown as such in the UI).
-    if _se2 is not None and len(c.banks) > 210:
-        _x1 = _se2.collect_xrefs(c.banks[210], 0x114C)
-        _x2 = _se2.collect_xrefs(c.banks[210], 0x17CE)
-        _x3 = _se2.collect_xrefs(c.banks[210], 0x6394)
-        _check("explorer xrefs: reverse CALL lookup (many/one/none pins on bank 210)",
+        _skip("structural search", "cutscene_editor not importable")
+    # xrefs (the editor's Callers… reverse lookup, 2026-09-01): control-flow callers over one
+    # bank. Bank 210 ground truth: the shared close-bubbles subroutine @0x114C has hundreds of
+    # CALL sites; the FRAME subroutine @0x17CE has exactly one caller (CALL @0x0508),
+    # attributed to its typed parent scene; the Eliza-chat dispatcher @0x6394 has none
+    # (engine/event dispatch only, shown as such in the UI).
+    if _cec is not None and len(c.banks) > 210:
+        _x1 = _cec.collect_xrefs(c.banks[210], 0x114C)
+        _x2 = _cec.collect_xrefs(c.banks[210], 0x17CE)
+        _x3 = _cec.collect_xrefs(c.banks[210], 0x6394)
+        _check("editor xrefs: reverse CALL lookup (many/one/none pins on bank 210)",
                len(_x1) > 200 and all(_r[3] == "CALL" for _r in _x1[:20])
                and len(_x2) == 1 and _x2[0][2] == 0x0508 and _x2[0][3] == "CALL"
                and _x3 == [],
                f"{len(_x1)} sites / {len(_x2)} / {len(_x3)}")
     else:
-        _skip("explorer xrefs", "script_explorer not importable")
+        _skip("editor xrefs", "cutscene_editor not importable")
     # Ghidra listing-plan generator (ghidra/gen_ghidra_plan.py, 2026-09-01): bank 210
     # pins — the 0x508 CALL carries a typed 'call' reference to the FRAME subroutine
     # @0x17CE, DIALOG rows inline the locale text, the big type-27 scene entry gets a
@@ -1935,40 +1925,26 @@ def test_script():
                and all(len(r) == 5 and 2 <= r[4] <= r[1] for r in _gpb["stmts"]))
     else:
         _skip("ghidra plan generator", "module not importable")
-    # end-to-end GUI tooltip guard: the actual Ctrl-hover tooltip method (_rich_tip_text) must
-    # render a non-empty string for EVERY op that appears in scenes -- DIALOG, control ops, and
-    # action ops (prototype + per-arg + enum/EMF/speaker decode). Driven with a minimal mock 'self'
-    # so it runs headless. This is the DISPLAY side of 'update the tooltips': it proves the curated
-    # metadata actually reaches a working GUI tooltip. Bounded to the first 15 banks (~225 ops).
-    try:
-        import script_explorer as _se
-    except Exception:
-        _se = None
-    if _se is not None:
-        class _TipMock:
-            def __init__(_s):
-                _s._bank = None
-                _s._labels = {}
-            def _dlg(_s, _lid):
-                try:
-                    return _tarc.text(_lid) if _tarc else None
-                except Exception:
-                    return None
-            def _expr_vars(_s, _e):
-                return []
-        _tm = _TipMock()
-        _rtt = _se.CutsceneExplorer._rich_tip_text
+    # end-to-end explanation guard: the editor's Ctrl-hover explanation (render.SceneText.explain,
+    # also the Inspector's "What it does" box) must render a non-empty string for EVERY op that
+    # appears in scenes -- DIALOG, control ops, and action ops (prototype + per-arg + enum/EMF/
+    # speaker decode, the FLG_/REG_ legend of a condition). ScriptDocument has no Tk in it, so
+    # this runs headless. Bounded to the first 15 banks (~225 ops).
+    if _cer is not None:
+        from cutscene_editor.document import ScriptDocument as _SDoc
+        _tdoc = _SDoc(lambda _n: (_first(_n).read_bytes() if _first(_n) else None))
+        _tdoc.load_from_reader()
         _tip_ok = _tip_err = 0
         _tip_ctrl, _tip_seen = set(), set()
-        _choice_checked = _choice_ok = 0     # PROMPT_CHOICE tooltip surfaces each option's line id
-        for _tb in c.banks[:15]:
-            _tm._bank = _tb
+        _choice_checked = _choice_ok = 0     # PROMPT_CHOICE explanation surfaces each option's line id
+        for _tb in _tdoc.container.banks[:15]:
             for _tsc in script.disassemble_bank(_tb, discover=True):
+                _tst_text = _cer.SceneText(_tdoc, _tb, _tsc)
                 for _tst in _tsc.stmts.values():
                     if _tst.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") \
                             and getattr(_tst, "items", None) and _choice_checked < 5:
                         try:
-                            _ct = _rtt(_tm, _tst)
+                            _ct = _tst_text.explain(_tst)
                             _choice_checked += 1
                             if all(("#%d" % _it) in _ct for _it in _tst.items):
                                 _choice_ok += 1
@@ -1978,7 +1954,7 @@ def test_script():
                         continue
                     _tip_seen.add((_tst.op, _tst.mnem))
                     try:
-                        _txt = _rtt(_tm, _tst)
+                        _txt = _tst_text.explain(_tst)
                         if isinstance(_txt, str) and _txt:
                             _tip_ok += 1
                             if _tst.op >= 0xFFF0:
@@ -1987,19 +1963,18 @@ def test_script():
                             _tip_err += 1
                     except Exception:
                         _tip_err += 1
-        _check("GUI _rich_tip_text renders a tooltip for every corpus op (headless mock)",
+        _check("editor explanation (SceneText.explain) renders for every corpus op (headless)",
                _tip_ok > 100 and _tip_err == 0 and len(_tip_ctrl) >= 10,
                f"{_tip_ok} ops, {_tip_err} errors, {len(_tip_ctrl)} control mnems")
         # every-op coverage: the loop above only sees ops that appear in scenes -- ~125 named ops
-        # (quest-request generators 508-548, rare NPC actions, ...) NEVER appear, so their tooltip
-        # render was untested (this is exactly where the quest-populate description edits landed).
-        # Render each remaining named action op via a synthesized 0-arg statement -- the action-op
-        # tooltip only touches the bank when the statement HAS args, so bank=None is fine.
+        # (quest-request generators 508-548, rare NPC actions, ...) NEVER appear, so their
+        # explanation was untested. Render each remaining named action op via a synthesized
+        # 0-arg statement -- explain only touches the bank when the statement HAS args.
         import struct as _struct
-        _tm._bank = None
         _seen_ops = {_o for _o, _m in _tip_seen}
         _every_ok = _every_err = 0
         _every_bad = []
+        _bare = _cer.SceneText(_tdoc, None, None)
         # 702..762 carry names but have no handler slot, so they can never appear as a
         # statement (decode_statement rejects them) -- sweep only the dispatchable range.
         for _eop in range(script.DISPATCHABLE_ACTION_OPS):
@@ -2010,107 +1985,23 @@ def test_script():
                 continue
             try:
                 _est = script.decode_statement(_struct.pack("<HH", _eop, 0), 0)
-                _etxt = _rtt(_tm, _est)
+                _etxt = _bare.explain(_est)
                 if isinstance(_etxt, str) and _etxt.strip():
                     _every_ok += 1
                 else:
                     _every_err += 1; _every_bad.append(_eop)
             except Exception as _ee:
                 _every_err += 1; _every_bad.append((_eop, repr(_ee)[:40]))
-        _check("GUI _rich_tip_text renders for every never-in-scenes named op too",
+        _check("editor explanation renders for every never-in-scenes named op too",
                _every_ok > 80 and _every_err == 0,
                f"{_every_ok} extra ops rendered, {_every_err} errors {_every_bad[:5]}")
-        # the OTHER half of "update the tooltips": the edit-panel CONTROLS (buttons/fields/comboboxes
-        # a modder clicks) must each carry a hover tooltip -- the disassembly's Ctrl-hover covers the
-        # ops, but the controls were bare. Data-driven from CONTROL_HELP: verify each key is a REAL
-        # widget (`self.<key> =` in the source) with non-empty help, and that the attach loop wires
-        # them. Source-checked, so no GUI instantiation / display is needed.
-        _chelp = getattr(_se, "CONTROL_HELP", {})
-        _csrc = open(_se.__file__, encoding="utf-8").read()
-        _ch_missing = [_k for _k in _chelp if ("self.%s = " % _k) not in _csrc]
-        _ch_empty = [_k for _k, _v in _chelp.items() if not (_v and _v.strip())]
-        _ch_wired = ("_attach_tip(_cw" in _csrc) and ("CONTROL_HELP.items()" in _csrc)
-        # CONTROL_HELP now spans BOTH the toolbar (open/save/install/Event Mgr/find/search-mode/…)
-        # and the edit panel -- expect a fuller set. em-editor controls are covered separately below.
-        _check("editor toolbar+edit-panel controls all carry a hover tooltip (CONTROL_HELP complete + wired)",
-               len(_chelp) >= 24 and not _ch_missing and not _ch_empty and _ch_wired,
-               "missing=%s empty=%s wired=%s" % (_ch_missing[:3], _ch_empty[:3], _ch_wired))
-        # REVERSE check (makes "update the tooltips" self-enforcing): every interactive
-        # self.<widget> the editor creates must HAVE a CONTROL_HELP entry, so a newly-added button /
-        # combobox / entry can't silently ship untipped. em-editor controls are LOCAL vars (built
-        # lazily, covered by EM_CONTROL_HELP), so they don't surface as self.<name> here.
-        _iwidgets = set(re.findall(
-            r'self\.(\w+)\s*=\s*(?:ttk|tk)\.(?:Button|Combobox|Entry|Checkbutton|Radiobutton|Spinbox)\(',
-            _csrc))
-        _untipped = sorted(_w for _w in _iwidgets if _w not in _chelp)
-        _check("editor: every interactive self.<widget> has a CONTROL_HELP tooltip (no untipped control)",
-               not _untipped, "untipped=%s" % _untipped)
-        # Event Manager (em.bin) editor controls are built lazily in _open_em_browser, so their tips
-        # are attached inline from EM_CONTROL_HELP -- verify each has non-empty help AND an inline
-        # _attach_tip(..., EM_CONTROL_HELP["key"]) call in the source.
-        _emh = getattr(_se, "EM_CONTROL_HELP", {})
-        _emh_empty = [_k for _k, _v in _emh.items() if not (_v and _v.strip())]
-        _emh_unwired = [_k for _k in _emh if ('EM_CONTROL_HELP["%s"]' % _k) not in _csrc]
-        _check("em.bin editor controls all carry a hover tooltip (EM_CONTROL_HELP complete + wired)",
-               len(_emh) >= 5 and not _emh_empty and not _emh_unwired,
-               "empty=%s unwired=%s" % (_emh_empty, _emh_unwired))
-        # choice-text editing reachability: the PROMPT_CHOICE tooltip must surface each option's
-        # rf3mc line #id, so an author can edit a choice's text (type the #id in line# + Apply text).
-        # Choice items are embedded ids, not standalone DIALOG statements -- without the id shown
-        # there is no way to reach the text. Pairs with the generalized _apply_text (edit by line#).
-        _check("PROMPT_CHOICE tooltip surfaces each option's editable line #id",
+        # choice-text editing reachability: the PROMPT_CHOICE explanation must surface each
+        # option's rf3mc line #id (the Inspector's choice form edits them by id).
+        _check("PROMPT_CHOICE explanation surfaces each option's line #id",
                _choice_checked > 0 and _choice_ok == _choice_checked,
-               f"{_choice_ok}/{_choice_checked} choice tooltips show all item ids")
-        # control-op literal edit via the GUI handler (_set_ctrl_literal): on a mock 'self' it must
-        # patch the arg#-th literal in the selected control op's guard/value expression through
-        # set_expr_value and have the new value read back after rebuild+reparse -- the exact edit the
-        # value-edit row now performs when a BR_Z/STORE is selected. Byte-safe: only the immediate
-        # changes; branch targets and every other offset are preserved. Uses the STORE target above.
-        if _cl_target is not None:
-            _gbi, _gentry, _gatype, _gpc, _gidx, _gcur = _cl_target
-            _gc = script.Container(raw)
-            _gb = _gc.banks[_gbi]
-            _gscene = script.disassemble_scene(_gb, _gatype, _gentry)
-            _gst = _gscene.stmts.get(_gpc) or script.decode_statement(_gb.data, _gpc)
-            _glits = []
-            for _e in (_gst.expr_refs or []):
-                if _e is not None:
-                    _glits.extend(script.expr_literals(_gb.data, _e))
-            _newval = (_gcur + 7) % 100                # distinct, 1-byte-safe for any literal tag
-            class _Var:
-                def __init__(_s, v): _s._v = v
-                def get(_s): return _s._v
-            class _EditMock:
-                script_dirty = False
-                def _render_scene(_s): pass
-                def _status(_s, *a, **k): pass
-                def _dirty_tag(_s): return ""
-            _em2 = _EditMock()
-            _em2._sel = (_gpc, _gst)
-            _em2._ctrl_lits = _glits
-            _em2._bank = _gb
-            _em2._scene = _gscene
-            _em2.val_arg = _Var(str(_gidx))
-            _em2.val_var = _Var(str(_newval))
-            _gerr = None
-            try:
-                _se.CutsceneExplorer._set_ctrl_literal(_em2)
-            except Exception as _ge:
-                _gerr = repr(_ge)
-            _gb2 = script.Container(_gc.build()).banks[_gbi]
-            _gst2 = script.decode_statement(_gb2.data, _gpc)
-            _rl = []
-            for _e in (_gst2.expr_refs or []):
-                if _e is not None:
-                    _rl.extend(script.expr_literals(_gb2.data, _e))
-            _readback = _rl[_gidx][1] if _gidx < len(_rl) else None
-            _check("GUI _set_ctrl_literal patches a control-op guard/value literal (reads back after rebuild)",
-                   _gerr is None and _em2.script_dirty and _readback == _newval,
-                   f"err={_gerr}, dirty={_em2.script_dirty}, readback={_readback} (want {_newval})")
-        else:
-            _skip("GUI _set_ctrl_literal edit", "no STORE literal target found")
+               f"{_choice_ok}/{_choice_checked} choice explanations show all item ids")
     else:
-        _skip("GUI tooltip render", "script_explorer not importable (no tkinter)")
+        _skip("editor explanation render", "cutscene_editor not importable (no tkinter)")
     # picker-plausibility: every enum picker must sit on a token position whose corpus literal
     # values fall in a real id-space -- NOT >= 0x8000 (no wired enum has keys that large). A picker
     # mostly decoding >= 0x8000 values is misaligned (op 437 arg1 held 0x8100+ present-category
@@ -2968,7 +2859,7 @@ def test_emscript():
            and sum(1 for a, b in zip(raw_em, ed) if a != b) == 3
            and re_e.pretty_condition(em.names, "b", "").strip() == "REG_MAIN_SCENARIO > 10"
            and [a.pretty(em.names) for a in re_e.alt_actions] == ["REG_MAIN_SCENARIO = 39"])
-    # set_action_op: the em editor's THIRD edit method (script_explorer apply_edit -> set_action_op)
+    # set_action_op: the em editor's THIRD edit method (Event Manager window apply_field -> set_action_op)
     # -- changes an arithmetic action's operator (SET/ADD/SUB/MUL_.../SET_EQ_ZERO) via a 1-byte
     # high-nibble edit, preserving the operand; rejects CALL/None/bad-op. Fresh parse, independent
     # of the 3-byte edit above. The other two em-edit methods (set_operand_value/set_cmp_operator)
@@ -4495,170 +4386,162 @@ def test_emflags_extras():
         _skip("em condition with extras", "em.bin not found")
 
 
-def test_script_explorer_authoring():
-    """Headless drive of the cutscene editor's authoring panels (2026-09-19/20): Source tab
-    (listing, Check, Assemble & replace), listing-syntax insert, Entries tab (New scene on an
-    empty map bank, remove), Event Manager add/remove entry. messagebox/simpledialog are
-    stubbed so nothing pops on the desktop; the Tk root is withdrawn."""
-    print("script explorer authoring panels (headless GUI):")
+def test_cutscene_editor_authoring():
+    """Headless drive of the cutscene editor's authoring surfaces: Source tab (listing,
+    Check, Apply to scene), listing-syntax insert, Triggers tab (New scene on an empty map
+    bank, remove), the map editor's open_new_scene_dialog entry point, and the Event
+    Manager window's add/remove entry, condition and action. Every blocking dialog is
+    scripted (_headless_dialogs); the Tk root is withdrawn."""
+    print("cutscene editor authoring (headless GUI):")
     try:
         import tkinter as tk
-        import script_explorer as se
+        import cutscene_editor as ce
+        from cutscene_editor import dialogs as ce_dialogs, em_window
     except Exception as e:
-        _skip("explorer authoring", f"script_explorer/tkinter not importable ({e})")
+        _skip("editor authoring", f"cutscene_editor/tkinter not importable ({e})")
         return
     from rf4s_modkit import script, scriptasm
     p = _first("rf3.mc")
     if not p:
-        _skip("explorer authoring", "rf3.mc not extracted")
+        _skip("editor authoring", "rf3.mc not extracted")
         return
 
     def reader(n):
         f = _first(n)
         return f.read_bytes() if f else None
 
-    calls = []
-
-    class _MB:
-        def showerror(self, t, m, **k): calls.append(("error", t, m))
-        def showinfo(self, t, m, **k): calls.append(("info", t, m))
-        def showwarning(self, t, m, **k): calls.append(("warn", t, m))
-        def askyesno(self, t, m, **k): calls.append(("yesno", t, m)); return True
-
-    class _SD:
-        def askstring(self, t, m, **k): calls.append(("askstring", t, m)); return "1, -1"
-        def askinteger(self, t, m, **k): calls.append(("askinteger", t, m)); return 0
-
-    old_mb, old_sd = se.messagebox, se.simpledialog
-    se.messagebox, se.simpledialog = _MB(), _SD()
+    box = _headless_dialogs()
+    box["askstring"] = "EV_SELFTEST_NEW"
+    old_ask = ce_dialogs.ask_new_scene
     root = None
     try:
         try:
             root = tk.Tk()
             root.withdraw()
         except Exception as e:
-            _skip("explorer authoring", f"no display for Tk ({e})")
+            _skip("editor authoring", f"no display for Tk ({e})")
             return
-        ex = se.CutsceneExplorer(root, reader=reader)
-        _check("explorer constructs headless with rf3.mc + text + assembler resolver",
-               ex.container is not None and ex.textarc is not None and ex.container.asm_resolver is not None)
+        errs = []
+        root.report_callback_exception = lambda *a: errs.append(a)
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        doc = ex.doc
+        c = doc.container
+        _check("editor constructs headless with rf3.mc + text + assembler resolver",
+               c is not None and doc.textarc is not None and c.asm_resolver is not None)
         # --- Source tab on a real scene ---
         ex.show_bank(213)
-        sc = ex._scene
-        _check("show_bank(213) selects a scene and fills the Source tab",
-               sc is not None and "DIALOG" in ex.source.get("1.0", "end-1c"))
-        sig0 = scriptasm.scene_signature(sc, ex._bank.data)
-        _check("Source Check passes on the generated listing", ex._source_check() is not None,
-               ex.src_status.cget("text")[:100])
-        n_bank = len(ex._bank.data)
-        noop = ex._source_apply()
-        _check("Assemble & replace of an untouched listing is a no-op (no second body appended)",
-               noop is False and len(ex._bank.data) == n_bank and not ex.script_dirty)
-        ex.source.insert("end", "\n; selftest: same content, different text\n")
-        ok = ex._source_apply()
-        sig1 = scriptasm.scene_signature(ex._scene, ex._bank.data)
-        _check("Assemble & replace keeps the scene's signature (trampolined body)", bool(ok) and sig0 == sig1
-               and ex.script_dirty)
-        ex.source.insert("end", "\nNoSuchOpcodeXYZ 1\n")
-        bad = ex._source_check()
+        sc = ex.scene
+        ex.source.load(force=True)
+        _check("show_bank(213) opens a scene and the Source tab lists it",
+               sc is not None and "DIALOG" in ex.source.text.get("1.0", "end-1c"))
+        sig0 = scriptasm.scene_signature(sc, ex.bank.data)
+        _check("Source Check passes on the generated listing", ex.source.check() is not None,
+               ex.source.msg.cget("text")[:100])
+        n_bank = len(ex.bank.data)
+        noop = ex.source.apply()
+        _check("Apply to scene of an untouched listing is a no-op (no second body appended)",
+               noop is False and len(ex.bank.data) == n_bank and not doc.script_dirty())
+        ex.source.text.insert("end", "\n; selftest: same content, different text\n")
+        ok = ex.source.apply()
+        sig1 = scriptasm.scene_signature(ex.scene, ex.bank.data)
+        _check("Apply to scene keeps the scene's signature (trampolined body)",
+               bool(ok) and sig0 == sig1 and doc.script_dirty())
+        ex.source.text.insert("end", "\nNoSuchOpcodeXYZ 1\n")
+        bad = ex.source.check()
         _check("Source Check reports a bad line inline (no modal)", bad is None
-               and "line" in ex.src_status.cget("text") and not any(c[0] == "error" for c in calls))
-        ex._source_reload()
+               and "line" in ex.source.msg.cget("text") and not box["msgs"])
+        ex.source.load(force=True)
         # --- listing insert after the first DIALOG of the scene ---
-        dpc = next((pc for pc, st in ex._scene.stmts.items() if st.mnem == "DIALOG"), None)
+        dpc = next((pc for pc, st in ex.scene.stmts.items() if st.mnem == "DIALOG"), None)
         if dpc is not None:
-            ex._sel = (dpc, ex._scene.stmts[dpc])
-            n0 = len(ex._scene.stmts)
-            ex._insert_listing("BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg1 = 2)")
+            n0 = len(ex.scene.stmts)
+            ex.insert_after(dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg1 = 2)")
             _check("listing-syntax insert adds the branch/label/STORE beat",
-                   len(ex._scene.stmts) == n0 + 5 and ex._scene.ok)
+                   len(ex.scene.stmts) == n0 + 5 and ex.scene.ok)
         else:
             _skip("listing insert", "scene without DIALOG")
-        # --- Entries tab: new scene on an EMPTY tail bank, then remove ---
-        c = ex.container
+        # --- Triggers tab: new scene on an EMPTY tail bank, then remove ---
         empty_idx = next(i for i, b in enumerate(c.banks) if b.kind == "tail" and len(b.data) == 296)
         ex.show_bank(empty_idx)
         eb = c.banks[empty_idx]
-        res = ex._entries_add(eb, 7, "", "FRAME 0\nSetSpeakerNancy 3, 0\nDIALOG #8709\nEND", "append")
+        res = ex.add_entry(empty_idx, 7, "", "FRAME 0\nSetSpeakerNancy 3, 0\nDIALOG #8709\nEND", "append")
         recs = eb.entry_records(7)
-        _check("Entries 'New scene' mints a type-7 scene in an empty map bank and opens it",
+        _check("New scene mints a type-7 scene in an empty map bank and opens it",
                isinstance(res, tuple) and len(recs) == 1 and recs[0].event_id == res[0]
-               and ex._scene is not None and ex._scene.entry_pc == res[0] and ex._scene.ok)
-        rows = [v for v in ex._entries_rows.values() if v[1] is not None]
-        _check("Entries tree lists exactly the bank's entries", len(rows) == sum(
+               and ex.scene is not None and ex.scene.entry_pc == res[0] and ex.scene.ok)
+        rows = [v for v in ex.triggers.rows.values() if v[1] is not None]
+        _check("Triggers tab lists exactly the bank's entries", len(rows) == sum(
             cnt for cnt, _ in eb.type_table_full().values()))
         note = c.entry_shadow_note(eb, 7)
         _check("entry_shadow_note warns that a second type-7 (last-wins) entry replaces the first",
                note is not None and "LAST" in note)
-        iid = next(i for i, v in ex._entries_rows.items() if v[1] is not None)
-        ex.entries_tree.selection_set(iid)
-        ex._entries_remove()
-        _check("Entries 'Remove' unregisters it (container still builds)",
+        iid = next(i for i, v in ex.triggers.rows.items() if v[1] is not None)
+        ex.triggers.tree.selection_set(iid)
+        ex.triggers.remove()
+        _check("Triggers 'Remove' unregisters it (container still builds)",
                not eb.entry_records(7) and script.Container(c.build()).banks[empty_idx].entry_records(7) == [])
-        bad = ex._entries_add(eb, 7, "", "FRAME 0\nBogusOpcode 1\nEND", "append")
-        _check("Entries 'New scene' rejects a bad body without a modal", not isinstance(bad, tuple)
-               and not any(cl[0] == "error" for cl in calls))
+        n_msgs = len(box["msgs"])
+        bad = ex.add_entry(empty_idx, 7, "", "FRAME 0\nBogusOpcode 1\nEND", "append")
+        _check("New scene rejects a bad body (message names the problem, nothing changes)",
+               bad is None and len(box["msgs"]) == n_msgs + 1 and not eb.entry_records(7))
         # --- the map editor's entry point: open the editor on a map bank + mint a scene ---
-        ex._ask_new_scene = lambda bank, default_type=None: {
+        ce_dialogs.ask_new_scene = lambda parent, app, bank, default_type=None: {
             "type_id": default_type, "keys": [], "body": "FRAME 0\nDIALOG #8709\nEND",
             "position": "append"}
         res2 = ex.open_new_scene_dialog(empty_idx)
         _check("open_new_scene_dialog (map editor's 'New scene on this map…') defaults to "
                "MapEnterScene in that map's tail bank",
                isinstance(res2, tuple) and [r.event_id for r in eb.entry_records(7)] == [res2[0]])
-        del ex._ask_new_scene
         # --- Event Manager window: entries, conditions and actions ---
-        ex._open_em_browser()
-        h = getattr(ex, "_em_browser", None)
-        em = ex._em_get()
-        if isinstance(h, dict) and em is not None:
+        emw = ex.open_event_manager()
+        em = doc.em
+        if emw is not None and em is not None:
             n_before = len(em.entries)
-            se.simpledialog.askstring = lambda *a, **k: "EV_SELFTEST_NEW"
-            h["add_entry"]()
-            _check("EM browser 'Add entry' appends a new em.bin entry", len(em.entries) == n_before + 1)
-            new = em.entries[-1]
-            # select it in the list so the structural handlers act on it
-            for k, row in enumerate(h["shown"]):
-                if row.idx == new.idx:
-                    h["list"].selection_clear(0, "end"); h["list"].selection_set(k)
-                    break
+            box["yesno"] = False           # 'copy the selected entry?' -> no, an empty one
+            emw.add_entry()
+            box["yesno"] = True
+            _check("Event Manager 'Add entry' appends a new em.bin entry (tracked as unsaved)",
+                   len(em.entries) == n_before + 1 and "em.bin" in doc.dirty_parts())
+            nidx = em.entries[-1].idx
+            emw.select_idx(nidx)
             # NB: EmScript._relayout() re-creates the Entry objects, so re-fetch by id
-            # after every structural edit (the browser itself re-selects by id and refills).
-            nidx = new.idx
-            ex._ask_spec = lambda title, prompt, validate, initial="": "Hour >= 6 AND FLG_RAINBOW == 1"
-            h["add_condition"]()
+            # after every structural edit (the window itself re-selects by id and refills).
+            ex.ask_spec = lambda title, prompt, validate, initial="": "Hour >= 6 AND FLG_RAINBOW == 1"
+            emw.add_condition()
             new = em.entries[nidx]
-            _check("EM browser 'Add condition' parses the spec grammar into a new OR-slot",
+            _check("Event Manager 'Add condition' parses the spec grammar into a new OR-slot",
                    len(new.cond_a) == 1 and len(new.cond_a[0]) == 2)
-            ex._ask_spec = lambda title, prompt, validate, initial="": "alt: REG_WIFE_ID = 3"
-            h["add_action"]()
+            ex.ask_spec = lambda title, prompt, validate, initial="": "alt: REG_WIFE_ID = 3"
+            emw.add_action()
             new = em.entries[nidx]
-            _check("EM browser 'Add action' honours the alt: prefix", len(new.alt_actions) == 1
-                   and not new.actions)
-            h["refresh_struct"](new)
-            kinds = [it[0] for it in h["struct_items"]]
-            _check("EM structure picker lists the slot, its expressions and the action",
+            _check("Event Manager 'Add action' honours the alt: prefix",
+                   len(new.alt_actions) == 1 and not new.actions)
+            emw.refresh_struct(new)
+            kinds = [it[0] for it in emw.struct_items]
+            _check("structure picker lists the slot, its expressions and the action",
                    kinds == ["cond", "cond", "cond", "act"], kinds)
             rej = []
-            for bad in ("Hour >>= 6", "NOT_A_VARIABLE_X == 1", "slot=9 Hour >= 6"):
+            for spec in ("Hour >>= 6", "NOT_A_VARIABLE_X == 1", "slot=9 Hour >= 6"):
                 try:
-                    ex._em_parse_condition(em, new, bad)
+                    em_window.parse_condition(em, new, spec)
                 except Exception:
-                    rej.append(bad)
-            _check("EM condition specs are validated before they are applied (inline errors)",
-                   len(rej) == 3, rej)
-            h["struct"].current([i for i, it in enumerate(h["struct_items"])
-                                 if it[0] == "act"][0])
-            h["remove_action"]()
-            _check("EM browser 'Remove action' drops the picked action",
+                    rej.append(spec)
+            _check("condition specs are validated before they are applied", len(rej) == 3, rej)
+            emw.struct_cb.current([i for i, it in enumerate(emw.struct_items) if it[0] == "act"][0])
+            emw.remove_action()
+            _check("Event Manager 'Remove action' drops the picked action",
                    not em.entries[nidx].alt_actions)
-            em_bytes = em.serialize()
             from rf4s_modkit import emscript as _emsc
-            _check("em.bin with the new entry + condition + action re-serialises and reparses",
-                   len(_emsc.EmScript.parse(em_bytes, em.names).entries) == len(em.entries))
-            h["win"].withdraw()
+            _check("em.bin with the new entry + condition re-serialises and reparses",
+                   len(_emsc.EmScript.parse(em.serialize(), em.names).entries) == len(em.entries))
+            for _ in range(4):              # remove action, add action, condition, entry
+                ex.undo()
+            # undo re-parses em.bin into a fresh EmScript, so read doc.em again
+            _check("undo walks the Event Manager edits back to the shipped em.bin",
+                   len(doc.em.entries) == n_before and "em.bin" not in doc.dirty_parts())
+            emw.win.withdraw()
         else:
-            _skip("EM browser structural edits", "browser handlers not exposed or em.bin missing")
+            _skip("Event Manager structural edits", "em.bin missing")
         # --- the trigger catalogue's registration recipes reach the editor ---
         try:
             from rf4s_modkit import entry_types
@@ -4666,14 +4549,13 @@ def test_script_explorer_authoring():
             kinds = {v.get("bank_kind") for v in entry_types.ENTRY_TYPES.values()}
             _check("catalogue carries registration recipes + machine-readable bank kinds",
                    len(recipes) >= 10 and entry_types.map_enter_type() == 7
-                   and kinds <= set(entry_types.BANK_KINDS) and len(se.recipe_types()) == len(recipes),
+                   and kinds <= set(entry_types.BANK_KINDS) and len(ce.recipe_types()) == len(recipes),
                    f"{len(recipes)} recipes, kinds={sorted(kinds)}")
         except Exception as e:
             _check("catalogue carries registration recipes + machine-readable bank kinds", False, repr(e))
-        _check("no modal error dialog was raised during the drive", not any(cl[0] == "error" for cl in calls),
-               str([cl[2][:60] for cl in calls if cl[0] == "error"][:3]))
+        _check("authoring drive raised no callback errors", not errs, f"{len(errs)}")
     finally:
-        se.messagebox, se.simpledialog = old_mb, old_sd
+        ce_dialogs.ask_new_scene = old_ask
         if root is not None:
             try:
                 root.destroy()
@@ -5234,14 +5116,16 @@ def test_map_editor_workflows():
 
 
 def test_cutscene_editor_workflows():
-    """Cutscene editor fixes 2026-09-24: undo/redo for every script + dialogue edit
-    (byte-exact), the args row edits VALUES in listing syntax (it used to write raw
-    expression offsets), typed-constant args are set in place, and no-op Set value /
-    Apply text / Assemble & replace change nothing."""
-    print("cutscene editor: undo/redo, args row, no-op edits:")
-    import importlib.util
+    """Cutscene editor (2026-09-24 overhaul): the Inspector shows arguments in listing
+    syntax, typed-constant args are set in place, one undo history covers rf3.mc and every
+    rf3mc.<locale> byte-exactly, no-op edits record nothing, control-op literals patch in
+    place, speaker / dialogue inserts undo cleanly, the unsaved-close guard asks, and every
+    interactive control in the window carries a hover tip."""
+    print("cutscene editor: undo/redo, inspector edits, no-op edits, tips:")
     try:
         import tkinter as tk
+        from tkinter import ttk
+        import cutscene_editor as ce
     except Exception as e:
         _skip("cutscene editor workflows", "no tkinter: %s" % e); return
     mc = _first("rf3.mc")
@@ -5255,74 +5139,144 @@ def test_cutscene_editor_workflows():
             if (d / n).is_file():
                 return (d / n).read_bytes()
         return None
-    spec = importlib.util.spec_from_file_location("script_explorer_w", pathlib.Path(__file__).with_name("script_explorer.py"))
-    sx = importlib.util.module_from_spec(spec); spec.loader.exec_module(sx)
     from rf4s_modkit import scriptasm, script
     box = _headless_dialogs()
     root = tk.Tk(); root.withdraw()
     errs = []
     root.report_callback_exception = lambda *a: errs.append(a)
     try:
-        cx = sx.CutsceneExplorer(tk.Toplevel(root), reader=reader)
-        orig = cx.container.build()
-        cx.show_bank(48)
-        pick = next(((sc, pc, st) for _b, sc in cx._results for pc, st in sc.stmts.items()
-                     if st.op == 266 and len(st.args) >= 3), None)
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        doc = cx.doc
+        orig = doc.container.build()
+        bank48 = doc.container.banks[48]
+        pick = next(((sc, pc, st) for sc in script.disassemble_bank(bank48)
+                     for pc, st in sc.stmts.items() if st.op == 266 and len(st.args) >= 3), None)
         if pick is None:
             _skip("cutscene editor workflows", "no op-266 statement in bank 48"); return
         sc, pc, st = pick
-        cx._bank, cx._scene = cx.container.banks[48], sc
-        cx._render_scene(); cx._sel = (pc, st); cx._populate_editor(pc, st)
-        row = cx.args_var.get()
-        _check("args row shows listing syntax (actor(..), map(..)), not raw offsets",
-               row.startswith("actor(") and "map(MAP_" in row, row)
-        # no-op Set value / Apply args / Apply text / Assemble & replace
-        for i in range(len(st.args)):
-            cx.val_arg.set(str(i)); cx._val_arg_changed()
-            if cx.val_var.get():
-                cx._set_value()
-        cx._apply_args()
-        cx._source_load(True); cx._source_apply()
-        _check("no-op Set value / Apply args / Assemble & replace leave rf3.mc untouched and clean",
-               cx.container.build() == orig and not cx.script_dirty and not cx._undo_steps)
-        # typed constant set in place + undo/redo
-        cx._sel = (pc, cx._scene.stmts[pc]); cx._populate_editor(pc, cx._sel[1])
-        cx.val_arg.set("0"); cx._val_arg_changed(); cx.val_var.set("5"); cx._set_value()
-        st2 = cx._scene.stmts[pc]
-        in_place = script.arg_repr(cx._bank.data, st2.args[0], st2.op, 0) == "actor(Kiel)"
-        cx._undo()
-        undone = cx.container.build() == orig and not cx.script_dirty
-        cx._redo(); redone = cx.container.build() != orig
-        cx._undo()
-        _check("Set value on actor(..) stays a typed constant; undo/redo are byte-exact",
-               in_place and undone and redone)
-        # args row: change actor + map + a literal that needs a wider expression, then undo
         cx.show_bank(48, sc.entry_pc)
-        cx._sel = (pc, cx._scene.stmts[pc]); cx._populate_editor(pc, cx._sel[1])
-        parts = scriptasm._split_top(cx.args_var.get())
-        parts[:3] = ["actor(Forte)", "map(MAP_CITY_00)", "70000"]
-        cx.args_var.set(", ".join(parts)); cx._apply_args()
-        st3 = cx._scene.stmts[pc]
-        ok_vals = (script.arg_repr(cx._bank.data, st3.args[0], st3.op, 0) == "actor(Forte)"
-                   and script.arg_repr(cx._bank.data, st3.args[1], st3.op, 1) == "map(MAP_CITY_00)"
-                   and script.arg_constant(cx._bank.data, st3.args[2]) == (70000, True))
-        cx._undo()
-        _check("args row sets values by name / map / wide literal; one undo restores the grown bank",
-               ok_vals and cx.container.build() == orig)
+        cx.select((pc, None)); root.update_idletasks()
+
+        def entries(w, out):
+            for ch in w.winfo_children():
+                if type(ch) is ttk.Entry:
+                    out.append(ch.get())
+                entries(ch, out)
+            return out
+        shown = entries(cx.inspector, [])
+        _check("Inspector shows arguments in listing syntax (actor(..), map(..)), not raw offsets",
+               any(v.startswith("actor(") for v in shown) and any(v.startswith("map(MAP_") for v in shown),
+               str(shown[:4]))
+        # no-op edits: re-setting every argument to its own text, and applying an untouched listing
+        for i in range(len(st.args)):
+            cx.set_arg(pc, i, scriptasm.operand_text(cx.bank.data, st.args[i], st.op, i))
+        cx.source.load(force=True); cx.source.apply()
+        _check("no-op argument edits / Apply to scene leave rf3.mc untouched, clean, with no undo step",
+               doc.container.build() == orig and not doc.script_dirty() and not doc.undo_stack)
+        # typed constant set in place + undo/redo
+        cx.set_arg(pc, 0, "5")
+        st2 = cx.stmt(pc)
+        in_place = script.arg_repr(cx.bank.data, st2.args[0], st2.op, 0) == "actor(Kiel)"
+        cx.undo()
+        undone = doc.container.build() == orig and not doc.script_dirty()
+        cx.redo(); redone = doc.container.build() != orig
+        cx.undo()
+        _check("a number on actor(..) stays a typed constant; undo/redo are byte-exact",
+               in_place and undone and redone)
+        # actor + map + a literal that needs a wider expression, then undo each
+        cx.set_arg(pc, 0, "actor(Forte)")
+        cx.set_arg(pc, 1, "map(MAP_CITY_00)")
+        cx.set_arg(pc, 2, "70000")
+        st3 = cx.stmt(pc)
+        ok_vals = (script.arg_repr(cx.bank.data, st3.args[0], st3.op, 0) == "actor(Forte)"
+                   and script.arg_repr(cx.bank.data, st3.args[1], st3.op, 1) == "map(MAP_CITY_00)"
+                   and script.arg_constant(cx.bank.data, st3.args[2]) == (70000, True))
+        for _ in range(3):
+            cx.undo()
+        _check("arguments set by name / map / wide literal; undo restores the grown bank exactly",
+               ok_vals and doc.container.build() == orig)
+        # control-op literal: patch a number in a guard / value expression, read it back, undo
+        lit = None
+        for lsc in script.disassemble_bank(bank48):
+            for lpc, lst in lsc.stmts.items():
+                if lst.op >= 0xFFF0 and lst.expr_refs:
+                    ls = [x for e in lst.expr_refs if e is not None
+                          for x in script.expr_literals(bank48.data, e)]
+                    if ls:
+                        lit = (lsc, lpc, ls[0][1]); break
+            if lit:
+                break
+        if lit is not None:
+            lsc, lpc, cur = lit
+            cx.open_scene(48, lsc.entry_pc)
+            want = (cur + 7) % 100
+            cx.set_literal(lpc, 0, want)
+            b2 = script.Container(doc.container.build()).banks[48]
+            s2 = script.decode_statement(b2.data, lpc)
+            back = [x[1] for e in s2.expr_refs if e is not None for x in script.expr_literals(b2.data, e)][0]
+            cx.undo()
+            _check("control-op literal patches in place (reads back after rebuild) and undoes exactly",
+                   back == want and doc.container.build() == orig, f"{back} want {want}")
+        else:
+            _skip("control-op literal edit", "no literal in bank 48")
         # dialogue: no-op, real edit, undo
         cx.show_bank(4)
-        dpc, dst = next((q, t) for q, t in cx._scene.stmts.items() if t.mnem == "DIALOG")
-        cx._sel = (dpc, dst); cx._populate_editor(dpc, dst)
-        cx._apply_text()
-        noop_clean = not cx.text_dirty
-        before = list(cx.textarc.entries)
-        cx.text_box.delete("1.0", "end"); cx.text_box.insert("1.0", "selftest line")
-        cx._apply_text(); cx._undo()
-        _check("dialogue: no-op Apply text stays clean; an edit undoes to the exact archive",
-               noop_clean and list(cx.textarc.entries) == before and not cx.text_dirty)
+        dpc = next(q for q, t in cx.scene.stmts.items() if t.mnem == "DIALOG")
+        lid = cx.stmt(dpc).dialog_id
+        before = list(doc.textarc.entries)
+        cx.set_text(lid, doc.text(lid))
+        noop_clean = not doc.dirty_locales() and not doc.undo_stack
+        cx.set_text(lid, "selftest line"); cx.undo()
+        _check("dialogue: a no-op text edit records nothing; an edit undoes to the exact archive",
+               noop_clean and list(doc.textarc.entries) == before and not doc.dirty_locales())
+        # speaker change, a new spoken line, a detached line: all undo byte-exact
+        spc = next((q for q, t in cx.scene.stmts.items() if script.is_portrait_op(t.op)), None)
+        if spc is not None:
+            cx.set_speaker(spc, 19, 1)
+            spk = script.portrait_speaker_slot(cx.stmt(spc).op)
+            cx.undo()
+            _check("speaker change sets slot + side and undoes exactly",
+                   spk == (19, 1) and doc.container.build() == orig)
+        n0 = len(cx.scene.stmts)
+        nid = cx.insert_dialogue_after(dpc, (19, 0), "Inserted by selftest")
+        grew = len(cx.scene.stmts) > n0 and doc.text(nid) == "Inserted by selftest"
+        cx.undo()
+        cx.detach_line(dpc, "Detached by selftest")
+        detached = cx.stmt(dpc).dialog_id != lid
+        cx.undo()
+        _check("insert dialogue / detach line add a new line and undo exactly (script + every locale)",
+               grew and detached and doc.container.build() == orig and not doc.dirty_parts())
         box["yesnocancel"] = None
-        cx._redo()
+        cx.set_text(lid, "selftest line")
         _check("unsaved dialogue: closing asks, Cancel stays", cx.confirm_discard("close") is False)
+        cx.undo()
+        # every interactive control (toolbar, browser, each Inspector form, Event Manager) has a tip
+        kinds = (ttk.Button, ttk.Checkbutton, ttk.Menubutton, ttk.Combobox, ttk.Radiobutton, ttk.Entry)
+        untipped = set()
+
+        def walk(w):
+            for ch in w.winfo_children():
+                if isinstance(ch, kinds) and not ch.bind("<Enter>"):
+                    try:
+                        untipped.add(str(ch.cget("text")) or type(ch).__name__)
+                    except tk.TclError:
+                        untipped.add(type(ch).__name__)
+                walk(ch)
+        walk(cx.frame)
+        cx.show_bank(19)
+        seen_kinds = {}
+        for q, t in cx.scene.stmts.items():
+            k = "dlg" if t.mnem == "DIALOG" else "spk" if script.is_portrait_op(t.op) else \
+                "ctl" if t.op >= 0xFFF0 else "act"
+            seen_kinds.setdefault(k, q)
+        for q in seen_kinds.values():
+            cx.select((q, None)); root.update_idletasks(); walk(cx.inspector)
+        emw = cx.open_event_manager()
+        if emw is not None:
+            walk(emw.win)
+            emw.win.withdraw()
+        _check("every interactive control in the editor carries a hover tip", not untipped,
+               str(sorted(untipped)[:6]))
         _check("cutscene editor workflows raised no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()
@@ -5393,10 +5347,10 @@ def test_asset_explorer_gui():
                app._guard_map_edits("open another file") is False)
         box["yesnocancel"] = False
         # 2) the Cutscene editor opens without a full-corpus disassembly
-        import script_explorer
+        import cutscene_editor
         win = tk.Toplevel(root)
         t0 = time.perf_counter()
-        script_explorer.CutsceneExplorer(win, reader=app.source.read_named)
+        cutscene_editor.CutsceneExplorer(win, reader=app.source.read_named)
         dt = time.perf_counter() - t0
         _check("Cutscene editor opens without the all-bank coverage pass (< 2 s)", dt < 2.0, "%.2f s" % dt)
         _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
@@ -5416,7 +5370,7 @@ def run() -> int:
               test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_emflags_extras, test_script_explorer_authoring,
+              test_script_authoring, test_emflags_extras, test_cutscene_editor_authoring,
               test_models, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows,
               test_cutscene_editor_workflows, test_asset_explorer_gui):
