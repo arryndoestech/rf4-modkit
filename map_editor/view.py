@@ -11,7 +11,7 @@ from tkinter import ttk
 
 from rf4s_modkit import mobj_types
 
-from . import attrs, render
+from . import attrs, render, ui
 
 ZOOMS = (1, 2, 3, 4, 6, 8, 12, 16, 24)
 MAX_CANVAS_PX = 8192          # PhotoImage conversion above this gets slow
@@ -39,6 +39,7 @@ class MapView(ttk.Frame):
         self.background = render.Background()
         self.ground = render.GroundLoader(self, self._ground_ready)
         self.ground_sel = "all"                  # display: off / all / '<n> <name>'
+        self.scenery = True                      # draw the over-model scenery on the ground
         self.attr_alpha = 180
         self.on_hover_tile = on_hover_tile       # fn(tile | None)
         self.on_zoom = None                      # fn() after the zoom changed
@@ -105,13 +106,13 @@ class MapView(ttk.Frame):
 
     # ---- ground ------------------------------------------------------------ #
     def ground_key(self):
-        return (self.doc.base, self.ground_sel) if self.doc is not None else None
+        return (self.doc.base, self.ground_sel, self.scenery) if self.doc is not None else None
 
     def request_ground(self):
         d = self.doc
-        if d is None or d.grid is None or self.ground_sel == "off":
+        if d is None or d.grid is None:
             return
-        self.ground.request(d.base, self.ground_sel, d.grid[0], d.grid[1])
+        self.ground.request(d.base, self.ground_sel, d.grid[0], d.grid[1], self.scenery)
 
     def _ground_ready(self, key):
         if key == self.ground_key():
@@ -119,10 +120,13 @@ class MapView(ttk.Frame):
 
     def ground_image(self, block=False):
         d = self.doc
-        if d is None or d.grid is None or self.ground_sel == "off" or not render.HAS_PIL:
+        if d is None or d.grid is None or not render.HAS_PIL:
+            return None
+        if self.ground_sel == "off" and not self.scenery:
             return None
         if block:
-            return self.ground.get_blocking(d.base, self.ground_sel, d.grid[0], d.grid[1])
+            return self.ground.get_blocking(d.base, self.ground_sel, d.grid[0], d.grid[1],
+                                            self.scenery)
         return self.ground.get(self.ground_key())
 
     def background_image(self, block=False):
@@ -137,7 +141,7 @@ class MapView(ttk.Frame):
         self._dirty.update(groups or ("bg",) + render.GROUPS)
         if not self._pending:
             self._pending = True
-            self.after_idle(self.flush)
+            ui.later(self, self.flush)
 
     def invalidate_all(self):
         self.invalidate("bg", *render.GROUPS)

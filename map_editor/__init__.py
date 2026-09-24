@@ -13,7 +13,7 @@ Modules:
     tools      canvas tools (select, paint, fill, rectangle, pick, add, warp)
     inspector  the selection-driven Inspector tab
     tabs       Objects / Map / Encounters / View / Problems tabs
-    dialogs    resize grid, raw chunks, over-model preview, flag reference
+    dialogs    resize grid, raw chunks, flag reference
     panel      MapEditorPanel: the embeddable editor
     app        MapExplorer: the standalone window
     attrs      what every ATTR bit means

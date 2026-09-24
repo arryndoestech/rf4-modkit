@@ -11,6 +11,31 @@ GOOD = "#2a8"
 MUTED = "#888"
 
 
+def later(widget, fn, ms=0):
+    """widget.after / after_idle that is cancelled when `widget` is destroyed, so a
+    callback never fires into a torn-down editor (Tk reports those as 'invalid command
+    name'). Returns the after id."""
+    ids = widget.__dict__.setdefault("_later_ids", set())
+    if not widget.__dict__.get("_later_bound"):
+        def cancel_all(e, w=widget):
+            if e.widget is w:
+                for i in list(w.__dict__.get("_later_ids", ())):
+                    try:
+                        w.after_cancel(i)
+                    except Exception:
+                        pass
+        widget.bind("<Destroy>", cancel_all, add="+")
+        widget._later_bound = True
+    handle = []
+
+    def run():
+        ids.discard(handle[0])
+        fn()
+    handle.append(widget.after(ms, run) if ms else widget.after_idle(run))
+    ids.add(handle[0])
+    return handle[0]
+
+
 def hint(parent, text, wrap=320, **kw):
     lab = ttk.Label(parent, text=text, font=SMALL_FONT, foreground=MUTED, wraplength=wrap,
                     justify="left", **kw)
@@ -91,7 +116,7 @@ class Tip:
 
     def _schedule(self, _e=None):
         self._hide()
-        self._after = self.w.after(self.delay, self._show)
+        self._after = later(self.w, self._show, self.delay)
 
     def _show(self):
         text = self.text() if callable(self.text) else self.text
@@ -156,7 +181,7 @@ class ScrollFrame(ttk.Frame):
         self._n += -(e.delta // 120) * 2
         if not self._pending:
             self._pending = True
-            self.after(15, self._flush)
+            later(self, self._flush, 15)
 
     def _flush(self):
         n, self._n, self._pending = self._n, 0, False

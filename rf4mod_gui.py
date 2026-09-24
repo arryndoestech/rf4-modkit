@@ -1245,17 +1245,85 @@ class App:
         # scenery atlases, named MOBJ_<map>_NN). Offer a texture browser alongside the
         # raw container structure. BNTX here is LINEAR BC (no Tegra swizzle), so every
         # texture decodes directly. (Falls back to structure-only without Pillow.)
-        if HAS_PIL and data.find(b"BNTX") >= 0 and texture.bntx_list(data):
+        from rf4s_modkit import model as _model
+        is_mesh = _model.is_mesh(data)
+        if HAS_PIL and (is_mesh or (data.find(b"BNTX") >= 0 and texture.bntx_list(data))):
             nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
-            self._build_bntx_browser(nb, name, data)
+            if is_mesh:
+                self._build_model_tab(nb, name, data)
+            if data.find(b"BNTX") >= 0 and texture.bntx_list(data):
+                self._build_bntx_browser(nb, name, data)
             stxt = self._make_text_tab(nb, "Structure", mono=True)
             stxt.insert("end", res_container.summary(data)); stxt.config(state="disabled")
+            nb.select(0)
             return
         txt = self._make_text_tab(None, None, mono=True)
         txt.insert("end", res_container.summary(data))
-        txt.insert("end", "\n\n(NN BFRES/BNTX/PSB container — mesh/skeleton editing is out\n"
-                          " of scope; use Switch-Toolbox, then re-inject with the bundle tools.)")
+        if data[:4] == b"RES\x00" and not is_mesh:
+            txt.insert("end", "\n\n(a UI screen layout: .model files for menus carry no mesh)")
         txt.config(state="disabled")
+
+    def _build_model_tab(self, nb, name, data):
+        """'Model' tab: a textured preview of the meshes (front / back / side / top), the
+        shape / material summary, and Export OBJ (geometry + MTL + texture PNGs)."""
+        from rf4s_modkit import model as _model
+        try:
+            m = _model.parse(data)
+        except Exception as e:  # noqa: BLE001
+            f = ttk.Frame(nb); nb.add(f, text="Model")
+            ttk.Label(f, text=f"cannot read the mesh: {e}").pack(anchor="w", padx=6, pady=6)
+            return
+        frame = ttk.Frame(nb); nb.add(frame, text="Model")
+        bar = ttk.Frame(frame); bar.pack(fill="x")
+        stem = pathlib.PurePosixPath(name).stem
+        view = tk.StringVar(value="top" if stem.upper().startswith("MAP_") else "front")
+        ttk.Label(bar, text="view").pack(side="left", padx=(6, 2))
+        vc = ttk.Combobox(bar, textvariable=view, values=list(_model.VIEWS), width=7, state="readonly")
+        vc.pack(side="left")
+        info = ttk.Label(bar, text="")
+        info.pack(side="left", padx=8)
+
+        def export():
+            d = filedialog.askdirectory(title="Export OBJ + MTL + textures into")
+            if not d:
+                return
+            try:
+                written = _model.export_obj(m, d, stem)
+            except Exception as e:  # noqa: BLE001
+                messagebox.showerror("Export OBJ", str(e)); return
+            self.status.config(text=f"exported {stem}.obj + {len(written) - 1} file(s) to {d}")
+        ttk.Button(bar, text="Export OBJ…", command=export).pack(side="right", padx=4)
+        body = ttk.Frame(frame); body.pack(fill="both", expand=True)
+        txt = tk.Text(body, width=58, font=("Consolas", 9), wrap="none")
+        txt.pack(side="left", fill="y")
+        lines = [_model.summary(m), "", "materials:"]
+        for mt in m.materials:
+            ud = _model.user_data_text(mt)
+            lines.append(f"  {mt.name}: {', '.join(mt.textures) or '(no texture)'}" + (f"  [{ud}]" if ud else ""))
+        txt.insert("end", "\n".join(lines)); txt.config(state="disabled")
+        cv = tk.Canvas(body, bg="#202024", highlightthickness=0)
+        cv.pack(side="left", fill="both", expand=True)
+        state = {"photo": None}
+
+        def draw(_e=None):
+            from PIL import ImageTk
+            if not cv.winfo_exists():
+                return                         # another file was opened meanwhile
+            size = max(160, min(cv.winfo_width(), cv.winfo_height()) - 8) if cv.winfo_width() > 1 else 480
+            try:
+                im = _model.render(m, view.get(), size)
+            except Exception as e:  # noqa: BLE001
+                info.config(text=f"render failed: {e}"); return
+            state["photo"] = ImageTk.PhotoImage(im)
+            cv.delete("all")
+            cv.create_image(4, 4, anchor="nw", image=state["photo"])
+            self._pil = im
+            self._export_kind = "png"
+            self.export_btn.config(state="normal")
+            info.config(text=f"{sum(len(s.indices) // 3 for s in m.shapes)} triangles · "
+                             f"{len(m.bones)} bones · {view.get()} view")
+        vc.bind("<<ComboboxSelected>>", draw)
+        self.root.after_idle(draw)
 
     def _build_bntx_browser(self, nb, name, data):
         """A 'Textures' tab: list every embedded BNTX texture; click to preview

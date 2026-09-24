@@ -111,7 +111,7 @@ class ObjectsTab(ttk.Frame):
             else:
                 t.selection_remove(*t.selection())
         finally:
-            self.after_idle(lambda: setattr(self, "_syncing", False))
+            ui.later(self, lambda: setattr(self, "_syncing", False))
 
     def _picked(self, _e=None):
         if self._syncing:
@@ -625,6 +625,12 @@ class ViewTab(ui.ScrollFrame):
                                       state="readonly")
         self.ground_cb.grid(row=0, column=1, sticky="w")
         self.ground_cb.bind("<<ComboboxSelected>>", lambda _e: ed.set_ground_display(self.ground.get()))
+        self.scenery = tk.BooleanVar(value=True)
+        sc_cb = ttk.Checkbutton(G, text="scenery (the map's over-model)", variable=self.scenery,
+                                command=lambda: ed.set_scenery(self.scenery.get()))
+        sc_cb.grid(row=3, column=0, columnspan=2, sticky="w")
+        ui.Tip(sc_cb, "The pre-rendered billboard cards (statues, railings, rooftops, trees) the "
+                      "game draws over the ground, placed where the model's bones put them.")
         ttk.Label(G, text="ATTR opacity").grid(row=1, column=0, sticky="w")
         self.alpha = tk.IntVar(value=180)
         sc = ttk.Scale(G, from_=0, to=255, orient="horizontal", length=150, variable=self.alpha)
@@ -653,7 +659,6 @@ class ViewTab(ui.ScrollFrame):
         hint(F, "Export stitches one layer to a PNG; edit it at exactly that size, then Import "
                 "splits it back into .texture tiles (each keeps its size and format) for a loose "
                 "override or a repack.", wrap=300).grid(row=3, column=0, columnspan=4, sticky="w")
-        ttk.Button(b, text="Over-model preview…", command=ed.open_overmodel).pack(anchor="w", padx=8, pady=6)
         self.bind_wheel_tree()
 
     def layers(self):

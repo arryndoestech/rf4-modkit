@@ -2439,6 +2439,47 @@ def cmd_res_texture_encode(a):
           f"in place; file {len(blob):,} B, {_size_note(len(data), len(blob))})")
 
 
+def _load_model(path):
+    from rf4s_modkit import model
+    data = _resolve(path).read_bytes()
+    try:
+        return model, model.parse(data)
+    except model.ModelError as e:
+        sys.exit(f"error: {path}: {e}")
+
+
+def cmd_res_model_info(a):
+    model, m = _load_model(a.file)
+    print(f"{a.file}: {model.summary(m)}")
+    if a.bones:
+        print("bones:")
+        for b in m.bones:
+            print(f"  {b.index:3} {b.name:<24} parent {b.parent:3}  T {tuple(round(v, 3) for v in b.translation)}"
+                  f"  R {tuple(round(v, 3) for v in b.rotation)}  S {tuple(round(v, 3) for v in b.scale)}")
+    print("materials:")
+    for mt in m.materials:
+        ud = model.user_data_text(mt)
+        print(f"  {mt.index:3} {mt.name:<20} textures {mt.textures}  shader {'/'.join(mt.shader)}"
+              + (f"  [{ud}]" if ud else ""))
+
+
+def cmd_res_model_export(a):
+    model, m = _load_model(a.file)
+    stem = pathlib.Path(a.file).stem
+    written = model.export_obj(m, a.out, stem)
+    print(f"exported {a.file}: {len(m.shapes)} shapes, "
+          f"{sum(len(s.indices) // 3 for s in m.shapes)} triangles -> {a.out} "
+          f"({len(written)} files: {stem}.obj, {stem}.mtl and {len(written) - 2} texture PNG(s))")
+
+
+def cmd_res_model_render(a):
+    model, m = _load_model(a.file)
+    im = model.render(m, a.view, a.size)
+    out = a.out or f"{pathlib.Path(a.file).stem}_{a.view}.png"
+    im.save(out)
+    print(f"rendered {a.file} ({a.view} view, {im.width}x{im.height}) -> {out}")
+
+
 # --------------------------------------------------------------------------- #
 # gen (Gen*.bin monster encounter tables)
 # --------------------------------------------------------------------------- #
@@ -3473,7 +3514,8 @@ def build_parser():
 
     # res
     pr = sub.add_parser("res", help="inspect NN containers (.model/.bfskl/.bfmat/.bfsha/.psbData); "
-                                    "list / decode / replace the textures embedded in a .model")
+                                    "list / decode / replace the textures embedded in a .model; "
+                                    "read, export and render its meshes")
     rsub = pr.add_subparsers(dest="op", required=True)
     r0 = rsub.add_parser("info"); r0.add_argument("file"); r0.set_defaults(func=cmd_res_info)
     r1 = rsub.add_parser("texture-list", help="list the textures of the BNTX embedded in a .model "
@@ -3491,6 +3533,21 @@ def build_parser():
                     help="keep (default) = the texture's own format; another format only when its "
                          "payload has the same size (BC3 <-> BC7)")
     r3.set_defaults(func=cmd_res_texture_encode)
+    r4 = rsub.add_parser("model-info", help="a .model's meshes, materials (textures, user data such "
+                         "as the over-model 'po' depth) and optionally its skeleton")
+    r4.add_argument("file"); r4.add_argument("--bones", action="store_true")
+    r4.set_defaults(func=cmd_res_model_info)
+    r5 = rsub.add_parser("model-export", help="export a .model's geometry as OBJ + MTL + texture PNGs "
+                         "(bind pose, model space)")
+    r5.add_argument("file"); r5.add_argument("out", help="output folder")
+    r5.set_defaults(func=cmd_res_model_export)
+    r6 = rsub.add_parser("model-render", help="render a textured preview PNG of a .model")
+    r6.add_argument("file")
+    r6.add_argument("--view", default="front", choices=("front", "back", "side", "top"),
+                    help="top is the one for map over-models")
+    r6.add_argument("--size", type=int, default=512)
+    r6.add_argument("-o", "--out", help="default <model>_<view>.png")
+    r6.set_defaults(func=cmd_res_model_render)
 
     # param (NLCL fixed-record param tables)
     pp2 = sub.add_parser("param", help="NLCL param tables (item/crop/price/recipe/skill/...)")

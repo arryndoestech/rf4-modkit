@@ -4716,6 +4716,94 @@ def _headless_panel(name, B, reader=None):
     return root, panel, errs
 
 
+def test_models():
+    """.model geometry (rf4s_modkit.model): every mesh-bearing .model parses; decoded
+    positions fit the per-shape bounding boxes the files carry; UI layouts are told apart;
+    single-influence skinning goes through the skeleton's matrix-to-bone table; map
+    over-model cards land on the map grid; OBJ export and the map editor's scenery layer."""
+    print("models: .model meshes, skeletons, materials, over-model scenery:")
+    import struct, tempfile
+    from rf4s_modkit import model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files:
+        _skip("models", "no extracted .model files"); return
+    if QUICK:
+        files = files[::8]
+    meshes = layouts = 0
+    bad, out_of_range, missing_tex, bbox_bad, bbox_n = [], 0, 0, 0, 0
+    for f in files:
+        d = f.read_bytes()
+        if not model.is_mesh(d):
+            layouts += 1
+            continue
+        try:
+            m = model.parse(d)
+        except Exception as e:  # noqa: BLE001
+            bad.append((f.name, str(e))); continue
+        meshes += 1
+        M = struct.unpack_from("<Q", d, 0x28)[0]
+        for sh in m.shapes:
+            vb = m.vertex_buffers[sh.vertex_buffer]
+            if sh.indices and max(sh.indices) >= vb.count:
+                out_of_range += 1
+            if sh.skin <= 1:          # rigid / single-influence: box is in the shape's own space
+                so = struct.unpack_from("<Q", d, M + 0x30)[0] + 0x70 * sh.index
+                bb = struct.unpack_from("<Q", d, so + 0x40)[0]
+                c, e = struct.unpack_from("<3f", d, bb), struct.unpack_from("<3f", d, bb + 12)
+                tol = max(max(e) * 0.02, 0.01)
+                bbox_n += 1
+                if not all(abs(pt[k] - c[k]) <= e[k] + tol for pt in vb.data["_p0"] for k in range(3)):
+                    bbox_bad += 1
+        for mt in m.materials:
+            missing_tex += sum(1 for t in mt.textures if m.texture_index(t) is None)
+    _check("every mesh .model parses", not bad, bad[:3] or f"{meshes} meshes, {layouts} UI layouts told apart")
+    _check("every index is inside its vertex buffer", out_of_range == 0, f"{out_of_range} shapes out of range")
+    _check("decoded positions fit the bounding box stored with each shape", bbox_bad == 0,
+           f"{bbox_n - bbox_bad}/{bbox_n} rigid / single-bone shapes")
+    _check("every material texture name resolves in the embedded BNTX", missing_tex == 0, f"{missing_tex} missing")
+    if not (B / "MAP_DUNG_A04.model").exists():
+        return
+    # single-influence skinning: _i0 indexes the matrix-to-bone table, not the bones
+    m = model.load(B / "M04_2.model")
+    ys = [p[1] for sh in m.shapes for p in m.shape_vertices(sh)]
+    _check("single-influence vertices go through the matrix-to-bone table",
+           m.matrix_to_bone[:10] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 11]
+           and (round(min(ys), 1), round(max(ys), 1)) == (-31.4, 193.4),
+           f"M04_2 height {min(ys):.1f}..{max(ys):.1f}")
+    # map over-model: cards sit in map sub-units, placed by their bones
+    om = model.load(B / "MAP_DUNG_A04.model")
+    cards = model.overmodel_cards(om)
+    _check("over-model cards are placed by their bones in map sub-units",
+           len(cards) == 13 and tuple(round(v) for v in cards[0].bounds) == (0, 336, 128, 400)
+           and all(0 <= c.bounds[0] and c.bounds[2] <= 99 * 8 and 0 <= c.bounds[1] and c.bounds[3] <= 66 * 8
+                   for c in cards),
+           f"{len(cards)} cards inside the 99x66-tile grid")
+    _check("over-model material user data carries the 'po' depth",
+           all("po" in mt.user_data for mt in om.materials), model.user_data_text(om.materials[0]))
+    img = model.render_overmodel(om, 99 * 3, 66 * 3, 3 / 8.0)
+    _check("the over-model renders top-down with transparent gaps",
+           img.getchannel("A").getbbox() is not None and img.getpixel((150, 100))[3] == 0)
+    # export
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    npc = model.load(B / "NPC_C_BADO.model")
+    written = model.export_obj(npc, tmp, "npc")
+    obj = (tmp / "npc.obj").read_text(encoding="utf-8").splitlines()
+    nv = sum(1 for l in obj if l.startswith("v "))
+    nf = sum(1 for l in obj if l.startswith("f "))
+    _check("OBJ export writes every vertex, triangle and texture",
+           nv == sum(v.count for v in npc.vertex_buffers) and nf == sum(len(s.indices) // 3 for s in npc.shapes)
+           and len(written) == 2 + len(npc.textures), f"{nv} v, {nf} f, {len(written) - 2} PNG")
+    # map editor scenery layer
+    from map_editor import data as med, render as mrender
+    reader = med.folder_reader(B)
+    plain = mrender.GroundLoader.decode(reader, "MAP_CITY_00", "all", 180, 45, False)
+    scen = mrender.GroundLoader.decode(reader, "MAP_CITY_00", "all", 180, 45, True)
+    _check("the map editor draws the over-model scenery over the ground",
+           plain is not None and scen is not None and scen.size == plain.size
+           and scen.tobytes() != plain.convert("RGBA").tobytes(), f"{scen.size if scen else None}")
+
+
 def test_attr_tooltips():
     """The Paint ATTR controls must cover every bit that occurs in a shipped map,
     describe each one honestly, and make an impossible tile impossible to paint."""
@@ -5329,7 +5417,7 @@ def run() -> int:
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
               test_script_authoring, test_emflags_extras, test_script_explorer_authoring,
-              test_attr_tooltips, test_ground_texture_replacement,
+              test_models, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows,
               test_cutscene_editor_workflows, test_asset_explorer_gui):
         t0 = time.perf_counter()

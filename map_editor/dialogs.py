@@ -1,12 +1,11 @@
-"""Secondary windows: grid resize, raw chunk editor, over-model preview, flag reference."""
+"""Secondary windows: grid resize, raw chunk editor, flag reference."""
 from __future__ import annotations
 
 import struct
 import tkinter as tk
-from collections import OrderedDict
 from tkinter import messagebox, ttk
 
-from rf4s_modkit import mapground, mobj_params, rf4m, texture
+from rf4s_modkit import mobj_params, rf4m
 
 from . import ui
 
@@ -206,89 +205,6 @@ def unreadable_reason(m):
     except Exception as ex:  # noqa: BLE001 - report instead of breaking the editor
         return f"the map no longer decodes: {ex}"
     return None
-
-
-# --------------------------------------------------------------------------- #
-_OM_CACHE = OrderedDict()
-
-
-def overmodel_cards(reader, setname):
-    """(card count, [decoded non-empty cards]) of an over-model set (cached: they are
-    heavily shared -- MAP_FIELD_43's serves 164 maps)."""
-    if setname in _OM_CACHE:
-        _OM_CACHE.move_to_end(setname)
-        return _OM_CACHE[setname]
-    data = reader(setname + ".model") if reader else None
-    if data is None:
-        return None
-    n = len(texture.bntx_textures(data))
-    cards = []
-    for i in range(n):
-        im = texture.decode_bntx(data, i)
-        if im is not None and im.split()[3].getextrema() != (0, 0):
-            cards.append(im)
-    _OM_CACHE[setname] = (n, cards)
-    while len(_OM_CACHE) > 16:
-        _OM_CACHE.popitem(last=False)
-    return n, cards
-
-
-class OverModelDialog:
-    """The map's over-model (g_mapResourceTable[+3]): pre-rendered scenery billboards drawn
-    over the ground. A texture preview -- the cards are not aligned to the ATTR grid."""
-
-    def __init__(self, ed):
-        from PIL import Image, ImageTk
-        base = ed.doc.base
-        win = _toplevel(ed, f"Over-model — {base}", "320x620")
-        lab = ttk.Label(win, wraplength=300, justify="left")
-        lab.pack(fill="x", padx=6, pady=6)
-        ui.hint(win, "Pre-rendered 3D scenery billboards (stairs, fences, trees, structures) drawn "
-                     "over the ground. A multi-card BC3 BNTX, often shared between maps and sometimes "
-                     "an empty placeholder. Not aligned to the tile grid.", wrap=300).pack(fill="x", padx=6)
-        cf = ttk.Frame(win)
-        cf.pack(fill="both", expand=True, padx=6, pady=6)
-        vb = ttk.Scrollbar(cf, orient="vertical")
-        c = tk.Canvas(cf, bg="#202024", highlightthickness=0, yscrollcommand=vb.set)
-        vb.config(command=c.yview)
-        vb.pack(side="right", fill="y")
-        c.pack(side="left", fill="both", expand=True)
-        c.bind("<MouseWheel>", lambda e: c.yview_scroll(-(e.delta // 120), "units"))
-        setname = mapground.overmodel_for(base) if base else None
-        if not setname:
-            lab.config(text="This map has no over-model.")
-            return
-        shared = "  (shared)" if setname != base else ""
-        try:
-            res = overmodel_cards(ed.tex_reader, setname)
-        except Exception as e:  # noqa: BLE001
-            lab.config(text=f"{setname}.model{shared}: decode error {e}")
-            return
-        if res is None:
-            lab.config(text=f"{setname}.model{shared}: not found in the source")
-            return
-        n, cards = res
-        if not cards:
-            lab.config(text=f"{setname}.model{shared}: {n} card(s), all empty (transparent placeholder)")
-            return
-        lab.config(text=f"{setname}.model{shared}: {len(cards)} of {n} card(s) have content")
-        box_w, box_h, gap = 280, 220, 6
-        scaled = []
-        for im in cards:
-            s = min(box_w / im.width, box_h / im.height)
-            scaled.append(im.resize((max(1, int(im.width * s)), max(1, int(im.height * s))),
-                                    Image.NEAREST if s > 1 else Image.BILINEAR))
-        w = max(i.width for i in scaled)
-        h = sum(i.height for i in scaled) + gap * (len(scaled) + 1)
-        mont = Image.new("RGBA", (w, h), (34, 34, 40, 255))
-        y = gap
-        for im in scaled:
-            mont.alpha_composite(im, ((w - im.width) // 2, y))
-            y += im.height + gap
-        self.photo = ImageTk.PhotoImage(mont)
-        c.create_image(0, 0, image=self.photo, anchor="nw")
-        c.configure(scrollregion=(0, 0, mont.width, mont.height))
-        win._photo = self.photo
 
 
 # --------------------------------------------------------------------------- #

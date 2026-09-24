@@ -240,7 +240,7 @@ and a sidebar with six tabs:
 | **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, encounter points, script NPCs) and filterable; picking a row selects it and scrolls it into view |
 | **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
 | **Encounters** | the `Gen*.bin`: gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
-| **View** | layer toggles (ATTR fill, cell edges, grid lines, each entity category, object sprites, name labels, warps, warp destinations, search spots, encounter points, script NPCs), ground texture display + ATTR opacity, ground-art export / import, over-model preview |
+| **View** | layer toggles (ATTR fill, cell edges, grid lines, each entity category, object sprites, name labels, warps, warp destinations, search spots, encounter points, script NPCs), ground texture display + ATTR opacity, the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Problems** | validation of all three files; selecting an issue selects its object |
 
 **Tools** (toolbar or key while the map has focus):
@@ -502,7 +502,7 @@ are regression-guarded.
 | Monster taming foods | `rf3MonsterPresent.bin` | `rf4mod gift monster-set` / `monster-clear` | ✅ the 4 per-species (item, tame bonus) slots |
 | NPC daily schedules | `rf3Schedule.bin` + `rf3ScheduleID.bin` | `rf4mod schedule` | ✅ per-(NPC, state) itineraries: set / add / remove stops, JSON decode → edit → encode (index sections recomputed; stock re-encodes byte-exact); spot kinds resolved to rooms |
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
-| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | 🔍 inspect (NN BFRES); ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture **in place** in its own block format — file size and every container field unchanged |
+| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render`; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture **in place** in its own block format — file size and every container field unchanged |
 | Emote / portraits | `.psbData` `.emtbytes` | `rf4mod res` | 🔍 inspect (M2 PSB) |
 | Audio | `.ogg` `.wav` `.aif` | `rf4mod ident` | ➡️ swap (standard formats) |
 | Video | `.webm` | `rf4mod ident` | ➡️ swap (re-encode w/ ffmpeg) |
@@ -564,6 +564,11 @@ python rf4mod.py texture encode OBJ_BED_00.texture edited.png --fmt RGBA8 -o new
 # Repaint a map's ground: export the stitched layer, edit it, split it back into tiles
 python rf4mod.py map ground-export MAP_FIELD_01 -o ground.png          # --layer 1 = overlay
 python rf4mod.py map ground-import MAP_FIELD_01 ground.png -o overrides/   # -> MAP_FIELD_201_00NN.texture (BC7, same size)
+
+# Meshes inside a .model (characters, monsters, weapons, map over-model scenery)
+python rf4mod.py res model-info NPC_C_BADO.model --bones             # shapes, materials, skeleton
+python rf4mod.py res model-export NPC_C_BADO.model out/              # OBJ + MTL + texture PNGs
+python rf4mod.py res model-render MAP_CITY_00.model --view top       # textured preview PNG
 
 # Textures inside a .model (map over-model scenery cards, character/monster/weapon/effect models)
 python rf4mod.py res texture-list MAP_CITY_00.model                    # index, name, format, size
@@ -761,9 +766,9 @@ print(man.find_file("rf3.mc"))            # -> ('bundlePatch1.mbundle', {'size':
   (`GfxCTR_Model_BuildFromResource` hands it to `SpriteResourceRegistry_AcquireSlotForBfres`,
   RF4S.exe+0x1B5595), which reads only each BRTI's format / width / height / mip-0 pointer,
   so nothing else in the container needs touching — docs/09 §4.
-- **Mesh/skeleton editing** for `.model`/`.bfskl` is out of scope; they are stock
-  Nintendo BFRES — use Switch-Toolbox or the community BFRES tooling, then re-inject
-  with `rf4mod bundle`/`install`. `rf4mod res info` confirms type and shape.
+- **Mesh editing**: `.model` geometry is read (export to OBJ, preview renders, the map
+  editor's scenery layer) but not written back. It is not stock BFRES -- the blocks are
+  renamed and shifted -- so generic BFRES tools do not open it (docs/09 §4).
 - **Save files** (`.sav`) are handled by the existing
   [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py); the bundled `AS_*`/`JM_*`
   `.sav` presets are raw save images, not runtime saves.

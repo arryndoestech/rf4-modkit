@@ -13,12 +13,12 @@ pointer-fixup over (BFRES_FixupRelocationPointers, RF4S.exe+0x1CAA00):
     .psbData PSB\0                         M2 Emote scripted data
     .emtbytes PSB\0                        M2 Emote animation bytes
 
-Full mesh/skeleton/material parsing is out of scope (it is stock NN BFRES -- use
-the community BFRES documentation / Switch-Toolbox for that). What this module
-DOES provide for modding is: identify the exact container, locate the relocation
-table, enumerate the 4-char sub-block tags present, and report sizes -- enough to
-validate that a replacement file is the right type and shape before you inject it
-via a loose file or bundle repack.
+The meshes, skeleton and materials of a `.model` are read by `rf4s_modkit.model`
+(its blocks are renamed and shifted relative to stock BFRES, so generic BFRES tools do
+not open it). This module is the container-level view: identify the exact container,
+locate the relocation table, enumerate the 4-char sub-block tags present, and report
+sizes -- enough to validate that a replacement file is the right type and shape
+before you inject it via a loose file or bundle repack.
 
 Relocation-table start (verified, BFRES_GetRelocationTableStart +0x1CA9B0):
   header[0] == 'R' (RES\0)  -> offset stored at +0x10
@@ -39,7 +39,8 @@ KNOWN_MAGICS = {
 }
 
 # Common NN BFRES sub-block tags worth surfacing.
-_SUBTAGS = [b"FMDL", b"FSKL", b"FVTX", b"FSHP", b"FMAT", b"FSKA", b"FSHU",
+_SUBTAGS = [b"MESH", b"VRTX", b"SHAP", b"MATL", b"SKEL",      # the .model mesh blocks (see model.py)
+            b"FMDL", b"FSKL", b"FVTX", b"FSHP", b"FMAT", b"FSKA", b"FSHU",
             b"FTXP", b"FVIS", b"FSCN", b"FMAA", b"BNTX", b"PIXL", b"DESC",
             b"TEXT", b"_DIC", b"_RLT", b"STRG", b"GRSN", b"GRSC"]
 

@@ -213,10 +213,11 @@ def overmodel_for(map_name: str):
     """Return the over-model texture-set name for a map — the ``MAP_*.model``
     billboard from ``g_mapResourceTable[4*mapId + 3]`` (a pre-rendered 3D scenery
     card: stairs/fences/structures, drawn over the 2D ground) — or ``None`` if the
-    map has no over-model. The file is ``<set>.model``; decode it with
-    :func:`rf4s_modkit.texture.decode_bntx`. NOTE: it is NOT spatially aligned to
-    the ATTR grid, and is heavily SHARED by backdrop (e.g. ``MAP_FIELD_43``'s is
-    reused by 164 maps; many are an empty/transparent placeholder = no decoration).
+    map has no over-model. The file is ``<set>.model``: flat textured cards placed by
+    their bones in map sub-units, so they DO line up with the ATTR grid -- see
+    :func:`rf4s_modkit.model.overmodel_cards` / ``render_overmodel``. Heavily SHARED
+    by backdrop (e.g. ``MAP_FIELD_43``'s is reused by 164 maps; many are an
+    empty/transparent placeholder = no decoration).
 
     **Placement (Map_SpawnEntity, RF4S.exe+0x194140, read 2026-09-21).** The map
     carries NO position for it: the archive id is loaded, built with
@@ -226,7 +227,8 @@ def overmodel_for(map_name: str):
     The only spatial data read out of the file is a per-mesh material parameter named
     ``"po"``, whose float becomes that mesh's depth as ``po * 1.5 - 0.3``; the minimum
     over all meshes is stored as the model's own depth. So where the scenery sits is
-    baked into the model's geometry, and cannot be moved by editing map data."""
+    baked into the model's geometry (each card's bone translation, in map sub-units),
+    and cannot be moved by editing map data."""
     om = _overmodels()
     if map_name in om:
         return om[map_name]

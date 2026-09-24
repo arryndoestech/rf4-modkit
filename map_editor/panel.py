@@ -241,7 +241,7 @@ class MapEditorPanel:
         self.problems.summary.config(text="")
         self._update_chrome()
         self.view.request_ground()
-        self.frame.after_idle(self.view_fit)
+        ui.later(self.frame, self.view_fit)
 
     def suspend(self):
         """The host is hiding the editor: stop background ground decodes."""
@@ -324,7 +324,7 @@ class MapEditorPanel:
 
     def _schedule(self, *names):
         if not self._pending:
-            self.frame.after_idle(self._run_pending)
+            ui.later(self.frame, self._run_pending)
         self._pending.update(names)
 
     def _run_pending(self):
@@ -712,7 +712,7 @@ class MapEditorPanel:
             except Exception as ex:  # noqa: BLE001 - surface it instead of a silent trace
                 self.status(f"opening {name} failed: {ex}")
         # the host may rebuild this panel: never do that inside our own click handler
-        self.frame.after_idle(go)
+        ui.later(self.frame, go)
 
     def _navigate_local(self, name):
         hit = data.find_extracted(f"{name}.rf4m")
@@ -744,7 +744,7 @@ class MapEditorPanel:
             return
         bi, epc, pc = self._spawn_bank, sp["entry_pc"], sp["pc"]
         self.status(f"{sp['name']} (instance {sp['instance']}) → event bank {bi}, line @0x{pc:04x}")
-        self.frame.after_idle(lambda: self.on_open_scene(bi, epc, pc))
+        ui.later(self.frame, lambda: self.on_open_scene(bi, epc, pc))
 
     # ------------------------------------------------------------------ #
     # view settings
@@ -761,6 +761,11 @@ class MapEditorPanel:
 
     def set_ground_display(self, sel):
         self.view.ground_sel = sel
+        self.view.invalidate("bg")
+        self.view.request_ground()
+
+    def set_scenery(self, on):
+        self.view.scenery = bool(on)
         self.view.invalidate("bg")
         self.view.request_ground()
 
@@ -874,14 +879,6 @@ class MapEditorPanel:
         dlg = dialogs.ChunkDialog(self)
         self._keep(dlg.win)
         return dlg
-
-    def open_overmodel(self):
-        if self.doc is None:
-            return
-        if not render.HAS_PIL:
-            messagebox.showinfo("Over-model", "Pillow is needed to preview the over-model.")
-            return
-        dialogs.OverModelDialog(self)
 
     def open_flag_reference(self):
         self._keep(dialogs.flag_reference(self))

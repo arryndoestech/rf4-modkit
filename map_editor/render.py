@@ -10,9 +10,9 @@ import queue
 import threading
 from collections import OrderedDict
 
-from rf4s_modkit import map_names, mapground, mobj_types, texture
+from rf4s_modkit import map_names, mapground, mobj_types, model, texture
 
-from . import attrs
+from . import attrs, ui
 
 try:
     from PIL import Image, ImageChops, ImageDraw, ImageFont
@@ -73,16 +73,27 @@ class GroundLoader:
         self.generation += 1
 
     @staticmethod
-    def decode(reader, base, sel, w, h):
-        """PIL RGBA for (map base, 'all' | '<layer> ...') or None. Pure: thread-safe."""
-        try:
-            if sel == "all":
-                res = mapground.stitch_composite(reader, base, aspect=(w, h))
-            else:
-                res = mapground.stitch(reader, base, int(sel.split()[0]), aspect=(w, h))
-            return res[0] if res else None
-        except Exception:
-            return None
+    def decode(reader, base, sel, w, h, scenery=False):
+        """PIL RGBA for (map base, 'off' | 'all' | '<layer> ...', scenery) or None: the
+        ground atlas, with the map's over-model scenery drawn on top when `scenery`.
+        Pure: thread-safe."""
+        img = None
+        if sel != "off":
+            try:
+                if sel == "all":
+                    res = mapground.stitch_composite(reader, base, aspect=(w, h))
+                else:
+                    res = mapground.stitch(reader, base, int(sel.split()[0]), aspect=(w, h))
+                img = res[0].convert("RGBA") if res else None
+            except Exception:
+                img = None
+        if scenery:
+            size = img.size if img is not None else (w * mapground.PX_PER_ATTR_TILE,
+                                                     h * mapground.PX_PER_ATTR_TILE)
+            sc = scenery_image(reader, base, w, size)
+            if sc is not None:
+                img = sc if img is None else Image.alpha_composite(img, sc)
+        return img
 
     def get(self, key):
         if key in self.cache:
@@ -99,29 +110,30 @@ class GroundLoader:
         while len(self.cache) > self.CACHE_MAX:
             self.cache.popitem(last=False)
 
-    def get_blocking(self, base, sel, w, h):
-        key = (base, sel)
+    def get_blocking(self, base, sel, w, h, scenery=False):
+        key = (base, sel, scenery)
         if key not in self.cache:
-            self.put(key, self.decode(self.reader, base, sel, w, h))
+            self.put(key, self.decode(self.reader, base, sel, w, h, scenery))
         return self.get(key)
 
-    def request(self, base, sel, w, h):
-        if not (HAS_PIL and self.reader) or sel == "off" or (base, sel) in self.cache:
+    def request(self, base, sel, w, h, scenery=False):
+        key = (base, sel, scenery)
+        if not (HAS_PIL and self.reader) or (sel == "off" and not scenery) or key in self.cache:
             return
         if self._worker is None:
             self._worker = threading.Thread(target=self._loop, daemon=True)
             self._worker.start()
         self._pending += 1
-        self._req.put((self.reader, base, sel, w, h, self.generation))
+        self._req.put((self.reader, base, sel, w, h, scenery, self.generation))
         if not self._polling:
             self._polling = True
-            self._w.after(25, self._poll)
+            ui.later(self._w, self._poll, 25)
 
     def _loop(self):
         while True:
-            reader, base, sel, w, h, gen = self._req.get()
-            img = None if gen != self.generation else self.decode(reader, base, sel, w, h)
-            self._res.put(((base, sel), img, gen))
+            reader, base, sel, w, h, scenery, gen = self._req.get()
+            img = None if gen != self.generation else self.decode(reader, base, sel, w, h, scenery)
+            self._res.put(((base, sel, scenery), img, gen))
 
     def _poll(self):
         ready = []
@@ -137,9 +149,47 @@ class GroundLoader:
         for key in ready:
             self._on_ready(key)
         if self._pending > 0:
-            self._w.after(25, self._poll)
+            ui.later(self._w, self._poll, 25)
         else:
             self._polling = False
+
+
+_SCENERY = OrderedDict()          # over-model set name -> parsed model.Model | None
+
+
+def scenery_model(reader, base):
+    """The parsed over-model (`g_mapResourceTable[+3]`) of a map, or None (no over-model,
+    not found, or only empty placeholder cards)."""
+    setname = mapground.overmodel_for(base) if base else None
+    if not setname or reader is None:
+        return None
+    if setname not in _SCENERY:
+        m = None
+        try:
+            blob = reader(setname + ".model")
+            if blob is not None and model.is_mesh(blob):
+                m = model.parse(blob)
+        except Exception:
+            m = None
+        _SCENERY[setname] = m
+        while len(_SCENERY) > 16:
+            _SCENERY.popitem(last=False)
+    _SCENERY.move_to_end(setname)
+    return _SCENERY[setname]
+
+
+def scenery_image(reader, base, w, size):
+    """The map's over-model drawn top-down at `size` (the ground image's size for a
+    `w`-tile-wide map), transparent where it has no card; None when there is none."""
+    m = scenery_model(reader, base)
+    if m is None:
+        return None
+    try:
+        px_per_unit = size[0] / (w * 8.0)
+        img = model.render_overmodel(m, size[0], size[1], px_per_unit)
+    except Exception:
+        return None
+    return img if img.getchannel("A").getbbox() else None
 
 
 # --------------------------------------------------------------------------- #
