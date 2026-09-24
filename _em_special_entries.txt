@@ -1,0 +1,132 @@
+[2] OPENING_EV_FIN  オープニング関連フラグON
+ alt actions:
+   REG_MAIN_SCENARIO = 39
+
+[7] EV_BOSS_SP_DEAD  春ボス撃破
+ condition A:
+      !condB(EV_BOSS_SP_DEAD)
+ condition B:
+      REG_MAIN_SCENARIO >= 19
+ alt actions:
+   REG_MAIN_SCENARIO = 19
+
+[51] EV_SUBEV_INIT  サブイベント初期化
+ actions:
+   FLG_SUBEV_A = 0
+   FLG_SUBEV_B = 0
+   FLG_SUBEV_C = 0
+   FLG_SUBEV_D = 0
+   FLG_SUBEV_E = 0
+   FLG_SUBEV_F = 0
+   FLG_SUBEV_G = 0
+   FLG_SUBEV_H = 0
+   FLG_SUBEV_I = 0
+   FLG_SUBEV_J = 0
+   FLG_SUBEV_K = 0
+   FLG_SUBEV_L = 0
+   FLG_SUBEV_M = 0
+   FLG_SUBEV_N = 0
+   FLG_SUBEV_O = 0
+   FLG_SUBEV_P = 0
+   FLG_SUBEV_Q = 0
+   FLG_SUBEV_R = 0
+   FLG_SUBEV_S = 0
+   FLG_SUBEV_T = 0
+   FLG_SUBEV_U = 0
+   FLG_SUBEV_V = 0
+   FLG_SUBEV_W = 0
+   FLG_SUBEV_X = 0
+   FLG_SUBEV_Y = 0
+   FLG_SUBEV_Z = 0
+   REG_SUBEV_U2A = 0
+   REG_SUBEV_U2B = 0
+   REG_SUBEV_U2C = 0
+   REG_SUBEV_U2D = 0
+   REG_SUBEV_U4A = 0
+   REG_SUBEV_U4B = 0
+   REG_SUBEV_U4C = 0
+   REG_SUBEV_U4D = 0
+   REG_SUBEV_U8A = 0
+   REG_SUBEV_U8B = 0
+   REG_SUBEV_U8C = 0
+   REG_SUBEV_U8D = 0
+   REG_SCDLSET_NPC_A = 0
+   REG_SCDLSET_SCDLID_A = 0
+   REG_SCDLSET_NPC_B = 0
+   REG_SCDLSET_SCDLID_B = 0
+   REG_SCDLSET_NPC_C = 0
+   REG_SCDLSET_SCDLID_C = 0
+   REG_SCDLSET_NPC_D = 0
+   REG_SCDLSET_SCDLID_D = 0
+   REG_SCDLSET_NPC_E = 0
+   REG_SCDLSET_SCDLID_E = 0
+   FLG_SUBEV_AIRSHIP_STOP = 0
+
+[52] EV_QUEST_INIT  クエスト初期化
+ actions:
+   FLG_QUEST_BOARD_A = 0
+   FLG_QUEST_BOARD_B = 0
+   FLG_QUEST_C = 0
+   FLG_QUEST_D = 0
+   FLG_QUEST_E = 0
+   FLG_QUEST_F = 0
+   FLG_QUEST_G = 0
+   FLG_QUEST_H = 0
+   REG_QUEST_U2A = 0
+   REG_QUEST_U2B = 0
+   REG_QUEST_U2C = 0
+   REG_QUEST_U2D = 0
+   REG_QUEST_U4A = 0
+   REG_QUEST_U4B = 0
+   REG_QUEST_U4C = 0
+   REG_QUEST_U4D = 0
+   REG_QUEST_U8A = 0
+   REG_QUEST_U8B = 0
+   REG_QUEST_U8C = 0
+   REG_QUEST_U8D = 0
+
+[66] EV_CMN_DAYTIME  昼
+ condition A:
+      Hour >= 6 AND 12 > Hour
+   OR Hour >= 12 AND 16 > Hour
+ condition B:
+      6 > Hour
+   OR Hour >= 16
+
+[67] EV_CMN_EVENING  夕
+ condition A:
+      Hour >= 16 AND 19 > Hour
+ condition B:
+      16 > Hour
+   OR Hour >= 19
+
+[68] EV_CMN_NIGHT  夜
+ condition A:
+      Hour >= 19 AND 24 > Hour
+   OR Hour >= 0 AND 6 > Hour
+ condition B:
+      Hour >= 6 AND 19 > Hour
+
+[80] EV_DATE_FINISH  デート後の初期化
+ alt actions:
+   FLG_DATE_FES_NOW = 0
+   FLG_KOKUHAKU_NOW = 0
+   REG_DATE_MAP = 0
+
+[265] EV_SUBEV_COM_14_A  北地区：迷子の旅人
+ condition A:
+      FLG_SUBEV_A == 1
+ alt actions:
+   FLG_SUBEV_A = 0
+
+[266] EV_SUBEV_COM_14_B  西地区：ゴミ拾い
+ condition A:
+      FLG_SUBEV_B == 1
+ alt actions:
+   FLG_SUBEV_B = 0
+
+[267] EV_SUBEV_COM_14_C  東地区：マーガレット
+ condition A:
+      FLG_SUBEV_C == 1
+ alt actions:
+   FLG_SUBEV_C = 0

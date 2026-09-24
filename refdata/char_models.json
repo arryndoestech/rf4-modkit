@@ -1,0 +1,2421 @@
+{
+ "_meta": {
+  "source": "rf3NpcParam.bin +272 (u16 rel model idx) / +256 (u32 body id) / +274 (skeleton rel idx); engine: Actor_RecomputeAllStats RF4S.exe+0xAD440 -> actor+544 = idx + (12584 if 48<=body<=253 else 933); bases: 933=rom:/chr, 12584=rom:/mons in baked file TOC (RF4S.exe rdata +0x57AD30, 18179x256B utf16)",
+  "generated": "2026-08-18"
+ },
+ "0": {
+  "model_index": 284,
+  "kind": "chr",
+  "model": "NPC_PLAYER_00",
+  "name": "Lest"
+ },
+ "1": {
+  "model_index": 221,
+  "kind": "chr",
+  "model": "NPC_A_VIZNAR",
+  "name": "Vishnal"
+ },
+ "2": {
+  "model_index": 217,
+  "kind": "chr",
+  "model": "NPC_A_CLORICA",
+  "name": "Clorica"
+ },
+ "3": {
+  "model_index": 225,
+  "kind": "chr",
+  "model": "NPC_A_VOLCANON",
+  "name": "Volkanon"
+ },
+ "4": {
+  "model_index": 226,
+  "kind": "chr",
+  "model": "NPC_B_FORTE",
+  "name": "Forte"
+ },
+ "5": {
+  "model_index": 230,
+  "kind": "chr",
+  "model": "NPC_B_KEEL",
+  "name": "Kiel"
+ },
+ "6": {
+  "model_index": 242,
+  "kind": "chr",
+  "model": "NPC_C_BADO",
+  "name": "Bado"
+ },
+ "7": {
+  "model_index": 243,
+  "kind": "chr",
+  "model": "NPC_D_MARGUERITE",
+  "name": "Margaret"
+ },
+ "8": {
+  "model_index": 247,
+  "kind": "chr",
+  "model": "NPC_E_DIRUS",
+  "name": "Dylas"
+ },
+ "9": {
+  "model_index": 251,
+  "kind": "chr",
+  "model": "NPC_F_ARTHUR",
+  "name": "Arthur"
+ },
+ "10": {
+  "model_index": 255,
+  "kind": "chr",
+  "model": "NPC_F_POKORINU",
+  "name": "Porcoline"
+ },
+ "11": {
+  "model_index": 257,
+  "kind": "chr",
+  "model": "NPC_G_SYAOPAI",
+  "name": "Xiao Pai"
+ },
+ "12": {
+  "model_index": 256,
+  "kind": "chr",
+  "model": "NPC_G_RINFA",
+  "name": "Lin Fa"
+ },
+ "13": {
+  "model_index": 261,
+  "kind": "chr",
+  "model": "NPC_H_KOHAKU",
+  "name": "Amber"
+ },
+ "14": {
+  "model_index": 265,
+  "kind": "chr",
+  "model": "NPC_I_ELMINATA",
+  "name": "Illuminata"
+ },
+ "15": {
+  "model_index": 268,
+  "kind": "chr",
+  "model": "NPC_J_DAG",
+  "name": "Doug"
+ },
+ "16": {
+  "model_index": 272,
+  "kind": "chr",
+  "model": "NPC_K_BLOSSOM",
+  "name": "Blossom"
+ },
+ "17": {
+  "model_index": 273,
+  "kind": "chr",
+  "model": "NPC_L_DOLCE",
+  "name": "Dolce"
+ },
+ "18": {
+  "model_index": 277,
+  "kind": "chr",
+  "model": "NPC_M_JONES",
+  "name": "Jones"
+ },
+ "19": {
+  "model_index": 278,
+  "kind": "chr",
+  "model": "NPC_M_NANCY",
+  "name": "Nancy"
+ },
+ "20": {
+  "model_index": 279,
+  "kind": "chr",
+  "model": "NPC_N_LEON",
+  "name": "Leon"
+ },
+ "21": {
+  "model_index": 319,
+  "kind": "chr",
+  "model": "NPC_SYELZA",
+  "skeleton": "BM_44_1_00.bfskl",
+  "name": "Ventuswill"
+ },
+ "22": {
+  "model_index": 235,
+  "kind": "chr",
+  "model": "NPC_CHILD_M2",
+  "name": "Son"
+ },
+ "23": {
+  "model_index": 239,
+  "kind": "chr",
+  "model": "NPC_CHILD_W2",
+  "name": "Daughter"
+ },
+ "24": {
+  "model_index": 316,
+  "kind": "chr",
+  "model": "NPC_RF2_BULLET",
+  "name": "Barrett"
+ },
+ "25": {
+  "model_index": 317,
+  "kind": "chr",
+  "model": "NPC_RF3_TUNA",
+  "name": "Raven"
+ },
+ "26": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Mistress Trupin"
+ },
+ "27": {
+  "model_index": 320,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M",
+  "name": "Traveler"
+ },
+ "28": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Traveler"
+ },
+ "29": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Traveler"
+ },
+ "30": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Traveler"
+ },
+ "31": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Traveler"
+ },
+ "32": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Traveler"
+ },
+ "33": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Traveler"
+ },
+ "34": {
+  "model_index": 322,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W",
+  "name": "Traveler"
+ },
+ "35": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Traveler"
+ },
+ "36": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Traveler"
+ },
+ "37": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Traveler"
+ },
+ "38": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Traveler"
+ },
+ "39": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Traveler"
+ },
+ "40": {
+  "model_index": 323,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_W2",
+  "name": "Traveler"
+ },
+ "41": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "42": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "43": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "44": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "45": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "46": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "47": {
+  "model_index": 318,
+  "kind": "chr",
+  "model": "NPC_SOLDIER",
+  "name": "Soldier"
+ },
+ "48": {
+  "model_index": 756,
+  "kind": "mons",
+  "model": "M00_0",
+  "skeleton": "M00_0_00.bfskl",
+  "name": "Orc"
+ },
+ "49": {
+  "model_index": 778,
+  "kind": "mons",
+  "model": "M00_1",
+  "skeleton": "M00_0_00.bfskl",
+  "name": "High Orc"
+ },
+ "50": {
+  "model_index": 780,
+  "kind": "mons",
+  "model": "M01_0",
+  "skeleton": "M01_0_00.bfskl",
+  "name": "Orc Archer"
+ },
+ "51": {
+  "model_index": 797,
+  "kind": "mons",
+  "model": "M01_1",
+  "skeleton": "M01_0_00.bfskl",
+  "name": "Orc Hunter"
+ },
+ "52": {
+  "model_index": 798,
+  "kind": "mons",
+  "model": "M02_0",
+  "skeleton": "M02_0_00.bfskl",
+  "name": "Goblin"
+ },
+ "53": {
+  "model_index": 820,
+  "kind": "mons",
+  "model": "M02_1",
+  "skeleton": "M02_0_00.bfskl",
+  "name": "Hobgoblin"
+ },
+ "54": {
+  "model_index": 821,
+  "kind": "mons",
+  "model": "M03_0",
+  "skeleton": "M03_0_00.bfskl",
+  "name": "Goblin Archer"
+ },
+ "55": {
+  "model_index": 839,
+  "kind": "mons",
+  "model": "M03_1",
+  "skeleton": "M03_0_00.bfskl",
+  "name": "Goblin Sniper"
+ },
+ "56": {
+  "model_index": 840,
+  "kind": "mons",
+  "model": "M04_0",
+  "skeleton": "M04_0_00.bfskl",
+  "name": "Minotaur"
+ },
+ "57": {
+  "model_index": 859,
+  "kind": "mons",
+  "model": "M04_1",
+  "skeleton": "M04_0_00.bfskl",
+  "name": "Minotaur King"
+ },
+ "58": {
+  "model_index": 861,
+  "kind": "mons",
+  "model": "M05_0",
+  "skeleton": "M05_0_00.bfskl",
+  "name": "Daemon"
+ },
+ "59": {
+  "model_index": 880,
+  "kind": "mons",
+  "model": "M05_1",
+  "skeleton": "M05_0_00.bfskl",
+  "name": "Arch-Daemon"
+ },
+ "60": {
+  "model_index": 882,
+  "kind": "mons",
+  "model": "M06_0",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Little Mage"
+ },
+ "61": {
+  "model_index": 905,
+  "kind": "mons",
+  "model": "M06_1",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Little Wizard"
+ },
+ "62": {
+  "model_index": 906,
+  "kind": "mons",
+  "model": "M06_2",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Little Emperor"
+ },
+ "63": {
+  "model_index": 907,
+  "kind": "mons",
+  "model": "M07_0",
+  "skeleton": "M07_0_00.bfskl",
+  "name": "Troll"
+ },
+ "64": {
+  "model_index": 924,
+  "kind": "mons",
+  "model": "M07_1",
+  "skeleton": "M07_0_00.bfskl",
+  "name": "Titan"
+ },
+ "65": {
+  "model_index": 925,
+  "kind": "mons",
+  "model": "M08_0",
+  "skeleton": "M08_0_00.bfskl",
+  "name": "Hammer Troll"
+ },
+ "66": {
+  "model_index": 941,
+  "kind": "mons",
+  "model": "M08_1",
+  "skeleton": "M08_0_00.bfskl",
+  "name": "Gigantes"
+ },
+ "67": {
+  "model_index": 944,
+  "kind": "mons",
+  "model": "M09_0",
+  "skeleton": "M09_0_00.bfskl",
+  "name": "Ant"
+ },
+ "68": {
+  "model_index": 961,
+  "kind": "mons",
+  "model": "M09_1",
+  "skeleton": "M09_0_00.bfskl",
+  "name": "Killer Ant"
+ },
+ "69": {
+  "model_index": 963,
+  "kind": "mons",
+  "model": "M10_0",
+  "skeleton": "M10_0_00.bfskl",
+  "name": "Hornet"
+ },
+ "70": {
+  "model_index": 980,
+  "kind": "mons",
+  "model": "M10_1",
+  "skeleton": "M10_0_00.bfskl",
+  "name": "Hornet Queen"
+ },
+ "71": {
+  "model_index": 982,
+  "kind": "mons",
+  "model": "M11_0",
+  "skeleton": "M11_0_00.bfskl",
+  "name": "Spider"
+ },
+ "72": {
+  "model_index": 998,
+  "kind": "mons",
+  "model": "M11_1",
+  "skeleton": "M11_0_00.bfskl",
+  "name": "Hell Spider"
+ },
+ "73": {
+  "model_index": 999,
+  "kind": "mons",
+  "model": "M12_0",
+  "skeleton": "M12_0_00.bfskl",
+  "name": "Beetle"
+ },
+ "74": {
+  "model_index": 1018,
+  "kind": "mons",
+  "model": "M12_1",
+  "skeleton": "M12_0_00.bfskl",
+  "name": "Heracles"
+ },
+ "75": {
+  "model_index": 1020,
+  "kind": "mons",
+  "model": "M13_0",
+  "skeleton": "M13_0_00.bfskl",
+  "name": "Scorpion"
+ },
+ "76": {
+  "model_index": 1036,
+  "kind": "mons",
+  "model": "M13_1",
+  "skeleton": "M13_0_00.bfskl",
+  "name": "Death Stalker"
+ },
+ "77": {
+  "model_index": 1038,
+  "kind": "mons",
+  "model": "M14_0",
+  "skeleton": "M14_0_00.bfskl",
+  "name": "Shadow Panther"
+ },
+ "78": {
+  "model_index": 1055,
+  "kind": "mons",
+  "model": "M14_1",
+  "skeleton": "M14_0_00.bfskl",
+  "name": "Blood Panther"
+ },
+ "79": {
+  "model_index": 1056,
+  "kind": "mons",
+  "model": "M15_0",
+  "skeleton": "M15_0_00.bfskl",
+  "name": "Silver Wolf"
+ },
+ "80": {
+  "model_index": 1074,
+  "kind": "mons",
+  "model": "M15_1",
+  "skeleton": "M15_0_00.bfskl",
+  "name": "Hunter Wolf"
+ },
+ "81": {
+  "model_index": 1075,
+  "kind": "mons",
+  "model": "M16_0",
+  "skeleton": "M16_0_00.bfskl",
+  "name": "Buffaloo"
+ },
+ "82": {
+  "model_index": 1095,
+  "kind": "mons",
+  "model": "M16_1",
+  "skeleton": "M16_0_00.bfskl",
+  "name": "Buffamoo"
+ },
+ "83": {
+  "model_index": 1096,
+  "kind": "mons",
+  "model": "M17_0",
+  "skeleton": "M17_0_00.bfskl",
+  "name": "Weagle"
+ },
+ "84": {
+  "model_index": 1116,
+  "kind": "mons",
+  "model": "M17_1",
+  "skeleton": "M17_0_00.bfskl",
+  "name": "Blackbird"
+ },
+ "85": {
+  "model_index": 1118,
+  "kind": "mons",
+  "model": "M18_0",
+  "skeleton": "M18_0_00.bfskl",
+  "name": "Chipsqueek"
+ },
+ "86": {
+  "model_index": 1135,
+  "kind": "mons",
+  "model": "M18_1",
+  "skeleton": "M18_0_00.bfskl",
+  "name": "Furpy"
+ },
+ "87": {
+  "model_index": 1137,
+  "kind": "mons",
+  "model": "M19_0",
+  "skeleton": "M19_0_00.bfskl",
+  "name": "Flower Blossom"
+ },
+ "88": {
+  "model_index": 1156,
+  "kind": "mons",
+  "model": "M19_1",
+  "skeleton": "M19_0_00.bfskl",
+  "name": "Flower Lion"
+ },
+ "89": {
+  "model_index": 1157,
+  "kind": "mons",
+  "model": "M19_2",
+  "skeleton": "M19_0_00.bfskl",
+  "name": "Flower Lily"
+ },
+ "90": {
+  "model_index": 1158,
+  "kind": "mons",
+  "model": "M19_3",
+  "skeleton": "M19_0_00.bfskl",
+  "name": "Flower Crystal"
+ },
+ "91": {
+  "model_index": 1159,
+  "kind": "mons",
+  "model": "M20_0",
+  "skeleton": "M20_0_00.bfskl",
+  "name": "Big Muck"
+ },
+ "92": {
+  "model_index": 1175,
+  "kind": "mons",
+  "model": "M20_1",
+  "skeleton": "M20_0_00.bfskl",
+  "name": "Tricky Muck"
+ },
+ "93": {
+  "model_index": 1176,
+  "kind": "mons",
+  "model": "M21_0",
+  "skeleton": "M21_0_00.bfskl",
+  "name": "Leaf Ball"
+ },
+ "94": {
+  "model_index": 1193,
+  "kind": "mons",
+  "model": "M21_1",
+  "skeleton": "M21_0_00.bfskl",
+  "name": "Planchoa"
+ },
+ "95": {
+  "model_index": 1194,
+  "kind": "mons",
+  "model": "M22_0",
+  "skeleton": "M22_0_00.bfskl",
+  "name": "Sky Fish"
+ },
+ "96": {
+  "model_index": 1210,
+  "kind": "mons",
+  "model": "M22_1",
+  "skeleton": "M22_0_00.bfskl",
+  "name": "Sealy"
+ },
+ "97": {
+  "model_index": 1211,
+  "kind": "mons",
+  "model": "M23_0",
+  "skeleton": "M23_0_00.bfskl",
+  "name": "Tortas"
+ },
+ "98": {
+  "model_index": 1232,
+  "kind": "mons",
+  "model": "M24_0",
+  "skeleton": "M24_0_00.bfskl",
+  "name": "Ignis"
+ },
+ "99": {
+  "model_index": 1258,
+  "kind": "mons",
+  "model": "M24_1",
+  "skeleton": "M24_0_00.bfskl",
+  "name": "Tundra"
+ },
+ "100": {
+  "model_index": 1260,
+  "kind": "mons",
+  "model": "M24_3",
+  "skeleton": "M24_0_00.bfskl",
+  "name": "Airror"
+ },
+ "101": {
+  "model_index": 1262,
+  "kind": "mons",
+  "model": "M25_0",
+  "skeleton": "M25_0_00.bfskl",
+  "name": "Ghost"
+ },
+ "102": {
+  "model_index": 1280,
+  "kind": "mons",
+  "model": "M25_1",
+  "skeleton": "M25_0_00.bfskl",
+  "name": "Necro"
+ },
+ "103": {
+  "model_index": 1281,
+  "kind": "mons",
+  "model": "M25_2",
+  "skeleton": "M25_0_00.bfskl",
+  "name": "Faust"
+ },
+ "104": {
+  "model_index": 1283,
+  "kind": "mons",
+  "model": "M26_0",
+  "skeleton": "M26_0_00.bfskl",
+  "name": "Monster Box"
+ },
+ "105": {
+  "model_index": 1301,
+  "kind": "mons",
+  "model": "M26_1",
+  "skeleton": "M26_0_00.bfskl",
+  "name": "Gobble Box"
+ },
+ "106": {
+  "model_index": 1303,
+  "kind": "mons",
+  "model": "M27_0",
+  "skeleton": "M27_0_00.bfskl",
+  "name": "Fairy"
+ },
+ "107": {
+  "model_index": 1321,
+  "kind": "mons",
+  "model": "M27_1",
+  "skeleton": "M27_0_00.bfskl",
+  "name": "Dark Fairy"
+ },
+ "108": {
+  "model_index": 1323,
+  "kind": "mons",
+  "model": "M28_0",
+  "skeleton": "M28_0_00.bfskl",
+  "name": "Slime"
+ },
+ "109": {
+  "model_index": 1340,
+  "kind": "mons",
+  "model": "M28_1",
+  "skeleton": "M28_0_00.bfskl",
+  "name": "Dark Slime"
+ },
+ "110": {
+  "model_index": 1342,
+  "kind": "mons",
+  "model": "M29_0",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "Wooly"
+ },
+ "111": {
+  "model_index": 1359,
+  "kind": "mons",
+  "model": "M29_1",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "Wooly"
+ },
+ "112": {
+  "model_index": 1362,
+  "kind": "mons",
+  "model": "M30_0",
+  "skeleton": "M30_0_00.bfskl",
+  "name": "Little Golem"
+ },
+ "113": {
+  "model_index": 1381,
+  "kind": "mons",
+  "model": "M31_0",
+  "skeleton": "M31_0_00.bfskl",
+  "name": "Cluckadoodle"
+ },
+ "114": {
+  "model_index": 1396,
+  "kind": "mons",
+  "model": "M32_0",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Little Dragon"
+ },
+ "115": {
+  "model_index": 1419,
+  "kind": "mons",
+  "model": "M33_0",
+  "skeleton": "M33_0_00.bfskl",
+  "name": "Pomme Pomme"
+ },
+ "116": {
+  "model_index": 1442,
+  "kind": "mons",
+  "model": "M34_0",
+  "skeleton": "M34_0_00.bfskl",
+  "name": "Orc Viking"
+ },
+ "117": {
+  "model_index": 1460,
+  "kind": "mons",
+  "model": "M34_1",
+  "skeleton": "M34_0_00.bfskl",
+  "name": "High Orc Viking"
+ },
+ "118": {
+  "model_index": 1461,
+  "kind": "mons",
+  "model": "M35_0",
+  "skeleton": "M35_0_00.bfskl",
+  "name": "Ogre Viking"
+ },
+ "119": {
+  "model_index": 1477,
+  "kind": "mons",
+  "model": "M35_1",
+  "skeleton": "M35_0_00.bfskl",
+  "name": "High Ogre Viking"
+ },
+ "120": {
+  "model_index": 1478,
+  "kind": "mons",
+  "model": "M36_0",
+  "skeleton": "M36_0_00.bfskl",
+  "name": "Goblin Pirate"
+ },
+ "121": {
+  "model_index": 1494,
+  "kind": "mons",
+  "model": "M36_1",
+  "skeleton": "M36_0_00.bfskl",
+  "name": "Captain Goblin"
+ },
+ "122": {
+  "model_index": 1495,
+  "kind": "mons",
+  "model": "M37_0",
+  "skeleton": "M37_0_00.bfskl",
+  "name": "Gangster Goblin"
+ },
+ "123": {
+  "model_index": 1511,
+  "kind": "mons",
+  "model": "M37_1",
+  "skeleton": "M37_0_00.bfskl",
+  "name": "Goblin Don"
+ },
+ "124": {
+  "model_index": 1512,
+  "kind": "mons",
+  "model": "M38_0",
+  "skeleton": "M38_0_00.bfskl",
+  "name": "Duck"
+ },
+ "125": {
+  "model_index": 1528,
+  "kind": "mons",
+  "model": "M38_1",
+  "skeleton": "M38_0_00.bfskl",
+  "name": "Emperor Penguin"
+ },
+ "126": {
+  "model_index": 1529,
+  "kind": "mons",
+  "model": "M39_0",
+  "skeleton": "M39_0_00.bfskl",
+  "name": "Elefun"
+ },
+ "127": {
+  "model_index": 1551,
+  "kind": "mons",
+  "model": "M39_1",
+  "skeleton": "M39_0_00.bfskl",
+  "name": "Mammoo"
+ },
+ "128": {
+  "model_index": 1552,
+  "kind": "mons",
+  "model": "M40_0",
+  "skeleton": "M40_0_00.bfskl",
+  "name": "Onion Ghost"
+ },
+ "129": {
+  "model_index": 1569,
+  "kind": "mons",
+  "model": "M40_1",
+  "skeleton": "M40_0_00.bfskl",
+  "name": "Tomato Ghost"
+ },
+ "130": {
+  "model_index": 1570,
+  "kind": "mons",
+  "model": "M40_2",
+  "skeleton": "M40_0_00.bfskl",
+  "name": "Pepper Ghost"
+ },
+ "131": {
+  "model_index": 1571,
+  "kind": "mons",
+  "model": "M40_3",
+  "skeleton": "M40_0_00.bfskl",
+  "name": "Turnip Ghost"
+ },
+ "132": {
+  "model_index": 756,
+  "kind": "mons",
+  "model": "M00_0",
+  "skeleton": "M00_0_00.bfskl",
+  "name": "Rider Orc"
+ },
+ "133": {
+  "model_index": 1573,
+  "kind": "mons",
+  "model": "M42_0",
+  "skeleton": "M42_0_00.bfskl",
+  "name": "Cloudy"
+ },
+ "134": {
+  "model_index": 1439,
+  "kind": "mons",
+  "model": "M33_1",
+  "skeleton": "M33_0_00.bfskl",
+  "name": "Nappie"
+ },
+ "135": {
+  "model_index": 1440,
+  "kind": "mons",
+  "model": "M33_2",
+  "skeleton": "M33_0_00.bfskl",
+  "name": "Mino"
+ },
+ "136": {
+  "model_index": 1441,
+  "kind": "mons",
+  "model": "M33_3",
+  "skeleton": "M33_0_00.bfskl",
+  "name": "Snowy"
+ },
+ "137": {
+  "model_index": 907,
+  "kind": "mons",
+  "model": "M07_0",
+  "skeleton": "M07_0_00.bfskl",
+  "name": "Master Troll"
+ },
+ "138": {
+  "model_index": 1512,
+  "kind": "mons",
+  "model": "M38_0",
+  "skeleton": "M38_0_00.bfskl",
+  "name": "Big Duck"
+ },
+ "139": {
+  "model_index": 1359,
+  "kind": "mons",
+  "model": "M29_1",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "King Wooly"
+ },
+ "140": {
+  "model_index": 1159,
+  "kind": "mons",
+  "model": "M20_0",
+  "skeleton": "M20_0_00.bfskl",
+  "name": "Death Fungus"
+ },
+ "141": {
+  "model_index": 1283,
+  "kind": "mons",
+  "model": "M26_0",
+  "name": "Treasure Chest"
+ },
+ "142": {
+  "model_index": 1301,
+  "kind": "mons",
+  "model": "M26_1",
+  "name": "Pretty Chest"
+ },
+ "143": {
+  "model_index": 1302,
+  "kind": "mons",
+  "model": "M26_2",
+  "name": "Treasure"
+ },
+ "144": {
+  "model_index": 1342,
+  "kind": "mons",
+  "model": "M29_0",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "Little Wooly"
+ },
+ "145": {
+  "model_index": 860,
+  "kind": "mons",
+  "model": "M04_2",
+  "skeleton": "M04_0_00.bfskl",
+  "name": "Baal"
+ },
+ "146": {
+  "model_index": 1414,
+  "kind": "mons",
+  "model": "M32_1",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Black Dragon"
+ },
+ "147": {
+  "model_index": 1380,
+  "kind": "mons",
+  "model": "M30_1",
+  "skeleton": "M30_0_00.bfskl",
+  "name": "Guardian"
+ },
+ "148": {
+  "model_index": 779,
+  "kind": "mons",
+  "model": "M00_2",
+  "skeleton": "M00_0_00.bfskl",
+  "name": "Death Orc"
+ },
+ "149": {
+  "model_index": 1646,
+  "kind": "mons",
+  "model": "M46_0",
+  "name": "Soldier"
+ },
+ "150": {
+  "model_index": 1646,
+  "kind": "mons",
+  "model": "M46_0",
+  "name": "Soldier"
+ },
+ "151": {
+  "model_index": 1572,
+  "kind": "mons",
+  "model": "M40_4",
+  "skeleton": "M40_0_00.bfskl",
+  "name": "Onionger"
+ },
+ "152": {
+  "model_index": 1282,
+  "kind": "mons",
+  "model": "M25_3",
+  "skeleton": "M25_0_00.bfskl",
+  "name": "Ghost Ray"
+ },
+ "153": {
+  "model_index": 1259,
+  "kind": "mons",
+  "model": "M24_2",
+  "skeleton": "M24_0_00.bfskl",
+  "name": "Spirit"
+ },
+ "154": {
+  "model_index": 962,
+  "kind": "mons",
+  "model": "M09_2",
+  "skeleton": "M09_0_00.bfskl",
+  "name": "Ant Queen"
+ },
+ "155": {
+  "model_index": 981,
+  "kind": "mons",
+  "model": "M10_2",
+  "skeleton": "M10_0_00.bfskl",
+  "name": "King Bee"
+ },
+ "156": {
+  "model_index": 1037,
+  "kind": "mons",
+  "model": "M13_2",
+  "skeleton": "M13_0_00.bfskl",
+  "name": "Heaven's Scissors"
+ },
+ "157": {
+  "model_index": 1261,
+  "kind": "mons",
+  "model": "M24_4",
+  "skeleton": "M24_0_00.bfskl",
+  "name": "Gaias"
+ },
+ "158": {
+  "model_index": 942,
+  "kind": "mons",
+  "model": "M08_2",
+  "skeleton": "M08_0_00.bfskl",
+  "name": "Master Giant"
+ },
+ "159": {
+  "model_index": 1415,
+  "kind": "mons",
+  "model": "M32_2",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Sechs Dragon"
+ },
+ "160": {
+  "model_index": 1627,
+  "kind": "mons",
+  "model": "M45_0",
+  "skeleton": "M45_0_00.bfskl",
+  "name": "Palm Cat"
+ },
+ "161": {
+  "model_index": 1644,
+  "kind": "mons",
+  "model": "M45_1",
+  "skeleton": "M45_0_00.bfskl",
+  "name": "Malm Tiger"
+ },
+ "162": {
+  "model_index": 1610,
+  "kind": "mons",
+  "model": "M44_0",
+  "skeleton": "M44_0_00.bfskl",
+  "name": "Hover Soldier"
+ },
+ "163": {
+  "model_index": 1626,
+  "kind": "mons",
+  "model": "M44_1",
+  "skeleton": "M44_0_00.bfskl",
+  "name": "Hover Warrior"
+ },
+ "164": {
+  "model_index": 1591,
+  "kind": "mons",
+  "model": "M43_0",
+  "skeleton": "M43_0_00.bfskl",
+  "name": "Gasham"
+ },
+ "165": {
+  "model_index": 1609,
+  "kind": "mons",
+  "model": "M43_1",
+  "skeleton": "M43_0_00.bfskl",
+  "name": "Gasham"
+ },
+ "166": {
+  "model_index": 240,
+  "kind": "mons",
+  "model": "BM_11_2",
+  "skeleton": "BM_11_2_00.bfskl",
+  "name": "Ruffled Vine"
+ },
+ "167": {
+  "model_index": 255,
+  "kind": "mons",
+  "model": "BM_11_3",
+  "skeleton": "BM_11_3_00.bfskl",
+  "name": "Ruffled Horsetail"
+ },
+ "168": {
+  "model_index": 270,
+  "kind": "mons",
+  "model": "BM_11_4",
+  "skeleton": "BM_11_4_00.bfskl",
+  "name": "Ruffled Flower"
+ },
+ "169": {
+  "model_index": 1648,
+  "kind": "mons",
+  "model": "M47_0",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Red"
+ },
+ "170": {
+  "model_index": 1664,
+  "kind": "mons",
+  "model": "M47_1",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Green"
+ },
+ "171": {
+  "model_index": 1665,
+  "kind": "mons",
+  "model": "M47_2",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Blue"
+ },
+ "172": {
+  "model_index": 1666,
+  "kind": "mons",
+  "model": "M47_3",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Yellow"
+ },
+ "173": {
+  "model_index": 840,
+  "kind": "mons",
+  "model": "M04_0",
+  "skeleton": "M04_0_00.bfskl",
+  "name": "Minotaur"
+ },
+ "174": {
+  "model_index": 1552,
+  "kind": "mons",
+  "model": "M40_0",
+  "skeleton": "M40_0_00.bfskl",
+  "name": "Onion Ghost"
+ },
+ "175": {
+  "model_index": 1360,
+  "kind": "mons",
+  "model": "M29_2",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "Shmooly"
+ },
+ "176": {
+  "model_index": 1361,
+  "kind": "mons",
+  "model": "M29_3",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "Shmooly"
+ },
+ "177": {
+  "model_index": 1362,
+  "kind": "mons",
+  "model": "M30_0",
+  "skeleton": "M30_0_00.bfskl",
+  "name": "Golem"
+ },
+ "178": {
+  "model_index": 943,
+  "kind": "mons",
+  "model": "M08_3",
+  "skeleton": "M08_0_00.bfskl",
+  "name": "???"
+ },
+ "179": {
+  "model_index": 1341,
+  "kind": "mons",
+  "model": "M28_2",
+  "skeleton": "M28_0_00.bfskl",
+  "name": "???"
+ },
+ "180": {
+  "model_index": 1322,
+  "kind": "mons",
+  "model": "M27_2",
+  "skeleton": "M27_0_00.bfskl",
+  "name": "???"
+ },
+ "181": {
+  "model_index": 1019,
+  "kind": "mons",
+  "model": "M12_2",
+  "skeleton": "M12_0_00.bfskl",
+  "name": "???"
+ },
+ "182": {
+  "model_index": 882,
+  "kind": "mons",
+  "model": "M06_0",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Sechs Sorcerer"
+ },
+ "183": {
+  "model_index": 1645,
+  "kind": "mons",
+  "model": "M45_2",
+  "skeleton": "M45_0_00.bfskl",
+  "name": "Sechs Cat"
+ },
+ "184": {
+  "model_index": 1231,
+  "kind": "mons",
+  "model": "M23_1",
+  "skeleton": "M23_0_00.bfskl",
+  "name": "Fortoise"
+ },
+ "185": {
+  "model_index": 1117,
+  "kind": "mons",
+  "model": "M17_2",
+  "skeleton": "M17_0_00.bfskl",
+  "name": "Thunderbird"
+ },
+ "186": {
+  "model_index": 1381,
+  "kind": "mons",
+  "model": "M31_0",
+  "skeleton": "M31_0_00.bfskl",
+  "name": "Mamadoodle"
+ },
+ "187": {
+  "model_index": 1136,
+  "kind": "mons",
+  "model": "M18_2",
+  "skeleton": "M18_0_00.bfskl",
+  "name": "Mineral Squeek"
+ },
+ "188": {
+  "model_index": 881,
+  "kind": "mons",
+  "model": "M05_2",
+  "skeleton": "M05_0_00.bfskl",
+  "name": "Typhoon"
+ },
+ "189": {
+  "model_index": 307,
+  "kind": "mons",
+  "model": "BM_30_1",
+  "skeleton": "BM_30_1_00.bfskl",
+  "name": "Raccoon"
+ },
+ "190": {
+  "model_index": 1396,
+  "kind": "mons",
+  "model": "M32_0",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Green Dragon"
+ },
+ "191": {
+  "model_index": 1415,
+  "kind": "mons",
+  "model": "M32_2",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Red Dragon"
+ },
+ "192": {
+  "model_index": 1645,
+  "kind": "mons",
+  "model": "M45_2",
+  "skeleton": "M45_0_00.bfskl",
+  "name": "Leoplicant"
+ },
+ "193": {
+  "model_index": 1647,
+  "kind": "mons",
+  "model": "M46_1",
+  "name": "Armed Ghost"
+ },
+ "194": {
+  "model_index": 882,
+  "kind": "mons",
+  "model": "M06_0",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Flare Mage"
+ },
+ "195": {
+  "model_index": 905,
+  "kind": "mons",
+  "model": "M06_1",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Ice Wizard"
+ },
+ "196": {
+  "model_index": 906,
+  "kind": "mons",
+  "model": "M06_2",
+  "skeleton": "M06_0_00.bfskl",
+  "name": "Elemental Emperor"
+ },
+ "197": {
+  "model_index": 1416,
+  "kind": "mons",
+  "model": "M32_3",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Blue Dragon"
+ },
+ "198": {
+  "model_index": 1417,
+  "kind": "mons",
+  "model": "M32_4",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Yellow Dragon"
+ },
+ "199": {
+  "model_index": 1418,
+  "kind": "mons",
+  "model": "M32_5",
+  "skeleton": "M32_0_00.bfskl",
+  "name": "Pink Dragon"
+ },
+ "200": {
+  "model_index": 1,
+  "kind": "mons",
+  "model": "BM_00",
+  "skeleton": "BM_00_00_1.bfskl",
+  "name": "Dead Tree 2"
+ },
+ "201": {
+  "model_index": 1,
+  "kind": "mons",
+  "model": "BM_00",
+  "skeleton": "BM_00_00_1.bfskl",
+  "name": "Dead Tree"
+ },
+ "202": {
+  "model_index": 21,
+  "kind": "mons",
+  "model": "BM_01",
+  "skeleton": "BM_01_00.bfskl",
+  "name": "Octopirate 2"
+ },
+ "203": {
+  "model_index": 21,
+  "kind": "mons",
+  "model": "BM_01",
+  "skeleton": "BM_01_00.bfskl",
+  "name": "Octopirate"
+ },
+ "204": {
+  "model_index": 42,
+  "kind": "mons",
+  "model": "BM_02",
+  "skeleton": "BM_02_00.bfskl",
+  "name": "Bane Dragon"
+ },
+ "205": {
+  "model_index": 61,
+  "kind": "mons",
+  "model": "BM_03",
+  "skeleton": "BM_03_00.bfskl",
+  "name": "Crystal Mammoth 2"
+ },
+ "206": {
+  "model_index": 61,
+  "kind": "mons",
+  "model": "BM_03",
+  "skeleton": "BM_03_00.bfskl",
+  "name": "Crystal Mammoth"
+ },
+ "207": {
+  "model_index": 82,
+  "kind": "mons",
+  "model": "BM_04",
+  "skeleton": "BM_04_00.bfskl",
+  "name": "Greater Demon 2"
+ },
+ "208": {
+  "model_index": 82,
+  "kind": "mons",
+  "model": "BM_04",
+  "skeleton": "BM_04_00.bfskl",
+  "name": "Greater Demon"
+ },
+ "209": {
+  "model_index": 102,
+  "kind": "mons",
+  "model": "BM_05",
+  "skeleton": "BM_05_00.bfskl",
+  "name": "Chimera 2"
+ },
+ "210": {
+  "model_index": 102,
+  "kind": "mons",
+  "model": "BM_05",
+  "skeleton": "BM_05_00.bfskl",
+  "name": "Chimera"
+ },
+ "211": {
+  "model_index": 122,
+  "kind": "mons",
+  "model": "BM_06",
+  "skeleton": "BM_06_00.bfskl",
+  "name": "G Golem"
+ },
+ "212": {
+  "model_index": 144,
+  "kind": "mons",
+  "model": "BM_06_99_1",
+  "skeleton": "BM_06_00.bfskl",
+  "name": "Sechs Golem"
+ },
+ "213": {
+  "model_index": 145,
+  "kind": "mons",
+  "model": "BM_07",
+  "skeleton": "BM_07_00.bfskl",
+  "name": "Grimoire 2"
+ },
+ "214": {
+  "model_index": 145,
+  "kind": "mons",
+  "model": "BM_07",
+  "skeleton": "BM_07_00.bfskl",
+  "name": "Grimoire"
+ },
+ "215": {
+  "model_index": 167,
+  "kind": "mons",
+  "model": "BM_08",
+  "skeleton": "BM_08_00.bfskl",
+  "name": "Siren"
+ },
+ "216": {
+  "model_index": 186,
+  "kind": "mons",
+  "model": "BM_09",
+  "skeleton": "BM_09_00.bfskl",
+  "name": "Terrable"
+ },
+ "217": {
+  "model_index": 186,
+  "kind": "mons",
+  "model": "BM_09",
+  "skeleton": "BM_09_00.bfskl",
+  "name": "Terraclone"
+ },
+ "218": {
+  "model_index": 205,
+  "kind": "mons",
+  "model": "BM_10",
+  "skeleton": "BM_10_00.bfskl",
+  "name": "Fiersome"
+ },
+ "219": {
+  "model_index": 205,
+  "kind": "mons",
+  "model": "BM_10",
+  "skeleton": "BM_10_00.bfskl",
+  "name": "Fiergaenger"
+ },
+ "220": {
+  "model_index": 307,
+  "kind": "mons",
+  "model": "BM_30_1",
+  "skeleton": "BM_30_1_00.bfskl",
+  "name": "Magnuto"
+ },
+ "221": {
+  "model_index": 323,
+  "kind": "mons",
+  "model": "BM_30_2",
+  "skeleton": "BM_30_2_00.bfskl",
+  "name": "Magnuto"
+ },
+ "222": {
+  "model_index": 344,
+  "kind": "mons",
+  "model": "BM_31",
+  "skeleton": "BM_31_0_00.bfskl",
+  "name": "Ancient Bone"
+ },
+ "223": {
+  "model_index": 379,
+  "kind": "mons",
+  "model": "BM_32_1",
+  "skeleton": "BM_32_1_00.bfskl",
+  "name": "Hinoe"
+ },
+ "224": {
+  "model_index": 407,
+  "kind": "mons",
+  "model": "BM_32_2",
+  "skeleton": "BM_32_2_00.bfskl",
+  "name": "Kinoto"
+ },
+ "225": {
+  "model_index": 430,
+  "kind": "mons",
+  "model": "BM_33_1",
+  "skeleton": "BM_33_1_00.bfskl",
+  "name": "Death Wall"
+ },
+ "226": {
+  "model_index": 490,
+  "kind": "mons",
+  "model": "BM_34_1",
+  "skeleton": "BM_34_0_00.bfskl",
+  "name": "Aquaticus"
+ },
+ "227": {
+  "model_index": 490,
+  "kind": "mons",
+  "model": "BM_34_1",
+  "skeleton": "BM_34_0_00.bfskl",
+  "name": "Aquameleon"
+ },
+ "228": {
+  "model_index": 491,
+  "kind": "mons",
+  "model": "BM_40_1",
+  "skeleton": "BM_40_1_00.bfskl",
+  "name": "Ambrosia"
+ },
+ "229": {
+  "model_index": 506,
+  "kind": "mons",
+  "model": "BM_40_2",
+  "skeleton": "BM_40_2_00.bfskl",
+  "name": "Ambrosia"
+ },
+ "230": {
+  "model_index": 558,
+  "kind": "mons",
+  "model": "BM_41_1",
+  "skeleton": "BM_41_0_00.bfskl",
+  "name": "Thunderbolt"
+ },
+ "231": {
+  "model_index": 559,
+  "kind": "mons",
+  "model": "BM_42_1",
+  "skeleton": "BM_42_1_00.bfskl",
+  "name": "Marionetta"
+ },
+ "232": {
+  "model_index": 583,
+  "kind": "mons",
+  "model": "BM_42_2",
+  "skeleton": "BM_42_2_00.bfskl",
+  "name": "Handonetta"
+ },
+ "233": {
+  "model_index": 607,
+  "kind": "mons",
+  "model": "BM_43_1",
+  "skeleton": "BM_43_1_00.bfskl",
+  "name": "Sarcophagus"
+ },
+ "234": {
+  "model_index": 607,
+  "kind": "mons",
+  "model": "BM_43_1",
+  "skeleton": "BM_43_1_00.bfskl",
+  "name": "Sarcophagus"
+ },
+ "235": {
+  "model_index": 635,
+  "kind": "mons",
+  "model": "BM_44_1",
+  "skeleton": "BM_44_1B_00.bfskl",
+  "name": "Ventuswill"
+ },
+ "236": {
+  "model_index": 635,
+  "kind": "mons",
+  "model": "BM_44_1",
+  "skeleton": "BM_44_1B_00.bfskl",
+  "name": "Ethelwill"
+ },
+ "237": {
+  "model_index": 704,
+  "kind": "mons",
+  "model": "BM_44_2",
+  "skeleton": "BM_44_2_00.bfskl",
+  "name": "Ethelwill"
+ },
+ "238": {
+  "model_index": 753,
+  "kind": "mons",
+  "model": "BM_45",
+  "name": "Ragnarok"
+ },
+ "239": {
+  "model_index": 753,
+  "kind": "mons",
+  "model": "BM_45",
+  "name": "Ethelberd"
+ },
+ "240": {
+  "model_index": 224,
+  "kind": "mons",
+  "model": "BM_11_1",
+  "skeleton": "BM_11_1_00.bfskl",
+  "name": "Rafflesia"
+ },
+ "241": {
+  "model_index": 285,
+  "kind": "mons",
+  "model": "BM_12_0",
+  "skeleton": "BM_12_0_00.bfskl",
+  "name": "Armored Tank +"
+ },
+ "246": {
+  "model_index": 754,
+  "kind": "mons",
+  "model": "EFC_00_GATEA",
+  "skeleton": "mGen.bfskl",
+  "name": "Heaven's Gate"
+ },
+ "247": {
+  "model_index": 754,
+  "kind": "mons",
+  "model": "EFC_00_GATEA",
+  "skeleton": "mGen.bfskl",
+  "name": "Heaven's Gate"
+ },
+ "248": {
+  "model_index": 754,
+  "kind": "mons",
+  "model": "EFC_00_GATEA",
+  "skeleton": "mGen.bfskl",
+  "name": "Heaven's Gate"
+ },
+ "249": {
+  "model_index": 1609,
+  "kind": "mons",
+  "model": "M43_1",
+  "skeleton": "M43_0_00.bfskl",
+  "name": "Sechs Tank"
+ },
+ "250": {
+  "model_index": 1648,
+  "kind": "mons",
+  "model": "M47_0",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Rouge"
+ },
+ "251": {
+  "model_index": 1664,
+  "kind": "mons",
+  "model": "M47_1",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Emerald"
+ },
+ "252": {
+  "model_index": 1665,
+  "kind": "mons",
+  "model": "M47_2",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Marin"
+ },
+ "253": {
+  "model_index": 1666,
+  "kind": "mons",
+  "model": "M47_3",
+  "skeleton": "M47_0_00.bfskl",
+  "name": "Olive"
+ },
+ "254": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Sign D"
+ },
+ "255": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Open Menu"
+ },
+ "256": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Name Entry"
+ },
+ "257": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Shop"
+ },
+ "258": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "New Element"
+ },
+ "259": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Scenario"
+ },
+ "260": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Facility"
+ },
+ "261": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Festival"
+ },
+ "262": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Marriage"
+ },
+ "263": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Nickname"
+ },
+ "264": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Item"
+ },
+ "265": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Skill, Portrait"
+ },
+ "266": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Birthday"
+ },
+ "267": {
+  "model_index": 333,
+  "kind": "chr",
+  "model": "OBJ_BOARD_00",
+  "name": "Board"
+ },
+ "268": {
+  "model_index": 334,
+  "kind": "chr",
+  "model": "OBJ_BOARD_01",
+  "name": "Board"
+ },
+ "272": {
+  "model_index": 379,
+  "kind": "chr",
+  "model": "OBJ_SAVE_P",
+  "name": "Save Point"
+ },
+ "273": {
+  "model_index": 1359,
+  "kind": "mons",
+  "model": "M29_1",
+  "skeleton": "M29_0_00.bfskl",
+  "name": "Wooly"
+ },
+ "274": {
+  "model_index": 1118,
+  "kind": "mons",
+  "model": "M18_0",
+  "skeleton": "M18_0_00.bfskl",
+  "name": "Chipsqueek"
+ },
+ "275": {
+  "model_index": 1303,
+  "kind": "mons",
+  "model": "M27_0",
+  "skeleton": "M27_0_00.bfskl",
+  "name": "Fairy"
+ },
+ "276": {
+  "model_index": 327,
+  "kind": "chr",
+  "model": "OBJ_BED_00",
+  "name": "Bed"
+ },
+ "277": {
+  "model_index": 328,
+  "kind": "chr",
+  "model": "OBJ_BED_01",
+  "name": "Double Bed"
+ },
+ "279": {
+  "model_index": 340,
+  "kind": "chr",
+  "model": "OBJ_CALENDAR",
+  "name": "Calendar"
+ },
+ "280": {
+  "model_index": 347,
+  "kind": "chr",
+  "model": "OBJ_COMPO_04",
+  "name": "Oven"
+ },
+ "281": {
+  "model_index": 348,
+  "kind": "chr",
+  "model": "OBJ_COMPO_05",
+  "name": "Steamer"
+ },
+ "282": {
+  "model_index": 346,
+  "kind": "chr",
+  "model": "OBJ_COMPO_03",
+  "name": "Pot"
+ },
+ "283": {
+  "model_index": 349,
+  "kind": "chr",
+  "model": "OBJ_COMPO_06",
+  "name": "Mixer"
+ },
+ "284": {
+  "model_index": 345,
+  "kind": "chr",
+  "model": "OBJ_COMPO_02",
+  "name": "Frying Pan"
+ },
+ "285": {
+  "model_index": 344,
+  "kind": "chr",
+  "model": "OBJ_COMPO_01",
+  "name": "Knife"
+ },
+ "286": {
+  "model_index": 343,
+  "kind": "chr",
+  "model": "OBJ_COMPO_00",
+  "name": "No Tool"
+ },
+ "287": {
+  "model_index": 366,
+  "kind": "chr",
+  "model": "OBJ_FRIDGE_00",
+  "name": "Fridge"
+ },
+ "288": {
+  "model_index": 367,
+  "kind": "chr",
+  "model": "OBJ_FRIDGE_01",
+  "name": "Large Fridge"
+ },
+ "289": {
+  "model_index": 380,
+  "kind": "chr",
+  "model": "OBJ_SHELF_00",
+  "name": "Shop Box"
+ },
+ "290": {
+  "model_index": 381,
+  "kind": "chr",
+  "model": "OBJ_SHELF_01",
+  "name": "Storage"
+ },
+ "291": {
+  "model_index": 335,
+  "kind": "chr",
+  "model": "OBJ_BOOKSHELF",
+  "name": "Bookshelf"
+ },
+ "292": {
+  "model_index": 351,
+  "kind": "chr",
+  "model": "OBJ_COMPO_08",
+  "name": "Forge"
+ },
+ "293": {
+  "model_index": 350,
+  "kind": "chr",
+  "model": "OBJ_COMPO_07",
+  "name": "Chemistry Set"
+ },
+ "294": {
+  "model_index": 352,
+  "kind": "chr",
+  "model": "OBJ_COMPO_09",
+  "name": "Crafting Table"
+ },
+ "296": {
+  "model_index": 382,
+  "kind": "chr",
+  "model": "OBJ_SHIPMENT",
+  "name": "Rejuvenating Orb"
+ },
+ "304": {
+  "model_index": 372,
+  "kind": "chr",
+  "model": "OBJ_MATERIAL",
+  "name": "Lumber Box"
+ },
+ "305": {
+  "model_index": 370,
+  "kind": "chr",
+  "model": "OBJ_KAIBA_A",
+  "name": "Fodder Bin"
+ },
+ "307": {
+  "model_index": 374,
+  "kind": "chr",
+  "model": "OBJ_ORDER_BOARD",
+  "name": "Order Symbol"
+ },
+ "308": {
+  "model_index": 217,
+  "kind": "chr",
+  "model": "NPC_A_CLORICA",
+  "name": "Clorica"
+ },
+ "309": {
+  "model_index": 283,
+  "kind": "chr",
+  "model": "NPC_PICO",
+  "name": "Pico"
+ },
+ "310": {
+  "model_index": 284,
+  "kind": "chr",
+  "model": "NPC_PLAYER_00",
+  "name": "Earthmate"
+ },
+ "311": {
+  "model_index": 300,
+  "kind": "chr",
+  "model": "NPC_PLAYER_01",
+  "name": "Earthmate"
+ },
+ "312": {
+  "model_index": 325,
+  "kind": "chr",
+  "model": "OBJ_ARSENAL00",
+  "name": "Weapon Box"
+ },
+ "313": {
+  "model_index": 341,
+  "kind": "chr",
+  "model": "OBJ_CLOAK00",
+  "name": "Closet"
+ },
+ "314": {
+  "model_index": 365,
+  "kind": "chr",
+  "model": "OBJ_FARMING00",
+  "name": "Farm Tool Box"
+ },
+ "315": {
+  "model_index": 342,
+  "kind": "chr",
+  "model": "OBJ_COMPOST",
+  "name": "Fertilizer Bin"
+ },
+ "316": {
+  "model_index": 387,
+  "kind": "chr",
+  "model": "OBJ_WELL",
+  "name": "Well"
+ },
+ "317": {
+  "model_index": 363,
+  "kind": "chr",
+  "model": "OBJ_FARM02_00",
+  "name": "Mr. Owl"
+ },
+ "318": {
+  "model_index": 364,
+  "kind": "chr",
+  "model": "OBJ_FARM02_30",
+  "name": "Shivering Owl"
+ },
+ "319": {
+  "model_index": 383,
+  "kind": "chr",
+  "model": "OBJ_SHIP_SYMBOL",
+  "name": "Telecommunicator"
+ },
+ "320": {
+  "model_index": 373,
+  "kind": "chr",
+  "model": "OBJ_MUSIC",
+  "name": "Music Player"
+ },
+ "321": {
+  "model_index": 376,
+  "kind": "chr",
+  "model": "OBJ_POST",
+  "name": "Mailbox"
+ },
+ "323": {
+  "model_index": 336,
+  "kind": "chr",
+  "model": "OBJ_BUTTERFLY_BLUE",
+  "name": "Butterfly"
+ },
+ "324": {
+  "model_index": 326,
+  "kind": "chr",
+  "model": "OBJ_BARREL",
+  "name": "Barrel"
+ },
+ "325": {
+  "model_index": 261,
+  "kind": "chr",
+  "model": "NPC_H_KOHAKU",
+  "name": "Mysterious Girl"
+ },
+ "326": {
+  "model_index": 247,
+  "kind": "chr",
+  "model": "NPC_E_DIRUS",
+  "name": "Mysterious Man"
+ },
+ "327": {
+  "model_index": 213,
+  "kind": "chr",
+  "model": "MOBJ_FI_ROCK01_C",
+  "name": "Rock"
+ },
+ "328": {
+  "model_index": 214,
+  "kind": "chr",
+  "model": "MOBJ_FI_TREE_20",
+  "name": "Big Tree"
+ },
+ "329": {
+  "model_index": 215,
+  "kind": "chr",
+  "model": "MOBJ_FI_TREE_21",
+  "name": "Big Tree"
+ },
+ "330": {
+  "model_index": 216,
+  "kind": "chr",
+  "model": "MOBJ_FI_TREE_22",
+  "name": "Big Tree"
+ },
+ "331": {
+  "model_index": 321,
+  "kind": "chr",
+  "model": "NPC_TRAVELER_M2",
+  "name": "Captain"
+ },
+ "332": {
+  "model_index": 369,
+  "kind": "chr",
+  "model": "OBJ_ITEM82",
+  "name": "Wtr. Dragon's Fin"
+ },
+ "333": {
+  "model_index": 384,
+  "kind": "chr",
+  "model": "OBJ_TRASH00",
+  "name": "Can"
+ },
+ "334": {
+  "model_index": 385,
+  "kind": "chr",
+  "model": "OBJ_TRASH02",
+  "name": "Can"
+ },
+ "335": {
+  "model_index": 324,
+  "kind": "chr",
+  "model": "OBJ_ACCE62",
+  "name": "Venti's Charm"
+ },
+ "336": {
+  "model_index": 388,
+  "kind": "chr",
+  "model": "SHIP_01",
+  "name": "Ship"
+ },
+ "337": {
+  "model_index": 389,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_01",
+  "name": "\uff20"
+ },
+ "338": {
+  "model_index": 390,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_02",
+  "name": "\uff20"
+ },
+ "339": {
+  "model_index": 391,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_03",
+  "name": "\uff20"
+ },
+ "340": {
+  "model_index": 392,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_04",
+  "name": "\uff20"
+ },
+ "341": {
+  "model_index": 393,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_05",
+  "name": "\uff20"
+ },
+ "342": {
+  "model_index": 394,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_06",
+  "name": "\uff20"
+ },
+ "343": {
+  "model_index": 395,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_07",
+  "name": "\uff20"
+ },
+ "344": {
+  "model_index": 396,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_08",
+  "name": "\uff20"
+ },
+ "345": {
+  "model_index": 397,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_09",
+  "name": "\uff20"
+ },
+ "346": {
+  "model_index": 398,
+  "kind": "chr",
+  "model": "SYS_MENU_ANIME_10",
+  "name": "\uff20"
+ },
+ "347": {
+  "model_index": 403,
+  "kind": "chr",
+  "model": "SYS_MENU_FONT_SUCCESS",
+  "name": "\uff20"
+ },
+ "348": {
+  "model_index": 399,
+  "kind": "chr",
+  "model": "SYS_MENU_FONT_FAILURE",
+  "name": "\uff20"
+ },
+ "359": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Gate"
+ },
+ "360": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Fire Gate"
+ },
+ "361": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Water Gate"
+ },
+ "362": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Field Gate"
+ },
+ "363": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Wind Gate"
+ },
+ "364": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Light Gate"
+ },
+ "365": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Dark Gate"
+ },
+ "366": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Love Gate"
+ },
+ "367": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Big Gate"
+ },
+ "368": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Flame Gate"
+ },
+ "369": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Ice Gate"
+ },
+ "370": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Earth Gate"
+ },
+ "371": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Storm Gate"
+ },
+ "372": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Flash Gate"
+ },
+ "373": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Black Gate"
+ },
+ "374": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Precious Gate"
+ },
+ "375": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Void Gate"
+ },
+ "376": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Blaze Gate"
+ },
+ "377": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Frozen Gate"
+ },
+ "378": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Star Gate"
+ },
+ "379": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Tornado Gate"
+ },
+ "380": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Angel Gate"
+ },
+ "381": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Abyss Gate"
+ },
+ "382": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Affection Gate"
+ },
+ "383": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Void Gate"
+ },
+ "384": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Blaze Gate"
+ },
+ "385": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Frozen Gate"
+ },
+ "386": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Star Gate"
+ },
+ "387": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Tornado Gate"
+ },
+ "388": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Angel Gate"
+ },
+ "389": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Abyss Gate"
+ },
+ "390": {
+  "model_index": 754,
+  "kind": "chr",
+  "model": "crop_085_4",
+  "skeleton": "mGen.bfskl",
+  "name": "Affection Gate"
+ },
+ "391": {
+  "model_index": 755,
+  "kind": "chr",
+  "model": "crop_085_5",
+  "skeleton": "shift_close.bfskl",
+  "name": "Shift"
+ }
+}

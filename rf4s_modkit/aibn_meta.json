@@ -1,0 +1,2841 @@
+{
+ "_source": "verified 2026-09-17 from the RF4S.exe IDB handlers; regenerate with gen_aibn_meta.py",
+ "opcodes": {
+  "0x00": {
+   "ida_name": "MonsterScript_Op00_StatementBlock",
+   "rva": "0x1CA9F0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Clears mode bits 0x180, PC+=1, then loops: fetch opcode; if id<=8 stop and call MonsterScript_AdvanceToActionMarkerToken; else clear cond bit 0x200, call handler, then MonsterScript_StepCommandList(ctx,1) (returns 0 -> yield). Not used by any shipped AI_*.bin.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x01": {
+   "ida_name": "MonsterScript_Op01_RuleSeparator",
+   "rva": "0x1CA8C0",
+   "arity": 0,
+   "operands": [],
+   "effect": "ACTION-BEGIN marker. PC+=1 (END/wrap check); rule_counter(+91)++; flags&=~7 (per-action sub-state=0; Monster_AdvanceState never resets it, so every action in shipped files is preceded by 0x01); zero +48..+55, +72..+79, +80..+83; unless the actor tick is an attack/anim/grab tick: action_slot(+64)=-1, field_60(+96)=-1; if flags&0x4000 (section pass): if !(flags&0x8000) clear bit31, actor.control_flags&=~(0x20000|0x20|0x800000) and ~4 (unless char_id==225), zero scripted target (+188); flags|=0x8000. Returns 1.",
+   "status": "verified",
+   "uses": 12993
+  },
+  "0x02": {
+   "ida_name": "MonsterScript_Op02_BlockStopOnTrue",
+   "rva": "0x1CAAD0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Same loop as 0x00 but steps with StepCommandList(ctx,0); on exit, if cond bit 0x200 set, zero actor vel_x/vel_y/vel_z. Not used by shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x03": {
+   "ida_name": "MonsterScript_Op03_YieldFrame",
+   "rva": "0x1CABC0",
+   "arity": 0,
+   "operands": [],
+   "effect": "PC+=1 (END/wrap check) and return 0 (end this tick). NOTE: the IDB comment says PC+=2; the code does ++pc. MonsterScript_AdvanceToNextStatement also stops scanning at a 0x80000003 token. Shipped files: one per file, right after 0x0A.",
+   "status": "verified",
+   "uses": 228
+  },
+  "0x04": {
+   "ida_name": "MonsterScript_Op04_Goto",
+   "rva": "0x1D2F50",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "label id",
+     "meaning": "label id matched against the operand of a 0x05 LabelMarker",
+     "units": "label"
+    }
+   ],
+   "effect": "Linear scan of the whole token array from index 1 for (0x80000005, id); PC = that index + 1 (after the id). Not found -> Monster_OnScriptEnd. Returns 1.",
+   "status": "verified",
+   "uses": 2667
+  },
+  "0x05": {
+   "ida_name": "MonsterScript_Op05_07_LabelMarker",
+   "rva": "0x1D2FD0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "label id",
+     "meaning": "label id (0x05: goto target; 0x07: subroutine id)",
+     "units": "label"
+    }
+   ],
+   "effect": "PC+=2 (skip id), END/wrap check, return 1. Shared handler for 0x05 and 0x07.",
+   "status": "verified",
+   "uses": 608
+  },
+  "0x06": {
+   "ida_name": "MonsterScript_Op06_CallSubroutine",
+   "rva": "0x1D3090",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "subroutine id",
+     "meaning": "subroutine id matched against the operand of a 0x07 marker",
+     "units": "label"
+    }
+   ],
+   "effect": "SP = flags bits 16-19. If SP>=10: PC+=2 and return 0 (call ignored). Else scan for (0x80000007,id): push return PC (=PC+2, after END/wrap check) to return_stack[SP] (+116), SP++, PC = marker index+1, return 1. Not found -> Monster_OnScriptEnd, return 0.",
+   "status": "verified",
+   "uses": 3740
+  },
+  "0x07": {
+   "ida_name": "MonsterScript_Op05_07_LabelMarker",
+   "rva": "0x1D2FD0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "subroutine id",
+     "meaning": "subroutine id",
+     "units": "label"
+    }
+   ],
+   "effect": "Subroutine entry marker; same fall-through handler as 0x05. Every handler epilogue compares the token at the new PC with 0x80000007 and calls Monster_OnScriptEnd when it matches, so falling off the main body into the first subroutine acts as end-of-script (the chapter's END sentinel is this marker).",
+   "status": "verified",
+   "uses": 1737
+  },
+  "0x08": {
+   "ida_name": "MonsterScript_Op08_Return",
+   "rva": "0x1D3220",
+   "arity": 0,
+   "operands": [],
+   "effect": "If SP (flags bits 16-19) != 0: SP--, PC = return_stack[SP], slot zeroed. Returns 1. No-op when the stack is empty.",
+   "status": "verified",
+   "uses": 1737
+  },
+  "0x09": {
+   "ida_name": "MonsterScript_Op09_10_LoopStartMarker",
+   "rva": "0x1D3030",
+   "arity": 0,
+   "operands": [],
+   "effect": "Section label. Load-time (MonsterScript_SpawnTaskAndLoadScript): index stored in label_pc[n] (+136), n = flags bits 20-23, max 10. Runtime handler = PC+=1 fall-through. MonsterScript_RunnerTick runs each section from label_pc[i] every tick before the main body (flags|=0x4000, checkpoint +60 = main PC); a 0x01 executed during that pass sets 0x8000 and the main PC is not restored, so the section rule pre-empts the main body until the section reaches 0x0A.",
+   "status": "verified",
+   "uses": 229
+  },
+  "0x0A": {
+   "ida_name": "MonsterScript_Op0A_ResetToScriptStart",
+   "rva": "0x1C71D0",
+   "arity": 0,
+   "operands": [],
+   "effect": "If flags&0x8000 (a section rule fired): zero return_stack, SP=0, set flags bit31. Always: clear 0x8000, PC=0, +60 checkpoint=0, return 0 (yield). Bit31 stops RunnerTick from restoring the pre-section PC, so the main body restarts from token 0 next tick.",
+   "status": "verified",
+   "uses": 229
+  },
+  "0x0B": {
+   "ida_name": "MonsterScript_Op0B_RestoreCheckpointIfGrabbed",
+   "rva": "0x1C7210",
+   "arity": 0,
+   "operands": [],
+   "effect": "If actor tick is Actor_TickAttackAnimType1/2, Actor_TickAnimAndCustomCallback or Actor_TickGrabSlamAndThrow: PC = u16 at +60 (checkpoint written by RunnerTick before each section run), clear 0x8000, return 0. Else PC+=1, return 1.",
+   "status": "verified",
+   "uses": 284
+  },
+  "0x0C": {
+   "ida_name": "MonsterScript_Op0C_BlockOpen",
+   "rva": "0x1D3260",
+   "arity": 0,
+   "operands": [],
+   "effect": "IF-block. Clears mode bits 0x180, PC+=1, then loop: fetch opcode, clear 0x200, call handler, StepCommandList(ctx,0) until it returns 0. Condition chain: 0x94 = AND (false -> MonsterScript_SkipConditionalBlock sets else-pending 0x20000000 and jumps to the matching 0x0D/0x0E/0x0F at nesting depth 0), 0x93 = OR (true -> MonsterScript_FindNextActionOp jumps to the next opcode with id<0x5D). Returns 1; the action tokens that follow are executed by the outer dispatch loop.",
+   "status": "verified",
+   "uses": 9268
+  },
+  "0x0D": {
+   "ida_name": "MonsterScript_Op0D_ElseAdvance",
+   "rva": "0x1D3320",
+   "arity": 0,
+   "operands": [],
+   "effect": "ELSE. If else-pending (0x20000000): PC+=1 into the else body. Else (then-body ran): MonsterScript_AdvanceToBlockCloseAtSameLevel (+0x1C7450). Clears 0x20000000, returns 1.",
+   "status": "verified",
+   "uses": 2052
+  },
+  "0x0E": {
+   "ida_name": "MonsterScript_Op0E_BlockClose",
+   "rva": "0x1D33C0",
+   "arity": 0,
+   "operands": [],
+   "effect": "ENDIF. PC+=1 (END/wrap check), clear 0x20000000, return 1.",
+   "status": "verified",
+   "uses": 9268
+  },
+  "0x0F": {
+   "ida_name": "MonsterScript_Op0F_ElseBlock",
+   "rva": "0x1D3440",
+   "arity": 0,
+   "operands": [],
+   "effect": "ELSE-IF. If else-pending: PC+=1, clear 0x20000000 and mode bits, run its own condition chain like 0x0C; if the chain ends false, MonsterScript_AdvanceToBlockCloseOrElseAtSameLevel (+0x1C7530). If not else-pending: AdvanceToBlockCloseAtSameLevel. Returns 1.",
+   "status": "verified",
+   "uses": 2528
+  },
+  "0x10": {
+   "ida_name": "MonsterScript_Op09_10_LoopStartMarker",
+   "rva": "0x1D3030",
+   "arity": 0,
+   "operands": [],
+   "effect": "Loop-start marker. Load-time: loop_start_pc(+56)=index and initial PC=index. Runtime: PC+=1 fall-through.",
+   "status": "verified",
+   "uses": 14
+  },
+  "0x11": {
+   "ida_name": "MonsterScript_Op11_LoopEnd",
+   "rva": "0x1D3530",
+   "arity": 0,
+   "operands": [],
+   "effect": "PC = loop_start_pc(+56); return 0 (yield). Load-time: index stored in loop_end_pc(+58).",
+   "status": "verified",
+   "uses": 14
+  },
+  "0x12": {
+   "ida_name": "Monster_OnScriptEnd",
+   "rva": "0x1CF3E0",
+   "arity": 0,
+   "operands": [],
+   "effect": "End of main body. If SP!=0: pop return_stack into PC (acts as Return). Else: zero return_stack, flags&=~0x000F8000 (SP and 0x8000), PC=0, block_state(+63)=0. Returns 0 (yield). Also called by every handler epilogue when the token at the new PC is 0x80000007.",
+   "status": "verified",
+   "uses": 385
+  },
+  "0x13": {
+   "ida_name": "MonsterScript_Op13_ChaseTarget",
+   "rva": "0x1CAC20",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "arrival distance to target",
+     "meaning": "arrival distance to target (+8) or to scripted tile (+188) if set",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "timeout frames",
+     "meaning": "timeout frames (0 = none)",
+     "units": "frames"
+    }
+   ],
+   "effect": "Sub-state 0: walk_frame_counter=0, speed(+72)=max(|vel_x|,|vel_y|). Each tick: if Actor_HasReachedTargetAndNotBlocked -> PC+=n+1; else dist=Monster_DistanceToTarget(actor,target) (or DistanceToTileTarget when +188 set); if dist<=op0 or (op1 && ++counter==op1) -> Monster_AdvanceState(ctx,n+1); else step toward target.pos (facing*8 ahead when no target; scripted tile when set) with Monster_PathStepWithWaypointQueue, speed ramped by Monster_ComputeMaxStep/Monster_GetCurrentSpeed and halved once when +192 bit 0x4000 (recent collision) is set. Returns 0 every tick.",
+   "status": "verified",
+   "uses": 900,
+   "value_ranges": {
+    "op0": "20..190 (mode 40)",
+    "op1": "20..180 (mode 120)"
+   }
+  },
+  "0x14": {
+   "ida_name": "MonsterScript_Op14_BackAwayFromTarget",
+   "rva": "0x1CC1B0",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "stop when distance to target",
+     "meaning": "stop when distance to target (or scripted tile) >= this (0 = ignore)",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "time budget frames",
+     "meaning": "time budget frames (0 = none)",
+     "units": "frames"
+    }
+   ],
+   "effect": "BACK-AWAY primitive. Sub-state 0: speed=max(|vel|); probe rotation step 0x2000 (45 deg) with random sign; facing=atan2(target-actor) (or scripted tile). Sub-state 1: up to 8 tries, probe cell = pos - sinCos(facing)*8 units (one cell AWAY from the target), accept if (tile & ~actor.init_flags & 0x9E)==0 else rotate facing by the step. Sub-state 2: if op1 && ++walk_frame_counter>=op1 -> PC+=n+1; elif op0 && dist>=op0 -> PC+=n+1; else Monster_TryStepWithCollision toward the probe cell (skipped when stats.field_20&0x30000==0x20000); when blocked/arrived: re-probe (sub-state 1) if op1 set or dist<op0, else Monster_AdvanceState. Shipped usage (Orc AI_m00: IfDistanceToTarget <= 44 -> TickAI 90 30) confirms the retreat reading.",
+   "status": "verified",
+   "uses": 777,
+   "value_ranges": {
+    "op0": "60..130 (mode 80)",
+    "op1": "8..90 (mode 30)"
+   }
+  },
+  "0x15": {
+   "ida_name": "MonsterScript_Op15_RandomWalkInRoom",
+   "rva": "0x1CC8B0",
+   "arity": 3,
+   "operands": [
+    {
+     "i": 0,
+     "label": "leg length",
+     "meaning": "leg length: target = pos + op0 * unit-direction",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "pause frames between legs",
+     "meaning": "pause frames between legs",
+     "units": "frames"
+    },
+    {
+     "i": 2,
+     "label": "number of legs",
+     "meaning": "number of legs",
+     "units": "count"
+    }
+   ],
+   "effect": "Sub-state 0: Fisher-Yates shuffle of the 8 g_wanderDir*_Q12 unit vectors (MMIX RNG), pick first candidate cell with (attr&0x21)!=0 && (attr&0x9E)==0, store cell in +52/+54, speed=max(|vel|). Sub-state 1: Monster_TryStepWithCollision toward it until blocked/arrived (Monster_QueryTileBlockedOrReachedTarget). Sub-state 2: if field_58(+88)+1==op2 -> PC+=4, +88=0; else wait op1 frames, +88++, back to sub-state 0. Reads 3 operands; PC advance is a fixed +4.",
+   "status": "verified",
+   "uses": 86,
+   "value_ranges": {
+    "op0": "20..65",
+    "op1": "0..15",
+    "op2": "1..4"
+   }
+  },
+  "0x16": {
+   "ida_name": "MonsterScript_Op16_BlinkTeleportNearTarget",
+   "rva": "0x1CCCE0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "distance from the target to the warp",
+     "meaning": "distance from the target to the warp point",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "angle",
+     "meaning": "angle added to target.facing_yaw for the warp point; 0xFFFF (65535) = random direction; 32768 = behind",
+     "units": "q16"
+    }
+   ],
+   "effect": "BLINK-TELEPORT near the target (+8), not a wander. State 0: actor.control_flags|=0x20, status_equip_flags|=0x10000000. State 1: 40 frames, toggling control bit 4 every 4 frames. State 2 -> 3: at frame 60 dest = target.pos + op0*sinCos(target.facing+op1); if op1==0xFFFF or the cell fails ((attr&0x21) && !(attr&0x9E)), try the 8 g_wanderDir directions in random rotation; then WRITES actor.world_x/y = dest, pos_z=0 (while waiting, actor.field_230[4]|=0x300 each frame). State 4: 40 frames, then clear control 0x20/4 and status 0x10000000, Monster_AdvanceState(ctx,3) (PC+=3).",
+   "status": "verified",
+   "uses": 109,
+   "value_ranges": {
+    "op0": "30..130",
+    "op1": "65535 (85), 32768 (20), 0 (4)"
+   }
+  },
+  "0x17": {
+   "ida_name": "MonsterScript_Op17_StrafeOrbitAroundLeader",
+   "rva": "0x1CDD40",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "orbit radius from target",
+     "meaning": "orbit radius from target",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "timeout frames",
+     "meaning": "timeout frames",
+     "units": "frames"
+    }
+   ],
+   "effect": "If no target: PC+=n+1. If in front of target (dot(actor-target, target.facing)>=0): candidates at target.facing +/-18204 (q16) * op0, walk to the farther one via Monster_PathStepWithWaypointQueue; else walk to target.pos + op0*sinCos(facing+0x7FFF) (behind) via Monster_TryStepWithCollision and Monster_AdvanceState on arrival. Done when Actor_HasReachedTargetAndNotBlocked or counter==op1 -> MonsterScript_AdvanceToActionMarkerToken and zero velocity. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x18": {
+   "ida_name": "MonsterScript_Op18_MoveToLeaderWithFlag800000",
+   "rva": "0x1CE160",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "arrival distance",
+     "meaning": "arrival distance",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "timeout frames",
+     "meaning": "timeout frames (0 = none)",
+     "units": "frames"
+    }
+   ],
+   "effect": "Op13 variant: sets actor.control_flags|=0x800000 on entry and clears it on completion (PC+=n+1). Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x19": {
+   "ida_name": "MonsterScript_Op19_KiteAwayFromLeaderFacing",
+   "rva": "0x1CEC10",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "retreat distance past the target alo",
+     "meaning": "retreat distance past the target along target->actor direction",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "duration frames",
+     "meaning": "duration frames",
+     "units": "frames"
+    }
+   ],
+   "effect": "Entry: control_flags|=0x20000, speed snapshot. Each tick: dest = target.pos + op0*sinCos(atan2(actor-target)); Monster_TryStepWithCollision; then writes atan2(target-actor) to *(u16*)(X+158) (aim yaw; base pointer lost in pseudocode). After op1 frames: clear 0x20000, PC+=n+1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x1A": {
+   "ida_name": "MonsterScript_Op1A_WalkAtAngleOffsetFromTarget",
+   "rva": "0x1CEEF0",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "angle offset",
+     "meaning": "angle offset added to the bearing to the target (x181 = q16 degrees)",
+     "units": "deg"
+    },
+    {
+     "i": 1,
+     "label": "duration frames",
+     "meaning": "duration frames",
+     "units": "frames"
+    }
+   ],
+   "effect": "Each tick: bearing = atan2(target-actor) (scripted tile if +188 set) + 181*op0 -> +72; vel_x/vel_y = speed*sinCos(bearing) (speed ramped, +76). Ends when counter==op1 or Monster_QueryTileBlockedOrReachedTarget: PC+=n+1.",
+   "status": "verified",
+   "uses": 8
+  },
+  "0x1B": {
+   "ida_name": "MonsterScript_Op1B_WalkInRandomBiasedDirection",
+   "rva": "0x1CF190",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "timeout frames",
+     "meaning": "timeout frames",
+     "units": "frames"
+    }
+   ],
+   "effect": "Entry: heading(+72) = atan2(target-actor) + (MMIX rand>>16) (one-shot random jitter over the full circle). Each tick sets vel from heading; ends at counter==op0 or tile blocked/arrived: PC+=2 (or +1 if no operand). Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x1C": {
+   "ida_name": "MonsterScript_Op1C_StrafeLeftOrRightOfLeader",
+   "rva": "0x1CF460",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "side",
+     "meaning": "side: 0 = bearing-0x3FFF (left), nonzero = bearing+0x3FFF (right)",
+     "units": "flag"
+    },
+    {
+     "i": 1,
+     "label": "duration frames",
+     "meaning": "duration frames",
+     "units": "frames"
+    }
+   ],
+   "effect": "Entry: heading(+72) = atan2(target-actor) +/- 0x3FFF, speed snapshot(+76), control_flags|=0x20000. Each tick: vel = speed*sinCos(heading); writes Math_GetFacingAngleFromAToB(actor,target) to *(u16*)(X+158). Ends at counter==op1 or Monster_QueryTileBlockedOrReachedTarget: PC+=n+1, clear 0x20000.",
+   "status": "verified",
+   "uses": 8
+  },
+  "0x1D": {
+   "ida_name": "MonsterScript_Op1D_ThrustInFacingDir",
+   "rva": "0x1D0C20",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "duration frames",
+     "meaning": "duration frames; 0 = never ends by itself",
+     "units": "frames"
+    }
+   ],
+   "effect": "Sub-state 0: speed(+72)=max(|vel|). Each tick: speed ramped by ComputeMaxStep/GetCurrentSpeed (halved once on +192&0x4000); vel_x += speed*sin(actor.facing_yaw), vel_y += speed*cos(...), each clamped to [-speed,+speed]. When op0 && ++counter==op0: Monster_AdvanceState(ctx, 2 or 1). Returns 0.",
+   "status": "verified",
+   "uses": 179,
+   "value_ranges": {
+    "op0": "20..60 (mode 30)"
+   }
+  },
+  "0x1E": {
+   "ida_name": "MonsterScript_Op1E_SidestepAroundTarget",
+   "rva": "0x1D0EB0",
+   "arity": "var<=3",
+   "operands": [
+    {
+     "i": 0,
+     "label": "angle",
+     "meaning": "angle added to the bearing toward the snapshotted target position (raw q16: 16384 = +90 deg, 49152 = -90 deg)",
+     "units": "q16"
+    },
+    {
+     "i": 1,
+     "label": "frames of acceleration",
+     "meaning": "frames of acceleration; after that the actor coasts until velocity is zero or a tile blocks",
+     "units": "frames"
+    },
+    {
+     "i": 2,
+     "label": "unused",
+     "meaning": "read but not used by the handler (always 0 in shipped files)",
+     "units": "unused"
+    }
+   ],
+   "effect": "SIDESTEP relative to the target. Sub-state 0: control_flags|=0x20000; if no target PC+=n+1, return 1; snapshot target.x/y/z to +72/+76/+80. Each tick: while (counter<op1 || vel!=0) && !Monster_QueryTileBlockedOrReachedTarget: actor.facing_b = atan2(target-actor) (live target); if counter<op1: +84 += GetCurrentSpeed, clamped to +/-ComputeMaxStep; vel = +84 * sinCos(atan2(snapshot-actor) + op0); counter++. Else: PC+=n+1, clear 0x20000, return 1. Shipped files use only op0 in {16384, 49152} (left/right strafe) with op1 8..80.",
+   "status": "verified",
+   "uses": 684,
+   "value_ranges": {
+    "op0": "16384 (342), 49152 (342)",
+    "op1": "8..80 (mode 10)",
+    "op2": "0"
+   }
+  },
+  "0x1F": {
+   "ida_name": "MonsterScript_Op1F_AmbushPlayerNearWall",
+   "rva": "0x1D1490",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "distance ahead of the player along p",
+     "meaning": "distance ahead of the player along player.facing_yaw",
+     "units": "units"
+    }
+   ],
+   "effect": "point = g_playerActor.pos + op0*sinCos(player.facing_yaw); attr = tile-attribute cell at point (work_buffer+664 grid). If (attr & 0x21) != 0 (same test Op15 uses for a walkable cell): zero actor vel; Action_TriggerAttacker(player, 0x26, box at actor pos, radius (field_B0+2048)/4096, z -8192); WRITE actor.world_x/y/pos_z = point, facing_yaw = facing_b = player.facing (attack_info.hit_dir_off adjusted); then three more Action_TriggerAttacker(player, 0x26, ...) at the new pos and at +/- field_B0-scaled offsets. Always PC+=2 (or +1), return 0. Purpose of trigger 0x26 not established. Every regular monster file uses it once with operand 24 in the trailer block after 0x0A.",
+   "status": "partial",
+   "uses": 143,
+   "value_ranges": {
+    "op0": "24"
+   }
+  },
+  "0x20": {
+   "ida_name": "MonsterScript_Op20_AmbushLeaderNearWall",
+   "rva": "0x1D17B0",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "distance past the target",
+     "meaning": "distance past the target (+8) along the actor->target bearing",
+     "units": "units"
+    }
+   ],
+   "effect": "As 0x1F but point = target.pos - op0*sinCos(atan2(target-actor)) and the Action_TriggerAttacker(target.task_back, 0x26, ...) calls target the leader/target task; no target -> PC+=1. PC+=2 (or +1), return 0.",
+   "status": "partial",
+   "uses": 141,
+   "value_ranges": {
+    "op0": "24"
+   }
+  },
+  "0x21": {
+   "ida_name": "MonsterScript_Op21_ChaseCombatTarget",
+   "rva": "0x1CAF10",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "arrival distance to the combat targe",
+     "meaning": "arrival distance to the combat target (+16)",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "timeout frames",
+     "meaning": "timeout frames (0 = none)",
+     "units": "frames"
+    }
+   ],
+   "effect": "As 0x13 but the subject is ctx+16 (combat target). No combat target -> PC+=n+1. On Actor_HasReachedTargetAndNotBlocked: PC+=n+1 and, if actor.status_equip_flags&0x200 (NPC), path_blocked(+94)=1. dist<=op0 or timeout -> Monster_AdvanceState(ctx,n+1). Else Monster_PathStepWithWaypointQueue toward combat target pos (+88).",
+   "status": "verified",
+   "uses": 130,
+   "value_ranges": {
+    "op0": "20..190 (mode 50)",
+    "op1": "48..180 (mode 180)"
+   }
+  },
+  "0x22": {
+   "ida_name": "MonsterScript_Op22_TurnToFaceCombatTargetSmoothly",
+   "rva": "0x1CB180",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "angle offset",
+     "meaning": "angle offset added to the bearing to the combat target (raw, not x181; register lost in pseudocode)",
+     "units": "q16"
+    },
+    {
+     "i": 1,
+     "label": "turn-rate shift",
+     "meaning": "turn-rate shift: per-tick step = remaining delta >> op1 (min 1)",
+     "units": "shift"
+    }
+   ],
+   "effect": "No combat target (+16) -> PC+=n+1, return 0. Sub-state 0: control_flags|=0x20000, goal(+72) = Math_GetFacingAngleFromAToB(actor, combat target) + op0. Each tick: facing_yaw/facing_b step toward goal by delta>>op1 (shortest way); attack_info.hit_dir_off adjusted. When equal: Monster_AdvanceState(ctx,n+1), clear 0x20000, return 1.",
+   "status": "verified",
+   "uses": 16
+  },
+  "0x23": {
+   "ida_name": "MonsterScript_Op23_MoveToOffsetPastCombatTarget",
+   "rva": "0x1CB460",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "offset distance from the combat targ",
+     "meaning": "offset distance from the combat target toward the leader/target (+8)",
+     "units": "units"
+    },
+    {
+     "i": 1,
+     "label": "timeout frames",
+     "meaning": "timeout frames (0 = none)",
+     "units": "frames"
+    }
+   ],
+   "effect": "Needs +16 and +8. point = combat.pos + (op0<<12)*sinCos(atan2(target - combat)) (between the combat target and the leader). Actor_HasReachedTargetAndNotBlocked -> PC+=n+1; Monster_DistanceToTarget(actor,point) <= (threshold register lost in pseudocode) or timeout -> Monster_AdvanceState(ctx,n+1); else Monster_PathStepWithWaypointQueue(ctx, combat, point, speed). Missing either target -> PC+=n+1.",
+   "status": "verified",
+   "uses": 8
+  },
+  "0x24": {
+   "ida_name": "MonsterScript_Op24_MoveToMapRelativeTile",
+   "rva": "0x1CB770",
+   "arity": "var<=3",
+   "operands": [
+    {
+     "i": 0,
+     "label": "x as Q12 fraction of map width",
+     "meaning": "x as Q12 fraction of map width (work_buffer[13] cells)",
+     "units": "Q12"
+    },
+    {
+     "i": 1,
+     "label": "y as Q12 fraction of map height",
+     "meaning": "y as Q12 fraction of map height (work_buffer[14] cells)",
+     "units": "Q12"
+    },
+    {
+     "i": 2,
+     "label": "timeout frames",
+     "meaning": "timeout frames (0 = none)",
+     "units": "frames"
+    }
+   ],
+   "effect": "dest = (op * (cells<<15)) >> 12 (world coords). Actor_HasReachedTargetAndNotBlocked -> PC+=n+1. Monster_DistanceToTileTarget(actor-dest) <= 0x8000 (one cell) -> zero vel, Monster_AdvanceState(ctx,n+1). Timeout -> AdvanceState. Else Monster_PathStepWithWaypointQueue(ctx, NULL, dest, speed); if it returns nonzero (arrived) zero vel + AdvanceState.",
+   "status": "verified",
+   "uses": 10
+  },
+  "0x25": {
+   "ida_name": "MonsterScript_Op25_AcquireTargetInFovAndApproach",
+   "rva": "0x1CBA20",
+   "arity": 0,
+   "operands": [],
+   "effect": "If +16 is null or its stats.status_flags(+172)&0x8000 is clear: scan the 10 pointers at g_activeKillAggregateList+16; skip destroyed/dying tasks and self; require candidate stats.status_flags&0x8000; angular distance from actor.facing_yaw to atan2(cand-actor) must be <= ai_fov_width/2; pick the smallest Monster_DistanceToTarget below ai_sight_range^2; store in +16. With a target: Actor_HasReachedTargetAndNotBlocked -> PC+=1; distance > 0x30 -> Monster_PathStepWithWaypointQueue toward it; else Player_BeginMountTransitionAndInstallTickAndAnchor(actor, target) and Monster_AdvanceState(ctx,1) (MOUNTS the target). No target -> PC+=1. Returns 0.",
+   "status": "verified",
+   "uses": 1
+  },
+  "0x26": {
+   "ida_name": "MonsterScript_Op26_InvokeScriptedAction",
+   "rva": "0x1D1B40",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "scripted action slot",
+     "meaning": "index into g_npcScriptedActionTable (+0x4D9EC0, 35 entries, no bounds check)",
+     "units": "id"
+    }
+   ],
+   "effect": "block_state(+63)=3; r = g_npcScriptedActionTable[op0](actor) (handler receives the Actor_t, finds ctx through actor+296). r==0 -> return 0 (yield, re-invoked next tick with +63 still 3). r!=0 -> +63=0, PC+=2 (or +1), END/wrap check, return 0.",
+   "status": "verified",
+   "uses": 120
+  },
+  "0x27": {
+   "ida_name": "MonsterScript_Op27_TurnToFaceTarget",
+   "rva": "0x1CD0F0",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "angle offset in degrees",
+     "meaning": "angle offset in degrees (x181) added to the bearing to the target (+8)",
+     "units": "deg"
+    },
+    {
+     "i": 1,
+     "label": "turn-rate shift",
+     "meaning": "turn-rate shift: per-tick step = remaining delta >> op1 (0 = snap in one tick, min step 1)",
+     "units": "shift"
+    }
+   ],
+   "effect": "Sub-state 0: control_flags|=0x20000; goal(+72) = atan2(target-actor) + 181*op0 (0 if no target). Each tick: facing_yaw/facing_b move toward goal by delta>>op1 along the shorter way (attack_info.hit_dir_off adjusted). When facing_yaw==goal: PC+=n+1, clear 0x20000, return 1; else return 0.",
+   "status": "verified",
+   "uses": 2419,
+   "value_ranges": {
+    "op0": "0 (2411), 10/30/90/180/330/350",
+    "op1": "0..4"
+   }
+  },
+  "0x28": {
+   "ida_name": "MonsterScript_Op28_TurnToFaceLeaderWithDuration",
+   "rva": "0x1CD390",
+   "arity": "var<=3",
+   "operands": [
+    {
+     "i": 0,
+     "label": "angle offset in degrees",
+     "meaning": "angle offset in degrees (x181)",
+     "units": "deg"
+    },
+    {
+     "i": 1,
+     "label": "turn-rate shift",
+     "meaning": "turn-rate shift (delta >> op1)",
+     "units": "shift"
+    },
+    {
+     "i": 2,
+     "label": "duration frames",
+     "meaning": "duration frames (tracks the target for this long)",
+     "units": "frames"
+    }
+   ],
+   "effect": "Sub-state 0: counter=0, goal = atan2(target-actor)+181*op0. Each tick recomputes the goal from the live target (or actor.facing_b + offset when no target) and steps facing_yaw/facing_b by delta>>op1. When ++counter >= op2: PC+=n+1, clear control 0x20000, return 1.",
+   "status": "verified",
+   "uses": 318,
+   "value_ranges": {
+    "op0": "0 (314), 180 (4)",
+    "op1": "0..5 (mode 3)",
+    "op2": "0..120"
+   }
+  },
+  "0x29": {
+   "ida_name": "MonsterScript_Op29_SpinByRelativeAngle",
+   "rva": "0x1CD6D0",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "degrees",
+     "meaning": "degrees added to facing_yaw every tick (x181; negative = other way)",
+     "units": "deg"
+    },
+    {
+     "i": 1,
+     "label": "duration frames",
+     "meaning": "duration frames",
+     "units": "frames"
+    }
+   ],
+   "effect": "Sub-state 0: counter=0, control_flags|=0x20000. Each tick: facing_yaw = facing_b = facing_yaw + 181*op0 (attack_info.hit_dir_off adjusted). When ++counter >= op1: PC+=n+1, clear 0x20000, return 1.",
+   "status": "verified",
+   "uses": 11,
+   "value_ranges": {
+    "op0": "-16..12",
+    "op1": "0..120"
+   }
+  },
+  "0x2A": {
+   "ida_name": "MonsterScript_Op2A_TurnByRandomOffset",
+   "rva": "0x1CD850",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "total spread in degrees",
+     "meaning": "total spread in degrees; goal = facing + uniform[-op0/2, +op0/2]",
+     "units": "deg"
+    },
+    {
+     "i": 1,
+     "label": "turn-rate shift",
+     "meaning": "turn-rate shift (delta >> op1)",
+     "units": "shift"
+    }
+   ],
+   "effect": "Sub-state 0: control_flags|=0x20000; span=181*op0; goal(+72) = facing_yaw + span/2 - (MMIX rand * span >> 32). Each tick steps facing toward goal by delta>>op1 (same stepper as 0x27). When equal: PC+=n+1, clear 0x20000, return 1.",
+   "status": "verified",
+   "uses": 217,
+   "value_ranges": {
+    "op0": "13..360 (mode 60)",
+    "op1": "0..3 (mode 2)"
+   }
+  },
+  "0x2B": {
+   "ida_name": "MonsterScript_Op2B_TurnToAbsoluteAngle",
+   "rva": "0x1CDAF0",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "absolute heading in degrees",
+     "meaning": "absolute heading in degrees (x181)",
+     "units": "deg"
+    },
+    {
+     "i": 1,
+     "label": "turn-rate shift",
+     "meaning": "turn-rate shift (delta >> op1)",
+     "units": "shift"
+    }
+   ],
+   "effect": "Sub-state 0: control_flags|=0x20000; goal(+72)=181*op0. Each tick steps facing_yaw/facing_b toward goal by delta>>op1. When equal: PC+=n+1, clear 0x20000, return 1.",
+   "status": "verified",
+   "uses": 54,
+   "value_ranges": {
+    "op0": "0/90/180/270",
+    "op1": "0..4"
+   }
+  },
+  "0x2C": {
+   "ida_name": "MonsterScript_Op2C_BeginActionWait",
+   "rva": "0x1CBEC0",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "action id",
+     "meaning": "action id passed as BOTH anim_offset and skill_id to Actor_BeginAttackOrSkill(actor,id,id)",
+     "units": "id"
+    }
+   ],
+   "effect": "Sub-state 0: if action_slot(+64)!=id: Actor_BeginAttackOrSkill(actor,id,id); +96=+64=id; sub-state=1. Every tick: while actor tick is Actor_TickAttackAnimType1/2, Actor_TickAnimAndCustomCallback or Actor_TickGrabSlamAndThrow return 0 (wait). Then PC+=2 (or +1 without operand), +64=+96=-1, return 1.",
+   "status": "verified",
+   "uses": 1958,
+   "value_ranges": {
+    "op0": "0..14 (mode 0)"
+   }
+  },
+  "0x2D": {
+   "ida_name": "MonsterScript_Op2D_BeginAttackWithSkillWait",
+   "rva": "0x1CC020",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "anim_offset argument of Actor_BeginA",
+     "meaning": "anim_offset argument of Actor_BeginAttackOrSkill",
+     "units": "id"
+    },
+    {
+     "i": 1,
+     "label": "skill_id argument of Actor_BeginAtta",
+     "meaning": "skill_id argument of Actor_BeginAttackOrSkill; also stored in +64/+96",
+     "units": "id"
+    }
+   ],
+   "effect": "Sub-state 0: if action_slot(+64)!=op1: Actor_BeginAttackOrSkill(actor, op0, op1); +96=+64=op1; sub-state=1. Then, like 0x2C, returns 0 while the actor tick is an attack/anim/grab tick; afterwards PC+=n+1, +64=+96=-1, return 1. NOT fire-and-forget: it waits exactly like 0x2C; the difference is the separate anim_offset/skill_id operands.",
+   "status": "verified",
+   "uses": 452,
+   "value_ranges": {
+    "op0": "0..21 (mode 1)",
+    "op1": "2..13 (mode 6)"
+   }
+  },
+  "0x2E": {
+   "ida_name": "MonsterScript_Op2E_SnapFaceAndBeginAction",
+   "rva": "0x1D0160",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "action id",
+     "meaning": "action id (both Actor_BeginAttackOrSkill arguments)",
+     "units": "id"
+    },
+    {
+     "i": 1,
+     "label": "angle offset in degrees",
+     "meaning": "angle offset in degrees (x181) added to the bearing to the target",
+     "units": "deg"
+    }
+   ],
+   "effect": "Sub-state 0 (if +64!=op0): facing_yaw=facing_b = Math_GetFacingAngleFromAToB(actor,target)+181*op1, or leader(+24).facing_yaw when no target; Actor_BeginAttackOrSkill(actor,op0,op0); +64=+96=op0. Waits while the actor tick is an attack/anim/grab tick; then PC+=n+1, +64=+96=-1. Returns 0 always.",
+   "status": "verified",
+   "uses": 3
+  },
+  "0x2F": {
+   "ida_name": "MonsterScript_Op2F_SnapFaceLeader3OpAndBeginAction",
+   "rva": "0x1D0600",
+   "arity": "var<=3",
+   "operands": [
+    {
+     "i": 0,
+     "label": "anim_offset argument",
+     "meaning": "anim_offset argument",
+     "units": "id"
+    },
+    {
+     "i": 1,
+     "label": "angle offset in degrees",
+     "meaning": "angle offset in degrees (x181) added to the bearing to the target",
+     "units": "deg"
+    },
+    {
+     "i": 2,
+     "label": "skill_id argument",
+     "meaning": "skill_id argument; stored in +64/+96",
+     "units": "id"
+    }
+   ],
+   "effect": "As 0x2E but Actor_BeginAttackOrSkill(actor, op0, op2) and the snap angle uses op1. (IDB comment order action,unused,angle is wrong: operand 1 is the angle, operand 2 the skill id.) Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x30": {
+   "ida_name": "MonsterScript_Op30_SnapFaceWithSpreadAndBeginAction",
+   "rva": "0x1D0390",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "action id",
+     "meaning": "action id (both arguments)",
+     "units": "id"
+    },
+    {
+     "i": 1,
+     "label": "max spread in degrees",
+     "meaning": "max spread in degrees: snap angle = bearing + uniform[-op1,+op1]",
+     "units": "deg"
+    }
+   ],
+   "effect": "As 0x2E but the snap angle is Math_GetFacingAngleFromAToB(actor,target) + (rand*2*181*op1>>32) - 181*op1 (MMIX RNG); leader facing when no target. Waits for the attack tick; PC+=n+1; returns 0.",
+   "status": "verified",
+   "uses": 5,
+   "value_ranges": {
+    "op0": "2/4",
+    "op1": "10"
+   }
+  },
+  "0x31": {
+   "ida_name": "MonsterScript_Op31_SnapFaceWithSpread3OpAndAction",
+   "rva": "0x1D0840",
+   "arity": "var<=3",
+   "operands": [
+    {
+     "i": 0,
+     "label": "anim_offset argument",
+     "meaning": "anim_offset argument",
+     "units": "id"
+    },
+    {
+     "i": 1,
+     "label": "max spread in degrees",
+     "meaning": "max spread in degrees",
+     "units": "deg"
+    },
+    {
+     "i": 2,
+     "label": "skill_id argument",
+     "meaning": "skill_id argument; stored in +64/+96",
+     "units": "id"
+    }
+   ],
+   "effect": "As 0x30 but Actor_BeginAttackOrSkill(actor, op0, op2) with spread 181*op1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x32": {
+   "ida_name": "MonsterScript_Op32_BeginActionSyncedWithTarget",
+   "rva": "0x1CC730",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "action id",
+     "meaning": "action id (both arguments)",
+     "units": "id"
+    }
+   ],
+   "effect": "Sub-state 0: if +64!=op0: Actor_BeginAttackOrSkill(actor,op0,op0), +64=+96=op0; sub-state=1; return 0. Sub-state 1: the wait-for-attack-tick check is skipped (action cut short, PC advances) when target(+8) exists AND Npc_IsBusyOrInaccessible(target) AND actor.attack_info.flags_140&8; otherwise waits while the actor tick is an attack/anim/grab tick. Then PC+=2 (or 1), +64=+96=-1, return 1.",
+   "status": "verified",
+   "uses": 17
+  },
+  "0x33": {
+   "ida_name": "UserMathErrorFunction",
+   "rva": "0x193D0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Dispatch slot 0x33 points at the CRT stub UserMathErrorFunction (returns 0 without touching the ctx). A script token 0x80000033 would therefore end the tick without advancing the PC (the handler returns 0 and the PC is never moved), i.e. the script would stall; no shipped file uses it.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x34": {
+   "ida_name": "MonsterScript_Op34_BeginSkillEffectAnimWait",
+   "rva": "0x1CE430",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "effect/skill anim id",
+     "meaning": "effect/skill anim id passed to Actor_BeginSkillEffectAnim(actor,id)",
+     "units": "id"
+    }
+   ],
+   "effect": "Sub-state 0: Actor_BeginSkillEffectAnim(actor, op0) (+0x161970); +96=op0 (not +64); sub-state=1. Waits while the actor tick is an attack/anim/grab tick; then PC+=2 (or 1), +64=+96=-1. Returns 0 always. Shipped operands are spell/effect ids (108-114, 204-205, 47, 0, register r1).",
+   "status": "verified",
+   "uses": 411,
+   "value_ranges": {
+    "op0": "0,2,47,108-114,204,205,r1"
+   }
+  },
+  "0x35": {
+   "ida_name": "MonsterScript_Op35_WaitUntilTargetDistanceGe",
+   "rva": "0x1CE570",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "distance threshold",
+     "meaning": "distance threshold",
+     "units": "units"
+    }
+   ],
+   "effect": "Sub-state 0->1. Each tick: if Monster_DistanceToTarget(actor,target(+8)) >= op0: PC+=2 (or 1) with END/wrap check. Returns 0 always (no null check on target). Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x36": {
+   "ida_name": "MonsterScript_Op36_AttachHeldItemByCategory",
+   "rva": "0x1CE680",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "held-item category",
+     "meaning": "held-item category: 1 random 239..285, 2 random 131/132/133, 3 item 115, 4 item 116, 5 item 117, 6 item 127 (128 if base_stats.level>30), other random 134..238",
+     "units": "id"
+    }
+   ],
+   "effect": "Sub-state 0: pick item id by category (MMIX RNG), tier = 0/1/2 by base_stats.level (>25, >50), Item_PackSlotFields, Item_SpawnVisualTask(g_gameMainTask) and Npc_AttachHeldItem(actor, task work buffer). Then wait until actor.action_state(+460) != 18; PC+=2 (or 1). Returns 0.",
+   "status": "verified",
+   "uses": 13,
+   "value_ranges": {
+    "op0": "0,2,3,4,5,6"
+   }
+  },
+  "0x37": {
+   "ida_name": "MonsterScript_Op37_UseOrReleaseHeldItem",
+   "rva": "0x1CE920",
+   "arity": 0,
+   "operands": [],
+   "effect": "HELD-ITEM use/release. Sub-state 0: kind = HIWORD(stats->as_atk_archive_base) (= stats+178): 0 -> nothing; char_id==10 -> NpcAction_BeginItemUse; kind 115 with actor.field_B4&1 (116: &4, 117: &2) -> NpcAction_BeginItemUse; else find the first g_playerActor[0..2] with field_B4&1, snap-face it (Math_Atan2_Q12 or Actor_SetFacingSnap) and Actor_BeginReleaseHeldItemAnim(actor); other kinds -> Actor_BeginReleaseHeldItemAnim. Then wait until actor.action_state(+460) not in {20,21}; PC+=1. Returns 0.",
+   "status": "verified",
+   "uses": 20
+  },
+  "0x38": {
+   "ida_name": "MonsterScript_Op38_YieldOneFrame",
+   "rva": "0x1CEB80",
+   "arity": 0,
+   "operands": [],
+   "effect": "Sub-state 0: sub-state=1, then (same tick) PC+=1 and return 0. Two-tick pacing gap. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x39": {
+   "ida_name": "MonsterScript_Op39_SetActorFlag800000",
+   "rva": "0x1CF790",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "flag",
+     "meaning": "0 = clear, nonzero = set actor.control_flags bit 0x800000",
+     "units": "flag"
+    }
+   ],
+   "effect": "Sets/clears control_flags(+568) bit 0x800000; PC+=2 (or 1); return 1. The bit is also cleared by 0x01 during the section pass and by MonsterScript_ResetContextState.",
+   "status": "verified",
+   "uses": 1691,
+   "value_ranges": {
+    "op0": "0/1"
+   }
+  },
+  "0x3A": {
+   "ida_name": "MonsterScript_Op3A_SetActorTurningFlag",
+   "rva": "0x1D0DE0",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "bit value for control_flags 0x20000",
+     "meaning": "bit value for control_flags 0x20000",
+     "units": "flag"
+    }
+   ],
+   "effect": "control_flags bit 0x20000 = op0 bit 0; PC+=2 (or 1); return 0. Unused in shipped files (the turn/wait opcodes set and clear the same bit themselves).",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x3B": {
+   "ida_name": "MonsterScript_Op3B_SetWidgetFloatParam384",
+   "rva": "0x1CF860",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "Q12 value",
+     "meaning": "Q12 value written as float (op0/4096) to actor.mcmodel+384",
+     "units": "Q12"
+    }
+   ],
+   "effect": "If actor.scene_node->type == 1: *(float*)(actor.mcmodel + 384) = op0 * (1/4096). PC+=2 (or 1); return 1. Shipped values 3276..12288 (0.8x..3.0x, mode 4096=1.0), consistent with a model scale factor; the consumer of mcmodel+384 was not verified.",
+   "status": "partial",
+   "uses": 187,
+   "value_ranges": {
+    "op0": "3276..12288 (mode 4096)"
+   }
+  },
+  "0x3C": {
+   "ida_name": "MonsterScript_Op3C_SetVelocityFromFacing",
+   "rva": "0x1CF950",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "speed",
+     "meaning": "speed (Q12 world units per tick)",
+     "units": "Q12"
+    }
+   ],
+   "effect": "actor.vel_x = op0*sin(facing_yaw)>>12, vel_y = op0*cos(facing_yaw)>>12 (g_sinCosTableQ12). PC+=2 (or 1); return 1.",
+   "status": "verified",
+   "uses": 39,
+   "value_ranges": {
+    "op0": "4096..18432"
+   }
+  },
+  "0x3D": {
+   "ida_name": "MonsterScript_Op3D_SetVelocityStrafe",
+   "rva": "0x1CFA70",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "speed",
+     "meaning": "speed (Q12), signed i16",
+     "units": "Q12"
+    }
+   ],
+   "effect": "As 0x3C with angle facing_yaw+0x4000 (90 deg). PC+=2 (or 1); return 1.",
+   "status": "verified",
+   "uses": 4
+  },
+  "0x3E": {
+   "ida_name": "MonsterScript_Op3E_SetRunSpeedScaleQ12",
+   "rva": "0x1CFBB0",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "speed scale",
+     "meaning": "speed scale, Q12 (4096 = 1.0)",
+     "units": "Q12"
+    }
+   ],
+   "effect": "ctx.speed_scale_q12 (+66) = op0 (u16). PC+=2 (or 1); return 1. Reader: Monster_ComputeMaxStep (see fields.md).",
+   "status": "verified",
+   "uses": 2,
+   "value_ranges": {
+    "op0": "4096, 5120"
+   }
+  },
+  "0x3F": {
+   "ida_name": "MonsterScript_Op3F_SetRunAccelScaleQ12",
+   "rva": "0x1CFC60",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "acceleration scale",
+     "meaning": "acceleration scale, Q12 (4096 = 1.0; reset to 4096 by MonsterScript_ResetContextState)",
+     "units": "Q12"
+    }
+   ],
+   "effect": "ctx.accel_scale_q12 (+68) = op0 (u16). PC+=2 (or 1); return 1. Reader: Monster_GetCurrentSpeed (see fields.md).",
+   "status": "verified",
+   "uses": 2,
+   "value_ranges": {
+    "op0": "4096, 12288"
+   }
+  },
+  "0x40": {
+   "ida_name": "MonsterScript_Op40_SetScriptedTargetTile",
+   "rva": "0x1CFD10",
+   "arity": "var<=2",
+   "operands": [
+    {
+     "i": 0,
+     "label": "x as Q12 fraction of map width",
+     "meaning": "x as Q12 fraction of map width",
+     "units": "Q12"
+    },
+    {
+     "i": 1,
+     "label": "y as Q12 fraction of map height",
+     "meaning": "y as Q12 fraction of map height",
+     "units": "Q12"
+    }
+   ],
+   "effect": "+188 = (op0 * 8*work_buffer[13]) >> 12, +190 = (op1 * 8*work_buffer[14]) >> 12 (tile units = world>>12). While +188/+190 != 0, 0x13/0x14/0x18/0x1A/0x5D use the tile instead of the target actor. Cleared by 0x01 (section pass) and ResetContextState. PC+=n+1; return 1.",
+   "status": "verified",
+   "uses": 4
+  },
+  "0x41": {
+   "ida_name": "MonsterScript_Op41_WaitFrames",
+   "rva": "0x1CBD70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "frames to wait",
+     "meaning": "frames to wait",
+     "units": "frames"
+    }
+   ],
+   "effect": "Sub-state 0: counter(+48)=op0; unless ai_script_id in 199..204: x2 if actor.field_B4&0x10, x2 if &0x20, x4 if g_globalGameStateFlags&0x4000; control_flags|=0x20000. Countdown; at 0: PC+=2, clear 0x20000, return 0.",
+   "status": "verified",
+   "uses": 1668
+  },
+  "0x42": {
+   "ida_name": "MonsterScript_Op42_SpawnDoppelgangerIfWild",
+   "rva": "0x1CF6F0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "present in files",
+     "meaning": "present in files (179, 108, 109) but never read by the handler",
+     "units": "unused"
+    }
+   ],
+   "effect": "If flags bit 3 (wild/free-roam mode): Combat_SpawnDoppelgangerAtActorPositionAndRegister(actor) (+0x1E5B80). PC+=2 unconditionally; return 0.",
+   "status": "verified",
+   "uses": 4,
+   "value_ranges": {
+    "op0": "179 (2), 108, 109"
+   }
+  },
+  "0x43": {
+   "ida_name": "MonsterScript_Op43_PlayAnimThenRestoreIdle",
+   "rva": "0x1D0020",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "animation/action id",
+     "meaning": "animation/action id compared with actor.action_state and passed to Actor_StartAnimOrCallCustomTrigger",
+     "units": "id"
+    }
+   ],
+   "effect": "Sub-state 0: if actor.action_state(+460) != op0: Actor_StartAnimOrCallCustomTrigger(actor, op0); sub-state=1. Wait until actor.scene_node->flags & 8. Then Npc_FinalizeTeleportAndNotify(actor) (+0x15EB80), PC+=2 (or 1), flags&=~7, return 0.",
+   "status": "verified",
+   "uses": 124,
+   "value_ranges": {
+    "op0": "2 (120), 23 (4)"
+   }
+  },
+  "0x44": {
+   "ida_name": "MonsterScript_Op44_PlaySfxAtActorPos",
+   "rva": "0x1CFE60",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "SFX id",
+     "meaning": "SFX id",
+     "units": "id"
+    }
+   ],
+   "effect": "Sfx_PlayAtWorldPos(op0, actor.world_x, actor.world_y, 1.0). PC+=2 (or 1); return 1.",
+   "status": "verified",
+   "uses": 27,
+   "value_ranges": {
+    "op0": "16777420..16786102"
+   }
+  },
+  "0x45": {
+   "ida_name": "MonsterScript_Op45_PlaySfxGlobal",
+   "rva": "0x1CFF40",
+   "arity": "var<=1",
+   "operands": [
+    {
+     "i": 0,
+     "label": "SFX id",
+     "meaning": "SFX id",
+     "units": "id"
+    }
+   ],
+   "effect": "Sfx_PlayById(op0, Sfx_FindOrPreemptVoice()). PC+=2 (or 1); return 1.",
+   "status": "verified",
+   "uses": 22,
+   "value_ranges": {
+    "op0": "16777402..16777465"
+   }
+  },
+  "0x46": {
+   "ida_name": "MonsterScript_Op46_ClearCtxBit5",
+   "rva": "0x1C7DD0",
+   "arity": 0,
+   "operands": [],
+   "effect": "flags &= ~0x20; PC+=1; return 1. Bit 0x20 is set by MonsterScript_RunnerTick when actor.collision_volume.field_8C bit 4 is found set (RunnerTick clears that bit) or when Npc_IsBusyOrInaccessible(actor) (which sets 0x60); tested by 0x63.",
+   "status": "verified",
+   "uses": 1
+  },
+  "0x47": {
+   "ida_name": "MonsterScript_Op47_ScriptResetState",
+   "rva": "0x1CF440",
+   "arity": 0,
+   "operands": [],
+   "effect": "MonsterScript_ResetContextState(ctx) (PC=0, target=0, timers, action slot, scripted tile, return stack, flags &= 0xDFF07FFF, actor control bits 0x20000/0x20/0x800000/4 cleared, accel scale=4096, actor.field_A0=2); return 0. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x48": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r0 (+156); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[0] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x49": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r1 (+160); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[1] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x4A": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r2 (+164); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[2] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x4B": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r3 (+168); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[3] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x4C": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r4 (+172); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[4] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x4D": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r5 (+176); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[5] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x4E": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r6 (+180); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[6] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x4F": {
+   "ida_name": "MonsterScript_Op48_4F_RegAddImm",
+   "rva": "0x1D0AC0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value added to r7 (+184); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[7] += operand; PC+=2; return 1. Register index = opcode id - 0x48.",
+   "status": "verified"
+  },
+  "0x50": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r0 (+156); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[0] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x51": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r1 (+160); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[1] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x52": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r2 (+164); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[2] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x53": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r3 (+168); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[3] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x54": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r4 (+172); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[4] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x55": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r5 (+176); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[5] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x56": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r6 (+180); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[6] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x57": {
+   "ida_name": "MonsterScript_Op50_57_RegSetImm",
+   "rva": "0x1D0B70",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "value",
+     "meaning": "value stored to r7 (+184); register-resolved operand allowed",
+     "units": "register"
+    }
+   ],
+   "effect": "reg[7] = operand; PC+=2; return 1. Register index = opcode id - 0x50.",
+   "status": "verified"
+  },
+  "0x58": {
+   "ida_name": "MonsterScript_Op58_SetTickCounter",
+   "rva": "0x1D1220",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "raw token",
+     "meaning": "raw token stored to +98 (NOT register-resolved)",
+     "units": "count"
+    }
+   ],
+   "effect": "ctx.user_var (+98) = token_stream[pc+1]; PC+=2; return 1. Also incremented by RunnerTick every tick that the VM is skipped (flags&0x1000 or &0x40000000 or actor busy) and compared by 0x64; shipped values 0/100/150/200/300 with 0x64 thresholds 180..800 = a frame counter reset by the script.",
+   "status": "verified",
+   "uses": 27,
+   "value_ranges": {
+    "op0": "0 (21), 100..300"
+   }
+  },
+  "0x59": {
+   "ida_name": "MonsterScript_Op59_SetCooldownTimerA",
+   "rva": "0x1D1290",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "frames",
+     "meaning": "frames; raw token stored as u16 to actor+490 (NOT register-resolved)",
+     "units": "frames"
+    }
+   ],
+   "effect": "*(u16*)(actor+490) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickRecoveryDecrementIFramesAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x65. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
+   "status": "verified"
+  },
+  "0x5A": {
+   "ida_name": "MonsterScript_Op5A_SetCooldownTimerB",
+   "rva": "0x1D1310",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "frames",
+     "meaning": "frames; raw token stored as u16 to actor+492 (NOT register-resolved)",
+     "units": "frames"
+    }
+   ],
+   "effect": "*(u16*)(actor+492) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickRecoveryDecrementIFramesAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x66. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
+   "status": "verified"
+  },
+  "0x5B": {
+   "ida_name": "MonsterScript_Op5B_SetCooldownTimerC",
+   "rva": "0x1D1390",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "frames",
+     "meaning": "frames; raw token stored as u16 to actor+494 (NOT register-resolved)",
+     "units": "frames"
+    }
+   ],
+   "effect": "*(u16*)(actor+494) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickRecoveryDecrementIFramesAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x67. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
+   "status": "verified"
+  },
+  "0x5C": {
+   "ida_name": "MonsterScript_Op5C_TriggerKnockdown",
+   "rva": "0x1D1410",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "consumed",
+     "meaning": "consumed, ignored",
+     "units": "unused"
+    }
+   ],
+   "effect": "Actor_BeginScriptedKnockdownSequence(actor) (+0xA9A60); PC+=2; return 1.",
+   "status": "verified",
+   "uses": 1
+  },
+  "0x5D": {
+   "ida_name": "MonsterScript_Op5D_IfDistanceToTarget",
+   "rva": "0x1C7670",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "distance threshold",
+     "meaning": "distance threshold",
+     "units": "units"
+    }
+   ],
+   "effect": "dist = Monster_DistanceToTarget(actor,target) (or DistanceToTileTarget when +188 set; 0xFFFFFFFF when no target). Sets/clears flags 0x200. PC+=3, return 1.",
+   "status": "verified",
+   "uses": 2755
+  },
+  "0x5E": {
+   "ida_name": "MonsterScript_Op5E_IfDistanceToCombatTarget",
+   "rva": "0x1C77F0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "distance threshold",
+     "meaning": "distance threshold",
+     "units": "units"
+    }
+   ],
+   "effect": "dist = Monster_DistanceToTarget(actor, combat target +16 pos +88), 0xFFFFFFFF when +16 is null. Sets/clears 0x200. PC+=3; return 1.",
+   "status": "verified",
+   "uses": 48,
+   "value_ranges": {
+    "op0": ">= (47), <= (1)",
+    "op1": "60..240"
+   }
+  },
+  "0x5F": {
+   "ida_name": "MonsterScript_Op5F_IfRandomChance",
+   "rva": "0x1C7910",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "probability in percent",
+     "meaning": "probability in percent (true when roll 0..99 < op0)",
+     "units": "percent"
+    }
+   ],
+   "effect": "Advances g_mmixRandomState (MMIX LCG); roll = (100*hi32) >> 32; cond = roll < op0. Sets/clears 0x200. PC+=2; return 1.",
+   "status": "verified",
+   "uses": 5136,
+   "value_ranges": {
+    "op0": "5..90 (mode 50)"
+   }
+  },
+  "0x60": {
+   "ida_name": "MonsterScript_Op60_IfActorHpPercent",
+   "rva": "0x1C79E0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "fraction of max HP",
+     "meaning": "fraction of max HP, Q12 (2048 = 50%)",
+     "units": "Q12"
+    }
+   ],
+   "effect": "cond = stats.hp_curr <cmp> (op1 * stats.hp_max >> 12) (unsigned). PC+=3; return 1.",
+   "status": "verified",
+   "uses": 249,
+   "value_ranges": {
+    "op1": "819..4096 (mode 2048)"
+   }
+  },
+  "0x61": {
+   "ida_name": "MonsterScript_Op61_IfTargetHpPercent",
+   "rva": "0x1C7B10",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "fraction of max HP",
+     "meaning": "fraction of max HP, Q12",
+     "units": "Q12"
+    }
+   ],
+   "effect": "NPC actor (status_equip_flags&0x200): among g_playerActor/g_companion1Actor/g_companion2Actor take the one with the SMALLEST (op1*hp_max>>12) that is < 4096 and test its hp_curr <cmp> that threshold (0 <cmp> 4096 if none qualifies). Monster: combat target (+16) stats hp_curr <cmp> op1*hp_max>>12. In both modes the result is forced false when +16 is null. PC+=3; return 1.",
+   "status": "verified",
+   "uses": 25
+  },
+  "0x62": {
+   "ida_name": "MonsterScript_Op62_IfRuleCounterGe",
+   "rva": "0x1C7E40",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "threshold for rule_counter",
+     "meaning": "threshold for rule_counter (+91, incremented by every 0x01)",
+     "units": "count"
+    }
+   ],
+   "effect": "cond = rule_counter >= op0; when true also rule_counter = 0. PC+=2; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x63": {
+   "ida_name": "MonsterScript_Op63_IfCtxBit5",
+   "rva": "0x1C7D10",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "expected value of flags bit 5",
+     "meaning": "expected value of flags bit 5 (0/1)",
+     "units": "flag"
+    }
+   ],
+   "effect": "cond = ((flags>>5)&1) == op0. PC+=2; return 1. Bit 0x20 is set by RunnerTick from collision_volume.field_8C bit 4 (consumed) or Npc_IsBusyOrInaccessible; cleared by 0x46.",
+   "status": "verified",
+   "uses": 1
+  },
+  "0x64": {
+   "ida_name": "MonsterScript_Op64_IfTickCounterCmp",
+   "rva": "0x1C7F00",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with +98",
+     "units": "frames"
+    }
+   ],
+   "effect": "cond = ctx.user_var(+98) <cmp> op1. PC+=3; return 1. +98 is incremented by MonsterScript_RunnerTick at the end of every tick and reset by 0x58, so this measures elapsed ticks since the last 0x58.",
+   "status": "verified",
+   "uses": 17,
+   "value_ranges": {
+    "op0": ">=",
+    "op1": "180..800"
+   }
+  },
+  "0x65": {
+   "ida_name": "MonsterScript_Op65_IfCooldownTimerACmp",
+   "rva": "0x1C8000",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with the u16 cooldown timer at actor+490",
+     "units": "frames"
+    }
+   ],
+   "effect": "cond = *(u16*)(actor+490) <cmp> op1 (unsigned). PC+=3; return 1. Shipped: == 0 (timer expired) mostly, >= 1 sometimes.",
+   "status": "verified"
+  },
+  "0x66": {
+   "ida_name": "MonsterScript_Op66_IfCooldownTimerBCmp",
+   "rva": "0x1C8110",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with the u16 cooldown timer at actor+492",
+     "units": "frames"
+    }
+   ],
+   "effect": "cond = *(u16*)(actor+492) <cmp> op1 (unsigned). PC+=3; return 1. Shipped: == 0 (timer expired) mostly, >= 1 sometimes.",
+   "status": "verified"
+  },
+  "0x67": {
+   "ida_name": "MonsterScript_Op67_IfCooldownTimerCCmp",
+   "rva": "0x1C8220",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with the u16 cooldown timer at actor+494",
+     "units": "frames"
+    }
+   ],
+   "effect": "cond = *(u16*)(actor+494) <cmp> op1 (unsigned). PC+=3; return 1. Shipped: == 0 (timer expired) mostly, >= 1 sometimes.",
+   "status": "verified"
+  },
+  "0x68": {
+   "ida_name": "MonsterScript_Op68_IfAnimWidgetFlag8",
+   "rva": "0x1C8330",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = actor.attack_info (+240) != NULL && attack_info.flags_140 & 8. PC+=1; return 1. Same bit that lets 0x32 cut an action short; meaning of AttackInfo_t+140 bit 3 not resolved (no field xrefs in the IDB).",
+   "status": "partial",
+   "uses": 7
+  },
+  "0x69": {
+   "ida_name": "MonsterScript_Op69_IfBusyRecoveredOrCollFlag800",
+   "rva": "0x1C83D0",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = (flags & 0x40) || (actor.collision_volume (+232) ->field_8C & 0x800). PC+=1; return 1. Flag 0x40 is set by RunnerTick while Npc_IsBusyOrInaccessible(actor) (hit-stun/knockback/airborne/carried/thrown/dying tick callbacks; VM not run) and is still visible during the first VM tick after recovery (RunnerTick clears it after running the script), so for monsters this reads as 'just recovered from a hit'; CollisionVolume_t+0x8C bit 0x800 not resolved.",
+   "status": "partial",
+   "uses": 64
+  },
+  "0x6A": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r0",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r0 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x6B": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r1",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r1 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x6C": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r2",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r2 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x6D": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r3",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r3 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x6E": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r4",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r4 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x6F": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r5",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r5 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x70": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r6",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r6 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x71": {
+   "ida_name": "MonsterScript_Op6A_71_IfRegCmpImm",
+   "rva": "0x1C8470",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared (unsigned) with r7",
+     "units": "register"
+    }
+   ],
+   "effect": "cond = r7 <cmp> op1 (unsigned compare; unknown comparator = true); sets/clears flags 0x200; PC+=3; return 1.",
+   "status": "verified"
+  },
+  "0x72": {
+   "ida_name": "MonsterScript_Op72_IfCtxBit13ConsumeAndAck",
+   "rva": "0x1C8590",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "expected value of flags bit 13",
+     "meaning": "expected value of flags bit 13 (shipped: always 1)",
+     "units": "flag"
+    }
+   ],
+   "effect": "cond = ((flags>>13)&1) == op0; when true: flags|=0x200, +192 |= 0x8000, flags &= ~0x2000 (consumed). PC+=2; return 1. The writer of flags bit 13 was not located (see fields.md).",
+   "status": "partial",
+   "uses": 12
+  },
+  "0x73": {
+   "ida_name": "MonsterScript_Op73_IfActionInProgressCmp",
+   "rva": "0x1C8660",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "action id",
+     "meaning": "action id compared with +96 (0xFFFFFFFF = no action)",
+     "units": "id"
+    }
+   ],
+   "effect": "cond = (field_60(+96) <cmp> op1) AND (op1 < 0 OR actor tick is Actor_TickAttackAnimType1/2, Actor_TickAnimAndCustomCallback or Actor_TickGrabSlamAndThrow); an unknown comparator skips the first term. +96 holds the id started by 0x2C/0x2D/0x2E/0x2F/0x30/0x31/0x32/0x34 and is -1 when none. PC+=3; return 1. Shipped: == NULL (184) = no action running; == N = action N in progress.",
+   "status": "verified",
+   "uses": 490
+  },
+  "0x74": {
+   "ida_name": "MonsterScript_Op74_IfActorIsNpcKind",
+   "rva": "0x1C8BD0",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = actor.status_equip_flags(+16) & 0x200. PC+=1; return 1.",
+   "status": "verified",
+   "uses": 154
+  },
+  "0x75": {
+   "ida_name": "MonsterScript_Op75_IfHasLeaderTarget",
+   "rva": "0x1C8C60",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "polarity",
+     "meaning": "polarity: 1 = true when target (+8) exists, 0 = true when absent",
+     "units": "flag"
+    }
+   ],
+   "effect": "cond = (ctx.target != NULL) == (op0 != 0). PC+=2; return 1.",
+   "status": "verified",
+   "uses": 228
+  },
+  "0x76": {
+   "ida_name": "MonsterScript_Op76_IfLeaderBusy",
+   "rva": "0x1C8D20",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = target(+8) && (Npc_IsBusyOrInaccessible(target) || target.collision_volume->field_8C & 0x800). Npc_IsBusyOrInaccessible = tick callback is one of Actor_TickDamageHurtStunDecay/KnockedIntoAirAndLand/KnockdownRecover/AirborneFallPhysics/KnockoutPoseAndRevive/FallingDeathAnim/WhileCarriedByMount/ThrownFallAndBounce, Monster_TickExpandThenFadeAwayDeath/BossDefeatExplosionSequence or Player_DeathTickCallback. PC+=1; return 1.",
+   "status": "verified",
+   "uses": 26
+  },
+  "0x77": {
+   "ida_name": "MonsterScript_Op77_IfHasCombatTarget",
+   "rva": "0x1C8DE0",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "polarity for combat target",
+     "meaning": "polarity for combat target (+16)",
+     "units": "flag"
+    }
+   ],
+   "effect": "cond = (ctx.field_10 != NULL) == (op0 != 0). PC+=2; return 1.",
+   "status": "verified",
+   "uses": 51
+  },
+  "0x78": {
+   "ida_name": "MonsterScript_Op78_IfCombatTargetBusy",
+   "rva": "0x1C8EA0",
+   "arity": 0,
+   "operands": [],
+   "effect": "As 0x76 for the combat target (+16). PC+=1; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x79": {
+   "ida_name": "MonsterScript_Op79_IfCombatTargetHasItem",
+   "rva": "0x1C8F60",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = +16 && target.anim_bind(+256) && *(void**)(anim_bind+16) != NULL. PC+=1; return 1. Actor_t+256 is anim_bind in the IDB struct (chapter says equip slot); meaning of AnimBindCtx_t+16 not resolved.",
+   "status": "partial",
+   "uses": 53
+  },
+  "0x7A": {
+   "ida_name": "MonsterScript_Op7A_IfActorTaskFlag4000",
+   "rva": "0x1C9000",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = actor.status_equip_flags & 0x4000. PC+=1; return 1.",
+   "status": "verified",
+   "uses": 3
+  },
+  "0x7B": {
+   "ida_name": "MonsterScript_Op7B_IfAnimFrameCmp",
+   "rva": "0x1C9090",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "animation frame",
+     "meaning": "animation frame",
+     "units": "frames"
+    }
+   ],
+   "effect": "frame = (int)actor.mcmodel->anim_frame (0 if no mcmodel), raised to (int)(float)actor.anim_bind->state when larger; cond = frame <cmp> op1. PC+=3; return 1.",
+   "status": "verified",
+   "uses": 211
+  },
+  "0x7C": {
+   "ida_name": "MonsterScript_Op7C_IfLeaderActionInRange9to12",
+   "rva": "0x1C91D0",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = target(+8) && 9 <= target.action_state(+460) <= 12. PC+=1; return 1.",
+   "status": "verified",
+   "uses": 12
+  },
+  "0x7D": {
+   "ida_name": "MonsterScript_Op7D_IfWarpAnimInProgress",
+   "rva": "0x1C9270",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = actor.control_flags(+568) & 0x80000. PC+=1; return 1. Bit meaning not resolved.",
+   "status": "partial",
+   "uses": 244
+  },
+  "0x7E": {
+   "ida_name": "MonsterScript_Op7E_IfTileBlockedAndNotRuleEntered",
+   "rva": "0x1C9310",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = (actor.field_E0(+224, current tile attr) & ~(u8)actor.init_flags(+220) & 0x9E) != 0, forced false when flags & 0x8000 (a section rule already fired this pass). PC+=1; return 1.",
+   "status": "verified",
+   "uses": 132
+  },
+  "0x7F": {
+   "ida_name": "MonsterScript_Op7F_IfActorCurrentActionLe2",
+   "rva": "0x1C93C0",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = actor.action_state(+460) <= 2. PC+=1; return 1.",
+   "status": "verified",
+   "uses": 1
+  },
+  "0x80": {
+   "ida_name": "MonsterScript_Op80_IfScriptLocked",
+   "rva": "0x1C9450",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "polarity",
+     "meaning": "polarity: 1 = true when locked, 0 = true when not locked",
+     "units": "flag"
+    }
+   ],
+   "effect": "locked = (actor+564 & 0x80) || (g_globalGameStateFlags & 0x8000) || (actor.status_equip_flags & 0x200 [NPC: always locked]). cond = locked == (op0 != 0). PC+=2; return 1. Actor+564 bit 7 not resolved.",
+   "status": "partial",
+   "uses": 748
+  },
+  "0x81": {
+   "ida_name": "MonsterScript_Op81_IfCheatModeActiveForMonster",
+   "rva": "0x1C9540",
+   "arity": 1,
+   "operands": [
+    {
+     "i": 0,
+     "label": "polarity",
+     "meaning": "polarity",
+     "units": "flag"
+    }
+   ],
+   "effect": "v = (g_globalGameStateFlags & 0x4000) if actor is not NPC (status&0x200 clear) and (actor+564 & 0x80) clear, else 0; cond = (v != 0) == (op0 != 0). PC+=2; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x82": {
+   "ida_name": "MonsterScript_Op82_IfActorTaskFlag400",
+   "rva": "0x1C9650",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = actor.status_equip_flags & 0x400. PC+=1; return 1.",
+   "status": "verified",
+   "uses": 2
+  },
+  "0x83": {
+   "ida_name": "MonsterScript_Op83_IfFlgRainbow",
+   "rva": "0x1C96E0",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = (g_globalGameStateFlags & 0x401000)==0 && GameFlags_ReadField(0, GF_FLG_RAINBOW (=0x45B), 1 bit) != 0. PC+=1; return 1. (IDB enum name GF_FLG_RAINBOW; chapter called it IfGameFlag45B.)",
+   "status": "verified",
+   "uses": 1
+  },
+  "0x84": {
+   "ida_name": "MonsterScript_Op84_AlwaysTrue",
+   "rva": "0x1C97B0",
+   "arity": 0,
+   "operands": [],
+   "effect": "flags |= 0x200; PC+=1; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x85": {
+   "ida_name": "MonsterScript_Op85_IfControlledPlayerActive",
+   "rva": "0x1C9830",
+   "arity": 0,
+   "operands": [],
+   "effect": "NPC actor (status&0x200): cond = any of g_playerActor/g_companion1Actor/g_companion2Actor has actor+180 (field_B4) & 1. Monster: cond = (actor.field_B4 | combat_target.field_B4) & 1. PC+=1; return 1. Actor+180 bit meanings not resolved (other readers: 0x37 uses bits 1/2/4 as held-item-used flags, 0x41 uses 0x10/0x20 as wait x2 multipliers, Monster_ComputeMaxStep treats bit 4 as paralysis).",
+   "status": "partial"
+  },
+  "0x86": {
+   "ida_name": "MonsterScript_Op86_IfActorOrTargetControlFlag4",
+   "rva": "0x1C9900",
+   "arity": 0,
+   "operands": [],
+   "effect": "NPC actor (status&0x200): cond = any of g_playerActor/g_companion1Actor/g_companion2Actor has actor+180 (field_B4) & 4. Monster: cond = (actor.field_B4 | combat_target.field_B4) & 4. PC+=1; return 1. Actor+180 bit meanings not resolved (other readers: 0x37 uses bits 1/2/4 as held-item-used flags, 0x41 uses 0x10/0x20 as wait x2 multipliers, Monster_ComputeMaxStep treats bit 4 as paralysis).",
+   "status": "partial"
+  },
+  "0x87": {
+   "ida_name": "MonsterScript_Op87_IfActorOrTargetControlFlag2",
+   "rva": "0x1C99D0",
+   "arity": 0,
+   "operands": [],
+   "effect": "NPC actor (status&0x200): cond = any of g_playerActor/g_companion1Actor/g_companion2Actor has actor+180 (field_B4) & 2. Monster: cond = (actor.field_B4 | combat_target.field_B4) & 2. PC+=1; return 1. Actor+180 bit meanings not resolved (other readers: 0x37 uses bits 1/2/4 as held-item-used flags, 0x41 uses 0x10/0x20 as wait x2 multipliers, Monster_ComputeMaxStep treats bit 4 as paralysis).",
+   "status": "partial"
+  },
+  "0x88": {
+   "ida_name": "MonsterScript_Op88_IfHeldItemKindSet",
+   "rva": "0x1C9AA0",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = HIWORD(actor.stats->as_atk_archive_base) != 0 (= u16 at stats+178, the held-item kind field 0x37 branches on: 115/116/117). PC+=1; return 1.",
+   "status": "verified",
+   "uses": 8
+  },
+  "0x89": {
+   "ida_name": "MonsterScript_Op89_IfTargetValidAndReady",
+   "rva": "0x1C9B40",
+   "arity": 0,
+   "operands": [],
+   "effect": "cond = +16 != NULL && *(u32*)(combat_target + 528) == 0. PC+=1; return 1. Actor_t+528 not named in the IDB struct.",
+   "status": "partial",
+   "uses": 3
+  },
+  "0x8A": {
+   "ida_name": "MonsterScript_Op8A_IfStoryProgressLe76",
+   "rva": "0x1C9BE0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Clears 0x200, then sets it when (g_globalGameStateFlags & 2)==0 && ((g_globalGameStateFlags & 0x1000) || g_storyProgressFlag9bit <= 0x76); PC+=1 with END/wrap check; return 1. Unused in shipped files; effectively an IF on story progress.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x8B": {
+   "ida_name": "MonsterScript_Op8B_IfHeldItemCategory",
+   "rva": "0x1C9C80",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "item category id from g_itemDatabase",
+     "meaning": "item category id from g_itemDatabase->metadata[held].category",
+     "units": "id"
+    }
+   ],
+   "effect": "held = u16 at stats+180 (pad_B4); category = held ? g_itemDatabase->metadata[held].category : 0; cond = category <cmp> op1. PC+=3; return 1. Shipped: == 15..28 (weapon classes) in 22 NPC files.",
+   "status": "verified",
+   "uses": 664
+  },
+  "0x8C": {
+   "ida_name": "MonsterScript_Op8C_IfRegWifeIdCmp",
+   "rva": "0x1C9DC0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "spouse id",
+     "meaning": "spouse id compared with the 5-bit GF_REG_WIFE_ID save field",
+     "units": "id"
+    }
+   ],
+   "effect": "v = (g_globalGameStateFlags & 0x401000) ? 0 : GameFlags_ReadField(0, GF_REG_WIFE_ID (=0xC6), 5 bits); cond = v <cmp> op1. PC+=3; return 1. Used by one file (14 uses).",
+   "status": "verified",
+   "uses": 14
+  },
+  "0x8D": {
+   "ida_name": "MonsterScript_Op8D_IfActorLevelCmp",
+   "rva": "0x1C9F00",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "level threshold",
+     "meaning": "level threshold",
+     "units": "count"
+    }
+   ],
+   "effect": "v = stats->base_stats.level + 1; if actor is NPC (status&0x200) and char_id < 0x30 and Player_CheckStatusFlag(player,0x200): v += 30; if NPC and char_id >= 0x30 and Player_CheckStatusFlag(player,0x100): v += 30. cond = v <cmp> op1. PC+=3; return 1. This is the actor LEVEL (IDB struct field), not an NPC id: monsters use it as 'IfLevel >= 50 -> run' (AI_m00).",
+   "status": "verified",
+   "uses": 1099
+  },
+  "0x8E": {
+   "ida_name": "MonsterScript_Op8E_IfKillAggregateCmp",
+   "rva": "0x1CA090",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with the u8 at g_activeKillAggregateList+97",
+     "units": "count"
+    }
+   ],
+   "effect": "v = actor is NPC ? 0 : *(u8*)(g_activeKillAggregateList+97); cond = v <cmp> op1. PC+=3; return 1. Meaning of the byte not resolved (shipped thresholds 2..4).",
+   "status": "partial",
+   "uses": 55
+  },
+  "0x8F": {
+   "ida_name": "MonsterScript_Op8F_IfActorCurrentActionCmp",
+   "rva": "0x1C87A0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "action id",
+     "meaning": "action id compared with actor.action_state (+460)",
+     "units": "id"
+    }
+   ],
+   "effect": "cond = actor.action_state <cmp> op1 (unsigned). PC+=3; return 1.",
+   "status": "verified",
+   "uses": 2
+  },
+  "0x90": {
+   "ida_name": "MonsterScript_Op90_IfEntityField338Cmp",
+   "rva": "0x1C88A0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with u16 at stats+338 (rf3NpcParam template record +338)",
+     "units": "count"
+    }
+   ],
+   "effect": "cond = *(u16*)(actor.stats + 338) <cmp> op1. PC+=3; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x91": {
+   "ida_name": "MonsterScript_Op91_IfEntityField340Cmp",
+   "rva": "0x1C89B0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with u16 at stats+340 (rf3NpcParam template record +340)",
+     "units": "count"
+    }
+   ],
+   "effect": "cond = *(u16*)(actor.stats + 340) <cmp> op1. PC+=3; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x92": {
+   "ida_name": "MonsterScript_Op92_IfEntityField342Cmp",
+   "rva": "0x1C8AC0",
+   "arity": 2,
+   "operands": [
+    {
+     "i": 0,
+     "label": "comparator token",
+     "meaning": "comparator token",
+     "units": "cmp"
+    },
+    {
+     "i": 1,
+     "label": "value",
+     "meaning": "value compared with u16 at stats+342 (rf3NpcParam template record +342)",
+     "units": "count"
+    }
+   ],
+   "effect": "cond = *(u16*)(actor.stats + 342) <cmp> op1. PC+=3; return 1. Unused in shipped files.",
+   "status": "verified",
+   "uses": 0
+  },
+  "0x93": {
+   "ida_name": "(OR connector token, consumed by MonsterScript_StepCommandList)",
+   "rva": "0x1CA1B0",
+   "arity": 0,
+   "operands": [],
+   "status": "verified",
+   "effect": "OR connector between two conditions: when the condition before it is true the runner jumps straight to the next action opcode (MonsterScript_FindNextActionOp, id < 0x5D); when false the next condition is evaluated."
+  },
+  "0x94": {
+   "ida_name": "(AND connector token, consumed by MonsterScript_StepCommandList)",
+   "rva": "0x1CA1B0",
+   "arity": 0,
+   "operands": [],
+   "status": "verified",
+   "effect": "AND connector between two conditions: when the condition before it is true the next condition is evaluated; when false MonsterScript_SkipConditionalBlock leaves the block (else-pending bit 0x20000000 set)."
+  }
+ },
+ "scripted_actions": {
+  "0": {
+   "ida_name": "ScriptedAction00_TransformIntoNpc221AttackAndRevert",
+   "rva": "0x8C180",
+   "arity": 0,
+   "operands": [],
+   "effect": "Transformation attack: change task type to char 221, fire a 9-hitbox barrage, revert to the original type; Achievement 849 outside arena input contexts 442..453.",
+   "status": "partial",
+   "users": []
+  },
+  "1": {
+   "ida_name": "ScriptedAction01_BossEdgeAppearWithRadialAttack",
+   "rva": "0x8C720",
+   "arity": 0,
+   "operands": [],
+   "effect": "Boss appears at a random map edge angle and fires 3 radial attacks (action 0x27); g_difficultyLevel scales the aggregate-list resets.",
+   "status": "partial",
+   "users": []
+  },
+  "2": {
+   "ida_name": "ScriptedAction02_TransformActorIntoNpc220",
+   "rva": "0x8CB40",
+   "arity": 0,
+   "operands": [],
+   "effect": "Phase-2 form change: save stats, set task type 220, Char_GetTemplate + Actor_RecomputeAllStats, restore HP delta.",
+   "status": "partial",
+   "users": []
+  },
+  "3": {
+   "ida_name": "Npc_TickTeleportWarpAnim",
+   "rva": "0x8BF90",
+   "arity": 0,
+   "operands": [],
+   "effect": "State 0: +48=0; Player_StartAnimSequence(actor, 2); actor tick = Actor_TickAnimAndCustomCallback; actor.field_240 = |vel|; actor.control_flags |= 0x80000; scene_node.flags &= ~8; stats.status_flags |= 0x20. Then wait until scene_node.flags & 8 (anim finished): stats.status_flags &= ~0x20, Npc_FinalizeTeleportAndNotify(actor) (restores idle anim/tick, clears control bits 11..20, resets the ctx), return 1. Used by 36 files (the generic warp-out / despawn animation).",
+   "status": "verified",
+   "users": [],
+   "user_count": 36
+  },
+  "4": {
+   "ida_name": "ScriptedAction04_SpellCastFromAvailablePool",
+   "rva": "0x8E3B0",
+   "arity": 0,
+   "operands": [],
+   "effect": "14-slot spell bag in actor_inner (+424)[+8] bitfield: pick an unused slot, spawn effect 136+slot, mark it; finale effect 0x96 when all 14 used.",
+   "status": "partial",
+   "users": []
+  },
+  "5": {
+   "ida_name": "ScriptedAction05_BossTransformWithBoneShake14",
+   "rva": "0x8E6E0",
+   "arity": 0,
+   "operands": [],
+   "effect": "600+ frame transformation: actions 0x49/0x3C, effect 0x99, then 14 bones shaken with random offsets interpolating to 1.0.",
+   "status": "partial",
+   "users": []
+  },
+  "6": {
+   "ida_name": "ScriptedAction06_BossMultiPhaseUltimateAttack",
+   "rva": "0x8EF30",
+   "arity": 0,
+   "operands": [],
+   "effect": "~6 s ultimate: 5 states cycling 6 effect variants (0x161 + i%6), player-effect overlays; frames 120/210/300/301 (effect 0xA7 + SFX)/360.",
+   "status": "partial",
+   "users": []
+  },
+  "7": {
+   "ida_name": "ScriptedAction07_SwitchActorToAction20",
+   "rva": "0x8C0B0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Switch the actor to action 20 (anim 19).",
+   "status": "partial",
+   "users": []
+  },
+  "8": {
+   "ida_name": "ScriptedAction08_BossChargeAttackWithRamping",
+   "rva": "0x8CF00",
+   "arity": 0,
+   "operands": [],
+   "effect": "~2.5 s 4-state charge: anim 18 + 31-frame ramp down, teleport to 1 of 5 arena positions, anim 17 + 31-frame ramp up, task-type-specific recovery anim (archives 14740..14763).",
+   "status": "partial",
+   "users": []
+  },
+  "9": {
+   "ida_name": "ScriptedAction09_MultiWarpAttackThenReturnCenter",
+   "rva": "0x8D600",
+   "arity": 0,
+   "operands": [],
+   "effect": "6-state: fade out, warp next to target (+/-352256 x from a random byte), anim-16 attack, fade in, repeat 0..3 times, final warp to map center (work_buffer[13]<<14, [14]<<14).",
+   "status": "partial",
+   "users": []
+  },
+  "10": {
+   "ida_name": "ScriptedAction10_CinematicTeleportWithSfxAndPlayerEffect",
+   "rva": "0x8DB00",
+   "arity": 0,
+   "operands": [],
+   "effect": "4-state cinematic warp with PlayerEffect_SpawnGlobalTask and chained SFX; ~300 frames.",
+   "status": "partial",
+   "users": []
+  },
+  "11": {
+   "ida_name": "ScriptedAction11_TransformIntoChar229WithBarrageAndReloadScript",
+   "rva": "0x8F3F0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Phase transition: transform to char 229, Actor_AdvanceLevelByDays, 17-hit barrage, screen effect 0x78, reload the AIBN script via MonsterScript_SpawnTaskAndLoadScript, full heal, Achievement 849.",
+   "status": "partial",
+   "users": []
+  },
+  "12": {
+   "ida_name": "ScriptedAction12_JumpSlamMultiShockwaveCinematic",
+   "rva": "0x8F8D0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Jump (anim 9, z=-14336) + gravity fall + landing (anim base+10, SFX, blur), 0xA0-frame slam loop firing Action_TriggerActor 0x1B/2/3 shockwaves at random positions, screen shake, anim base+22 recover, CRC scramble + Actor_RecomputeStats.",
+   "status": "partial",
+   "users": []
+  },
+  "13": {
+   "ida_name": "ScriptedAction13_MoveToFixedArenaPositionWithMultiAttack",
+   "rva": "0x90B50",
+   "arity": 0,
+   "operands": [],
+   "effect": "State 0: dest = arena point (1179648,1294336) or (0x100000,819200) when g_currentRoomId==347, pushed 393216 (96 units) further along the bearing from the actor; +82 speed=0; actor+572 &= ~0x200; in room 347 fire 4x Action_TriggerAttacker(actor, 0xA2, box at actor pos); control|=0x10 if (~init_flags & actor+228) != 0; Actor_StartAnimAndSwitchTick(actor,1); SFX 0x10022C3. State 1: speed += 1536/tick (cap 30720), vel = speed*dir(atan2(dest-pos)) clamped to not overshoot; when Monster_DistanceToTileTarget <= 0x8000 or tile blocked -> state 2. State 2: after 15 frames clear control 0x10, actor+572 |= 0x200, Npc_FinalizeTeleportAndNotify, return 1.",
+   "status": "verified",
+   "users": [],
+   "user_count": 3
+  },
+  "14": {
+   "ida_name": "ScriptedAction14_MoveToArenaCornerBarrageAndSpellAttack",
+   "rva": "0x91640",
+   "arity": 0,
+   "operands": [],
+   "effect": "6-state: pick 1 of 4 destinations (two arena layouts, room 347 vs other), 4-shot 0xA2 barrage, walk with smoothing, anim base+228 + action 0x4A, base+233 wait, frame-20 effect 0x137 + base+232, 400-frame hold.",
+   "status": "partial",
+   "users": [],
+   "user_count": 3
+  },
+  "15": {
+   "ida_name": "Monster_TickWarpDashToTarget",
+   "rva": "0x92100",
+   "arity": 0,
+   "operands": [],
+   "effect": "State 0: dest = arena point (1179648,1294336) or (0x100000,819200) in room 347, pushed 2*Monster_DistanceToTileTarget along the bearing; +82=0; control|=0x10 if (~init_flags & actor+228). State 1: speed += 1536 (cap 30720), actor+158 = bearing, vel toward dest clamped; on arrival (<=0x8000) -> state 2 and spawn Effect_ApplyByKindAndSpawn by r0 (ctx+156): 0->0x19F, 1->0x1A0, 2->0x1A5, 3->0x1A7 (aim +0x4000), else 0x135 at a random angle (only when the stats word is nonzero and the map slot low 3 bits are 0). State 2: 15 frames, clear control 0x10, Npc_FinalizeTeleportAndNotify, return 1.",
+   "status": "verified",
+   "users": [],
+   "user_count": 2
+  },
+  "16": {
+   "ida_name": "ScriptedAction16_MoveToFixedArenaPositionRandomOffset",
+   "rva": "0x90F00",
+   "arity": 0,
+   "operands": [],
+   "effect": "As slot 13 with a random q16-angle offset of magnitude 393216 added to the destination.",
+   "status": "partial",
+   "users": [],
+   "user_count": 3
+  },
+  "17": {
+   "ida_name": "ScriptedAction17_MoveToRandomNearLeaderWithMultiAttack",
+   "rva": "0x912C0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Leap-attack combo: ~12-unit random offset from the leader, 4x Action_TriggerAttacker(0xA2) (room 347 only), accelerate to the point with SFX 16786115.",
+   "status": "partial",
+   "users": [],
+   "user_count": 3
+  },
+  "18": {
+   "ida_name": "ScriptedAction18_MoveToArenaSinglePositionBarrageAttack",
+   "rva": "0x91BF0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Slot 14 variant with a single destination (1 of 2), effect 0x138, 180-frame hold.",
+   "status": "partial",
+   "users": [],
+   "user_count": 3
+  },
+  "19": {
+   "ida_name": "ScriptedAction19_AerialFlyToFixedPositionFaceNorth",
+   "rva": "0x92650",
+   "arity": 0,
+   "operands": [],
+   "effect": "Fly back to a fixed perch (XYZ interpolation), face north (0), wait 180.",
+   "status": "partial",
+   "users": [],
+   "user_count": 2
+  },
+  "20": {
+   "ida_name": "ScriptedAction20_AerialFlyToFixedPosition",
+   "rva": "0x92920",
+   "arity": 0,
+   "operands": [],
+   "effect": "Fly back to a fixed perch, face south (0x8000), wait 180.",
+   "status": "partial",
+   "users": [],
+   "user_count": 2
+  },
+  "21": {
+   "ida_name": "ScriptedAction21_RiseThenLateralDashWithVfxTrail",
+   "rva": "0x92BF0",
+   "arity": 0,
+   "operands": [],
+   "effect": "50/50 direction, rise to z=1736704 (anim 0x10, bit 0x400), lateral dash to the opposite side (+/-3686400) dropping effects 0x15A/0x15B at 15/24 and 346/347 at 60/75.",
+   "status": "partial",
+   "users": []
+  },
+  "22": {
+   "ida_name": "ScriptedAction22_AerialDiveToArenaPositionWithFollowupTeleport",
+   "rva": "0x93110",
+   "arity": 0,
+   "operands": [],
+   "effect": "5-state for char 229: rise to z=3375104, partial descent (anim 0xE), smooth to a direction-keyed arena spot with effects 341/342, char-229 anim-archive switch (14740..14763), descend to z=-262144 and random-launch warp.",
+   "status": "partial",
+   "users": []
+  },
+  "23": {
+   "ida_name": "ScriptedAction23_AerialAttackTripleHit",
+   "rva": "0x93BB0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Face north, action 15, effects 0x157 @48, 0x158 @75, 0x159 @112.",
+   "status": "partial",
+   "users": []
+  },
+  "24": {
+   "ida_name": "ScriptedAction24_AerialDiveBombingAttackVariantB",
+   "rva": "0x93F50",
+   "arity": 0,
+   "operands": [],
+   "effect": "Like slots 25/26 but action 17 and effect 0x15C at frame 48.",
+   "status": "partial",
+   "users": []
+  },
+  "25": {
+   "ida_name": "ScriptedAction25_26_AerialDiveBombingAttack",
+   "rva": "0x94270",
+   "arity": 0,
+   "operands": [],
+   "effect": "Swoop: XYZ interpolation, face south, head anim, explosion effect 0x15D at frame 118. Slots 25 and 26 share this handler.",
+   "status": "partial",
+   "users": []
+  },
+  "26": {
+   "ida_name": "ScriptedAction25_26_AerialDiveBombingAttack",
+   "rva": "0x94270",
+   "arity": 0,
+   "operands": [],
+   "effect": "Same handler as slot 25.",
+   "status": "partial",
+   "users": []
+  },
+  "27": {
+   "ida_name": "ScriptedAction27_RiseChargeDiveTeleport",
+   "rva": "0x94640",
+   "arity": 0,
+   "operands": [],
+   "effect": "Optional angle flip, rise to z=1736704 (anim 0x14), dive to z=-950272 with effect 0x15E every 8 frames, random +/-3276800 launch, clear bit 0x400.",
+   "status": "partial",
+   "users": []
+  },
+  "28": {
+   "ida_name": "ScriptedAction28_AerialAttackVariantNorth",
+   "rva": "0x94A60",
+   "arity": 0,
+   "operands": [],
+   "effect": "Face north, lower target Y, action 19, effect 0x15F at frame 130.",
+   "status": "partial",
+   "users": []
+  },
+  "29": {
+   "ida_name": "ScriptedAction29_Configure4SwarmTrajectoryRandomized",
+   "rva": "0x95190",
+   "arity": 0,
+   "operands": [],
+   "effect": "Child-task swarm configurator: rand>>61 picks 1 of 8 trajectory presets (12 floats positions + 8 floats velocities at child+48..+128); cutscene fallback forces velocities to 4096; state 1 waits 60 frames.",
+   "status": "partial",
+   "users": []
+  },
+  "30": {
+   "ida_name": "ScriptedAction30_TeleportToRandomWalkableTile",
+   "rva": "0x8FF00",
+   "arity": 0,
+   "operands": [],
+   "effect": "State 0/1: +48=0, +72=0, +76=0, Action_TriggerActor(actor.task, 0x5F, x, y), return 0. State 2: tick 16 control_flags |= 0x24; tick 26: up to 31 tries of a random offset around the map center (Map_GetTileGridWidth/Height...) or scene center (input contexts 442..453/534/341), accept the first cell with tile attr bit 2, write actor.world_x/y, Action_TriggerActor(0x5F, x, y); tick 42: clear control 0x24, face the target (+8) (facing_yaw/facing_b, attack_info hit_dir_off adjusted), +72++ and state 3. State 3: return 1.",
+   "status": "verified",
+   "users": [],
+   "user_count": 2
+  },
+  "31": {
+   "ida_name": "ScriptedAction_RandomWarpFaceTarget_StateMachine",
+   "rva": "0x901F0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Two-warp variant of slot 30: first warp to a random walkable point (32 + rand&63 units at a random angle from the map/scene center, tile bit 2), second warp (when +72 != 0) to the center itself; faces the target at tick 42; at tick 62 state 1 (repeat) while +72==0 else state 3 (done); +72++.",
+   "status": "verified",
+   "users": [],
+   "user_count": 2
+  },
+  "32": {
+   "ida_name": "ScriptedAction32_TeleportRandomOrCornerCycle",
+   "rva": "0x90520",
+   "arity": 0,
+   "operands": [],
+   "effect": "As slot 31, but in input contexts 534/341 the second warp picks one of 4 arena corners (475136,0x80000)/(475136,1007616)/(1286144,1007616)/(1286144,0x80000) by a 2-bit RNG; +72 toggles the cycle.",
+   "status": "verified",
+   "users": [],
+   "user_count": 2
+  },
+  "33": {
+   "ida_name": "ScriptedAction33_TeleportToMapCenterCinematic",
+   "rva": "0x90900",
+   "arity": 0,
+   "operands": [],
+   "effect": "~8 s: action 0x5F, wait 100, effect 0x131 at map/loot center, wait 500, reappear and face the leader.",
+   "status": "partial",
+   "users": []
+  },
+  "34": {
+   "ida_name": "ScriptedAction34_SeekNpc238AndAttack",
+   "rva": "0x957F0",
+   "arity": 0,
+   "operands": [],
+   "effect": "Scan calendar events for NPC type 238, walk toward it, fire action 0x3B, push a g_gameEventQueue festival event.",
+   "status": "partial",
+   "users": []
+  }
+ }
+}

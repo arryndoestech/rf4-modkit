@@ -1,0 +1,1577 @@
+{
+"48": {
+"name": "Orc",
+"tameable": true,
+"region": "Yokmir Forest",
+"boss": false,
+"tier": "0",
+"produce": "",
+"friend_item": "Cheap Cloth"
+},
+"49": {
+"name": "High Orc",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "",
+"friend_item": "Cheap Cloth"
+},
+"50": {
+"name": "Orc Archer",
+"tameable": true,
+"region": "Yokmir Forest",
+"boss": false,
+"tier": "0",
+"produce": "",
+"friend_item": "Recovery Potion"
+},
+"51": {
+"name": "Orc Hunter",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "",
+"friend_item": "Recovery Potion"
+},
+"52": {
+"name": "Goblin",
+"tameable": true,
+"region": "Water Ruins",
+"boss": false,
+"tier": "0",
+"produce": "",
+"friend_item": "Onigiri"
+},
+"53": {
+"name": "Hobgoblin",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Onigiri"
+},
+"54": {
+"name": "Goblin Archer",
+"tameable": true,
+"region": "Water Ruins",
+"boss": false,
+"tier": "0",
+"produce": "",
+"friend_item": "Recovery Potion"
+},
+"55": {
+"name": "Goblin Sniper",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Recovery Potion"
+},
+"56": {
+"name": "Minotaur",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Devil Horn"
+},
+"57": {
+"name": "Minotaur King",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Devil Horn"
+},
+"58": {
+"name": "Daemon",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Devil Horn"
+},
+"59": {
+"name": "Arch-Daemon",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Devil Horn"
+},
+"60": {
+"name": "Little Mage",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Magic Powder"
+},
+"61": {
+"name": "Little Wizard",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Magic Powder"
+},
+"62": {
+"name": "Little Emperor",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Magic Powder"
+},
+"63": {
+"name": "Troll",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Giant's Nail"
+},
+"64": {
+"name": "Titan",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Giant's Nail"
+},
+"65": {
+"name": "Hammer Troll",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "",
+"friend_item": "Giant's Nail"
+},
+"66": {
+"name": "Gigantes",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Giant's Nail"
+},
+"67": {
+"name": "Ant",
+"tameable": true,
+"region": "Yokmir Forest",
+"boss": false,
+"tier": "0",
+"produce": "Insect Carapace",
+"friend_item": "Lumber"
+},
+"68": {
+"name": "Killer Ant",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "Pretty Carapace",
+"friend_item": "Lumber"
+},
+"69": {
+"name": "Hornet",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "Honey",
+"friend_item": "Honey"
+},
+"70": {
+"name": "Hornet Queen",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "Honey",
+"friend_item": "Honey"
+},
+"71": {
+"name": "Spider",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "Spider's Thread",
+"friend_item": "Insect Jaw"
+},
+"72": {
+"name": "Hell Spider",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "Pretty Thread",
+"friend_item": "Insect Jaw"
+},
+"73": {
+"name": "Beetle",
+"tameable": true,
+"region": "Yokmir Forest",
+"boss": false,
+"tier": "0",
+"produce": "Insect Horn",
+"friend_item": "Insect Carapace"
+},
+"74": {
+"name": "Heracles",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "Rigid Horn",
+"friend_item": "Insect Carapace"
+},
+"75": {
+"name": "Scorpion",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "Scorpion Tail",
+"friend_item": "Insect Carapace"
+},
+"76": {
+"name": "Death Stalker",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "8",
+"produce": "Scorpion Tail",
+"friend_item": "Insect Carapace"
+},
+"77": {
+"name": "Shadow Panther",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Fur"
+},
+"78": {
+"name": "Blood Panther",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Fur"
+},
+"79": {
+"name": "Silver Wolf",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "Wolf Fang",
+"friend_item": "Fur"
+},
+"80": {
+"name": "Hunter Wolf",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "Gold Wolf Fang",
+"friend_item": "Fur"
+},
+"81": {
+"name": "Buffaloo",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "Bull's Horn",
+"friend_item": "Bull's Horn"
+},
+"82": {
+"name": "Buffamoo",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "0",
+"produce": "Milk (S)",
+"friend_item": "Milk (S)"
+},
+"83": {
+"name": "Weagle",
+"tameable": true,
+"region": "Water Ruins",
+"boss": false,
+"tier": "1",
+"produce": "Bird's Feather",
+"friend_item": "Bird's Feather"
+},
+"84": {
+"name": "Blackbird",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "Black Bird Feather",
+"friend_item": "Bird's Feather"
+},
+"85": {
+"name": "Chipsqueek",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "0",
+"produce": "Fur",
+"friend_item": "Branch"
+},
+"86": {
+"name": "Furpy",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "4",
+"produce": "Quality Puffy Fur",
+"friend_item": "Branch"
+},
+"87": {
+"name": "Flower Blossom",
+"tameable": true,
+"region": "Sercerezo Hill",
+"boss": false,
+"tier": "4",
+"produce": "Root",
+"friend_item": "Plant Stem"
+},
+"88": {
+"name": "Flower Lion",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "Plant Stem",
+"friend_item": "Plant Stem"
+},
+"89": {
+"name": "Flower Lily",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "3",
+"produce": "Vine",
+"friend_item": "Plant Stem"
+},
+"90": {
+"name": "Flower Crystal",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "Strong Vine",
+"friend_item": "Plant Stem"
+},
+"91": {
+"name": "Big Muck",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "0",
+"produce": "Spore",
+"friend_item": "Spore"
+},
+"92": {
+"name": "Tricky Muck",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "4",
+"produce": "Poison Powder",
+"friend_item": "Spore"
+},
+"93": {
+"name": "Leaf Ball",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "Plant Stem",
+"friend_item": "Plant Stem"
+},
+"94": {
+"name": "Planchoa",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "Root",
+"friend_item": "Plant Stem"
+},
+"95": {
+"name": "Sky Fish",
+"tameable": true,
+"region": "Water Ruins",
+"boss": false,
+"tier": "1",
+"produce": "",
+"friend_item": "Fish Fossil"
+},
+"96": {
+"name": "Sealy",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Fish Fossil"
+},
+"97": {
+"name": "Tortas",
+"tameable": true,
+"region": "Water Ruins",
+"boss": false,
+"tier": "1",
+"produce": "",
+"friend_item": "Egg (S)"
+},
+"98": {
+"name": "Ignis",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Fire Crystal"
+},
+"99": {
+"name": "Tundra",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Water Crystal"
+},
+"100": {
+"name": "Airror",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "",
+"friend_item": "Wind Crystal"
+},
+"101": {
+"name": "Ghost",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Ghost Hood"
+},
+"102": {
+"name": "Necro",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Ghost Hood"
+},
+"103": {
+"name": "Faust",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Ghost Hood"
+},
+"104": {
+"name": "Monster Box",
+"tameable": true,
+"region": "Anywhere (Rare)",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Failed Dish"
+},
+"105": {
+"name": "Gobble Box",
+"tameable": true,
+"region": "Anywhere (Rare)",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Failed Dish"
+},
+"106": {
+"name": "Fairy",
+"tameable": true,
+"region": "Selphia Plains - West",
+"boss": false,
+"tier": "1",
+"produce": "Fairy Dust",
+"friend_item": "Prelude to Love"
+},
+"107": {
+"name": "Dark Fairy",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "Fairy Elixir",
+"friend_item": "Prelude to Love"
+},
+"108": {
+"name": "Slime",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Ruby"
+},
+"109": {
+"name": "Dark Slime",
+"tameable": true,
+"region": "Floating Empire: West",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Aquamarine"
+},
+"111": {
+"name": "Wooly",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "0",
+"produce": "Fur (S)",
+"friend_item": "Wooly Furball"
+},
+"112": {
+"name": "Little Golem",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Silver"
+},
+"113": {
+"name": "Cluckadoodle",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "0",
+"produce": "Egg (S)",
+"friend_item": "Egg (S)"
+},
+"114": {
+"name": "Little Dragon",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"115": {
+"name": "Pomme Pomme",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "0",
+"produce": "",
+"friend_item": "Baked Apple"
+},
+"116": {
+"name": "Orc Viking",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Wine"
+},
+"117": {
+"name": "High Orc Viking",
+"tameable": true,
+"region": "Rune Prana F3",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Wine"
+},
+"118": {
+"name": "Ogre Viking",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Wine"
+},
+"119": {
+"name": "High Ogre Viking",
+"tameable": true,
+"region": "Rune Prana F3",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Wine"
+},
+"120": {
+"name": "Goblin Pirate",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Oil"
+},
+"121": {
+"name": "Captain Goblin",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Oil"
+},
+"122": {
+"name": "Gangster Goblin",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Oil"
+},
+"123": {
+"name": "Goblin Don",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Oil"
+},
+"124": {
+"name": "Duck",
+"tameable": true,
+"region": "Selphia Plains - West",
+"boss": false,
+"tier": "1",
+"produce": "",
+"friend_item": "Fur"
+},
+"125": {
+"name": "Emperor Penguin",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Fur"
+},
+"126": {
+"name": "Elefun",
+"tameable": true,
+"region": "Sercerezo Hill",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Cheap Waterpot"
+},
+"127": {
+"name": "Mammoo",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Cheap Waterpot"
+},
+"128": {
+"name": "Onion Ghost",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Onion"
+},
+"129": {
+"name": "Tomato Ghost",
+"tameable": true,
+"region": "Delirium Lava Ruins",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Tomato"
+},
+"130": {
+"name": "Pepper Ghost",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Green Pepper"
+},
+"131": {
+"name": "Turnip Ghost",
+"tameable": true,
+"region": "Rune Prana F3",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Turnip"
+},
+"132": {
+"name": "Rider Orc",
+"tameable": true,
+"region": "Yokmir Cave",
+"boss": false,
+"tier": "3",
+"produce": "",
+"friend_item": ""
+},
+"133": {
+"name": "Cloudy",
+"tameable": true,
+"region": "Selphia (Festival Only)",
+"boss": false,
+"tier": "3",
+"produce": "Fur (S)",
+"friend_item": ""
+},
+"134": {
+"name": "Nappie",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Pineapple"
+},
+"135": {
+"name": "Mino",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "3",
+"produce": "",
+"friend_item": "Grapes"
+},
+"136": {
+"name": "Snowy",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Orange"
+},
+"137": {
+"name": "Master Troll",
+"tameable": true,
+"region": "Rune Prana F4",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"138": {
+"name": "Big Duck",
+"tameable": true,
+"region": "Rune Prana F2",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"139": {
+"name": "King Wooly",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": ""
+},
+"140": {
+"name": "Death Fungus",
+"tameable": true,
+"region": "Selphia Plains",
+"boss": false,
+"tier": "7",
+"produce": "Spore",
+"friend_item": ""
+},
+"145": {
+"name": "Baal",
+"tameable": true,
+"region": "Rune Prana F5",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"146": {
+"name": "Black Dragon",
+"tameable": true,
+"region": "Rune Prana F7",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"147": {
+"name": "Guardian",
+"tameable": true,
+"region": "Rune Prana F6",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"148": {
+"name": "Death Orc",
+"tameable": true,
+"region": "Rune Prana F7",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"151": {
+"name": "Onionger",
+"tameable": true,
+"region": "Rune Prana F1",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Onion Seeds"
+},
+"152": {
+"name": "Ghost Ray",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Ghost Hood"
+},
+"153": {
+"name": "Spirit",
+"tameable": true,
+"region": "Obsidian Mansion",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Magic Crystal"
+},
+"154": {
+"name": "Ant Queen",
+"tameable": true,
+"region": "Rune Prana F4",
+"boss": false,
+"tier": "10",
+"produce": "Queen's Jaw",
+"friend_item": "Honey"
+},
+"155": {
+"name": "King Bee",
+"tameable": true,
+"region": "Rune Prana F2",
+"boss": false,
+"tier": "10",
+"produce": "Honey",
+"friend_item": "Honey"
+},
+"156": {
+"name": "Heaven's Scissors",
+"tameable": true,
+"region": "Rune Prana F5",
+"boss": false,
+"tier": "10",
+"produce": "Dangerous Scissors",
+"friend_item": "Honey"
+},
+"157": {
+"name": "Gaias",
+"tameable": true,
+"region": "Idra Cave",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": "Magic Crystal"
+},
+"158": {
+"name": "Master Giant",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Giant's Gloves"
+},
+"160": {
+"name": "Palm Cat",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": "Fur"
+},
+"161": {
+"name": "Malm Tiger",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Fur"
+},
+"162": {
+"name": "Hover Soldier",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": ""
+},
+"163": {
+"name": "Hover Warrior",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": ""
+},
+"164": {
+"name": "Gasham",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": ""
+},
+"166": {
+"name": "Ruffled Vine",
+"tameable": true,
+"region": "Delirium Lava Ruins (Boss)",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": ""
+},
+"167": {
+"name": "Ruffled Horsetail",
+"tameable": true,
+"region": "Delirium Lava Ruins (Boss)",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": ""
+},
+"168": {
+"name": "Ruffled Flower",
+"tameable": true,
+"region": "Delirium Lava Ruins (Boss)",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": ""
+},
+"169": {
+"name": "Red",
+"tameable": true,
+"region": "Autumn Road",
+"boss": false,
+"tier": "6",
+"produce": "",
+"friend_item": "Cake"
+},
+"170": {
+"name": "Green",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "",
+"friend_item": "Cake"
+},
+"171": {
+"name": "Blue",
+"tameable": true,
+"region": "Sechs Territory",
+"boss": false,
+"tier": "6",
+"produce": "",
+"friend_item": "Cake"
+},
+"172": {
+"name": "Yellow",
+"tameable": true,
+"region": "Sercerezo Hill",
+"boss": false,
+"tier": "7",
+"produce": "",
+"friend_item": "Cake"
+},
+"175": {
+"name": "Shmooly",
+"tameable": true,
+"region": "Selphia Plains - East",
+"boss": false,
+"tier": "4",
+"produce": "Fur (S)",
+"friend_item": "Clippers"
+},
+"177": {
+"name": "Golem",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Silver"
+},
+"178": {
+"name": "???",
+"tameable": true,
+"region": "Maya Road",
+"boss": false,
+"tier": "6",
+"produce": "",
+"friend_item": ""
+},
+"184": {
+"name": "Fortoise",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": "Blk. Tortoise Shell"
+},
+"185": {
+"name": "Thunderbird",
+"tameable": true,
+"region": "Floating Empire",
+"boss": false,
+"tier": "8",
+"produce": "Thunderbird Feather",
+"friend_item": "Branch"
+},
+"186": {
+"name": "Mamadoodle",
+"tameable": true,
+"region": "Cluck Cluck Nest",
+"boss": false,
+"tier": "4",
+"produce": "Egg (S)",
+"friend_item": "Egg (S)"
+},
+"187": {
+"name": "Mineral Squeek",
+"tameable": true,
+"region": "Leon Karnak",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": ""
+},
+"188": {
+"name": "Typhoon",
+"tameable": true,
+"region": "Sercerezo Hill",
+"boss": false,
+"tier": "9",
+"produce": "",
+"friend_item": "Mealy Apple"
+},
+"190": {
+"name": "Green Dragon",
+"tameable": true,
+"region": "Rune Prana F1",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"191": {
+"name": "Red Dragon",
+"tameable": true,
+"region": "Rune Prana F4",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"192": {
+"name": "Leoplicant",
+"tameable": true,
+"region": "Rune Prana F4",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Cake"
+},
+"193": {
+"name": "Armed Ghost",
+"tameable": true,
+"region": "Rune Prana F1",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"194": {
+"name": "Flare Mage",
+"tameable": true,
+"region": "Rune Prana F1",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Magic"
+},
+"195": {
+"name": "Ice Wizard",
+"tameable": true,
+"region": "Rune Prana F5",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Magic"
+},
+"196": {
+"name": "Elemental Emperor",
+"tameable": true,
+"region": "Rune Prana F6",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Magic"
+},
+"197": {
+"name": "Blue Dragon",
+"tameable": true,
+"region": "Rune Prana F6",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"198": {
+"name": "Yellow Dragon",
+"tameable": true,
+"region": "Rune Prana F6",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"199": {
+"name": "Pink Dragon",
+"tameable": true,
+"region": "Rune Prana F6",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": "Dragon Fang"
+},
+"200": {
+"name": "Dead Tree 2",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Formula C"
+},
+"201": {
+"name": "Dead Tree",
+"tameable": true,
+"region": "Yokmir Forest (Boss)",
+"boss": true,
+"tier": "3",
+"produce": "",
+"friend_item": "Formula C"
+},
+"202": {
+"name": "Octopirate 2",
+"tameable": true,
+"region": "Rune Prana F2 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Grilled Snapper"
+},
+"203": {
+"name": "Octopirate",
+"tameable": true,
+"region": "Field Dungeon (Boss)",
+"boss": true,
+"tier": "8",
+"produce": "",
+"friend_item": "Grilled Snapper"
+},
+"204": {
+"name": "Bane Dragon",
+"tameable": true,
+"region": "Rune Prana F1 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Rockfish Stew"
+},
+"205": {
+"name": "Crystal Mammoth 2",
+"tameable": true,
+"region": "Rune Prana F3 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "King Pineapple"
+},
+"206": {
+"name": "Crystal Mammoth",
+"tameable": true,
+"region": "Sechs Territory (Boss)",
+"boss": true,
+"tier": "7",
+"produce": "",
+"friend_item": "King Pineapple"
+},
+"207": {
+"name": "Greater Demon 2",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Big Fireflower"
+},
+"208": {
+"name": "Greater Demon",
+"tameable": true,
+"region": "Field Dungeon (Boss)",
+"boss": true,
+"tier": "5",
+"produce": "",
+"friend_item": "Big Fireflower"
+},
+"209": {
+"name": "Chimera 2",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Royal Curry"
+},
+"210": {
+"name": "Chimera",
+"tameable": true,
+"region": "Water Ruins (Boss)",
+"boss": true,
+"tier": "3",
+"produce": "",
+"friend_item": "Royal Curry"
+},
+"211": {
+"name": "G Golem",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Orichalcum"
+},
+"212": {
+"name": "Sechs Golem",
+"tameable": true,
+"region": "Floating Empire - West (Boss)",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": ""
+},
+"213": {
+"name": "Grimoire 2",
+"tameable": true,
+"region": "Leon Karnak (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Golden Tyrant Turnip"
+},
+"214": {
+"name": "Grimoire",
+"tameable": true,
+"region": "Field Dungeon (Boss)",
+"boss": true,
+"tier": "8",
+"produce": "",
+"friend_item": "Golden Tyrant Turnip"
+},
+"215": {
+"name": "Siren",
+"tameable": true,
+"region": "Rune Prana F5 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Great 4-Leaf Clover"
+},
+"216": {
+"name": "Terrable",
+"tameable": true,
+"region": "Sharance Maze (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Turnip Heaven"
+},
+"217": {
+"name": "Terraclone",
+"tameable": true,
+"region": "Idra Cave (Boss)",
+"boss": true,
+"tier": "7",
+"produce": "",
+"friend_item": "Turnip Heaven"
+},
+"218": {
+"name": "Fiersome",
+"tameable": true,
+"region": "Sharance Maze (Boss)",
+"boss": true,
+"tier": "11",
+"produce": "",
+"friend_item": "Gold Juice"
+},
+"219": {
+"name": "Fiergaenger",
+"tameable": true,
+"region": "Maya Road (Boss)",
+"boss": true,
+"tier": "7",
+"produce": "",
+"friend_item": "Gold Juice"
+},
+"220": {
+"name": "Magnuto",
+"tameable": true,
+"region": "Demon's Den (Boss)",
+"boss": true,
+"tier": "6",
+"produce": "",
+"friend_item": "Udon"
+},
+"222": {
+"name": "Ancient Bone",
+"tameable": true,
+"region": "Revival Cave (Boss)",
+"boss": false,
+"tier": "5",
+"produce": "",
+"friend_item": ""
+},
+"223": {
+"name": "Hinoe",
+"tameable": true,
+"region": "Rune Prana F4 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Salted Char"
+},
+"224": {
+"name": "Kinoto",
+"tameable": true,
+"region": "Rune Prana F4 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Salted Char"
+},
+"225": {
+"name": "Death Wall",
+"tameable": true,
+"region": "Rune Prana F6 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Ice Cream"
+},
+"226": {
+"name": "Aquaticus",
+"tameable": true,
+"region": "Sharance Maze: Deepwater Shrine Lv 10 (Boss)",
+"boss": true,
+"tier": "11",
+"produce": "",
+"friend_item": "Union Stew"
+},
+"227": {
+"name": "Aquameleon",
+"tameable": true,
+"region": "Sechs Territory (Boss)",
+"boss": true,
+"tier": "9",
+"produce": "",
+"friend_item": "Union Stew"
+},
+"229": {
+"name": "Ambrosia",
+"tameable": true,
+"region": "Yokmir Forest (Boss)",
+"boss": true,
+"tier": "0",
+"produce": "",
+"friend_item": "Ultra Toyherb"
+},
+"230": {
+"name": "Thunderbolt",
+"tameable": true,
+"region": "Water Ruins (Boss)",
+"boss": true,
+"tier": "1",
+"produce": "",
+"friend_item": "Royal Carrot"
+},
+"231": {
+"name": "Marionetta",
+"tameable": true,
+"region": "Obsidian Mansion (Boss)",
+"boss": true,
+"tier": "2",
+"produce": "",
+"friend_item": "Cake"
+},
+"232": {
+"name": "Handonetta",
+"tameable": true,
+"region": "Not implemented",
+"boss": false,
+"tier": "2",
+"produce": "",
+"friend_item": "Gold Juice"
+},
+"233": {
+"name": "Sarcophagus",
+"tameable": true,
+"region": "Leon Karnak (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Mixed Juice"
+},
+"240": {
+"name": "Rafflesia",
+"tameable": true,
+"region": "Delirium Lava Ruins (Boss)",
+"boss": false,
+"tier": "4",
+"produce": "",
+"friend_item": ""
+},
+"241": {
+"name": "Armored Tank +",
+"tameable": true,
+"region": "Floating Empire - South (Boss)",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": ""
+},
+"242": {
+"name": "Sano",
+"tameable": true,
+"region": "Leon Karnak (Boss)",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"243": {
+"name": "Uno",
+"tameable": true,
+"region": "Leon Karnak (Boss)",
+"boss": false,
+"tier": "10",
+"produce": "",
+"friend_item": ""
+},
+"249": {
+"name": "Sechs Tank",
+"tameable": true,
+"region": "Floating Empire - East (Boss)",
+"boss": false,
+"tier": "8",
+"produce": "",
+"friend_item": ""
+},
+"250": {
+"name": "Rouge",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Big Red Crystal"
+},
+"251": {
+"name": "Emerald",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Big Green Crystal"
+},
+"252": {
+"name": "Marin",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Big Blue Crystal"
+},
+"253": {
+"name": "Olive",
+"tameable": true,
+"region": "Rune Prana F7 (Boss)",
+"boss": true,
+"tier": "10",
+"produce": "",
+"friend_item": "Big White Crystal"
+}
+}

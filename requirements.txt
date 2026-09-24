@@ -1,0 +1,21 @@
+# RF4S Modding Toolkit — Python dependencies
+#
+# Two third-party packages cover everything image-related. Both are imported
+# inside try/except blocks, so the CLI's non-image features (bplist, mbundle,
+# textdb, AIBN, strings, NLCL, gen, MOBJ/MAPJ edit, selftest) work without them.
+# Install both for the full GUI + map-editor + texture experience.
+#
+#   pip install -r requirements.txt
+#
+# Required for image decode/encode (every .texture, .png, .model thumbnail) and
+# the map editor's grid render + composite layers:
+Pillow>=9.0
+#
+# Required for BC7/BC1/BC2/BC3 block-compressed texture decode (most stock
+# textures are BC7). Without this, .texture files in compressed formats fall
+# back to a hex dump.
+texture2ddecoder>=1.0
+#
+# Everything else is the Python standard library: tkinter (GUI),
+# pathlib, struct, csv, json, re, dataclasses, collections, etc.
+# Python 3.10+ is required (the code uses PEP 604 union syntax `T | None`).

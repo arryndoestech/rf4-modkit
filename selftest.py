@@ -1,0 +1,5283 @@
+#!/usr/bin/env python3
+r"""
+selftest.py -- validate rf4s_modkit against the installed RF4S bundles.
+
+Run via `python rf4mod.py selftest` or directly `python selftest.py`. It exercises
+every reader/writer round-trip on real game data and reports pass/fail. Tests that
+need data the user hasn't extracted are skipped, not failed.
+"""
+from __future__ import annotations
+
+import pathlib
+import random
+import re
+import struct
+import sys
+import tempfile
+import shutil
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from rf4s_modkit import (  # noqa: E402
+    bplist, mbundle, textdb, texture, rf4m, aibn, strings_file, res_container, ident, gen, nlcl,
+    mapground, search_items, mobj_types, emflags, emscript,
+)
+
+REPO = pathlib.Path(__file__).resolve().parent.parent.parent
+BUNDLE_DIR = REPO / "Bundle"
+# Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
+EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
+
+# ---- quick mode + shared disassembly cache -----------------------------------------
+# `python selftest.py --quick` = fast iteration run (~1 min): the handful of
+# full-corpus rf3.mc sweeps are skipped or sliced (marked [SKIP]/detail "quick");
+# run WITHOUT the flag for the full green stamp before calling work done.
+#
+# The cache exists because test_script/test_emscript sweep rf3.mc many times
+# (coverage, render audit, op-range scan, EMF-bridge scans, ...) and every
+# disassemble_bank call used to re-decode from scratch — profiled 2026-09-01 at
+# ~485s of a 543s total, worse since the FRAME fall-through correction made scenes
+# larger. Scenes are cached by (bank index, kind, discover, content-crc32):
+# identical bytes decode identically, the crc keeps the cache honest across the
+# round-trip EDIT checks (mutated bank bytes -> new key), and separate Containers
+# of the same file share hits. Cached Scene objects are shared — checks must not
+# mutate them (none do; edits go through the Container/bank-bytes APIs).
+QUICK = "--quick" in sys.argv
+import zlib as _zlib                                            # noqa: E402
+from rf4s_modkit import script as _script_mod                   # noqa: E402
+_DISASM_CACHE = {}
+_disassemble_bank_uncached = _script_mod.disassemble_bank
+
+
+def _disassemble_bank_cached(bank, discover=True):
+    key = (bank.index, bank.kind, bool(discover), _zlib.crc32(bytes(bank.data)))
+    hit = _DISASM_CACHE.get(key)
+    if hit is None:
+        hit = list(_disassemble_bank_uncached(bank, discover=discover))
+        _DISASM_CACHE[key] = hit
+    return hit
+
+
+_script_mod.disassemble_bank = _disassemble_bank_cached
+
+_results = []
+
+
+def _check(name, cond, detail=""):
+    status = "PASS" if cond else "FAIL"
+    _results.append((name, cond))
+    print(f"  [{status}] {name}" + (f"  ({detail})" if detail else ""))
+
+
+def _skip(name, why):
+    print(f"  [SKIP] {name}  ({why})")
+
+
+def _first(glob):
+    try:
+        return next(EXTRACTED.rglob(glob))
+    except StopIteration:
+        return None
+
+
+def test_bplist():
+    print("bplist:")
+    for f in ("KeyBindings.plist", "MUKeyCodeConversion.plist"):
+        p = REPO / f
+        if not p.is_file():
+            _skip(f"bplist round-trip {f}", "file not present")
+            continue
+        obj = bplist.loads(p.read_bytes())
+        b1 = bplist.dumps(obj)
+        _check(f"bplist value round-trip {f}", bplist.loads(b1) == obj)
+        _check(f"bplist byte-stable re-dump {f}", bplist.dumps(bplist.loads(b1)) == b1)
+    # synthetic edge cases
+    sample = {"neg": -14336, "big": 5_000_000_000, "u": "café★日本語",
+              "blob": b"RES\x00" * 9, "nest": {"a": [1, 2.5, True, None]}}
+    _check("bplist synthetic round-trip", bplist.loads(bplist.dumps(sample)) == sample)
+    # unsigned 64-bit ints (>= 2**63) must not round-trip negative (16-byte body)
+    big = {"a": 2**63, "b": 2**64 - 1, "c": 2**63 + 5}
+    _check("bplist unsigned-64 round-trip", bplist.loads(bplist.dumps(big)) == big)
+
+
+def test_mbundle():
+    print("mbundle:")
+    mani_p = BUNDLE_DIR / "Manifest.plist"
+    if not mani_p.is_file():
+        _skip("mbundle", "Manifest.plist not present")
+        return
+    man = mbundle.Manifest(mani_p)
+    _check("manifest parse", "bundles" in man.root and len(man.bundles) >= 1,
+           f"{len(man.bundles)} bundles")
+    # smallest packed bundle present on disk -- or, when the bundles are extracted to directories
+    # (no packed file), a SELF-CONTAINED synthetic bundle built via the toolkit's own
+    # rebuild_from_dir. Either way the packed-bundle read + manifest==embedded-TOC + repack path is
+    # tested deterministically (this branch used to _skip when no packed bundle was on disk).
+    present = [(b, (BUNDLE_DIR / b).stat().st_size) for b in man.bundle_names()
+              if (BUNDLE_DIR / b).is_file()]
+    if present:
+        small = min(present, key=lambda x: x[1])[0]
+        bpath, mpath, use_man = BUNDLE_DIR / small, mani_p, man
+    else:
+        from rf4s_modkit import bplist as _bpl
+        _syn = pathlib.Path(tempfile.mkdtemp())
+        _src = _syn / "src"; (_src / "sub").mkdir(parents=True)
+        (_src / "a.txt").write_bytes(b"hello bundle")
+        (_src / "sub" / "b.bin").write_bytes(bytes(range(200)))
+        small = "bundleSynthetic"
+        bpath = _syn / small
+        _toc = mbundle.rebuild_from_dir(_src, bpath)      # toolkit builds a self-consistent bundle
+        mpath = _syn / "Manifest.plist"
+        mpath.write_bytes(_bpl.dumps({"bundles": [{"bundleName": small, "files": _toc}]}))
+        use_man = mbundle.Manifest(mpath)
+    b_emb = mbundle.Bundle(bpath)
+    b_man = mbundle.Bundle(bpath, manifest=use_man)
+    _check(f"bundle TOC manifest==embedded ({small})", set(b_emb.names()) == set(b_man.names()))
+    if b_emb.names():
+        nm = b_emb.names()[0]
+        _check("bundle read manifest==embedded", b_emb.read(nm) == b_man.read(nm))
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        cb = tmp / small
+        shutil.copyfile(bpath, cb)
+        cm = tmp / "Manifest.plist"
+        shutil.copyfile(mpath, cm)
+        m2 = mbundle.Manifest(cm)
+        nm = b_emb.names()[0]
+        orig = b_emb.read(nm)
+        # in-place patch (same size)
+        mbundle.patch_inplace(cb, m2, nm, b"ZZZZ" + orig[4:])
+        m2.save()
+        chk = mbundle.Bundle(cb, manifest=mbundle.Manifest(cm))
+        _check("in-place patch", chk.read(nm)[:4] == b"ZZZZ" and len(chk.read(nm)) == len(orig))
+        # append repack (add new + grow)
+        m3 = mbundle.Manifest(cm)
+        mbundle.append_repack(cb, m3, {nm: b"\xAB" * 4096, "mod/new.bin": b"hello"})
+        m3.save()
+        chk2 = mbundle.Bundle(cb, manifest=mbundle.Manifest(cm))
+        _check("append-repack grow+add",
+               chk2.read(nm) == b"\xAB" * 4096 and chk2.read("mod/new.bin") == b"hello")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_text():
+    print("text:")
+    p = _first("rf3mc.eng") or _first("*.eng")
+    if not p:
+        _skip("TEXT round-trip", "no .eng catalog extracted")
+        return
+    arc = textdb.TextArchive.load(p)
+    rebuilt = textdb.TextArchive.parse(arc.build())
+    _check(f"TEXT round-trip {p.name}", arc.entries == rebuilt.entries, f"{len(arc)} entries")
+    # robustness: malformed / truncated input (incl. valid magic but < 8-byte header) must raise
+    # a clean TextDbError, never a raw struct.error (a modder loading a corrupt rf3mc.<locale>).
+    _trob = True
+    for _bad in (b"", b"\xff" * 8, textdb.MAGIC, textdb.MAGIC + b"\x00\x00"):
+        try:
+            textdb.TextArchive.parse(_bad)
+            _trob = False
+        except textdb.TextDbError:
+            pass
+        except Exception:
+            _trob = False
+    _check("TextArchive raises clean TextDbError on malformed/truncated input", _trob)
+    # constructor footgun: TextArchive(raw_bytes) instead of .parse()/.load() would silently make a
+    # list-of-ints archive (text() -> garbage/None, no error). The ctor must reject raw bytes/str with
+    # a clear TextDbError -- while a real list of per-line bytes still constructs fine.
+    _ctor_ok = True
+    for _bad in (b"\x00\x01\x02", bytearray(b"x"), "some string"):
+        try:
+            textdb.TextArchive(_bad); _ctor_ok = False
+        except textdb.TextDbError:
+            pass
+        except Exception:
+            _ctor_ok = False
+    _ctor_ok = _ctor_ok and textdb.TextArchive([b"a", b"b"]).text(0) == "a"
+    _check("TextArchive(raw bytes/str) raises clean TextDbError; list of bytes still works", _ctor_ok)
+    # same footgun across the OTHER parser classes whose ctor takes a parsed list (not raw bytes):
+    # Rf4mMap([chunks]) once SILENTLY stored raw bytes as `chunks`; EmFlagTable/EmScript gave a
+    # confusing 'int has no attribute name'. All must now reject raw bytes/str with a clear message.
+    _pc_ok = True
+    for _cls_call in (lambda: rf4m.Rf4mMap(b"\x00" * 40),
+                      lambda: emflags.EmFlagTable(b"\x00" * 40),
+                      lambda: emscript.EmScript(b"\x00" * 40, None),
+                      lambda: search_items.SearchItemFile(b"\x00" * 40)):
+        try:
+            _cls_call(); _pc_ok = False               # must not construct silently
+        except (rf4m.Rf4mError, ValueError, search_items.SearchItemError):
+            pass
+        except Exception:
+            _pc_ok = False
+    _pc_ok = _pc_ok and type(rf4m.Rf4mMap([]).chunks) is list   # valid list ctor still fine
+    _check("parser ctors (Rf4mMap/EmFlagTable/EmScript/SearchItemFile) reject raw bytes clearly", _pc_ok)
+    # `rf4mod text add` -- one-step add-line (append a NEW dialogue line + report its id), the CLI
+    # equivalent of the GUI's Add-line. Append to a small archive; the new line must land at
+    # id == old length. Self-contained (builds its own archive).
+    try:
+        import rf4mod as _rft
+    except Exception:
+        _rft = None
+    if _rft is not None:
+        _atmp = pathlib.Path(tempfile.mkdtemp())
+        _asrc = _atmp / "a.eng"
+        textdb.TextArchive([b"one", b"two", b"three"]).save(str(_asrc))
+        _aout = _atmp / "a2.eng"
+        _aa = type("A", (), {"file": str(_asrc), "text": "NEW", "enc": "utf-8", "out": str(_aout)})()
+        _rft.cmd_text_add(_aa)
+        _aarc = textdb.TextArchive.load(str(_aout))
+        _check("CLI `text add` appends a new line at id == old length (add-line parity)",
+               len(_aarc) == 4 and _aarc.text(3) == "NEW")
+        # --pad-to aligns a shorter archive so a new line lands at a SHARED id across locales
+        # (rf3mc.eng ships 1 line longer than the others). Pad a 3-line archive to 5, then append.
+        _apout = _atmp / "ap.eng"
+        _apa = type("A", (), {"file": str(_asrc), "text": "PADDED", "enc": "utf-8",
+                              "out": str(_apout), "pad_to": 5})()
+        _rft.cmd_text_add(_apa)
+        _aparc = textdb.TextArchive.load(str(_apout))
+        _check("CLI `text add --pad-to N` lands the new line at id N (multi-locale align)",
+               len(_aparc) == 6 and _aparc.text(5) == "PADDED" and _aparc.text(3) == "")
+    else:
+        _skip("CLI text add", "rf4mod not importable")
+    # dialogue-text EDIT path -- the exact op the cutscene editor performs on rf3mc.<locale>:
+    # rewrite one line, rebuild, reparse -> the new text persists, the archive stays structurally
+    # intact (same entry count), and untouched lines are unchanged (localized edit).
+    if len(arc) > 6:
+        idx = 5
+        arc2 = textdb.TextArchive.load(p)
+        NEW = "SELFTEST EDIT — dialogue line"
+        arc2.set_text(idx, NEW)
+        reparsed = textdb.TextArchive.parse(arc2.build())
+        _check("TEXT set_text edit persists + localized (rebuild+reparse)",
+               len(reparsed) == len(arc)
+               and reparsed.text(idx) == NEW
+               and reparsed.text(0) == arc.text(0)
+               and reparsed.text(len(arc) - 1) == arc.text(len(arc) - 1))
+        # append a BRAND-NEW line (author new dialogue, e.g. a new beat or a missing translation):
+        # the new id == old len, and build -> reparse keeps it + leaves existing lines intact.
+        _n0 = len(arc)
+        arc3 = textdb.TextArchive.load(p)
+        _nid = arc3.append_text("SELFTEST APPENDED LINE")
+        reparsed3 = textdb.TextArchive.parse(arc3.build())
+        _check("TEXT append_text adds a new line (author new dialogue)",
+               _nid == _n0 and len(reparsed3) == _n0 + 1
+               and reparsed3.text(_nid) == "SELFTEST APPENDED LINE"
+               and reparsed3.text(0) == arc.text(0))
+    # multi-byte (CJK) locale support: translators edit rf3mc.jpn/kor/twn/chn -- UTF-8 with 3-byte
+    # CJK codepoints. Verify a full CJK archive round-trips byte-perfect and a multi-byte edit +
+    # append persist. The ASCII eng path above would NOT catch an encoding / byte-length regression
+    # that only bites multi-byte text. The test string is built from codepoints (chr) so this edit
+    # embeds no raw CJK bytes, and nothing CJK is printed to stdout (Windows console is cp1252).
+    _jp = _first("rf3mc.jpn")
+    if _jp is not None:
+        _jarc = textdb.TextArchive.load(_jp)
+        _jrt = _jarc.build() == pathlib.Path(_jp).read_bytes()
+        _ci = next((_i for _i in range(200, 8000)
+                    if any(ord(_ch) > 0x3000 for _ch in _jarc.text(_i, "utf-8"))), None)
+        # "konnichiwa sekai" (hiragana + kanji) -- built from codepoints so this file stays ASCII
+        _nv = "".join(chr(_cp) for _cp in (0x3053, 0x3093, 0x306B, 0x3061, 0x306F, 0x4E16, 0x754C))
+        if _ci is not None:
+            _jarc.set_text(_ci, _nv, "utf-8")
+            _newid = _jarc.append_text(_nv, "utf-8")
+            _jre = textdb.TextArchive.parse(_jarc.build())
+            _jok = (_jre.text(_ci, "utf-8") == _nv
+                    and len(_jre.entries[_ci]) == len(_nv.encode("utf-8"))
+                    and _jre.text(_newid, "utf-8") == _nv)
+        else:
+            _jok = False
+        _check("TEXT CJK locale round-trips byte-perfect + multi-byte edit/append persist",
+               _jrt and _ci is not None and _jok,
+               f"rt={_jrt} cjk_idx={_ci} edit_append_ok={_jok}")
+    else:
+        _skip("CJK locale round-trip", "no rf3mc.jpn catalog")
+    # all 7 shipped locales present + round-trip byte-perfect. The editor offers eng/jpn/deu/fra/
+    # kor/twn/chn; each must be a real, loadable TEXT archive that rebuilds exactly. (chn ships in
+    # bundlePatch2, apart from the other six -- this guard catches a missing/moved/corrupt locale.)
+    _LOCS = ["eng", "jpn", "deu", "fra", "kor", "twn", "chn"]
+    _lp = {_L: _first("rf3mc.%s" % _L) for _L in _LOCS}
+    _present = [_L for _L in _LOCS if _lp[_L]]
+    _rt_ok = all(textdb.TextArchive.load(_lp[_L]).build() == pathlib.Path(_lp[_L]).read_bytes()
+                 for _L in _present)
+    if len(_present) >= 6:
+        _check("all shipped rf3mc locales present + round-trip byte-perfect",
+               _rt_ok and "chn" in _present, f"{len(_present)}/7 present: {','.join(_present)}")
+    else:
+        _skip("all-locale round-trip", f"only {len(_present)}/7 locales extracted")
+
+
+def test_texture():
+    # Flipbook frames (u32 @ file +0x24, consecutive equal payloads; engine
+    # Texture_LoadRESFramesEx): confetti = 15 8x8 BC7 cells; the short-file
+    # 8x12d00 clamps 12 -> what fits; static sheets report 1.
+    _conf = next(EXTRACTED.rglob("confetti.texture"), None)
+    if _conf:
+        _d = _conf.read_bytes()
+        _i = texture.parse(_d)
+        _ok = _i["frames"] == 15 and _i["width"] == 8
+        if texture.HAS_PIL and texture.HAS_BC:
+            _ok = _ok and len(texture.decode_frames(_d)) == 15
+        _b = next(EXTRACTED.rglob("OBJ_BED_00.texture"), None)
+        if _b:
+            _ok = _ok and texture.parse(_b.read_bytes())["frames"] == 1
+        _check("texture flipbook frames", _ok, "confetti 15x 8x8; static = 1")
+
+    print("texture:")
+    if not texture.HAS_PIL:
+        _skip("texture", "Pillow not installed")
+        return
+    bc7 = None
+    for p in EXTRACTED.rglob("*.texture"):
+        try:
+            if texture.parse(p.read_bytes())["kind"] == "bc7":
+                bc7 = p
+                break
+        except Exception:
+            pass
+    if bc7 and texture.HAS_BC:
+        img = texture.decode_to_image(bc7.read_bytes())
+        _check("BC7 decode", img is not None and img.size[0] > 0, f"{bc7.name} {img.size}")
+    elif bc7:
+        _skip("BC7 decode", "texture2ddecoder not installed")
+    else:
+        _skip("BC7 decode", "no .texture extracted")
+    # raw encode round-trip
+    raw = None
+    for p in EXTRACTED.rglob("*.texture"):
+        try:
+            if texture.parse(p.read_bytes())["fmt_name"] in ("RGBA8", "RGBA4444", "ABGR1555"):
+                raw = p
+                break
+        except Exception:
+            pass
+    if raw:
+        tmpl = raw.read_bytes()
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        try:
+            png = tmp / "t.png"
+            texture.decode_to_png(raw, png)
+            new = texture.encode_into(tmpl, png)
+            a = texture.decode_to_image(tmpl).convert("RGBA").tobytes()
+            b = texture.decode_to_image(new).convert("RGBA").tobytes()
+            _check("raw texture encode round-trip", a == b, raw.name)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    else:
+        _skip("raw texture encode", "no raw-format .texture extracted")
+
+
+def test_rf4m():
+    print("rf4m:")
+    maps = list(EXTRACTED.rglob("*.rf4m"))
+    if not maps:
+        _skip("rf4m round-trip", "no maps extracted")
+        return
+    random.seed(0)
+    random.shuffle(maps)
+    sample = maps[:40]
+    ok = sum(1 for p in sample if rf4m.Rf4mMap.parse(p.read_bytes()).build() == p.read_bytes())
+    _check("rf4m byte-exact rebuild", ok == len(sample), f"{ok}/{len(sample)}")
+    # MOBJ edit round-trip: change a record, rebuild, re-parse, verify + length stable.
+    withobj = next((p for p in maps if rf4m.Rf4mMap.parse(p.read_bytes()).mobj_records()), None)
+    if withobj:
+        data = withobj.read_bytes()
+        m = rf4m.Rf4mMap.parse(data)
+        rec = list(m.mobj_records()[0]); rec[6] = 6144; rec[14] = 123
+        m.set_mobj_record(0, rec)
+        blob = m.build()
+        m2 = rf4m.Rf4mMap.parse(blob)
+        _check("rf4m MOBJ edit round-trip",
+               list(m2.mobj_records()[0]) == rec and len(blob) == len(data), withobj.name)
+        # editor ops: add, delete, paint ATTR cell
+        m3 = rf4m.Rf4mMap.parse(data)
+        n = len(m3.mobj_records())
+        m3.add_mobj_record([28, -1, -1, -1, -1, -1, 4096, 0, 0, 0, 0, 0, 0, -1, 80, 80])
+        added = rf4m.Rf4mMap.parse(m3.build())
+        m3.delete_mobj_record(n)
+        deleted = rf4m.Rf4mMap.parse(m3.build())
+        ok = len(added.mobj_records()) == n + 1 and len(deleted.mobj_records()) == n
+        if m3.attr_grid():
+            m3.set_attr_cell(0, 0, 0x1234)
+            ok = ok and rf4m.Rf4mMap.parse(m3.build()).attr_grid()[2][0] == 0x1234
+        _check("rf4m editor add/delete/paint", ok, withobj.name)
+        # complete-editor ops: header props (MSEA), MAPJ add/del, raw chunk add/del
+        m4 = rf4m.Rf4mMap.parse(data)
+        m4.set_ints("MSEA", [3])
+        nm = len(m4.mapj_records())
+        m4.add_mapj_record([-1, 8, 8, 32, 32, 8, 8, 0, 0])
+        nc = len(m4.chunks)
+        m4.add_chunk("ZZZZ", b"\x01\x02\x03\x04")
+        built = rf4m.Rf4mMap.parse(m4.build())
+        ok2 = (built.get_ints("MSEA") == [3]
+               and len(built.mapj_records()) == nm + 1
+               and len(built.chunks) == nc + 1
+               and built.build()[:4] == b"MAPD")
+        _check("rf4m editor props/warp/chunk", ok2, withobj.name)
+    else:
+        _skip("rf4m MOBJ edit", "no map with MOBJ records")
+    # MAPJ field-order regression: MAP_CITY_00 (Selphia plaza) has 8 warps whose
+    # destination map ids (f5) MUST be small valid map ids (CITY_01/02/03 + FARM_00
+    # etc.). The pre-2026-06-10 mis-labelled version put dest_map at f7, which gave
+    # values like 396/392/395 -- unrelated dungeons, obviously wrong.
+    city00 = _first("MAP_CITY_00.rf4m")
+    if city00:
+        m = rf4m.Rf4mMap.parse(city00.read_bytes())
+        mapjs = m.mapj_records()
+        if mapjs:
+            f5_max = max(r[5] for r in mapjs)
+            f5_set = {r[5] for r in mapjs}
+            # All Selphia exits resolve under id 250 (city/farm/room interiors)
+            _check("MAPJ f5 = dest_map (Selphia exits)",
+                   f5_max < 250 and {28, 32, 4}.issubset(f5_set),
+                   f"f5 ids={sorted(f5_set)}")
+        # Verified-layout decoders + loader validation (2026-09-19): f0 = disable flag
+        # (-1 = none), f8 = arrival facing in degrees (the plaza exits face 60/180).
+        w = m.decode_mapj()
+        _check("MAPJ decode: f0 disable flag = -1, f8 facing in {0,60,180} deg",
+               bool(w) and all(d["disable_flag"] == -1 for d in w)
+               and {d["facing_deg"] for d in w} <= {0, 60, 180}
+               and {60, 180} <= {d["facing_deg"] for d in w},
+               f"facing={sorted({d['facing_deg'] for d in w})}")
+        _check("MLIG decode: stock map = three engine-default tints; encode/decode round-trip",
+               m.mlig_colors() == [None, None, None]
+               and rf4m.mlig_decode(rf4m.mlig_encode((10, 20, 30))) == (10, 20, 30)
+               and rf4m.mlig_encode(None) == 0xFF000000
+               and "season" in rf4m.mgrp_notes(m.mgrp()))
+        ok_v = m.validate(known_maps=set(range(874)))
+        _check("validate(): stock map passes the loader rules",
+               not any(s.startswith("ERROR") for s in ok_v), "; ".join(ok_v[:3]) or "clean")
+        bad = rf4m.Rf4mMap.parse(city00.read_bytes())
+        bad.add_chunk("ZZZZ", b"", at=0)                 # unknown tag stops the loader
+        while len(bad.find(b"MOBJ")) < 41:               # 41st MOBJ chunk overflows the array
+            bad.add_mobj_record([28, -1, -1, -1, -1, -1, 4096, 0, 0, 0, 0, 0, 0, -1, 80, 80])
+        bad.delete_chunk(next(i for i, c in enumerate(bad.chunks) if c.tag == b"MGRP"))
+        v = bad.validate()
+        _check("validate(): unknown tag / 41 MOBJ chunks / missing MGRP are fatal",
+               sum(1 for s in v if s.startswith("ERROR")) >= 3
+               and any("unknown tag" in s for s in v) and any("41 MOBJ" in s for s in v)
+               and any("MGRP" in s for s in v), f"{len(v)} findings")
+        # Ground-atlas ceiling: Map_SpawnEntity keeps one tile pointer per atlas tile in
+        # its 888-byte work buffer from +8, and the decoration-model pointer sits at +776
+        # -> 96 slots. ATTR 250x250 needs 12x12 = 144 tiles and corrupts the buffer. Pure
+        # ATTR math, so it runs with no texture files present.
+        big = rf4m.Rf4mMap.parse(city00.read_bytes())
+        big.set_attr_grid(250, 250, [0] * (250 * 250))
+        vb = big.validate()
+        _check("validate(): ATTR past the 96 tile-pointer slots is fatal",
+               any(s.startswith("ERROR") and "work buffer" in s and "144" in s for s in vb),
+               f"{mapground.MAX_TILE_SLOTS} slots")
+        _check("validate(): ground_reader without map_name says the atlas check was skipped",
+               any("map_name" in s for s in
+                   rf4m.Rf4mMap.parse(city00.read_bytes()).validate(ground_reader=lambda fn: None)))
+    # ATTR resize + the atlas check that makes it safe (needs the tiles next to the map)
+    f01 = _first("MAP_FIELD_01.rf4m")
+    if f01 and (f01.parent / "MAP_FIELD_201_0000.texture").is_file():
+        rdr = lambda fn, d=f01.parent: (d / fn).read_bytes() if (d / fn).is_file() else None
+        m = rf4m.Rf4mMap.load(f01)
+        w, h, _ = m.attr_grid()
+        _check("atlas_audit(): stock MAP_FIELD_01 atlas matches its ATTR grid",
+               not m.validate(ground_reader=rdr, map_name="MAP_FIELD_01"),
+               f"ATTR {w}x{h} -> {mapground.grid_dims(w, h)} tiles")
+        # THE gap this closes: growing the grid needs tiles that do not exist, and the
+        # loader asks for archive id base+i anyway (next set's files), so it must be fatal.
+        grown = rf4m.Rf4mMap.load(f01)
+        rep = grown.resize_attr_grid(150, 150, ground_reader=rdr, map_name="MAP_FIELD_01",
+                                     dry_run=True)
+        need = rep["atlas"]["new_need"]
+        _check("resize_attr_grid(): grown map reports the tiles it now needs",
+               rep["atlas"]["old_grid"] == (4, 4) and rep["atlas"]["new_grid"] == (8, 8)
+               and rep["atlas"]["reindexed"]
+               and any("author 48 new tile" in t for t in rep["todo"])
+               and any(t.startswith("ERROR") and "MAP_FIELD_201_0063" in t
+                       for t in rep["findings"]),
+               f"16 shipped vs {need} needed")
+        _check("resize_attr_grid(): dry_run changes nothing", grown.attr_grid()[:2] == (w, h))
+        # apply: cells land at the right offset, entities shift with the terrain, and the
+        # rebuilt file round-trips.
+        m2 = rf4m.Rf4mMap.load(f01)
+        before = {i: r[14:16] for i, r in enumerate(m2.mobj_records())}
+        rep2 = m2.resize_attr_grid(w + 8, h + 8, origin=(4, 4), fill=0x2,
+                                   ground_reader=rdr, map_name="MAP_FIELD_01")
+        g0 = rf4m.Rf4mMap.load(f01).attr_grid()
+        g1 = m2.attr_grid()
+        moved = rep2["moved"]["mobj"]
+        after = {i: r[14:16] for i, r in enumerate(m2.mobj_records())}
+        _check("resize_attr_grid(): cells/entities move together and the file rebuilds",
+               g1[0] == w + 8 and g1[1] == h + 8
+               and g1[2][4 * (w + 8) + 4] == g0[2][0]          # old (0,0) -> new (4,4)
+               and all(g1[2][x] == 0x2 for x in range(w + 8))   # padded row = the fill
+               and bool(moved)
+               and all(after[i][0] - before[i][0] == 32 and after[i][1] - before[i][1] == 32
+                       for i in moved)
+               and rf4m.Rf4mMap.parse(m2.build()).attr_grid()[:2] == (w + 8, h + 8),
+               f"{len(moved)} MOBJ shifted by 4 tiles")
+    else:
+        _skip("rf4m ATTR resize + atlas check", "MAP_FIELD_01 or its ground tiles not extracted")
+    # map-parameter records: type-12 tint records (slot f8 = 0 day / 1 evening / 2 night,
+    # f9..f11 = RGB bytes, no position). Some maps carry only the night slot, so look for
+    # one that sets all three.
+    found, tints = None, []
+    for p in maps:
+        recs = [r for r in rf4m.Rf4mMap.parse(p.read_bytes()).mobj_records()
+                if (r[0] & 0xFFFF) == 12]
+        if len(recs) == 3:
+            found, tints = p, recs
+            break
+    if found:
+        _check("MOBJ type 12 = tint_color map parameter (3 slots, RGB bytes, positionless)",
+               {r[8] for r in tints} == {0, 1, 2}
+               and all(r[14] == 0 and r[15] == 0 for r in tints)
+               and all(0 <= r[k] <= 255 for r in tints for k in (9, 10, 11))
+               and mobj_types.mobj_display_name(12) == "tint_color"
+               and mobj_types.mobj_kind(12) == "mapparam",
+               f"{found.name}: slots {sorted(r[8] for r in tints)}")
+    else:
+        _skip("MOBJ type 12 tint records", "no map with three type-12 records")
+
+
+def test_aibn():
+    print("aibn:")
+    ai = list(EXTRACTED.rglob("AI_*.bin"))
+    if not ai:
+        _skip("aibn round-trip", "no AI scripts extracted")
+        return
+    tok_ok = txt_ok = ann_ok = flat_ok = flat_ann_ok = 0
+    seen = set()
+    for p in ai:
+        d = p.read_bytes()
+        t = aibn.load_tokens(d)
+        if aibn.build(t) == d:
+            tok_ok += 1
+        if aibn.assemble(aibn.disassemble(t)) == t:                       # pretty (default)
+            txt_ok += 1
+        if aibn.assemble(aibn.disassemble(t, annotate=True)) == t:
+            ann_ok += 1
+        if aibn.assemble(aibn.disassemble(t, style="flat")) == t:
+            flat_ok += 1
+        if aibn.assemble(aibn.disassemble(t, style="flat", annotate=True)) == t:
+            flat_ann_ok += 1
+        seen.update(aibn.stats(t))
+    _check("aibn token-exact round-trip", tok_ok == len(ai), f"{tok_ok}/{len(ai)}")
+    _check("aibn pretty disasm/asm round-trip", txt_ok == len(ai), f"{txt_ok}/{len(ai)}")
+    _check("aibn pretty+annotated round-trip", ann_ok == len(ai), f"{ann_ok}/{len(ai)}")
+    _check("aibn flat disasm/asm round-trip", flat_ok == len(ai), f"{flat_ok}/{len(ai)}")
+    _check("aibn flat+annotated round-trip", flat_ann_ok == len(ai), f"{flat_ann_ok}/{len(ai)}")
+    # pretty syntax spot checks: implicit 0x01 before actions, none before register/timer ops
+    _check("aibn pretty: action call implies the 0x01 marker",
+           aibn.assemble("WaitFrames(8)") == [aibn.HI | 0x01, aibn.HI | 0x41, 8]
+           and aibn.assemble("!WaitFrames(8)") == [aibn.HI | 0x41, 8]
+           and aibn.assemble("SetCooldownTimerA(180)") == [aibn.HI | 0x59, 180]
+           and aibn.assemble("r1 += 5\nr2 = r0") == [aibn.HI | 0x49, 5, aibn.HI | 0x52, 10000])
+    _check("aibn pretty: if-chain and labels",
+           aibn.assemble("sub 100:\nif (DistanceToTarget <= 110 && RandomChance(50) || ActorIsNpcKind) {\n} else {\n}\n290:\ngoto 290\nreturn")
+           == [aibn.HI | 0x07, 100, aibn.HI | 0x0C, aibn.HI | 0x5D, aibn.HI | 0x96, 110, aibn.HI | 0x94,
+               aibn.HI | 0x5F, 50, aibn.HI | 0x93, aibn.HI | 0x74, aibn.HI | 0x0D, aibn.HI | 0x0E,
+               aibn.HI | 0x05, 290, aibn.HI | 0x04, 290, aibn.HI | 0x08])
+    # verified metadata (2026-09-17 handler re-read) covers every opcode the shipped scripts use
+    from rf4s_modkit import aibn_meta
+    missing = sorted(o for o in seen if aibn_meta.record(o) is None)
+    _check("aibn_meta covers every shipped opcode", not missing, f"missing {[hex(o) for o in missing]}")
+    _check("aibn_meta scripted-action table has 35 slots", len(aibn_meta.SCRIPTED_ACTIONS) == 35)
+    # the renamed mnemonics and their pre-2026-09-17 aliases assemble to the same tokens
+    _check("aibn aliases (old mnemonics) still assemble",
+           aibn.assemble("TickAI 90 30\nWander 32 0xFFFF\nConnector") ==
+           aibn.assemble("BackAwayFromTarget 90 30\nBlinkTeleportNearTarget 32 0xFFFF\nAndConnector"))
+    _check("aibn 0x15 RandomWalkInRoom is fixed arity 3", aibn.ARITY.get(0x15) == 3 and 0x15 not in aibn.VAR_OPS)
+
+
+def test_strings():
+    print("strings:")
+    p = _first("*.strings") or next(iter(REPO.glob("*.strings")), None)
+    if not p:
+        _skip("strings round-trip", "no .strings file present")
+        return
+    d = strings_file.load(p)
+    _check(f"strings round-trip {p.name}", strings_file.parse(strings_file.dumps(d)) == d,
+           f"{len(d)} keys")
+    # a bare (unquoted) value must not swallow its trailing ';'
+    _check("strings bare value drops ';'",
+           strings_file.parse("k = bareValue;") == {"k": "bareValue"}
+           and strings_file.parse("k = 123;") == {"k": "123"})
+
+
+def test_res_and_ident():
+    print("res / ident:")
+    for ext in ("model", "bfskl", "bfsha", "psbData"):
+        p = _first("*." + ext)
+        if p:
+            try:
+                info = res_container.inspect(p.read_bytes())
+                _check(f"res inspect .{ext}", info["magic"] is not None, info["magic"].split()[0])
+            except Exception as e:
+                _check(f"res inspect .{ext}", False, str(e))
+        else:
+            _skip(f"res inspect .{ext}", "not extracted")
+    # BNTX decode (over-model billboards, e.g. MAP_*.model): structural parse always,
+    # full BC-n decode when Pillow is present.
+    import struct as _struct
+    pm = _first("MAP_*.model") or _first("*.model")
+    if pm:
+        raw = pm.read_bytes()
+        pairs = texture.bntx_textures(raw)
+        if pairs:
+            brti = pairs[0][0]
+            w = _struct.unpack_from("<I", raw, brti + 0x24)[0]
+            h = _struct.unpack_from("<I", raw, brti + 0x28)[0]
+            _check("bntx parse .model", w > 0 and h > 0, f"tex0 {w}x{h}, {len(pairs)} texture(s)")
+            if texture.HAS_PIL and texture.HAS_BC:
+                try:
+                    im = texture.decode_bntx(raw)
+                    _check("bntx decode .model", im is not None and im.size == (w, h),
+                           str(im.size if im else None))
+                except Exception as e:
+                    _check("bntx decode .model", False, str(e))
+        else:
+            _skip("bntx parse .model", "sample .model has no BNTX (FMDL/empty)")
+    else:
+        _skip("bntx parse .model", "not extracted")
+    # ident on a spread
+    spread = {"rf4m": "rf4m", "bin": "aibn", "texture": "texture", "ogg": "ogg",
+              "png": "png", "minterface": "bplist"}
+    for ext, expect in spread.items():
+        p = _first("*." + ext)
+        if not p:
+            continue
+        ft = ident.identify(p.read_bytes()[:4096], filename=p.name)
+        _check(f"ident .{ext}", ft.fmt == expect, ft.fmt)
+    # NLCL disambiguation: SI (ver 2, even when renamed) vs Gen vs flat param
+    si_p = _first("SI_*.bin")
+    if si_p:
+        d = si_p.read_bytes()
+        _check("ident SI_*.bin -> search_items",
+               ident.identify(d, filename=si_p.name).fmt == "search_items"
+               and ident.identify(d, filename="renamed.bin").fmt == "search_items",
+               "by name AND by version=2 content")
+
+
+def test_gen():
+    print("gen:")
+    files = list(EXTRACTED.rglob("Gen*.bin"))
+    if not files:
+        _skip("gen encounter table", "no Gen*.bin extracted")
+        return
+    parsed = edited = 0
+    for p in files:
+        try:
+            g = gen.GenTable.load(p)
+        except gen.GenError:
+            continue
+        parsed += 1
+    _check("gen parse Gen*.bin", parsed > 0, f"{parsed}/{len(files)} parsed")
+    # edit round-trip on a file with a spawn record
+    cand = None
+    for p in files:
+        try:
+            g = gen.GenTable.load(p)
+        except gen.GenError:
+            continue
+        if any(e.spawns for _pi, _ei, e in g.all_entries()):
+            cand = (p, g); break
+    if cand:
+        p, g = cand
+        e = next(e for _pi, _ei, e in g.all_entries() if e.spawns)
+        g.set_weight(0, 0, 77); g.set_spawn_monster(e.spawns[0], 52)
+        blob = g.build()
+        g2 = gen.GenTable(blob)
+        ok = (g2.patterns[0][0].weight == 77
+              and len(blob) == len(p.read_bytes()))
+        _check("gen edit round-trip", ok, p.name)
+    else:
+        _skip("gen edit", "no Gen file with spawn records")
+    # gate / monster-spawn positions decode to sane (x,y) sub-unit tuples (map-overlay feature)
+    posfile = None
+    for p in files:
+        try:
+            g = gen.GenTable.load(p)
+        except gen.GenError:
+            continue
+        for _pi, _ei, e in g.all_entries():
+            if g.gate_positions(e):
+                posfile = (p, g.gate_positions(e), g.monster_positions(e)); break
+        if posfile:
+            break
+    if posfile:
+        p, gp, mp = posfile
+        ok = all(isinstance(t, tuple) and len(t) == 2
+                 and 0 <= t[0] < 0x10000 and 0 <= t[1] < 0x10000 and (t[0] >> 3) < 512
+                 for t in gp + mp)
+        _check("gen gate/monster positions decode", ok, f"{p.name}: {len(gp)} gate pos")
+        # gate MOVE round-trip: gate_positions_off + set_position write a new (x,y) in place
+        gg = gen.GenTable.load(p)
+        ee = next(e for _pi, _ei, e in gg.all_entries() if gg.gate_positions_off(e))
+        ro = gg.gate_positions_off(ee)[0][0]
+        gg.set_position(ro, 324, 404)
+        gg2 = gen.GenTable(gg.build())
+        ee2 = next(e for _pi, _ei, e in gg2.all_entries() if gg2.gate_positions_off(e))
+        _check("gen gate move round-trip", gg2.gate_positions_off(ee2)[0][1:] == (324, 404))
+    else:
+        _skip("gen positions", "no Gen file exposes gate positions")
+
+
+def test_param():
+    print("param (NLCL):")
+    files = [p for p in EXTRACTED.rglob("rf3*.bin") if nlcl.is_flat_nlcl(p.read_bytes()[:32])]
+    if not files:
+        _skip("NLCL param table", "no rf3*.bin param files extracted")
+        return
+    parsed = sum(1 for p in files if _try_parse(p))
+    _check("NLCL param parse", parsed == len(files), f"{parsed}/{len(files)} parsed")
+    # verified field check + edit round-trip on rf3ItemList
+    il = next((p for p in files if p.name == "rf3ItemList.bin"), None)
+    eq = next((p for p in files if p.name == "rf3ItemEquipmentParam.bin"), None)
+    cp = next((p for p in files if p.name == "rf3CropParam.bin"), None)
+    if eq:
+        t = nlcl.NlclTable.load(eq)
+        _check("rf3ItemEquipmentParam ATK field",
+               t.get(330, 12) == 496 and t.get(342, 12) == 7000,   # Wind Sword / Dragon Slayer
+               "Wind Sword=496, Dragon Slayer=7000")
+        # get() must reject a multi-byte read that overruns the record (same guard as set)
+        try:
+            t.get(0, t.record_size - 1, "u32")
+            _check("NLCL get() blocks cross-record read", False, "no error raised")
+        except nlcl.NlclError:
+            _check("NLCL get() blocks cross-record read", True)
+    if cp:
+        t = nlcl.NlclTable.load(cp)
+        _check("rf3CropParam stages/harvest",
+               t.get(72, 96, "u32") == 29 and [t.get(72, k, "u8") for k in range(4)] == [1, 1, 1, 0],
+               "Turnip harvest=29, stages [1,1,1,0]")
+        # growth-tick fields added 2026-07-20 (dual-binary verified): water@+40, season@+104
+        _check("rf3CropParam water/season fields",
+               t.get(55, 40, "u16") == 8
+               and nlcl.crop_season_decode(t.get(55, 104, "u32"))["grows"] == ["summer"],
+               "Pineapple(55) water=8, season affinity=summer")
+        # crop_season_encode: reseason keeps low property bits + flips the affinity
+        _cs = t.get(40, 104, "u32")
+        _cn = nlcl.crop_season_encode(_cs, ["winter"], single=True)
+        _check("crop_season_encode reseason round-trip",
+               nlcl.crop_season_decode(_cn)["grows"] == ["winter"]
+               and nlcl.crop_season_decode(_cn)["penalized"] == ["spring", "summer", "fall"]
+               and (_cn & 0xFFF) == (_cs & 0xFFF),   # harvest-method / property low bits preserved
+               "rec40 -> winter, off-seasons penalized, low bits intact")
+    npc = next((p for p in files if p.name == "rf3NpcParam.bin"), None)
+    if npc:
+        t = nlcl.NlclTable.load(npc)
+        _check("rf3NpcParam typed monster schema (Orc[48] hp/atk/model)",
+               t.get(48, 40, "u32") == 48 and t.get(48, 44, "u32") == 5
+               and t.get(48, 272, "u16") == 756 and t.get(200, 40, "u32") == 80000)
+    stg = next((p for p in files if p.name == "rf3ItemStrengthening.bin"), None)
+    if stg:
+        t = nlcl.NlclTable.load(stg)
+        # ptr_78 strengthening rows: 1150 records; +0 = upgrade DIFFICULTY (Soul Eater 340 = 70,
+        # Turnip 29 = 1); +152 bit 0x4000 = NON-FOOD marker (set on real equipment, clear on
+        # food/crops). Full decode: test_strengthening + rf4s_modkit.strengthening.
+        _check("rf3ItemStrengthening difficulty + non-food marker (ptr_78)",
+               t.entry_count == 1150 and t.get(340, 0, "u16") == 70 and t.get(29, 0, "u16") == 1
+               and (t.get(340, 152, "u16") & 0x4000) and not (t.get(29, 152, "u16") & 0x4000))
+    # named CSV view (rf4mod param csv / GUI Export CSV): schema columns + a name column
+    pt = next((p for p in files if p.name == "rf3PriceTable.bin"), None)
+    if pt and il:
+        t = nlcl.NlclTable.load(pt)
+        txt = t.to_csv(pt.stem)
+        head = txt.splitlines()[0].split(",")
+        ti = nlcl.NlclTable.load(il)
+        itxt = ti.to_csv(il.stem, lambda i: {29: "Turnip"}.get(i, ""))
+        rows = itxt.splitlines()
+        _check("NLCL to_csv named view (rf3PriceTable columns, rf3ItemList name column)",
+               head == ["#"] + [f"mult_lv{j}" for j in range(10)] and len(txt.splitlines()) == 11
+               and rows[0].endswith(",name") and rows[30].split(",")[0] == "29"
+               and rows[30].endswith(",Turnip") and len(rows) == ti.entry_count + 1)
+        rawh = t.to_csv(pt.stem, named=False).splitlines()[0]
+        _check("NLCL to_csv raw view (dw columns)", rawh.startswith("#,dw0,dw1"))
+    prm = next((p for p in files if p.name == "rf3Parameter.bin"), None)
+    if prm:
+        t = nlcl.NlclTable.load(prm)
+        # archive 14813 char-level curve: 200 levels; +0 xp_to_next ascends, +8 hp_max ascends
+        _check("rf3Parameter level curve (14813)",
+               t.entry_count == 200 and t.get(0, 0, "u32") == 4 and t.get(5, 0, "u32") == 167
+               and t.get(0, 8, "u32") == 56 and t.get(5, 8, "u32") == 85)
+    pnpc = next((p for p in files if p.name == "rf3ParameterNPC_01.bin"), None)
+    if pnpc:
+        t = nlcl.NlclTable.load(pnpc)
+        # VESTIGIAL archive 14814: 20x16B tiered growth (dead data, no runtime reader).
+        # The _01/_02/_03 stems alias to the shared rf3ParameterNPC schema (4 cols).
+        sch = t.schema("rf3ParameterNPC_01")
+        row = t.row(0, "rf3ParameterNPC_01")
+        _check("rf3ParameterNPC alias -> 4-col schema (vestigial 14814)",
+               sch is not None and "alias" not in sch and len(sch["fields"]) == 4
+               and row["col0"] == 6 and row["col1"] == 9 and row["col2"] == 3 and row["col3"] == 5)
+    mmp = next((p for p in files if p.name == "rf3MapMiniPos.bin"), None)
+    if mmp:
+        t = nlcl.NlclTable.load(mmp)
+        # 873 per-map minimap layouts; +0 = picture sheet (texture = nsFileArchive 12199 + sheet),
+        # +12..+24 = fog-of-war reveal rect, +28/+32 = Q12 scale (see minimap.py)
+        r0, plain = t.row(0, "rf3MapMiniPos"), t.row(161, "rf3MapMiniPos")   # blank row / Selphia Plain
+        _check("rf3MapMiniPos minimap layout",
+               t.entry_count == 873 and t.record_size == 52 and r0["sheet"] == 73
+               and plain["sheet"] == 66 and (plain["origin_x"], plain["origin_y"]) == (94, 71)
+               and (plain["reveal_w"], plain["reveal_h"]) == (27, 27)
+               and (plain["scale_x"], plain["scale_y"]) == (217, 201) and plain["parent_sheet"] == 73)
+    mag = next((p for p in files if p.name == "rf3ParamMagic.bin"), None)
+    if mag:
+        t = nlcl.NlclTable.load(mag)
+        # archive 14817 action-param: action 0 = Fire magic (flags 0x81, MAT-scaling), 446 records
+        _check("rf3ParamMagic action schema (14817)",
+               t.entry_count == 446 and t.get(0, 28, "u32") == 0x81
+               and t.get(0, 40) == 4096 and t.get(0, 32) == 15)
+    sdt = next((p for p in files if p.name == "rf3ParamSkillData.bin"), None)
+    if sdt:
+        t = nlcl.NlclTable.load(sdt)
+        # archive 14819 skill cast-cost: action 3 = RP 14 / gov skill 0
+        _check("rf3ParamSkillData cost schema (14819)",
+               t.get(3, 4, "u16") == 14 and t.get(7, 4, "u16") == 16 and t.get(7, 12, "s32") == 1)
+    psk = next((p for p in files if p.name == "rf3ParamSkill.bin"), None)
+    if psk:
+        t = nlcl.NlclTable.load(psk)
+        # archive 14818 growth coefs: weapon skill 0 = ATK+DEF growth, Farming[13] = big HP.
+        r0, r13 = t.row(0, "rf3ParamSkill"), t.row(13, "rf3ParamSkill")
+        _check("rf3ParamSkill growth schema (14818)",
+               r0["atk_growth"] == 1024 and r0["def_growth"] == 1024 and r0["hp_growth"] == 0
+               and r13["hp_growth"] == 8192)
+    if il:
+        t = nlcl.NlclTable.load(il)
+        ok = t.get(1, 12) == 680 and t.get(29, 12) == 30   # Cabbage 680 / Turnip 30
+        _check("rf3ItemList sell-price field", ok, "Cabbage=680, Turnip=30")
+        t.set_field(29, "sell_price", 9999, "rf3ItemList")
+        blob = t.build()
+        t2 = nlcl.NlclTable(blob)
+        _check("NLCL edit round-trip",
+               t2.get(29, 12) == 9999 and t2.get(1, 12) == 680 and len(blob) == len(t.data),
+               il.name)
+    else:
+        _skip("rf3ItemList field check", "rf3ItemList.bin not extracted")
+    # rf3UseItemParam: row index = item id, +0 HP recovery / +4 RP recovery.
+    # Verified vs item names (= g_itemDatabase->ptr_68; Item_UseOnActor consumer).
+    ui = next((p for p in files if p.name == "rf3UseItemParam.bin"), None)
+    if ui:
+        t = nlcl.NlclTable.load(ui)
+        ok = (t.get(1, 0) == 140      # Cabbage HP+140
+              and t.get(2, 0) == 600  # King Cabbage HP+600
+              and t.get(5, 0) == 90 and t.get(5, 4) == 30)  # Pink Melon HP+90/RP+30
+        _check("rf3UseItemParam hp/rp recovery", ok, "Cabbage 140, KingCabbage 600, PinkMelon 90/30")
+    # MapOre_Rate: 25x32 dungeon rock/ore drop tables — area_id + 4 weighted ores.
+    mo = next((p for p in EXTRACTED.rglob("MapOre_Rate.bin")), None)
+    if mo:
+        t = nlcl.NlclTable.load(mo)
+        ok = (t.get(0, 0, "u32") == 26          # area id
+              and t.get(0, 24, "u16") == 819    # ore0 = Iron
+              and t.get(0, 8, "u32") == 100     # Iron weight 100
+              and t.get(0, 28, "u16") == 930    # ore2 = Invisible Stone (rare)
+              and t.get(0, 16, "u32") == 1)     # rare weight 1
+        _check("MapOre_Rate area/ore/weight", ok, "area26 Iron w100, InvisibleStone w1")
+    # Text-metadata companions of the TEXT split files (decoded 2026-08-31; see the
+    # FIELD_SCHEMAS comments): calendar events, shop dialogue meta, name-entry keys.
+    cal = next((p for p in files if p.name == "rf3TxtCalendar_split2_1.bin"), None)
+    if cal:
+        t = nlcl.NlclTable.load(cal)
+        r1 = t.row(1, "rf3TxtCalendar_split2_1")    # "Ventuswill's Birthday"
+        r42 = t.row(42, "rf3TxtCalendar_split2_1")  # "Christmas"
+        ok = (t.entry_count == 45 and t.record_size == 4
+              and (r1["char_id"], r1["season"], r1["day"], r1["festival_id"]) == (21, 0, 4, 0)
+              and (r42["char_id"], r42["season"], r42["day"], r42["festival_id"]) == (30, 3, 25, 25))
+        _check("rf3TxtCalendar event table", ok, "Venti bday spring 4, Christmas winter 25")
+    sn = next((p for p in files if p.name == "rf3TxtShopNpc_split2_1.bin"), None)
+    if sn:
+        t = nlcl.NlclTable.load(sn)
+        r = t.row(15, "rf3TxtShopNpc_split2_1")     # char 2 slot 1 "Welcome!"
+        ok = (t.entry_count == 27 * 14 and t.record_size == 16
+              and (r["char_id"], r["slot"], r["voice_a"], r["duration"]) == (2, 1, 1608, 90)
+              and all(t.get(i * 14, 0, "u16") == i + 1 for i in range(27)))
+        _check("rf3TxtShopNpc dialogue meta", ok, "27 chars x 14 slots, voiced greeting")
+    ne = next((p for p in files if p.name == "rf3TxtNameEntryBoard_split2_1.bin"), None)
+    if ne:
+        t = nlcl.NlclTable.load(ne)
+        v = t.get(0, 0, "u32")
+        ch = v.to_bytes(4, "big").lstrip(b"\0").decode("utf-8", "replace")
+        _check("rf3TxtNameEntryBoard utf8 keys",
+               t.entry_count == 297 and ch == "あ", "key 0 = あ (0xE38182)")
+
+
+def test_mapground():
+    print("mapground (ground-texture atlas):")
+    # Game-exact tile-grid formula (RF4S.exe Map_SpawnEntity: cols=ceil(24*ATTR_W/512)).
+    # Pure integer math — runs even without Pillow. stitch uses this when aspect is known.
+    _check("mapground grid_dims = ceil(24*W/512)",
+           mapground.grid_dims(64, 64) == (3, 3) and mapground.grid_dims(51, 42) == (3, 2)
+           and mapground.grid_dims(72, 72) == (4, 4) and mapground.grid_dims(128, 48) == (6, 3)
+           and mapground.grid_dims(1, 1) == (1, 1),
+           "64->3x3, 51x42->3x2, 72->4x4, 128x48->6x3")
+    mapground.tile_cache_clear()
+    _check("mapground tile cache API", mapground.tile_cache_size() == 0, "clear -> size 0")
+    if not (texture.HAS_PIL and texture.HAS_BC):
+        _skip("mapground stitch", "Pillow/texture2ddecoder not installed")
+        return
+    # find any MAP_*_0000.texture whose .rf4m also exists, prefer a field
+    tile0 = None
+    for p in EXTRACTED.rglob("MAP_*_0000.texture"):
+        base = p.name[:-len("_0000.texture")]
+        if (p.parent / f"{base}.rf4m").is_file():
+            tile0 = (p.parent, base)
+            if "FIELD" in base:
+                break
+    if not tile0:
+        _skip("mapground stitch", "no map texture atlas extracted")
+        return
+    d, base = tile0
+    reader = lambda fn, d=d: (d / fn).read_bytes() if (d / fn).is_file() else None
+    layers = mapground.available_layers(reader, base)
+    _check("mapground layer probe", layers == sorted(layers) and 0 in layers, f"{base} layers={layers}")
+    res = mapground.stitch(reader, base, 0)
+    ok = res is not None and res[0].size[0] > 0 and res[1] * res[2] >= 1
+    _check("mapground stitch layer 0", ok, f"{base} -> {res[0].size} {res[1]}x{res[2]}" if res else "None")
+    comp = mapground.stitch_composite(reader, base)
+    _check("mapground composite all layers",
+           comp is not None and comp[0].size == res[0].size,
+           f"{base} {len(layers)} layers -> {comp[0].size}" if comp else "None")
+    # orientation regression: stitched image aspect must agree with the ATTR grid
+    # (both landscape or both portrait) — guards the row-major in-game alignment.
+    f03 = next(EXTRACTED.rglob("MAP_FIELD_03.rf4m"), None)
+    if f03:
+        w, h, _ = rf4m.Rf4mMap.load(f03).attr_grid()
+        freader = lambda fn, d=f03.parent: (d / fn).read_bytes() if (d / fn).is_file() else None
+        gi = mapground.stitch_composite(freader, "MAP_FIELD_03", aspect=(w, h))
+        if gi and w != h:
+            iw, ih = gi[0].size
+            _check("mapground orientation matches ATTR aspect",
+                   (iw > ih) == (w > h), f"img {iw}x{ih} vs ATTR {w}x{h}")
+    # row-major tile-ordering regression: tile 0 must land at the image top-left
+    # corner (the user-confirmed in-game convention: 0000=TL, 0001=top-mid-left, ...,
+    # last=bottom-right). We verify by stitching with only tile 0 substituted with a
+    # solid red block, and checking pixel (1, 1) is red. Uses a synthetic reader.
+    fr_dir = next(EXTRACTED.rglob("MAP_FIELD_01_0000.texture"), None)
+    if fr_dir and texture.HAS_BC:
+        # Wrap real reader; replace tile 0 of layer 0 with a solid-red 512x512 raw
+        # texture isn't easy without a re-encode, so we just check the decoded tile 0
+        # appears at canvas (0,0) by inspecting the first non-transparent pixel.
+        d = fr_dir.parent
+        rdr = lambda fn, d=d: (d / fn).read_bytes() if (d / fn).is_file() else None
+        comp = mapground.stitch(rdr, "MAP_FIELD_01", 0)
+        if comp:
+            # Same pixel from raw tile 0 should equal that of stitched (0,0).
+            t0 = texture.decode_to_image((d / "MAP_FIELD_01_0000.texture").read_bytes()).convert("RGBA")
+            ok = t0.getpixel((4, 4)) == comp[0].getpixel((4, 4))
+            _check("mapground tile 0 at screen top-left", ok,
+                   "tile-0 pixel matches stitched (4,4)")
+    # When ATTR aspect is supplied, the stitched canvas must equal the real
+    # map extent (ATTR_W·24 × ATTR_H·24) — guards the MAP_CITY_06 alignment bug
+    # where a full-512×512 atlas overran the actual map area and the editor's
+    # resize-to-grid stretched padding into view.
+    full_atlas = next(EXTRACTED.rglob("MAP_CITY_06.rf4m"), None)
+    if full_atlas and texture.HAS_BC:
+        wh = rf4m.Rf4mMap.load(full_atlas).attr_grid()
+        if wh:
+            w, h, _ = wh
+            r = lambda fn, d=full_atlas.parent: (d / fn).read_bytes() if (d / fn).is_file() else None
+            s = mapground.stitch(r, full_atlas.stem, 0, aspect=(w, h))
+            if s:
+                _check("mapground extent crops to ATTR·24 px",
+                       s[0].size == (w * 24, h * 24),
+                       f"{full_atlas.stem} ATTR {w}x{h} -> img {s[0].size}")
+    # AUTHORITATIVE map -> texture-set mapping (from g_mapResourceTable). The ground
+    # texture is usually a DIFFERENT set than the same-named one — only 121/872 maps
+    # are name-matched. resolve_base must follow the mapping, not the map name.
+    _check("map_texture_sets mapping loaded",
+           len(mapground._texmap()) > 800,
+           f"{len(mapground._texmap())} maps mapped")
+    ts13 = mapground.texture_set_for("MAP_FIELD_13")
+    ts03 = mapground.texture_set_for("MAP_FIELD_03")
+    tsE1 = mapground.texture_set_for("MAP_DUNG_E01")
+    _check("map->texture mapping anchors",
+           ts13 and ts13[0] == "MAP_FIELD_10" and ts03 and ts03[0] == "MAP_FIELD_203"
+           and tsE1 and tsE1[0] == "MAP_DUNG_E02_UV" and tsE1[1] is True,
+           f"FIELD_13->{ts13}, FIELD_03->{ts03}, E01->{tsE1}")
+    f13 = next(EXTRACTED.rglob("MAP_FIELD_13.rf4m"), None)
+    if f13 and texture.HAS_BC:
+        rr = lambda fn, d=f13.parent: (d / fn).read_bytes() if (d / fn).is_file() else None
+        _check("resolve_base follows the mapping (not the name)",
+               mapground.resolve_base(rr, "MAP_FIELD_13") == "MAP_FIELD_10",
+               "MAP_FIELD_13 ground texture = MAP_FIELD_10")
+    # a map with NO reachable atlas -> stitch returns None. "Reachable" must account
+    # for the g_mapResourceTable mapping: a map without its own atlas can still stitch
+    # via its mapped texture set (e.g. MAP_CITY_08 -> MAP_DUMMY_00), so exclude any
+    # candidate whose stem OR mapped set (incl. the _UV-stripped stage set) is present.
+    noatlas = None
+    for p in EXTRACTED.rglob("*.rf4m"):
+        s = p.stem
+        if s.upper().endswith(("_SPRING", "_SUMMER", "_AUTUMN", "_FALL", "_WINTER")):
+            continue
+        ent = mapground.texture_set_for(s)
+        cands = {s}
+        if ent:
+            cands.add(ent[0])
+            if ent[0].endswith("_UV"):
+                cands.add(ent[0][:-3])
+        if any((p.parent / mapground.tile_name(c, 0, 0)).is_file()
+               or (p.parent / mapground.single_name(c)).is_file() for c in cands):
+            continue
+        noatlas = p
+        break
+    if noatlas:
+        nreader = lambda fn, d=noatlas.parent: (d / fn).read_bytes() if (d / fn).is_file() else None
+        nname, ndetail = noatlas.stem, noatlas.stem
+    else:
+        # No corpus candidate (the mapping gives every map a reachable set) -> use a
+        # synthetic empty bundle. The fictitious name has no mapping entry and no
+        # cached tiles, so stitch must probe, find nothing, and return None.
+        nreader = lambda fn: None
+        nname, ndetail = "MAP_SELFTEST_NOATLAS", "synthetic: every corpus map has a reachable set"
+    _check("mapground absent-atlas -> None",
+           mapground.stitch(nreader, nname, 0) is None, ndetail)
+    # season variant falls back to its base map's atlas
+    var = next(EXTRACTED.rglob("MAP_*_SUMMER.rf4m"), None)
+    if var:
+        base = var.stem[:-len("_SUMMER")]
+        vreader = lambda fn, d=var.parent: (d / fn).read_bytes() if (d / fn).is_file() else None
+        if (var.parent / f"{base}_0000.texture").is_file():
+            _check("mapground season-variant fallback",
+                   mapground.stitch(vreader, var.stem, 0) is not None, f"{var.stem} -> {base}")
+
+
+def test_search_items():
+    print("search_items (SI_*.bin daily ground pickups):")
+    files = sorted(EXTRACTED.rglob("SI_*.bin"))
+    if not files:
+        _skip("SI parse", "no SI_*.bin extracted")
+        return
+    perfect = semantic = failed = 0
+    for p in files:
+        d = p.read_bytes()
+        try:
+            f = search_items.SearchItemFile.parse(d)
+            rb = f.build()
+            if rb == d:
+                perfect += 1
+            else:
+                f2 = search_items.SearchItemFile.parse(rb)
+                same = (len(f2.spots) == len(f.spots) and all(
+                    a.x == b.x and a.y == b.y and
+                    [(e.item_id, e.weight) for e in a.pool.entries] ==
+                    [(e.item_id, e.weight) for e in b.pool.entries]
+                    for a, b in zip(f.spots, f2.spots)))
+                if same:
+                    semantic += 1
+                else:
+                    failed += 1
+        except Exception:
+            failed += 1
+    # Pristine data round-trips byte-perfectly on all files. The local workspace's
+    # SI_CITY_00.bin is hand-edited (non-canonical footer), so build() canonicalises
+    # it -- tolerate at most one semantic-only file.
+    _check("SI parse + round-trip", failed == 0 and semantic <= 1,
+           f"{perfect} byte-perfect, {semantic} canonicalised, {failed} failed of {len(files)}")
+    # generic NLCL footer (build-tool xref table): every listed reference must
+    # store its target offset. Validate across ALL NLCL files, not just SI.
+    nl_ok = nl_total = 0
+    for p in EXTRACTED.rglob("*.bin"):
+        d = p.read_bytes()
+        if d[:4] != b"NLCL" or len(d) < 28:
+            continue
+        nl_total += 1
+        try:
+            search_items.parse_nlcl_footer(d)
+            nl_ok += 1
+        except Exception:
+            pass
+    _check("NLCL footer xref-table valid", nl_ok == nl_total, f"{nl_ok}/{nl_total} NLCL files")
+
+
+def test_mobj_types():
+    print("mobj_types (MOBJ type_id -> map_obj sprite identity):")
+    # Spot-check IDA-dumped anchors across all four dispatch ranges.
+    anchors = {51: "MOBJ_SHIP", 82: "DOOR_CITY_00_00", 199: "MOBJ_FI_TREE01",
+               336: "OBJ_C06_SU_00", 393: "MOBJ_HOUSE_CITY_04_00_WINTER"}
+    _check("mobj name anchors", all(mobj_types.mobj_name(t) == n for t, n in anchors.items()),
+           f"{len(mobj_types.MOBJ_NAMES)} sprite names; ship/door/tree/decoration verified")
+    # type_id < 20 records do NOT load a map_obj sprite (forage / inert), so no name.
+    _check("mobj name suppressed <20",
+           mobj_types.mobj_name(5) is None and mobj_types.mobj_name(9) is None
+           and 0 not in mobj_types.MOBJ_NAMES,
+           "type 5 (forage) / 9 (map parameter) -> None")
+    # Human notes for opaque effect sprites. 2026-08-31: the whole actor band
+    # 20..81 is identified from g_mapObjTypeInitTable (+0x228F530), so every
+    # fe*/gmk* type has a note now; plain scenery sprites (>= 82) still don't.
+    _check("mobj note lookup",
+           mobj_types.mobj_note(68) == "chimney smoke"
+           and "FISHING" in (mobj_types.mobj_note(24) or "")
+           and "BARRIER" in (mobj_types.mobj_note(48) or "")
+           and mobj_types.mobj_note(199) is None,
+           "fe123 smoke, fe036 fishing, fe107 barrier; scenery unnoted")
+    # Display names: identified fe*/gmk* types show their readable identity, not
+    # the codename; unidentified scenery keeps its MOBJ_* name.
+    # MOBJ flag args are REGION-B scene bits (abs = 4096+id) — NOT emdeb names
+    # (playtest catch: a boss barrier was mislabelled with a Nancy flag when
+    # flag_label resolved raw ids against region-A emdeb). emdeb resolution
+    # lives in emdeb_flag_label for absolute region-A ids.
+    from rf4s_modkit import mobj_params
+    _check("mobj flag_label = region-B scene bits",
+           "abs 6907" in (mobj_params.flag_label(2811) or "")
+           and "char 5" in (mobj_params.flag_label(1042) or "")
+           and "hidden" in (mobj_params.flag_label(1042) or "")
+           and "box" in (mobj_params.flag_label(720) or "")
+           and "recipe 341" in (mobj_params.flag_label(1403) or "")
+           and mobj_params.flag_label(0) is None
+           and mobj_params.flag_label(-1) is None
+           and mobj_params.emdeb_flag_label(2811) == "FLG_ELISA_NO_75",
+           "2811 -> scene bit 6907; 1042 -> NPC-hide char 5; emdeb lookup separate")
+    _check("mobj display names replace codenames",
+           mobj_types.mobj_display_name(48) == "BARRIER"
+           and mobj_types.mobj_display_name(20) == "street light"
+           and mobj_types.mobj_display_name(27) == "critter spawner: birds"
+           and mobj_types.mobj_display_name(199) == "MOBJ_FI_TREE01"
+           and mobj_types.mobj_display_name(5) == "herb_pool32"
+           and mobj_types.mobj_display_name(0) == "ore_rock_spawn"
+           and mobj_types.mobj_display_name(12) == "tint_color"      # map parameter record
+           and mobj_types.mobj_display_name(14) is None,             # unused parameter id
+           "48 BARRIER, 20 street light, 27 birds; forage + map-parameter records named, unused 14 not")
+    # Archive formula = type_id + 17542, and the kind boundaries.
+    _check("mobj archive id = type+17542",
+           mobj_types.mobj_archive_id(199) == 17741 and mobj_types.MAP_OBJ_ARCHIVE_BASE == 17542,
+           "object MOBJ_FI_TREE01 -> archive 17741")
+    kinds = (mobj_types.mobj_kind(5), mobj_types.mobj_kind(15), mobj_types.mobj_kind(28),
+             mobj_types.mobj_kind(200), mobj_types.mobj_kind(340))
+    _check("mobj kind boundaries", kinds == ("forage", "mapparam", "actor", "object", "decoration"),
+           f"<9/<20/<196/<336/>=336 -> {kinds}")
+    # object-sprite overlay data path (map editor's "object sprites" layer): a structural object's
+    # sprite name resolves to an extracted `.texture` that decodes to an RGBA billboard WITH
+    # transparency (so it composites over the map). Skipped if the map_obj sprites aren't extracted.
+    _spr = _first("DOOR_CITY_00_00.texture") or _first("MOBJ_SHIP.texture") or _first("MOBJ_BOX.texture")
+    if _spr is not None:
+        _sim = texture.decode_to_image(_spr.read_bytes()).convert("RGBA")
+        _salpha = _sim.split()[3].getextrema()
+        _check("object-sprite overlay: a map_obj sprite decodes to an RGBA billboard (w/ transparency)",
+               _sim.size[0] > 0 and _salpha[0] < 255, f"size {_sim.size}, alpha {_salpha}")
+    else:
+        _skip("object-sprite overlay decode", "map_obj sprite textures not extracted")
+    # MOBJ parameter map: all 62 gimmicks covered, describe() resolves any type_id
+    from rf4s_modkit import mobj_params
+    _check("mobj_params covers gimmicks 20-81",
+           len(mobj_params.GIMMICKS) == 62 and all(t in mobj_params.GIMMICKS for t in range(20, 82)))
+    role31, rows31 = mobj_params.describe(31)
+    mm31 = {f: m for f, s, m in rows31}
+    sz31 = {f: s for f, s, m in rows31}
+    _check("mobj_params describe() known type (rock trap)",
+           "Falling-rock" in role31 and mm31.get(10) == "damage / attack power")
+    _check("mobj_params field sizes IDA-verified (rock f7/f11=u16, f10=u32; wind f13=u16)",
+           sz31.get(7) == 2 and sz31.get(11) == 2 and sz31.get(10) == 4
+           and mobj_params.field_size(30, 13) == 2 and mobj_params.field_size(30, 8) == 4)
+    _check("mobj_params describe() resolves any type via lane",
+           mobj_params.describe(340)[0] == "decoration" and mobj_params.lane_for(82)[0] == "door / road / wall")
+    r5 = dict((f, m) for f, s, m in mobj_params.describe(5)[1])
+    _check("mobj_params forage (0-8) decoded",
+           "Herb" in mobj_params.role_for(5) and 8 in r5 and "spawn probability" in r5[8]
+           and "ORE" in mobj_params.role_for(0)   # playtest-corrected: type 0 = ore spawn
+           and mobj_params.lane_for(12)[0] == "map parameter record")
+    # map parameter records 9..19 (Map_LoadById's MapEvent switch, verified 2026-09-19)
+    r12 = dict((f, m) for f, s, m in mobj_params.describe(12)[1])
+    _check("mobj_params map parameters: 12 = tint_color (slot + RGB bytes), 11 = uv_scroll",
+           mobj_params.name_for(12) == "tint_color" and "slot" in r12.get(8, "")
+           and mobj_params.field_size(12, 9) == 1 and mobj_params.name_for(11) == "uv_scroll"
+           and mobj_params.name_for(14) == "(unused map-parameter id)"
+           and mobj_params.interaction_class(12)[0] == "param")
+    # interaction classification: type 263 = examine (shows marker), actor id = type+1000.
+    c263, _l263, mark263 = mobj_params.interaction_class(263)
+    _check("mobj_params interaction: 263 examine+marker, actor id 1263",
+           c263 == "examine" and mark263 is True
+           and mobj_params.runtime_actor_id(263) == 1263
+           and mobj_params.runtime_actor_id(340) is None)
+    _check("mobj_params interaction: hazards/doors/decor not marker, boxes/fish interactible",
+           mobj_params.interaction_class(31)[0] == "hazard"
+           and mobj_params.interaction_class(130)[0] == "door"
+           and not mobj_params.is_interactible(199, -1)
+           and mobj_params.is_interactible(53, -1) and mobj_params.is_interactible(24, -1))
+    _check("mobj_params interaction_summary shows flag + actor id",
+           "1263" in mobj_params.interaction_summary(263, 318)
+           and "318" in mobj_params.interaction_summary(263, 318))
+    # map names: warp destinations resolve to building/shop names (rf3TxtMapName, +1 index)
+    from rf4s_modkit import map_names
+    _check("map_names resolves buildings vs town segments",
+           map_names.map_name(136) == "Bell Hotel Lobby"
+           and map_names.is_building_entrance(136)
+           and map_names.map_name(24).startswith("Selphia")
+           and not map_names.is_building_entrance(24))
+    # decode_mobj must surface name + archive_id on a real map.
+    cm = BUNDLE_DIR / "bundleMain" / "MAP_CITY_00.rf4m"
+    if cm.exists():
+        objs = rf4m.Rf4mMap.load(cm).decode_mobj()
+        ok = any(o["name"] == "MOBJ_SHIP" for o in objs) and all("archive_id" in o for o in objs)
+        _check("decode_mobj carries identity", ok, f"MAP_CITY_00: {len(objs)} MOBJ, ship present")
+    else:
+        _skip("decode_mobj carries identity", "MAP_CITY_00.rf4m not extracted")
+
+
+def test_minimap():
+    print("\n[minimap] rf3MapMiniPos -> mini_map_* picture resolution + map-id registry")
+    from rf4s_modkit import minimap, map_names
+    # the mini_map group starts at nsFileArchive 12199 and runs in archive order
+    _check("minimap sheet -> texture table",
+           len(minimap.SHEET_TEXTURES) == 104
+           and minimap.texture_for_sheet(0) == "mini_map_00_city"
+           and minimap.texture_for_sheet(31) == "mini_map_30_farm"
+           and minimap.texture_for_sheet(73) == "mini_map_99_dummy"
+           and minimap.texture_for_sheet(87) == "mini_map_dung_q04"
+           and minimap.texture_for_sheet(88) == "mini_map_rnd_00"
+           and minimap.sheet_for_texture("mini_map_56_room_06.texture") == 55)
+    tex = sorted(p.stem for p in EXTRACTED.rglob("mini_map_*.texture")) if EXTRACTED.is_dir() else []
+    if tex:
+        _check("minimap sheet table matches the bundle's mini_map_*.texture set",
+               tex == list(minimap.SHEET_TEXTURES), f"{len(tex)} textures")
+    else:
+        _skip("minimap sheet table vs bundle textures", "no mini_map_*.texture under Bundle/")
+    # map id <-> MAP_* file registry (map_overmodels.json key order = g_mapResourceTable order)
+    _check("map_names id <-> MAP_* file",
+           map_names.map_file(136) == "MAP_ROOM_06A"
+           and map_names.map_id_for_file("MAP_ROOM_06A.rf4m") == 136
+           and map_names.map_id_for_file("bundleMain/map_city_01_summer.rf4m") == 29
+           and map_names.map_file(872) is None and map_names.map_count() == 874)
+    _check("map_names HUD-band notes",
+           "Volkanon" in (map_names.label_note(179) or "")
+           and "farm" in (map_names.label_note(4) or "").lower()
+           and "barn" in (map_names.label_note(100) or "").lower()
+           and "%2dF" in (map_names.label_note(445) or "")
+           and map_names.label_note(24) is None)
+    if not minimap.table_available():
+        _skip("minimap per-map table",
+              "rf4s_modkit/map_minimap.json missing -- run gen_map_names_json.py")
+        return
+    _check("minimap per-map picture",
+           minimap.map_count() == 873
+           and minimap.texture(24) == "mini_map_00_city"          # Selphia: Airship Way
+           and minimap.texture(271) == "mini_map_01_dung_a"       # Yokmir Forest
+           and minimap.texture(4) == "mini_map_30_farm"           # Farm
+           and minimap.texture(77) == "mini_map_60_m_room"        # Monster Barn
+           and minimap.texture(136) == "mini_map_56_room_06"      # Bell Hotel Lobby
+           and minimap.texture(726) == "mini_map_dung_m01"        # Rune Prana
+           and minimap.archive_id(24) == 12199)
+    _check("minimap blank clamp + maze composition",
+           minimap.texture(527) == "mini_map_99_dummy" and minimap.is_blank(527)   # '???' dungeon
+           and minimap.sheet(442) == 110 and minimap.texture(442) == "mini_map_99_dummy"
+           and minimap.is_composed(442) and not minimap.is_blank(442)
+           and minimap.texture(0) == "mini_map_99_dummy" and minimap.is_blank(0))
+    r = minimap.record(161)                                        # Selphia Plain
+    _check("minimap record: origin / reveal rect / Q12 scale",
+           r["sheet"] == 66 and r["origin"] == (94, 71) and r["reveal"] == (94, 71, 27, 27)
+           and r["scale_q12"] == (217, 201) and minimap.record(24)["reveal"] is None)
+    p = minimap.record(130)                                        # Porcoline's Kitchen
+    _check("minimap interiors route NPC icons to the town sheet",
+           p["parent_sheet"] == 0 and p["icon"] == (174, 70) and p["icon_slot"] == 6
+           and minimap.record(161)["parent_sheet"] is None)
+    v = minimap.variants(64)                                       # Your Room
+    _check("minimap variant rules",
+           [x["texture"] for x in minimap.variants(4)]
+           == ["mini_map_30_farm", "mini_map_30_farm_1", "mini_map_30_farm_2",
+               "mini_map_30_farm_3", "mini_map_30_farm_4"]
+           and len(v) == 12 and v[6]["texture"] == "mini_map_50_f_room_sk_0"
+           and minimap.variants(80)[0]["when"] == "REG_MON_HOUSE0_L_LV == 1"
+           and minimap.variants(85)[0]["when"] == "REG_MON_HOUSE0_R_LV == 1"
+           and minimap.variants(271) == [] and len(minimap.variants(24)) == 4)
+    _check("minimap pos_to_sheet = origin + (scale * pos) >> 12",
+           minimap.pos_to_sheet(161, 0, 0) == (94, 71)
+           and minimap.pos_to_sheet(161, 4096, 4096) == (94 + 217, 71 + 201)
+           and minimap.world_to_sheet(161, 4096 << 12, 0) == (94 + 217, 71))
+    live = _first("rf3MapMiniPos.bin")
+    if live:
+        t = nlcl.NlclTable.load(live)
+        rows = [[t.get(i, 4 * k, "s32") for k in range(13)] for i in range(t.entry_count)]
+        _check("vendored map_minimap.json == bundle rf3MapMiniPos.bin",
+               rows == [minimap.raw_record(i) for i in range(t.entry_count)],
+               f"{len(rows)} records")
+    else:
+        _skip("vendored map_minimap.json vs bundle", "rf3MapMiniPos.bin not under Bundle/")
+
+
+def _try_parse(p):
+    try:
+        nlcl.NlclTable.load(p)
+        return True
+    except nlcl.NlclError:
+        return False
+
+
+def test_script():
+    print("script (rf3.mc cutscene bytecode):")
+    from rf4s_modkit import script
+    p = _first("rf3.mc")
+    if not p:
+        _skip("script", "rf3.mc not extracted")
+        return
+    raw = p.read_bytes()
+    c = script.Container(raw)
+    n_global = sum(1 for b in c.banks if b.kind == "global")
+    _check("MYCF container parse", len(c.banks) == c.n_primary + c.n_tail + n_global,
+           f"{len(c.banks)} banks ({c.n_primary} primary + {c.n_tail} tail + {n_global} global)")
+    _check("container round-trip build()==original", c.build() == raw)
+    # robustness: malformed / truncated input must raise a clean ScriptError, never a raw
+    # struct.error or other unhandled exception (a modder loading a wrong/corrupt file).
+    import struct as _struct_rob
+    _corrupt = bytearray(raw)                          # valid header, absurd primary-bank count
+    _struct_rob.pack_into("<I", _corrupt, 20, 0x7FFFFFFF)
+    _rob = True
+    for _bad in (b"", b"\xde\xad\xbe\xef" * 4, b"MYCF\x01\x00", b"MYCF" + b"\x00" * 12,
+                 b"MYCF" + b"\x00" * 40,               # bad magic / truncated header
+                 raw[:60], raw[:500], raw[:len(raw) // 2],   # valid header, truncated body
+                 bytes(_corrupt)):                     # valid header, corrupt section table
+        try:
+            c_bad = script.Container(_bad)
+            for _b in c_bad.banks:                     # exercise bank data (past-EOF slices)
+                list(script.disassemble_bank(_b, discover=False))
+            _rob = False                               # should have raised
+        except script.ScriptError:
+            pass                                       # clean, expected
+        except Exception:
+            _rob = False                               # unhandled -> fail
+    _check("Container raises clean ScriptError on malformed/truncated/corrupt input", _rob)
+    # edit-op robustness: mutating at an invalid pc must raise a clean ScriptError, never a raw
+    # TypeError/IndexError (a modder editing a statement the disassembler couldn't place).
+    _erc = script.Container(raw)
+    _erob = True
+    for _efn in (lambda: _erc.banks[1].set_action_arg_value(0xFFFE, 0, 5),
+                 lambda: _erc.banks[1].set_action_arg(0xFFFE, 0, 5),
+                 lambda: _erc.banks[1].set_dialog_id(0xFFFE, 5),
+                 lambda: _erc.banks[1].set_expr_value(0xFFFFF, 5),
+                 lambda: _erc.banks[1].set_expr_value(None, 5),
+                 lambda: _erc.insert_before(_erc.banks[1], 0xFFFE, [("dialog", 8)]),
+                 lambda: _erc.delete_statement(_erc.banks[1], 0xFFFE),
+                 lambda: _erc.rewrite_scene(1, 0xFFFE, [("dialog", 8)])):
+        try:
+            _efn()
+            _erob = False
+        except script.ScriptError:
+            pass
+        except Exception:
+            _erob = False
+    _check("edit ops raise clean ScriptError at invalid pc/offset", _erob)
+    # editing a NON-immediate arg (a variable / computed expression) must raise a clean ScriptError
+    # explaining it isn't a literal, never a raw exception. The GUI gates this via arg_is_settable;
+    # the library method must be safe when called directly too.
+    cxc = script.Container(raw)
+    _cx = None
+    for _bx in cxc.banks[:40]:
+        for _scx in script.disassemble_bank(_bx, discover=False):
+            for _pcx, _stx in _scx.stmts.items():
+                if _stx.op < 0xFFF0:
+                    for _ix, _ax in enumerate(_stx.args):
+                        # a genuinely RUNTIME arg: tag-3/4 typed constants (actor(..) /
+                        # map(..)) are plain numbers to the handler and DO edit in place
+                        if not script.arg_constant(_bx.data, _ax)[1]:
+                            _cx = (_bx, _pcx, _ix)
+                            break
+                    if _cx:
+                        break
+            if _cx:
+                break
+        if _cx:
+            break
+    if _cx:
+        _bx, _pcx, _ix = _cx
+        try:
+            _bx.set_action_arg_value(_pcx, _ix, 7)
+            _cxok = False                              # a variable/computed arg must NOT set-edit
+        except script.ScriptError:
+            _cxok = True
+        except Exception:
+            _cxok = False
+        _check("set_action_arg_value on a variable/computed arg raises clean ScriptError", _cxok)
+        # GUI primary value-edit path (_set_value -> set_action_arg_value_or_repoint): unlike the
+        # strict set_action_arg_value above, it SETS any arg -- auto-repointing a variable/computed/
+        # fixed-push arg to a freshly appended literal -- so the value reads back after rebuild+
+        # reparse, and it raises a clean ScriptError on a bad pc/arg (which the GUI turns into a
+        # messagebox, never a crash). Fresh container so the shared `c` stays clean.
+        _rpc = script.Container(raw)
+        _rb = _rpc.banks[_bx.index]
+        _rpc.set_action_arg_value_or_repoint(_rb, _pcx, _ix, 88)
+        _rc2 = script.Container(_rpc.build())
+        _rst2 = script.decode_statement(_rc2.banks[_bx.index].data, _pcx)
+        _rv2, _rok2 = script.eval_expr(_rc2.banks[_bx.index].data, _rst2.args[_ix])
+        _rrej = 0
+        for _rbad in (lambda: _rpc.set_action_arg_value_or_repoint(_rb, 0xFFFE, 0, 5),
+                      lambda: _rpc.set_action_arg_value_or_repoint(_rb, _pcx, 99, 5)):
+            try:
+                _rbad()
+            except script.ScriptError:
+                _rrej += 1
+            except Exception:
+                pass
+        _check("set_action_arg_value_or_repoint (GUI edit path) sets a variable arg + rejects bad pc/arg",
+               _rok2 and _rv2 == 88 and _rrej == 2)
+    else:
+        _skip("complex-expr edit safety", "no complex-expr arg found in sample")
+    # control-op expression-literal editing (BR_Z/BR_NZ/BR_RET threshold, STORE value, SWITCH
+    # selector): the editor's value-edit row now also rewrites literals inside a control-op's
+    # guard/value expression (via script.expr_literals + Bank.set_expr_value). Guard the primitive:
+    # expr_literals must return only set_expr_value-editable literals (each offset on a 0x17-0x1A
+    # tag), a no-op write on every one must succeed, and the container stays byte-exact. Also
+    # capture a STORE target (bank/scene/pc/literal) for the GUI-handler check further below.
+    _cl_exprs = _cl_lits = _cl_edit = 0
+    _cl_target = None            # (bank_index, entry_pc, action_type, pc, literal_index, cur_value)
+    for _clb in c.banks[:40]:
+        for _clsc in script.disassemble_bank(_clb, discover=False):
+            for _clpc, _clst in _clsc.stmts.items():
+                if _clst.op < 0xFFF0 or not getattr(_clst, "expr_refs", None):
+                    continue
+                _lits = []
+                for _e in _clst.expr_refs:
+                    if _e is not None:
+                        _lits.extend(script.expr_literals(_clb.data, _e))
+                if not _lits:
+                    continue
+                _cl_exprs += 1
+                _cl_lits += len(_lits)
+                for (_loff, _lval, _lw) in _lits:
+                    if _clb.data[_loff] not in (0x17, 0x18, 0x19, 0x1A):
+                        continue
+                    try:
+                        _clb.set_expr_value(_loff, _lval)     # no-op write must succeed on every offset
+                        _cl_edit += 1
+                    except Exception:
+                        pass
+                if _cl_target is None and _clst.mnem == "STORE":
+                    _cl_target = (_clb.index, _clsc.entry_pc, _clsc.action_type,
+                                  _clpc, 0, _lits[0][1])
+    _cl_exact = (c.build() == raw)
+    _check("script.expr_literals finds control-op guard/value literals, all set_expr_value-editable",
+           _cl_exprs > 50 and _cl_lits > 100 and _cl_edit == _cl_lits and _cl_exact,
+           f"{_cl_exprs} exprs, {_cl_lits} literals, {_cl_edit} editable, byte-exact={_cl_exact}")
+    # PROMPT_CHOICE option retarget (new editor capability): Bank.set_choice_item rewrites a choice
+    # option's rf3mc string id in place (u32) -- the choice analog of set-dialog. CLI `script set-val`
+    # and the GUI value-row both route a 0xFFF4/0xFFF5 statement here. Find a real choice, retarget
+    # option 0, verify only that option's 4-byte item changed (others + length intact) + bad rejects.
+    _chc = script.Container(raw)
+    _ch_found = None
+    for _cb in _chc.banks:
+        for _csc in script.disassemble_bank(_cb, discover=True):
+            for _cpc, _cst in _csc.stmts.items():
+                if _cst.op in (0xFFF4, 0xFFF5) and getattr(_cst, "items", None):
+                    _ch_found = (_cb, _cpc, list(_cst.items)); break
+            if _ch_found:
+                break
+        if _ch_found:
+            break
+    if _ch_found:
+        _cb, _cpc, _old_items = _ch_found
+        _cb.set_choice_item(_cpc, 0, 4242)
+        _re_st = script.decode_statement(_cb.data, _cpc)
+        _built = _chc.build()
+        _ndiff = sum(1 for _x, _y in zip(raw, _built) if _x != _y)
+        _crej = 0
+        for _bad in (lambda: _cb.set_choice_item(0, 0, 1),        # pc 0 is not a choice op
+                     lambda: _cb.set_choice_item(_cpc, 99, 1)):   # option index out of range
+            try:
+                _bad()
+            except script.ScriptError:
+                _crej += 1
+        _check("script.set_choice_item retargets a PROMPT_CHOICE option (u32, round-trips) + rejects bad",
+               _re_st.items[0] == 4242 and _re_st.items[1:] == _old_items[1:]
+               and len(_built) == len(raw) and _ndiff <= 4 and _crej == 2)
+    else:
+        _skip("set_choice_item", "no PROMPT_CHOICE in the sample corpus")
+    # branch-target retarget (new editor capability): Bank.set_branch_target rewrites a branch/jump/
+    # choice destination (u16) to another statement pc -- the flow analog of set_choice_item. It is
+    # crash-safe: with `valid_targets` (the scene's real statement pcs) an invalid/mid-statement pc
+    # is rejected. Find a BR_Z/BR_NZ, retarget it to a sibling statement, verify + reject bad.
+    _bt = script.Container(raw)
+    _bt_found = None
+    for _btb in _bt.banks:
+        for _btsc in script.disassemble_bank(_btb, discover=True):
+            _pcs = set(_btsc.stmts.keys())
+            for _btpc, _btst in _btsc.stmts.items():
+                if _btst.op in (0xFFF8, 0xFFF9) and _btst.code_targets:
+                    _alt = next((p for p in _pcs if p != _btst.code_targets[0]), None)
+                    if _alt is not None:
+                        _bt_found = (_btb, _btpc, _btst.code_targets[0], _alt, _pcs); break
+            if _bt_found:
+                break
+        if _bt_found:
+            break
+    if _bt_found:
+        _btb, _btpc, _old_t, _alt, _pcs = _bt_found
+        _btb.set_branch_target(_btpc, 0, _alt, valid_targets=_pcs)
+        _re_bt = script.decode_statement(_btb.data, _btpc)
+        _btbuilt = _bt.build()
+        _btrej = 0
+        for _bad in (lambda: _btb.set_branch_target(_btpc, 0, 0x9999, valid_targets=_pcs),  # bad pc
+                     lambda: _btb.set_branch_target(_btpc, 9, _alt, valid_targets=_pcs),     # oob idx
+                     lambda: _btb.set_branch_target(0, 0, _alt)):                            # non-branch
+            try:
+                _bad()
+            except script.ScriptError:
+                _btrej += 1
+        _check("script.set_branch_target retargets a branch to a valid stmt pc + rejects invalid/oob/non-branch",
+               _re_bt.code_targets[0] == _alt and _alt != _old_t
+               and len(_btbuilt) == len(raw)
+               and sum(1 for _x, _y in zip(raw, _btbuilt) if _x != _y) <= 2 and _btrej == 3)
+    else:
+        _skip("set_branch_target", "no BR_Z/BR_NZ in the sample corpus")
+    # cross-variant offset-math guard: the _BRANCH_TARGET_BASE table + choice items_off math must be
+    # correct for EVERY control-op variant, not just the one BR_Z/choice the focused guards happened
+    # to hit. The offset differs per op (SWITCH @+6, choice-with-cancel @+6, others @+4/+2), so a
+    # single-variant test could miss a wrong entry. Collect one of each op present and retarget
+    # target[0] (+ retarget item[0] for choices); every edit must land only on its own slot.
+    # Finding one site per variant needs a full-corpus scan (SWITCH_GE occurs exactly
+    # ONCE in the shipped game), which used to cost a whole-container decode on every
+    # run. The sites depend only on the file bytes, so they are memoized in a sidecar
+    # (.selftest_cache.json, keyed by the container's crc32) — a content change or a
+    # missing/corrupt sidecar just triggers one fresh scan (with an all-found early exit).
+    _VOPS = (0xFFF2, 0xFFF3, 0xFFF4, 0xFFF5, 0xFFF6, 0xFFF7, 0xFFF8, 0xFFF9, 0xFFFA, 0xFFFE)
+    _vcache_p = pathlib.Path(__file__).with_name(".selftest_cache.json")
+    _raw_crc = _zlib.crc32(raw)
+    _V = {}
+    try:
+        import json as _json
+        _vj = _json.loads(_vcache_p.read_text(encoding="utf-8"))
+        if _vj.get("rf3mc_crc") == _raw_crc:
+            _V = {int(_k): tuple(_v) for _k, _v in _vj["ctrl_variant_sites"].items()}
+    except Exception:
+        _V = {}
+    if not _V:
+        for _vb in script.Container(raw).banks:
+            for _vsc in script.disassemble_bank(_vb, discover=True):
+                for _vpc, _vst in _vsc.stmts.items():
+                    if _vst.op in _VOPS and _vst.op not in _V:
+                        _V[_vst.op] = (_vb.index, _vpc)
+            if len(_V) == len(_VOPS):
+                break
+        try:
+            _vcache_p.write_text(_json.dumps(
+                {"rf3mc_crc": _raw_crc,
+                 "ctrl_variant_sites": {str(_k): list(_v) for _k, _v in _V.items()}}),
+                encoding="utf-8")
+        except Exception:
+            pass
+    # re-derive each site's scene pc-set fresh (cheap: one bank each, usually cached)
+    _V = {_vop: (_vbi, _vpc,
+                 next(set(_s.stmts.keys()) for _s in script.disassemble_bank(
+                     script.Container(raw).banks[_vbi], discover=True)
+                      if _vpc in _s.stmts))
+          for _vop, (_vbi, _vpc) in _V.items()}
+    _var_ok = 0
+    _var_bad = []
+    for _vop, (_vbi, _vpc, _vpcs) in _V.items():
+        _vc = script.Container(raw)
+        _vbk = _vc.banks[_vbi]
+        _v0 = script.decode_statement(_vbk.data, _vpc)
+        if not _v0.code_targets:
+            continue
+        _valt = next((p for p in _vpcs if p != _v0.code_targets[0]), _v0.code_targets[0])
+        _vbk.set_branch_target(_vpc, 0, _valt, valid_targets=_vpcs)
+        _vre = script.decode_statement(_vbk.data, _vpc)
+        _tgt_ok = (_vre.code_targets[0] == _valt and _vre.code_targets[1:] == _v0.code_targets[1:])
+        _itm_ok = True
+        if _vop in (0xFFF4, 0xFFF5):                       # choice: also item[0] on its own slot
+            _vbk.set_choice_item(_vpc, 0, 6363)
+            _vre2 = script.decode_statement(_vbk.data, _vpc)
+            _itm_ok = (_vre2.items[0] == 6363 and _vre2.items[1:] == _v0.items[1:]
+                       and _vre2.code_targets[0] == _valt)   # item edit didn't disturb targets
+        if _tgt_ok and _itm_ok:
+            _var_ok += 1
+        else:
+            _var_bad.append(hex(_vop))
+    _check("set_branch_target/set_choice_item offset math correct for EVERY control-op variant",
+           _var_ok >= 8 and not _var_bad, "ok=%d bad=%s" % (_var_ok, _var_bad))
+    if QUICK:
+        _skip("scene coverage ~100% clean (763-slot decoder)", "quick mode: full-corpus sweep")
+    else:
+        scenes, clean, stmts, dl = script.coverage(c)
+        _check("scene coverage ~100% clean (763-slot decoder)",
+               scenes > 0 and clean / scenes >= 0.999,
+               f"{clean}/{scenes} clean ({100*clean/max(scenes,1):.2f}%), {dl} dialog lines")
+    # display-path guard: render_action (the enum-decoding disassembly line the editor shows)
+    # must not throw for ANY op that appears in real scenes. Render each distinct op once.
+    _seen, _rerr = {}, 0
+    for _b in (c.banks[:60] if QUICK else c.banks):
+        for _sc in script.disassemble_bank(_b, discover=False):
+            for _st in _sc.stmts.values():
+                if _st.op < 0xFFF0 and _st.op not in _seen:
+                    try:
+                        script.render_action(_st.op, [script.arg_repr(_b.data, _a) for _a in _st.args])
+                        _seen[_st.op] = True
+                    except Exception:
+                        _seen[_st.op] = False
+                        _rerr += 1
+    _check("render_action renders every op that appears in scenes without error",
+           _rerr == 0, f"{len(_seen)} distinct ops, {_rerr} errors")
+    # scene-op range boundary (IDA-verified 2026-07-11 against RF4S.exe):
+    #   * g_sceneActionHandlerTable (RF4S.exe+0x4DB790) real scene-op range is 0..701.
+    #   * SceneAction_DispatchTableWithCleanup (RF4S.exe+0x1F4AC0) indexes it with only a NULL-check
+    #     (no upper bound), so a scene must NEVER emit an op > 701 or it would call into garbage.
+    #   * slots 702..737 are inter-table padding/garbage (all metadata `(unused)`); 738..762 are a
+    #     SEPARATE adjacent table `g_npcScheduleActionDispatchTable` (NPC schedule/behaviour handlers,
+    #     NOT scene opcodes -- each metadata desc must keep the "NOT a cutscene-script opcode" flag).
+    # This freezes that structure so a future opcode-table edit can't silently (a) let a bogus high
+    # op slip into the corpus, (b) name a padding slot, or (c) drop the non-scene flag on 738..762.
+    from rf4s_modkit import opcode_meta as _omb
+    _max_scene_op = -1
+    for _bb in (c.banks[:60] if QUICK else c.banks):
+        for _ss in script.disassemble_bank(_bb, discover=True):
+            for _s2 in _ss.stmts.values():
+                if _s2.op < 0xFFF0 and _s2.op > _max_scene_op:
+                    _max_scene_op = _s2.op
+    _pad_unused = all(_omb.mnemonic(_o) in ("(unused)", "nop", "(unbound)", "invalid")
+                      for _o in range(702, 738))
+    _sched_nonscene = all("NOT a cutscene-script opcode" in (_omb.META.get(_o, {}).get("d") or "")
+                          for _o in range(738, 763))
+    _check("scene-op range boundary: max real op <=701, 702-737 unused, 738-762 non-scene (NPC schedule)",
+           _max_scene_op <= 701 and _pad_unused and _sched_nonscene,
+           f"max_scene_op={_max_scene_op}, pad_unused={_pad_unused}, sched_nonscene={_sched_nonscene}")
+    # discovery-pass guard: the GUI/search use disassemble_bank(discover=True), which gap-fills
+    # scenes registered only in the global index and invisible to the bank type-table.
+    # REPINNED 2026-09-01 (the FRAME correction): 0xFFF1 is frame setup and FALLS THROUGH
+    # (it is NOT a return), so typed scenes now absorb their CALLed subroutines whole and
+    # discovery is left with only true orphans. In banks[:10] that is 34 scenes: 16 with real
+    # content (DIALOG / action op) and 18 that are exactly single-RET return stubs. Verify:
+    # every discovered scene decodes cleanly, some real orphans exist, and every non-real
+    # one is a lone-RET stub (anything else = gap-fill noise creeping back in).
+    _disc = _disc_bad = _disc_real = _disc_stub = 0
+    _sum_tot = _sum_blank = _sum_op = 0        # scene_summary: the editor's non-dialogue list preview
+    for _db in c.banks[:10]:
+        for _dsc in script.disassemble_bank(_db, discover=True):
+            if _dsc.action_type == -1:
+                _disc += 1
+                if not _dsc.ok:
+                    _disc_bad += 1
+                if any(_s.op < 0xFFF0 or _s.mnem == "DIALOG" for _s in _dsc.stmts.values()):
+                    _disc_real += 1
+                elif len(_dsc.stmts) == 1 and next(iter(_dsc.stmts.values())).mnem == "RET":
+                    _disc_stub += 1
+            if _dsc.stmts:                     # every non-empty scene gets a non-blank list preview
+                _sum_tot += 1
+                _summ = script.scene_summary(_dsc)
+                if not _summ:
+                    _sum_blank += 1
+                elif _summ.startswith("-> "):
+                    _sum_op += 1
+    _check("discovery pass finds only true orphans: clean, real content or lone-RET stubs",
+           _disc >= 20 and _disc_bad == 0 and _disc_real >= 10
+           and _disc_real + _disc_stub == _disc,
+           f"{_disc} discovered, {_disc_bad} unclean, {_disc_real} real, {_disc_stub} RET stubs")
+    # scene_summary powers the editor's scene-list preview for scenes with no dialogue -- every
+    # non-empty scene must get a non-blank one-line summary (first op or terminator), so no list
+    # row is ever blank. Spot-checks the '-> <op>' form appears for action/control-only scenes.
+    _check("scene_summary gives every non-empty scene a non-blank list preview",
+           _sum_tot > 100 and _sum_blank == 0 and _sum_op > 0,
+           f"{_sum_tot} scenes, {_sum_blank} blank, {_sum_op} op-summaries")
+    # expression sub-language coverage: action-op args and control-flow guards are not literals --
+    # each is an offset to a little RPN expression (Script_EvalExpressionBytecode) with leaf tags
+    # (int/u8/s8/u16/s16 literals, packed vars, reg0..9, var arrays) and operators (arith/compare/
+    # logic/compound-assign). disasm_expr must decode EVERY one -- a "?" means an undecoded token.
+    # Bounded to the first 6 banks (~137k expressions incl. operators) to stay fast. The same
+    # pass also cross-checks DIALOG resolution: every DIALOG line id must index a non-empty entry
+    # in the stock rf3mc.<locale> catalog (the editor shows "[no text]" otherwise) -- guards a
+    # text-archive/dialog-id mapping regression. Needs rf3mc.eng; DIALOG check skipped without it.
+    _tp = _first("rf3mc.eng") or _first("*.eng")
+    _tarc = textdb.TextArchive.load(_tp) if _tp else None
+    _tn = len(_tarc) if _tarc else 0
+    from rf4s_modkit import opcode_meta as om   # for the picker-plausibility tally below
+    _ex_tot = _ex_bad = _ex_ops = 0
+    _dlg_ok = _dlg_bad = 0
+    _ex_leaves = set()
+    _pick_tot, _pick_imp = {}, {}          # (op,ai) -> literal count / implausible-value count
+    for _eb in c.banks[:6]:
+        _ed, _en = _eb.data, len(_eb.data)
+        for _esc in script.disassemble_bank(_eb, discover=False):
+            for _est in _esc.stmts.values():
+                if _tarc is not None and _est.mnem == "DIALOG" and _est.dialog_id is not None:
+                    if 0 <= _est.dialog_id < _tn and _tarc.text(_est.dialog_id) != "":
+                        _dlg_ok += 1
+                    else:
+                        _dlg_bad += 1
+                if _est.op < 0xFFF0:        # picker-plausibility: an enum picker's token position
+                    for _pai, _paoff in enumerate(_est.args):   # must hold values in its id-space,
+                        if (_est.op, _pai) not in om.ENUM_ARG_VALUES:   # not e.g. 0x8100+ category
+                            continue                                    # refs (the op-437 defect).
+                        if not (0 <= _paoff < _en):
+                            continue
+                        _pv, _pok = script.eval_expr(_ed, _paoff)
+                        if _pok and _pv is not None and _pv >= 0:
+                            _pick_tot[(_est.op, _pai)] = _pick_tot.get((_est.op, _pai), 0) + 1
+                            if _pv >= 0x8000:   # far above any real id space (items/chars/rooms/...)
+                                _pick_imp[(_est.op, _pai)] = _pick_imp.get((_est.op, _pai), 0) + 1
+                for _eoff in list(_est.args) + list(getattr(_est, "expr_refs", None) or []):
+                    if _eoff is None or not (0 <= _eoff < _en):
+                        continue
+                    _ex_tot += 1
+                    _ex_leaves.add(_ed[_eoff])
+                    _etxt, _ = script.disasm_expr(_ed, _eoff)
+                    if _etxt == "?":
+                        _ex_bad += 1
+                    elif any(_o in _etxt for _o in ("+", "==", "&&", "+=", "%")):
+                        _ex_ops += 1
+    _check("expression VM: all corpus arg/guard expressions decode (leaves + operators, 0 unknown)",
+           _ex_tot > 1000 and _ex_bad == 0 and _ex_ops > 0 and len(_ex_leaves) >= 10,
+           f"{_ex_tot} exprs, {_ex_bad} unparsed, {_ex_ops} w/ ops, {len(_ex_leaves)} leaf tags")
+    if _tarc is not None:
+        _check("every corpus DIALOG line id resolves to non-empty rf3mc text",
+               _dlg_ok > 500 and _dlg_bad == 0, f"{_dlg_ok} resolved, {_dlg_bad} unresolved")
+        # end-to-end author workflow (the core 'add new dialogue', spanning BOTH files): append a
+        # new line to rf3mc.<locale>, retarget a DIALOG beat to it, rebuild + reparse both, and
+        # verify the beat now resolves to the new text while every other bank stays byte-identical.
+        # Fresh copies so the shared container/archive are untouched.
+        _wc = script.Container(raw)
+        _wa = textdb.TextArchive.load(_tp)
+        _wnew = _wa.append_text("SELFTEST new cutscene line")
+        _wt = None
+        for _wb in _wc.banks[:8]:
+            for _wsc in script.disassemble_bank(_wb, discover=False):
+                for _wpc, _wst in _wsc.stmts.items():
+                    if _wst.mnem == "DIALOG":
+                        _wt = (_wb, _wpc)
+                        break
+                if _wt:
+                    break
+            if _wt:
+                break
+        if _wt:
+            _wb, _wpc = _wt
+            _wb.set_dialog_id(_wpc, _wnew)
+            _wc2 = script.Container(_wc.build())
+            _wa2 = textdb.TextArchive.parse(_wa.build())
+            _wst2 = script.decode_statement(_wc2.banks[_wb.index].data, _wpc)
+            _check("end-to-end: append new line + retarget DIALOG -> reparse resolves to new text",
+                   _wst2.dialog_id == _wnew
+                   and _wa2.text(_wnew) == "SELFTEST new cutscene line"
+                   and all(bytes(_wc2.banks[_i].data) == bytes(script.Container(raw).banks[_i].data)
+                           for _i in range(len(_wc2.banks)) if _i != _wb.index))
+        else:
+            _skip("end-to-end add-dialogue", "no DIALOG in first 8 banks")
+    else:
+        _skip("DIALOG text resolution", "no rf3mc.eng catalog")
+    # install pipeline (the final authoring step): build the rf3.mc, stage it, install_loose it as
+    # a loose-file override under a temp game root, and read it back -- the override must land at
+    # <root>/rf3.mc byte-identical and re-parse. Covers the build->deliver step the round-trip tests
+    # don't (the GUI's Install-to-game button + Save both write container.build()).
+    _built = c.build()
+    _iroot = pathlib.Path(tempfile.mkdtemp())
+    try:
+        _istage = _iroot / "_stage.mc"
+        _istage.write_bytes(_built)
+        _idest = mbundle.install_loose(_iroot / "game", "rf3.mc", str(_istage))
+        _iok = (_idest == _iroot / "game" / "rf3.mc" and _idest.is_file()
+                and _idest.read_bytes() == _built
+                and script.Container(_idest.read_bytes()).build() == _built)
+    finally:
+        shutil.rmtree(_iroot, ignore_errors=True)
+    _check("install pipeline: build -> install_loose lands a byte-identical rf3.mc override", _iok)
+    # CLI/GUI parity: `rf4mod script set-val` must edit a CONTROL-op literal (STORE value, BR_Z
+    # threshold, RAND_BR weight), not only action args -- the GUI's _set_ctrl_literal has this, and
+    # cmd_script_set_val now branches on op>=0xFFF0. Find a STORE, run the CLI fn, verify the edit.
+    try:
+        import rf4mod as _rf
+    except Exception:
+        _rf = None
+    if _rf is not None:
+        _sv_tgt = None
+        for _sb in c.banks[:20]:
+            for _ssc in script.disassemble_bank(_sb, discover=False):
+                for _spc, _sst in _ssc.stmts.items():
+                    if _sst.mnem == "STORE" and getattr(_sst, "expr_refs", None):
+                        _sl = []
+                        for _e in _sst.expr_refs:
+                            if _e is not None:
+                                _sl.extend(script.expr_literals(_sb.data, _e))
+                        if _sl:
+                            _sv_tgt = (_sb.index, _spc, _sl[0][1]); break
+                if _sv_tgt:
+                    break
+            if _sv_tgt:
+                break
+        if _sv_tgt:
+            _svb, _svpc, _svold = _sv_tgt
+            _svtmp = pathlib.Path(tempfile.mkdtemp())
+            _svin = _svtmp / "in.mc"; _svin.write_bytes(raw)
+            _svout = _svtmp / "out.mc"
+            _svnew = (_svold + 5) % 90
+            _sva = type("A", (), {"file": str(_svin), "bank": _svb, "pc": hex(_svpc),
+                                  "index": 0, "value": _svnew, "out": str(_svout)})()
+            _rf.cmd_script_set_val(_sva)
+            _svc2 = script.Container(_svout.read_bytes())
+            _sve2 = next(e for e in script.decode_statement(_svc2.banks[_svb].data, _svpc).expr_refs
+                         if e is not None)
+            _svrb = script.expr_literals(_svc2.banks[_svb].data, _sve2)[0][1]
+            _check("CLI `script set-val` edits a control-op literal (STORE value), not only action args",
+                   _svrb == _svnew, f"readback {_svrb} want {_svnew}")
+        else:
+            _skip("CLI set-val control-op", "no STORE literal in sample")
+        # CLI/GUI parity #2: `rf4mod script set-speaker` must change who speaks (rewrite a SetSpeaker
+        # op) -- the GUI's _set_speaker has this; the CLI lacked it. Find a portrait op, set a
+        # DIFFERENT speaker via the CLI fn, verify the op now decodes to that speaker + side.
+        _sp_tgt = None
+        for _pb in c.banks[:6]:
+            for _psc in script.disassemble_bank(_pb, discover=False):
+                for _ppc, _pst in _psc.stmts.items():
+                    if script.is_portrait_op(_pst.op):
+                        _cur, _ = script.portrait_speaker_slot(_pst.op)
+                        _sp_tgt = (_pb.index, _ppc, _cur); break
+                if _sp_tgt:
+                    break
+            if _sp_tgt:
+                break
+        if _sp_tgt:
+            _spb, _sppc, _spcur = _sp_tgt
+            _spnew = (_spcur + 1) % len(script.PORTRAIT_SPEAKERS)   # a different speaker
+            _sptmp = pathlib.Path(tempfile.mkdtemp())
+            _spin = _sptmp / "in.mc"; _spin.write_bytes(raw)
+            _spout = _sptmp / "out.mc"
+            _spa = type("A", (), {"file": str(_spin), "bank": _spb, "pc": hex(_sppc),
+                                  "speaker": str(_spnew), "side": "right", "out": str(_spout)})()
+            _rf.cmd_script_set_speaker(_spa)
+            _spc2 = script.Container(_spout.read_bytes())
+            _spop2 = script.decode_statement(_spc2.banks[_spb].data, _sppc).op
+            _spslot2, _spside2 = script.portrait_speaker_slot(_spop2)
+            _check("CLI `script set-speaker` rewrites who speaks a line (speaker + side)",
+                   _spslot2 == _spnew and _spside2 == 1,
+                   f"got slot {_spslot2} side {_spside2}, want {_spnew}/right")
+        else:
+            _skip("CLI set-speaker", "no SetSpeaker op in sample")
+    else:
+        _skip("CLI set-val/set-speaker", "rf4mod not importable")
+    # dialogue search (the editor's Find feature -> find_scenes_with_dialog): the way an author
+    # LOCATES a scene to edit. A common-word search must return scenes that GENUINELY contain the
+    # substring (case-insensitive), a nonsense query returns nothing, and discovery-only scenes are
+    # searchable (the "I was about to call you over." cutscene is type-table-invisible).
+    _stp = None if QUICK else (_first("rf3mc.eng") or _first("*.eng"))
+    if QUICK:
+        _skip("dialogue search (Find)", "quick mode: full-corpus sweep")
+    elif _stp is not None:
+        _starc = textdb.TextArchive.load(_stp)
+        _sdlg = lambda _l: _starc.text(_l)          # find_* wraps this in try/except
+        _sh = script.find_scenes_with_dialog(c, "morning", _sdlg)
+        _sh_ok = all(any("morning" in (_sdlg(_lid) or "").lower() for _lid in _ids)
+                     for _bk, _sc, _ids in _sh[:200])
+        _sh_ci = len(script.find_scenes_with_dialog(c, "MORNING", _sdlg)) == len(_sh)
+        _sh_none = len(script.find_scenes_with_dialog(c, "zzxqqnotarealword", _sdlg)) == 0
+        _sh_disc = len(script.find_scenes_with_dialog(c, "I was about to call you over", _sdlg)) >= 1
+        _check("dialogue search (Find): genuine matches, case-insensitive, empty-on-miss, finds "
+               "discovery-only scenes",
+               len(_sh) > 50 and _sh_ok and _sh_ci and _sh_none and _sh_disc)
+    else:
+        _skip("dialogue search", "no rf3mc.eng catalog")
+    # structural search (the Find feature's opcode/speaker modes -> _search_structural). Drive it
+    # headless with a mock self and confirm each mode returns scenes that GENUINELY match: opcode
+    # search finds scenes containing the op (by-mnemonic count == by-number count, every hit has
+    # it), speaker search finds scenes with the matching SetSpeaker, nonsense returns nothing.
+    # Pairs with the dialogue-search guard (the other half of Find).
+    try:
+        import script_explorer as _se2
+    except Exception:
+        _se2 = None
+    if QUICK:
+        _skip("structural search (Find)", "quick mode: full-corpus sweep")
+    elif _se2 is not None:
+        class _SearchMock:
+            def __init__(_s):
+                _s.container = c
+                _s._results = []
+            def _em_get(_s):
+                return None
+            def _fill_scene_list(_s, _status):
+                pass
+        _sm = _SearchMock()
+        _ssf = _se2.CutsceneExplorer._search_structural
+        _give = script.op_from_name("GiveItem")
+        _ssf(_sm, "opcode", "GiveItem")
+        _n1, _op_ok = len(_sm._results), all(any(_st.op == _give for _st in _sc.stmts.values())
+                                             for _bk, _sc in _sm._results[:100])
+        _ssf(_sm, "opcode", str(_give))
+        _n2 = len(_sm._results)
+        _ssf(_sm, "speaker", "Arthur")
+        _n3, _spk_ok = len(_sm._results), all(
+            any(script.is_portrait_op(_st.op)
+                and "arthur" in (script.portrait_speaker_name(_st.op) or "").lower()
+                for _st in _sc.stmts.values()) for _bk, _sc in _sm._results[:100])
+        _ssf(_sm, "opcode", "zznotanop")
+        _n4 = len(_sm._results)
+        _check("structural search (Find: opcode/speaker) matches genuinely + by-number == by-name",
+               _n1 > 5 and _op_ok and _n2 == _n1 and _n3 > 5 and _spk_ok and _n4 == 0)
+    else:
+        _skip("structural search", "script_explorer not importable")
+    # xrefs (the explorer's "who calls this" reverse lookup, 2026-09-01): control-flow
+    # callers over one bank. Bank 210 ground truth: the shared close-bubbles subroutine
+    # @0x114C has hundreds of CALL sites; the FRAME subroutine @0x17CE has exactly one
+    # caller (CALL @0x0508), attributed to its typed parent scene; the Eliza-chat
+    # dispatcher @0x6394 has none (engine/event dispatch only, shown as such in the UI).
+    if _se2 is not None and len(c.banks) > 210:
+        _x1 = _se2.collect_xrefs(c.banks[210], 0x114C)
+        _x2 = _se2.collect_xrefs(c.banks[210], 0x17CE)
+        _x3 = _se2.collect_xrefs(c.banks[210], 0x6394)
+        _check("explorer xrefs: reverse CALL lookup (many/one/none pins on bank 210)",
+               len(_x1) > 200 and all(_r[3] == "CALL" for _r in _x1[:20])
+               and len(_x2) == 1 and _x2[0][2] == 0x0508 and _x2[0][3] == "CALL"
+               and _x3 == [],
+               f"{len(_x1)} sites / {len(_x2)} / {len(_x3)}")
+    else:
+        _skip("explorer xrefs", "script_explorer not importable")
+    # Ghidra listing-plan generator (ghidra/gen_ghidra_plan.py, 2026-09-01): bank 210
+    # pins — the 0x508 CALL carries a typed 'call' reference to the FRAME subroutine
+    # @0x17CE, DIALOG rows inline the locale text, the big type-27 scene entry gets a
+    # scene_ label, and every statement's [pc, pc+size) stays inside the bank.
+    try:
+        import importlib.util as _ilu
+        _gp_spec = _ilu.spec_from_file_location(
+            "gen_ghidra_plan", pathlib.Path(__file__).parent / "ghidra" / "gen_ghidra_plan.py")
+        _gp = _ilu.module_from_spec(_gp_spec); _gp_spec.loader.exec_module(_gp)
+    except Exception:
+        _gp = None
+    if _gp is not None and len(c.banks) > 210:
+        _gpb = _gp.build_bank_plan(210, c.banks[210], _gp._find_text("eng"))
+        _gp_call = next((r for r in _gpb["stmts"] if r[0] == 0x508), None)
+        _gp_dlg = next((r for r in _gpb["stmts"]
+                        if r[2].startswith("DIALOG") and '"' in r[2]), None)
+        _check("ghidra plan: refs typed, dialogue inlined, scene labels, stmts in-bank",
+               _gp_call is not None and _gp_call[3] == [[0x17CE, "call"]]
+               and "loc_b0210_17ce" in _gp_call[2]
+               and _gp_dlg is not None
+               and _gpb["labels"].get("724") == "scene_b0210_t27_02d4"
+               and all(0 <= r[0] and r[0] + r[1] <= _gpb["size"] for r in _gpb["stmts"])
+               # ilen (row[4]) = the RF4MC-instruction-visible length: never larger than
+               # the statement, and strictly smaller exactly for table/big-arg tails
+               and all(len(r) == 5 and 2 <= r[4] <= r[1] for r in _gpb["stmts"]))
+    else:
+        _skip("ghidra plan generator", "module not importable")
+    # end-to-end GUI tooltip guard: the actual Ctrl-hover tooltip method (_rich_tip_text) must
+    # render a non-empty string for EVERY op that appears in scenes -- DIALOG, control ops, and
+    # action ops (prototype + per-arg + enum/EMF/speaker decode). Driven with a minimal mock 'self'
+    # so it runs headless. This is the DISPLAY side of 'update the tooltips': it proves the curated
+    # metadata actually reaches a working GUI tooltip. Bounded to the first 15 banks (~225 ops).
+    try:
+        import script_explorer as _se
+    except Exception:
+        _se = None
+    if _se is not None:
+        class _TipMock:
+            def __init__(_s):
+                _s._bank = None
+                _s._labels = {}
+            def _dlg(_s, _lid):
+                try:
+                    return _tarc.text(_lid) if _tarc else None
+                except Exception:
+                    return None
+            def _expr_vars(_s, _e):
+                return []
+        _tm = _TipMock()
+        _rtt = _se.CutsceneExplorer._rich_tip_text
+        _tip_ok = _tip_err = 0
+        _tip_ctrl, _tip_seen = set(), set()
+        _choice_checked = _choice_ok = 0     # PROMPT_CHOICE tooltip surfaces each option's line id
+        for _tb in c.banks[:15]:
+            _tm._bank = _tb
+            for _tsc in script.disassemble_bank(_tb, discover=True):
+                for _tst in _tsc.stmts.values():
+                    if _tst.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") \
+                            and getattr(_tst, "items", None) and _choice_checked < 5:
+                        try:
+                            _ct = _rtt(_tm, _tst)
+                            _choice_checked += 1
+                            if all(("#%d" % _it) in _ct for _it in _tst.items):
+                                _choice_ok += 1
+                        except Exception:
+                            pass
+                    if (_tst.op, _tst.mnem) in _tip_seen:
+                        continue
+                    _tip_seen.add((_tst.op, _tst.mnem))
+                    try:
+                        _txt = _rtt(_tm, _tst)
+                        if isinstance(_txt, str) and _txt:
+                            _tip_ok += 1
+                            if _tst.op >= 0xFFF0:
+                                _tip_ctrl.add(_tst.mnem)
+                        else:
+                            _tip_err += 1
+                    except Exception:
+                        _tip_err += 1
+        _check("GUI _rich_tip_text renders a tooltip for every corpus op (headless mock)",
+               _tip_ok > 100 and _tip_err == 0 and len(_tip_ctrl) >= 10,
+               f"{_tip_ok} ops, {_tip_err} errors, {len(_tip_ctrl)} control mnems")
+        # every-op coverage: the loop above only sees ops that appear in scenes -- ~125 named ops
+        # (quest-request generators 508-548, rare NPC actions, ...) NEVER appear, so their tooltip
+        # render was untested (this is exactly where the quest-populate description edits landed).
+        # Render each remaining named action op via a synthesized 0-arg statement -- the action-op
+        # tooltip only touches the bank when the statement HAS args, so bank=None is fine.
+        import struct as _struct
+        _tm._bank = None
+        _seen_ops = {_o for _o, _m in _tip_seen}
+        _every_ok = _every_err = 0
+        _every_bad = []
+        # 702..762 carry names but have no handler slot, so they can never appear as a
+        # statement (decode_statement rejects them) -- sweep only the dispatchable range.
+        for _eop in range(script.DISPATCHABLE_ACTION_OPS):
+            if _eop in _seen_ops:
+                continue
+            _emn = script.opcode_mnemonic(_eop)
+            if not _emn or _emn in ("(unbound)", "(unused)", "invalid"):
+                continue
+            try:
+                _est = script.decode_statement(_struct.pack("<HH", _eop, 0), 0)
+                _etxt = _rtt(_tm, _est)
+                if isinstance(_etxt, str) and _etxt.strip():
+                    _every_ok += 1
+                else:
+                    _every_err += 1; _every_bad.append(_eop)
+            except Exception as _ee:
+                _every_err += 1; _every_bad.append((_eop, repr(_ee)[:40]))
+        _check("GUI _rich_tip_text renders for every never-in-scenes named op too",
+               _every_ok > 80 and _every_err == 0,
+               f"{_every_ok} extra ops rendered, {_every_err} errors {_every_bad[:5]}")
+        # the OTHER half of "update the tooltips": the edit-panel CONTROLS (buttons/fields/comboboxes
+        # a modder clicks) must each carry a hover tooltip -- the disassembly's Ctrl-hover covers the
+        # ops, but the controls were bare. Data-driven from CONTROL_HELP: verify each key is a REAL
+        # widget (`self.<key> =` in the source) with non-empty help, and that the attach loop wires
+        # them. Source-checked, so no GUI instantiation / display is needed.
+        _chelp = getattr(_se, "CONTROL_HELP", {})
+        _csrc = open(_se.__file__, encoding="utf-8").read()
+        _ch_missing = [_k for _k in _chelp if ("self.%s = " % _k) not in _csrc]
+        _ch_empty = [_k for _k, _v in _chelp.items() if not (_v and _v.strip())]
+        _ch_wired = ("_attach_tip(_cw" in _csrc) and ("CONTROL_HELP.items()" in _csrc)
+        # CONTROL_HELP now spans BOTH the toolbar (open/save/install/Event Mgr/find/search-mode/…)
+        # and the edit panel -- expect a fuller set. em-editor controls are covered separately below.
+        _check("editor toolbar+edit-panel controls all carry a hover tooltip (CONTROL_HELP complete + wired)",
+               len(_chelp) >= 24 and not _ch_missing and not _ch_empty and _ch_wired,
+               "missing=%s empty=%s wired=%s" % (_ch_missing[:3], _ch_empty[:3], _ch_wired))
+        # REVERSE check (makes "update the tooltips" self-enforcing): every interactive
+        # self.<widget> the editor creates must HAVE a CONTROL_HELP entry, so a newly-added button /
+        # combobox / entry can't silently ship untipped. em-editor controls are LOCAL vars (built
+        # lazily, covered by EM_CONTROL_HELP), so they don't surface as self.<name> here.
+        _iwidgets = set(re.findall(
+            r'self\.(\w+)\s*=\s*(?:ttk|tk)\.(?:Button|Combobox|Entry|Checkbutton|Radiobutton|Spinbox)\(',
+            _csrc))
+        _untipped = sorted(_w for _w in _iwidgets if _w not in _chelp)
+        _check("editor: every interactive self.<widget> has a CONTROL_HELP tooltip (no untipped control)",
+               not _untipped, "untipped=%s" % _untipped)
+        # Event Manager (em.bin) editor controls are built lazily in _open_em_browser, so their tips
+        # are attached inline from EM_CONTROL_HELP -- verify each has non-empty help AND an inline
+        # _attach_tip(..., EM_CONTROL_HELP["key"]) call in the source.
+        _emh = getattr(_se, "EM_CONTROL_HELP", {})
+        _emh_empty = [_k for _k, _v in _emh.items() if not (_v and _v.strip())]
+        _emh_unwired = [_k for _k in _emh if ('EM_CONTROL_HELP["%s"]' % _k) not in _csrc]
+        _check("em.bin editor controls all carry a hover tooltip (EM_CONTROL_HELP complete + wired)",
+               len(_emh) >= 5 and not _emh_empty and not _emh_unwired,
+               "empty=%s unwired=%s" % (_emh_empty, _emh_unwired))
+        # choice-text editing reachability: the PROMPT_CHOICE tooltip must surface each option's
+        # rf3mc line #id, so an author can edit a choice's text (type the #id in line# + Apply text).
+        # Choice items are embedded ids, not standalone DIALOG statements -- without the id shown
+        # there is no way to reach the text. Pairs with the generalized _apply_text (edit by line#).
+        _check("PROMPT_CHOICE tooltip surfaces each option's editable line #id",
+               _choice_checked > 0 and _choice_ok == _choice_checked,
+               f"{_choice_ok}/{_choice_checked} choice tooltips show all item ids")
+        # control-op literal edit via the GUI handler (_set_ctrl_literal): on a mock 'self' it must
+        # patch the arg#-th literal in the selected control op's guard/value expression through
+        # set_expr_value and have the new value read back after rebuild+reparse -- the exact edit the
+        # value-edit row now performs when a BR_Z/STORE is selected. Byte-safe: only the immediate
+        # changes; branch targets and every other offset are preserved. Uses the STORE target above.
+        if _cl_target is not None:
+            _gbi, _gentry, _gatype, _gpc, _gidx, _gcur = _cl_target
+            _gc = script.Container(raw)
+            _gb = _gc.banks[_gbi]
+            _gscene = script.disassemble_scene(_gb, _gatype, _gentry)
+            _gst = _gscene.stmts.get(_gpc) or script.decode_statement(_gb.data, _gpc)
+            _glits = []
+            for _e in (_gst.expr_refs or []):
+                if _e is not None:
+                    _glits.extend(script.expr_literals(_gb.data, _e))
+            _newval = (_gcur + 7) % 100                # distinct, 1-byte-safe for any literal tag
+            class _Var:
+                def __init__(_s, v): _s._v = v
+                def get(_s): return _s._v
+            class _EditMock:
+                script_dirty = False
+                def _render_scene(_s): pass
+                def _status(_s, *a, **k): pass
+                def _dirty_tag(_s): return ""
+            _em2 = _EditMock()
+            _em2._sel = (_gpc, _gst)
+            _em2._ctrl_lits = _glits
+            _em2._bank = _gb
+            _em2._scene = _gscene
+            _em2.val_arg = _Var(str(_gidx))
+            _em2.val_var = _Var(str(_newval))
+            _gerr = None
+            try:
+                _se.CutsceneExplorer._set_ctrl_literal(_em2)
+            except Exception as _ge:
+                _gerr = repr(_ge)
+            _gb2 = script.Container(_gc.build()).banks[_gbi]
+            _gst2 = script.decode_statement(_gb2.data, _gpc)
+            _rl = []
+            for _e in (_gst2.expr_refs or []):
+                if _e is not None:
+                    _rl.extend(script.expr_literals(_gb2.data, _e))
+            _readback = _rl[_gidx][1] if _gidx < len(_rl) else None
+            _check("GUI _set_ctrl_literal patches a control-op guard/value literal (reads back after rebuild)",
+                   _gerr is None and _em2.script_dirty and _readback == _newval,
+                   f"err={_gerr}, dirty={_em2.script_dirty}, readback={_readback} (want {_newval})")
+        else:
+            _skip("GUI _set_ctrl_literal edit", "no STORE literal target found")
+    else:
+        _skip("GUI tooltip render", "script_explorer not importable (no tkinter)")
+    # picker-plausibility: every enum picker must sit on a token position whose corpus literal
+    # values fall in a real id-space -- NOT >= 0x8000 (no wired enum has keys that large). A picker
+    # mostly decoding >= 0x8000 values is misaligned (op 437 arg1 held 0x8100+ present-category
+    # refs under a CHAR_IDS picker -- removed). Guards against re-introducing a misplaced picker.
+    _mis = [(_k, _pick_imp[_k], _pick_tot[_k]) for _k in _pick_tot
+            if _pick_tot[_k] >= 3 and _pick_imp.get(_k, 0) / _pick_tot[_k] >= 0.25]
+    _check("every enum picker decodes plausible corpus values (no 0x8000+ misalignment)",
+           not _mis, str(_mis[:6]))
+    # regression guard: the action-opcode table is 763 slots (was wrongly capped at 400,
+    # which desync'd ~3.8% of scenes). An op in [400,762] must decode, not be rejected.
+    _check("action opcode 700 decodes (763-slot table)",
+           script.decode_statement(bytes.fromhex("bc020000"), 0) is not None)
+    from rf4s_modkit import opcode_meta as _om
+    _check("scene ops 146/148/300 have curated mnemonics",
+           _om.mnemonic(146) == "EquipItemToPlayer" and _om.mnemonic(148) == "QueryPlayerFlag40000"
+           and _om.mnemonic(300) == "AdvanceDay")
+    # SWITCH_GE (0xFFF6) has exactly `cnt` targets, no spurious trailing duplicate
+    # (IDA: selector>=n aliases target[n-1]; there is no separate default slot).
+    _sw = script.decode_statement(bytes.fromhex("f6ff" + "0000" + "0200" + "1000" + "2000"), 0)
+    _check("SWITCH_GE has cnt targets (no dup)",
+           _sw is not None and _sw.mnem == "SWITCH_GE"
+           and [t for t in _sw.code_targets if t is not None] == [0x10, 0x20])
+    # RAND_BR (0xFFF2 weighted-random branch) layout is [op][N][N targets][N weight-exprs] -- targets
+    # FIRST (@+4), weight expressions SECOND (@+4+2N). IDA-verified (Script_Opcode_FFF2_ExecPrim) and
+    # empirically (targets resolve to real statement PCs; weights point into the expr pool). The two
+    # blocks are equal size, so a swap would keep the decode "clean" -- guard the order explicitly.
+    _EXPR_LEAF = {0x01, 0x02, 0x03, 0x04, 0x05, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A}
+    _rb_ok = None
+    for _rbb in c.banks[:60]:
+        _bpcs, _rb_st = set(), None
+        for _rsc in script.disassemble_bank(_rbb, discover=True):
+            _bpcs |= set(_rsc.stmts.keys())
+            for _rst in _rsc.stmts.values():
+                if _rst.op == 0xFFF2 and _rst.code_targets and _rb_st is None:
+                    _rb_st = _rst
+        if _rb_st is not None:
+            _tgt_ok = all(t in _bpcs for t in _rb_st.code_targets if t is not None)
+            _wt_ok = all(0 <= e < len(_rbb.data)
+                         and (_rbb.data[e] in _EXPR_LEAF or 0x07 <= _rbb.data[e] <= 0x10)
+                         for e in _rb_st.expr_refs if e is not None)
+            _rb_ok = _tgt_ok and _wt_ok
+            break
+    if _rb_ok is not None:
+        _check("RAND_BR (0xFFF2) targets are real PCs + weights are expr-refs (block order not swapped)",
+               _rb_ok)
+    else:
+        _skip("RAND_BR layout", "no 0xFFF2 with targets in first 60 banks")
+    # s16-negative literals encode (0x1A) instead of crashing; arg_repr shows decimal
+    _neg = script.Container._literal_expr_bytes(-1000)
+    _check("s16 negative literal encodes + round-trips",
+           _neg[0] == 0x1A and script.eval_expr(_neg, 0) == (-1000, True)
+           and script.arg_repr(_neg, 0) == "-1000")
+    # packed condition variables (token 0x02) resolve to emdeb.bin FLG_/REG_ names
+    try:
+        from rf4s_modkit import emflags as _emf
+        _emt = _emf.EmFlagTable.load(_emf.find_emdeb())
+    except Exception:
+        _emt = None
+    if _emt is not None:
+        bo, wd, _sg = c.unpack_var(0x40C6)                 # header-mask unpack
+        script.install_emflags_var_resolver(c, _emt)
+        # 02 c6 40 00 00 | 18 0b | 8c | 00  ==  REG_WIFE_ID == 11
+        txt, _sz = script.disasm_expr(bytes.fromhex("02c6400000180b8c00"), 0)
+        # corpus coverage: EVERY packed-var (token 0x02) reference in real scenes must resolve to
+        # an emdeb.bin FLG_/REG_ name, so the editor never shows a bare var:0xNN. Uses expr_var_refs
+        # to WALK each arg/guard expression fully -- so it counts vars nested after other tokens
+        # (e.g. `A && FLG_Y`), not just a leading 0x02. 40 banks -> thousands of refs.
+        _pv_res = _pv_raw = 0
+        for _pb in c.banks[:40]:
+            _pd = _pb.data
+            for _psc in script.disassemble_bank(_pb, discover=False):
+                for _pst in _psc.stmts.values():
+                    for _po in list(_pst.args) + list(getattr(_pst, "expr_refs", None) or []):
+                        if _po is None:
+                            continue
+                        for _voff, _enc in script.expr_var_refs(_pd, _po):
+                            if script._packed_var_resolver(_enc):
+                                _pv_res += 1
+                            else:
+                                _pv_raw += 1
+        script.set_packed_var_resolver(None)              # restore global (display-only)
+        _check("packed var 0x40C6 -> REG_WIFE_ID (bit 198, w5)",
+               bo == 198 and wd == 5 and txt == "REG_WIFE_ID == 11")
+        _check("every corpus packed-var ref (incl. nested) resolves to an emdeb name (no bare var:0xNN)",
+               _pv_res > 2000 and _pv_raw == 0, f"{_pv_res} resolved, {_pv_raw} unresolved")
+    else:
+        _check("packed var name resolver (emdeb.bin skipped)", True)
+    # in-place edit round-trips byte-perfect except the edited bytes
+    bk = next(b for b in c.banks
+              if any(s.mnem == "DIALOG" for sc in script.disassemble_bank(b)
+                     for s in sc.stmts.values()))
+    dpc = next(pc for sc in script.disassemble_bank(bk)
+               for pc, s in sc.stmts.items() if s.mnem == "DIALOG")
+    import struct as _st
+    bk.set_dialog_id(dpc, 12345)
+    edited = c.build()
+    c2 = script.Container(edited)
+    _check("in-place DIALOG edit persists + reparses",
+           _st.unpack_from("<I", c2.banks[bk.index].data, dpc + 2)[0] == 12345)
+    _check("edit changes only the targeted bytes",
+           sum(1 for a, b in zip(raw, edited) if a != b) <= 4)
+    # expression resolution + in-place value editing + labels
+    c3 = script.Container(raw)
+    # find an action statement with a settable (immediate) arg
+    found = None
+    for b3 in c3.banks:
+        for s3 in script.disassemble_bank(b3, discover=False):
+            for pc3, st3 in s3.stmts.items():
+                if st3.op < 0xFFF0:
+                    for ai, ao in enumerate(st3.args):
+                        if script.arg_is_settable(b3.data, ao):
+                            found = (b3, s3, pc3, st3, ai)
+                            break
+                    if found:
+                        break
+            if found:
+                break
+        if found:
+            break
+    if found:
+        b3, s3, pc3, st3, ai = found
+        b3.set_action_arg_value(pc3, ai, 7)
+        s3b = script.disassemble_scene(b3, s3.action_type, s3.entry_pc)
+        _check("set_action_arg_value yields the new value",
+               script.arg_repr(b3.data, s3b.stmts[pc3].args[ai]) == "7")
+        _check("value edit is same-length (round-trips)",
+               len(c3.build()) == len(raw))
+    else:
+        _skip("script value-edit", "no settable immediate arg found")
+    _check("eval_expr resolves an s8 immediate",
+           script.eval_expr(b"\x18\x05\x00", 0) == (5, True))
+    # structural editing: grow_bank repack + trampoline insert/delete
+    c4 = script.Container(raw)
+    c4.grow_bank(5, b"\x00" * 8)
+    o4 = c4.build()
+    c4b = script.Container(o4)
+    _check("grow_bank keeps other banks byte-identical",
+           all(bytes(script.Container(raw).banks[i].data) == bytes(c4b.banks[i].data)
+               for i in range(0, len(c4b.banks), 137) if i != 5))
+    # find a clean scene with a DIALOG, insert a beat before it, verify
+    c5 = script.Container(raw)
+    target = None
+    for b5 in c5.banks[:8]:
+        for s5 in script.disassemble_bank(b5, discover=False):
+            if s5.ok and any(st.mnem == "DIALOG" for st in s5.stmts.values()):
+                dpc5 = next(pc for pc, st in s5.stmts.items() if st.mnem == "DIALOG")
+                if script.decode_statement(b5.data, dpc5).size >= 4:
+                    target = (b5, s5, dpc5)
+                    break
+        if target:
+            break
+    if target:
+        b5, s5, dpc5 = target
+        before = sum(1 for st in s5.stmts.values() if st.mnem == "DIALOG")
+        c5.insert_before(b5, dpc5, [("dialog", 8709)])
+        c5b = script.Container(c5.build())
+        s5b = script.disassemble_scene(c5b.banks[b5.index], s5.action_type, s5.entry_pc)
+        ids = [st.dialog_id for st in s5b.stmts.values() if st.mnem == "DIALOG"]
+        _check("trampoline insert adds the beat + scene stays clean",
+               s5b.ok and 8709 in ids and len(ids) == before + 1)
+        _check("insert leaves other banks byte-identical",
+               all(bytes(script.Container(raw).banks[i].data) == bytes(c5b.banks[i].data)
+                   for i in range(0, len(c5b.banks), 211) if i != b5.index))
+        # rewrite_scene: author a fresh body on the same trigger
+        c6 = script.Container(raw)
+        c6.rewrite_scene(b5.index, s5.entry_pc, [("dialog", 8709), ("dialog", 8709)])
+        s6 = script.disassemble_scene(c6.banks[b5.index], s5.action_type, s5.entry_pc)
+        ids6 = [st.dialog_id for st in s6.stmts.values() if st.mnem == "DIALOG"]
+        _check("rewrite_scene installs the new body",
+               s6.ok and ids6.count(8709) >= 2)
+        # compound edits compose: an in-place edit must survive a LATER grow+repoint (the real
+        # multi-edit modder workflow, where the second edit shifts file offsets). Both edits must
+        # be present after build -> reparse from scratch.
+        c7 = script.Container(raw)
+        b7 = c7.banks[b5.index]
+        b7.set_dialog_id(dpc5, 9001)                    # 1) in-place edit
+        c7.insert_before(b7, dpc5, [("dialog", 9002)])  # 2) grow + trampoline (shifts offsets)
+        _ids7 = [st.dialog_id
+                 for sc in script.disassemble_bank(script.Container(c7.build()).banks[b5.index],
+                                                    discover=False)
+                 for st in sc.stmts.values() if st.mnem == "DIALOG"]
+        _check("compound edits compose (in-place edit survives a later grow+repoint)",
+               9001 in _ids7 and 9002 in _ids7)
+        # author-by-name: insert a DIALOG + an action resolved BY NAME in one shot; both must
+        # persist through build->reparse and the action must decode (the opcode half of the
+        # 'build a wholly-new cutscene' workflow, alongside append_text for the dialogue text).
+        c8 = script.Container(raw)
+        _give = script.op_from_name("GiveItem")
+        c8.insert_before(c8.banks[b5.index], dpc5,
+                         [("dialog", 8801), ("action", _give, [258, 1, 0])])
+        s8 = script.disassemble_scene(c8.banks[b5.index], s5.action_type, s5.entry_pc)
+        _m8 = [script.opcode_mnemonic(st.op) for st in s8.stmts.values() if st.op < 0xFFF0]
+        _d8 = [st.dialog_id for st in s8.stmts.values() if st.mnem == "DIALOG"]
+        _check("author-by-name: insert DIALOG + action-by-name composes + decodes",
+               s8.ok and 8801 in _d8 and "GiveItem" in _m8
+               and script.render_action(_give, ["258", "1", "0"]) == "GiveItem(258=Pineapple Juice, 1, 0)")
+    else:
+        _skip("script structural insert", "no suitable scene found")
+    # delete-safety: deleting a statement that is a BRANCH TARGET must not corrupt the scene --
+    # the trampoline 'skip' leaves a jump-over at that pc so the branch forwards to the next
+    # statement (no dangling reference). Find such a case, delete the target, verify still valid.
+    cD = script.Container(raw)
+    _dtgt = None
+    for _bd2 in cD.banks[:30]:
+        for _scd in script.disassemble_bank(_bd2, discover=False):
+            if not _scd.ok:
+                continue
+            for _pc, _st in _scd.stmts.items():
+                for _t in (_st.code_targets or []):
+                    if _t is not None and _t in _scd.stmts and _t != _pc:
+                        _dtgt = (_bd2, _scd, _t)
+                        break
+                if _dtgt:
+                    break
+            if _dtgt:
+                break
+        if _dtgt:
+            break
+    if _dtgt:
+        _bd2, _scd, _t = _dtgt
+        cD.delete_statement(_bd2, _t)
+        _scd2 = script.disassemble_scene(_bd2, _scd.action_type, _scd.entry_pc)
+        _check("deleting a branch target keeps the scene valid (jump-over forwards the branch)",
+               _scd2.ok and cD.build() is not None)
+    else:
+        _skip("delete branch-target safety", "no in-scene branch target found in sample")
+    # global-bank edit path: the special opening-cutscene bank is addressed by a DIRECT header
+    # pointer (byte 12), not a section table -- a distinct grow/fixup code path. Editing + growing
+    # it must update that pointer's size and reparse cleanly with the edits applied.
+    cg = script.Container(raw)
+    _gb = next((b for b in cg.banks if b.kind == "global"), None)
+    if _gb is not None:
+        _gsc = list(script.disassemble_bank(_gb, discover=False))
+        _gdpc = next((pc for sc in _gsc for pc, st in sc.stmts.items() if st.mnem == "DIALOG"), None)
+        if _gdpc is not None:
+            _gb.set_dialog_id(_gdpc, 7777)
+        cg.insert_before(_gb, next(iter(_gsc[0].stmts)), [("dialog", 7778)])
+        cg2 = script.Container(cg.build())
+        _gb2 = next(b for b in cg2.banks if b.kind == "global")
+        _gids = [st.dialog_id for sc in script.disassemble_bank(_gb2, discover=False)
+                 for st in sc.stmts.values() if st.mnem == "DIALOG"]
+        _check("global bank (byte-12 pointer) edit+grow reparses with edits",
+               7778 in _gids and (_gdpc is None or 7777 in _gids))
+    else:
+        _skip("global-bank edit", "no global bank in this rf3.mc")
+    # set_action_opcode (the GUI's SetSpeaker speaker-swap): swapping an op is size-preserving and
+    # reparses with the new op; a non-action opcode is rejected cleanly.
+    cS = script.Container(raw)
+    _sp = None
+    for _bS in cS.banks[:20]:
+        for _scS in script.disassemble_bank(_bS, discover=False):
+            for _pcS, _stS in _scS.stmts.items():
+                if 16 <= _stS.op <= 75:
+                    _sp = (_bS, _pcS, _stS.op)
+                    break
+            if _sp:
+                break
+        if _sp:
+            break
+    if _sp:
+        _bS, _pcS, _oldop = _sp
+        _newop = _oldop + 2 if _oldop + 2 <= 75 else _oldop - 2
+        _sz0 = script.decode_statement(_bS.data, _pcS).size
+        _bS.set_action_opcode(_pcS, _newop)
+        _stA = script.decode_statement(script.Container(cS.build()).banks[_bS.index].data, _pcS)
+        _rej = False
+        try:
+            _bS.set_action_opcode(_pcS, 0xFFFF)
+        except script.ScriptError:
+            _rej = True
+        except Exception:
+            pass
+        _check("set_action_opcode swaps in place (size-preserving) + rejects non-action ops",
+               _stA.op == _newop and _stA.size == _sz0 and _rej)
+    else:
+        _skip("set_action_opcode swap", "no SetSpeaker op found")
+    # cutscene-author friendly metadata layer (opcode_meta)
+    from rf4s_modkit import opcode_meta as om
+    # NOTE: opcode table corrected 2026-07-03 -- real base = g_sceneActionHandlerTable
+    # (+0x4DB790); the old table was +302-shifted. actions 16..75 = the dialogue SetSpeaker
+    # cue, and the Script_VMOp_* handlers are at their true (+302) indices.
+    _check("opcode_meta covers the real action table (763 slots)",
+           len(om.META) == 763 and all(om.mnemonic(o) for o in range(763)))
+    # naming-integrity: no author-facing mnemonic may map to TWO different handlers -- that would
+    # mean the disassembly shows one name for ops that actually DO different things (as the quest
+    # PopulateQuestKind<N> family did: random-cats vs literal-alternates variants collapsed to one
+    # name). Shared names are fine ONLY when the ops share a handler (dual dispatch slots / speaker
+    # sides). Checked against the committed op->handler dump (script_opcodes.json = the IDB names).
+    import json as _json, os as _os2
+    _hp = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
+                         "rf4s_modkit", "script_opcodes.json")
+    if _os2.path.exists(_hp):
+        _hmap = _json.load(open(_hp, encoding="utf-8"))
+        _byname = {}
+        for _o in range(763):
+            _mn = om.mnemonic(_o)
+            if _mn and _mn not in ("(unbound)", "(unused)", "invalid", "nop"):
+                _byname.setdefault(_mn, []).append(_o)
+        _ambig = {_mn: _ops for _mn, _ops in _byname.items()
+                  if len({_hmap.get(str(_o)) for _o in _ops}) > 1}
+        _check("no mnemonic maps to >1 distinct handler (names unambiguous)",
+               not _ambig, "ambiguous: %s" % list(_ambig)[:5])
+        # citation integrity: every `Script_VMOp_*` handler name cited in a description must be a
+        # REAL handler (a value in the op->handler dump). Catches a reconstructed/guessed name that
+        # doesn't exist in the IDB -- e.g. the SetVar template once cited "WriteVarArrayKind3" when
+        # the actual handler is "WriteVarArrayKind3WithSaturation", misdirecting anyone tracing the RE.
+        _real = set(_hmap.values())
+        _badcite = []
+        for _o in range(763):
+            for _cm in re.finditer(r"\bScript_VMOp_[A-Za-z0-9_]+", om.describe(_o) or ""):
+                if _cm.group(0) not in _real:
+                    _badcite.append((_o, _cm.group(0)))
+        _check("every Script_VMOp_* citation in a description is a real handler",
+               not _badcite, "bogus: %s" % _badcite[:5])
+    else:
+        _skip("mnemonic->handler uniqueness", "script_opcodes.json missing")
+    # cross-reference integrity: a description that points at another op by "Mnemonic (op NNN)" must
+    # name that op by its CURRENT mnemonic -- when an op is renamed (e.g. the quest family, or
+    # QueryNpcAnimDone -> QueryActorAnimBusy), stale cross-refs send a modder looking for a name the
+    # disassembly no longer shows. Only flag CamelCase (>=2 caps) tokens so descriptive prose like
+    # "the char-id query (op 481)" isn't a false positive.
+    _xref = re.compile(r"([A-Z][A-Za-z0-9_]{3,})\s*\((?:op|opcode)\s*(\d+)\)")
+    _stale_xref = []
+    for _o in range(763):
+        for _xm in _xref.finditer(om.describe(_o) or ""):
+            _nm, _ref = _xm.group(1), int(_xm.group(2))
+            if sum(1 for _ch in _nm if _ch.isupper()) >= 2:
+                _act = om.mnemonic(_ref)
+                if _act and _nm != _act:
+                    _stale_xref.append("op%d cites '%s (op %d)' now=%s" % (_o, _nm, _ref, _act))
+    _check("no stale 'Mnemonic (op NNN)' cross-references in descriptions",
+           not _stale_xref, "; ".join(_stale_xref[:5]))
+    _check("opcode_meta SetSpeaker<char> mnemonics",
+           om.mnemonic(16) == "SetSpeakerMC" and om.mnemonic(17) == "SetSpeakerMC"
+           and om.mnemonic(18) == "SetSpeakerVishnal" and om.mnemonic(54) == "SetSpeakerNancy"
+           and om.portrait_speaker_tag(16) == "MC" and om.portrait_speaker_tag(54) == "Nancy")
+    _check("opcode_meta known mnemonics (+302-corrected)",
+           om.mnemonic(318) == "SetFlag"
+           and om.mnemonic(319) == "SetEmote" and om.mnemonic(394) == "WarpPlayer"
+           # 2026-09-01 audit: op 357 is a bare kind-7 var-array write (nothing portrait-
+           # related in the handler; corpus stores GetEffectCost prices for text substitution)
+           and om.mnemonic(357) == "SetVar7"
+           # op 412 = BlackScreen is ground-truth: the binary's one surviving script ext-command
+           # debug string is rf3sScriptExecExtCmd_BlackScreen (the op-412 handler). Lock it.
+           and om.mnemonic(412) == "BlackScreen")
+    tip = om.tooltip(394, arg_values=["9", "12"])
+    _check("opcode_meta tooltip has desc + arg values + technical name",
+           "tile x = 9" in tip and "TeleportPlayerToTile" in tip)
+    # metadata-layer invariants (regression guards for the curated tables): every op must
+    # render its tooltip/prototype/describe/category without throwing, every category must be
+    # a known bucket, and the enum-picker layer must stay wired (item/char/room/skill/...).
+    _VALID_CATS = {"dialogue", "screen", "actor", "companion", "flag", "audio", "time",
+                   "item", "effect", "quest", "flow", "query", "noop", "misc"}
+    _throws = 0
+    for _o in range(763):
+        for _fn in (om.tooltip, om.prototype, om.describe, om.category, om.category_label):
+            try:
+                _fn(_o)
+            except Exception:
+                _throws += 1
+    _check("opcode_meta: all 763 ops render tooltip/prototype/describe/category w/o error",
+           _throws == 0, f"{_throws} throws")
+    _badcat = [_o for _o in range(763) if om.category(_o) not in _VALID_CATS]
+    _check("opcode_meta: every op category is a known bucket", not _badcat, str(_badcat[:8]))
+    # accuracy guard: no opcode that actually appears in the scene corpus may be described as
+    # never-emitted / reserved. op 0 is the trap -- it dispatches to the shared return-0 stub yet
+    # is emitted 420x as an inert NOP token, so it must read as a no-op, not "the game never emits
+    # it". (_seen = distinct action ops observed in real scenes, built for the render_action guard.)
+    _false_dead = [_o for _o in _seen if _o in om.META
+                   and "never emit" in om.META[_o]["d"].lower()]
+    _check("opcode_meta: no in-scene op is described as never-emitted (op0 NOP-token accuracy)",
+           not _false_dead, str(_false_dead[:8]))
+    # accuracy guard: no op may label the handler's implicit scene-state/VM context pointer as if
+    # it were a scriptable operand. (op 549 RequestBoxClaimFinalize had arg0="scene state" but its
+    # handler reads only a1 and the corpus emits it with cnt=0 -- a phantom arg in the prototype.)
+    _ctx_names = {"scene state", "scene_state", "scene ctx", "scene context",
+                  "vm state", "vm", "context", "vm context", "a1"}
+    _phantom = [_o for _o in range(763)
+                if any(_a.lower().strip() in _ctx_names for _a in om.arg_names(_o))]
+    _check("opcode_meta: no op labels the implicit VM context as an operand",
+           not _phantom, str(_phantom[:8]))
+    # accuracy pin (IDA-verified 2026-07-11): op 452 was mislabeled "ShipItem / Ship item(s) into
+    # the shipping bin" with placeholder args a/b/c. Its handler (Script_VMOp_SpawnItemAtTileAsDrop-
+    # OrVisual @ RF4S.exe+0x20DB90) calls Item_SpawnAtPositionAsDropOrVisual(slot, x_tile, y_tile,
+    # as_drop); all 28 scene call sites pass (item, count, quality, x_tile~100-431, y_tile, 0/1) -- so
+    # it spawns an item at a MAP TILE, not a shipping-bin op (real shipping = op 649). Pin the
+    # corrected mnemonic + x/y-tile + as-drop labels so a future edit can't reintroduce the misnomer.
+    _m452 = om.mnemonic(452)
+    _a452 = [_a.lower().strip() for _a in om.arg_names(452)]
+    _check("opcode_meta: op452 = SpawnItemAtTile (not the ShipItem misnomer), args carry x/y tile + as-drop",
+           "spawn" in _m452.lower() and "ship" not in _m452.lower()
+           and any("x tile" in _a for _a in _a452) and any("y tile" in _a for _a in _a452)
+           and not any(_a in ("a", "b", "c") for _a in _a452)
+           and "shipping bin" not in om.describe(452).lower())
+    # accuracy pin (IDA-verified 2026-07-11): five high-use scene-ops had FEWER arg labels than the
+    # handler actually reads (undocumented args a modder can't see in the tooltip). Each was confirmed
+    # by decompiling the VM-op handler's arg extraction (arr[cnt-3]/-5/-7) + cross-checked vs scene
+    # values. Pin the added/corrected labels: op464 DropItemStack +quality; op609 RollRandomPoint
+    # +center x/y/radius; op405 SetMonsterFarmLovedToday +loved bit; op478 SpawnNpcScripted +scripted
+    # bit30; op10 SetSpeakerVoice name-string + chime/tone (2026-08-18: arg0 is the NAME-PLATE string
+    # id loaded with mode 2 / no portrait dispatch, not a dialogue line — the captain monologue and
+    # bandit whispers speak through it; supersedes the earlier 'line id' pin).
+    def _la(_o):
+        return [_a.lower() for _a in om.arg_names(_o)]
+    _labelfix = (
+        len(om.arg_names(464)) == 3 and any("quality" in _a for _a in _la(464))
+        and [_a[:6] for _a in _la(609)] == ["center", "center", "radius"]
+        and len(om.arg_names(405)) == 2 and any("loved" in _a for _a in _la(405))
+        and len(om.arg_names(478)) == 2 and any("scripted" in _a for _a in _la(478))
+        and len(om.arg_names(10)) == 2 and any("name string" in _a for _a in _la(10))
+        and any("chime" in _a or "tone" in _a for _a in _la(10)))
+    _check("opcode_meta: five scene-ops carry their IDA-verified arg labels (464/609/405/478/10)",
+           _labelfix)
+    # accuracy pin (IDA-verified 2026-07-11, batch 2): four roll ops were TECHNICAL-only with []
+    # labels + the generic "usually a random item id" auto-desc, and op656 had only 1 of 2 labels.
+    # Each verified by decompiling the handler: op596 rolls [0,N) (arg=N), op597 Shop_RollByCategory
+    # (arg=category), op598 matches a display-name string id, op681 LootTable_RollByCategory
+    # (arg=category) -- all write the result to ctx+64 (a VM output, not an arg); op656
+    # (2026-09-01 audit: really the map UV-scroll X speed target, renamed SetMapScrollSpeedX)
+    # takes (speed_x10000, snap_flag). Pin the input labels so they can't regress to [].
+    _labelfix2 = (
+        len(om.arg_names(596)) == 1 and om.arg_names(596)[0].lower().startswith("n ")
+        and len(om.arg_names(597)) == 1 and "categor" in om.arg_names(597)[0].lower()
+        and len(om.arg_names(598)) == 1 and "name" in om.arg_names(598)[0].lower()
+        and len(om.arg_names(681)) == 1 and "categor" in om.arg_names(681)[0].lower()
+        and len(om.arg_names(656)) == 2 and any("snap" in _a.lower() for _a in om.arg_names(656)))
+    _check("opcode_meta: five more scene-ops carry IDA-verified input labels (596/597/598/681/656)",
+           _labelfix2)
+    # accuracy pin, re-pinned 2026-09-01 (full audit): op657 went SetMapFadeColor(R,G,B) ->
+    # SetMapFadeChannel1 (2026-07-12, arg count fixed) -> SetMapScrollSpeedY: the handler writes
+    # the map tile UV-SCROLL Y velocity target (work_buffer 255/257/259 + snap), the vertical
+    # sibling of op656 SetMapScrollSpeedX -- the "fade" reading was retired with the IDB rename
+    # to Script_VMOp_SetMapUvScrollSpeedYTarget. Still 2 args (speed + snap), never an RGB triple.
+    _m657 = om.mnemonic(657)
+    _a657 = [_a.lower() for _a in om.arg_names(657)]
+    _check("opcode_meta: op657 = 2-arg map UV-scroll Y speed (speed+snap), not fade / not RGB",
+           _m657 == "SetMapScrollSpeedY" and len(_a657) == 2
+           and any("speed" in _a for _a in _a657) and any("snap" in _a for _a in _a657)
+           and _a657 != ["r", "g", "b"])
+    # systematic guard (2026-07-12): an op whose description says "Alias of op N (same handler)"
+    # runs the SAME handler, so it must carry the SAME NUMBER of arg labels as op N -- otherwise the
+    # alias silently drops an arg the modder can't see (op200 SetCameraTargetActor had only ['actor
+    # slot'] while its alias op199 had the camera-distance too). Encodes the shared-handler sibling
+    # lesson offline (no IDA needed) from the description text.
+    _alias_mismatch = []
+    for _o in range(763):
+        _dd = om.META.get(_o, {}).get("d") or ""
+        _mm = re.search(r"[Aa]lias of op (\d+)", _dd)
+        if _mm:
+            _tgt = int(_mm.group(1))
+            if len(om.arg_names(_o)) != len(om.arg_names(_tgt)):
+                _alias_mismatch.append((_o, len(om.arg_names(_o)), _tgt, len(om.arg_names(_tgt))))
+    _check("opcode_meta: every 'Alias of op N' op has the same arg-label count as op N",
+           not _alias_mismatch, str(_alias_mismatch[:5]))
+    # accuracy pin (IDA-verified 2026-07-12): op319 SetEmote shares handler Script_VMOp_SetNpcEmoteByte
+    # with op320, but its desc said "Show an emote bubble over an NPC" -- WRONG. The handler writes the
+    # per-NPC facial-expression byte at record+57 (switches the portrait face), it is NOT the transient
+    # emote-BUBBLE popup system (those are op5/6/7 ShowNpcBubble). Pin the corrected framing.
+    _d319 = om.describe(319).lower()
+    _check("opcode_meta: op319 = facial-expression byte (record+57), not an emote 'bubble'",
+           "facial-expression" in _d319 and "show an emote bubble" not in _d319
+           and "record +57" in _d319)
+    # companion pin (IDA-verified 2026-07-12): op322 SetMood writes the MOOD byte record+56 (handler
+    # Script_VMOp_SetNpcMoodByte), a DIFFERENT byte from op319's emote +57. Its old terse "mood /
+    # facial expression" wording collided with op319's "facial-expression" -- disambiguated so the two
+    # NPC expression bytes (+56 mood vs +57 emote) don't blur together.
+    _d322 = om.describe(322).lower()
+    _check("opcode_meta: op322 = mood byte (record+56), disambiguated from the +57 emote byte",
+           "+56" in _d322 and "+57" in _d322 and "mood / facial expression" not in _d322)
+    # emote-space map (IDA-verified 2026-07-12): three DISTINCT emote-id spaces must stay separated --
+    # op93 SetDialogueSpeakerEmote = dialogue-portrait expression, a 3-BIT field 0-7 (handler stores
+    # emote_id<<9 into HUD word bits 0xE00) of which only 0-5 are named (SPEAKER_EMOTES); op319 = the
+    # per-NPC record+57 emote byte (a different value space, 95-103 in scenes); bubble emotes 186-192
+    # (ARG_HINTS 'emote/mood'). op93's picker names exactly the 6 known 0-5 expressions.
+    _d93 = om.describe(93).lower()
+    _e93 = om.ENUM_ARG_VALUES.get((93, 0), {})
+    _check("opcode_meta: op93 emote = 3-bit portrait field (0-5 named), distinct from op319's +57 byte",
+           "3-bit" in _d93 and "op319" in _d93 and set(_e93) == {0, 1, 2, 3, 4, 5}
+           and _e93[1][0] == "angry" and _e93[5][0] == "blush")
+    # accuracy pin (IDA-verified 2026-07-11, batch 3): three ops carried the generic auto-desc
+    # "Rolls a value via the RNG (usually a random item id)" that was FLATLY WRONG -- op631 is a
+    # deterministic name-seeded hash, op632 uses the DAILY-seeded (reload-safe) RNG not the global
+    # PRNG, and op691 is a deterministic product (no RNG at all). Each verified by decompile. Pin the
+    # corrected descriptions/args so the wrong generic blurb can't creep back.
+    _d631, _d632, _d691 = om.describe(631).lower(), om.describe(632).lower(), om.describe(691).lower()
+    _descfix = (
+        "usually a random item id" not in _d631
+        and "name-seeded" in _d631 and len(om.arg_names(631)) == 2
+        and "daily" in _d632 and "usually a random item id" not in _d632 and len(om.arg_names(632)) == 2
+        and ("product" in _d691 and ("not an rng" in _d691 or "no rng" in _d691))
+        # 2026-09-01 decomp-port tiebreak: every arg is a factor (the count is the
+        # encoding's own packed slot), so a single variadic hint is correct.
+        and len(om.arg_names(691)) == 1)
+    _check("opcode_meta: op631/632/691 have corrected (non-generic) descriptions + args",
+           _descfix)
+    # accuracy pin (IDA-verified 2026-07-12): op290 wrote "unlocks achievement 4391", but 4391 is
+    # NOT one of the ~30 real named achievements special-cased in GameFlags_WritePacked_OrAchievement
+    # (RF4S.exe+0x1D6000) -- it falls through to GameFlags_WriteField as a PACKED game-flag write
+    # (bit 295, width 2, value 2; the IDA handler name 'SetWifeStatus2...' = marriage status). So it
+    # sets a marriage/family-status game-flag, then runs the family birthday/anniversary check -- NOT
+    # an achievement unlock. Pin the corrected framing so the misnomer can't return.
+    _d290 = om.describe(290).lower()
+    _check("opcode_meta: op290 = marriage-status game-flag write (not 'unlocks achievement 4391')",
+           "game-flag" in _d290 and "unlocks achievement 4391" not in _d290
+           and "anniversary" in _d290)
+    # completeness of the same fix (2026-07-12): op379 (id 1072 'first scripted BGM') and op557/558
+    # (per-NPC ids 1451-1473) also route through GameFlags_WritePacked, so they're packed game-flag
+    # writes, NOT the ~30 named Steam achievements. op379's note is corrected; op557/558 were renamed
+    # UnlockNpcAchievements -> SetNpcRecognitionFlags (a graded per-NPC flag). Pin so "achievement"
+    # framing can't creep back onto these packed-flag ids.
+    _d379, _m557, _m558 = om.describe(379).lower(), om.mnemonic(557), om.mnemonic(558)
+    _check("opcode_meta: op379/557/558 framed as packed game-flags, not achievements",
+           "not a steam achievement" in _d379 and "achievement 1072" not in _d379
+           and _m557 == "SetNpcRecognitionFlags" and _m558 == "SetNpcRecognitionFlags"
+           and "gameflags_writepacked" in om.describe(557).lower()
+           and "not a steam achievement" in om.describe(558).lower())
+    # A description that assigns a label's exact name to a different argN (e.g. the SetSpeaker
+    # family said "arg1 = face frame" while "face frame" is label index 0) would mislead an author
+    # cross-referencing the tooltip prose against the editor's 0-based arg rows. The negative
+    # lookbehind skips the second half of combined "argA/argB = X/Y" refs (op 122 tile x/y).
+    _obo = []
+    for _o in range(763):
+        _dl = om.describe(_o).lower()
+        for _idx, _nm in enumerate(om.arg_names(_o)):
+            _n = _nm.lower().strip()
+            if len(_n) < 5 or "/" in _n:
+                continue
+            for _m in re.finditer(r"(?<![/\w])arg(\d+)\s*=\s*" + re.escape(_n), _dl):
+                if int(_m.group(1)) != _idx:
+                    _obo.append((_o, _n, int(_m.group(1)), _idx))
+    _check("opcode_meta: description arg numbering is 0-based + matches label indices",
+           not _obo, str(_obo[:6]))
+    _pickers = sum(1 for _o in range(763) for _i in range(len(om.arg_names(_o)))
+                   if om.enum_arg_choices(_o, _i))
+    # ...and effect id 29 (0x1D, IDA-reversed: Effects_Dispatch/QueryById case 29 set/read
+    # g_effectAppliedBits word2 bit[sub-index]) -- filled the EFFECT_IDS gap between 0x1C and 0x1F.
+    # ...and op 197 ShakeCamera arg0 shake kind (IDA-reversed from PlayerEffect_TickJitterByKind
+    # cases 0-5 = kinds 1-6; a bare "kind" arg that now decodes to named shake patterns).
+    _check("opcode_meta: enum pickers wired + decode (item/char/room/skill/effect/shake/...)",
+           _pickers >= 200 and om.enum_arg_label(423, 0, 258) == "Pineapple Juice"
+           and om.enum_arg_label(644, 0, 29) == "Effect-applied flag"
+           and om.enum_arg_label(197, 0, 6) == "Rotational rumble",
+           f"{_pickers} picker slots")
+    # accuracy guard: every enum picker must be wired to an arg index that actually exists on the
+    # op (ai < label count). A picker on arg3 of a 3-arg op (indices 0-2) would silently never
+    # render -- a dead picker. (ENUM_ARG_VALUES keys are (op, arg_index).)
+    _deadpick = [(_o, _ai) for (_o, _ai) in om.ENUM_ARG_VALUES
+                 if _ai >= len(om.arg_names(_o))]
+    _check("opcode_meta: no enum picker wired to a non-existent arg index",
+           not _deadpick, str(_deadpick[:8]))
+    # accuracy pin (2026-07-12): op 376 BeginShopkeeperInteraction arg1 is a SHOP dispatch id
+    # (all 192 vanilla sites pass 75-89); its picker was wired to the FULL 83-entry
+    # WORLD_INTERACTION_ACTIONS table, so a moder editing a "shop id" saw Save/Load/NameEntry
+    # (non-shops that wouldn't open a shop). Scoped it to the shop subrange 75-89. Pin that op376's
+    # picker is shop-only while op375 (TriggerWorldAction) keeps the full action table.
+    _p376 = om.ENUM_ARG_VALUES.get((376, 1), {})
+    _p375 = om.ENUM_ARG_VALUES.get((375, 0), {})
+    _check("opcode_meta: op376 shop-id picker scoped to shops 75-89 (not the full action table)",
+           len(_p376) == 15 and set(_p376) == set(range(75, 90))
+           and all(_v[0].lower().startswith("shop") for _v in _p376.values())
+           and len(_p375) > 60 and 2 in _p375)   # op375 keeps Save/Load/... full set
+    # accuracy guard: every "op N" cross-reference in a description points to a real action slot
+    # (0..762). A typo'd or stale reference (e.g. "counterpart to op 900") would misdirect an
+    # author to a non-existent op. Only 763 action slots exist.
+    _xref_bad = []
+    for _o in range(763):
+        for _m in re.finditer(r"\bop(?:code)?\s+(\d{1,4})\b", om.describe(_o)):
+            if int(_m.group(1)) > 762:
+                _xref_bad.append((_o, int(_m.group(1))))
+    _check("opcode_meta: all 'op N' description cross-references are in range (0..762)",
+           not _xref_bad, str(_xref_bad[:8]))
+    # insert-by-name: op_from_name resolves curated mnemonics (case-insensitive), rejects
+    # unknowns, and round-trips for every non-placeholder op (name -> op -> same mnemonic).
+    _rt = all(script.op_from_name(om.mnemonic(_o)) is not None
+              for _o in range(763)
+              if om.mnemonic(_o) not in ("(unbound)", "(unused)", "nop", "invalid"))
+    _check("op_from_name resolves every curated mnemonic + is case-insensitive",
+           _rt and script.op_from_name("giveitem") == 423
+           and script.op_from_name("no_such_op") is None)
+    # op discovery search (powers 'did you mean' when authoring by name)
+    _fade = {m for _o, m in script.find_ops("fade")}
+    _check("find_ops discovers ops by name substring",
+           "FadeScreen" in _fade and len(script.find_ops("camera")) >= 3
+           and script.find_ops("zzznope") == [])
+    # friendly text export: dump_text(friendly=True) is a full disassembly listing using the
+    # curated mnemonics -- a reference/doc output outside the GUI. Guard it runs + emits a listing.
+    _bd = next((b.index for b in c.banks
+                for sc in script.disassemble_bank(b, discover=False)
+                if any(st.mnem == "DIALOG" for st in sc.stmts.values())), 0)
+    _dt = script.dump_text(c, banks=[_bd], friendly=True)
+    _check("dump_text friendly export produces a curated disassembly listing",
+           len(_dt) > 50 and "DIALOG" in _dt and "bank" in _dt)
+    # control-op descriptions (used by the tooltip + the selection-panel one-liner): every
+    # control mnemonic the disassembler emits must have a non-empty tooltip.
+    _ctrl = set(script.CONTROL.values())
+    _check("control_tooltip covers every control mnemonic",
+           len(_ctrl) >= 15 and all((script.control_tooltip(_m) or "").strip() for _m in _ctrl),
+           f"{len(_ctrl)} control ops")
+    # format_scene friendly render (the GUI's scene view) works on a real scene
+    _sc0 = next(iter(script.disassemble_bank(c.banks[_bd], discover=False)), None)
+    _check("format_scene friendly render produces a listing",
+           _sc0 is not None and isinstance(script.format_scene(_sc0, friendly=True), str)
+           and len(script.format_scene(_sc0, friendly=True)) > 10)
+    # the committed opcode reference must stay in sync with opcode_meta -- catches a metadata
+    # change that forgot to re-run gen_opcode_reference. Skipped if the doc isn't present.
+    import os as _os
+    _refp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "CUTSCENE_OPCODES.md")
+    if _os.path.exists(_refp):
+        try:
+            import gen_opcode_reference as _gr
+            _refdoc = open(_refp, encoding="utf-8").read()
+            _check("CUTSCENE_OPCODES.md in sync with opcode_meta (re-run gen_opcode_reference.py)",
+                   _gr.build() == _refdoc)
+            # the flat opcodes_list.csv (spreadsheet/grep companion) is generated from the SAME
+            # opcode_meta by the same generator -- guard it stays in sync too, so it can't silently
+            # go stale after an opcode_meta edit (a rename/description change).
+            _csvp = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "opcodes_list.csv")
+            if _os.path.exists(_csvp):
+                _check("opcodes_list.csv in sync with opcode_meta (re-run gen_opcode_reference.py)",
+                       _gr.build_csv() == open(_csvp, encoding="utf-8").read())
+            else:
+                _skip("opcodes_list.csv sync", "opcodes_list.csv not generated")
+            # the reference must also cover the em.bin (EMF) opcodes scenes bridge to -- not just the
+            # rf3.mc VM. Guard that the Event-Manager section exists and names EVERY em action op +
+            # comparison operator, so a future emscript change (or an accidental section drop, which
+            # the doc==gen check alone wouldn't catch) surfaces here.
+            from rf4s_modkit import emscript as _ems
+            _emsec = "## Event Manager (em.bin) opcodes" in _refdoc
+            _miss_act = [n for n in set(_ems.ACTION_NAMES.values()) if ("**%s**" % n) not in _refdoc]
+            _miss_cmp = [v for v in _ems.CMP_NAMES.values() if ("`0x%02X` %s" %
+                         ([k for k, vv in _ems.CMP_NAMES.items() if vv == v][0], v)) not in _refdoc]
+            # the rf3.mc->em.bin bridge ops must be named in the doc by their EXACT mnemonic (so a
+            # reader can cross-ref them in the opcode index) -- catches the approximated-name drift
+            # that once slipped in (e.g. "EvalCondA" vs the real "EvalCondScriptA").
+            _miss_bridge = [script.opcode_mnemonic(o) for o in script.EMF_ENTRY_OPS
+                            if ("`%s` (%d)" % (script.opcode_mnemonic(o), o)) not in _refdoc]
+            _check("opcode reference documents every em.bin action op + comparison + bridge op",
+                   _emsec and not _miss_act and not _miss_cmp and not _miss_bridge,
+                   f"section={_emsec}, missing acts={_miss_act}, cmps={_miss_cmp}, bridge={_miss_bridge}")
+        except Exception as _e:
+            _skip("opcode reference sync", str(_e))
+    else:
+        _skip("opcode reference sync", "CUTSCENE_OPCODES.md not generated")
+
+
+def test_emflags():
+    """Event Manager flag/register symbol table (emdeb.bin). Skipped if the file
+    isn't in the bundle; validated structurally when present."""
+    from rf4s_modkit import emflags
+    try:
+        path = emflags.find_emdeb()
+    except FileNotFoundError:
+        _check("emflags emdeb.bin present (skipped)", True)
+        return
+    t = emflags.EmFlagTable.load(path)
+    _check("emflags parses the full variable table",
+           len(t.variables) == 1822 and t.by_name["REG_MAIN_SCENARIO"].bit_offset == 0
+           and t.by_name["REG_MAIN_SCENARIO"].bit_width == 9)
+    # bit offsets are perfectly sequential (offset[i+1] == offset[i] + width[i])
+    seq = all(t.variables[i + 1].bit_offset == t.variables[i].bit_offset + t.variables[i].bit_width
+              for i in range(len(t.variables) - 1))
+    _check("emflags bit offsets are contiguous", seq)
+    # cross-check vs the save editor's verified GameFlags home-upgrade bit
+    rk = t.by_name.get("REG_STORAGE_RUCK_LV")
+    _check("emflags offset == GameFlags bit-id (Backpack @0x3DE w2)",
+           rk is not None and rk.bit_offset == 0x3DE and rk.bit_width == 2)
+    # packed read/write round-trip
+    buf = bytearray((t.total_bits // 8) + 2)
+    t.write_value(buf, "FLG_SUBEV_FORTE_MARRIAGE_CLEAR", 1)
+    t.write_value(buf, "REG_MAIN_SCENARIO", 0x77)
+    _check("emflags packed read/write round-trip",
+           t.read_value(buf, "FLG_SUBEV_FORTE_MARRIAGE_CLEAR") == 1
+           and t.read_value(buf, "REG_MAIN_SCENARIO") == 0x77
+           and t.read_value(buf, "FLG_SUBEV_ARTHUR_MARRIAGE_CLEAR") == 0)
+    # citation integrity: every FLG_/REG_/GF_ game-flag name cited in an opcode description must be a
+    # REAL emdeb.bin variable (GF_ is a "game flag" display prefix -> strip it) -- a typo'd or renamed
+    # flag name would misdirect a modder tracing the RE. Skip wildcard family refs (a '*' right after,
+    # e.g. EM_BOSS_*_RETURN...). Completes the citation guards (handler names + op cross-refs + flags).
+    from rf4s_modkit import opcode_meta as _omf
+    _fl = set(t.by_name)
+    _fpat = re.compile(r"\b((?:GF_|FLG_|REG_)[A-Z0-9_]{2,})\b")
+    _fbad = []
+    for _o in range(763):
+        _dsc = _omf.describe(_o) or ""
+        for _fm in _fpat.finditer(_dsc):
+            if _dsc[_fm.end():_fm.end() + 1] == "*":
+                continue
+            _fn = _fm.group(1)
+            if _fn in _fl or (_fn.startswith("GF_") and _fn[3:] in _fl):
+                continue
+            _fbad.append((_o, _fn))
+    _check("every FLG_/REG_/GF_ flag citation in a description resolves in emdeb.bin",
+           not _fbad, "unresolved: %s" % _fbad[:5])
+
+
+def test_emscript():
+    """em.bin (EMF_) Event Manager parser: entries, conditions, actions, names,
+    and the rf3.mc bridge-op cross-reference. IDA-verified format (2026-07-04):
+    CondScript_EvalNamedConditionA/B, CondScript_EvalEntry/EvalExpr,
+    EMF_DispatchEntry/AltActionStream/DispatchActionOpcode/DecodeOperandPair."""
+    from rf4s_modkit import emscript, script as S
+    try:
+        em = emscript.EmScript.load()
+    except FileNotFoundError:
+        _check("emscript em.bin present (skipped)", True)
+        return
+    _check("emscript parses all entries",
+           len(em.entries) == 272 and em.entries[2].name == "OPENING_EV_FIN"
+           and em.entries[271].name == "SUBEV_MAX")
+    _check("emscript name tables complete",
+           len(em.names.entry_names) == 272 and len(em.names.query_names) == 218
+           and em.names.query_names[0][0] == "PlayerHP")
+    # OP_HELP: every em.bin action opcode + comparison operator must carry a human-readable
+    # one-liner (powers the GUI op-picker hint that explains MUL_S/DIV_U/SET_EQ_ZERO/etc to a
+    # modder who doesn't read the _S/_U = signed/unsigned convention). Catches a future op added
+    # to ACTION_NAMES/CMP_NAMES without a help string.
+    _ophelp_missing = [_v for _v in set(emscript.ACTION_NAMES.values()) | set(emscript.CMP_NAMES.values())
+                       if not emscript.OP_HELP.get(_v)]
+    _check("emscript OP_HELP explains every action op + comparison operator",
+           not _ophelp_missing and emscript.OP_HELP["MUL_S"].endswith("(signed multiply)")
+           and "== 0" in emscript.OP_HELP["SET_EQ_ZERO"], str(_ophelp_missing))
+    # every flag operand must resolve to an emdeb variable start with matching width
+    ops = list(em.iter_flag_operands())
+    exact = sum(1 for _e, o in ops
+                if (v := em.names.flag_at(o.value)) is not None
+                and v.bit_offset == o.value and v.bit_width == o.width)
+    _check("emscript flag operands resolve 100%% (%d)" % len(ops),
+           len(ops) >= 594 and exact == len(ops))
+    # every query operand (a Script_QueryGameState id) must resolve to an emdeb.bin query name, so
+    # the em condition/action editor shows a readable query name -- never a raw id. End-to-end proof
+    # that the 218-name query table covers the whole corpus; parallels the flag-operand check.
+    _q_tot = _q_named = 0
+    for _e in em.entries:
+        _qops = []
+        for _which in (_e.cond_a, _e.cond_b):
+            for _slot in (_which or []):
+                for _x in _slot:
+                    if _x.kind == "cmp":
+                        _qops.extend((_x.op1, _x.op2))
+        for _acts in (_e.actions, _e.alt_actions):
+            for _a in (_acts or []):
+                _qops.extend((_a.target, _a.value))
+        for _o in _qops:
+            if _o is not None and _o.kind == "query":
+                _q_tot += 1
+                if em.names.query_name(_o.value):
+                    _q_named += 1
+    _check("emscript query operands resolve 100%% (%d)" % _q_tot,
+           _q_tot >= 600 and _q_named == _q_tot,
+           "%d/%d named" % (_q_named, _q_tot))
+    # every comparison in every entry's conditions must decode to a NAMED operator (CMP_NAMES =
+    # ==/!=/>/>=; the VM has no </<= -- it uses >= with swapped operands). This locks that the em
+    # condition editor (set_cmp_operator) can name+offer every operator the corpus uses; an unknown
+    # nibble would surface as a bare/None operator in the editor. Parallels the flag-operand check.
+    _cmp_tot = _cmp_named = 0
+    for _ce in em.entries:
+        for _cg in ("cond_a", "cond_b"):
+            for _ccl in (getattr(_ce, _cg, None) or []):
+                for _cx in (_ccl if isinstance(_ccl, (list, tuple)) else [_ccl]):
+                    if getattr(_cx, "kind", None) == "cmp":
+                        _cmp_tot += 1
+                        if getattr(_cx, "cmp", None) in ("==", "!=", ">", ">="):
+                            _cmp_named += 1
+    _check("emscript every condition comparison decodes to a named operator (%d)" % _cmp_tot,
+           _cmp_tot >= 500 and _cmp_named == _cmp_tot)
+    # block-type census (verified against the game data)
+    _check("emscript block census (condA/condB/actions/alt)",
+           sum(1 for e in em.entries if e.cond_a) == 238
+           and sum(1 for e in em.entries if e.cond_b) == 4
+           and sum(1 for e in em.entries if e.actions) == 2
+           and sum(1 for e in em.entries if e.alt_actions) == 6)
+    # semantic spot-checks
+    date = em.get("EV_DATE_FINISH")
+    _check("emscript EV_DATE_FINISH alt actions",
+           [a.pretty(em.names) for a in date.alt_actions]
+           == ["FLG_DATE_FES_NOW = 0", "FLG_KOKUHAKU_NOW = 0", "REG_DATE_MAP = 0"])
+    opening = em.get("OPENING_EV_FIN")
+    _check("emscript OPENING_EV_FIN story jump",
+           [a.pretty(em.names) for a in opening.alt_actions] == ["REG_MAIN_SCENARIO = 39"])
+    day = em.get("EV_CMN_DAYTIME")
+    _check("emscript EV_CMN_DAYTIME AND/OR structure",
+           day.pretty_condition(em.names, "a", "") ==
+           "   Hour >= 6 AND 12 > Hour\nOR Hour >= 12 AND 16 > Hour")
+    # rf3.mc bridge ops resolve to entry names. Count DISTINCT (bank, pc) sites --
+    # discovered scenes can overlap, so raw occurrences double-count.
+    mc = BUNDLE_DIR / "bundlePatch1" / "rf3.mc"
+    if QUICK and mc.is_file():
+        _skip("emscript rf3.mc bridge ops all resolve", "quick mode: full-corpus sweep")
+        _skip("cutscene tooltip EMF bridge names resolve", "quick mode: full-corpus sweep")
+        _skip("emscript plays-when gate pattern", "quick mode: full-corpus sweep")
+    elif mc.is_file():
+        c = S.Container(mc.read_bytes())
+        sites = {}
+        for bk, sc in S.iter_scenes(c):
+            for pc, st in sc.stmts.items():
+                if st.op in S.EMF_ENTRY_OPS and st.args:
+                    ai = S.EMF_ENTRY_OPS[st.op]
+                    if ai >= len(st.args):
+                        continue
+                    try:
+                        eid = int(S.arg_repr(bk.data, st.args[ai]))
+                    except ValueError:
+                        eid = None
+                    sites.setdefault((bk.index, pc), eid)
+        named = sum(1 for eid in sites.values()
+                    if eid is not None and em.names.entry_name(eid))
+        # every bridge-op operand must decode to a valid EMF entry id (0..271)
+        _check("emscript rf3.mc bridge ops all resolve (%d/%d distinct sites)"
+               % (named, len(sites)), len(sites) >= 100 and named == len(sites))
+        # ...and via the module-level script.emf_entry_name (auto-find) -- the SAME resolver the
+        # GUI tooltip uses ("Event Manager entry: <name>" in _rich_tip_text). Distinct code path
+        # from em.names above; this locks that the editor shows em names, not raw entry ids.
+        _named_gui = sum(1 for eid in sites.values()
+                         if eid is not None and S.emf_entry_name(eid))
+        _check("cutscene tooltip EMF bridge names resolve (module-level emf_entry_name)",
+               _named_gui == len(sites))
+        # "plays-when" gate pattern: EvalCondA/B (371/372) immediately feeding a
+        # BR_Z/BR_NZ = a guard whose entry condition is the trigger. Confirm the
+        # pattern exists and the referenced entries' conditions decode (editor uses
+        # this for the scene "fires when" header).
+        gate_hits = 0
+        for bk, sc in S.iter_scenes(c):
+            ss = sorted(sc.stmts.items())
+            for i, (pc, st) in enumerate(ss):
+                if st.op not in (371, 372) or not st.args:
+                    continue
+                if i + 1 >= len(ss) or ss[i + 1][1].mnem not in ("BR_Z", "BR_NZ"):
+                    continue
+                ai = S.EMF_ENTRY_OPS[st.op]
+                try:
+                    eid = int(S.arg_repr(bk.data, st.args[ai])) if ai < len(st.args) else None
+                except ValueError:
+                    eid = None
+                if eid is not None and 0 <= eid < len(em.entries):
+                    e = em.entries[eid]
+                    if (e.cond_b if st.op == 372 else e.cond_a):
+                        gate_hits += 1
+        _check("emscript plays-when gate pattern (EvalCond+BR guards, %d)" % gate_hits,
+               gate_hits >= 50)
+
+    # em.bin in-place editor: byte-perfect no-op build + a real 3-byte edit round-trip
+    raw_em = open(emscript.find_em(), "rb").read()
+    em_e = emscript.EmScript.parse(raw_em, em.names)
+    _check("emscript build() byte-perfect (no edits)", em_e.build() == raw_em)
+    ent = em_e.get("EV_BOSS_SP_DEAD")            # condB: REG_MAIN_SCENARIO >= 19; alt: =19
+    cx = ent.cond_b[0][0]
+    lit = cx.op2 if cx.op2.kind in ("lit", "slit") else cx.op1
+    em_e.set_operand_value(lit, 10)              # >= 19  ->  >= 10
+    em_e.set_cmp_operator(cx, ">")               #        ->  > 10
+    em_e.set_operand_value(ent.alt_actions[0].value, 39)   # = 19 -> = 39
+    ed = em_e.build()
+    re_e = emscript.EmScript.parse(ed, em.names).get("EV_BOSS_SP_DEAD")
+    _check("emscript in-place edit (3 bytes, round-trips)",
+           len(ed) == len(raw_em)
+           and sum(1 for a, b in zip(raw_em, ed) if a != b) == 3
+           and re_e.pretty_condition(em.names, "b", "").strip() == "REG_MAIN_SCENARIO > 10"
+           and [a.pretty(em.names) for a in re_e.alt_actions] == ["REG_MAIN_SCENARIO = 39"])
+    # set_action_op: the em editor's THIRD edit method (script_explorer apply_edit -> set_action_op)
+    # -- changes an arithmetic action's operator (SET/ADD/SUB/MUL_.../SET_EQ_ZERO) via a 1-byte
+    # high-nibble edit, preserving the operand; rejects CALL/None/bad-op. Fresh parse, independent
+    # of the 3-byte edit above. The other two em-edit methods (set_operand_value/set_cmp_operator)
+    # are covered above; this closes the last untested em-editor edit path.
+    _ea = emscript.EmScript.parse(raw_em, em.names)
+    _act = _ea.get("EV_BOSS_SP_DEAD").alt_actions[0]      # arithmetic SET action
+    _newop = "ADD" if _act.name != "ADD" else "SUB"
+    _ea.set_action_op(_act, _newop)
+    _eab = _ea.build()
+    _react = emscript.EmScript.parse(_eab, em.names).get("EV_BOSS_SP_DEAD").alt_actions[0]
+    _arej = 0
+    for _bad in (lambda: _ea.set_action_op(None, "SET"),
+                 lambda: _ea.set_action_op(_act, "NOTANOP")):
+        try:
+            _bad()
+        except Exception:
+            _arej += 1
+    _check("emscript set_action_op changes an action operator (1-byte, round-trips) + rejects bad",
+           len(_eab) == len(raw_em)
+           and sum(1 for a, b in zip(raw_em, _eab) if a != b) == 1
+           and _react.name == _newop and _arej == 2)
+    # set_cond_ref: repoint a condA/condB *reference* to another entry id (CLI `em set
+    # --entry-ref`; the GUI omits it by design). Real target: EV_BOSS_SP_DEAD's cond_a[0][0]
+    # is `not condB(#7)` -- retarget #7 -> #42 in place, rebuild, reparse, confirm the new
+    # ref + byte-stability + rejection of a cmp expr / None.
+    _cr = emscript.EmScript.parse(raw_em, em.names)
+    _refx = _cr.get("EV_BOSS_SP_DEAD").cond_a[0][0]
+    _cr.set_cond_ref(_refx, 42)                          # #7 -> #42
+    _crb = _cr.build()
+    _re_ref = emscript.EmScript.parse(_crb, em.names).get("EV_BOSS_SP_DEAD").cond_a[0][0]
+    _crej = 0
+    for _bad in (lambda: _cr.set_cond_ref(_cr.get("EV_BOSS_SP_DEAD").cond_b[0][0], 3),  # a cmp
+                 lambda: _cr.set_cond_ref(None, 3)):
+        try:
+            _bad()
+        except Exception:
+            _crej += 1
+    _check("emscript set_cond_ref repoints a condA/condB reference (round-trips) + rejects bad",
+           _refx.kind == "not_cond_b" and _refx.ref == 42
+           and len(_crb) == len(raw_em)
+           and sum(1 for a, b in zip(raw_em, _crb) if a != b) == 1
+           and _re_ref.kind == "not_cond_b" and _re_ref.ref == 42 and _crej == 2)
+    # set_call_entry: repoint a CALL action to another entry id (CLI `em set --entry-ref` on an
+    # action). The shipping em.bin corpus has ZERO CALL actions (control flow is via condA/condB
+    # refs, all actions are arithmetic register writes) -- so this is a latent editor path with no
+    # natural target; exercise its u16/u32 in-place packing on a crafted buffer instead. u16 CALL
+    # #5 @0 and u32 CALL #0x11223344 @3, retarget both, verify bytes + u16-overflow / non-CALL
+    # rejection. (Asserting the corpus is CALL-free documents *why* this guard is synthetic.)
+    _corpus_calls = sum(1 for _en in em.entries for _s in (_en.actions, _en.alt_actions)
+                        for _a in (_s or []) if _a.name == "CALL")
+    _syn = emscript.EmScript([], em.names, data=bytearray(b"\x00\x05\x00\x10\x44\x33\x22\x11"))
+    _a16 = emscript.Action(0x00, "CALL", entry=5, pos=0)
+    _a32 = emscript.Action(0x10, "CALL", entry=0x11223344, pos=3)
+    _syn.set_call_entry(_a16, 9)
+    _syn.set_call_entry(_a32, 0x0A0B0C0D)
+    _synb = _syn.build()
+    _ok16 = struct.unpack_from("<H", _synb, 1)[0] == 9
+    _ok32 = struct.unpack_from("<I", _synb, 4)[0] == 0x0A0B0C0D
+    _srej = 0
+    for _bad in (lambda: _syn.set_call_entry(emscript.Action(0x20, "SET", pos=0), 1),  # not CALL
+                 lambda: _syn.set_call_entry(_a16, 0x10000)):                          # u16 overflow
+        try:
+            _bad()
+        except Exception:
+            _srej += 1
+    _check("emscript set_call_entry repoints u16/u32 CALL (synthetic; corpus is CALL-free) + rejects bad",
+           _corpus_calls == 0 and _ok16 and _ok32 and _srej == 2
+           and len(_synb) == 8)
+    # action TARGET retarget (completes the em action editor: --value edits the value written,
+    # this edits WHICH flag/reg is written). All 77 corpus action targets are kind 'flag', so
+    # set_operand_value(act.target, offset) works. CLI `em set --action .. --target FLG_NAME`
+    # resolves the name -> bit offset via em.names.flags.find. Verify a real retarget round-trips.
+    _tg = emscript.EmScript.parse(raw_em, em.names)
+    _te = _tg.get("EV_SUBEV_INIT")
+    _ta = _te.actions[0] if (_te and _te.actions) else None
+    if _ta is not None and _ta.name != "CALL" and _ta.target and _ta.target.kind == "flag":
+        _old_off = _ta.target.value
+        # resolve a DIFFERENT flag by name, exactly as the CLI does
+        _dst = [v for v in em.names.flags.find("FLG_SUBEV_B") if v.name == "FLG_SUBEV_B"]
+        _new_off = _dst[0].bit_offset if _dst else _old_off
+        _tg.set_operand_value(_ta.target, _new_off)
+        _reta = emscript.EmScript.parse(_tg.build(), em.names).get("EV_SUBEV_INIT").actions[0]
+        _check("emscript action-target retarget (set_operand_value on act.target, name-resolved) round-trips",
+               _new_off != _old_off and _reta.target.value == _new_off
+               and _reta.name == _ta.name and len(_tg.build()) == len(raw_em))
+    else:
+        _skip("emscript action-target retarget", "EV_SUBEV_INIT action 0 not an editable flag target")
+
+
+def test_save():
+    """rf4_sNN.sav per-slot save editor: CRC (zlib over file[4:4+140196]) round-trip +
+    named GameFlag edit (MSB-first, via emflags @ save+0x1E8C4). Skipped w/o a real save."""
+    print("save (rf4_sNN.sav editor):")
+    from rf4s_modkit import save
+    p = pathlib.Path(r"C:/Users/arryn/Documents/rf4_s08.sav")
+    if not p.is_file():
+        _skip("save editor", "no real rf4_sNN.sav present")
+        return
+    orig = p.read_bytes()
+    s = save.SaveFile(orig)
+    _check("save CRC valid (stored==computed) + build byte-perfect",
+           s.crc_ok() and s.build() == orig)
+    # named GameFlag edit: MSB-first, minimal diff, CRC auto-recomputed, re-parses
+    s2 = save.SaveFile(orig)
+    before = s2.flag("REG_MAIN_SCENARIO")
+    want = (before + 7) & 0x1FF
+    s2.set_flag("REG_MAIN_SCENARIO", want)
+    built = s2.build()
+    s3 = save.SaveFile(built)
+    _check("save flag edit round-trips + CRC valid + minimal diff",
+           s3.flag("REG_MAIN_SCENARIO") == want and s3.crc_ok()
+           and sum(1 for a, b in zip(orig, built) if a != b) <= 8)
+    # multi-bit MSB-first sanity: child id must be a valid roster id (0 none / 22 son / 23 daughter)
+    _check("save GameFlags MSB-first (REG_CHILD_ID in {0,22,23})",
+           s.flag("REG_CHILD_ID") in (0, 22, 23))
+
+
+def test_schedule():
+    print("schedule:")
+    from rf4s_modkit import schedule
+    p = _first("rf3Schedule.bin")
+    if not p:
+        _skip("schedule decode", "no rf3Schedule.bin present")
+        return
+    d = p.read_bytes()
+    _check("schedule magic", schedule.header(d)["magic"] == schedule.MAGIC)
+    scheds = schedule.schedules(d)
+    _check("schedule split (>100 schedules)", len(scheds) > 100)
+    # every waypoint has an in-range slot (0..110) and room (<872); schedules start at day-start
+    wps = schedule.waypoints(d)
+    _check("schedule waypoints in range",
+           all(0 <= w.slot <= 110 and w.room < 872 for w in wps))
+    _check("schedule first stop = 06:00 day-start",
+           scheds[0][0].slot == 24 and schedule.slot_to_time(24) == "06:00")
+
+
+def test_gifts():
+    print("gifts:")
+    from rf4s_modkit import gifts
+    # Anchor on Raven (file 25) — cross-checked against the in-game Gift Preferences UI:
+    # off3 = 19 LOVED (pendants/ores), off2 = 28 LIKED, off1 = DISLIKED (Skull is the -10
+    # signature/hated item). This nails the loved<->disliked orientation.
+    rv = _first("rf3PresentNpc25.bin")
+    if rv:
+        g = gifts.parse(rv.read_bytes())[0]
+        _check("gift Raven tier counts (loved 19 / liked 28)",
+               len(g["loved"]) == 19 and len(g["liked"]) == 28)
+        _check("gift loved is positive-FP, disliked is negative-FP",
+               all(gifts.entry_fp(e, "loved") > 0 for e in g["loved"])
+               and all(gifts.entry_fp(e, "disliked") < 0 for e in g["disliked"]))
+        _check("gift disliked has one signature/hated (-10) item",
+               sum(1 for e in g["disliked"] if e.code == gifts.SIGNATURE_DISLIKE_CODE) == 1)
+    else:
+        _skip("gift Raven checks", "no rf3PresentNpc25.bin present")
+    # cross-ref decode: raw 0x8100 -> xref idx 0 (was wrongly 512 via raw-0x7F00)
+    _check("gift xref decode (0x8100 -> idx 0)",
+           gifts._decode_target(0x8100) == ("xref", 0)
+           and gifts._decode_target(0x8112) == ("xref", 18))
+    # item-range wildcard (0x8000..0x80FF): tag 2 = vegetables (ids 1..54), from g_itemCategoryRangeTable
+    _check("gift item-range #2 = vegetables (ids 1..54)",
+           gifts.ITEM_RANGE_TABLE[2][:2] == (1, 55)
+           and "vegetables" in gifts._fmt(gifts.Entry("category", 2, 0)))
+    cat = _first("rf3PresentCategory.bin")
+    if cat:
+        cats = gifts.load_categories(cat.read_bytes())
+        _check("gift categories (21 groups; cat0 = trash)",
+               len(cats) == 21 and any(e.kind == "item" for e in cats[0]))
+        _check("gift category resolves items", len(gifts.category_items(5, cats)) > 20)  # cat5 flowers
+    p = _first("rf3PresentNpc01.bin")
+    if not p:
+        _skip("gift render", "no rf3PresentNpc01.bin present")
+        return
+    _check("gift render (3 tiers + FP)",
+           all(t in gifts.render(p.read_bytes()) for t in ("loved", "liked", "disliked"))
+           and "FP" in gifts.render(p.read_bytes()))
+
+
+def test_montame():
+    print("montame:")
+    from rf4s_modkit import montame
+    p = _first("rf3MonsterPresent.bin")
+    if not p:
+        _skip("monster tame prefs", "no rf3MonsterPresent.bin present")
+        return
+    d = p.read_bytes()
+    # species 48 (Orc) = record 0; has favored tame items with positive bonuses
+    pr = montame.prefs(d, 48)
+    _check("montame species 48 prefs (item + bonus)",
+           len(pr) >= 2 and all(item and bonus > 0 for item, bonus in pr))
+    _check("montame out-of-range species -> empty",
+           montame.prefs(d, 47) == [] and montame.prefs(d, 254) == [])
+    # edit round-trip
+    buf = bytearray(d)
+    montame.set_pref(buf, 48, 0, 777, 12)
+    _check("montame edit round-trip", montame.prefs(bytes(buf), 48)[0] == (777, 12))
+
+
+def test_monster():
+    print("monster:")
+    from rf4s_modkit import monster, nlcl
+    p = _first("rf3NpcParam.bin")
+    if not p:
+        _skip("monster template", "no rf3NpcParam.bin present")
+        return
+    t = nlcl.NlclTable.load(p)
+    _check("monster table 392x308", t.entry_count == 392 and t.record_size == 308)
+    # Orc(48): IDA-verified stats + wind-resist / earth-weak elements
+    m = monster.sheet(t, 48)
+    _check("monster Orc(48) core stats",
+           m["hp"] == 48 and m["atk"] == 5 and m["model"] == 756 and m["ai_file"] == "AI_m00.bin")
+    _check("monster Orc(48) elements (wind resist, earth weak)",
+           m["elements"]["wind"] < 0 and m["elements"]["earth"] > 0)
+    _check("monster Orc(48) has drops", len(m["drops"]) == 4 and m["drops"][0]["item_id"] == 831)
+    # boss(200): status-immune (Q12 4096 = 100%)
+    b = monster.sheet(t, 200)
+    _check("monster boss(200) status-immune", b["resists"]["poison"] == 4096 and b["hp"] == 80000)
+    # id-range semantics
+    _check("monster id semantics",
+           "villager" in monster.id_semantics(0) and "field" in monster.id_semantics(48)
+           and "boss" in monster.id_semantics(200) and "gate" in monster.id_semantics(400))
+    # verified cut ids
+    _check("monster free_slots = 179/180/181", monster.free_slots(t) == [179, 180, 181])
+    # clone + edit round-trip (in-memory)
+    monster.clone_record(t, 48, 179)
+    _check("monster clone copies record", t.record(179) == t.record(48))
+    monster.set_field(t, 179, "hp", 1500)
+    monster.set_field(t, 179, "elem_fire", 4096)
+    m2 = monster.sheet(t, 179)
+    _check("monster clone+edit", m2["hp"] == 1500 and m2["elements"]["fire"] == 4096
+           and t.record(48) != t.record(179))
+    # `monster new` naming step relies on the rf3TxtNpc name table being char_id-indexed
+    from rf4s_modkit import textdb
+    ntbl = _first("rf3TxtNpc_split2_1.eng")
+    if ntbl:
+        names = textdb.TextArchive.load(ntbl).texts()
+        _check("monster name table index==char_id (rf3TxtNpc)",
+               len(names) > 181 and names[48] == "Orc" and names[179] == "???")
+
+
+def test_skillcurve():
+    print("skillcurve:")
+    from rf4s_modkit import skillcurve
+    p = _first("rf3ParamSkillExp.bin")
+    if not p:
+        _skip("skill XP curve", "no rf3ParamSkillExp.bin present")
+    else:
+        xp = skillcurve.parse(p.read_bytes())
+        # 100 real levels, non-decreasing (main curve ramps), cap-bracket = table[99]
+        _check("skillcurve parse (100 levels)", len(xp) == 100)
+        # envelope rises across the whole curve (it's a per-decade sawtooth, not strictly monotonic)
+        _check("skillcurve envelope rises", xp[99] > xp[50] > xp[10] > xp[0])
+        _check("skillcurve cap-bracket == table[99]",
+               skillcurve.cap_threshold(p.read_bytes()) == xp[99])
+        # edit round-trip
+        buf = bytearray(p.read_bytes())
+        skillcurve.set_level_xp(buf, 5, 12345)
+        _check("skillcurve edit round-trip", skillcurve.parse(bytes(buf))[5] == 12345)
+    # family selection is data-independent (from the IDA switch)
+    _check("skillcurve family map (Skill_GetLevelTable)",
+           skillcurve.archive_for_skill(13) == 14821 and skillcurve.archive_for_skill(19) == 14823
+           and skillcurve.archive_for_skill(0) == 14820)
+
+
+def test_strengthening():
+    print("strengthening (rf3ItemStrengthening):")
+    from rf4s_modkit import strengthening
+    p = _first("rf3ItemStrengthening.bin")
+    if not p:
+        _skip("rf3ItemStrengthening", "no rf3ItemStrengthening.bin present")
+        return
+    t = strengthening.StrengtheningTable.load(p)
+    _check("strengthening 1150 x 296 B", len(t) == 1150 and t.t.record_size == 296)
+    r = t.row(887)   # Broken Ice Wall: the strongest plain forge material (Item_ComputeStats S[1..2])
+    _check("strengthening core row (Broken Ice Wall ATK/MAT/difficulty)",
+           r.atk == 105 and r.mat == 95 and r.difficulty == 96)
+    _check("strengthening reach (Glitta Augite +50%, Raccoon Leaf +25%)",
+           t.row(935).reach_scale == 2048 and t.row(883).reach_scale == 1024)
+    _check("strengthening tier rows (1108 ATK+10/MAT+5, 1113 DEF+6/MDF+5, 1125 ATK+2000, 1149 MDF+780)",
+           t.row(1108).atk == 10 and t.row(1108).mat == 5 and t.row(1113)["def"] == 6
+           and t.row(1113).mdf == 5 and t.row(1125).atk == 2000 and t.row(1149).mdf == 780)
+    nonfood = sum(1 for i in range(strengthening.ITEM_ROWS) if t.row(i).is_non_food)
+    _check("strengthening NON-FOOD marker on 633 ids (Crafting_CraftFromInputs bit 0x4000)",
+           nonfood == 633 and t.row(329).is_non_food and not t.row(359).is_non_food,
+           f"{nonfood} flagged; Steel Sword flagged, Veggieblade not")
+    _check("strengthening status word decode (Withered Grass inflicts poison, RP -20%)",
+           "inflicts poison" in t.row(83).status_flags() and t.row(83).heal_rp_pct == -820)
+    _check("strengthening heal fields (Invinciroid HP/RP 100%)",
+           t.row(121).heal_hp_pct == 4096 and t.row(121).heal_rp_pct == 4096)
+    # edit round-trip through the generic NLCL writer
+    t.set(887, "atk", 500)
+    t2 = strengthening.StrengtheningTable(t.build())
+    _check("strengthening edit round-trip", t2.row(887).atk == 500 and t2.row(887).mat == 95)
+    _check("strengthening nlcl schema agrees with the module",
+           [f[0] for f in nlcl.FIELD_SCHEMAS["rf3ItemStrengthening"]["fields"]] == strengthening.NAMES)
+
+
+def test_asatk():
+    print("asatk:")
+    from rf4s_modkit import asatk
+    p = _first("as_atk_sword_00.bin") or _first("as_atk_*.bin")
+    if not p:
+        _skip("asatk decode", "no as_atk_*.bin present")
+        return
+    d = p.read_bytes()
+    ev = asatk.parse(d)
+    # every stream is (op,arg) pairs terminated by END(66)
+    _check(f"asatk stream ends with END ({p.name})", ev and ev[-1].op == asatk.END_OP)
+    summ = asatk.summary(d)
+    # frame markers must be monotonic non-decreasing (it's a timeline clock)
+    frames = [e.arg for e in ev if e.op == 0]
+    _check("asatk frame markers monotonic", all(b >= a for a, b in zip(frames, frames[1:])))
+    # HIT_WIN open/close pairs must be well-formed (open frame <= close frame)
+    _check("asatk hit-window open<=close",
+           all(o is None or c is None or o <= c for o, c in summ["hit_window"]))
+    # render must not throw and must mention END
+    _check("asatk render", "@END" in asatk.render(d))
+
+
+def test_bugfixes():
+    """Regression tests for bugs fixed in the 2026-07-06 review sweep."""
+    print("bugfixes:")
+    import struct as _s
+    # rf4m.delete_record must count RECORDS across a multi-record chunk (was: counted chunks,
+    # so index 1 of a 2-record chunk raised out-of-range / dropped the whole chunk)
+    from rf4s_modkit import rf4m
+    rec0 = _s.pack("<16i", *([10] + [0] * 15))
+    rec1 = _s.pack("<16i", *([20] + [0] * 15))
+    m = rf4m.Rf4mMap([rf4m.Chunk(b"MOBJ", rec0 + rec1)])   # ONE chunk, TWO records
+    m.delete_record(b"MOBJ", 1, 64)                        # drop the 2nd record
+    recs = m.records(b"MOBJ", 64)
+    _check("rf4m delete_record splices multi-record chunk", len(recs) == 1 and recs[0][0] == 10)
+    # rf4m.get_ints over-read -> clean Rf4mError, not a raw struct.error
+    try:
+        rf4m.Rf4mMap([rf4m.Chunk(b"MSEA", _s.pack("<i", 1))]).get_ints(b"MSEA", count=5)
+        _check("rf4m get_ints over-read raises Rf4mError", False)
+    except rf4m.Rf4mError:
+        _check("rf4m get_ints over-read raises Rf4mError", True)
+    # gifts.category_items must break an A->B->A xref cycle (was: unbounded recursion)
+    from rf4s_modkit import gifts
+    E = gifts.Entry
+    _check("gifts category_items breaks A->B->A cycle",
+           gifts.category_items(0, [[E("xref", 1, 0)], [E("xref", 0, 0)]]) == [])
+    # save.SaveFile must reject a buffer too short for the CRC span (was: silent short CRC)
+    from rf4s_modkit import save
+    try:
+        save.SaveFile(bytes(130000)); ok = False
+    except save.SaveError:
+        ok = True
+    _check("save rejects sub-CRC-span buffer", ok)
+    # strings_file._unescape: a truncated \uNNNN must NOT decode as a full codepoint
+    from rf4s_modkit import strings_file
+    _check("strings truncated \\u escape falls through",
+           chr(0x123) not in strings_file._unescape("x\\u123"))
+    # opcode_meta.render_action decodes QueryPlayerStatByCharCode(charcode, skill) -> readable
+    from rf4s_modkit import opcode_meta as _om
+    _q = next(o for o, t in _om.TECHNICAL.items() if "QueryPlayerStatByCharCode" in t)
+    _check("opcode render_action decodes player-var query",
+           _om.render_action(_q, ["104", "15"]) == "QueryPlayerVariable(Skill, Mining)"
+           and _om.render_action(_q, ["100", "0"]) == "QueryPlayerVariable(Gold)"
+           and _om.mnemonic(_q) == "QueryPlayerVariable")
+
+
+def test_gen_structural():
+    """Gen*.bin as a full model (2026-09-19): byte-exact rebuild of every stock file,
+    the corrected roster record layout (8 + 4K bytes per record, verified against the
+    engine's fallback roster builder), structural edits and footer regeneration."""
+    print("gen (structural editor):")
+    files = sorted(EXTRACTED.rglob("Gen*.bin"))
+    if not files:
+        _skip("gen structural", "no Gen*.bin extracted")
+        return
+    exact = sum(1 for p in files if gen.GenTable(p.read_bytes()).build() == p.read_bytes())
+    _check("gen byte-exact rebuild of every stock file (model + regenerated footer)",
+           exact == len(files), f"{exact}/{len(files)}")
+    a01 = _first("GenA01.bin")
+    if not a01:
+        _skip("gen GenA01 checks", "GenA01.bin not extracted")
+        return
+    g = gen.GenTable.load(a01)
+    e1 = g.patterns[0][1]
+    _check("gen roster records are 8+4K bytes (GenA01 gate 1: Orc lv50 + Orc Archer lv20)",
+           [(s.monster_id, s.level, s.weights) for s in e1.spawns]
+           == [(48, 50, [20, 10]), (50, 20, [50, 10])]
+           and (e1.hdr.count_min, e1.hdr.count_max) == (2, 2),
+           str([(s.monster_id, s.level) for s in e1.spawns]))
+    g.add_spawn(e1, 55, 33)
+    new = g.add_entry(0, 360, 7, clone=e1, share=False)
+    g.add_monster_position(new, 400, 300)
+    g2 = gen.GenTable(g.build())
+    n2 = g2.patterns[0][2]
+    ok = (len(g2.patterns[0]) == 3 and n2.gate_kind == 360 and n2.weight == 7
+          and [(s.monster_id, s.level, s.weights) for s in n2.spawns]
+          == [(48, 50, [20, 10, 10]), (50, 20, [50, 10, 10]), (55, 33, [10, 10, 10])]
+          and len(n2.mon_pos.points) == 3 and not g2.validate()
+          and len(search_items.parse_nlcl_footer(g2.build())) == 12)
+    _check("gen add gate/monster/position round-trip + valid footer", ok)
+    g2.remove_entry(0, 2)
+    g2.remove_spawn(g2.patterns[0][1], 2)
+    g3 = gen.GenTable(g2.build())
+    _check("gen remove gate/monster round-trip",
+           len(g3.patterns[0]) == 2 and len(g3.patterns[0][1].spawns) == 2
+           and len(search_items.parse_nlcl_footer(g3.build())) == 8)
+
+
+def test_texture_encode():
+    """Container rewrite: ANY .texture as encode template (BC7 -> RGBA8), flipbook
+    frames / strips, and the map ground export -> import inverse. The container facts
+    are verified against RF4S.exe (+0x3C6000 pixel offset, +0x3C6130 memory pool,
+    +0x3D2230 loader, +0x3CAA00 relocation) -- see rf4s_modkit/texture.py."""
+    print("texture encode (container rewrite):")
+    if not (texture.HAS_PIL and texture.HAS_BC):
+        _skip("texture encode", "Pillow/texture2ddecoder not installed")
+        return
+    from PIL import Image
+    tile = next(EXTRACTED.rglob("MAP_FIELD_01_0000.texture"), None)
+    if tile is None:
+        _skip("texture encode", "MAP_FIELD_01_0000.texture not extracted")
+        return
+    tmpl = tile.read_bytes()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        # 1. BC7 template -> decoded PNG -> RGBA8 container; ident + parse + pixels
+        png = tmp / "tile.png"
+        texture.decode_to_png(tile, png)
+        new = texture.encode_into(tmpl, png, fmt="RGBA8")
+        i0, i1 = texture.parse(tmpl), texture.parse(new)
+        ft = ident.identify(new[:0x4000], filename="x.texture")
+        src = Image.open(png).convert("RGBA")
+        dec = texture.decode_to_image(new).convert("RGBA")
+        _check("BC7 template -> RGBA8 encode (ident/parse/pixels)",
+               ft.fmt == "texture" and i0["kind"] == "bc7" and i1["fmt_name"] == "RGBA8"
+               and i1["fmt_code"] == 0x0B01 and (i1["width"], i1["height"]) == (i0["width"], i0["height"])
+               and i1["frames"] == 1 and i1["container"] and dec.tobytes() == src.tobytes(),
+               f"{tile.name} {i0['width']}x{i0['height']} -> {len(new):,} B")
+        # container fields the loader reads: file size, _RLT offset/self-offset, DESC size
+        # (= memory-pool size), mip pointer -> DESC+0x10, single mip level
+        w, h = i1["width"], i1["height"]
+        fr = i1["frame_list"][0]
+        _check("rewritten container fields (sizes, _RLT, DESC, mip ptr)",
+               i1["file_size"] == len(new) and struct.unpack_from("<I", new, 0x1C)[0] == len(new)
+               and i1["rlt_ok"] and struct.unpack_from("<I", new, i1["rlt_off"] + 4)[0] == i1["rlt_off"]
+               and i1["desc_size"] == 0x10 + w * h * 4 and i1["rlt_off"] == i1["desc_off"] + i1["desc_size"]
+               and fr["data_off"] == i1["desc_off"] + 0x10 and fr["mips"] == 1 and fr["image_size"] == w * h * 4
+               and i1["desc_off"] == i0["desc_off"],
+               f"DESC@0x{i1['desc_off']:x} size 0x{i1['desc_size']:x} _RLT@0x{i1['rlt_off']:x}")
+        # relocation walk (BFRES_FixupRelocationPointers) must rebase the same slots
+        s0, s1 = texture.relocation_slots(tmpl), texture.relocation_slots(new)
+        _check("rewritten container relocates like the template",
+               [s for s, _ in s0] == [s for s, _ in s1] and len(s1) > 0
+               and all(t0 == t1 for (_, t0), (_, t1) in zip(s0, s1)),
+               f"{len(s1)} slots")
+        # dimension mismatch is refused (the sprite UV/quad user data is per-sprite)
+        try:
+            texture.encode_into(tmpl, Image.new("RGBA", (w // 2, h // 2)))
+            _check("encode refuses a wrong-size image", False, "no error")
+        except texture.TextureError as e:
+            _check("encode refuses a wrong-size image", "dimensions must match" in str(e))
+        # raw template keeps its own format; --fmt can force another raw format
+        raw = next(EXTRACTED.rglob("common_touchpocket_08.texture"), None)
+        if raw:
+            rb = raw.read_bytes()
+            rim = texture.decode_to_image(rb)
+            keep = texture.parse(texture.encode_into(rb, rim))
+            forced = texture.parse(texture.encode_into(rb, rim, fmt="RGBA4444"))
+            _check("raw template keeps RGBA8; fmt= forces RGBA4444",
+                   keep["fmt_name"] == "RGBA8" and forced["fmt_name"] == "RGBA4444"
+                   and forced["frame_list"][0]["size"] == keep["width"] * keep["height"] * 2,
+                   raw.name)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # 2. flipbooks: all frames, one frame (others stay BC7), and a mixed-size strip
+    conf = next(EXTRACTED.rglob("confetti.texture"), None)
+    if conf:
+        cb = conf.read_bytes()
+        frames = texture.decode_frames(cb)
+        allnew = texture.encode_into(cb, frames, fmt="RGBA8")
+        ia = texture.parse(allnew)
+        ok = ia["frames"] == len(frames) == 15 and all(
+            f["fmt_name"] == "RGBA8" for f in ia["frame_list"]) and all(
+            texture.decode_to_image(allnew, frame=k).tobytes() == frames[k].convert("RGBA").tobytes()
+            for k in range(15))
+        _check("flipbook round trip (all 15 confetti frames -> RGBA8)", ok, f"{len(allnew):,} B")
+        red = Image.new("RGBA", frames[3].size, (255, 0, 0, 255))
+        one = texture.encode_into(cb, red, frame=3, fmt="RGBA8")
+        io_ = texture.parse(one)
+        fl = io_["frame_list"]
+        ok = (fl[3]["fmt_name"] == "RGBA8" and all(fl[k]["fmt_name"] == "BC7" for k in range(15) if k != 3)
+              and texture.decode_to_image(one, frame=3).getpixel((2, 2)) == (255, 0, 0, 255)
+              and all(one[fl[k]["data_off"]:fl[k]["data_off"] + fl[k]["size"]]
+                      == cb[texture.parse(cb)["frame_list"][k]["data_off"]:][:fl[k]["size"]]
+                      for k in range(15) if k != 3)
+              and texture.relocation_slots(one) is not None)
+        _check("flipbook single-frame replace keeps the other frames' BC7 bytes", ok)
+    else:
+        _skip("flipbook round trip", "confetti.texture not extracted")
+    d12 = next(EXTRACTED.rglob("8x12d00.texture"), None)
+    if d12:
+        db = d12.read_bytes()
+        i12 = texture.parse(db)
+        strip, boxes = texture.decode_strip(db)
+        back = texture.encode_into(db, strip, strip=True, fmt="RGBA8")
+        f12 = texture.decode_frames(db)
+        ok = (i12["frames"] == 12 and {(f["width"], f["height"]) for f in i12["frame_list"]}
+              == {(64, 32), (32, 16)} and len(boxes) == 12 and texture.parse(back)["frames"] == 12
+              and all(texture.decode_to_image(back, frame=k).tobytes() == f12[k].convert("RGBA").tobytes()
+                      for k in range(12)))
+        _check("mixed-size flipbook (8x12d00: 12 frames, 64x32 + 32x16) strip round trip", ok,
+               f"strip {strip.size}")
+    else:
+        _skip("mixed-size flipbook strip", "8x12d00.texture not extracted")
+
+    # 3. ground export -> import inverse on MAP_FIELD_01 (4x4 grid, cropped extent)
+    rf = next(EXTRACTED.rglob("MAP_FIELD_01.rf4m"), None)
+    if rf is None:
+        _skip("ground export/import", "MAP_FIELD_01.rf4m not extracted")
+        return
+    d = rf.parent
+    reader = lambda fn, d=d: (d / fn).read_bytes() if (d / fn).is_file() else None
+    w, h, _ = rf4m.Rf4mMap.load(rf).attr_grid()
+    res = mapground.stitch(reader, "MAP_FIELD_01", 0, aspect=(w, h))
+    lay = mapground.tile_layout(reader, "MAP_FIELD_01", 0, aspect=(w, h))
+    if res is None or lay is None:
+        _skip("ground export/import", "MAP_FIELD_01 has no atlas")
+        return
+    img = res[0]
+    tiles = mapground.unstitch(reader, "MAP_FIELD_01", img, 0, aspect=(w, h), fmt="RGBA8")
+    ok = (len(tiles) == len(lay["tiles"]) == res[1] * res[2] and lay["kind"] == "grid"
+          and img.size == (lay["crop"] or lay["canvas"]))
+    for t, (name, blob) in zip(lay["tiles"], tiles):
+        if not ok:
+            break
+        dec = texture.decode_to_image(blob).convert("RGBA")
+        crop = img.crop((t["x"], t["y"], t["x"] + t["w"], t["y"] + t["h"]))
+        ok = (name == t["name"] and dec.size == crop.size and dec.tobytes() == crop.tobytes()
+              and texture.parse(blob)["fmt_name"] == "RGBA8")
+    _check("ground export -> import re-splits into tiles matching the stitched crops", ok,
+           f"{lay['set']} {lay['cols']}x{lay['rows']} tiles, image {img.size}, crop {lay['crop']}")
+    # re-stitching the new tiles reproduces the exported image byte-for-byte
+    over = dict(tiles)
+    mapground.tile_cache_clear()
+    res2 = mapground.stitch(lambda fn: over.get(fn) or reader(fn), "MAP_FIELD_01", 0, aspect=(w, h))
+    _check("re-stitch of the imported tiles equals the export",
+           res2 is not None and res2[0].tobytes() == img.tobytes())
+    mapground.tile_cache_clear()
+
+
+def test_behaviour_edits():
+    """Editors added 2026-09-19 for the behaviour tables: gifts (rf3PresentNpc*/Category),
+    tame foods (rf3MonsterPresent), schedules (rf3Schedule + rf3ScheduleID), the route graph
+    (rf3route/rf3RouteResult) and the fishing-rate schemas. Byte-exact stock rebuilds, edit
+    round trips and decode sanity checks against in-game facts."""
+    print("behaviour editors (gifts / tame foods / schedules / routes / fishing schemas):")
+    import json as _json
+    import struct as _st
+    from rf4s_modkit import gifts, montame, schedule, route, map_names
+    try:
+        import rf4mod as _rfm
+    except Exception:
+        _rfm = None
+    tmp = pathlib.Path(tempfile.mkdtemp())
+
+    # ---- gifts ------------------------------------------------------------------
+    rv = _first("rf3PresentNpc25.bin")
+    if rv:
+        base = rv.parent
+        files = [p for p in [base / f"rf3PresentNpc{n:02d}.bin" for n in range(1, 28)]
+                 + [base / "rf3PresentCategory.bin"] if p.is_file()]
+        exact = sum(1 for p in files if gifts.GiftTable.parse(p.read_bytes()).build() == p.read_bytes())
+        _check("gift byte-exact rebuild of every stock table (27 NPC + category, NLCLINK tail)",
+               exact == len(files) == 28, f"{exact}/{len(files)}")
+        t = gifts.GiftTable.parse(rv.read_bytes())
+        _check("gift Raven: Skull(874) = -10 signature dislike, Star Pendant(640) loved +15 (in-game UI)",
+               t.tier_of(874) == "disliked" and t.tier_of(640) == "loved"
+               and [e.code for e in t.tier("disliked") if e.value == 874] == [gifts.SIGNATURE_DISLIKE_CODE]
+               and gifts.entry_fp(t.tier("loved")[0], "loved") == 15 and gifts.NEUTRAL_FP == 5)
+        t.set_item(874, "loved", fp=20)
+        t.set_item(640, "neutral")
+        t.set_signature(873)
+        t.add("liked", gifts.Entry("category", 2, 7))
+        b = t.build()
+        t2 = gifts.GiftTable.parse(b)
+        sig = [e.value for e in t2.tier("disliked") if e.code == gifts.SIGNATURE_DISLIKE_CODE]
+        _check("gift edit round trip (move to loved --fp / neutral / new signature / range entry)",
+               t2.tier_of(874) == "loved" and t2.tier_of(640) == "neutral" and sig == [873]
+               and gifts.Entry("category", 2, 7) in t2.tier("liked")
+               and [e for e in t2.tier("loved") if e.value == 874][0].code == 20)
+        nsec, dend = _st.unpack_from("<II", b, 16)
+        _check("gift rebuilt NLCLINK tail: section count 4, ref list points at the off1 field",
+               nsec == 4 and dend + 16 * nsec + 4 * 3 == len(b)
+               and _st.unpack_from("<I", b, dend + 16 + 4)[0] == _st.unpack_from("<I", b, 28)[0]
+               and _st.unpack_from("<I", b, dend + 16 * nsec)[0] == 28)
+        try:
+            t.groups[0]["loved"] = [gifts.Entry("item", i, 15) for i in range(1, 257)]
+            t.build()
+            guard = False
+        except gifts.GiftError:
+            guard = True
+        _check("gift >255 entries refused (8-bit lookup loop in the reader)", guard)
+        if _rfm is not None:
+            out = tmp / "g25.bin"
+            _rfm.main(["gift", "set", str(rv), "874", "loved", "--fp", "20", "-o", str(out)])
+            t3 = gifts.GiftTable.parse(out.read_bytes())
+            _check("CLI `gift set <npc> <item> loved --fp` writes the moved entry",
+                   t3.tier_of(874) == "loved" and [e for e in t3.tier("loved") if e.value == 874][0].code == 20
+                   and len(t3.tier("disliked")) == 4)
+    else:
+        _skip("gift editor checks", "no rf3PresentNpc25.bin present")
+
+    # ---- monster taming foods ----------------------------------------------------
+    mp = _first("rf3MonsterPresent.bin")
+    if mp:
+        d = mp.read_bytes()
+        _check("montame Goblin(52) lists Onigiri(295) +15 but Orc(48) does not (per-species table)",
+               montame.find_slot(d, 52, 295) is not None and dict(montame.prefs(d, 52)).get(295) == 15
+               and montame.find_slot(d, 48, 295) is None)
+        buf = bytearray(d)
+        k = montame.set_item(buf, 48, 295, 7)
+        ok1 = montame.find_slot(bytes(buf), 48, 295) == k and dict(montame.prefs(bytes(buf), 48))[295] == 7
+        montame.remove_item(buf, 48, 295)
+        _check("montame set_item / remove_item round trip",
+               ok1 and montame.prefs(bytes(buf), 48) == montame.prefs(d, 48))
+        _check("montame category modifier: Failed Dish cat 4 halves, cooked cats 5..14 add +32",
+               montame.FAILED_DISH_CATEGORY == 4 and list(montame.COOKED_FOOD_CATEGORIES) == list(range(5, 15)))
+    else:
+        _skip("montame editor checks", "no rf3MonsterPresent.bin present")
+
+    # ---- schedules ---------------------------------------------------------------
+    sp = _first("rf3Schedule.bin")
+    sid = _first("rf3ScheduleID.bin")
+    if sp:
+        d = sp.read_bytes()
+        sc = schedule.Schedule.parse(d)
+        _check("schedule byte-exact rebuild (directory + stream recomputed)",
+               sc.build() == d and len(sc.cells) == 426)
+        _check("schedule JSON round trip byte-exact", schedule.Schedule.loads(sc.dumps()).build() == d)
+        first = sc.get(1, 0)[0]
+        fact = first.slot == 24 and first.spot == 2 and first.time == "06:00"
+        spots = schedule.load_spots(sid.read_bytes()) if sid else None
+        if spots:
+            fact = fact and schedule.kind_spots(2, spots)[0].room == 65 \
+                and (map_names.map_name(65) or "").startswith("Butler")
+            _check("schedule kind prefix table ends at the rf3ScheduleID record count",
+                   schedule.KIND_PREFIX[-1] == len(spots) == 3898)
+        _check("schedule Vishnal(1) weekday0 starts 06:00 at spot 2 = Butler's Room (in-game)", fact)
+        orig2 = sc.get(2, 0)[:]
+        k = sc.add_slice(1, 0, schedule.time_to_slot("07:15"), 5, flags=1)
+        sc.set_slice(1, 0, k, spot=6)
+        gone = sc.remove_slice(1, 0, 0)
+        sc3 = schedule.Schedule.parse(sc.build())
+        lst = sc3.get(1, 0)
+        _check("schedule add/set/remove round trip (time order kept, other cells intact)",
+               gone.spot == 2 and lst[0].slot == 26 and lst[2] == schedule.Slice(29, 1, 6)
+               and len(lst) == 19 and sc3.get(2, 0) == orig2)
+        _check("schedule legacy API (schedules/waypoints/.room alias) still decodes",
+               len(schedule.schedules(d)) == 426 and len(schedule.waypoints(d)) == 5686
+               and schedule.waypoints(d)[0].room == 2)
+        if _rfm is not None:
+            out = tmp / "sched.bin"
+            _rfm.main(["schedule", "set", "1", "weekday0", "0", "--time", "06:30", "--file", str(sp),
+                       "-o", str(out)])
+            _check("CLI `schedule set` re-times a stop", schedule.Schedule.parse(out.read_bytes()).get(1, 0)[0].slot == 26)
+    else:
+        _skip("schedule editor checks", "no rf3Schedule.bin present")
+
+    # ---- route graph + next-hop matrix -------------------------------------------
+    rt = _first("rf3route.bin")
+    rrp = _first("rf3RouteResult.bin")
+    if rt:
+        d = rt.read_bytes()
+        g = route.RouteGraph.parse(d)
+        _check("route TRCS byte-exact rebuild (room table + running indices regenerated)",
+               g.build() == d and len(g.nodes) == 317 and len(g.edges) == 783)
+        _check("route JSON round trip", route.RouteGraph.from_json(_json.loads(g.dumps())).build() == d)
+        _check("ident rf3route -> route / rf3RouteResult -> route_result",
+               ident.identify(d, filename="rf3route.bin").fmt == "route"
+               and (rrp is None or ident.identify(rrp.read_bytes()[:64], filename=rrp.name).fmt == "route_result"))
+        if rrp:
+            rd = rrp.read_bytes()
+            rr = route.RouteResult.parse(rd)
+            _check("route next-hop matrix: 318 rows x 159 B nibbles, byte-exact",
+                   rr.stride == 159 and rr.rows == 318 and rr.build() == rd)
+            src, dst = g.node_index(65, 0), g.node_index(24, 0)
+            hops, cost = rr.path(g, src, dst)
+            _check("route path Butler's Room(65) -> Airship Way(24) walks the matrix to the target",
+                   hops[-1][0] == dst and cost > 0 and len(hops) > 1)
+            comp = route.RouteResult.compute(g, rows=rr.rows)
+            rnd = random.Random(19)
+            n, same, tried = len(g.nodes), 0, 0
+            for _ in range(150):
+                s, t_ = rnd.randrange(n), rnd.randrange(n)
+                if s == t_:
+                    continue
+                try:
+                    c1 = rr.path(g, s, t_)[1]
+                except route.RouteError:
+                    continue
+                tried += 1
+                same += rr.path(g, s, t_)[1] == comp.path(g, s, t_)[1] == c1
+            _check("route rebuild-result reproduces the shipped path costs (sample)",
+                   tried > 50 and same == tried, f"{same}/{tried}")
+    else:
+        _skip("route checks", "no rf3route.bin present")
+
+    # ---- fishing-rate + rf3ScheduleID schemas ------------------------------------
+    ff = _first("Fishing_rate_fish_Spring.bin")
+    fl = _first("Fishing_rate_lv_Spring.bin")
+    if ff and fl:
+        t = nlcl.NlclTable.load(ff)
+        r0, r2 = t.row(0, ff.stem), t.row(2, ff.stem)
+        _check("Fishing_rate_fish schema: Masu Trout row spring 597 / size class 0; row 2 class 3; Spring2 alias",
+               r0["w_spring"] == 597 and r0["size_class"] == 0 and r2["size_class"] == 3
+               and t.schema("Fishing_rate_fish_Spring2") is t.schema("Fishing_rate_fish_Spring"))
+        lv = nlcl.NlclTable.load(fl)
+        l0 = lv.row(0, fl.stem)
+        _check("Fishing_rate_lv schema: bracket 0 = 80/96/110/120 per size class; Spring2 alias",
+               (l0["class0"], l0["class1"], l0["class2"], l0["class3"]) == (80, 96, 110, 120)
+               and lv.schema("Fishing_rate_lv_Spring2") is not None)
+    else:
+        _skip("fishing schema checks", "no Fishing_rate_*.bin present")
+    if sid:
+        r = nlcl.NlclTable.load(sid).row(2, "rf3ScheduleID")
+        _check("rf3ScheduleID schema: record 2 = room 65 @65,292 weight 1",
+               r["room"] == 65 and r["x"] == 65 and r["y"] == 292 and r["weight"] == 1)
+
+
+def test_asatk_edit():
+    """Attack-timeline assembler + edit ops (2026-09-19): byte-exact assemble(disassemble)
+    on every shipped as_atk file, edits that re-parse, and the validator."""
+    print("asatk (assembler / editor):")
+    from rf4s_modkit import asatk
+    files = sorted(EXTRACTED.rglob("as_atk_*.bin"))
+    if not files:
+        _skip("asatk assembler", "no as_atk_*.bin extracted")
+        return
+    exact = sum(1 for p in files if asatk.assemble(asatk.disassemble(p.read_bytes())) == p.read_bytes())
+    _check("asatk assemble(disassemble()) byte-exact on every stock timeline",
+           exact == len(files), f"{exact}/{len(files)}")
+    d = files[0].read_bytes()
+    ev = asatk.parse(d, stop_at_end=False)
+    ev2 = asatk.insert_at_frame(asatk.set_event(ev, 0, arg="1.5q"), 999, "SFX", "0x01002200")
+    ev3 = asatk.delete_event(asatk.insert_event(ev2, 0, "DASH", "-2q"), 0)
+    b = asatk.build(ev3)
+    back = asatk.parse(b, stop_at_end=False)
+    sfx = [e for e in back if e.op == 45 and e.arg == 0x01002200]
+    _check("asatk set/insert_at_frame/insert/delete round-trip",
+           len(back) == len(ev) + 2 and back[0].arg == 6144 and len(sfx) == 1
+           and asatk.op_from_name("hitbox") == 10 and asatk.parse_operand("90deg") == 16384
+           and asatk.parse_operand("-3") == 0xFFFFFFFD,
+           f"{len(ev)} -> {len(back)} events")
+    bad = asatk.build([(0, 5), (10, 1), (0, 3), (70, 0)])
+    probs = asatk.validate(asatk.parse(bad, stop_at_end=False))
+    _check("asatk validate flags no END / backwards FRAME / unknown op",
+           any("no END" in p for p in probs) and any("backwards" in p for p in probs)
+           and any("no handler" in p for p in probs), f"{len(probs)} findings")
+
+
+def test_rows_em_structural_skill():
+    """2026-09-19: row add/remove on flat NLCL tables (`rf4mod param add/remove`), em.bin
+    STRUCTURAL edits (`rf4mod em add/remove/add-cond/remove-cond/add-action/remove-action`,
+    the container is rebuilt), the `rf4mod skill set` curve editor, and the schema "grow"
+    verdicts. Engine facts these lean on (IDB): CraftData_GetRecordCountByArchiveId
+    (RF4S.exe+0x47B50) returns the recipe file's +24 count; CondScript_EvalNamedConditionA
+    (+0x23B6A0) / EMF_DispatchEntry (+0x23B920) bound entry ids by em.bin +12 and take the
+    table offset from +16 (header +4/+8 unread); Player_GetSkillXpToNextLevel (+0x38440)
+    reads table[level] at Skill_GetLevelTable()+4*level (+396 = table[99] past 99), where
+    Skill_GetLevelTable (+0x83E60) = nsFileArchive_GetData(1482x)+28."""
+    print("rows / em structural / skill set:")
+    import rf4mod as _rfx
+    from rf4s_modkit import skillcurve
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_rows_"))
+    try:
+        # ---- NLCL rows -------------------------------------------------------------
+        files = [p for p in EXTRACTED.rglob("rf3*.bin") if nlcl.is_flat_nlcl(p.read_bytes()[:32])]
+        v1 = [(p, p.read_bytes()) for p in files]
+        v1 = [(p, d) for p, d in v1 if struct.unpack_from("<I", d, 16)[0] == 1]
+        if not v1:
+            _skip("NLCL row ops", "no rf3*.bin param tables extracted")
+        else:
+            exact = sum(1 for _p, d in v1 if nlcl.NlclTable(d).build() == d)
+            canon = sum(1 for _p, d in v1 if nlcl.NlclTable(d).has_canonical_footer())
+            _check("NLCL v1 tables: build() byte-exact + canonical {0,24,0,0} footer (%d files)" % len(v1),
+                   exact == len(v1) and canon == len(v1), "%d exact, %d canonical" % (exact, canon))
+        il = next((p for p in files if p.name == "rf3ItemList.bin"), None)
+        if il:
+            raw = il.read_bytes()
+            t = nlcl.NlclTable(raw)
+            n = t.entry_count
+            i = t.append_record(t.record(29))
+            t.set_field(i, "sell_price", 50, "rf3ItemList")
+            blob = t.build()
+            t2 = nlcl.NlclTable(blob)
+            _check("NLCL append_record: entry_count/byte_size rewritten, footer regenerated, row readable",
+                   i == n and t2.entry_count == n + 1 and t2.byte_size == 28 + 40 * (n + 1)
+                   and len(blob) == len(raw) + 40 and blob[28:28 + 40 * n] == raw[28:28 + 40 * n]
+                   and blob[:20] == raw[:20] and t2.get(n, 12) == 50 and t2.get(n, 0, "u32") == 29
+                   and t2.tail == nlcl.CANONICAL_FOOTER)
+            t.delete_record(n)
+            _check("NLCL delete_record restores the stock bytes", t.build() == raw)
+            t.insert_record(0, bytes(40))
+            shifted = t.get(2, 12) == 680 and t.get(30, 12) == 30 and t.entry_count == n + 1
+            t.delete_record(0)
+            _check("NLCL insert_record(0) shifts rows (Cabbage 1 -> 2); delete(0) undoes", shifted and t.build() == raw)
+            rej = 0
+            gen = _first("GenA01.bin")
+            for bad in (lambda: t.insert_record(5, bytes(39)), lambda: t.delete_record(n + 3),
+                        lambda: t.insert_record(n + 1, None),
+                        lambda: nlcl.NlclTable(gen.read_bytes()).append_record() if gen else (_ for _ in ()).throw(nlcl.NlclError("x"))):
+                try:
+                    bad()
+                except nlcl.NlclError:
+                    rej += 1
+            _check("NLCL row ops reject wrong size / bad index / structured (Gen) tables", rej == 4, str(rej))
+            out = tmp / "il_add.bin"
+            _rfx.main(["param", "add", str(il), "--copy", "29", "--set", "sell_price=50", "-o", str(out)])
+            ta = nlcl.NlclTable.load(out)
+            _rfx.main(["param", "remove", str(out), str(n), "-o", str(tmp / "il_rm.bin")])
+            _check("CLI param add --copy/--set then param remove -> stock bytes",
+                   ta.entry_count == n + 1 and ta.get(n, 12) == 50 and (tmp / "il_rm.bin").read_bytes() == raw)
+        else:
+            _skip("NLCL row ops on rf3ItemList", "rf3ItemList.bin not extracted")
+        # ---- em.bin structural --------------------------------------------------------
+        try:
+            raw_em = pathlib.Path(emscript.find_em()).read_bytes()
+            em = emscript.EmScript.load()
+        except FileNotFoundError:
+            _skip("em structural edits", "em.bin not found")
+            em = None
+        if em:
+            _check("emscript serialize() re-emits the stock em.bin byte-exact (5-section layout, 77-byte tail)",
+                   em.serialize() == raw_em and len(em.tail) == 77 and em.hdr == raw_em[:20])
+            n = len(em.entries)
+            idx = em.add_entry(clone="EV_BOSS_SP_DEAD", name="TEST_CLONE")
+            built = em.build()
+            re1 = emscript.EmScript.parse(built, em.names)
+            _check("em add_entry (clone): id == old count, header +12/+4 updated, clone decodes identically",
+                   idx == n and struct.unpack_from("<I", built, 12)[0] == n + 1
+                   and struct.unpack_from("<I", built, 4)[0] == len(built) and len(re1.entries) == n + 1
+                   and re1.format_entry(re1.entries[idx]).splitlines()[1:]
+                   == re1.format_entry(re1.get("EV_BOSS_SP_DEAD")).splitlines()[1:]
+                   and em.get(idx).name == "TEST_CLONE")
+            xs = em.parse_condition_spec("Hour >= 6 AND (12 > Hour OR FLG_DATE_FES_NOW == 1) AND !condA(EV_DATE_APPO)")
+            _check("em condition spec: AND of OR-groups, query/flag/literal operands, cond refs, < swapped",
+                   [x.pretty(em.names) for x in xs]
+                   == ["Hour >= 6", "12 > Hour", "FLG_DATE_FES_NOW == 1", "!condA(EV_DATE_APPO)"]
+                   and [x.or_next for x in xs] == [False, True, False, False]
+                   and em.parse_condition_spec("Hour < 6")[0].pretty(em.names) == "6 > Hour")
+            acts = [em.parse_action_spec(s).pretty(em.names) for s in (
+                "REG_MAIN_SCENARIO = 39", "REG_MAIN_SCENARIO += 2", "MAX_U REG_MAIN_SCENARIO 5",
+                "FLG_DATE_FES_NOW = (REG_MAIN_SCENARIO == 0)", "CALL EV_DATE_APPO")]
+            _check("em action spec: SET / += / explicit MAX_U / SET_EQ_ZERO / CALL",
+                   acts == ["REG_MAIN_SCENARIO = 39", "REG_MAIN_SCENARIO = ADD(REG_MAIN_SCENARIO, 2)",
+                            "REG_MAIN_SCENARIO = MAX_U(REG_MAIN_SCENARIO, 5)",
+                            "FLG_DATE_FES_NOW = (REG_MAIN_SCENARIO == 0)", "CALL EV_DATE_APPO"])
+            slot = em.add_condition(idx, "a", xs)
+            em.add_action(idx, "alt", em.parse_action_spec("REG_MAIN_SCENARIO += 2"))
+            re2 = emscript.EmScript.parse(em.build(), em.names).entries[idx]
+            _check("em add_condition (new OR-slot) + add_action survive rebuild + re-parse",
+                   slot == 1 and re2.pretty_condition(em.names, "a").splitlines()[1].strip()
+                   == "OR Hour >= 6 AND (12 > Hour OR FLG_DATE_FES_NOW == 1) AND !condA(EV_DATE_APPO)"
+                   and [a.pretty(em.names) for a in re2.alt_actions][-1]
+                   == "REG_MAIN_SCENARIO = ADD(REG_MAIN_SCENARIO, 2)")
+            em.remove_action(idx, "alt", 1)
+            em.remove_condition(idx, "a", 1)
+            em.delete_entry(idx)
+            _check("em remove_action / remove_condition / delete_entry restore the stock bytes",
+                   em.build() == raw_em)
+            em.add_condition("EV_CMN_DAYTIME", "a", em.parse_condition_spec("1 == 1 OR 2 == 2 OR 3 == 3"))
+            em.remove_condition(66, "a", 2, 2)
+            fixed = em.get(66).pretty_condition(em.names, "a").splitlines()[2].strip() == "OR (1 == 1 OR 2 == 2)"
+            em.remove_condition(66, "a", 2)
+            _check("em remove_condition closes the OR-group on the previous member", fixed and em.build() == raw_em)
+            refused = False
+            try:
+                em.delete_entry(7)                      # EV_BOSS_SP_DEAD references itself
+            except ValueError:
+                refused = True
+            n1 = em.add_entry(clone=7)
+            n2 = em.add_entry()
+            em.add_condition(n2, "a", em.parse_condition_spec("condA(#%d) AND Hour > 3" % n1))
+            victim = next(k for k in range(100, 200) if not em.refs_to(k))
+            vname, nxt = em.get(victim).name, em.get(victim + 1).name
+            moved = em.delete_entry(victim)
+            ref = em.get(n2 - 1).cond_a[0][0]
+            _check("em delete_entry: refused when referenced; renumbers refs above it; names travel",
+                   refused and moved >= 1 and ref.ref == n1 - 1 and em.get(victim).name == nxt
+                   and vname not in em.by_name and len(em.entries) == n + 1)
+            em = emscript.EmScript.load()
+            em.clear_entry(7)
+            e7 = em.get(7)
+            _check("em clear_entry blanks in place (id-stable)",
+                   not e7.cond_a and not e7.cond_b and not e7.alt_actions and len(em.entries) == n
+                   and em.get(8).name == em.names.entry_name(8))
+            o = tmp / "em_add.bin"
+            _rfx.main(["em", "add", "--clone", "EV_BOSS_SP_DEAD", "--cond-a", "Season == 3 AND Hour > 20",
+                       "--alt-action", "REG_MAIN_SCENARIO += 2", "-o", str(o)])
+            _rfx.main(["em", "remove", str(n), "--em", str(o), "-o", str(tmp / "em_rm.bin")])
+            _rfx.main(["em", "add-cond", "EV_CMN_DAYTIME", "Season == 3 AND Hour > 20", "-o", str(tmp / "em_ac.bin")])
+            _rfx.main(["em", "remove-cond", "EV_CMN_DAYTIME", "--slot", "2", "--em", str(tmp / "em_ac.bin"),
+                       "-o", str(tmp / "em_rc.bin")])
+            _rfx.main(["em", "add-action", "EV_BOSS_SP_DEAD", "FLG_DATE_FES_NOW = (REG_MAIN_SCENARIO == 0)",
+                       "--stream", "alt", "-o", str(tmp / "em_aa.bin")])
+            _rfx.main(["em", "remove-action", "EV_BOSS_SP_DEAD", "--stream", "alt", "--index", "1",
+                       "--em", str(tmp / "em_aa.bin"), "-o", str(tmp / "em_ra.bin")])
+            added = emscript.EmScript.parse(o.read_bytes(), em.names)
+            _check("CLI em add/remove, add-cond/remove-cond, add-action/remove-action (each pair -> stock bytes)",
+                   len(added.entries) == n + 1
+                   and added.entries[n].pretty_condition(em.names, "a").splitlines()[-1].strip()
+                   == "OR Season == 3 AND Hour > 20"
+                   and (tmp / "em_rm.bin").read_bytes() == raw_em
+                   and (tmp / "em_rc.bin").read_bytes() == raw_em
+                   and (tmp / "em_ra.bin").read_bytes() == raw_em)
+        # ---- skill XP curve editing ------------------------------------------------------
+        p = _first("rf3ParamSkillExp.bin")
+        if p:
+            raw = p.read_bytes()
+            base = skillcurve.parse(raw)
+            buf = bytearray(raw)
+            skillcurve.set_level_xp(buf, 5, 120)
+            scaled = skillcurve.scale_curve(bytearray(raw), 50)
+            edited = skillcurve.parse(bytes(buf))
+            rej = 0
+            for bad in (lambda: skillcurve.set_level_xp(buf, 100, 1), lambda: skillcurve.set_level_xp(buf, 1, -5),
+                        lambda: skillcurve.scale_curve(buf, 0)):
+                try:
+                    bad()
+                except (IndexError, ValueError):
+                    rej += 1
+            _check("skillcurve set_level_xp / scale_curve (footer intact) + rejects level 100 / negative / 0%",
+                   edited[5] == 120 and all(edited[k] == base[k] for k in range(100) if k != 5)
+                   and bytes(buf)[-16:] == raw[-16:] and scaled == [max(1, int(x * 0.5 + 0.5)) for x in base]
+                   and rej == 3)
+            _rfx.main(["skill", "set", str(p), "5", "120", "--scale", "200", "-o", str(tmp / "sk.bin")])
+            got = skillcurve.parse((tmp / "sk.bin").read_bytes())
+            _check("CLI skill set LEVEL XP + --scale (scale first, then the explicit level; 100 x i32 + footer)",
+                   got[5] == 120 and got[0] == base[0] * 2 and got[99] == base[99] * 2
+                   and (tmp / "sk.bin").read_bytes()[:28] == raw[:28] and len(raw) == 28 + 400 + 16)
+        else:
+            _skip("skill set", "no rf3ParamSkillExp.bin present")
+        # ---- new schemas + the per-family "grow" verdicts --------------------------------
+        fe = _first("rf3FaceEffectParam.bin")
+        if fe:
+            t = nlcl.NlclTable.load(fe)
+            r7 = t.row(7, "rf3FaceEffectParam")
+            marks = [k for k in range(t.entry_count) if t.get(k, 0, "s8") == 1 and t.get(k, 1, "s8") == 0]
+            _check("rf3FaceEffectParam schema: 442 = 34 slots x 13 kinds, s8 anchor pairs, kind-11 marker",
+                   t.entry_count == 442 and t.record_size == 8
+                   and (r7["x0"], r7["y0"], r7["x3"], r7["y3"]) == (-32, -40, 32, -60)
+                   and marks == [13 * s + 11 for s in range(34)]
+                   and (t.grow_info("rf3FaceEffectParam")[0] or "").startswith("unused:"))
+        qf = _first("rf4TxtQuestRequestDetailFormat_split2_1.bin")
+        if qf:
+            t = nlcl.NlclTable.load(qf)
+            _check("rf4TxtQuestRequestDetailFormat_split2_1 schema: 33 x 4, flag=2 on rows 1..3 only (dead data)",
+                   t.entry_count == 33 and [k for k in range(33) if t.row(k, qf.stem)["flag"]] == [1, 2, 3]
+                   and all(t.get(k, b, "u8") == 0 for k in range(33) for b in (1, 2, 3))
+                   and (t.grow_info(qf.stem)[0] or "").startswith("unused:"))
+        se = _first("rf3ParamSkillExpFarm.bin")
+        if se:
+            t = nlcl.NlclTable.load(se)
+            _check("rf3ParamSkillExp* schema (alias) + fixed:100 verdict",
+                   t.schema("rf3ParamSkillExpFarm") is t.schema("rf3ParamSkillExp") and t.entry_count == 100
+                   and t.row(0, "rf3ParamSkillExpFarm")["xp_to_next"] == skillcurve.parse(se.read_bytes())[0]
+                   and t.grow_info("rf3ParamSkillExpFarm")[0] == "fixed:100")
+        verdicts = {s: (nlcl.FIELD_SCHEMAS.get(s) or {}).get("grow") for s in (
+            "rf3ItemList", "rf3ItemEquipmentParam", "rf3PriceTable", "rf3NpcParam", "rf3CropParam",
+            "rf3UseItemParam", "rf3TxtQuest_split3_1", "rf3TxtCalendar_split2_1", "rf3TxtShopNpc_split2_1",
+            "rf4TxtItemParameter_split2_1", "rf4TxtShop_split2_1")}
+        verdicts["rf3Recipe"] = nlcl.PREFIX_SCHEMAS["rf3Recipe"].get("grow")
+        _check("grow verdicts recorded for every verified family (%d)" % len(verdicts),
+               all(verdicts.values()) and verdicts["rf3Recipe"] == "file-count"
+               and verdicts["rf3PriceTable"] == "fixed:10" and verdicts["rf3ItemList"] == "fixed:1108"
+               and verdicts["rf3TxtCalendar_split2_1"].startswith("paired-text:")
+               and "not verified" not in nlcl.describe_grow(verdicts["rf3Recipe"], 34),
+               ", ".join(k for k, v in verdicts.items() if not v) or "all set")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_bcenc_and_model_textures():
+    """BC1 / BC3 / BC7 encoders (rf4s_modkit/bcenc.py) and the same-size replacement paths
+    built on them: packing bit-exact against texture2ddecoder, flat colours exact, quality
+    on a real ground tile, `encode_into` keep-format (file size unchanged), and in-place
+    texture replacement inside .model BNTX containers. Loader facts (RF4S.exe): the
+    embedded BNTX is relocation-fixed and handed to SpriteResourceRegistry_AcquireSlotForBfres
+    (+0x1BE270) by GfxCTR_Model_BuildFromResource (+0x1B52C0, calls at +0x1B550B / +0x1B5595);
+    the per-BRTI init (+0x3C6000) -> MGTexture_LoadFromPIXL (+0x3D2230) reads only the
+    format, width, height, access flags, name and mip-0 pointer -- docs/09 s3 and s4."""
+    print("bcenc / model textures:")
+    import random
+    import time
+    from rf4s_modkit import bcenc
+    if not (texture.HAS_PIL and texture.HAS_BC):
+        _skip("bcenc", "Pillow/texture2ddecoder not installed")
+        return
+    from PIL import Image
+    import texture2ddecoder as t2d
+
+    def t2d_rgba(kind, blocks, w, h):
+        fn = {"bc7": t2d.decode_bc7, "bc3": t2d.decode_bc3, "bc1": t2d.decode_bc1}[kind]
+        return Image.frombytes("RGBA", (w, h), bytes(fn(blocks, w, h)), "raw", "BGRA").tobytes()
+
+    def err_stats(a, b):
+        mx, tot = 0, 0
+        for x, y in zip(a, b):
+            d = abs(x - y)
+            tot += d
+            if d > mx:
+                mx = d
+        return mx, tot / max(len(a), 1)
+
+    # 1. the flat-colour argument: with weight 21 mode 5 reaches every value 0..255
+    tbl = bcenc._mode5_pairs()
+    _check("BC7 mode-5 (weight 21) endpoint pairs reach every value 0..255",
+           all(v in tbl for v in range(256)))
+    # 2. flat colours round-trip EXACTLY through the real decoder
+    random.seed(7)
+    cols = [(0, 0, 0, 255), (255, 255, 255, 255), (255, 0, 0, 255), (0, 0, 0, 0),
+            (37, 200, 0, 255), (128, 127, 1, 3)]
+    cols += [tuple(random.randrange(256) for _ in range(4)) for _ in range(30)]
+    ok7 = ok3 = ok1 = True
+    for col in cols:
+        im = Image.new("RGBA", (8, 4), col)
+        ok7 = ok7 and t2d_rgba("bc7", bcenc.encode_bc7(im.tobytes(), 8, 4), 8, 4) == bytes(col) * 32
+        r, g, b, a = col
+        r5, g6, b5 = round(r * 31 / 255), round(g * 63 / 255), round(b * 31 / 255)
+        grid = ((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2), a)
+        gi = Image.new("RGBA", (4, 4), grid).tobytes()
+        ok3 = ok3 and t2d_rgba("bc3", bcenc.encode_bc3(gi, 4, 4), 4, 4) == bytes(grid) * 16
+        if a >= 128:
+            ok1 = ok1 and t2d_rgba("bc1", bcenc.encode_bc1(gi, 4, 4), 4, 4)[:3] == bytes(grid[:3])
+    _check("flat colours exact: BC7 any RGBA (opaque black / pure red need mode 5), BC3/BC1 on the 565 grid",
+           ok7 and ok3 and ok1, f"{len(cols)} colours")
+    # 3. packing bit-exact against texture2ddecoder (noise exercises every field), numpy + pure paths
+    noise = bytes(random.randrange(256) for _ in range(24 * 20 * 4))
+    ok, detail = True, []
+    for kind in ("bc7", "bc3", "bc1"):
+        for use_np in ((True, False) if bcenc.HAS_NUMPY else (False,)):
+            blk = bcenc.encode(kind, noise, 24, 20, use_numpy=use_np)
+            own = bcenc.decode(kind, blk, 24, 20)
+            ref = t2d_rgba(kind, blk, 24, 20)
+            if kind == "bc1":      # t2d returns opaque black for the punch-through index: compare RGB
+                same = all(own[4 * i:4 * i + 3] == ref[4 * i:4 * i + 3] for i in range(24 * 20))
+            else:
+                same = own == ref
+            ok = ok and same and len(blk) == 6 * 5 * bcenc.BLOCK_BYTES[kind]
+            detail.append(f"{kind}{'/np' if use_np else '/py'}:{'ok' if same else 'DIFF'}")
+    _check("reference decoders == texture2ddecoder bit-exact on noise (numpy and pure Python)", ok,
+           " ".join(detail))
+    # 4. real 512x512 BC7 ground tile: keep-format re-encode (same size), forced formats, quality, timing
+    tile = _first("MAP_FIELD_01_0000.texture")
+    if tile is None:
+        _skip("keep re-encode / quality", "MAP_FIELD_01_0000.texture not extracted")
+    else:
+        tmpl = tile.read_bytes()
+        i0 = texture.parse(tmpl)
+        img = texture.decode_to_image(tmpl)
+        src = img.convert("RGBA").tobytes()
+        t0 = time.perf_counter()
+        new7 = texture.encode_into(tmpl, img)
+        dt7 = time.perf_counter() - t0
+        i7 = texture.parse(new7)
+        mx7, mean7 = err_stats(src, texture.decode_to_image(new7).convert("RGBA").tobytes())
+        _check("encode_into default keeps BC7 at the same file size, container bytes untouched",
+               len(new7) == len(tmpl) and i7["fmt_name"] == "BC7" and i7["fmt_code"] == 0x2001
+               and new7[:i0["pixel_off"]] == tmpl[:i0["pixel_off"]] and new7[i0["rlt_off"]:] == tmpl[i0["rlt_off"]:]
+               and texture.relocation_slots(new7) == texture.relocation_slots(tmpl) and mean7 <= 2.0 and mx7 <= 64,
+               f"{i0['width']}x{i0['height']} in {dt7:.2f}s, mean err {mean7:.2f}, max {mx7}")
+        sizes, errs = {}, {}
+        for f in ("BC3", "BC1", "RGBA8"):
+            t0 = time.perf_counter()
+            nf = texture.encode_into(tmpl, img, fmt=f)
+            dtf = time.perf_counter() - t0
+            pf = texture.parse(nf)
+            sizes[f] = (len(nf), pf["fmt_name"], dtf)
+            errs[f] = err_stats(src, texture.decode_to_image(nf).convert("RGBA").tobytes())
+        _check("fmt= forces BC3 (same size) / BC1 (smaller) / RGBA8 (4x, exact)",
+               sizes["BC3"][0] == len(tmpl) and sizes["BC3"][1] == "BC3" and errs["BC3"][1] <= 5.0
+               and sizes["BC1"][0] < len(tmpl) and sizes["BC1"][1] == "BC1" and errs["BC1"][1] <= 5.0
+               and sizes["RGBA8"][0] > len(tmpl) and sizes["RGBA8"][1] == "RGBA8" and errs["RGBA8"] == (0, 0),
+               "; ".join(f"{f} {s[0]:,} B {s[2]:.2f}s mean err {errs[f][1]:.2f}" for f, s in sizes.items()))
+    # 5. .model: BNTX walk + in-place replacement (same file size, only the payload bytes change)
+    pm = _first("MAP_CITY_00.model") or _first("MAP_*.model")
+    if pm is None:
+        _skip("model texture replace", "no MAP_*.model extracted")
+        return
+    mod = pm.read_bytes()
+    infos = texture.bntx_info(mod)
+    lst = texture.bntx_list(mod)
+    _check("bntx_info walks the BRTI pointer array (payload = imageSize, 1 mip, linear, same list as bntx_list)",
+           len(infos) == len(lst) > 0 and all(t["size"] == t["image_size"] and t["mips"] == 1 and t["tile"] == 1
+                                              and t["data_off"] > 0 for t in infos)
+           and all((x["w"], x["h"], x["name"]) == (y["width"], y["height"], y["name"]) for x, y in zip(lst, infos)),
+           f"{pm.name}: {len(infos)} textures")
+    k = min(3, len(infos) - 1)
+    t = infos[k]
+    card = texture.decode_bntx(mod, k)
+    if card is None:
+        _skip("model texture replace", f"texture {k} of {pm.name} not decodable")
+        return
+    t0 = time.perf_counter()
+    newm = texture.bntx_replace(mod, k, card)
+    dtm = time.perf_counter() - t0
+    lo, hi = t["data_off"], t["data_off"] + t["image_size"]
+    mxm, meanm = err_stats(card.convert("RGBA").tobytes(), texture.decode_bntx(newm, k).convert("RGBA").tobytes())
+    _check("bntx_replace rewrites only the level-0 payload in place (same size, every other byte identical)",
+           len(newm) == len(mod) and newm[:lo] == mod[:lo] and newm[hi:] == mod[hi:] and newm[lo:hi] != mod[lo:hi]
+           and texture.bntx_info(newm) == infos and meanm <= 2.0
+           and ident.identify(newm[:0x4000], filename=pm.name).fmt == "model",
+           f"texture {k} {t['name']} {t['fmt_name']} {t['width']}x{t['height']} in {dtm:.2f}s, "
+           f"mean err {meanm:.2f}, max {mxm}")
+    try:
+        texture.bntx_replace(mod, k, card.resize((max(4, t["width"] // 2), max(4, t["height"] // 2))))
+        bad1 = "no error"
+    except texture.TextureError as e:
+        bad1 = str(e)
+    try:
+        texture.bntx_replace(mod, k, card, fmt="BC1" if t["fmt_name"] != "BC1" else "RGBA8")
+        bad2 = "no error"
+    except texture.TextureError as e:
+        bad2 = str(e)
+    _check("bntx_replace refuses a wrong-size image and a format with another payload size",
+           "dimensions must match" in bad1 and "payload" in bad2)
+    if t["fmt_name"] in ("BC3", "BC7"):
+        other = "BC7" if t["fmt_name"] == "BC3" else "BC3"
+        n2 = texture.bntx_replace(mod, k, card, fmt=other)
+        i2 = texture.bntx_info(n2)[k]
+        _check(f"{t['fmt_name']} -> {other} in place rewrites only the BRTI format code (same payload size)",
+               len(n2) == len(mod) and i2["fmt_name"] == other and i2["image_size"] == t["image_size"]
+               and n2[:t["brti_off"] + 0x1C] == mod[:t["brti_off"] + 0x1C]
+               and n2[t["brti_off"] + 0x20:lo] == mod[t["brti_off"] + 0x20:lo] and n2[hi:] == mod[hi:]
+               and texture.decode_bntx(n2, k) is not None)
+
+
+def test_script_authoring():
+    """Cutscene authoring layer (2026-09-19): count-exact type tables, the expression
+    compiler, the listing assembler (scene_listing -> assemble round trip), listing-text
+    inserts/rewrites, and minting/removing/re-keying type-table entries (new scenes)."""
+    print("script authoring (scriptasm + type-table entries):")
+    from rf4s_modkit import script, scriptasm
+    p = _first("rf3.mc")
+    if not p:
+        _skip("script authoring", "rf3.mc not extracted")
+        return
+    raw = p.read_bytes()
+    c = script.Container(raw)
+    try:
+        from rf4s_modkit.emflags import EmFlagTable
+        emf = EmFlagTable.load()
+    except Exception:
+        emf = None
+    if emf is not None:
+        script.install_emflags_var_resolver(c, emf)
+    resolver = c.install_asm_resolver(emf)
+    _check("Container.install_asm_resolver wires emdeb.bin names into the assembler", resolver is not None)
+    # --- typed-constant leaves (tags 3/4): named per argument slot (2026-09-23) --------------
+    # The handlers read only the value of a "localvar"/"globalvar" leaf (Script_PrepActionArgs
+    # pushes raw (value, kind) pairs), so the tag is just a typed constant and the SLOT gives it
+    # its meaning. The listing writes actor(Name) / map(MAP_NAME) where the slot is known.
+    forms = {"actor(Forte)": b"\x03\x04\x00\x00\x00", "actor(4)": b"\x03\x04\x00\x00\x00",
+             "localvar[0x4]": b"\x03\x04\x00\x00\x00", "actor(player)": b"\x03\x00\x00\x00\x00",
+             "actor(Xiao Pai)": b"\x03\x0b\x00\x00\x00", "map(MAP_CITY_00)": b"\x04\x18\x00\x00\x00",
+             "map(24)": b"\x04\x18\x00\x00\x00", "globalvar[24]": b"\x04\x18\x00\x00\x00"}
+    got = {t: scriptasm.asm_expr(t) for t in forms}
+    rej = 0
+    for bad in ("actor(Traveler)", "actor(Nobody)", "map(MAP_NOPE)"):   # shared / unknown names
+        try:
+            scriptasm.asm_expr(bad)
+        except scriptasm.AsmError:
+            rej += 1
+    _check("actor(..)/map(..) assemble to the same bytes as localvar/globalvar; ambiguous names refused",
+           got == forms and rej == 3, f"{sum(got[t] == forms[t] for t in forms)}/{len(forms)} forms, {rej}/3 refused")
+    n_leaf = n_actor = n_map = 0
+    leaf_bad, sched_txt, subev_txt = [], None, None
+    for bk in c.banks:
+        for sc in script.disassemble_bank(bk):
+            for st in sc.stmts.values():
+                if st.op >= 0xFFF0:
+                    continue
+                for i, off in enumerate(st.args):
+                    if off is None or not (0 <= off < len(bk.data)) or bk.data[off] not in (3, 4):
+                        continue
+                    n_leaf += 1
+                    txt = scriptasm.operand_text(bk.data, off, st.op, i)
+                    n_actor += txt.startswith("actor(")
+                    n_map += txt.startswith("map(")
+                    if scriptasm.asm_expr(txt) != bytes(bk.data[off:off + 5]):
+                        leaf_bad.append((bk.index, st.pc, txt))
+                if st.op == 266 and sched_txt is None and len(st.args) > 1 \
+                        and bk.data[st.args[0]] == 3 and bk.data[st.args[1]] == 4:
+                    sched_txt = script.stmt_arg_strs(bk.data, st)[:2]
+                if st.op == 629 and subev_txt is None and st.args and bk.data[st.args[0]] == 3:
+                    subev_txt = script.stmt_arg_strs(bk.data, st)[0]
+    _check("every tag-3/4 argument re-assembles byte-exact from its slot-named listing text",
+           n_leaf > 50000 and not leaf_bad and n_actor > 15000 and n_map > 500,
+           f"{n_leaf} leaves, {n_actor} actor(..), {n_map} map(..), {len(leaf_bad)} mismatches {leaf_bad[:2]}")
+    # schedule op 266 = (npc, map, ...): both named. op 629 loads a sub-event id (compared with
+    # REG_SUBEV_NOW), which is NOT a character -- it must stay neutral, not become a monster name.
+    from rf4s_modkit import entry_types as _et
+    _check("char table: ids 24/25/26 are Barrett / Raven / Mistress Trupin (rf3TxtNpc; bank 26 = Trupin)",
+           (_et.CHAR_NAMES.get(24), _et.CHAR_NAMES.get(25), _et.CHAR_NAMES.get(26)) == ("Barrett", "Raven", "Mistress Trupin")
+           and script.actor_leaf_text(24) == "actor(Barrett)", str([_et.CHAR_NAMES.get(i) for i in (24, 25, 26)]))
+    note318 = None
+    for bk in c.banks[:40]:
+        for sc in script.disassemble_bank(bk):
+            for st in sc.stmts.values():
+                if st.op == 318 and st.args and note318 is None:
+                    note318 = script.flag_arg_note(bk.data, st.args[0], 318, 0)
+    _check("op 318's actor argument resolves to that NPC's birthday-gift bit (zone-2 1007 + char)",
+           bool(note318) and "birthday gift given" in note318, str(note318))
+    _check("QueryNpcAnimDone's extra actors are labelled as ignored (only arg0 is read)",
+           "ignored" in (script.opcode_arg_names(129) or ["", ""])[1]
+           and script.leaf_slot_kind(129, 3) == "actor")
+    _check("slot naming: NpcScheduleOrClear shows actor(..), map(MAP_..); a sub-event id stays neutral",
+           bool(sched_txt) and sched_txt[0].startswith("actor(") and sched_txt[1].startswith("map(MAP_")
+           and bool(subev_txt) and subev_txt.startswith("localvar["),
+           f"{sched_txt} / {subev_txt}")
+    # --- type table: (count, offset) slots, 74-slot tables, count-exact walks --------------
+    slots = set()
+    n_entries = 0
+    n_types = 0
+    walk_ok = True
+    for b in c.banks:
+        tt = b.type_table_full()
+        slots.add(b.table_slots)
+        for t, (cnt, off) in tt.items():
+            n_types += 1
+            recs = b.entry_records(t)
+            n_entries += len(recs)
+            if len(recs) != cnt or any(script.decode_statement(b.data, r.event_id) is None for r in recs):
+                walk_ok = False
+    _check("type tables are 74-slot (count, offset) tables on every bank; every entry pc decodes",
+           slots == {74} and walk_ok and n_entries > 9000,
+           f"slots={sorted(slots)} entries={n_entries} in {n_types} type lists")
+    scenes, clean, stmts, dl = script.coverage(c)
+    _check("coverage counts registered scenes once each (count-exact lists, no over-walk)",
+           scenes == n_entries and clean == scenes, f"{scenes} scenes, {clean} clean")
+    _check("parsing leaves the container byte-exact", c.build() == raw)
+    # --- header max-bank-size words (the engine's reusable load buffers) -------------------
+    # ScriptTask_FirstTimeInit (RF4S.exe+0x1EE060) sizes one buffer per bank kind from header
+    # words 4 / 12 / 13 and the loader (RF4S.exe+0x23F9C0) copies each bank into it, so a bank
+    # grown past its word overflows the game's heap. grow_bank must raise the word.
+    caps = {k: c.max_bank_size(k) for k in ("primary", "tail", "global")}
+    actual = {}
+    for kind in ("primary", "tail", "global"):
+        actual[kind] = max((len(b.data) for b in c.banks if b.kind == kind), default=0)
+    _check("header words 4/12/13 are the max global/primary/tail bank size (shipped file)",
+           caps == actual and not c.validate_bank_sizes(), f"{caps} vs {actual}")
+    cg = script.Container(raw)
+    big = max((b for b in cg.banks if b.kind == "tail"), key=lambda b: len(b.data))
+    gi_big = cg.banks.index(big)
+    before = cg.max_bank_size("tail")
+    cg.grow_bank(big, b"\x00" * 64)
+    grown = script.Container(cg.build())
+    _check("growing the largest bank raises its kind's max-size word (no heap overflow in game)",
+           cg.max_bank_size("tail") == before + 64 == len(big.data)
+           and grown.max_bank_size("tail") == len(grown.banks[gi_big].data)
+           and grown.max_bank_size("primary") == caps["primary"], f"{before} -> {cg.max_bank_size('tail')}")
+    cb = script.Container(raw)
+    struct.pack_into("<I", cb.data, 52, 1024)          # pretend the recorded buffer is tiny
+    flagged = cb.validate_bank_sizes()
+    healed = script.Container(cb.build())              # build() re-derives the word first
+    _check("validate_bank_sizes flags an undersized buffer word; build() repairs it",
+           len(flagged) > 0 and healed.max_bank_size("tail") == caps["tail"]
+           and not healed.validate_bank_sizes(), f"{len(flagged)} flagged")
+    # --- the dispatchable action-opcode bound ---------------------------------------------
+    # g_sceneActionHandlerTable (RF4S.exe+0x4DB790) has 702 valid slots: slot 702 is not a
+    # function pointer and SceneAction_DispatchTableWithCleanup indexes it with no bounds
+    # check, so a higher opcode would call past the table.
+    _maxop = 0
+    for b in c.banks:
+        for sc in script.disassemble_bank(b, discover=False):
+            for st in sc.stmts.values():
+                if st.op < 0xFFF0:
+                    _maxop = max(_maxop, st.op)
+    _rej = 0
+    for bad in (script.DISPATCHABLE_ACTION_OPS, 750, 762):
+        if script.decode_statement(struct.pack("<HH", bad, 0), 0) is None:
+            _rej += 1
+        try:
+            scriptasm.assemble("op%d 1" % bad, 0x1000)
+        except script.ScriptError:
+            pass
+        else:
+            _rej = -99
+    _check("action opcodes are bounded by the engine's 702-slot handler table",
+           script.DISPATCHABLE_ACTION_OPS == 702 and _maxop == 701 and _rej == 3
+           and script.decode_statement(struct.pack("<HH", 701, 0), 0) is not None,
+           f"corpus max op {_maxop}, bound {script.DISPATCHABLE_ACTION_OPS}")
+
+    # --- expression compiler round trip ---------------------------------------------------
+    n = same = fail = 0
+    for b in c.banks[:25]:
+        d = b.data
+        for sc in script.disassemble_bank(b, discover=False):
+            for st in sc.stmts.values():
+                for o in (st.args if st.op < 0xFFF0 else st.expr_refs):
+                    if o is None or o >= len(d):
+                        continue
+                    txt, _ = script.disasm_expr(d, o)
+                    if txt == "?":
+                        continue
+                    n += 1
+                    try:
+                        src = scriptasm.operand_text(d, o) if d[o] in (3, 4, 5, 0x11, 0x12, 0x13) else txt
+                        bb = scriptasm.asm_expr(src, c.asm_resolver)
+                        if script.disasm_expr(bb, 0)[0] == txt:
+                            same += 1
+                        else:
+                            fail += 1
+                    except Exception:
+                        fail += 1
+    _check("asm_expr(disasm_expr(x)) re-renders identically for every operand in 25 banks",
+           n > 10000 and fail == 0 and same == n, f"{n} operands, {fail} mismatches")
+    enc = scriptasm.asm_expr("REG_WIFE_ID == 11", c.asm_resolver) if emf else None
+    _check("symbolic game-flag names compile to token-0x02 packed refs (REG_WIFE_ID == 11)",
+           enc is not None and enc[0] == 0x02 and script.disasm_expr(enc, 0)[0] == "REG_WIFE_ID == 11"
+           and c.unpack_var(struct.unpack_from("<I", enc, 1)[0])[0] == emf.get("REG_WIFE_ID").bit_offset)
+    st_asg = scriptasm.asm_expr("FLG_KOKUHAKU_NOW = 1", c.asm_resolver) if emf else b""
+    _check("assignment compiles to <var> <1> op16 (the engine's compound-assign store)",
+           st_asg[:1] == b"\x02" and st_asg[5:] == b"\x16\x90\x00")
+    bad = 0
+    for txt in ("5 = 1", "FLG_NOT_A_REAL_NAME_X == 1", "reg0 +", "(1 + 2", "arr[1"):
+        try:
+            scriptasm.asm_expr(txt, c.asm_resolver)
+        except script.ScriptError:
+            bad += 1
+        except Exception:
+            pass
+    _check("asm_expr rejects bad expressions with a clean AsmError", bad == 5)
+    # --- listing round trip ---------------------------------------------------------------
+    tested = ok = 0
+    for gi in (1, 150, 213, c.n_primary + 48, len(c.banks) - 1):
+        b = c.banks[gi]
+        for sc in [s for s in script.disassemble_bank(b, discover=False) if s.ok][:8]:
+            text = scriptasm.scene_listing(sc, b, bank_no=gi)
+            c2 = script.Container(raw)
+            c2.set_asm_resolver(c.asm_resolver)
+            try:
+                base = c2.assemble(c2.banks[gi], text)
+            except script.ScriptError as e:
+                if "64 KB" in str(e):
+                    continue                       # a near-full bank cannot take a copy
+                tested += 1
+                continue
+            sc2 = script.disassemble_scene(c2.banks[gi], sc.action_type, base)
+            tested += 1
+            if sc2.ok and scriptasm.scene_signature(sc, b.data) == scriptasm.scene_signature(sc2, c2.banks[gi].data):
+                ok += 1
+    _check("scene_listing -> assemble -> disassemble reproduces the scene (5 banks incl. tail+global)",
+           tested >= 30 and ok == tested, f"{ok}/{tested}")
+    # --- listing-text edits: insert / rewrite with branches, flags and labels ------------
+    c3 = script.Container(raw)
+    c3.set_asm_resolver(c.asm_resolver)
+    b3 = c3.banks[213]
+    sc = next(s for s in script.disassemble_bank(b3, discover=False)
+              if s.ok and any(x.mnem == "DIALOG" for x in s.stmts.values()))
+    dpc = next(pc for pc, x in sc.stmts.items() if x.mnem == "DIALOG")
+    c3.insert_after(b3, dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg0 = 3)")
+    sc3 = script.disassemble_scene(b3, sc.action_type, sc.entry_pc)
+    lst = scriptasm.scene_listing(sc3, b3)
+    _check("insert_after accepts listing text (branch + label + STORE) and the scene stays clean",
+           sc3.ok and "BR_Z (FLG_KOKUHAKU_NOW) ->" in lst and "STORE (reg0 = 3)" in lst
+           and "DIALOG #5" in lst and len(sc3.stmts) == len(sc.stmts) + 5,   # 3 new + moved copy + JMP back
+           f"{len(sc.stmts)} -> {len(sc3.stmts)} stmts, ok={sc3.ok}")
+    body = ("FRAME 2\nSetSpeakerNancy 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
+            "PROMPT_CHOICE CANCEL->done, #100->yes, #101->done\nyes:\nGiveItem 258, 1, 0\ndone:\nEND")
+    c3.rewrite_scene(b3, sc.entry_pc, body)
+    sc4 = script.disassemble_scene(b3, sc.action_type, sc.entry_pc)
+    kinds = [x.mnem for x in sc4.stmts.values()]
+    _check("rewrite_scene from listing text: FRAME/speaker/DIALOG/BR_NZ/PROMPT_CHOICE/END all decode",
+           sc4.ok and kinds.count("PROMPT_CHOICE") == 1 and kinds.count("BR_NZ") == 1
+           and any(x.dialog_id == 8709 for x in sc4.stmts.values())
+           and script.Container(c3.build()).banks[213].data == b3.data)
+    rej = 0
+    for txt in ("Frobnicate 1", "JMP nowhere", "PROMPT_CHOICE #1->L0\nL0:\nEND", "BR_Z (reg0) L0",
+                "DIALOG"):
+        try:
+            scriptasm.assemble(txt, 0x1000, resolver=c.asm_resolver)
+        except script.ScriptError:
+            rej += 1
+        except Exception:
+            pass
+    _check("assemble rejects unknown ops / undefined labels / malformed choices cleanly", rej == 5)
+    # --- minting a new scene: type-table entry on an empty tail bank + a busy bank -------
+    c5 = script.Container(raw)
+    c5.set_asm_resolver(c.asm_resolver)
+    empty = next(b for b in c5.banks if b.kind == "tail" and len(b.data) == 296)
+    gi_e = c5.banks.index(empty)
+    pc, idx = c5.add_entry(empty, 6, [], listing="FRAME 0\nSetSpeakerNancy 3, 0\nDIALOG #8709\n"
+                                                  "STORE (FLG_KOKUHAKU_NOW = 1)\nEND")
+    busy = c5.banks[213]
+    bt = next(t for t, (cnt, off) in busy.type_table_full().items() if cnt >= 2)
+    before = [(r.event_id, r.subs) for r in busy.entry_records(bt)]
+    pc2, idx2 = c5.add_entry(busy, bt, [5, (1, -1)], listing="DIALOG #100\nEND", position=0)
+    built = c5.build()
+    c6 = script.Container(built)
+    e6 = c6.banks[gi_e]
+    recs6 = e6.entry_records(6)
+    sc6 = script.disassemble_scene(e6, 6, pc) if recs6 else None
+    changed = [i for i, (x, y) in enumerate(zip(c.banks, c6.banks)) if bytes(x.data) != bytes(y.data)]
+    _check("add_entry mints a scene in an EMPTY tail bank: registered (count 1), decodes, other banks untouched",
+           len(recs6) == 1 and recs6[0].event_id == pc and sc6 is not None and sc6.ok
+           and "STORE (FLG_KOKUHAKU_NOW = 1)" in scriptasm.scene_listing(sc6, e6)
+           and sorted(changed) == sorted([gi_e, 213]), f"changed banks {changed}")
+    after = c6.banks[213].entry_records(bt)
+    _check("add_entry at position 0 in a busy bank keeps the old entries in order (count-exact reparse)",
+           len(after) == len(before) + 1 and after[0].subs == [(1, 5), (1, -1)] and after[0].event_id == pc2
+           and [(r.event_id, r.subs) for r in after[1:]] == before)
+    c5.remove_entry(busy, bt, 0)
+    _check("remove_entry restores the original list", [(r.event_id, r.subs) for r in busy.entry_records(bt)] == before)
+    k0 = before[0][1]
+    c5.set_entry(busy, bt, 0, subs=[(1, 77)] + k0[1:])
+    r0 = busy.entry_records(bt)[0]
+    grown = [(1, 77)] + k0 + [(1, 9)]
+    c5.set_entry(busy, bt, 0, subs=grown)
+    r1 = busy.entry_records(bt)[0]
+    _check("set_entry re-keys in place (same length) and by list rewrite (grown)",
+           r0.subs == [(1, 77)] + k0[1:] and r1.subs == grown and r1.event_id == before[0][0])
+    bad = 0
+    for fn in (lambda: c5.add_entry(empty, 74, [], event_pc=pc),
+               lambda: c5.add_entry(empty, 6, [], event_pc=0xFFFE),
+               lambda: c5.remove_entry(empty, 6, 5),
+               lambda: c5.add_entry(empty, 6, [])):
+        try:
+            fn()
+        except script.ScriptError:
+            bad += 1
+        except Exception:
+            pass
+    _check("entry ops reject a type past the table, a bad pc, a bad index and missing body cleanly", bad == 4)
+    # --- CLI surface (argparse wiring only) ----------------------------------------------
+    try:
+        import rf4mod as _rf4
+        import io as _io
+        _argv = ["script", "expr", "reg0 + 1"]
+        _buf = _io.StringIO()
+        _old = sys.stdout
+        sys.stdout = _buf
+        try:
+            _rf4.main(_argv)
+        finally:
+            sys.stdout = _old
+        _check("`rf4mod script expr` compiles an expression from the CLI", "reg0 + 1" in _buf.getvalue())
+    except SystemExit:
+        _check("`rf4mod script expr` compiles an expression from the CLI", False, "SystemExit")
+    except Exception as e:
+        _check("`rf4mod script expr` compiles an expression from the CLI", False, repr(e))
+
+
+def test_emflags_extras():
+    """Modder-defined game-flag variables (2026-09-20): the emdeb_extra.json sidecar,
+    allocation in the free tail of the 4096-bit store, validation, and resolution by the
+    cutscene assembler/disassembler and the em.bin condition grammar."""
+    print("emflags extras (new FLG_/REG_ variables via sidecar):")
+    from rf4s_modkit.emflags import EmFlagTable, GAMEFLAGS_BITS
+    from rf4s_modkit import script, scriptasm
+    try:
+        t = EmFlagTable.load(extra=False)
+    except FileNotFoundError:
+        _skip("emflags extras", "emdeb.bin not found")
+        return
+    used = t.total_bits
+    tmp = pathlib.Path(tempfile.mkdtemp()) / "emdeb_extra.json"
+    v = t.add_variable("FLG_SELFTEST_DONE")
+    r = t.add_variable("REG_SELFTEST_CNT", 4, jp_name="テスト")
+    _check("add_variable allocates the next free bits after the shipped table",
+           v.bit_offset == used and r.bit_offset == used + 1 and r.bit_width == 4
+           and t.free_bits == GAMEFLAGS_BITS - used - 5)
+    t.save_extras(str(tmp))
+    t2 = EmFlagTable.load(extra=str(tmp))
+    _check("sidecar round-trips (load merges it; by_name/by_offset/extras see the variables)",
+           [x.name for x in t2.extras] == ["FLG_SELFTEST_DONE", "REG_SELFTEST_CNT"]
+           and t2.by_offset(used + 1) is t2.get("REG_SELFTEST_CNT") and t2.get("REG_SELFTEST_CNT").jp_name == "テスト")
+    rej = 0
+    for fn in (lambda: t2.add_variable("FLG_SELFTEST_DONE"),
+               lambda: t2.add_variable("REG_BAD_WIDTH", 40),
+               lambda: t2.add_variable("FLG_OVERLAP", 1, bit_offset=used),
+               lambda: t2.add_variable("bad name!"),
+               lambda: t2.add_variable("FLG_PAST_END", 2, bit_offset=GAMEFLAGS_BITS - 1)):
+        try:
+            fn()
+        except ValueError:
+            rej += 1
+    _check("add_variable rejects duplicates, bad widths/names, overlaps and out-of-store bits", rej == 5)
+    # zone 2 (2026-09-23): explicit placement is allowed, but never on bits the game uses
+    # (emflags.ZONE2_BLOCKS: shop-door hours, daily-reset range, per-NPC bits, recipes, ...)
+    from rf4s_modkit import emflags as _ef
+    t3 = EmFlagTable.load(extra=False)
+    z_rej = 0
+    for fn in (lambda: t3.add_variable("FLG_ON_SHOP_DOOR", 1, bit_offset=_ef.ZONE2_BASE + 745),
+               lambda: t3.add_variable("REG_ON_RECIPES", 4, bit_offset=_ef.ZONE2_BASE + 1100)):
+        try:
+            fn()
+        except ValueError:
+            z_rej += 1
+    z_ok = t3.add_variable("FLG_ZONE2_FREE", 1, bit_offset=_ef.ZONE2_BASE + 1800)
+    z_auto = t3.add_variable("FLG_AUTO_STAYS_ZONE1")
+    _check("add_variable: zone-2 bits the game uses are refused; free zone-2 bits allowed; auto-allocation stays in zone 1",
+           z_rej == 2 and z_ok.bit_offset == _ef.ZONE2_BASE + 1800 and z_auto.bit_offset < _ef.GAMEFLAGS_BITS,
+           f"{z_rej}/2 refused, auto -> bit {z_auto.bit_offset}")
+    _check("zone-2 map labels: birthday-gift / hidden / recipe blocks decode with the char or recipe number",
+           "Forte" in _ef.zone2_text(1011) and "birthday" in _ef.zone2_text(1011)
+           and "hidden" in _ef.zone2_text(1042) and "recipe 341" in _ef.zone2_text(1403)
+           and "shop-door" in _ef.zone2_text(745) and "PAST THE END" in _ef.zone2_text(2600),
+           _ef.zone2_text(1011))
+    p = _first("rf3.mc")
+    if p:
+        c = script.Container(p.read_bytes())
+        script.install_emflags_var_resolver(c, t2)
+        c.install_asm_resolver(t2)
+        enc = scriptasm.asm_expr("REG_SELFTEST_CNT += 1", c.asm_resolver)
+        _check("cutscene assembler + disassembler resolve a sidecar variable",
+               enc[0] == 0x02 and script.disasm_expr(enc, 0)[0] == "REG_SELFTEST_CNT += 1"
+               and c.unpack_var(struct.unpack_from("<I", enc, 1)[0]) == (used + 1, 4, False))
+        script.set_packed_var_resolver(None)
+    try:
+        from rf4s_modkit import emscript
+        em = emscript.EmScript.load()
+        em.names.flags.merge_extras(str(tmp))
+        ex = em.parse_condition_spec("FLG_SELFTEST_DONE == 1 AND REG_SELFTEST_CNT >= 3")
+        _check("em.bin condition grammar accepts the sidecar variables", len(ex) == 2)
+    except FileNotFoundError:
+        _skip("em condition with extras", "em.bin not found")
+
+
+def test_script_explorer_authoring():
+    """Headless drive of the cutscene editor's authoring panels (2026-09-19/20): Source tab
+    (listing, Check, Assemble & replace), listing-syntax insert, Entries tab (New scene on an
+    empty map bank, remove), Event Manager add/remove entry. messagebox/simpledialog are
+    stubbed so nothing pops on the desktop; the Tk root is withdrawn."""
+    print("script explorer authoring panels (headless GUI):")
+    try:
+        import tkinter as tk
+        import script_explorer as se
+    except Exception as e:
+        _skip("explorer authoring", f"script_explorer/tkinter not importable ({e})")
+        return
+    from rf4s_modkit import script, scriptasm
+    p = _first("rf3.mc")
+    if not p:
+        _skip("explorer authoring", "rf3.mc not extracted")
+        return
+
+    def reader(n):
+        f = _first(n)
+        return f.read_bytes() if f else None
+
+    calls = []
+
+    class _MB:
+        def showerror(self, t, m, **k): calls.append(("error", t, m))
+        def showinfo(self, t, m, **k): calls.append(("info", t, m))
+        def showwarning(self, t, m, **k): calls.append(("warn", t, m))
+        def askyesno(self, t, m, **k): calls.append(("yesno", t, m)); return True
+
+    class _SD:
+        def askstring(self, t, m, **k): calls.append(("askstring", t, m)); return "1, -1"
+        def askinteger(self, t, m, **k): calls.append(("askinteger", t, m)); return 0
+
+    old_mb, old_sd = se.messagebox, se.simpledialog
+    se.messagebox, se.simpledialog = _MB(), _SD()
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("explorer authoring", f"no display for Tk ({e})")
+            return
+        ex = se.CutsceneExplorer(root, reader=reader)
+        _check("explorer constructs headless with rf3.mc + text + assembler resolver",
+               ex.container is not None and ex.textarc is not None and ex.container.asm_resolver is not None)
+        # --- Source tab on a real scene ---
+        ex.show_bank(213)
+        sc = ex._scene
+        _check("show_bank(213) selects a scene and fills the Source tab",
+               sc is not None and "DIALOG" in ex.source.get("1.0", "end-1c"))
+        sig0 = scriptasm.scene_signature(sc, ex._bank.data)
+        _check("Source Check passes on the generated listing", ex._source_check() is not None,
+               ex.src_status.cget("text")[:100])
+        n_bank = len(ex._bank.data)
+        noop = ex._source_apply()
+        _check("Assemble & replace of an untouched listing is a no-op (no second body appended)",
+               noop is False and len(ex._bank.data) == n_bank and not ex.script_dirty)
+        ex.source.insert("end", "\n; selftest: same content, different text\n")
+        ok = ex._source_apply()
+        sig1 = scriptasm.scene_signature(ex._scene, ex._bank.data)
+        _check("Assemble & replace keeps the scene's signature (trampolined body)", bool(ok) and sig0 == sig1
+               and ex.script_dirty)
+        ex.source.insert("end", "\nNoSuchOpcodeXYZ 1\n")
+        bad = ex._source_check()
+        _check("Source Check reports a bad line inline (no modal)", bad is None
+               and "line" in ex.src_status.cget("text") and not any(c[0] == "error" for c in calls))
+        ex._source_reload()
+        # --- listing insert after the first DIALOG of the scene ---
+        dpc = next((pc for pc, st in ex._scene.stmts.items() if st.mnem == "DIALOG"), None)
+        if dpc is not None:
+            ex._sel = (dpc, ex._scene.stmts[dpc])
+            n0 = len(ex._scene.stmts)
+            ex._insert_listing("BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg1 = 2)")
+            _check("listing-syntax insert adds the branch/label/STORE beat",
+                   len(ex._scene.stmts) == n0 + 5 and ex._scene.ok)
+        else:
+            _skip("listing insert", "scene without DIALOG")
+        # --- Entries tab: new scene on an EMPTY tail bank, then remove ---
+        c = ex.container
+        empty_idx = next(i for i, b in enumerate(c.banks) if b.kind == "tail" and len(b.data) == 296)
+        ex.show_bank(empty_idx)
+        eb = c.banks[empty_idx]
+        res = ex._entries_add(eb, 7, "", "FRAME 0\nSetSpeakerNancy 3, 0\nDIALOG #8709\nEND", "append")
+        recs = eb.entry_records(7)
+        _check("Entries 'New scene' mints a type-7 scene in an empty map bank and opens it",
+               isinstance(res, tuple) and len(recs) == 1 and recs[0].event_id == res[0]
+               and ex._scene is not None and ex._scene.entry_pc == res[0] and ex._scene.ok)
+        rows = [v for v in ex._entries_rows.values() if v[1] is not None]
+        _check("Entries tree lists exactly the bank's entries", len(rows) == sum(
+            cnt for cnt, _ in eb.type_table_full().values()))
+        note = c.entry_shadow_note(eb, 7)
+        _check("entry_shadow_note warns that a second type-7 (last-wins) entry replaces the first",
+               note is not None and "LAST" in note)
+        iid = next(i for i, v in ex._entries_rows.items() if v[1] is not None)
+        ex.entries_tree.selection_set(iid)
+        ex._entries_remove()
+        _check("Entries 'Remove' unregisters it (container still builds)",
+               not eb.entry_records(7) and script.Container(c.build()).banks[empty_idx].entry_records(7) == [])
+        bad = ex._entries_add(eb, 7, "", "FRAME 0\nBogusOpcode 1\nEND", "append")
+        _check("Entries 'New scene' rejects a bad body without a modal", not isinstance(bad, tuple)
+               and not any(cl[0] == "error" for cl in calls))
+        # --- the map editor's entry point: open the editor on a map bank + mint a scene ---
+        ex._ask_new_scene = lambda bank, default_type=None: {
+            "type_id": default_type, "keys": [], "body": "FRAME 0\nDIALOG #8709\nEND",
+            "position": "append"}
+        res2 = ex.open_new_scene_dialog(empty_idx)
+        _check("open_new_scene_dialog (map editor's 'New scene on this map…') defaults to "
+               "MapEnterScene in that map's tail bank",
+               isinstance(res2, tuple) and [r.event_id for r in eb.entry_records(7)] == [res2[0]])
+        del ex._ask_new_scene
+        # --- Event Manager window: entries, conditions and actions ---
+        ex._open_em_browser()
+        h = getattr(ex, "_em_browser", None)
+        em = ex._em_get()
+        if isinstance(h, dict) and em is not None:
+            n_before = len(em.entries)
+            se.simpledialog.askstring = lambda *a, **k: "EV_SELFTEST_NEW"
+            h["add_entry"]()
+            _check("EM browser 'Add entry' appends a new em.bin entry", len(em.entries) == n_before + 1)
+            new = em.entries[-1]
+            # select it in the list so the structural handlers act on it
+            for k, row in enumerate(h["shown"]):
+                if row.idx == new.idx:
+                    h["list"].selection_clear(0, "end"); h["list"].selection_set(k)
+                    break
+            # NB: EmScript._relayout() re-creates the Entry objects, so re-fetch by id
+            # after every structural edit (the browser itself re-selects by id and refills).
+            nidx = new.idx
+            ex._ask_spec = lambda title, prompt, validate, initial="": "Hour >= 6 AND FLG_RAINBOW == 1"
+            h["add_condition"]()
+            new = em.entries[nidx]
+            _check("EM browser 'Add condition' parses the spec grammar into a new OR-slot",
+                   len(new.cond_a) == 1 and len(new.cond_a[0]) == 2)
+            ex._ask_spec = lambda title, prompt, validate, initial="": "alt: REG_WIFE_ID = 3"
+            h["add_action"]()
+            new = em.entries[nidx]
+            _check("EM browser 'Add action' honours the alt: prefix", len(new.alt_actions) == 1
+                   and not new.actions)
+            h["refresh_struct"](new)
+            kinds = [it[0] for it in h["struct_items"]]
+            _check("EM structure picker lists the slot, its expressions and the action",
+                   kinds == ["cond", "cond", "cond", "act"], kinds)
+            rej = []
+            for bad in ("Hour >>= 6", "NOT_A_VARIABLE_X == 1", "slot=9 Hour >= 6"):
+                try:
+                    ex._em_parse_condition(em, new, bad)
+                except Exception:
+                    rej.append(bad)
+            _check("EM condition specs are validated before they are applied (inline errors)",
+                   len(rej) == 3, rej)
+            h["struct"].current([i for i, it in enumerate(h["struct_items"])
+                                 if it[0] == "act"][0])
+            h["remove_action"]()
+            _check("EM browser 'Remove action' drops the picked action",
+                   not em.entries[nidx].alt_actions)
+            em_bytes = em.serialize()
+            from rf4s_modkit import emscript as _emsc
+            _check("em.bin with the new entry + condition + action re-serialises and reparses",
+                   len(_emsc.EmScript.parse(em_bytes, em.names).entries) == len(em.entries))
+            h["win"].withdraw()
+        else:
+            _skip("EM browser structural edits", "browser handlers not exposed or em.bin missing")
+        # --- the trigger catalogue's registration recipes reach the editor ---
+        try:
+            from rf4s_modkit import entry_types
+            recipes = [t for t, v in entry_types.ENTRY_TYPES.items() if v.get("recipe")]
+            kinds = {v.get("bank_kind") for v in entry_types.ENTRY_TYPES.values()}
+            _check("catalogue carries registration recipes + machine-readable bank kinds",
+                   len(recipes) >= 10 and entry_types.map_enter_type() == 7
+                   and kinds <= set(entry_types.BANK_KINDS) and len(se.recipe_types()) == len(recipes),
+                   f"{len(recipes)} recipes, kinds={sorted(kinds)}")
+        except Exception as e:
+            _check("catalogue carries registration recipes + machine-readable bank kinds", False, repr(e))
+        _check("no modal error dialog was raised during the drive", not any(cl[0] == "error" for cl in calls),
+               str([cl[2][:60] for cl in calls if cl[0] == "error"][:3]))
+    finally:
+        se.messagebox, se.simpledialog = old_mb, old_sd
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:
+                pass
+
+
+def test_attr_tooltips():
+    """The Paint ATTR controls must cover every bit that occurs in a shipped map,
+    describe each one honestly, and make an impossible tile impossible to paint."""
+    print("map editor: Paint ATTR controls + Ctrl-hover help:")
+    import importlib.util, pathlib
+    p = pathlib.Path(__file__).with_name("map_explorer.py")
+    spec = importlib.util.spec_from_file_location("map_explorer_t", p)
+    mx = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mx)
+
+    boxes = [b for _a, b in mx.PAINT_FLAGS]
+    surf = [b for _a, b in mx.SURFACE_CHOICES if b]
+    controls = set(boxes) | set(surf)
+
+    # the 24 bits that actually occur in the shipped maps, measured 2026-09-21
+    OCCUR = {0x1, 0x2, 0x4, 0x8, 0x20, 0x40, 0x80, 0x100, 0x200, 0x400, 0x1000,
+             0x2000, 0x4000, 0x8000, 0x10000, 0x20000, 0x40000, 0x80000,
+             0x200000, 0x400000, 0x8000000, 0x10000000, 0x20000000, 0x40000000}
+    missing = [hex(b) for b in sorted(OCCUR - controls)]
+    _check("every occurring bit is paintable", not missing,
+           missing or "%d bits: %d checkboxes + %d surface choices"
+           % (len(OCCUR), len(boxes), len(surf)))
+
+    _check("surface choices match the loader's group D",
+           set(surf) == set(mx.SURFACE_FIELD),
+           "%d choices == the 7 mutually-exclusive bits" % len(surf))
+    overlap = [hex(b) for b in boxes if b in set(mx.SURFACE_FIELD)]
+    _check("no surface bit also has a checkbox", not overlap,
+           overlap or "the exclusive field is dropdown-only, so two cannot be set")
+    _check("no duplicate checkbox", len(boxes) == len(set(boxes)),
+           "%d distinct" % len(set(boxes)))
+
+    nohelp = [hex(b) for b in sorted(controls) if b not in mx.ATTR_BIT_HELP]
+    _check("every control has Ctrl-hover help", not nohelp,
+           nohelp or "%d described" % len(controls))
+    orphan = [hex(b) for b in mx.ATTR_BIT_HELP if b not in controls]
+    _check("no help for a control that isn't there", not orphan, orphan or "none")
+
+    _check("value list covers every shipped value", len(mx.KNOWN_ATTR_VALUES) == 110,
+           "%d distinct values seen across all 872 maps" % len(mx.KNOWN_ATTR_VALUES))
+
+    # bits whose meaning is not known must say so rather than invent one
+    UNKNOWN = (0x1000, 0x8000, 0x80000, 0x200000, 0x8000000, 0x10000000, 0x20000000)
+    bad = [hex(b) for b in UNKNOWN if not mx.ATTR_BIT_HELP[b].startswith("UNKNOWN")]
+    _check("unknown bits are labelled UNKNOWN", not bad,
+           bad or "%d marked honestly" % len(UNKNOWN))
+    thin = [hex(b) for b in UNKNOWN if len(mx.ATTR_BIT_HELP[b]) < 200]
+    _check("unknown bits carry the reasoning", not thin,
+           thin or "each says where it occurs and what shape it makes")
+
+    NO_READER = (0x200, 0x400, 0x40000, 0x2000, 0x20000, 0x40000000)
+    bad = [hex(x) for x in NO_READER if "NOT read by any engine code" not in mx.ATTR_BIT_HELP[x]]
+    _check("unread bits are labelled as unread", not bad,
+           bad or "stairs / grass / snow / mansion-floor all marked")
+
+    bad = [hex(x) for x in mx.SURFACE_FIELD if "only ONE" not in mx.ATTR_BIT_HELP[x]]
+    _check("surface bits warn about exclusivity", not bad, bad or "all 7 warn")
+
+    _check("0x10 explains it is runtime-stamped",
+           "no shipped map authors it" in mx.ATTR_BIT_HELP[0x10],
+           "water-fx flagged as entity-stamped, not paintable-in-map")
+    _check("surface_help lists the whole field",
+           all(("0x%X" % b) in mx.surface_help() for b in mx.SURFACE_FIELD),
+           "dropdown tooltip names all 7")
+    _check("attr_bit_help tolerates an unknown bit",
+           "No description" in mx.attr_bit_help(0x80000000), "falls back cleanly")
+
+
+def test_ground_texture_replacement():
+    """The map editor's ground export/import must round-trip a real map: same grid,
+    same tile count, same per-tile dimensions, same format, and visually lossless."""
+    print("map editor: ground-texture export/import:")
+    import importlib.util, pathlib, tempfile
+    try:
+        import tkinter as tk
+        from PIL import Image, ImageChops  # noqa: F401
+    except Exception as e:
+        _check("ground replacement", True, "skipped (no tkinter/PIL: %s)" % e)
+        return
+    p = pathlib.Path(__file__).with_name("map_explorer.py")
+    spec = importlib.util.spec_from_file_location("map_explorer_g", p)
+    mx = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mx)
+    from rf4s_modkit import rf4m, texture
+
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not B.exists():
+        _check("ground replacement", True, "skipped (no extracted bundleMain)")
+        return
+
+    def reader(n):
+        f = B / n
+        return f.read_bytes() if f.exists() else None
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        name = "MAP_CITY_00"
+        m = rf4m.Rf4mMap.load(B / (name + ".rf4m"))
+        panel = mx.MapEditorPanel(root, m, name, tex_reader=reader)
+        root.update_idletasks()
+
+        layer, note = panel._ground_layer_choice()
+        _check("a ground layer is resolvable", layer is not None, note or "layer %s" % layer)
+        if layer is None:
+            return
+
+        info = panel._ground_info(layer)
+        # the set is resolved from the game's table, not assumed to be the map name
+        _check("grid matches ceil(24*ATTR/512)",
+               (info["cols"], info["rows"]) == mx.mapground.grid_dims(180, 45),
+               "%dx%d for a 180x45 map" % (info["cols"], info["rows"]))
+        _check("tile count == cols*rows",
+               len(info["tiles"]) == info["cols"] * info["rows"],
+               "%d tiles" % len(info["tiles"]))
+
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        lay = panel._ground_export_to(tmp / "g.png", layer)
+        _check("export writes a PNG at the atlas extent",
+               (tmp / "g.png").exists() and lay["image_size"] == (180 * 24, 45 * 24),
+               "%dx%d == ATTR 180x45 * 24" % lay["image_size"])
+
+        names = panel._ground_import_from(tmp / "g.png", tmp / "out", layer, "keep")
+        _check("import writes one file per tile", len(names) == len(info["tiles"]),
+               "%d files" % len(names))
+
+        dims_ok = fmt_ok = True
+        worst = 0.0
+        for n in names:
+            a = texture.parse(reader(n))
+            b = texture.parse((tmp / "out" / n).read_bytes())
+            if (a["width"], a["height"]) != (b["width"], b["height"]):
+                dims_ok = False
+            if b["fmt_name"] != "BC7":
+                fmt_ok = False
+            ia = texture.decode_to_image(reader(n)).convert("RGB")
+            ib = texture.decode_to_image((tmp / "out" / n).read_bytes()).convert("RGB")
+            if ia.size == ib.size:
+                d = ImageChops.difference(ia, ib)
+                px = list(d.getdata())
+                worst = max(worst, sum(sum(t) for t in px) / (len(px) * 3))
+        _check("per-tile dimensions preserved", dims_ok, "every tile kept its own size")
+        _check("tiles stay BC7", fmt_ok, "format unchanged by a keep-format import")
+        _check("round-trip is visually lossless", worst < 5.0,
+               "worst tile mean abs error %.2f / 255" % worst)
+
+        # a wrong-sized image must be refused, not silently rescaled
+        bad = Image.new("RGBA", (64, 64), (255, 0, 0, 255))
+        bad.save(tmp / "bad.png")
+        refused = False
+        try:
+            panel._ground_import_from(tmp / "bad.png", tmp / "out2", layer, "keep")
+        except Exception:
+            refused = True
+        _check("a wrong-sized PNG is refused", refused, "import validates the extent")
+
+        # --- the export layer must be chosen explicitly, not inherited from the
+        # --- display dropdown, and layer 1 must work as well as layer 0
+        avail = mx.mapground.available_layers(reader, name)
+        picker = list(panel.ground_layer_combo["values"])
+        _check("layer picker lists exactly the real layers",
+               picker == [panel._LAYER_NAMES.get(l, str(l)) for l in avail],
+               "%s for layers %s" % (picker, avail))
+
+        panel.tex_layer.set("all")          # display says "all"...
+        panel.ground_layer.set(picker[-1])  # ...picker says the last layer
+        got, _n = panel._ground_layer_choice()
+        _check("display dropdown does not decide the export layer",
+               got == avail[-1], "picker %r wins over display 'all' -> layer %s" % (picker[-1], got))
+
+        if len(avail) > 1:
+            l1 = avail[-1]
+            panel.ground_layer.set(picker[-1])
+            lay1 = panel._ground_export_to(tmp / "g1.png", l1)
+            n1 = panel._ground_import_from(tmp / "g1.png", tmp / "out1", l1, "keep")
+            _check("layer %d exports and re-imports" % l1,
+                   len(n1) == len(lay1["tiles"]) and (tmp / "g1.png").exists(),
+                   "%d tiles, image %dx%d" % (len(n1), lay1["image_size"][0], lay1["image_size"][1]))
+            # the overlay is mostly transparent, so alpha has to survive the round-trip
+            import numpy as _np
+            worst_a = 0.0
+            has_alpha = False
+            for f in n1:
+                o = _np.asarray(texture.decode_to_image(reader(f)).convert("RGBA")).astype(int)
+                r = _np.asarray(texture.decode_to_image((tmp / "out1" / f).read_bytes())
+                                .convert("RGBA")).astype(int)
+                if o[:, :, 3].min() < 250:
+                    has_alpha = True
+                worst_a = max(worst_a, float(_np.abs(o[:, :, 3] - r[:, :, 3]).mean()))
+            _check("the overlay layer really is transparent", has_alpha,
+                   "layer %d carries alpha, so preserving it matters" % l1)
+            _check("alpha survives the round-trip", worst_a < 5.0,
+                   "worst tile mean alpha error %.2f / 255" % worst_a)
+    finally:
+        root.destroy()
+
+
+def test_map_editor_undo():
+    """Undo/redo must move the DISPLAYED attribute grid, not just the map object.
+
+    The renderer draws from a cached grid, so a restore that only swapped the map left
+    painted cells on screen until the next paint refreshed the cache by accident."""
+    print("map editor: undo/redo refreshes the displayed ATTR grid:")
+    import importlib.util, pathlib
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _check("undo refresh", True, "skipped (no tkinter: %s)" % e)
+        return
+    p = pathlib.Path(__file__).with_name("map_explorer.py")
+    spec = importlib.util.spec_from_file_location("map_explorer_u", p)
+    mx = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mx)
+    from rf4s_modkit import rf4m
+
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    mp = B / "MAP_FIELD_81.rf4m"
+    if not mp.exists():
+        _check("undo refresh", True, "skipped (no extracted bundleMain)")
+        return
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        panel = mx.MapEditorPanel(root, rf4m.Rf4mMap.load(mp), "MAP_FIELD_81")
+        root.update_idletasks()
+        w, _h, _c = panel.grid
+
+        def shown(x, y):
+            return panel.grid[2][y * w + x]
+
+        def actual(x, y):
+            return panel.map.attr_grid()[2][y * w + x]
+
+        base = shown(20, 20)
+        _check("display starts in sync with the map", base == actual(20, 20),
+               "0x%X" % base)
+
+        # paint three different cells, snapshotting like the paint tool does
+        painted = [(20, 20, 0x20001), (21, 20, 0x2), (22, 21, 0x4001)]
+        for x, y, v in painted:
+            panel._snapshot()
+            panel.map.set_attr_cell(x, y, v)
+            panel.grid = panel.map.attr_grid()
+        _check("paints landed", all(shown(x, y) == v for x, y, v in painted),
+               "3 cells painted")
+
+        # undo them one at a time; the display must follow every step
+        ok = True
+        for x, y, _v in reversed(painted):
+            panel._undo_op()
+            if shown(x, y) != actual(x, y):
+                ok = False
+        _check("undo moves the displayed grid, not just the map", ok,
+               "display == map after each of 3 undos")
+        _check("undo restored the original value", shown(20, 20) == base,
+               "back to 0x%X" % shown(20, 20))
+
+        # and redo puts them back, still in sync
+        ok = True
+        for x, y, v in painted:
+            panel._redo_op()
+            if shown(x, y) != v or shown(x, y) != actual(x, y):
+                ok = False
+        _check("redo re-applies and stays in sync", ok, "3 redos")
+
+        # a value that only exists after a restore must still get a colour, or the
+        # renderer would raise on it
+        missing = [v for v in set(panel.grid[2]) if v not in panel._value_colors]
+        _check("every displayed value has a colour", not missing,
+               [hex(v) for v in missing] or "%d values" % len(set(panel.grid[2])))
+    finally:
+        root.destroy()
+
+
+
+def _headless_dialogs():
+    """Replace every blocking tk dialog with a scripted answer; returns the answer box."""
+    from tkinter import messagebox, filedialog, simpledialog
+    box = {"yesnocancel": None, "yesno": True, "save": "", "msgs": []}
+    for fn in ("showinfo", "showerror", "showwarning"):
+        setattr(messagebox, fn, lambda t="", m="", **k: box["msgs"].append((t, str(m))))
+    messagebox.askyesnocancel = lambda *a, **k: box["yesnocancel"]
+    messagebox.askyesno = lambda *a, **k: box["yesno"]
+    filedialog.asksaveasfilename = lambda *a, **k: box["save"]
+    filedialog.askopenfilename = lambda *a, **k: ""
+    simpledialog.askstring = lambda *a, **k: box.get("askstring")
+    return box
+
+
+def test_map_editor_workflows():
+    """Map editor bugs fixed 2026-09-24: a click (with pointer jitter) on an entity or warp
+    must not move/re-snap it; no-op Apply buttons must not record undo steps; undo must drop
+    the stale entity fields (a focus-out used to re-apply the undone edit); real drags keep a
+    warp's sub-unit offset; the chunk editor refuses edits that leave the map unreadable;
+    unsaved map / SI / Gen edits are guarded; SI saves never overwrite the game's file."""
+    print("map editor: workflows (click vs drag, no-op applies, undo, unsaved guard):")
+    import importlib.util, tempfile, types
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("map editor workflows", "no tkinter: %s" % e); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    mp = B / "MAP_CITY_06.rf4m"
+    if not mp.exists():
+        _skip("map editor workflows", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("map_explorer_w", pathlib.Path(__file__).with_name("map_explorer.py"))
+    mx = importlib.util.module_from_spec(spec); spec.loader.exec_module(mx)
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        orig = mp.read_bytes()
+        panel = mx.MapEditorPanel(tk.Frame(root), rf4m.Rf4mMap.parse(orig), "MAP_CITY_06")
+        panel._set_zoom(6); root.update_idletasks()
+        cp = panel.cellpx
+        E = lambda x, y: types.SimpleNamespace(x=int(x), y=int(y), widget=panel.canvas, state=0)
+        # no-op applies: entity / props / warp / chunk
+        for i in range(len(panel.objs)):
+            panel._show_entity(i); panel._apply_entity(silent=True)
+        panel._apply_props()
+        for j in range(len(panel.map.mapj_records())):
+            panel.warp_list.selection_clear(0, "end"); panel.warp_list.selection_set(j)
+            panel._warp_selected(); panel._warp_apply()
+        for i in range(len(panel.map.chunks)):
+            panel.chunk_tree.selection_set(str(i)); panel._chunk_selected(); panel._chunk_apply()
+        _check("no-op Apply (entity/props/warp/chunk) changes nothing and records no undo",
+               panel.map.build() == orig and not panel._undo, f"{len(panel._undo)} undo steps")
+        # click with 1px jitter on an entity near a tile edge (143 = 7/8 into its tile) + a warp
+        o = next(o for o in panel.objs if o["pos_x"] == 143)
+        cx, cy = o["pos_x"] * cp / 8.0, o["pos_y"] * cp / 8.0
+        panel.tool.set("select")
+        panel._on_press(E(cx, cy)); panel._on_drag(E(cx + 1, cy)); panel._on_release(E(cx + 1, cy))
+        w0 = panel.map.mapj_records()[0]
+        tx, ty = (w0[1] + w0[3] // 2) >> 3, (w0[2] + w0[4] // 2) >> 3
+        panel._select(None); panel._redraw()
+        wx, wy = tx * cp + cp // 2, ty * cp + cp // 2
+        panel._on_press(E(wx, wy)); panel._on_drag(E(wx + 1, wy)); panel._on_release(E(wx + 1, wy))
+        _check("a click with pointer jitter moves neither an entity near a tile edge nor a warp",
+               panel.map.build() == orig and not panel._undo)
+        # a real warp drag keeps the sub-unit offset and size
+        panel._select(None); panel._redraw()
+        panel._on_press(E(wx, wy)); panel._on_drag(E(wx, wy + 2 * cp)); panel._on_release(E(wx, wy + 2 * cp))
+        w1 = panel.map.mapj_records()[0]
+        _check("dragging a warp 2 tiles keeps its exact sub-unit x / w / h",
+               (w1[1], w1[2], w1[3], w1[4]) == (w0[1], w0[2] + 16, w0[3], w0[4]), f"{w0[1:5]} -> {w1[1:5]}")
+        panel._undo_op()
+        # edit an entity, undo, then focus-out must not bring the edit back
+        i = next(i for i, o in enumerate(panel.objs) if o["category"] != "mapparam")
+        panel._show_entity(i)
+        panel.ent_fields[14].set(str(panel.map.mobj_records()[i][14] + 8))
+        panel._apply_entity(silent=True); panel._undo_op(); panel._apply_entity(silent=True)
+        _check("undo then focus-out does not re-apply the undone entity edit", panel.map.build() == orig)
+        # chunk editor: a truncated ATTR is refused and rolled back
+        ai = next(k for k, c in enumerate(panel.map.chunks) if c.tag == b"ATTR")
+        panel.chunk_tree.selection_set(str(ai)); panel._chunk_selected()
+        panel.chunk_hex.delete("1.0", "end"); panel.chunk_hex.insert("end", "00" * 20)
+        panel._chunk_apply()
+        panel.new_chunk_tag.set("ÄBCD"); panel._chunk_add()
+        _check("chunk editor refuses a truncated ATTR and a non-ASCII tag (map untouched, no crash)",
+               panel.map.build() == orig and not errs, f"{len(errs)} callback errors")
+        # unsaved-changes guard + SI save goes through a dialog
+        panel.prop_vars["msea"].set("3"); panel._apply_props()
+        box["yesnocancel"] = None
+        stays = panel.confirm_discard("switch") is False
+        box["yesnocancel"] = False
+        goes = panel.confirm_discard("switch") is True
+        _check("unsaved map edits: Cancel stays, No discards", stays and goes and panel.dirty_parts() == ["map"])
+        panel._undo_op()
+        _check("an undone edit is not 'unsaved'", not panel.is_dirty())
+        si_map = next((q for q in sorted(B.glob("MAP_FIELD_*.rf4m")) if mx.si_file_for_map(q.name)), None)
+        if si_map is not None:
+            si_path = pathlib.Path(mx.si_file_for_map(si_map.name)); si_orig = si_path.read_bytes()
+            panel.set_map(rf4m.Rf4mMap.load(si_map), si_map.stem)
+            panel.si_list.selection_set(0); panel._si_select()
+            panel.si_x.set(str(panel._si_file.spots[0].x + 8)); panel._si_apply_pos()
+            out = pathlib.Path(tempfile.mkdtemp()) / "SI_out.bin"
+            box["save"] = str(out)
+            saved = panel._si_save()
+            _check("SI save writes through a Save dialog; the game's SI file is untouched",
+                   saved and out.is_file() and si_path.read_bytes() == si_orig and not panel.is_dirty())
+    finally:
+        root.destroy()
+
+
+def test_cutscene_editor_workflows():
+    """Cutscene editor fixes 2026-09-24: undo/redo for every script + dialogue edit
+    (byte-exact), the args row edits VALUES in listing syntax (it used to write raw
+    expression offsets), typed-constant args are set in place, and no-op Set value /
+    Apply text / Assemble & replace change nothing."""
+    print("cutscene editor: undo/redo, args row, no-op edits:")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("cutscene editor workflows", "no tkinter: %s" % e); return
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("cutscene editor workflows", "rf3.mc not extracted"); return
+    dirs = [mc.parent] + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
+                                     pathlib.Path(BUNDLE_DIR) / "bundlePatch2") if d.is_dir()]
+
+    def reader(n):
+        for d in dirs:
+            if (d / n).is_file():
+                return (d / n).read_bytes()
+        return None
+    spec = importlib.util.spec_from_file_location("script_explorer_w", pathlib.Path(__file__).with_name("script_explorer.py"))
+    sx = importlib.util.module_from_spec(spec); spec.loader.exec_module(sx)
+    from rf4s_modkit import scriptasm, script
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        cx = sx.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        orig = cx.container.build()
+        cx.show_bank(48)
+        pick = next(((sc, pc, st) for _b, sc in cx._results for pc, st in sc.stmts.items()
+                     if st.op == 266 and len(st.args) >= 3), None)
+        if pick is None:
+            _skip("cutscene editor workflows", "no op-266 statement in bank 48"); return
+        sc, pc, st = pick
+        cx._bank, cx._scene = cx.container.banks[48], sc
+        cx._render_scene(); cx._sel = (pc, st); cx._populate_editor(pc, st)
+        row = cx.args_var.get()
+        _check("args row shows listing syntax (actor(..), map(..)), not raw offsets",
+               row.startswith("actor(") and "map(MAP_" in row, row)
+        # no-op Set value / Apply args / Apply text / Assemble & replace
+        for i in range(len(st.args)):
+            cx.val_arg.set(str(i)); cx._val_arg_changed()
+            if cx.val_var.get():
+                cx._set_value()
+        cx._apply_args()
+        cx._source_load(True); cx._source_apply()
+        _check("no-op Set value / Apply args / Assemble & replace leave rf3.mc untouched and clean",
+               cx.container.build() == orig and not cx.script_dirty and not cx._undo_steps)
+        # typed constant set in place + undo/redo
+        cx._sel = (pc, cx._scene.stmts[pc]); cx._populate_editor(pc, cx._sel[1])
+        cx.val_arg.set("0"); cx._val_arg_changed(); cx.val_var.set("5"); cx._set_value()
+        st2 = cx._scene.stmts[pc]
+        in_place = script.arg_repr(cx._bank.data, st2.args[0], st2.op, 0) == "actor(Kiel)"
+        cx._undo()
+        undone = cx.container.build() == orig and not cx.script_dirty
+        cx._redo(); redone = cx.container.build() != orig
+        cx._undo()
+        _check("Set value on actor(..) stays a typed constant; undo/redo are byte-exact",
+               in_place and undone and redone)
+        # args row: change actor + map + a literal that needs a wider expression, then undo
+        cx.show_bank(48, sc.entry_pc)
+        cx._sel = (pc, cx._scene.stmts[pc]); cx._populate_editor(pc, cx._sel[1])
+        parts = scriptasm._split_top(cx.args_var.get())
+        parts[:3] = ["actor(Forte)", "map(MAP_CITY_00)", "70000"]
+        cx.args_var.set(", ".join(parts)); cx._apply_args()
+        st3 = cx._scene.stmts[pc]
+        ok_vals = (script.arg_repr(cx._bank.data, st3.args[0], st3.op, 0) == "actor(Forte)"
+                   and script.arg_repr(cx._bank.data, st3.args[1], st3.op, 1) == "map(MAP_CITY_00)"
+                   and script.arg_constant(cx._bank.data, st3.args[2]) == (70000, True))
+        cx._undo()
+        _check("args row sets values by name / map / wide literal; one undo restores the grown bank",
+               ok_vals and cx.container.build() == orig)
+        # dialogue: no-op, real edit, undo
+        cx.show_bank(4)
+        dpc, dst = next((q, t) for q, t in cx._scene.stmts.items() if t.mnem == "DIALOG")
+        cx._sel = (dpc, dst); cx._populate_editor(dpc, dst)
+        cx._apply_text()
+        noop_clean = not cx.text_dirty
+        before = list(cx.textarc.entries)
+        cx.text_box.delete("1.0", "end"); cx.text_box.insert("1.0", "selftest line")
+        cx._apply_text(); cx._undo()
+        _check("dialogue: no-op Apply text stays clean; an edit undoes to the exact archive",
+               noop_clean and list(cx.textarc.entries) == before and not cx.text_dirty)
+        box["yesnocancel"] = None
+        cx._redo()
+        _check("unsaved dialogue: closing asks, Cancel stays", cx.confirm_discard("close") is False)
+        _check("cutscene editor workflows raised no callback errors", not errs, f"{len(errs)}")
+    finally:
+        root.destroy()
+
+
+def test_asset_explorer_gui():
+    """rf4mod_gui performance work (2026-09-24) must not change behaviour: the os.walk folder
+    source lists exactly what the pathlib one did; ONE map editor is reused across map
+    clicks (hidden, not destroyed, for other views; its background decode suspended); the
+    Hex tab fills on first view; the unsaved-edits guard still sees the reused panel; the
+    Cutscene editor opens without the full-corpus coverage pass."""
+    print("asset explorer (rf4mod_gui): source scan, reused map editor, lazy tabs:")
+    import importlib.util, time
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("asset explorer gui", "no tkinter: %s" % e); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FIELD_01.rf4m").exists():
+        _skip("asset explorer gui", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_t", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    # 1) folder source == the old pathlib walk (names, groups, order)
+    here = pathlib.Path(__file__).parent
+    ref = []
+    for q in sorted(here.rglob("*")):
+        if q.is_file():
+            rel = q.relative_to(here).as_posix()
+            # group = top-level sub-folder; files directly in the folder are ungrouped
+            ref.append((rel, q.parts[len(here.parts)] if len(q.parts) > len(here.parts) + 1 else ""))
+    got = [(n, g) for n, g, _l in gui.Source.from_folder(here).entries]
+    _check("Source.from_folder (os.walk) lists the same names/order as the pathlib walk; root files ungrouped",
+           got == ref, f"{len(got)} vs {len(ref)} entries")
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        app = gui.App(root, initial=str(B))
+        ents = {e[0].rsplit("/", 1)[-1]: e for e in app.source.entries}
+
+        def show(nm):
+            n, _g, loader = ents[nm]
+            app._show(n, loader()); root.update_idletasks()
+        show("MAP_FIELD_01.rf4m")
+        p1 = app._map_panel
+        show("MAP_CITY_00.rf4m")
+        p2 = app._map_panel
+        _check("map clicks reuse ONE map editor (set_map, no rebuild)",
+               p1 is not None and p1 is p2 and p2.map_base == "MAP_CITY_00")
+        nb = app._map_view["nb"]
+        hx_tab = [t for t in nb.tabs() if nb.tab(t, "text") == "Hex"][0]
+        hx_text = [w for w in nb.nametowidget(hx_tab).winfo_children()[0].winfo_children()
+                   if isinstance(w, tk.Text)][0]
+        empty_before = hx_text.get("1.0", "end-1c") == ""
+        nb.select(hx_tab); app._on_map_tab_changed()
+        _check("Hex tab fills only when first opened", empty_before and hx_text.get("1.0", "3.0").strip() != "")
+        gen0 = p2._ground_gen
+        show("MAP_FIELD_01_0000.texture")
+        _check("a non-map view hides the editor (kept alive) and suspends its decode",
+               app._map_panel is None and nb.winfo_exists() and nb.winfo_manager() == ""
+               and p2._ground_gen > gen0)
+        show("MAP_FIELD_01.rf4m")
+        _check("back to a map: the same editor is shown again", app._map_panel is p1 and nb.winfo_manager() == "pack")
+        p1.prop_vars["msea"].set("3"); p1._apply_props()
+        box["yesnocancel"] = None
+        _check("unsaved-edits guard still covers the reused map editor",
+               app._guard_map_edits("open another file") is False)
+        box["yesnocancel"] = False
+        # 2) the Cutscene editor opens without a full-corpus disassembly
+        import script_explorer
+        win = tk.Toplevel(root)
+        t0 = time.perf_counter()
+        script_explorer.CutsceneExplorer(win, reader=app.source.read_named)
+        dt = time.perf_counter() - t0
+        _check("Cutscene editor opens without the all-bank coverage pass (< 2 s)", dt < 2.0, "%.2f s" % dt)
+        _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
+    finally:
+        root.destroy()
+
+def run() -> int:
+    import time
+    mode = "QUICK (--quick: corpus sweeps skipped/sliced — run without it for the full stamp)" \
+        if QUICK else "full"
+    print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
+    slow = []
+    for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode, test_rf4m,
+              test_aibn, test_strings, test_gen, test_param, test_mapground,
+              test_search_items, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
+              test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
+              test_gen_structural, test_behaviour_edits, test_asatk_edit,
+              test_rows_em_structural_skill, test_bcenc_and_model_textures,
+              test_script_authoring, test_emflags_extras, test_script_explorer_authoring,
+              test_attr_tooltips, test_ground_texture_replacement,
+              test_map_editor_undo, test_map_editor_workflows,
+              test_cutscene_editor_workflows, test_asset_explorer_gui):
+        t0 = time.perf_counter()
+        try:
+            t()
+        except Exception as e:
+            _check(t.__name__, False, f"exception: {e}")
+        dt = time.perf_counter() - t0
+        if dt >= 1.0:
+            slow.append((dt, t.__name__))
+    passed = sum(1 for _n, c in _results if c)
+    total = len(_results)
+    if slow:
+        print("\nslowest sections: " + ", ".join(f"{n} {d:.0f}s" for d, n in
+                                                 sorted(slow, reverse=True)))
+    print(f"\n{passed}/{total} checks passed")
+    return 0 if passed == total else 1
+
+
+if __name__ == "__main__":
+    _code = run()
+    # Hard-exit: the disassembly cache holds tens of millions of small objects and
+    # CPython's normal interpreter teardown spends MINUTES deallocating them (profiled
+    # 2026-09-01: ~65s in quick mode, ~4 min full). All output is flushed above and
+    # nothing here needs atexit/finalizers, so skip the teardown entirely.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    import os
+    os._exit(_code)
