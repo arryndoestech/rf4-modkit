@@ -2,7 +2,7 @@
 
 A `.rf4m` map's MOBJ chunk holds 64-byte entity records whose first dword is a
 `type_id`. RF4S spawns each record through one of four paths (see
-`Map_SpawnAllEntities` @ RF4S.exe+0xDFE70), but EVERY path that draws a sprite
+`Map_SpawnAllEntities` @ RF4S.exe+0x13FE70), but EVERY path that draws a sprite
 loads the same resource:
 
         map_obj archive id = type_id + 17542          (0x4486)
@@ -212,7 +212,7 @@ MOBJ_NAMES: dict[int, str] = {t: n for t, n in MAP_OBJ_BAND.items()
 # Human-readable descriptions for sprites whose names are opaque (mostly the "fe*"
 # effect emitters and "gmk*" gimmicks). Keyed by sprite NAME so observations are easy
 # to add. Sources: in-game observation (USER) + the ENGINE's per-type init table —
-# g_mapObjTypeInitTable (RF4S.exe+0x228F530, one handler pointer per actor type
+# g_mapObjTypeInitTable (RF4S.exe+0x4CF530, one handler pointer per actor type
 # 20..81, dispatched by MapObj_SetupActorByTypeId +0x147240; dumped 2026-08-31).
 # Each entry cites its actor type id; the handler name is the identification.
 MOBJ_NOTES: dict[str, str] = {

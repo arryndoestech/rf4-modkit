@@ -46,14 +46,25 @@ payload in the map task work buffer and never copies it:
     MTXN  1 x u32 per chunk, 1 or 2 chunks   the loader spawns ONE map_disp display
                     layer per MTXN chunk (1st = ground textures g_mapResourceTable[+1],
                     2nd = overlay set [+2]); the dword value itself is never read.
-    IMGD / PALA / SOIL / AREA / POSD / MCHD / MCDA / NSTX: recognised, ignored, absent.
+    PALA / SOIL / AREA / POSD / MCHD / MCDA / NSTX: recognised, ignored, absent.
+    IMGD: recognised but it has NO slot of its own: the walk's slot pointer is left
+          at whatever the previous chunk used, so an IMGD chunk OVERWRITES the pointer
+          of the chunk before it (after e.g. MGRP the map's MGRP now points at the IMGD
+          payload); as the first slotted chunk it writes through an uninitialised
+          stack pointer. Absent from every shipped map -- never add one.
 
 Loader rules that matter for editing (all in Map_LoadById):
+  * the walk runs from +8 to file + size word (the MAPD dword, signed); a chunk
+    header is read without checking that 8 bytes remain;
   * the chunk walk STOPS at the first tag it does not know (Map_LookupChunkType
     returns 17): anything after an unknown tag is silently dropped;
+  * MSEA / MGRP / MLIG / ATTR have ONE pointer slot each: a second chunk of the same
+    tag replaces the first, so the game uses the LAST one (the single-chunk accessors
+    here read and write that one too);
   * per-tag pointer arrays have fixed capacity and no bounds check except PALD:
-    10 MAPJ, 6 PALD (extras ignored), 40 MOBJ, 6 MTXN chunks -- more overflows the
-    next array (see ENGINE_MAX_CHUNKS / validate());
+    10 MAPJ, 6 PALD, 40 MOBJ, 6 MTXN chunks -- more overflows the next array (see
+    ENGINE_MAX_CHUNKS / validate()). A 7th+ PALD gets no slot and, like IMGD,
+    re-points the previous chunk's slot;
   * the consumers read exactly one record per chunk (Map_SpawnAllEntities,
     Map_SpawnEntityByCategoryAndIdx), so extra records packed into one chunk are
     never seen by the game;
@@ -101,6 +112,13 @@ CHUNK_DESC = {
 # 10 MAPJ slots (+152), 6 PALD (+232, the only bounds-checked one), 40 MOBJ (+280),
 # 6 MTXN (+600). Only PALD is bounds-checked; the others overflow into the next array.
 ENGINE_MAX_CHUNKS = {b"MAPJ": 10, b"PALD": 6, b"MOBJ": 40, b"MTXN": 6}
+# Tags with a single pointer slot in Map_LoadById's switch (a repeat overwrites it, so
+# the LAST chunk of the tag is the one the game uses).
+SINGLE_SLOT_TAGS = (b"MSEA", b"MGRP", b"MLIG", b"ATTR")
+# Chunk types whose switch case assigns no slot and leaves the previous one in place
+# (IMGD always; PALD once 6 are stored). Cases 0 and 8..15 (MAPD, PALA..NSTX except
+# MOBJ) clear the slot pointer instead, so they are harmless.
+_NULL_SLOT_TAGS = (b"MAPD", b"PALA", b"SOIL", b"AREA", b"POSD", b"MCHD", b"MCDA", b"NSTX")
 # Highest type_id with a map_obj sprite: archive 17542 + 393 = 17935 is the last
 # rom:/map_obj entry (17936 starts the monster icons).
 MAX_MAP_OBJ_TYPE_ID = 393
@@ -183,6 +201,11 @@ class Rf4mMap:
             raise Rf4mError("Rf4mMap() takes a list of Chunk objects, not raw map bytes -- "
                             "use Rf4mMap.parse(data) or Rf4mMap.load(path).")
         self.chunks = chunks
+        # From parse(): the file's MAPD size word and its real length. The game walks
+        # chunks only up to file + size word, so a mismatch hides (or invents) chunks;
+        # build() always writes the right word. None for maps built in memory.
+        self.declared_size = None
+        self.file_size = None
 
     @classmethod
     def parse(cls, data: bytes) -> "Rf4mMap":
@@ -200,7 +223,10 @@ class Rf4mMap:
                                f"(want {size}, have {len(body)})")
             chunks.append(Chunk(tag, body))
             pos += 8 + size
-        return cls(chunks)
+        m = cls(chunks)
+        m.declared_size = struct.unpack_from("<i", data, 4)[0] if n >= 8 else None
+        m.file_size = n
+        return m
 
     @classmethod
     def load(cls, path) -> "Rf4mMap":
@@ -211,15 +237,22 @@ class Rf4mMap:
         tag = tag if isinstance(tag, bytes) else tag.encode("ascii")
         return [c for c in self.chunks if c.tag == tag]
 
+    def live_chunk(self, tag) -> Chunk | None:
+        """The chunk of `tag` the game actually keeps: the LAST one. Map_LoadById stores a
+        single pointer for MSEA/MGRP/MLIG/ATTR and every repeat overwrites it (the
+        accessors used to read/write the first one, i.e. a chunk the game ignores)."""
+        c = self.find(tag)
+        return c[-1] if c else None
+
     def attr_grid(self):
-        """Return (width, height, list[cells]) from the first ATTR chunk, or None when the
+        """Return (width, height, list[cells]) from the live ATTR chunk, or None when the
         map has no ATTR chunk or it is malformed (shorter than its 8-byte header or than
         the w*h cells the header announces). validate() reports the malformed case; it
         used to crash here instead, on exactly the maps it is meant to diagnose."""
-        a = self.find(b"ATTR")
-        if not a:
+        a = self.live_chunk(b"ATTR")
+        if a is None:
             return None
-        body = a[0].payload
+        body = a.payload
         if len(body) < 8:
             return None
         w, h = struct.unpack_from("<II", body, 0)
@@ -232,9 +265,9 @@ class Rf4mMap:
         if len(cells) != width * height:
             raise Rf4mError(f"cells has {len(cells)}, expected {width*height}")
         body = struct.pack("<II", width, height) + struct.pack(f"<{width*height}I", *cells)
-        a = self.find(b"ATTR")
-        if a:
-            a[0].payload = body
+        a = self.live_chunk(b"ATTR")
+        if a is not None:
+            a.payload = body
         else:
             self.chunks.append(Chunk(b"ATTR", body))
 
@@ -337,9 +370,9 @@ class Rf4mMap:
         self.delete_record(b"MOBJ", index, 64)
 
     def add_mapj_record(self, values) -> int:
-        """Append a new MAPJ warp record (9 i32: -1 sentinel; zone x,y,w,h in
-        sub-units; dest_map, dest_x, dest_y; trailing u32 of unknown purpose).
-        Field order matches Map_LoadById(mapId, posX, posY)."""
+        """Append a new MAPJ warp record (9 i32, MAPJ_FIELDS: disable flag (-1 = none);
+        zone x,y,w,h in sub-units; dest_map, dest_x, dest_y; arrival facing in degrees,
+        0 = keep the current facing)."""
         return self.add_record(b"MAPJ", values, 36)
 
     def delete_mapj_record(self, index: int):
@@ -350,11 +383,12 @@ class Rf4mMap:
 
     # ---- header / scalar chunks ----------------------------------------- #
     def get_ints(self, tag, count=None, signed=True) -> list[int]:
-        """Read the first chunk of `tag` as a list of int32 (all of them, or `count`)."""
-        c = self.find(tag)
-        if not c:
+        """Read the live (= last, see live_chunk) chunk of `tag` as a list of int32 (all of
+        them, or `count`)."""
+        c = self.live_chunk(tag)
+        if c is None:
             return []
-        body = c[0].payload
+        body = c.payload
         n = (len(body) // 4) if count is None else count
         if n * 4 > len(body):
             raise Rf4mError(f"{tag!r} chunk holds {len(body)//4} int32(s); requested {n}")
@@ -362,14 +396,14 @@ class Rf4mMap:
         return list(struct.unpack_from(f"<{n}{code}", body, 0))
 
     def set_ints(self, tag, values, signed=True):
-        """Overwrite the first chunk of `tag` with int32 `values` (creates the chunk if
-        absent). The chunk is resized to fit the values."""
+        """Overwrite the live (= last) chunk of `tag` with int32 `values` (creates the
+        chunk if absent). The chunk is resized to fit the values."""
         tag = tag if isinstance(tag, bytes) else tag.encode("ascii")
         code = "i" if signed else "I"
         payload = struct.pack(f"<{len(values)}{code}", *[int(v) for v in values])
-        c = self.find(tag)
-        if c:
-            c[0].payload = payload
+        c = self.live_chunk(tag)
+        if c is not None:
+            c.payload = payload
         else:
             self.chunks.append(Chunk(tag, payload))
 
@@ -392,15 +426,15 @@ class Rf4mMap:
 
     def set_attr_cell(self, x: int, y: int, value: int):
         """Set one ATTR collision/attribute cell (row-major) to `value`."""
-        a = self.find(b"ATTR")
-        if not a:
+        a = self.live_chunk(b"ATTR")
+        if a is None:
             raise Rf4mError("no ATTR chunk")
-        body = bytearray(a[0].payload)
+        body = bytearray(a.payload)
         w, h = struct.unpack_from("<II", body, 0)
         if not (0 <= x < w and 0 <= y < h):
             raise Rf4mError(f"cell ({x},{y}) out of {w}x{h}")
         struct.pack_into("<I", body, 8 + (y * w + x) * 4, value & 0xFFFFFFFF)
-        a[0].payload = bytes(body)
+        a.payload = bytes(body)
 
     # ---- resizing the tile grid ----------------------------------------- #
     def resize_attr_grid(self, new_w: int, new_h: int, *, fill: int = 0x2,
@@ -583,12 +617,13 @@ class Rf4mMap:
         }
 
     # MOBJ record field semantics + the type_id -> spawn category dispatch, verified
-    # against Map_SpawnAllEntities (RF4S.exe+0x7FE70) and sub_7FF6EFF87240:
+    # against Map_SpawnAllEntities (RF4S.exe+0x13FE70) -> Map_SpawnEntityByCategoryAndIdx
+    # (+0x13FAB0) -> MapObj_SetupActorByTypeId (+0x147240):
     #   field[0]  = type_id (dispatch category, below)
     #   field[6]  = scale (4096 = 1.0 in 12.12 fixed point)
     #   field[7]  = orientation (65536 = full turn; 0/16384/32768/49152 = quarter turns)
-    #   field[14] = tile X   (<<12 to get world coords)
-    #   field[15] = tile Y
+    #   field[14] = X in sub-units (8 per ATTR tile; actor world_x = f14 << 12)
+    #   field[15] = Y in sub-units
     #   fields 1-5,8-13 = per-type parameters (meaning depends on the spawn handler)
     # type_id -> spawn class. Verified across all three sprite-loading paths
     # (Map_SpawnEntityByCategoryAndIdx cat 1001 "map_obj_id", Map_SpawnInteractiveObject,
@@ -614,11 +649,10 @@ class Rf4mMap:
                 "archive_id": mobj_types.mobj_archive_id(tid),
                 "scale": rec[6] / 4096.0,
                 "orientation_deg": (rec[7] % 65536) * 360.0 / 65536.0,
-                # pos in SUB-UNITS (8 per ATTR tile): tile = pos>>3. The decoration
-                # sprite system uses these sub-units directly as its position (verified
-                # in Map_SpawnInteractiveObject: sprite XY = rec[14]/[15], footprint
-                # tile = rec[14]>>3). (NOT <<12 — that was a wrong earlier note; the
-                # player/actor Q12 world would be pos<<9, but MOBJ decorations don't use it.)
+                # pos in SUB-UNITS (8 per ATTR tile): tile = pos>>3. Sprites use the
+                # sub-units directly (Map_SpawnInteractiveObject: sprite XY = rec[14]/[15],
+                # footprint tile = rec[14]>>3); actors (types 20..195) get the Q12 world
+                # position pos << 12 (MapObj_SetupActorByTypeId, RF4S.exe+0x147240).
                 "pos_x": rec[14],
                 "pos_y": rec[15],
                 "params": list(rec),
@@ -680,6 +714,13 @@ class Rf4mMap:
         ATTR alone and needs neither."""
         errs, warns = [], []
         counts = Counter(c.tag for c in self.chunks)
+        # 0. the walk bound is the MAPD size word of the file as parsed (build() rewrites
+        #    it, so this only fires when validating a file that came off disk)
+        if self.declared_size is not None and self.declared_size != self.file_size:
+            errs.append(f"MAPD size word is {self.declared_size} but the file is "
+                        f"{self.file_size} B: Map_LoadById walks chunks only up to file + "
+                        f"size word, so chunks past it are ignored (or garbage past the end "
+                        f"is read as chunks). Re-saving through build() fixes the word")
         # 1. the chunk walk stops at the first unknown tag
         for i, c in enumerate(self.chunks):
             if c.tag not in CHUNK_NAMES:
@@ -689,6 +730,44 @@ class Rf4mMap:
                             f"{len(after)} chunk(s) after it ({', '.join(after) or 'none'}) "
                             f"are never loaded")
                 break
+        # 1b. replay the loader's slot assignment: IMGD (and a PALD past the 6th) gets no
+        #     slot of its own and re-points whatever slot the previous chunk used; a
+        #     repeated single-slot tag replaces the earlier pointer.
+        slot_of = None           # (tag, chunk index) whose slot the walk pointer holds
+        pald = 0
+        seen_single = {}
+        for i, c in enumerate(self.chunks):
+            if c.tag not in CHUNK_NAMES:
+                break
+            if c.tag in _NULL_SLOT_TAGS:
+                slot_of = ("null", i)
+            elif c.tag == b"IMGD" or (c.tag == b"PALD" and pald >= 6):
+                what = "an IMGD" if c.tag == b"IMGD" else "a 7th+ PALD"
+                if slot_of is None:
+                    errs.append(f"chunk #{i}: {what} chunk before any slotted chunk makes "
+                                f"Map_LoadById store its payload through an uninitialised "
+                                f"pointer (stack garbage -- crash or memory corruption)")
+                elif slot_of[0] == b"PALD":
+                    warns.append(f"chunk #{i}: {what} chunk gets no slot and replaces the "
+                                 f"pointer of PALD chunk #{slot_of[1]} (nothing reads PALD, "
+                                 f"so harmless)")
+                elif slot_of[0] != "null":
+                    errs.append(f"chunk #{i}: {what} chunk gets no slot of its own, so "
+                                f"Map_LoadById overwrites the pointer of chunk #{slot_of[1]} "
+                                f"({slot_of[0].decode('latin1')}) with this payload -- the "
+                                f"game reads this chunk's bytes as that chunk")
+            else:
+                if c.tag in SINGLE_SLOT_TAGS:
+                    if c.tag in seen_single:
+                        warns.append(f"chunk #{i}: second {c.tag.decode('latin1')} chunk (first "
+                                     f"is #{seen_single[c.tag]}): the loader keeps one pointer, "
+                                     f"so the game uses the LAST one (the single-chunk "
+                                     f"accessors edit the last one too)")
+                    else:
+                        seen_single[c.tag] = i
+                elif c.tag == b"PALD":
+                    pald += 1
+                slot_of = (c.tag, i)
         # 2. chunks the loader needs
         if not counts[b"MGRP"]:
             errs.append("no MGRP chunk: Map_LoadById dereferences its pointer unconditionally "
@@ -697,7 +776,7 @@ class Rf4mMap:
             errs.append("no ATTR chunk: no tile grid (every tile reads as blocked) and no "
                         "ground layer size")
         else:
-            body = self.find(b"ATTR")[0].payload
+            body = self.live_chunk(b"ATTR").payload
             if len(body) < 8:
                 errs.append("ATTR chunk is shorter than its 8-byte width/height header")
             else:
@@ -723,7 +802,9 @@ class Rf4mMap:
             n = counts[tag]
             if n > cap:
                 if tag == b"PALD":
-                    warns.append(f"{n} PALD chunks: the engine keeps 6, the rest are ignored")
+                    warns.append(f"{n} PALD chunks: the engine keeps 6; each extra one "
+                                 f"re-points the previous chunk's slot (see the per-chunk "
+                                 f"finding)")
                 else:
                     errs.append(f"{n} {tag.decode('latin1')} chunks: the loader's pointer array "
                                 f"holds {cap} and is not bounds-checked; chunks past it "
@@ -753,6 +834,12 @@ class Rf4mMap:
                 errs.append(f"MOBJ #{i}: type {tid} is past the map_obj sprite band "
                             f"(max {MAX_MAP_OBJ_TYPE_ID}); archive {tid + 17542} is not a "
                             f"map object")
+            # type-12 tint record: with f12 = 0 Map_LoadById writes RGB to
+            # work[230 + 3*f8 ..] with no bounds check -- only slots 0..2 exist
+            if tid == 12 and rec[12] == 0 and not (0 <= rec[8] <= 2):
+                errs.append(f"MOBJ #{i} (tint_color): slot f8 = {rec[8]} but only 0 day / "
+                            f"1 evening / 2 night exist; Map_LoadById indexes the tint array "
+                            f"with f8 unchecked and writes past it (memory corruption)")
             if grid and not (9 <= tid <= 19) and (rec[14] or rec[15]):
                 tx, ty = rec[14] >> 3, rec[15] >> 3
                 if not (0 <= tx < W and 0 <= ty < H):
@@ -770,6 +857,18 @@ class Rf4mMap:
                 errs.append(f"warp #{i}: destination map id {rec[5]} is not a known map")
             if rec[6] < 0 or rec[7] < 0:
                 warns.append(f"warp #{i}: negative arrival position ({rec[6]},{rec[7]})")
+            # Cutscene_StartDeathSequence keeps the arrival as 16-bit words and
+            # Scene_FinalizeMajorTransition sign-extends x/y (movsx) before << 12
+            if rec[6] > 0x7FFF or rec[7] > 0x7FFF:
+                errs.append(f"warp #{i}: arrival ({rec[6]},{rec[7]}) does not fit the signed "
+                            f"16-bit words the transition stores it in (max 32767 sub-units "
+                            f"= tile 4095); the player lands at a wrapped position")
+            if not (0 <= rec[5] <= 0xFFFF):
+                errs.append(f"warp #{i}: destination map id {rec[5]} is stored as a u16 by "
+                            f"the transition and wraps")
+            if zh > 0xFFFF:
+                warns.append(f"warp #{i}: zone height {zh} is truncated to 16 bits by "
+                             f"Widget_SetCollisionBox's caller")
             if not (0 <= rec[8] < 360):
                 warns.append(f"warp #{i}: arrival facing {rec[8]} is not 0..359 degrees")
             if rec[0] != -1 and not (0 <= rec[0] <= 0x7FFF):

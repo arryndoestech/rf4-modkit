@@ -14,7 +14,10 @@ Engine ground truth (IDB, RF4S.exe; all verified 2026-09-19):
   `[op][expr]` (just evaluates the expression -- the assignment operator inside it does
   the store), JMP 0xFFFA, BR_NZ 0xFFF9 / BR_Z 0xFFF8 `[op][expr][pc]`, SWITCH_EQ 0xFFF7 /
   SWITCH_GE 0xFFF6 `[op][expr][n][n pcs]`, PROMPT_CHOICE_FORCED 0xFFF5 `[op][n][n pcs]
-  [n u32 items]`, PROMPT_CHOICE 0xFFF4 `[op][n][n+1 pcs][n u32 items]` (pc[0] = cancel),
+  [n u32 items]`, PROMPT_CHOICE 0xFFF4 `[op][n][n+1 pcs][n u32 items]` (pc[0] = the
+  CANCEL slot, taken only for a negative pick -- the UI's cancel key instead moves the
+  cursor to the last option, so shipped menus repeat the last target there; at most
+  `script.MAX_CHOICE_OPTIONS` = 128 options, 4 rows on screen; see script.choice_problems),
   JMP_IND 0xFFF3 `[op][n][n pcs]`, RAND_BR 0xFFF2 `[op][n][n pcs][n weight exprs]`.
   Everything <= 0xFFF0 is an action: `[op][argc][argc x u16 expr offset]`, and
   `Script_PrepActionArgs` (+0x23EE10) evaluates each offset with
@@ -89,7 +92,10 @@ _TOK_RE = re.compile(r"""\s*(?:
   )""", re.X)
 
 # Leaf-only operand forms (handled by Script_EvalExpressionOrVar without the RPN VM).
-_LEAF_WORDS = {"null": b"\x11", "zero": b"\x12", "self": b"\x13"}
+_LEAF_WORDS = {"null": b"\x11", "zero": b"\x12", "self": b"\x13",
+               # the same leaves spelled as the add / sub / set mode of the ops that read an
+               # argument's kind (opcode_meta.MODE_ARG_SLOTS)
+               "add": b"\x11", "sub": b"\x12", "set": b"\x13"}
 
 
 def _tokenize(text):
@@ -171,7 +177,7 @@ class _Parser:
             return node
         if k == "num":
             self.i += 1
-            return ("int", int(v, 0))
+            return ("int", _int_in(v, 0, 0xFFFFFFFF, None, "number"))
         if k == "var":
             self.i += 1
             return ("pvar", int(v[4:], 16))
@@ -187,7 +193,7 @@ class _Parser:
                 self.take("op", "[")
                 idx = self.take("num")
                 self.take("op", "]")
-                return ("arr", int(idx, 0))
+                return ("arr", _int_in(idx, 0, 0xFFFF, None, "arr[] index"))
             if low in ("localvar", "globalvar", "actor", "map", "u16") or low in _LEAF_WORDS:
                 raise AsmError("%s is a leaf-only operand form; it cannot be combined with "
                                "operators" % v)
@@ -279,7 +285,7 @@ def asm_expr(text, resolver=None):
     m = _LEAF_RE.match(s)
     if m:
         tag = 3 if m.group(1).lower() == "localvar" else 4
-        return bytes([tag]) + struct.pack("<I", int(m.group(2), 0) & 0xFFFFFFFF)
+        return bytes([tag]) + struct.pack("<I", _int_in(m.group(2), 0, 0xFFFFFFFF, None, m.group(1)))
     m = _NAMED_LEAF_RE.match(s)
     if m:
         from . import script as _script
@@ -290,15 +296,19 @@ def asm_expr(text, resolver=None):
                 raise AsmError("actor(%s): unknown or ambiguous character name -- use a unique "
                                "name (Forte, Xiao Pai, player) or the numeric id, e.g. actor(27) "
                                "for one of the Travelers" % arg)
-            return b"\x03" + struct.pack("<I", n & 0xFFFFFFFF)
+            if not (0 <= n <= 0xFFFFFFFF):
+                raise AsmError("actor(%s): id out of the u32 range" % arg)
+            return b"\x03" + struct.pack("<I", n)
         n = _script.map_leaf_value(arg)
         if n is None:
             raise AsmError("map(%s): unknown map -- use a MAP_* file name (MAP_CITY_00) or the "
                            "numeric map id" % arg)
-        return b"\x04" + struct.pack("<I", n & 0xFFFFFFFF)
+        if not (0 <= n <= 0xFFFFFFFF):
+            raise AsmError("map(%s): id out of the u32 range" % arg)
+        return b"\x04" + struct.pack("<I", n)
     m = _U16_RE.match(s)
     if m:
-        return b"\x05" + struct.pack("<H", int(m.group(1), 0) & 0xFFFF)
+        return b"\x05" + struct.pack("<H", _int_in(m.group(1), 0, 0xFFFF, None, "u16()"))
     node = parse_expr(s, resolver)
     out = bytearray()
     _emit(node, out)
@@ -374,6 +384,14 @@ def op_from_any(name):
     op = script.op_from_name(s)
     if op is not None:
         return op
+    # `Name_N`: listing_name's spelling for an opcode that shares its mnemonic (or technical
+    # name) with others -- valid when op N really carries that name
+    m = re.fullmatch(r"(.+)_(\d+)", s)
+    if m:
+        n = int(m.group(2))
+        if 0 <= n < script.DISPATCHABLE_ACTION_OPS and m.group(1).lower() in (
+                (script.opcode_mnemonic(n) or "").lower(), (script.opcode_name(n) or "").lower()):
+            return n
     global _TECH_BY_NAME
     if _TECH_BY_NAME is None:
         _TECH_BY_NAME = {}
@@ -389,13 +407,18 @@ def op_from_any(name):
 
 def listing_name(op):
     """The name `scene_listing` prints for an action opcode: the mnemonic when it maps
-    back to exactly this op, else the technical name, else `opN` (always re-assemblable)."""
+    back to exactly this op, else the technical name; when several opcodes share the name
+    (the left/right SetSpeaker pairs, handler aliases such as 218/219) the others print as
+    `Name_N`, and only nameless ops fall back to `opN`. Always re-assemblable."""
     m = script.opcode_mnemonic(op)
     if m and op_from_any(m) == op:
         return m
     t = script.opcode_name(op)
     if t and op_from_any(t) == op:
         return t
+    for nm in (m, t):
+        if nm and not nm.startswith("(") and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", nm)                 and not re.fullmatch(r"op\d+", nm) and op_from_any("%s_%d" % (nm, op)) == op:
+            return "%s_%d" % (nm, op)
     return "op%d" % op
 
 
@@ -474,9 +497,10 @@ class Assembler:
         """Return ('expr', bytes) or ('abs', offset) for one operand."""
         s = text.strip()
         if s.startswith("@"):
-            return ("abs", int(s[1:], 0))
+            return ("abs", _int_in(s[1:], 0, 0xFFFF, None, "@offset"))
         if s.lstrip("-").isdigit() or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
-            return ("expr", int_literal_bytes(int(s, 0)) + b"\x00")
+            return ("expr", int_literal_bytes(_int_in(s, -0x80000000, 0xFFFFFFFF, None, "literal"))
+                    + b"\x00")
         if op is not None and index is not None and self.enum_names and re.fullmatch(r"[A-Za-z_][\w()]*", s):
             v = _enum_value(op, index, s)
             if v is not None:
@@ -526,13 +550,13 @@ class Assembler:
             if rest:
                 raise AsmError("line %d: END takes no operands" % line_no)
         elif op == 0xFFF1:
-            n = int(rest or "0", 0)
+            n = _int_in(rest or "0", 0, 0xFFFF, line_no, "FRAME slot count")
             st.code += struct.pack("<H", n)
         elif op == 0xFFFC:
             lid = rest.lstrip("#").strip()
             if not lid:
                 raise AsmError("line %d: DIALOG needs a line id" % line_no)
-            st.code += struct.pack("<I", int(lid, 0) & 0xFFFFFFFF)
+            st.code += struct.pack("<I", _int_in(lid, 0, 0xFFFFFFFF, line_no, "DIALOG line id"))
         elif op in (0xFFFE, 0xFFFA):
             if not rest:
                 raise AsmError("line %d: %s needs a target" % (line_no, name))
@@ -553,12 +577,20 @@ class Assembler:
             if not tail.startswith("->"):
                 raise AsmError("line %d: %s needs '-> t1, t2, ...'" % (line_no, name))
             tg = self._targets(tail[2:])
+            if op == 0xFFF6 and not tg:
+                # Script_VMStep 0xFFF6 jumps to the word at pc+2*(n+2) when the selector is
+                # >= n: with n = 0 that is the count word itself (a jump to pc 0).
+                raise AsmError("line %d: SWITCH_GE needs at least one target" % line_no)
             self._expr_fixup(st, self.operand(inner))
             st.code += struct.pack("<H", len(tg))
             for t in tg:
                 self._target_fixup(st, t)
         elif op == 0xFFF3:
             tg = self._targets(rest.lstrip("-> ").strip() if rest.startswith("->") else rest)
+            if not tg:
+                # Script_VMStep 0xFFF3: n <= 1 always takes the word at pc+4 -- with n = 0
+                # that is the next statement's opcode, used as a pc.
+                raise AsmError("line %d: JMP_IND needs at least one target" % line_no)
             st.code += struct.pack("<H", len(tg))
             for t in tg:
                 self._target_fixup(st, t)
@@ -570,6 +602,10 @@ class Assembler:
                 if not tail.startswith("->"):
                     raise AsmError("line %d: RAND_BR items look like '(weight)->target'" % line_no)
                 pairs.append((inner, tail[2:].strip()))
+            if not pairs:
+                # Script_Opcode_FFF2_ExecPrim always jumps to the word at pc+4+2*pick; with
+                # no cases that is past the statement.
+                raise AsmError("line %d: RAND_BR needs at least one (weight)->target" % line_no)
             st.code += struct.pack("<H", len(pairs))
             for _, t in pairs:
                 self._target_fixup(st, t)
@@ -591,7 +627,7 @@ class Assembler:
                     if not left.startswith("#"):
                         raise AsmError("line %d: choice item id must be '#<string id>' (got %r)"
                                        % (line_no, left))
-                    choices.append((int(left[1:], 0), tgt))
+                    choices.append((_int_in(left[1:], 0, 0xFFFFFFFF, line_no, "choice string id"), tgt))
             if op == 0xFFF4 and cancel is None:
                 raise AsmError("line %d: PROMPT_CHOICE needs a CANCEL->target item "
                                "(use PROMPT_CHOICE_FORCED for no cancel branch)" % line_no)
@@ -599,13 +635,20 @@ class Assembler:
                 raise AsmError("line %d: PROMPT_CHOICE_FORCED has no cancel branch" % line_no)
             if not choices:
                 raise AsmError("line %d: a choice needs at least one option" % line_no)
+            if len(choices) > script.MAX_CHOICE_OPTIONS:
+                # Dialogue_HandleScriptActionShowLine queues at most 0x80 rows; the rest are
+                # silently dropped (unreachable targets, out-of-range mask reads).
+                raise AsmError("line %d: %d choice options -- the game shows at most %d (the "
+                               "rest are silently dropped); split it into several menus "
+                               "chained by a 'More...' option"
+                               % (line_no, len(choices), script.MAX_CHOICE_OPTIONS))
             st.code += struct.pack("<H", len(choices))
             if cancel is not None:
                 self._target_fixup(st, cancel)
             for _, t in choices:
                 self._target_fixup(st, t)
             for sid, _ in choices:
-                st.code += struct.pack("<I", sid & 0xFFFFFFFF)
+                st.code += struct.pack("<I", sid)
 
     def _action(self, line_no, head, rest, st):
         op = op_from_any(head)
@@ -643,6 +686,10 @@ class Assembler:
             args = args[1:]
         if len(args) > 64:
             raise AsmError("line %d: too many arguments (%d)" % (line_no, len(args)))
+        lim = meta.arg_limit(op) if hasattr(meta, "arg_limit") else None
+        if lim is not None and len(args) > lim[0]:
+            raise AsmError("line %d: op %d takes at most %d arguments (%d given): %s"
+                           % (line_no, op, lim[0], len(args), lim[1]))
         st.code += struct.pack("<HH", op, len(args))
         for i, a in enumerate(args):
             self._expr_fixup(st, self.operand(a, op, i))
@@ -678,7 +725,12 @@ class Assembler:
             if not line:
                 continue
             st = _Stmt(ln, line)
-            self.parse_line(ln, line, st)
+            try:
+                self.parse_line(ln, line, st)
+            except AsmError:
+                raise
+            except (ValueError, struct.error, OverflowError) as e:
+                raise AsmError("line %d: %s (%s)" % (ln, e, line.strip()))
             for lb in pending_labels:
                 labels[lb] = st
             pending_labels = []
@@ -752,6 +804,22 @@ class Assembler:
         return bytes(out), label_pcs
 
 
+def _int_in(text, lo, hi, line_no, what):
+    """int(text, 0) range-checked into lo..hi, else a clean AsmError (never a silent mask)."""
+    where = ("line %d: " % line_no) if line_no is not None else ""
+    t = str(text).strip()
+    try:
+        v = int(t, 0)
+    except ValueError:
+        try:
+            v = int(t, 10)                         # '08': decimal with a leading zero
+        except ValueError:
+            raise AsmError("%s%s: %r is not a number" % (where, what, text))
+    if not (lo <= v <= hi):
+        raise AsmError("%s%s %d out of range (%d..%d)" % (where, what, v, lo, hi))
+    return v
+
+
 def _enum_value(op, index, name):
     """Value for an enum-name argument (opcode_meta.ENUM_ARG_VALUES), or None."""
     table = getattr(meta, "ENUM_ARG_VALUES", {}).get((op, index))
@@ -777,6 +845,26 @@ def _enum_value(op, index, name):
 def assemble(text, base, resolver=None, fallthrough_to=None, auto_end=True):
     """Module-level convenience: see Assembler.assemble."""
     return Assembler(resolver).assemble(text, base, fallthrough_to, auto_end)
+
+
+def lint_listing(text, base=0x1000, resolver=None, text_count=None):
+    """Assemble `text` and run the engine-behaviour checks on the result (currently the
+    PROMPT_CHOICE checks, script.choice_problems). Raises AsmError like `assemble`;
+    returns [(pc, 'error'|'warning', message)]. The statements are decoded back linearly
+    from `base` up to the first expression-pool byte."""
+    region, _labels = assemble(text, base, resolver=resolver)
+    buf = bytes(base) + region
+    stmts, pc, pool = [], base, len(buf)
+    while pc < min(pool, len(buf)):
+        st = script.decode_statement(buf, pc)
+        if st is None or st.size <= 0:
+            break
+        stmts.append(st)
+        for off in list(st.args) + list(st.expr_refs):
+            if off is not None and base <= off < pool:
+                pool = off
+        pc += st.size
+    return script.choice_problems(buf, stmts, text_count)
 
 
 def specs_to_listing(specs):
@@ -808,6 +896,8 @@ def operand_text(buf, off, op=None, ai=None):
     t = buf[off]
     if t in (3, 4) and op is not None:
         return script.arg_repr(buf, off, op, ai)
+    if t in (0x11, 0x12, 0x13) and (op, ai) in script.meta.MODE_ARG_SLOTS:
+        return script.meta.MODE_LEAF_WORDS[t]
     if t in (3, 4, 5, 0x11, 0x12, 0x13):
         txt, _ = script.disasm_expr(buf, off)
         if t == 5:
@@ -942,10 +1032,25 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
             else:
                 body = mn
         line = "    %s%s" % (addr, body)
+        if comments and "REG_MAIN_SCENARIO" in body:
+            cps = _checkpoint_note(body)
+            note = "  ".join(x for x in (note, cps) if x)
         if note:
             line = "%-52s ; %s" % (line, note)
         lines.append(line)
     return "\n".join(lines)
+
+
+def _checkpoint_note(body):
+    """'270 = Before Idra Cave' for every story-checkpoint literal compared with / stored
+    into REG_MAIN_SCENARIO in a statement (names from the developers' story debug menus,
+    opcode_meta.STORY_CHECKPOINTS)."""
+    out = []
+    for v in re.findall(r"REG_MAIN_SCENARIO\s*(?:==|!=|>=|<=|=|<|>)\s*(\d+)", body):
+        nm = script.meta.story_checkpoint_name(int(v))
+        if nm and "%s = %s" % (v, nm) not in out:
+            out.append("%s = %s" % (v, nm))
+    return "; ".join(out)
 
 
 def _cond_text(buf, off):

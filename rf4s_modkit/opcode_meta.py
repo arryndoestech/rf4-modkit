@@ -111,33 +111,38 @@ CONTROL = {
                           "size 4N+4. IDA-verified (Script_VMStep case 0xFFF2 -> "
                           "Script_Opcode_FFF2_ExecPrim, RF4S.exe+0x23EC40)."),
     "PROMPT_CHOICE_FORCED": ("flow",
-                          "Present a choice dialog the player CANNOT cancel -- one of "
-                          "the N u32 items MUST be picked. Same UI as PROMPT_CHOICE "
-                          "(each item is an rf3mc.<locale> string id) but with no CANCEL "
-                          "target. Branches to targets[picked VISIBLE ROW]. reg0: written "
-                          "ONLY when the choice was STAGED (a visibility mask via ops "
-                          "610/612, or an ArmChoiceOption 615 queue) -- then reg0 = the "
-                          "picked option's ORIGINAL index (mapped through the mask bits), "
-                          "and a following SWITCH_EQ on reg0 dispatches it. An UNSTAGED "
-                          "prompt leaves reg0 UNTOUCHED -- shipped scenes rely on that to "
-                          "carry a GetPlayerPosition result in reg0/reg1 straight across a "
-                          "Yes/No prompt into the moves after it (the deck-fight chase). "
-                          "Layout: [op][N][N u16 targets][N u32 items]; size 6N+4. "
-                          "IDA-re-verified 2026-08-18 "
-                          "(SceneEvent_FinalizeAndPickFromBitmap)."),
-    "PROMPT_CHOICE": ("flow", "Present a cancellable choice dialog (B backs out). Branches to "
-                              "the CANCEL target (index 0) on dismissal, else to the picked "
-                              "row's target. reg0 follows the same STAGED-ONLY rule as "
-                              "PROMPT_CHOICE_FORCED: a visibility-mask or armed-option prompt "
-                              "writes the picked option's ORIGINAL index to reg0 (for the "
-                              "following SWITCH_EQ); an unstaged prompt leaves reg0 alone, so "
-                              "values parked there by query ops survive the prompt. With a "
-                              "staged visibility mask only flagged options appear, and the "
-                              "prompt clears the mask (and any armed queue) after the pick. "
-                              "Layout: [op][N][N+1 u16 targets: target[0]=cancel, target[1..N]="
-                              "per-choice][N u32 items]; size = 6N+6. IDA-verified via "
-                              "Script_VMStep case 0xFFF4 + SceneEvent_FinalizeAndPickFromBitmap "
-                              "(2026-08-18)."),
+                          "Present a choice menu with NO cancel key -- one of the N options "
+                          "must be picked (the cancel key does nothing). Same UI as "
+                          "PROMPT_CHOICE: each option is a full u32 rf3mc.<locale> text id "
+                          "(no flag bits; an id past the archive shows entry 0), 4 rows on "
+                          "screen with a wrap-around scrolling list, at most 128 options "
+                          "(the rest are silently dropped); option text goes through the "
+                          "normal ＠ substitution pass. Branches to targets[picked VISIBLE "
+                          "ROW]. reg0 is written ONLY when a visibility mask is set (ops "
+                          "610/611/612): then only flagged options appear, reg0 = the picked "
+                          "option's ORIGINAL index, the mask is cleared, and the shipped "
+                          "idiom is all targets -> one label + SWITCH_EQ on reg0. A mask "
+                          "whose set bits all lie past option N-1 opens an EMPTY menu that "
+                          "crashes on confirm (divide by zero); an all-zero mask shows every "
+                          "option. An unmasked prompt leaves reg0 UNTOUCHED -- shipped scenes "
+                          "carry a GetPlayerPosition result in reg0/reg1 across a Yes/No "
+                          "prompt (the deck-fight chase). CalcChoicePrescroll (613) sets the "
+                          "initially highlighted row. Layout: [op][N][N u16 targets][N u32 "
+                          "items]; size 6N+4. IDA-verified 2026-09-24 (Script_VMStep case "
+                          "0xFFF5, SceneEvent_FinalizeAndPickFromBitmap, "
+                          "ChoiceDialog_TickStateMachine)."),
+    "PROMPT_CHOICE": ("flow", "Present a choice menu whose cancel key jumps the cursor to the "
+                              "LAST option (and picks it when already there) -- so make the "
+                              "last option the 'never mind' one. The picked row's target is "
+                              "taken as for PROMPT_CHOICE_FORCED (same UI, 128-option cap, "
+                              "4 visible rows, visibility-mask and reg0 rules). The CANCEL "
+                              "slot (target[0]) is only used for a NEGATIVE pick, which the "
+                              "menu never produces: 890 of the 891 shipped menus just repeat "
+                              "the last option's target there. Layout: [op][N][cancel u16][N "
+                              "u16 targets][N u32 items]; size = 6N+6. IDA-verified "
+                              "2026-09-24 (Script_VMStep case 0xFFF4, "
+                              "ChoiceDialog_ConfirmViaScrollArrow, "
+                              "SceneEvent_FinalizeAndPickFromBitmap)."),
 }
 
 # ---- curated action-opcode metadata: op -> (mnemonic, category, description, [args]) ----
@@ -347,24 +352,32 @@ _M_LOW = {
 #   24 = Pico    (Dolce's companion; ALL 75 banks of slot-24 lines are Pico's "milady" speech)
 #   27 = Barrett (*Barrett name-tag; user-confirmed "...get along well with that dragon?")
 #   28 = Raven   (*Raven name-tag)
-# 25/26/29 have no name-tag: 25/26 carry the story ANTAGONISTS (secret-weapon banter; the
-# Rune-Sphere villain "I can wield the powers of an Earthmate!"), 29 unseen. Left as guestNN?.
-# For any guest line, the authoritative name is the nearby `*<name>` line, not this slot label.
+# 25/26/29 have no name-tag line; their NAME PLATE comes from the handler itself (verified
+# 2026-09-24): NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70, the shared handler of ops
+# 16..75) maps the slot (op-16)>>1 to the rf3TxtNpc name entry it passes to
+# Dialogue_LoadAndShowText -- 24 -> 309 Pico, 25 -> 149 Soldier, 26 -> 239 Ethelberd,
+# 27 -> 24 Barrett, 28 -> 25 Raven, every other slot unchanged (so 29 -> 29 Traveler). That
+# matches the corpus: slot 25 is the airship bandits, slot 26 the Rune-Sphere villain. The
+# portrait ART stays indexed by the slot. A nearby `*<name>` line can still rename a guest.
 PORTRAIT_SPEAKERS = [
     "Lest/Frey", "Vishnal", "Clorica", "Volkanon", "Forte", "Kiel", "Bado", "Margaret",
     "Dylas", "Arthur", "Porcoline", "Xiao Pai", "Lin Fa", "Amber", "Illuminata", "Doug",
     "Blossom", "Dolce", "Jones", "Nancy", "Leon", "Ventuswill", "Son", "Daughter",
-    "Pico", "guest25?", "guest26?", "Barrett", "Raven", "guest29?",
+    "Pico", "Soldier", "Ethelberd", "Barrett", "Raven", "Traveler",
 ]
 # Identifier-safe tag per slot, used to build the `SetSpeaker$<tag>` mnemonic. Slot 0 =
 # "MC" (the player / main character, whose real name is the save name). Spaces/slashes
-# stripped so the tag is a clean suffix; unproven guest slots keep a guestNN tag.
+# stripped so the tag is a clean suffix. The old guestNN tags of slots 25/26/29 are still
+# accepted by op_from_mnemonic (_LEGACY_MNEMONICS) so older listings keep assembling.
 PORTRAIT_SPEAKER_TAGS = [
     "MC", "Vishnal", "Clorica", "Volkanon", "Forte", "Kiel", "Bado", "Margaret",
     "Dylas", "Arthur", "Porcoline", "XiaoPai", "LinFa", "Amber", "Illuminata", "Doug",
     "Blossom", "Dolce", "Jones", "Nancy", "Leon", "Ventuswill", "Son", "Daughter",
-    "Pico", "guest25", "guest26", "Barrett", "Raven", "guest29",
+    "Pico", "Soldier", "Ethelberd", "Barrett", "Raven", "Traveler",
 ]
+# Mnemonics renamed after the handler check above: old spelling -> opcode.
+_LEGACY_MNEMONICS = {"setspeakerguest25": 66, "setspeakerguest26": 68, "setspeakerguest29": 74,
+                     "setplayerlestorfrey": 400}   # renamed SetPlayerMale 2026-09-24
 
 
 def portrait_speaker_slot(op):
@@ -466,9 +479,12 @@ for _op in range(16, 76):
                    "188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, "
                    "renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the "
                    "engine's dual-use threshold -- played through the NPC-variant remap). "
-                   "NOTE: arg2 is a second trigger id, not a target actor."
+                   "NOTE: arg2 is a second trigger id, not a target actor. The handler "
+                   "(NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a "
+                   "rare arg3 is a third trigger (voice ids play; only the first two non-voice ids "
+                   "are kept as bubble emotes), and anything past arg3 is ignored."
                    % (_who, _slot, _side),
-                   ["face frame", "emote / voice id", "emote / voice id 2"])
+                   ["face frame", "emote / voice id", "emote / voice id 2", "emote / voice id 3 (rare)"])
 for _lo, _hi in ((9, 8), (13, 12), (15, 14)):   # odd-slot duplicates of even handlers
     _M_LOW[_lo] = _M_LOW[_hi]
 _M = {op + 302: meta for op, meta in _M_OLDBASE.items()}
@@ -612,10 +628,16 @@ _M.update({
           "with arg 1 (shop id) in a1+25. arg 2 = mode (always 0 in vanilla).",
           ["shopkeeper npc", "shop id", "mode"]),
     377: ("GetChoiceResult", "query",
-          "Consume and read the last PROMPT_CHOICE result: after a menu commits, this "
-          "opcode reads the committed value into the VM query register.", []),
+          "Consume a PENDING INTERACTION result -- NOT a PROMPT_CHOICE reader (the choice "
+          "menu never touches these bits). If scene-ctx +116 bit 24 is set, reg0 = the 2-bit "
+          "value in bits 22-23 and bit 24 is cleared; otherwise reg0 is left alone. The "
+          "pending bit is set by World_DispatchInteractionEvent for interaction kinds 4/44/45 "
+          "(which also latch scene +0xA4 = 1/2/3 and clear bits 22-23) and cleared at the start "
+          "of every other interaction. Name kept for listing compatibility. IDA-verified "
+          "2026-09-24 (Script_VMOp_ConsumeChoiceCommitResult).", []),
     378: ("GetChoiceResult", "query",
-          "Consume and read the last PROMPT_CHOICE result (dupe of op 377).", []),
+          "Same handler as op 377 (Script_VMOp_ConsumeChoiceCommitResult): consume the "
+          "pending interaction result into reg0 -- not a PROMPT_CHOICE reader.", []),
     445: ("GetFlagBit", "query",
           "Query -> VM query register: 1 if game-flag bit [flag id] is set, else 0. "
           "The id is ZONE-2 RELATIVE: the handler tests absolute bit 4096 + id (it adds the "
@@ -684,16 +706,17 @@ _M.update({
           ["target npc (0=player)", "item id"]),
     217: ("ApplyFriendshipDelta", "actor",
           "Modify an NPC's friendship XP or absolute friendship. **3 args**: "
-          "npc_id, op_kind, xp_or_value. Op-kind dispatch: "
-          "**4 = ADD** (`Npc_AddFriendshipXpAndProcessLevelUp(npc, +xp)`); "
-          "**5 = SUBTRACT** (`... , -xp)`); "
-          "**6 = SET absolute** (`Npc_SetFriendshipPointsAbsoluteAndCheckMaxAchievement(npc, value)`). "
+          "npc_id, mode, xp_or_value. The mode is arg1's TOKEN KIND, not its value "
+          "(ScriptVM_Op_ApplyFriendshipDeltaToNpc, RF4S.exe+0x1FD2B0, reads the kind slot at "
+          "idx-4): a `null` leaf = kind 4 = **ADD** (`Npc_AddFriendshipXpAndProcessLevelUp(npc, +xp)`), "
+          "`zero` = kind 5 = **SUBTRACT** (`... , -xp)`), `self` = kind 6 = **SET absolute** "
+          "(`Npc_SetFriendshipPointsAbsoluteAndCheckMaxAchievement(npc, value)`); listings print "
+          "them add / sub / set. All 283 shipped uses are add. npc_id >= 48 is ignored. "
           "**Special: npc_id == 22 → dynamically resolves to the CHILD NPC id** "
           "via `GameFlags_ReadField(0, GF_REG_CHILD_ID, 5)`. That confirms slot "
           "22 = Son is the runtime child-actor slot (paired with slot 23 = Daughter). "
-          "Dev-menu debug branch uses this with (npc_id, 6, 99999999) = instant "
-          "MAX friendship to unlock date/marriage flow.",
-          ["npc id", "op kind (4=add, 5=sub, 6=set)", "xp/value"]),
+          "The developers' '＊Date' test branch adds 99999999 xp (instant max friendship).",
+          ["npc id", "mode (add / sub / set = the null / zero / self leaf)", "xp/value"]),
     242: ("SetSceneFlag0x200", "flow",
           "Set bit 0x200 in the scene ctx's result/control field at [+116] (if ctx+32 "
           "is non-null; +116 is the same field Script_VMStep sets to 1 on halt). In the "
@@ -786,9 +809,9 @@ _M.update({
           "for npc id >= 48.",
           ["npc id"]),
     232: ("QueryNpcProbeStateAt7300", "query",
-          "Query -> VM register: result of `sub_7FF6F5DD7300(npc_id)` -- an "
-          "NPC-state probe helper (not yet fully RE'd; likely queries "
-          "friendship / event availability). Only fires for npc id < 48.",
+          "Query -> VM register: 1 if the NPC is hidden, else 0 (the handler "
+          "Script_VMOp_QueryNpcHidden returns Npc_IsHidden(npc_id), RF4S.exe+0x227300; "
+          "the query counterpart of HideNpc). Only fires for npc id < 48.",
           ["npc id"]),
     245: ("QueryGiftAffinity", "query",
           "Query -> VM register: "
@@ -836,7 +859,7 @@ _M.update({
           "Set the active shop's shopkeeper message/greeting line to `arg`. "
           "Writes arg (a message index) into the 10-bit packed GameFlag field "
           "3006 = REG_JUSTM_MESSAGE (so the chosen greeting persists), then "
-          "Shop_SetMessageTextFromArchive(arg): loads locale text archive 15206 "
+          "FMenu_SetShopMessageTextFromArchive(arg): loads locale text archive 15206 "
           "(0x3B66), copies entry[arg] (clamped to <360) into the shop's "
           "dialogue-text sprite and reveals it with the typewriter effect. "
           "CORRECTION: this is NOT an achievement. The raw handler id 39870 "
@@ -858,13 +881,13 @@ _M.update({
           "Distinct from op 233's flag range. Used by the dev 'Boy'/'Girl' name-entry "
           "path to bulk-set all NPCs to visible after switching gender.",
           ["npc id (0 = all)"]),
-    400: ("SetPlayerLestOrFrey", "actor",
+    400: ("SetPlayerMale", "actor",
           "Switch the player character between **Lest (male / arg=1)** and "
           "**Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, "
           "refreshes equipped sprites + scene state, zeros the save-snapshot scratch, "
           "and reloads the greeting string from archive 16369 (NPC name archive): "
           "arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). "
-          "**Formerly named `RefreshPlayerAndApplyDefaultName` -- the technical name "
+          "**Listed as `SetPlayerMale` (earlier `SetPlayerLestOrFrey`, still accepted; formerly `RefreshPlayerAndApplyDefaultName`) -- the technical name "
           "hides that this is the actual character-swap op**. Dev menu label: 'Boy' / "
           "'Girl'.",
           ["gender (1=Lest/Boy, 0=Frey/Girl)"]),
@@ -886,7 +909,7 @@ _M[379] = ("PlayMusic", "audio",
     "(clears the scripted-BGM marker bit 0x10000000 at ctx+116, calls "
     "Scene_ApplyContextualBGM). Otherwise starts BGM #arg via BGM_SwitchWithCrossfade and "
     "sets the scripted-BGM marker so the contextual picker won't override it. Also sets the "
-    "'first scripted BGM played' game-flag (packed id 1072, via GameFlags_WritePacked) -- an "
+    "'first scripted BGM played' game-flag (packed id 1072, via GameFlags_WritePacked_OrAchievement) -- an "
     "internal milestone flag, not a Steam achievement. Special case: `arg == 16777332` triggers "
     "an additional Sfx_ApplyVoiceVolume with category-bias 45.",
     ["bgm id (or -1 = restore)"])
@@ -894,7 +917,7 @@ _M[379] = ("PlayMusic", "audio",
 # ---- camera ops decoded 2026-07-11 (ops 186-203; handlers RF4S.exe+0x20b150..0x20c2f0) ----
 # All camera anchors are stored as Q12 world coords (arg tiles << 12) in g_scriptMarkAnchorPosQ12;
 # most first set receiver flag 0x40000 ("script touched the camera this frame"). Player-lock
-# helpers Player_SetActorFlag1/4 stop the player drifting while the camera is scripted.
+# helpers Player_SetActorFlag1ForAllPlayers / Player_SetActorFlag4ForAllPlayers stop the player drifting while the camera is scripted.
 _M.update({
     186: ("SetCameraPosition", "screen",
           "Set the camera ANCHOR at world tile (x, y) (g_scriptMarkAnchorPosQ12, clamped to "
@@ -1708,7 +1731,7 @@ _M.update({
           "names this 'set wife status 2') and run the family birthday/anniversary milestone "
           "check for today: compares the current date to the spouse's and children's birthdays "
           "and the wedding anniversary, setting the matching family-milestone game-flags. NOTE: "
-          "these go through GameFlags_WritePacked (packed game-flags), NOT the ~30 real Steam "
+          "these go through GameFlags_WritePacked_OrAchievement (packed game-flags), NOT the ~30 real Steam "
           "achievements -- so 4391 is a game-flag write, not an achievement unlock. No args. "
           "Used in anniversary/birthday cutscenes.",
           []),
@@ -2004,12 +2027,19 @@ _M.update({
 # (op 416 QueryPlayerVariable — the read counterpart — is curated via _STAT_QUERY_OPS below.)
 _M.update({
     417: ("ModifyPlayerResource", "item",
-          "Grant or take a player resource. arg0 = resource char-code: 'd'(100)=gold "
-          "(caps at 2,000,000,000), 'i'(105)=stone, 'j'(106)=compost (both cap 50,000), "
-          "'f'(102)=armor def. arg1 = op: 4 = add, 5 = subtract, 6 = set. arg2 = amount. "
-          "Subtracting gold plays the coin-clink SFX. The 'pay 1000 gold' / 'here's a reward' "
-          "op.",
-          ["resource code (d=gold,i=stone,j=compost,f=def)", "op (4=add,5=sub,6=set)", "amount"]),
+          "Grant or take a player resource (Script_VMOp_ModifyPlayerResourceByCharCodeOp, "
+          "RF4S.exe+0x20D640). arg0 = resource char-code: 'd'(100)=gold (caps at 2,000,000,000; "
+          "reaching 10M unlocks achievement 810), 'f'(102)=the player's level (base_stats.level), "
+          "'g'(103)=fodder (add/sub go through MonsterFarm_AddFodderToBin, set writes the bin), "
+          "'i'(105)=stone, 'j'(106)=compost (both cap 50,000); any other code does nothing -- "
+          "the developers' '＊All Skills: Level 50' cheat passes the skill ids 0..39 and is a "
+          "no-op in the shipped game. arg1 = the mode, taken from the argument's TOKEN KIND "
+          "(the handler reads the kind slot at idx-4, not the value): `null` = add, `zero` = "
+          "subtract, `self` = set; listings print them add / sub / set. arg2 = amount. "
+          "Subtracting gold plays the coin-clink SFX. The 'pay 1000 gold' (`100, sub, 1000`) / "
+          "'here's a reward' (`100, add, N`) op.",
+          ["resource code (d=gold,f=level,g=fodder,i=stone,j=compost)",
+           "mode (add / sub / set = the null / zero / self leaf)", "amount"]),
     424: ("GivePlayerItem", "item",
           "Give the player an item — the core reward/gift op. arg0 = item id, arg1 = stack "
           "count, arg2 = quality. Plays the pick-up animation and adds it to the backpack (or "
@@ -2559,41 +2589,51 @@ _M.update({
           "non-zero. Each bit gates whether option i appears in the next PROMPT_CHOICE, and "
           "the picked VISIBLE ROW maps back through the set bits to the option's ORIGINAL "
           "index in reg0 (that's what the SWITCH_EQ after a staged prompt dispatches on). "
-          "Writes 1 to reg0 now if any bit is set. IDA-verified 2026-08-17 "
-          "(Script_VMOp_SetSceneChoiceVisibleMaskFromArgs).",
+          "Sets reg0 = 1 if any of the 128 mask bits is set, else 0. Only 32 args are "
+          "meaningful: arg i >= 32 wraps onto bit i-32 (the shift is mod 32). IDA-verified "
+          "2026-08-17 / 2026-09-24 (Script_VMOp_SetSceneChoiceVisibleMaskFromArgs).",
           ["choice 0 visible", "choice 1 visible", "…"]),
     611: ("ClearChoiceVisibleRange", "dialogue",
           "Clear COUNT choice-visibility bits starting at START (hide those choices; dword 0 "
           "only, i.e. options 0..31). arg0 = start bit, arg1 = count — NOT a from/to pair "
-          "(IDA-verified 2026-08-17: clears bits [start, start+count)). Writes 1 to reg0 if "
-          "any bit anywhere is still set. Companion to SetChoiceVisibleMask (op 610).",
+          "(IDA-verified 2026-08-17: clears bits [start, start+count)). Sets reg0 = 1 if any "
+          "bit anywhere is still set, else 0. CAUTION: a mask cleared to all-zero means "
+          "'no mask' -- the next prompt shows EVERY option (there is no way to hide all). "
+          "Companion to SetChoiceVisibleMask (op 610).",
           ["start index", "count"]),
     612: ("SetChoiceVisibleBit", "dialogue",
           "Show or hide a SINGLE choice by index in the scene's choice-visibility mask. arg0 = "
-          "choice index (0-127), arg1 = visible (1) / hidden (0). Writes 1 to reg0 if any "
-          "choice is still visible — scripts branch on 'is anything left to offer'. The next "
-          "PROMPT_CHOICE presents only flagged options and maps the pick back to the original "
-          "index in reg0; the prompt then CLEARS the whole mask.",
+          "choice index (0-127), arg1 = visible (1) / hidden (0). Sets reg0 = 1 if any "
+          "choice is still visible, else 0 — scripts branch on 'is anything left to offer'. "
+          "The next PROMPT_CHOICE presents only flagged options (jumping to target[visible "
+          "row]) and puts the picked option's ORIGINAL index in reg0; the prompt then CLEARS "
+          "the whole mask. The shipped idiom sets bit i for every option (1 or a flag "
+          "expression), points all targets at one label and SWITCH_EQs on reg0. A mask with "
+          "bits set only past the menu's last option opens an EMPTY menu that crashes on "
+          "confirm. Bit 5 on a 4-option menu is harmless.",
           ["choice index (0-127)", "visible (0/1)"]),
     613: ("CalcChoicePrescroll", "dialogue",
-          "Compute the initial scroll position for the upcoming choice menu from the current "
-          "visibility mask (so the list opens scrolled to the first visible option). Writes "
-          "the result to the VM output. No args.",
-          []),
+          "Pick the row the next choice menu opens on (see the curated entry further down, "
+          "which is the one in effect).",
+          ["option index"]),
     615: ("ArmChoiceOption", "dialogue",
-          "ARM the next DIALOG statement as a CHOICE OPTION: instead of displaying, that "
-          "DIALOG's line is QUEUED into the pending-option list (44-byte record in "
-          "g_dialoguePendingLineQueue) together with up to 3 staged follow-up values, gated "
-          "on the option's visibility bit. The canonical list shape is "
-          "[ArmChoiceOption(v); DIALOG line] × N — then a later PROMPT_CHOICE (often in a "
-          "DIFFERENT scene; the queue is global) presents the queued lines. On selection the "
-          "picked option's line is ECHOED as the next spoken line and its staged values are "
-          "committed to the choice-commit state slots (kinds 4/5/6 — read back via the "
-          "GetVar ops or ConsumeChoiceCommitResult). 1,803 uses — the most common choice "
-          "idiom; 99.7%% are immediately followed by their DIALOG. IDA-verified 2026-08-17 "
-          "(deferred path of Dialogue_HandleScriptActionShowLine + "
+          "ARM the next DIALOG as a choice ROW DESCRIPTION: instead of displaying, that "
+          "DIALOG's line is QUEUED (44-byte record in the global g_dialoguePendingLineQueue, "
+          "128 slots) with up to 3 values (args past 3 are ignored; 0 = not stored), gated "
+          "on the row's visibility bit when a mask is set. Shape: [ArmChoiceOption(v..); "
+          "DIALOG line] x N, in row order, any time before the menu (often a separate "
+          "scene). While the menu is open, the line queued for the HIGHLIGHTED visible row "
+          "is shown in the dialogue box (on open and on every cursor move), and its values "
+          "are written to element 0 of var arrays kind 4 / 5 / 6 (arg1 / arg2 / arg3 -- the "
+          "SetVar4/5/6 arrays that the ＠ text tokens read) -- so the description can show "
+          "per-row numbers. The "
+          "menu's own option text still comes from the PROMPT_CHOICE ids; the queue is "
+          "emptied when the menu closes. 1,839 uses (1,834 followed by their DIALOG). "
+          "IDA-verified 2026-09-24 (Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm, "
+          "deferred path of Dialogue_HandleScriptActionShowLine, "
           "ChoiceDialog_CommitSelectionAndDispatchActions).",
-          ["staged value 1", "staged value 2", "staged value 3"]),
+          ["value 1 (-> SetVar4 slot 0)", "value 2 (-> SetVar5 slot 0)",
+           "value 3 (-> SetVar6 slot 0)"]),
 })
 
 # ---- scene-staging / NPC-list / bubble-flavor ops decoded 2026-07-11 (474-560) ------
@@ -3041,7 +3081,7 @@ _M.update({
 # --- party-member query / companion scene-sync ops (481-489) -----------------------------------
 # Decompiled + verified. Party members = the task pointers next to g_playerTask (companion 1/2).
 # Companion_SyncToScene(slot) pulls a companion into the current scene; the sync mode is set via
-# bits of qword_7FF6D72AB300 (bit0 = force full sync, bit1 = secondary flag).
+# bits of the qword at RF4S.exe+0xE9B300 (bit0 = force full sync, bit1 = secondary flag).
 _M.update({
     481: ("GetPartyMemberId", "query",
           "Read a party member's identity field (task +8) by slot into the VM output: arg0 = 0 for "
@@ -3069,10 +3109,12 @@ _M.update({
           ["char id (0=scene actor, 22=spouse)", "flag1 (sync bit 1)", "flag2 (force full sync)"]),
     489: ("SetCompanionMetFlag", "companion",
           "Toggle both companions' 'already met / scripted-present' record flag: arg0 == 0 sets it "
-          "(mark as met), non-zero clears it — and when cleared outside months 6-18, queues each "
-          "companion's first-meeting encounter event. Used at a cutscene's end to control whether "
-          "first-time-meeting dialogue fires.",
-          ["clear (0=mark met, else clear + maybe queue meeting)"]),
+          "(mark as met), non-zero clears it — and when cleared while the clock hour is outside "
+          "6..18 (calendar field +8, the hour Script_VMOp_SetOrAddCalendarHourMinute writes; the "
+          "handler Script_VMOp_SetCompanionNpcRecordScriptedFlagAndQueueEncounter, "
+          "RF4S.exe+0x212840), queues each companion's first-meeting encounter event. Used at a "
+          "cutscene's end to control whether first-time-meeting dialogue fires.",
+          ["clear (0=mark met, else clear; queues the meeting at night)"]),
 })
 
 # --- dungeon 'throw'/delivery queue + RNG-advance ops (524-552) --------------------------------
@@ -3145,13 +3187,13 @@ _M.update({
           "Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in "
           "the variadic list (an npc id of 0 falls back to the married partner). These are the 23 "
           "per-NPC recognition flags (1451-1473); like op290/op698 they go through "
-          "GameFlags_WritePacked -- a graded packed-flag write, NOT one of the ~30 named Steam "
+          "GameFlags_WritePacked_OrAchievement -- a graded packed-flag write, NOT one of the ~30 named Steam "
           "achievements (the old 'UnlockNpcAchievements' name overstated it).",
           ["value", "npc ids (variadic)"]),
     558: ("SetNpcRecognitionFlags", "flag",
           "Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in "
           "the variadic list (duplicate of op 557; npc id 0 = the married partner). Per-NPC "
-          "recognition flags 1451-1473 via GameFlags_WritePacked -- a packed-flag write, not a "
+          "recognition flags 1451-1473 via GameFlags_WritePacked_OrAchievement -- a packed-flag write, not a "
           "Steam achievement.",
           ["value", "npc ids (variadic)"]),
 })
@@ -3793,6 +3835,8 @@ def op_from_mnemonic(name):
             _m = mnemonic(_o)
             if _m and _m not in _skip:
                 _OP_BY_MNEMONIC.setdefault(_m.lower(), _o)   # keep the lowest op for aliases
+        for _m, _o in _LEGACY_MNEMONICS.items():
+            _OP_BY_MNEMONIC.setdefault(_m, _o)
     return _OP_BY_MNEMONIC.get((name or "").strip().lower())
 
 
@@ -3953,7 +3997,7 @@ WORLD_INTERACTION_ACTIONS = {
     45: ("Bookshelf",               "Open the Bookshelf. Gated: dev menu tests game-flag 56 first "
                                     "and only fires this on the true branch. [dev-menu]"),
     51: ("MonsterFarmMenu",         "Open the Monster Farm menu (GenericMenu 12)."),
-    52: ("(word write nop)",        "Zeroes word_7FF6F6A44F74; no trigger fired."),
+    52: ("(word write nop)",        "Zeroes the word at RF4S.exe+0xE94F74; no trigger fired."),
     53: ("ShippingBin",             "Open the Shipping Bin. Also runs a Poison-Mushroom / "
                                     "Toadstool ship-check for achievement 2594. [dev-menu]"),
     54: ("Safe",                    "Open the Safe (money storage). [dev-menu]"),
@@ -4190,10 +4234,10 @@ def cooking_recipe_category(item_id):
 # So var:0x40C6 is a GENERIC 'currently-focused NPC' variable, not
 # monster-dex-specific; renamed accordingly.
 #
-# Also each NPC branch fires SetPlayerLestOrFrey(gender), so this maps to
+# Also each NPC branch fires SetPlayerMale(gender), so this maps to
 # which protagonist (Lest=1/Boy or Frey=0/Girl) can marry each NPC:
 NPC_MARRIAGE_PARTNER_OF = {
-    # NPC slot -> protagonist gender that can marry them (SetPlayerLestOrFrey arg)
+    # NPC slot -> protagonist gender that can marry them (SetPlayerMale arg)
     1:  ("Vishnal",  "Frey"),     # slot 1 = Vishnal; marries Frey (F)
     2:  ("Clorica",  "Lest"),     # marries Lest (M)
     4:  ("Forte",    "Lest"),
@@ -4347,6 +4391,56 @@ STORY_CHECKPOINTS = {
     166: "Before battling Rafflesia",
     167: "Rematch with Rafflesia",
     169: "Before placing rune sphere at the Manor",
+    # The later story-arc sub-menus of the same debug menu (tail bank 4, scene 0x0218:
+    # @0x62d6 Forest of Beginnings, @0x6302/@0x6322 Dragon Space + plaza, @0x6366 Idra,
+    # @0x63aa Autumn Road / Maya Road, @0x641e Imperial Territory, @0x64ae Floating Empire,
+    # @0x654e Leon Karnak / memories) -- `rf4mod script dev-menus` lists them
+    172: 'Before Venti and Doug at the Dragon Space',
+    175: 'Before Bullet at the inn',
+    176: 'Before warning about the Gate battle',
+    177: 'Before the Gate battle',
+    192: 'After the entrance of the Forest of Beginnings',
+    204: 'Before the Sarcophagus battle',
+    210: 'Before talking with Venti and the 4 memories',
+    240: 'Before the Castle gate event',
+    244: 'Before the fight at the plaza',
+    252: 'After the battle, going to the Dragon Space',
+    269: 'Hospital, before obtaining info from Doug',
+    270: 'Before Idra Cave',
+    271: 'Before B1 of Idra',
+    272: 'Before the Idra boss',
+    274: 'Rematch with the Idra boss',
+    300: 'Before spotting Imperial soldier at Autumn Road',
+    301: 'Before the bridge is destroyed',
+    302: 'Bridge destroyed and talking with Arthur',
+    304: 'Before the entrance to Maya Road',
+    306: 'Before the explanation of the hole in Maya Road',
+    308: 'before Wall Switch 2 at Maya Road',
+    309: 'Before boss at Maya Road',
+    320: 'Rematch with boss at Maya Road',
+    330: 'Outside the bridge of the national border',
+    332: 'Start of the Imperial Territory / Before battle against 3 Imperial soldiers / Rematch with 3 Imperial soldiers',
+    333: 'Before Akuna battle at Imperial Territory',
+    334: 'Rematch with Akuna at Imperial Territory',
+    364: 'Before going to Floating Empire Castle with airship',
+    368: 'Rematch of airship battle 1',
+    369: 'Rematch of airship battle 2',
+    370: 'Rematch of airship battle 3',
+    372: 'Before battle with Ethelberd',
+    390: 'Rematch with Ethelberd',
+    398: 'Rematch after Enhanced State',
+    442: 'Before Leon Karnak entrance',
+    444: 'Before battle with Right and Left Statues',
+    446: 'Before battle with Sarcophagus',
+    448: 'Memory 1, before Map M11',
+    450: 'Memory 2, before Map M25',
+    452: 'Memory 3, before Map M35',
+    454: 'Memory 4, before Map M48',
+    456: 'Memory 5, before Map M64',
+    458: 'Memory 5, before Map M83',
+    460: 'Before Last Boss',
+    464: 'Before setting Rune Sphere N39',
+    468: 'Revive Venti, before Dragon Space',
 }
 
 
@@ -5028,7 +5122,7 @@ _AUDIT_2026_09_01 = {
         "Set a scene-state control bit (scene state +72 bit 0x1) when arg0 is 0 — a low-level 'wait / ready' marker the scene loop checks. arg0 = mode (0 sets it).",
         ['mode (0 = set flag)', '(ignored by handler)']),
     290: ('PostFamilyMilestones', 'actor',
-        "Write the packed marriage/family-status game-flag (packed id 4391 -> value 2) and run the family birthday/anniversary milestone check for today: compares the current date to the spouse's and children's birthdays and the wedding anniversary, setting the matching family-milestone game-flags. These go through GameFlags_WritePacked (packed game-flags), NOT Steam achievements. No args. Used in anniversary/birthday cutscenes.",
+        "Write the packed marriage/family-status game-flag (packed id 4391 -> value 2) and run the family birthday/anniversary milestone check for today: compares the current date to the spouse's and children's birthdays and the wedding anniversary, setting the matching family-milestone game-flags. These go through GameFlags_WritePacked_OrAchievement (packed game-flags), NOT Steam achievements. No args. Used in anniversary/birthday cutscenes.",
         []),
     293: ('ResetNpcDailySchedule', 'actor',
         "Put an NPC back on a daily-schedule state. arg0 = npc (char id), arg1 = state. Two distinct paths: arg1 != -1 -> Npc_ResetDailyScheduleAndAi(npc, state) (resets schedule AND AI) and returns WITHOUT touching the scene reservation; arg1 == -1 -> recompute today's state (record +17, or Schedule_GetNpcStateForToday when the computed bit +228&1 is clear), apply via Npc_ApplyScheduleState, and clear this scene's placed-actor/reservation bit (ctx+352 bit npc). Heavier than op 296; use at scene end to hand an NPC back to normal life.",
@@ -5081,9 +5175,9 @@ _AUDIT_2026_09_01 = {
     393: ('FreezePlayer', 'actor',
         'Lock or release player input (scripted freeze). INVERTED sense: arg0 == 0 FREEZES the player (sets control_flags bit 4, scene-node word bit 1, and the input-disabled bit 0x20000000 on actor_inner); arg0 != 0 releases all three. Shipped scenes open with FreezePlayer(0) and close with FreezePlayer(1).',
         ['release (0=freeze, nonzero=unfreeze)']),
-    400: ('SetPlayerLestOrFrey', 'actor',
-        "Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). **Formerly named `RefreshPlayerAndApplyDefaultName` -- the technical name hides that this is the actual character-swap op**. Dev menu label: 'Boy' / 'Girl'.",
-        ['gender (1=Lest/Boy, 0=Frey/Girl)']),
+    400: ('SetPlayerMale', 'actor',
+        "Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). **Listed as `SetPlayerMale` (earlier `SetPlayerLestOrFrey`, still accepted; formerly `RefreshPlayerAndApplyDefaultName`) -- the technical name hides that this is the actual character-swap op**. Dev menu label: 'Boy' / 'Girl'.",
+        ['male (1 = Lest / Boy, 0 = Frey / Girl)']),
     406: ('GetMonsterFarmLovedToday', 'query',
         "Read whether the farm monster the script is CURRENTLY addressing (the barn roster record whose task ptr matches the script ctx subject at +32) has been 'loved'/cared for today (g_MonsterFarmTable record flag bit 18) into the VM output; 0 if the subject is not a barn monster. Takes NO args. Counterpart of op 405.",
         []),
@@ -5145,7 +5239,7 @@ _AUDIT_2026_09_01 = {
         'Roll a random item id from a fixed 28-id window and write it to the VM output for a following read. Scans item ids 758-785, keeps those whose entry in a 28-byte eligibility table is 0 AND that pass the shop-unlock filter (Item_CheckShopFilter), then picks one with the MMIX RNG; if none qualify, returns the fallback id 759. Takes no arguments. (What items 758-785 are is unconfirmed — likely an ingredient/produce subset — so the mnemonic is kept as-is.)',
         []),
     613: ('CalcChoicePrescroll', 'dialogue',
-        "Compute the upcoming choice menu's pre-scroll position. arg0 = an option index; the handler subtracts the number of HIDDEN options below it (clear bits in the visible mask at scene+244, capped by the option count at scene+243), i.e. arg0's position within the visible list, and stores the result in the GLOBAL g_choiceDialogPrescrollCount -- not in a VM register. Call between SetChoiceVisibleMask and PROMPT_CHOICE so the list opens positioned at that option.",
+        "Pick the row the NEXT choice menu opens on (the default highlight). arg0 = a row index, stored in the GLOBAL g_choiceDialogPrescrollCount (not a VM register); when the menu builds its rows it moves the cursor down that many times (wrapping past the last row) and then zeroes it. The handler means to subtract the HIDDEN options below arg0 (clear bits of mask dword 0), but it only counts the options the current prompt has already queued (scene +243), which is 0 whenever a script can run this op -- so in practice the value is arg0 unchanged, i.e. a VISIBLE-row index; subtract hidden options yourself. Shipped use (8x): the menu reopens on the option picked last time (arg = a register). Call right before PROMPT_CHOICE. IDA-verified 2026-09-24 (Script_VMOp_CalcChoiceDialogPrescrollFromVisibleMask, ChoiceDialog_TickStateMachine state 3).",
         ['option index']),
     617: ('ShowCreditsOverlay', 'effect',
         "Spawn / configure the staff-credits overlay task (task class 'staff', reusing the item-pickup-icon framework as a scrollable credits driver); if the task already exists it is just re-flagged. arg0 = mode: 0 = Fade (long), 1 = Fade (short), 2 = Credits screen (bottom), 3 = Credits screen (top) - the dev menu's four entries.",
@@ -5256,3 +5350,55 @@ for _k in [k for k in ENUM_ARG_VALUES
            if (k[0] in _AUDIT_2026_09_01 or k[0] in _AUDIT_2026_09_01B)
            and k[1] >= len(META[k[0]]["a"])]:
     del ENUM_ARG_VALUES[_k]
+
+# --- handler-verified fixups (2026-09-24) -------------------------------------------------------
+# Ops that share one handler in g_sceneActionHandlerTable (RF4S.exe+0x4DB790) take the same
+# arguments; fill the unlabelled siblings from the labelled one. Handlers:
+# Script_VMOp_PopulateQuestRequestKind2WithRandomCats RF4S.exe+0x216250 (508/509/537/538),
+# ..Kind4ChainedRandom RF4S.exe+0x216B20 (513/514/541/542), ..Kind5SimpleNoAlts
+# RF4S.exe+0x2170A0 (516/517/543/544).
+for _group in ((509, 508, 537, 538), (541, 513, 514, 542), (517, 516, 543, 544)):
+    for _o in _group[1:]:
+        if _o in META and not META[_o]["a"]:
+            META[_o]["a"] = list(META[_group[0]]["a"])
+# Script_VMOp_PopulateQuestRequestKind2WithLiteralAlternates (RF4S.exe+0x216570): arg0 item,
+# args 1/2 = template bytes 4/5, args 3.. = literal alternate item ids (only the first 4 kept).
+META[510]["a"] = ["item id", "template param (byte4)", "template param (byte5)",
+                  "alt item id … (first 4 kept)"]
+# Script_VMOp_PopulateQuestRequestKind9BackrefLiteralAlts (RF4S.exe+0x2178D0): arg0 item, then
+# literal alternates; a 0 ends the list, only the first 4 are kept.
+META[521]["a"] = ["item id", "alt item id … (0 ends; first 4 kept)"]
+
+# SpawnMapEntity (ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable, RF4S.exe+0x213E20): 5 fixed
+# args, then the extras are copied into a 6-dword stack buffer with NO upper bound on the loop
+# (index 5 .. argc-1). The shipped corpus passes 11 (170 uses) or 6 (3 uses), so there are SIX
+# extras, and more than 11 args overwrite the handler's stack frame.
+META[157]["a"] = ["entity type id", "param 1 (x/pos)", "param 2 (y/pos)", "facing (degrees)",
+                  "sub-param (x40)", "extra 5 (type-specific)", "extra 6 (type-specific)",
+                  "flag 7 (0/1, type-specific)", "flag 8 (0/1, type-specific)",
+                  "extra 9 (type-specific)", "extra 10 (type-specific)"]
+META[157]["d"] = META[157]["d"].replace(
+    "args5-9 = up to 5 optional EXTRA placement params",
+    "args 5-10 = up to 6 optional EXTRA placement params (the handler copies them into a "
+    "6-slot buffer without a bound check: never pass more than 11 args)")
+
+# Hard per-op argument caps where passing more corrupts memory in the handler. The assembler
+# refuses listings that exceed them (scriptasm.Assembler._action).
+ARG_LIMITS = {
+    157: (11, "ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable (RF4S.exe+0x213E20) copies args "
+              "5.. into a 6-slot stack buffer with no bound check"),
+}
+
+
+# (op, arg index) slots whose handler reads the argument's token KIND as an add/sub/set
+# mode (Script_PrepActionArgs pushes (value, kind) pairs; these handlers read the kind):
+# ApplyFriendshipDelta arg1 (RF4S.exe+0x1FD2B0), ModifyLumber arg0 (+0x2040A0),
+# ModifyPlayerResource arg1 (+0x20D640). The leaves null / zero / self carry kinds 4 / 5 / 6
+# (Script_EvalExpressionOrVar, +0x23EA10), i.e. add / subtract / set.
+MODE_ARG_SLOTS = {(217, 1), (326, 0), (417, 1)}
+MODE_LEAF_WORDS = {0x11: "add", 0x12: "sub", 0x13: "set"}
+
+
+def arg_limit(op):
+    """(max_args, reason) for an op whose handler overflows past that many args, else None."""
+    return ARG_LIMITS.get(op)

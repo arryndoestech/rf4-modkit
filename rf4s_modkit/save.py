@@ -10,7 +10,12 @@ variable table (`emflags`): 1822 named `FLG_`/`REG_` story / unlock / relationsh
 Multi-bit registers are **MSB-first** (IDA-verified GameFlags_ReadField; live-checked:
 REG_CHILD_ID reads 23=Daughter).
 
-Region map (HenryEx-verified, see memory project_rf4s_save_buffer):
+A CRC mismatch is NOT reported by the game: rf3BackupLoadDataBuild (RF4S.exe+0x822E0) zeroes the
+whole 0x223A8-byte slot buffer (u32 crc + the 140196-byte body) and the slot shows as EMPTY.
+The 224 bytes past file[4+140196] are outside the CRC.
+
+Region map (community map from the 3DS save; only the header clock and GameFlags offsets are
+verified on the PC file, see SCALARS):
     +0x00000 HEADER (84B): crc, difficulty, clock, gender, materials, money
     +0x00054 BTLSTATS      +0x05964 SKILLS      +0x05AA4 ITEMS      +0x18EA4 FARMS
     +0x1BDB0 BARN MONSTERS +0x1DB10 VILLAGER FRIENDSHIP (23x44B)
@@ -87,7 +92,13 @@ class SaveFile:
 
     def set(self, name, value):
         off, fmt = SCALARS[name]
-        struct.pack_into(fmt, self.data, off, int(value))
+        value = int(value)
+        if name == "season" and not (0 <= value <= 3):
+            raise SaveError(f"season {value} out of range (0 Spring .. 3 Winter)")
+        try:
+            struct.pack_into(fmt, self.data, off, value)
+        except struct.error as e:
+            raise SaveError(f"{name} = {value}: {e}") from None
         return self
 
     def get_u32(self, off):

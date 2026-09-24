@@ -57,7 +57,7 @@ def attr_notes(v):
       Actor_ReleaseHeldEntityAsProjectile — throw launch,      masks 0x18 | 0x400001
       Actor_TickFlyingProjectile_FallAndLand — fly/splash/wall, masks 0x400001 | 0x18 | 0x4
       Player_TickFacingTileActAndTriggers — tile ahead blocks tool/aim, mask 0x14018
-      Sakura_PlantFlowerTick (+0x18E510) — gate + write 0x40 on 3×3
+      Sakura_PlantFlowerTick (+0x14E510) — gate + write 0x40 on 3×3
       Map_ForceSpawnAtFirstFreeSlot   — spawnable tile gate,   mask 0x20
       Map_TestTileBlockedAtTilePos    — collision iter gate,   mask 0x20
       TileObject_FindAt               — tile-object lookup,    mask 0x20
@@ -104,7 +104,8 @@ def attr_notes(v):
     independent bit-groups — A=0x1018F (collision, the ONLY group gameplay reads for
     movement), D=0x6002E040 (FX/surface; only its bit 0x40 flower-fx is read), and
     B=0x1C0E00 / C=0x1000 / F=0x7800000 which NO gameplay reader ever tests → those are
-    render/display-only (tile-graphic variant / draw layer). Any set bit outside the
+    render/display-only (tile-graphic variant / draw layer). (The merge starts from a
+    zeroed cell and ORs leftover bits back, so the stored value loads unchanged.) Any set bit outside the
     named gameplay bits is reported as `render:0x..` so it's visible but flagged as
     non-collision (editing it won't change what blocks the player).
     """
@@ -155,10 +156,11 @@ def attr_notes(v):
 # Combat_LineOfSightCheck (+0x1D1C20). Between them they test only 0x4141FF.
 #
 # SURFACE_FIELD is the loader's group D (0x6002E040 in Map_InitImage,
-# RF4S.exe+0x193110). The loader replaces the whole group at once, so a tile can
-# carry at most ONE of these. Verified across every shipped map: 3,280,534 cells,
-# zero of them with two group-D bits set. Ticking two here makes a tile the game
-# itself can never produce.
+# RF4S.exe+0x193110). NOTE: at load the merge starts from a zeroed cell and ORs any
+# leftover bits back in, so a file's cell value is loaded VERBATIM -- the loader does
+# not enforce one-of. The one-of rule is the shipped data's: across every shipped map
+# (3,280,534 cells) no cell has two group-D bits set, so the editor keeps it a
+# dropdown rather than let a tile carry a combination no shipped map uses.
 SURFACE_FIELD = (0x40, 0x2000, 0x4000, 0x8000, 0x20000, 0x20000000, 0x40000000)
 
 # Notes on the bits whose meaning is not known, from a live read of the running game.
@@ -207,8 +209,8 @@ PAINT_FLAGS = [
 def surface_help():
     """Ctrl-hover text for the surface dropdown itself."""
     out = ["The surface field (loader group D).",
-           "The loader replaces this whole group at once, so a tile carries at",
-           "most ONE of these. Verified over every shipped map: 3,280,534 cells,",
+           "The loader copies a cell as stored, but no shipped tile carries more",
+           "than ONE of these: verified over every shipped map, 3,280,534 cells,",
            "not one with two of them set. That is why this is a dropdown.",
            ""]
     for label, mask in SURFACE_CHOICES:

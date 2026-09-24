@@ -16,8 +16,9 @@ Each *bank* is a <=64 KB self-contained unit; the VM PC is a u16 within the bank
 A bank carries a *type table* (u16 @ bank+4*type+2 -> entry-list offset); each entry is
 `5*size+4` bytes and its `event_id` (u16 @ entry+2) is the code PC of one scene.
 
-Bytecode = u16 tokens. op >= 0xFFF0 are control flow; op < 0xFFF0 are *action* opcodes
-indexing the 400-slot dispatch table (names in script_opcodes.json).
+Bytecode = u16 tokens. op > 0xFFF0 are control flow (Script_VMStep, RF4S.exe+0x23EF60);
+everything else is an *action* opcode indexing g_sceneActionHandlerTable (702 slots, see
+DISPATCHABLE_ACTION_OPS; names in script_opcodes.json).
 """
 from __future__ import annotations
 import json
@@ -247,10 +248,25 @@ def eval_expr(buf, off):
     Action-op arguments are not literals -- each is a u16 offset to a little postfix
     expression in the bank's data pool (Script_EvalExpressionBytecode). Most are a
     single push-immediate, so they resolve to a small int. Returns (value, ok); ok is
-    False when the expression needs runtime state (a variable or a typed operand)."""
+    False when the expression needs runtime state (a variable or a typed operand).
+
+    Arithmetic is the engine's (Script_EvalExpressionBytecode, RF4S.exe+0x23E1C0): int32
+    values that wrap, C division/remainder that truncate toward zero, x/0 = INT_MAX for
+    x > 0, INT_MIN for x < 0 and 0 for 0, and x%0 = 0. A tag byte the evaluator has no
+    case for (anything but the pushes, operators 0x80..0x97 and the 0x00 terminator --
+    including 3/4/5/0x11..0x13 after the first byte) makes it return without producing
+    a value, so that is reported as not static (ok=False). Tag 5 (u16) and 0x11..0x13
+    are only meaningful as the WHOLE operand (Script_EvalExpressionOrVar, RF4S.exe+0x23EA10)."""
+    n = len(buf)
+    if 0 <= off < n:
+        t0 = buf[off]
+        if t0 == 5:                          # leaf u16 literal (OrVar kind 7)
+            v = _u16(buf, off + 1)
+            return (v, True) if v is not None else (None, False)
+        if t0 in (3, 4, 0x11, 0x12, 0x13):  # typed constants / null / zero / self leaves
+            return (None, False)
     stack = []
     p = off
-    n = len(buf)
     for _ in range(128):
         if not (0 <= p < n):
             return (None, False)
@@ -285,20 +301,16 @@ def eval_expr(buf, off):
             stack.append(struct.unpack_from("<i", buf, p + 1)[0]); p += 5
         elif t == 2:                        # packed variable reference -> runtime
             return (None, False)            # (NormalizeToInt32 case 2: bit-packed var id)
-        elif t == 5:                        # OrVar leaf: u16 literal
-            if p + 2 >= n:
-                return (None, False)
-            stack.append(struct.unpack_from("<H", buf, p + 1)[0]); p += 3
-        elif t in (6, 3, 4):                # array fetch / local / global var -> runtime
+        elif t == 6:                        # var-array fetch -> runtime
             return (None, False)
-        elif t >= 0x80:                     # operator (token - 128)
+        elif 0x80 <= t <= 0x97:             # operator (token - 128)
             op = t - 128
             if op == 0:
                 p += 1
             elif op == 1:
                 if not stack:
                     return (None, False)
-                stack[-1] = -stack[-1]; p += 1
+                stack[-1] = _i32(-stack[-1]); p += 1
             elif op == 2:
                 if not stack:
                     return (None, False)
@@ -307,20 +319,52 @@ def eval_expr(buf, off):
                 if len(stack) < 2:
                     return (None, False)
                 b = stack.pop(); a = stack.pop()
-                try:
-                    r = {3: a * b, 4: (a // b if b else 0), 5: (a % b if b else 0),
-                         6: a + b, 7: a - b, 8: int(a < b), 9: int(a > b),
-                         10: int(a <= b), 11: int(a >= b), 12: int(a == b),
-                         13: int(a != b), 14: int(bool(a) and bool(b)),
-                         15: int(bool(a) or bool(b))}[op]
-                except Exception:
-                    return (None, False)
-                stack.append(r); p += 1
-            else:                           # compound-assign -> runtime
+                stack.append(_expr_binop(op, a, b)); p += 1
+            else:                           # compound-assign (16..23) -> runtime
                 return (None, False)
-        else:                               # terminator byte
-            break
-    return (stack[-1] if stack else None, True)
+        elif t == 0:                        # terminator
+            return (stack[-1] if stack else None, True)
+        else:                               # no evaluator case: returns without a value
+            return (None, False)
+    return (None, False)                    # unterminated / runaway stream
+
+
+def _i32(v):
+    """Wrap to a signed 32-bit int (the evaluator's value slots are int32)."""
+    v &= 0xFFFFFFFF
+    return v - 0x100000000 if v & 0x80000000 else v
+
+
+def _c_div(a, b):
+    """C/x86 idiv: truncates toward zero. Engine x/0: INT_MAX (x>0), INT_MIN (x<0), 0 (x==0)."""
+    if b == 0:
+        return 0x7FFFFFFF if a > 0 else (-0x80000000 if a < 0 else 0)
+    q = abs(a) // abs(b)
+    return _i32(q if (a < 0) == (b < 0) else -q)
+
+
+def _c_mod(a, b):
+    """C remainder (sign of the dividend); the engine returns 0 for x%0."""
+    if b == 0:
+        return 0
+    return _i32(a - b * int(_c_div(a, b)))
+
+
+def _expr_binop(op, a, b):
+    """One binary operator of Script_EvalExpressionBytecode (a = first-pushed/left)."""
+    if op == 3:
+        return _i32(a * b)
+    if op == 4:
+        return _c_div(a, b)
+    if op == 5:
+        return _c_mod(a, b)
+    if op == 6:
+        return _i32(a + b)
+    if op == 7:
+        return _i32(a - b)
+    return {8: int(a < b), 9: int(a > b), 10: int(a <= b), 11: int(a >= b),
+            12: int(a == b), 13: int(a != b), 14: int(bool(a) and bool(b)),
+            15: int(bool(a) or bool(b))}[op]
 
 
 # RPN expression operators (token byte - 0x80). Mirrors Script_EvalExpressionBytecode
@@ -351,9 +395,14 @@ def install_emflags_var_resolver(container, emf_table, with_offset=False):
     `.name`). Returns the installed resolver. Unknown offsets stay `var:0xNN`.
     If `with_offset`, names are suffixed `@bit` for disambiguation."""
     def resolve(enc):
-        bit_off, _w, _s = container.unpack_var(enc)
+        bit_off, width, signed = container.unpack_var(enc)
         v = emf_table.by_offset(bit_off)
         if v is None:
+            return None
+        # The name stands for (offset, emdeb width, unsigned) -- that is what the assembler
+        # re-encodes it as (scriptasm.make_resolver). A ref with another width or the sign
+        # bit (none in the shipped corpus) keeps its raw var:0x form so it round-trips.
+        if width != getattr(v, "bit_width", width) or signed:
             return None
         return ("%s@%d" % (v.name, bit_off)) if with_offset else v.name
     set_packed_var_resolver(resolve)
@@ -418,6 +467,16 @@ def _actor_tables():
             counts[_norm_leaf_name(v)] = counts.get(_norm_leaf_name(v), 0) + 1
         uniq = {_norm_leaf_name(v): k for k, v in names.items()
                 if k != 0 and counts[_norm_leaf_name(v)] == 1}
+        # a name shared with alternate forms outside the character range (Clorica 2 / 308,
+        # Ventuswill 21 / 235 / 982) belongs to its one id below 48, the id space the
+        # character handlers use; names shared inside the range (Traveler, Soldier) stay numeric
+        low = {}
+        for k, v in names.items():
+            if 0 < k < 48:
+                low.setdefault(_norm_leaf_name(v), []).append(k)
+        for nm, ids in low.items():
+            if len(ids) == 1 and nm not in uniq:
+                uniq[nm] = ids[0]
         for alias in ("player", "lest", "frey", "lest/frey"):
             uniq[alias] = 0
         _ACTOR_NAMES, _ACTOR_UNIQUE = names, uniq
@@ -673,7 +732,7 @@ _MAP_LEAF_SLOTS = {(246, 1), (266, 1), (267, 1)}
 _MAP_LEAF_VARIADIC = {227: 1, 228: 1}
 # Tag-3 slots that are characters but carry a non-character label or no registry entry.
 # 318: SetPackedGameFlag's id is a char id (bit 1007 + char = gift given on that NPC's
-# birthday; NpcAi_OnReceivedThrownItem sets the same bit).
+# birthday; NpcAi_OnReceivedThrownItem_AdvanceProgressAndDispatchReaction sets the same bit).
 _ACTOR_LEAF_EXTRA = {(318, 0)}
 _ACTOR_LABEL_WORDS = ("npc", "actor", "char id", "shopkeeper", "participant")
 _NOT_ACTOR_WORDS = ("count", "item", "line", "content", "flag", "index", "kind", "value", "ctx",
@@ -987,6 +1046,14 @@ def _listing_of(specs):
 # name slots (702..762 are blanks plus a few names that belong to a different table), which
 # is why the decoder used to accept them.
 DISPATCHABLE_ACTION_OPS = 702
+
+# PROMPT_CHOICE(_FORCED) row cap. Script_VMStep pushes every option id through the host's
+# show-line callback; Dialogue_HandleScriptActionShowLine (RF4S.exe+0x1F43B0) appends it to
+# the 512-byte g_scriptedEventStateBuffer_512B only while the row count is < 0x80, so options
+# past 128 are silently dropped (their targets are unreachable) and, with a visibility mask,
+# their mask test reads past the 128-bit mask at scene +244.
+MAX_CHOICE_OPTIONS = 128
+CHOICE_VISIBLE_ROWS = 4          # ChoiceDialog_TickStateMachine state 3: min(rows, 4) sprites
 
 # Every shipped bank carries a 74-slot type table (types 0..73; 296 bytes; an unused
 # tail bank is exactly those 296 zero bytes). The slot count is MYCF header word 14
@@ -1343,6 +1410,14 @@ class Container:
             raise ScriptError("truncated MYCF container: %d bytes, need >= 48 for the header"
                               % len(self.data))
         h = struct.unpack_from("<9I", self.data, 0)
+        # SceneState_ParseMycfHeaderAndInstallReaders (RF4S.exe+0x23DAB0): header word 1
+        # non-zero selects BIG-endian readers for the whole file, and word 2 must be
+        # 0x10001 or the scene system never initialises (ScriptTask_FirstTimeInit,
+        # RF4S.exe+0x1EE060, tears the scene state down). This parser is little-endian only.
+        if h[1] != 0:
+            raise ScriptError("big-endian MYCF (header word 1 = 0x%X) is not supported" % h[1])
+        if h[2] != 0x10001:
+            raise ScriptError("MYCF version 0x%X: the engine only loads version 0x10001" % h[2])
         self.ver = h[2]
         self.regionB_end = h[3]
         self.regionB_size = h[4]
@@ -1355,7 +1430,7 @@ class Container:
         # u32; the VM (SceneState_ReadGameFlagField -> PackedFlags_ReadField_MSBFirst,
         # RF4S.exe+0x241210) reads `width` bits at `bit_offset` from g_gameFlagsBuffer
         # -- the SAME buffer emdeb.bin / emflags names. So a packed ref resolves to a
-        # FLG_/REG_ variable. Shifts = ctz(mask) (loader sub_7FF6984EDAB0 does the same).
+        # FLG_/REG_ variable. Shifts = ctz(mask) (SceneState_ParseMycfHeaderAndInstallReaders, RF4S.exe+0x23DAB0, does the same).
         m = struct.unpack_from("<3I", self.data, 36)
         self.var_off_mask = m[0]
         self.var_off_shift = (m[0] & -m[0]).bit_length() - 1 if m[0] else 0
@@ -1478,7 +1553,9 @@ class Container:
         # 2) fix up both section tables: grown bank's size += delta; every bank whose
         #    region starts at/after the insertion point shifts by +delta.
         for b in self.banks:
-            new_off = b.file_off + (delta if b.file_off >= ins_at else 0)
+            # `b is not bank`: a zero-length bank starts AT the insertion point and must keep
+            # its offset (the new bytes are its data), not shift past them.
+            new_off = b.file_off + (delta if (b.file_off >= ins_at and b is not bank) else 0)
             new_sz = len(b.data) + (delta if b is bank else 0)
             struct.pack_into("<II", self.data, b.slot, new_off, new_sz)
             b.file_off = new_off
@@ -1574,6 +1651,22 @@ class Container:
                                              fallthrough_to=fallthrough_to)
         return region
 
+    @staticmethod
+    def _code_base(bank):
+        """In-bank pc at which a new code region will be appended: the bank's end rounded
+        up to an even offset. The engine reads u16 words at any pc, but the shipped
+        compiler starts every statement on an even offset (no entry pc in rf3.mc is odd,
+        yet 263 banks have an odd size because the expression pool is byte-granular), and
+        the tooling relies on it: add_entry/set_entry refuse odd event pcs and the scene
+        discovery walks even offsets. `_append_code` writes the (dead) pad byte."""
+        return len(bank.data) + (len(bank.data) & 1)
+
+    def _append_code(self, bank, region):
+        """grow_bank(`region`) at `_code_base` (pad byte first when the bank size is odd).
+        Returns the region's start pc."""
+        pad = b"\x00" * (len(bank.data) & 1)
+        return self.grow_bank(bank, pad + bytes(region)) + len(pad)
+
     def assemble(self, bank, text, fallthrough_to=None):
         """Append a freshly assembled region (listing `text`) to `bank` and return its
         start pc. Nothing existing moves; the region ends with END, or with a JMP to
@@ -1581,9 +1674,9 @@ class Container:
         scene, or `rewrite_scene` / `insert_after` to splice it into an existing one."""
         if isinstance(bank, int):
             bank = self.banks[bank]
-        base = len(bank.data)
+        base = self._code_base(bank)
         region = self._assemble_region(base, text, fallthrough_to)
-        self.grow_bank(bank, region)
+        self._append_code(bank, region)
         return base
 
     def insert_before(self, bank, pc, specs):
@@ -1601,9 +1694,9 @@ class Container:
                               "(insert before the preceding statement instead)" % (pc, st.size))
         moved = bytes(bank.data[pc:pc + st.size])
         successor = pc + st.size
-        base = len(bank.data)
+        base = self._code_base(bank)
         region = self._assemble_region(base, _listing_of(specs) + "\n.raw " + moved.hex(), successor)
-        self.grow_bank(bank, region)
+        self._append_code(bank, region)
         struct.pack_into("<HH", bank.data, pc, 0xFFFA, base & 0xFFFF)   # B -> region
         return base
 
@@ -1656,11 +1749,17 @@ class Container:
             raise ScriptError("no decodable statement at 0x%04x" % pc)
         if st.size < 4:
             raise ScriptError("statement at 0x%04x is %d bytes; need >=4 to trampoline" % (pc, st.size))
+        if not st.falls_through or st.terminator:
+            # JMP / SWITCH_GE / PROMPT_CHOICE* / JMP_IND / RAND_BR always leave: the VM would
+            # never reach statements placed after them (Script_VMStep sets pc from a target).
+            raise ScriptError("%s at 0x%04x never falls through, so statements inserted after it "
+                              "would never run -- insert before it, or at the branch target"
+                              % (st.mnem, pc))
         moved = bytes(bank.data[pc:pc + st.size])
         successor = pc + st.size
-        base = len(bank.data)
+        base = self._code_base(bank)
         region = self._assemble_region(base, ".raw " + moved.hex() + "\n" + _listing_of(specs), successor)
-        self.grow_bank(bank, region)
+        self._append_code(bank, region)
         struct.pack_into("<HH", bank.data, pc, 0xFFFA, base & 0xFFFF)
         return base
 
@@ -1675,9 +1774,9 @@ class Container:
         st = decode_statement(bank.data, entry_pc)
         if st is None or st.size < 4:
             raise ScriptError("entry @0x%04x is not trampoline-able" % entry_pc)
-        base = len(bank.data)
+        base = self._code_base(bank)
         region = self._assemble_region(base, _listing_of(specs), None)   # ends in END
-        self.grow_bank(bank, region)
+        self._append_code(bank, region)
         struct.pack_into("<HH", bank.data, entry_pc, 0xFFFA, base & 0xFFFF)
         return base
 
@@ -1690,6 +1789,11 @@ class Container:
             raise ScriptError("no statement at 0x%04x" % pc)
         if st.size < 4:
             raise ScriptError("statement at 0x%04x is only %d bytes; cannot skip in place" % (pc, st.size))
+        if not st.falls_through or st.terminator:
+            # Skipping a statement that never falls through would send the VM into whatever
+            # bytes follow it (another branch's code, the expression pool, the next scene).
+            raise ScriptError("%s at 0x%04x never falls through; skipping it would run the bytes "
+                              "after it -- retarget it (set_branch_target) instead" % (st.mnem, pc))
         struct.pack_into("<HH", bank.data, pc, 0xFFFA, (pc + st.size) & 0xFFFF)
 
     # ---- type-table entries (triggers): mint / remove / re-key a scene registration ----
@@ -1968,6 +2072,176 @@ def find_scenes_with_dialog(container, substring, dialog):
         if ids:
             hits.append((bk, sc, ids))
     return hits
+
+
+def dev_menus(container, dialog, banks=None):
+    """The developers' test menus left in rf3.mc: PROMPT_CHOICE statements whose items are
+    '＊'-prefixed debug strings ('＊Hand Over Recipe', '＊Firefly Festival', '＊Invite', ...).
+    Every marriage candidate's primary bank carries the same three (events, festivals,
+    dates) and the villager banks a greetings one; each item jumps to a routine that plays
+    that event's dialogue for this NPC -- a labelled index of the bank's lines (the
+    gameplay effect itself, e.g. the item a 'Hand Over Item' gives, runs in the exe, not
+    here). Returns [(bank, scene, menu Statement, [(item text, target pc, first line id)])];
+    the menu's CANCEL branch is left out."""
+    out = []
+    sel = container.banks if banks is None else [container.banks[i] for i in banks]
+    for bk in sel:
+        for sc in disassemble_bank(bk):
+            for st in sc.stmts.values():
+                if st.mnem not in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") or not st.items:
+                    continue
+                names = []
+                for i in st.items:
+                    try:
+                        names.append(dialog(i) or "")
+                    except Exception:
+                        names.append("")
+                if sum(1 for n in names if n.startswith("\uff0a")) < 2:
+                    continue
+                targets = st.code_targets[1:] if st.mnem == "PROMPT_CHOICE" else st.code_targets
+                rows = []
+                for nm, tgt in zip(names, targets):
+                    first, seen, pc = None, 0, tgt
+                    while pc in sc.stmts and seen < 64 and first is None:  # first DIALOG, following CALLs
+                        s2 = sc.stmts[pc]
+                        if s2.mnem == "DIALOG":
+                            first = s2.dialog_id
+                        elif s2.mnem == "CALL" and s2.code_targets:
+                            pc = s2.code_targets[0]; seen += 1; continue
+                        elif not s2.falls_through or s2.terminator:
+                            break
+                        pc += s2.size; seen += 1
+                    rows.append((nm, tgt, first))
+                out.append((bk, sc, st, rows))
+    return out
+
+
+def _const_arg(buf, off):
+    """Integer value of a static action argument, else None."""
+    try:
+        return int(arg_repr(buf, off))
+    except (TypeError, ValueError):
+        return None
+
+
+def _static_choice_mask(buf, stmts, idx, joins):
+    """Visibility-mask bits the ops right before stmts[idx] leave KNOWN: {bit: 0/1}.
+
+    Walks back over the straight-line run of action statements (stopping at a control op or
+    a branch target), then replays ops 610/611/612 forward the way the handlers do:
+    610 (Script_VMOp_SetSceneChoiceVisibleMaskFromArgs) zeroes mask dword 0 and sets bit
+    i (shl wraps at 32) for every non-zero arg i; 611 (..ClearSceneChoiceVisibleMaskRange)
+    clears bits [start, start+count) of dword 0; 612 (..ToggleSceneChoiceVisibleBit) sets or
+    clears one bit of the 128 (dword index clamped to 3). A non-static arg makes the bits it
+    touches unknown. Returns (known, touched) -- touched False when no mask op was seen."""
+    run = []
+    if stmts[idx].pc in joins:                        # reached from elsewhere too
+        return {}, False
+    j = idx - 1
+    while j >= 0:
+        s = stmts[j]
+        if s.op >= 0xFFF0 or s.pc + s.size != stmts[j + 1].pc:
+            break
+        run.append(s)
+        if s.pc in joins:
+            break
+        j -= 1
+    known, touched = {}, False
+    for s in reversed(run):
+        vals = [_const_arg(buf, a) for a in s.args]
+        if s.op == 610:
+            touched = True
+            for b in range(32):
+                known[b] = 0
+            for i, v in enumerate(vals):
+                b = i & 31
+                if v is None:
+                    known.pop(b, None)
+                elif v:
+                    known[b] = 1
+        elif s.op == 611:
+            touched = True
+            st_, cnt = (vals + [None, None])[:2]
+            if st_ is None or cnt is None:
+                for b in range(32):
+                    known.pop(b, None)
+            else:
+                for k in range(min(cnt, 32)):
+                    known[(st_ + k) & 31] = 0
+        elif s.op == 612:
+            touched = True
+            bit, val = (vals + [None, None])[:2]
+            if bit is None:
+                known = {}
+            else:
+                b = min(bit >> 5, 3) * 32 + (bit & 31)
+                if val is None:
+                    known.pop(b, None)
+                else:
+                    known[b] = 1 if val else 0
+    return known, touched
+
+
+def choice_problems(buf, stmts, text_count=None):
+    """Static checks on PROMPT_CHOICE / PROMPT_CHOICE_FORCED against how RF4S.exe runs them.
+
+    `stmts` = the pc-ordered Statements of one scene (or of a linearly decoded region),
+    `buf` = the bank bytes their expression offsets point into, `text_count` = entries in
+    the rf3mc text archive (optional). Returns [(pc, 'error'|'warning', message)].
+
+    Exe facts behind each check (RF4S.exe): Script_VMStep (+0x23EF60) cases 0xFFF4/0xFFF5;
+    SceneEvent_FinalizeAndPickFromBitmap (+0x1F49C0) returns the picked VISIBLE row and maps
+    it back through the mask bits into reg0; ChoiceDialog_ConfirmSelection (+0x239330)
+    divides by the row count; ChoiceDialog_ConfirmViaScrollArrow (+0x239670) is the cancel
+    key (it moves the cursor to the LAST row); Text_LoadStringFromArchive (+0x232290) loads
+    entry 0 for an out-of-range id."""
+    out = []
+    joins = set()
+    for s in stmts:
+        joins.update(t for t in s.code_targets if t is not None)
+    for idx, st in enumerate(stmts):
+        if st.mnem not in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+            continue
+        n = len(st.items)
+        opt_tg = st.code_targets[1:] if st.mnem == "PROMPT_CHOICE" else list(st.code_targets)
+        if n == 0:
+            out.append((st.pc, "error", "choice with no options: the menu has zero rows and "
+                        "confirming divides by zero (crash)"))
+            continue
+        if n > MAX_CHOICE_OPTIONS:
+            out.append((st.pc, "error", "%d options: the game queues at most %d rows; options "
+                        "%d.. are dropped and their targets are unreachable"
+                        % (n, MAX_CHOICE_OPTIONS, MAX_CHOICE_OPTIONS)))
+        if text_count is not None:
+            bad = [i for i in st.items if i >= text_count]
+            if bad:
+                out.append((st.pc, "error", "option text id(s) %s outside the text archive "
+                            "(%d entries): the game shows entry 0 instead"
+                            % (", ".join("#%d" % i for i in bad[:6]), text_count)))
+        if st.mnem == "PROMPT_CHOICE" and st.code_targets and opt_tg \
+                and st.code_targets[0] != opt_tg[-1]:
+            out.append((st.pc, "warning", "CANCEL target 0x%04x is not the last option's "
+                        "target: the cancel key moves the cursor to the LAST option, and the "
+                        "CANCEL slot is never taken (shipped menus repeat the last target "
+                        "there)" % st.code_targets[0]))
+        known, touched = _static_choice_mask(buf, stmts, idx, joins)
+        if not touched:
+            continue
+        opts = range(min(n, MAX_CHOICE_OPTIONS))
+        if any(v == 1 for v in known.values()) and all(known.get(b) == 0 for b in opts):
+            out.append((st.pc, "error", "the visibility mask hides every option (bits set only "
+                        "past option %d): the menu opens with zero rows and confirming "
+                        "divides by zero (crash). An all-zero mask shows every option instead"
+                        % (n - 1)))
+            continue
+        hidden_early = any(known.get(b) == 0 and any(known.get(k) != 0 for k in opts if k > b)
+                           for b in opts)
+        if hidden_early and any(known.values()) and len(set(opt_tg)) > 1:
+            out.append((st.pc, "warning", "masked menu with per-option targets: with a mask "
+                        "the game jumps to target[visible row], not target[option] (reg0 = the "
+                        "original option index). Point every option at one label and "
+                        "SWITCH_EQ on reg0 (the shipped idiom)"))
+    return out
 
 
 def dump_text(container, dialog=None, banks=None, friendly=False):

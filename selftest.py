@@ -94,9 +94,37 @@ def test_bplist():
     sample = {"neg": -14336, "big": 5_000_000_000, "u": "café★日本語",
               "blob": b"RES\x00" * 9, "nest": {"a": [1, 2.5, True, None]}}
     _check("bplist synthetic round-trip", bplist.loads(bplist.dumps(sample)) == sample)
-    # unsigned 64-bit ints (>= 2**63) must not round-trip negative (16-byte body)
-    big = {"a": 2**63, "b": 2**64 - 1, "c": 2**63 + 5}
-    _check("bplist unsigned-64 round-trip", bplist.loads(bplist.dumps(big)) == big)
+    # ints outside int64 must be REFUSED, never written as a 16-byte (0x14) int: the game's
+    # Bplist_ReadInt (RF4S.exe+0x2678D0) frees its 8-byte scratch and reads 16 bytes into it.
+    _refused = 0
+    for _v in (2**63, 2**64 - 1, -(2**63) - 1):
+        try:
+            bplist.dumps({"a": _v})
+        except bplist.BplistError:
+            _refused += 1
+    _edge = {"max": 2**63 - 1, "min": -(2**63)}
+    _check("bplist refuses ints wider than 8 bytes; int64 extremes round-trip",
+           _refused == 3 and bplist.loads(bplist.dumps(_edge)) == _edge)
+    # offset table width must be 4 (or 8 past 0x3FFFFFFF): Bplist_ReadObjectByIndex (+0x266730)
+    # reads every width other than 4 as u64, so a tiny plist with 1-byte offsets was misread.
+    _tiny = bplist.Bplist(bplist.dumps({"a": 1}))
+    _check("bplist writer uses 4-byte offsets + 4-byte refs (game-readable)",
+           _tiny.offset_size == 4 and _tiny.ref_size == 4)
+    # scalar dedup (the engine writer's `seen` map): repeated keys stored once, types kept apart
+    _dd = {"x": [{"size": 1, "offset": 1}, {"size": True, "offset": 1.0}], "s": "size"}
+    _ddb = bplist.dumps(_dd)
+    _back = bplist.loads(_ddb)
+    _check("bplist dedups scalars by (type, value)",
+           _back == _dd and _ddb.count(b"\x54size") == 1
+           and type(_back["x"][1]["size"]) is bool and type(_back["x"][1]["offset"]) is float)
+    mani = BUNDLE_DIR / "Manifest.plist"
+    if mani.is_file():
+        _mraw = mani.read_bytes()
+        _mv = bplist.loads(_mraw)
+        _mout = bplist.dumps(_mv)
+        _check("bplist Manifest re-dump value-equal and not larger than stock",
+               bplist.loads(_mout) == _mv and len(_mout) <= len(_mraw),
+               f"{len(_mout):,} vs {len(_mraw):,} bytes")
 
 
 def test_mbundle():
@@ -157,6 +185,43 @@ def test_mbundle():
         chk2 = mbundle.Bundle(cb, manifest=mbundle.Manifest(cm))
         _check("append-repack grow+add",
                chk2.read(nm) == b"\xAB" * 4096 and chk2.read("mod/new.bin") == b"hello")
+        # the EMBEDDED TOC must stay a valid bplist that matches the manifest after an append
+        # (a raw append left the trailer inside the last blob: `bundle list` without
+        # --use-manifest then read garbage)
+        try:
+            emb = mbundle.Bundle(cb)
+            _emb_ok = (set(emb.names()) == set(chk2.names())
+                       and all(emb.info(n) == chk2.info(n) for n in chk2.names()))
+        except Exception as e:
+            _emb_ok = False
+        _check("append-repack keeps embedded TOC valid + == manifest", _emb_ok)
+        # growing in place must refuse to overwrite a neighbouring entry
+        m4 = mbundle.Manifest(cm)
+        _ents = sorted((int(v["offset"]), k) for k, v in m4.files(small).items() if int(v["size"]))
+        if len(_ents) >= 2:
+            _victim = _ents[0][1]
+            _gap = _ents[1][0] - _ents[0][0]
+            try:
+                mbundle.patch_inplace(cb, m4, _victim, b"\x00" * (_gap + 1), allow_grow=True)
+                _grow_ok = False
+            except mbundle.MbundleError:
+                _grow_ok = True
+            _check("patch_inplace(allow_grow) refuses to overwrite the next entry", _grow_ok)
+        # a NEW bundle goes first in the manifest (first mount wins) under its .mbundle name
+        m5 = mbundle.Manifest(cm)
+        _srcd = tmp / "modsrc"; _srcd.mkdir()
+        (_srcd / "x.bin").write_bytes(b"x")
+        mbundle.rebuild_from_dir(_srcd, tmp / "bundleMod.mbundle", m5, "bundleMod.mbundle")
+        _check("rebuild_from_dir inserts a new bundle first in the manifest",
+               m5.bundle_names()[0] == "bundleMod.mbundle")
+        # bundle-relative names must not escape the output / game root
+        _esc = False
+        try:
+            mbundle.install_loose(tmp / "game", "../escape.txt", _srcd / "x.bin")
+        except mbundle.MbundleError:
+            _esc = True
+        _check("install_loose refuses a path that climbs out of the game root",
+               _esc and not (tmp / "escape.txt").exists())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -170,6 +235,21 @@ def test_text():
     arc = textdb.TextArchive.load(p)
     rebuilt = textdb.TextArchive.parse(arc.build())
     _check(f"TEXT round-trip {p.name}", arc.entries == rebuilt.entries, f"{len(arc)} entries")
+    # byte-exact rebuild of every shipped TEXT archive, incl. the 31 CJK catalogs that end
+    # each string with TWO NULs (the terminator width used to be dropped on rebuild)
+    _tot = _exact = _two = 0
+    for _tp in sorted(EXTRACTED.rglob("*.jpn")) + sorted(EXTRACTED.rglob("*.kor")) \
+            + sorted(EXTRACTED.rglob("*.twn")) + sorted(EXTRACTED.rglob("*.eng")):
+        _raw = _tp.read_bytes()
+        if _raw[:4] != textdb.MAGIC:
+            continue
+        _ta = textdb.TextArchive.parse(_raw)
+        _tot += 1
+        _exact += _ta.build() == _raw
+        _two += _ta.terminator == 2
+    if _tot:
+        _check("TEXT byte-exact rebuild of shipped .jpn/.kor/.twn/.eng archives",
+               _exact == _tot, f"{_exact}/{_tot}, {_two} with 2-NUL terminators")
     # robustness: malformed / truncated input (incl. valid magic but < 8-byte header) must raise
     # a clean TextDbError, never a raw struct.error (a modder loading a corrupt rf3mc.<locale>).
     _trob = True
@@ -468,6 +548,41 @@ def test_rf4m():
         _check("validate(): ground_reader without map_name says the atlas check was skipped",
                any("map_name" in s for s in
                    rf4m.Rf4mMap.parse(city00.read_bytes()).validate(ground_reader=lambda fn: None)))
+        # 2026-09-24 loader replay (Map_LoadById): single-slot tags keep the LAST chunk,
+        # IMGD re-points the previous chunk's slot, the size word bounds the walk,
+        # type-12 f8 indexes the tint array unchecked, arrivals are s16 words.
+        raw = city00.read_bytes()
+        dup = rf4m.Rf4mMap.parse(raw)
+        mi = next(i for i, c in enumerate(dup.chunks) if c.tag == b"MGRP")
+        dup.add_chunk("MGRP", struct.pack("<I", 0x1234), at=mi + 1)
+        vd = dup.validate()
+        _check("rf4m duplicate MGRP: the game (and mgrp()) use the LAST chunk; validate warns",
+               dup.mgrp() == 0x1234 and any("second MGRP" in s for s in vd)
+               and not any(s.startswith("ERROR") for s in vd))
+        dup2 = rf4m.Rf4mMap.parse(raw)
+        w0, h0, _c = dup2.attr_grid()
+        dup2.add_chunk("ATTR", struct.pack("<II", 2, 2) + bytes(16))
+        dup2.set_attr_cell(1, 1, 7)
+        _check("rf4m set_attr_cell/attr_grid edit the live (last) ATTR chunk",
+               dup2.attr_grid()[:2] == (2, 2) and dup2.attr_grid()[2][3] == 7
+               and struct.unpack_from("<II", dup2.find(b"ATTR")[0].payload, 0) == (w0, h0))
+        im = rf4m.Rf4mMap.parse(raw)
+        im.add_chunk("IMGD", b"\0" * 4, at=mi + 1)
+        _check("rf4m validate: IMGD after MGRP overwrites MGRP's slot (fatal)",
+               any(s.startswith("ERROR") and "IMGD" in s and "MGRP" in s for s in im.validate()))
+        bad_sz = bytearray(raw)
+        struct.pack_into("<i", bad_sz, 4, len(raw) - 64)
+        _check("rf4m validate: MAPD size word != file size is fatal; build() repairs it",
+               any(s.startswith("ERROR") and "size word" in s
+                   for s in rf4m.Rf4mMap.parse(bytes(bad_sz)).validate())
+               and rf4m.Rf4mMap.parse(bytes(bad_sz)).build() == raw)
+        tt = rf4m.Rf4mMap.parse(raw)
+        tt.add_mobj_record([12, 0, 0, 0, 0, 0, 0, 0, 5, 10, 20, 30, 0, 0, 0, 0])
+        tt.add_mapj_record([-1, 8, 8, 32, 32, 8, 40000, 8, 0])
+        vt = tt.validate()
+        _check("rf4m validate: tint slot f8=5 and arrival x=40000 are fatal",
+               any(s.startswith("ERROR") and "tint_color" in s for s in vt)
+               and any(s.startswith("ERROR") and "16-bit" in s for s in vt))
     # ATTR resize + the atlas check that makes it safe (needs the tiles next to the map)
     f01 = _first("MAP_FIELD_01.rf4m")
     if f01 and (f01.parent / "MAP_FIELD_201_0000.texture").is_file():
@@ -582,6 +697,37 @@ def test_aibn():
            aibn.assemble("TickAI 90 30\nWander 32 0xFFFF\nConnector") ==
            aibn.assemble("BackAwayFromTarget 90 30\nBlinkTeleportNearTarget 32 0xFFFF\nAndConnector"))
     _check("aibn 0x15 RandomWalkInRoom is fixed arity 3", aibn.ARITY.get(0x15) == 3 and 0x15 not in aibn.VAR_OPS)
+    # 2026-09-24 audit against the VM handlers (RF4S.exe IDB):
+    H = aibn.HI
+    # 0x80000094 in a comparator slot printed as `cmp.always` and re-assembled as 0x80000093
+    t94 = [H | 0x0C, H | 0x5D, H | 0x94, 5, H | 0x0E]
+    _check("aibn comparator slot 0x80000094 round-trips (was re-assembled as 0x93)",
+           all(aibn.assemble(aibn.disassemble(t94, style=st)) == t94 for st in ("pretty", "flat")))
+    # variable-arity handlers read AT MOST N operands (MonsterScript_Op13_ChaseTarget +0x1CAC20 loops 2x);
+    # a third token is dispatched as a statement, so the walker must show it as an orphan
+    t13 = [H | 0x01, H | 0x13, 1, 2, 3]
+    sts13 = list(aibn.walk_statements(t13))
+    _check("aibn var-arity op capped at the handler's N (extra token = orphan statement)",
+           sts13[1][2] == [1, 2] and sts13[2][1] is None and aibn.assemble(aibn.disassemble(t13)) == t13
+           and any("reads at most 2" in w for w in aibn.validate(t13)))
+    # r8/r9 have no add/set/compare opcodes: `r8 += 1` used to assemble to 0x50 (r0 = 1), `r8 <= 3` to 0x72
+    rej = []
+    for src in ("r8 += 1", "r9 = 2", "if (r8 <= 3) {", "WaitFrames(0x100000000)", "WaitFrames(x)", "OP_99 1"):
+        try:
+            aibn.assemble("yield\n" + src)
+            rej.append(False)
+        except aibn.AibnError as ex:
+            rej.append(str(ex).startswith("line 2:"))
+    _check("aibn assembler rejects r8/r9 add/set/cmp, >32-bit operands, bad operands/ids (with line numbers)",
+           all(rej), str(rej))
+    # Goto/Call resolve labels by a raw scan for (tok & 0x7FFFFFFF) == 5/7 (MonsterScript_Op04_Goto +0x1D2F50)
+    hij = aibn.assemble("!SidestepAroundTarget(5, 290, 0)\ngoto 290\n290:\ngoto 77")
+    vw = aibn.validate(hij)
+    _check("aibn validate: goto hijacked by an operand 5, goto to a missing label",
+           any("lands at token #1" in w for w in vw) and any("goto 77 has no label" in w for w in vw), str(vw))
+    found = {p.name for p in ai if aibn.validate(aibn.load_tokens(p.read_bytes()), p.read_bytes())}
+    _check("aibn validate: shipped scripts clean except the three stock duplicate-label files",
+           found <= {"AI_m109.bin", "AI_m52.bin", "AI_m36_b.bin"}, str(sorted(found)))
 
 
 def test_strings():
@@ -593,10 +739,38 @@ def test_strings():
     d = strings_file.load(p)
     _check(f"strings round-trip {p.name}", strings_file.parse(strings_file.dumps(d)) == d,
            f"{len(d)} keys")
-    # a bare (unquoted) value must not swallow its trailing ';'
-    _check("strings bare value drops ';'",
-           strings_file.parse("k = bareValue;") == {"k": "bareValue"}
-           and strings_file.parse("k = 123;") == {"k": "123"})
+    # the lenient Apple-style lexer: a bare (unquoted) value must not swallow its trailing ';'
+    _check("strings lenient bare value drops ';'",
+           strings_file.parse_lenient("k = bareValue;") == {"k": "bareValue"}
+           and strings_file.parse_lenient("k = 123;") == {"k": "123"})
+    # every shipped .strings parses (Localization-en has UNESCAPED inner quotes, which the
+    # game's line parser -- MFLocale_LoadFromStringsFile RF4S.exe+0x259B90 -- reads fine but the
+    # old lexer raised on), matches the game's own reading, and survives dumps() unchanged
+    _all = sorted(EXTRACTED.rglob("*.strings"))
+    _sok = True
+    for _sp in _all:
+        try:
+            _t = _sp.read_text(encoding="utf-8")
+            _g = strings_file.parse_game(_t)
+            _sok &= (strings_file.parse(_t, lowercase_keys=True) == _g and len(_g) > 0
+                     and strings_file.parse_game(strings_file.dumps(strings_file.parse(_t))) == _g)
+        except Exception:
+            _sok = False
+    if _all:
+        _check("strings: every shipped file == game reading and dumps() round-trips", _sok,
+               f"{len(_all)} files")
+    # game escape rules (MFData_decodeBackslashEscapesToUTF8 +0x24C4E0): unknown escapes keep the
+    # backslash, \b \f decode, \u0000 vanishes, surrogate pairs combine into one code point
+    _check("strings unescape matches the game decoder",
+           strings_file.parse_game('"k" = "\\q\\0\\b\\u0000\\ud83d\\ude00";') == {"k": "\\q\\0\x08\U0001F600"})
+    # the game's line parser: `k = v;`, `"x"="y";` and empty values are DROPPED; key lowercased
+    _check("strings parse_game drops what the game drops",
+           strings_file.parse_game('k = v;\n"x"="y";\n"e" = "";\n"Up" = "ok";\n') == {"up": "ok"}
+           and len(strings_file.game_issues('k = v;\n"Up" = "ok";\n/* never closed\n')) == 2)
+    # a key ending in a backslash: the game ends a quoted key at the first `"` not preceded by
+    # `\`, so dumps() must not emit `\\"` there
+    _check("strings dumps() key ending in a backslash survives the game parser",
+           strings_file.parse_game(strings_file.dumps({"a\\": "v"})) == {"a\\": "v"})
 
 
 def test_res_and_ident():
@@ -611,6 +785,12 @@ def test_res_and_ident():
                 _check(f"res inspect .{ext}", False, str(e))
         else:
             _skip(f"res inspect .{ext}", "not extracted")
+    # PSB is not an NN container: BFRES_GetRelocationTableStart (+0x3CA9B0) semantics must not be
+    # applied to it (the +0x18 dword used to be reported as a relocation table offset)
+    _psb = res_container.inspect(b"PSB\x00" + b"\x01" * 60)
+    _check("res inspect PSB has no NN relocation field",
+           _psb["reloc_table_field"] is None and _psb["reloc_table_offset"] is None
+           and "no NN relocation" in res_container.summary(b"PSB\x00" + b"\x01" * 60))
     # BNTX decode (over-model billboards, e.g. MAP_*.model): structural parse always,
     # full BC-n decode when Pillow is present.
     import struct as _struct
@@ -764,6 +944,23 @@ def test_param():
         _check("rf3NpcParam typed monster schema (Orc[48] hp/atk/model)",
                t.get(48, 40, "u32") == 48 and t.get(48, 44, "u32") == 5
                and t.get(48, 272, "u16") == 756 and t.get(200, 40, "u32") == 80000)
+        # CharTemplate_t layout (Actor_RecomputeAllStats +0xAD440): +44/+48/+52 = STR/INT/VIT,
+        # flat ATK/MAT/DEF/MDF at +60/+64/+72/+76; resists in status-bit order poison, SEAL,
+        # PARALYSIS, SLEEP (Combat_GetStatusProcMask: bit k <- stats+152+2k <- dword k).
+        so = {n: o for n, o, _ty in t.schema("rf3NpcParam")["fields"]}
+        orc = t.row(48, "rf3NpcParam")
+        _check("rf3NpcParam STR/INT/VIT + flat stats + resist order (exe layout)",
+               (orc["str"], orc["int"], orc["vit"], orc["flat_atk"], orc["flat_def"]) == (5, 3, 4, 8, 2)
+               and orc["tame_base"] == 25 and orc["base_level"] == 2
+               and [so[f"res_{s}"] for s in ("poison", "seal", "paralysis", "sleep", "fatigue")]
+               == [184, 188, 192, 196, 200]
+               and t.row(1, "rf3NpcParam")["anim"] == -1)
+        try:
+            t.set_field(48, "def", 10, "rf3NpcParam")
+            _ren = False
+        except nlcl.NlclError as e:
+            _ren = "INT" in str(e)
+        _check("rf3NpcParam retired 'def' (was +48 = INT) raises with a hint", _ren)
     stg = next((p for p in files if p.name == "rf3ItemStrengthening.bin"), None)
     if stg:
         t = nlcl.NlclTable.load(stg)
@@ -795,6 +992,15 @@ def test_param():
         _check("rf3Parameter level curve (14813)",
                t.entry_count == 200 and t.get(0, 0, "u32") == 4 and t.get(5, 0, "u32") == 167
                and t.get(0, 8, "u32") == 56 and t.get(5, 8, "u32") == 85)
+        # Actor_ApplyLevelUp: +4 -> base HP, +8 -> base RP (u16), +12/16/20 -> STR/INT/VIT
+        r199 = t.row(199, "rf3Parameter")
+        try:
+            t.set_field(0, "rp", 70000, "rf3Parameter")
+            _lim = False
+        except nlcl.NlclError:
+            _lim = True
+        _check("rf3Parameter hp/rp/str columns + u16 RP limit",
+               (r199["hp"], r199["rp"], r199["str"]) == (23144, 900, 734) and _lim)
     pnpc = next((p for p in files if p.name == "rf3ParameterNPC_01.bin"), None)
     if pnpc:
         t = nlcl.NlclTable.load(pnpc)
@@ -832,11 +1038,19 @@ def test_param():
     psk = next((p for p in files if p.name == "rf3ParamSkill.bin"), None)
     if psk:
         t = nlcl.NlclTable.load(psk)
-        # archive 14818 growth coefs: weapon skill 0 = ATK+DEF growth, Farming[13] = big HP.
+        # archive 14818 growth coefs (Player_ApplyAllSkillGrowthBonusesFromArchive14818 +0xB0E00:
+        # dw0 -> hp_max, dw1 -> rp_max, dw2/3/4 -> STR/INT/VIT; +36 = RP-cost discount, +28 =
+        # magic element bonus). Weapon skill 0 = RP+STR growth, Farming[13] = big HP.
         r0, r13 = t.row(0, "rf3ParamSkill"), t.row(13, "rf3ParamSkill")
         _check("rf3ParamSkill growth schema (14818)",
-               r0["atk_growth"] == 1024 and r0["def_growth"] == 1024 and r0["hp_growth"] == 0
-               and r13["hp_growth"] == 8192)
+               r0["rp_growth"] == 1024 and r0["str_growth"] == 1024 and r0["hp_growth"] == 0
+               and r13["hp_growth"] == 8192 and r0["rp_discount"] == 20)
+        try:
+            t.set_field(0, "atk_growth", 1, "rf3ParamSkill")
+            _ren = False
+        except nlcl.NlclError as e:
+            _ren = "rp_growth" in str(e)
+        _check("rf3ParamSkill retired column name raises with a hint", _ren)
     if il:
         t = nlcl.NlclTable.load(il)
         ok = t.get(1, 12) == 680 and t.get(29, 12) == 30   # Cabbage 680 / Turnip 30
@@ -847,6 +1061,20 @@ def test_param():
         _check("NLCL edit round-trip",
                t2.get(29, 12) == 9999 and t2.get(1, 12) == 680 and len(blob) == len(t.data),
                il.name)
+        # value / range guards: a value that does not fit the field width, an unknown type, a
+        # negative record index and a price row > 9 (Item_ComputeStackGoldValue returns 0)
+        # must raise NlclError instead of struct.error / a silent header slice / a 0-gold item
+        _rej = 0
+        for _bad in (lambda: t.set(29, 4, 256, "u8"), lambda: t.set(29, 12, -1, "u32"),
+                     lambda: t.set(29, 12, 1, "f32"), lambda: t.record(-1),
+                     lambda: t.set_field(29, "sell_price_row", 10, "rf3ItemList")):
+            try:
+                _bad()
+            except nlcl.NlclError:
+                _rej += 1
+        _check("NLCL set/record guards (width, type, index, price row 0..9)",
+               _rej == 5 and t.row(1, "rf3ItemList")["buy_price"] == 2800
+               and t.row(1, "rf3ItemList")["sell_price_row"] == 3)
     else:
         _skip("rf3ItemList field check", "rf3ItemList.bin not extracted")
     # rf3UseItemParam: row index = item id, +0 HP recovery / +4 RP recovery.
@@ -858,6 +1086,13 @@ def test_param():
               and t.get(2, 0) == 600  # King Cabbage HP+600
               and t.get(5, 0) == 90 and t.get(5, 4) == 30)  # Pink Melon HP+90/RP+30
         _check("rf3UseItemParam hp/rp recovery", ok, "Cabbage 140, KingCabbage 600, PinkMelon 90/30")
+        # Item_UseOnActor scales +52/+56/+60 by str_base/int_base/vit_base -> STR/INT/VIT buffs;
+        # +64..+156 mirror rf3ItemStrengthening S[50..73] (dish record dword k-34 += S[k])
+        uo = {n: o for n, o, _ty in t.schema("rf3UseItemParam")["fields"]}
+        _check("rf3UseItemParam STR/INT/VIT buff names + full +64..+156 layout",
+               (uo["buff_str"], uo["buff_int"], uo["buff_vit"], uo["buff_vit_pct"]) == (32, 36, 40, 60)
+               and uo["fed_res_poison"] == 76 and uo["fed_proc_faint"] == 128
+               and uo["el_love"] == 156 and uo["perm_vit"] == 172 and "buff_atk" not in uo)
     # MapOre_Rate: 25x32 dungeon rock/ore drop tables — area_id + 4 weighted ores.
     mo = next((p for p in EXTRACTED.rglob("MapOre_Rate.bin")), None)
     if mo:
@@ -907,6 +1142,24 @@ def test_mapground():
            "64->3x3, 51x42->3x2, 72->4x4, 128x48->6x3")
     mapground.tile_cache_clear()
     _check("mapground tile cache API", mapground.tile_cache_size() == 0, "clear -> size 0")
+    # Heuristic column count that does not divide the tile count (narrow tile at index 2
+    # -> 3 cols, 5 tiles): the short last row must still be laid out (rows used to be
+    # n // cols, so tile 3 indexed a row that did not exist -> IndexError).
+    _dims = {0: (512, 512), 1: (512, 512), 2: (256, 512), 3: (512, 512), 4: (512, 512)}
+    _fake = {mapground.tile_name("MAP_SELFTEST_SHORTROW", 0, i): i for i in _dims}
+    _orig_parse = mapground._tex.parse
+    try:
+        mapground._tex.parse = lambda b: {"width": _dims[b][1], "height": _dims[b][0]}
+        _lay = mapground.tile_layout(lambda fn: _fake.get(fn), "MAP_SELFTEST_SHORTROW", 0)
+        _ok = (_lay is not None and (_lay["cols"], _lay["rows"]) == (3, 2)
+               and [(t["x"], t["y"]) for t in _lay["tiles"]][3:] == [(0, 512), (512, 512)])
+    except Exception as e:
+        _lay, _ok = None, False
+        print(f"    {type(e).__name__}: {e}")
+    finally:
+        mapground._tex.parse = _orig_parse
+    _check("mapground tile_layout places a short last row (cols not dividing the tile count)", _ok,
+           str(_lay and (_lay["cols"], _lay["rows"])))
     if not (texture.HAS_PIL and texture.HAS_BC):
         _skip("mapground stitch", "Pillow/texture2ddecoder not installed")
         return
@@ -1068,6 +1321,17 @@ def test_search_items():
     # it -- tolerate at most one semantic-only file.
     _check("SI parse + round-trip", failed == 0 and semantic <= 1,
            f"{perfect} byte-perfect, {semantic} canonicalised, {failed} failed of {len(files)}")
+    # 2026-09-24: SearchItem_RollSpotsAndSpawnFromArchive counts spots and pool entries
+    # in u8 registers -> > 255 of either hangs the game; stock files are clean.
+    stock_err = [p.name for p in files
+                 if any(m.startswith("ERROR") for m in search_items.SearchItemFile.load(p).validate())]
+    pool = search_items.DropPool(entries=[search_items.DropEntry(1, 1)] * 256)
+    big = search_items.SearchItemFile(spots=[search_items.SearchSpot(80, 80, pool)] * 256)
+    vb = big.validate()
+    _check("SI validate: stock clean; 256 spots / 256-entry pool are fatal (u8 loop counters)",
+           not stock_err and sum(1 for m in vb if m.startswith("ERROR")) == 2
+           and search_items.SearchItemFile.parse(big.build()).validate() == vb,
+           ", ".join(stock_err[:3]) or f"{len(vb)} findings on the bad file")
     # generic NLCL footer (build-tool xref table): every listed reference must
     # store its target offset. Validate across ALL NLCL files, not just SI.
     nl_ok = nl_total = 0
@@ -1097,7 +1361,7 @@ def test_mobj_types():
            and 0 not in mobj_types.MOBJ_NAMES,
            "type 5 (forage) / 9 (map parameter) -> None")
     # Human notes for opaque effect sprites. 2026-08-31: the whole actor band
-    # 20..81 is identified from g_mapObjTypeInitTable (+0x228F530), so every
+    # 20..81 is identified from g_mapObjTypeInitTable (+0x4CF530), so every
     # fe*/gmk* type has a note now; plain scenery sprites (>= 82) still don't.
     _check("mobj note lookup",
            mobj_types.mobj_note(68) == "chimney smoke"
@@ -1277,6 +1541,11 @@ def test_minimap():
            and minimap.variants(80)[0]["when"] == "REG_MON_HOUSE0_L_LV == 1"
            and minimap.variants(85)[0]["when"] == "REG_MON_HOUSE0_R_LV == 1"
            and minimap.variants(271) == [] and len(minimap.variants(24)) == 4)
+    # Minimap_UpdateNpcIcons indexes a 12-byte stack counter array with icon_slot
+    _check("minimap validate_record: stock table clean; icon_slot 12 is fatal",
+           not any(minimap.validate_record(minimap.raw_record(i)) for i in range(minimap.map_count()))
+           and any(m.startswith("ERROR") for m in minimap.validate_record(
+               minimap.raw_record(130)[:9] + [12] + minimap.raw_record(130)[10:])))
     _check("minimap pos_to_sheet = origin + (scale * pos) >> 12",
            minimap.pos_to_sheet(161, 0, 0) == (94, 71)
            and minimap.pos_to_sheet(161, 4096, 4096) == (94 + 217, 71 + 201)
@@ -2958,6 +3227,16 @@ def test_save():
     named GameFlag edit (MSB-first, via emflags @ save+0x1E8C4). Skipped w/o a real save."""
     print("save (rf4_sNN.sav editor):")
     from rf4s_modkit import save
+    # scalar writes validate (season 0..3; a u32 overflow is a SaveError, not struct.error)
+    _sy = save.SaveFile(bytes(save.SAVE_SIZE))
+    _rej = 0
+    for _bad in (lambda: _sy.set("season", 4), lambda: _sy.set("day", -1), lambda: _sy.set("year", 1 << 32)):
+        try:
+            _bad()
+        except save.SaveError:
+            _rej += 1
+    _check("save scalar set validates (season 0..3, u32 range)",
+           _rej == 3 and _sy.set("season", 3).get("season") == 3)
     p = next(iter(sorted(REPO.glob("rf4_s[0-9][0-9].sav"))), None)   # a real save next to Bundle/
     if p is None:
         _skip("save editor", "no real rf4_sNN.sav present")
@@ -2998,6 +3277,17 @@ def test_schedule():
            all(0 <= w.slot <= 110 and w.room < 872 for w in wps))
     _check("schedule first stop = 06:00 day-start",
            scheds[0][0].slot == 24 and schedule.slot_to_time(24) == "06:00")
+    # NpcSchedule_PickRandomScheduleSlotByKind sums a kind's spot weights in a u8
+    sid = _first("rf3ScheduleID.bin")
+    if sid:
+        spots = schedule.load_spots(sid.read_bytes())
+        k = next(k for k in range(schedule.MAX_KIND + 1) if len(schedule.kind_records(k)) >= 2)
+        heavy = list(spots)
+        for i in schedule.kind_records(k):
+            heavy[i] = heavy[i]._replace(weight=200)
+        _check("schedule spot weights: shipped kinds fit the u8 total, a 2x200 kind is flagged",
+               schedule.spot_weight_problems(spots) == []
+               and schedule.spot_weight_problems(heavy) == [(k, 200 * len(schedule.kind_records(k)))])
 
 
 def test_gifts():
@@ -3026,6 +3316,20 @@ def test_gifts():
     _check("gift item-range #2 = vegetables (ids 1..54)",
            gifts.ITEM_RANGE_TABLE[2][:2] == (1, 55)
            and "vegetables" in gifts._fmt(gifts.Entry("category", 2, 0)))
+    # GiftTable_FindEntryByItemIdOrRangeOrCrossRef compares the whole target with item & 0x7FF
+    # and indexes the 12-pair g_itemCategoryRangeTable with the tag; FP codes are s16
+    _rej = 0
+    for _bad in (lambda: gifts.encode_target("item", 0x800), lambda: gifts.encode_target("category", 12),
+                 lambda: gifts.GiftTable([{"loved": [], "liked": [], "disliked": []}]).set_item(5, "loved", fp=40000),
+                 lambda: gifts.GiftTable([{"loved": [], "liked": [], "disliked": []}]).add(
+                     "liked", gifts.Entry("item", 0x7FFF, 9))):
+        try:
+            _bad()
+        except gifts.GiftError:
+            _rej += 1
+    _check("gift writer rejects targets/codes the lookup misreads (item > 0x7FF, range tag > 11, fp > s16)",
+           _rej == 4 and gifts.encode_target("item", 0x7FF) == 0x7FF
+           and gifts.encode_target("category", 11) == 0x800B)
     cat = _first("rf3PresentCategory.bin")
     if cat:
         cats = gifts.load_categories(cat.read_bytes())
@@ -3059,6 +3363,15 @@ def test_montame():
     buf = bytearray(d)
     montame.set_pref(buf, 48, 0, 777, 12)
     _check("montame edit round-trip", montame.prefs(bytes(buf), 48)[0] == (777, 12))
+    # MonsterTame_RollAttemptWithItem adds the bonus as an s16: >= 0x8000 would subtract
+    _rej = 0
+    for _b in (0x8000, 0xFFFF, -1):
+        try:
+            montame.set_pref(buf, 48, 0, 777, _b)
+        except ValueError:
+            _rej += 1
+    _check("montame rejects bonuses the s16 roll misreads", _rej == 3
+           and montame.prefs(bytes(buf), 48)[0] == (777, 12))
 
 
 def test_monster():
@@ -3073,7 +3386,12 @@ def test_monster():
     # Orc(48): IDA-verified stats + wind-resist / earth-weak elements
     m = monster.sheet(t, 48)
     _check("monster Orc(48) core stats",
-           m["hp"] == 48 and m["atk"] == 5 and m["model"] == 756 and m["ai_file"] == "AI_m00.bin")
+           m["hp"] == 48 and m["model"] == 756 and m["ai_file"] == "AI_m00.bin")
+    # ATK = flat_atk + STR, MAT = flat_mat + INT, DEF/MDF = flat + VIT/2 (Actor_RecomputeAllStats)
+    _check("monster Orc(48) ATK/DEF/MAT/MDF from flat + STR/INT/VIT",
+           (m["atk"], m["def"], m["mat"], m["mdf"]) == (13, 4, 5, 4)
+           and (m["str"], m["int"], m["vit"]) == (5, 3, 4)
+           and monster.STATUS[:4] == ["poison", "seal", "paralysis", "sleep"])
     _check("monster Orc(48) elements (wind resist, earth weak)",
            m["elements"]["wind"] < 0 and m["elements"]["earth"] > 0)
     _check("monster Orc(48) has drops", len(m["drops"]) == 4 and m["drops"][0]["item_id"] == 831)
@@ -3121,6 +3439,23 @@ def test_skillcurve():
         buf = bytearray(p.read_bytes())
         skillcurve.set_level_xp(buf, 5, 12345)
         _check("skillcurve edit round-trip", skillcurve.parse(bytes(buf))[5] == 12345)
+        # Player_gainEXP clamps skill XP to 0xFFFFFF: a larger threshold is unreachable, so the
+        # writer rejects it and --scale caps at it; the generic param path has the same limit
+        try:
+            skillcurve.set_level_xp(buf, 5, 0x1000000)
+            _rej = False
+        except ValueError:
+            _rej = True
+        _sc = skillcurve.scale_curve(bytearray(p.read_bytes()), 1e6)
+        from rf4s_modkit import nlcl as _nl
+        _t = _nl.NlclTable.load(p)
+        try:
+            _t.set_field(5, "xp_to_next", 0x1000000, "rf3ParamSkillExp")
+            _rej2 = False
+        except _nl.NlclError:
+            _rej2 = True
+        _check("skillcurve rejects/caps thresholds above the 0xFFFFFF XP clamp",
+               _rej and _rej2 and max(_sc) == skillcurve.MAX_XP)
     # family selection is data-independent (from the IDA switch)
     _check("skillcurve family map (Skill_GetLevelTable)",
            skillcurve.archive_for_skill(13) == 14821 and skillcurve.archive_for_skill(19) == 14823
@@ -3244,11 +3579,30 @@ def test_gen_structural():
         return
     g = gen.GenTable.load(a01)
     e1 = g.patterns[0][1]
-    _check("gen roster records are 8+4K bytes (GenA01 gate 1: Orc lv50 + Orc Archer lv20)",
+    _check("gen roster records are 8+4K bytes (GenA01 gate 1: Orc weight 50 + Orc Archer 20)",
            [(s.monster_id, s.level, s.weights) for s in e1.spawns]
            == [(48, 50, [20, 10]), (50, 20, [50, 10])]
+           and [s.pick_weight for s in e1.spawns] == [50, 20]
            and (e1.hdr.count_min, e1.hdr.count_max) == (2, 2),
            str([(s.monster_id, s.level) for s in e1.spawns]))
+    # 2026-09-24: consumers read the roster with record 0's stride, kinds 48..277 crash
+    # Encounter_SpawnMonsterFromTemplate, > 2 patterns overflow the gate slots.
+    stock_err = [p.name for p in files
+                 if any(m.startswith("ERROR") for m in gen.GenTable(p.read_bytes()).validate())]
+    gb = gen.GenTable.load(a01)
+    eb = gb.patterns[0][1]
+    gb.add_spawn(eb, 55, 10, weights=[10, 10, 10])      # K = 3 among K0 = 2 records...
+    gb.add_spawn(eb, 56, 10)                             # ...and not the last one
+    gb.set_gate_kind(0, 0, 100)                          # a monster id used as the gate
+    for _ in range(2):
+        gb.add_entry(len(gb.patterns), 359, 1, clone=eb)
+    vb = gb.validate()
+    _check("gen validate: stock has no fatal finding; mixed K / kind 100 / 3 patterns are fatal",
+           not stock_err
+           and any(m.startswith("ERROR") and "stride" in m for m in vb)
+           and any(m.startswith("ERROR") and "kind 100" in m for m in vb)
+           and any(m.startswith("ERROR") and "3 patterns" in m for m in vb),
+           ", ".join(stock_err[:3]) or f"{len(vb)} findings")
     g.add_spawn(e1, 55, 33)
     new = g.add_entry(0, 360, 7, clone=e1, share=False)
     g.add_monster_position(new, 400, 300)
@@ -3565,6 +3919,22 @@ def test_behaviour_edits():
                 same += rr.path(g, s, t_)[1] == comp.path(g, s, t_)[1] == c1
             _check("route rebuild-result reproduces the shipped path costs (sample)",
                    tried > 50 and same == tried, f"{same}/{tried}")
+        # 2026-09-24: Nav_BuildPathFromAToB hard-codes the 159-byte row stride, so a
+        # regenerated matrix must keep it whatever the node count (was ceil(n/2)).
+        tiny = route.RouteGraph.from_json({"format": "rf3route", "nodes": [
+            {"room": 0, "x": 0, "y": 0, "edges": [{"room": 0, "node": 1, "cost": 5}]},
+            {"room": 0, "x": 8, "y": 0, "edges": [{"room": 0, "node": 0, "cost": 5},
+                                                  {"room": 0, "node": 2, "cost": 5}]},
+            {"room": 0, "x": 16, "y": 0, "edges": [{"room": 0, "node": 1, "cost": 5}]}]})
+        tr = route.RouteResult.compute(tiny)
+        tr2 = route.RouteResult.parse(tr.build())
+        bad = route.RouteGraph.from_json({"format": "rf3route", "nodes": [
+            {"room": 0, "x": 0, "y": 0, "edges": [{"room": 0, "node": 7, "cost": 1}]}]})
+        _check("route compute keeps the engine's 159-byte stride for any node count; "
+               "validate flags a dangling edge; stock graph validates clean",
+               tr.stride == 159 and tr2.stride == 159 and tr2.path(tiny, 0, 2)[1] == 10
+               and any(m.startswith("ERROR") for m in bad.validate())
+               and not any(m.startswith("ERROR") for m in g.validate()))
     else:
         _skip("route checks", "no rf3route.bin present")
 
@@ -3619,6 +3989,28 @@ def test_asatk_edit():
     _check("asatk validate flags no END / backwards FRAME / unknown op",
            any("no END" in p for p in probs) and any("backwards" in p for p in probs)
            and any("no handler" in p for p in probs), f"{len(probs)} findings")
+    # 2026-09-24 audit (IDB): AnimEvent_Op0_WaitForFrame (+0xAB440) blocks only while arg > clock, so a
+    # backwards FRAME fires at once (the old message said it never fires); slot 64 of
+    # g_animEventOpHandlerTable is NULL and the pump (+0xA02E4) calls it unchecked, and
+    # AnimEvent_Op63_ChainNextActionIfFlag400 (+0xACE60) returns 0 on a miss -> 63,64 crashes
+    _check("asatk validate: backwards FRAME fires at once (not 'never fires')",
+           any("fires at once" in p for p in probs) and not any("never fires" in p for p in probs))
+    crash = asatk.validate(asatk.parse(asatk.build([(10, 1), (63, 5), (64, 2), (66, 0)]), stop_at_end=False))
+    after = asatk.validate(asatk.parse(asatk.build([(62, 5), (64, 2), (45, 0x01000001), (66, 0)]), stop_at_end=False))
+    _check("asatk validate: CHAIN_ONHIT+CHAIN_ANIM crash, pairs after CHAIN never run",
+           any("CHAIN_ANIM after CHAIN_ONHIT" in p for p in crash)
+           and any("after a CHAIN never runs" in p for p in after), f"{crash} / {after}")
+    rej = 0
+    for bad in ("FRAME 0x100000000", "@frame", "DASH 1e30q"):
+        try:
+            asatk.assemble(bad)
+        except asatk.AsatkError:
+            rej += 1
+    _check("asatk assembler rejects >32-bit operands and a bare @frame (was: silent wrap / IndexError)",
+           rej == 3, str(rej))
+    crashy = [p.name for p in files
+              if any("crashes" in w for w in asatk.validate(asatk.parse(p.read_bytes(), stop_at_end=False)))]
+    _check("asatk validate: no stock timeline has a crash-class finding", not crashy, str(crashy[:5]))
 
 
 def test_rows_em_structural_skill():
@@ -3875,6 +4267,26 @@ def test_bcenc_and_model_textures():
                 mx = d
         return mx, tot / max(len(a), 1)
 
+    # 0a. principal-axis seed: a red/green checker's axis (1,-1,0) is orthogonal to the
+    # grey diagonal; the old (1,..,1) power-iteration seed collapsed it to the flat mean.
+    chk = b"".join(bytes((255, 0, 0, 255)) if (i + i // 4) % 2 else bytes((0, 255, 0, 255))
+                   for i in range(16))
+    chk_err = {}
+    for kind in ("bc1", "bc3", "bc7"):
+        for use_np in ((True, False) if bcenc.HAS_NUMPY else (False,)):
+            dec = bcenc.decode(kind, bcenc.encode(kind, chk, 4, 4, use_numpy=use_np), 4, 4)
+            chk_err[(kind, use_np)] = sum((a - b) ** 2 for a, b in zip(chk, dec))
+    _check("bcenc: a red/green checker block (axis orthogonal to grey) encodes exactly",
+           all(v == 0 for v in chk_err.values()), str(chk_err))
+    # 0b. BC3 8-level alpha refit: entry k>=2 is ((8-k)*a0 + (k-1)*a1)/7; with those weights
+    # an exact ramp refits to its own endpoints (the old (7-k)/7 weight did not).
+    ramp = bcenc._bc3_alpha_palette(200, 10) * 2
+    cands = list(bcenc._bc3_alpha_candidates(ramp, min(ramp), max(ramp)))
+    _check("bcenc: BC3 8-level alpha least-squares refit reproduces an exact ramp's endpoints",
+           len(cands) == 3 and abs(cands[2][0] - 200) <= 1 and abs(cands[2][1] - 10) <= 1,
+           f"{cands} (old weights gave (220, 35))")
+    _upload_and_tile_checks()
+
     # 1. the flat-colour argument: with weight 21 mode 5 reaches every value 0..255
     tbl = bcenc._mode5_pairs()
     _check("BC7 mode-5 (weight 21) endpoint pairs reach every value 0..255",
@@ -3996,6 +4408,62 @@ def test_bcenc_and_model_textures():
                and n2[:t["brti_off"] + 0x1C] == mod[:t["brti_off"] + 0x1C]
                and n2[t["brti_off"] + 0x20:lo] == mod[t["brti_off"] + 0x20:lo] and n2[hi:] == mod[hi:]
                and texture.decode_bntx(n2, k) is not None)
+
+
+def _upload_and_tile_checks():
+    """MCTexture_GLUpload (RF4S.exe+0x2A34F0) compressed-size rules (texture.upload_problem)
+    and the block-linear .model slot rewrite; called from test_bcenc_and_model_textures."""
+    from PIL import Image
+    _check("upload_problem: BC1 needs a square block grid (exe sizes it from the width twice), "
+           "BC3/BC7 multiples of 4, raw formats free",
+           texture.upload_problem(0x1A01, 64, 32) and texture.upload_problem(0x1A01, 64, 64) is None
+           and texture.upload_problem(0x2001, 6, 8) and texture.upload_problem(0x2001, 8, 12) is None
+           and texture.upload_problem(0x1C01, 8, 6) and texture.upload_problem(0x0B01, 6, 5) is None)
+    tp = next(EXTRACTED.rglob("common_touchpocket_08.texture"), None)
+    if tp:
+        d = tp.read_bytes()
+        im = texture.decode_to_image(d)                  # 16x32 RGBA8, in-game orientation
+        try:
+            texture.encode_into(d, im, fmt="BC1")
+            e1 = "no error"
+        except texture.TextureError as e:
+            e1 = str(e)
+        ok3 = texture.parse(texture.encode_into(d, im, fmt="BC3"))["fmt_name"] == "BC3"
+        # RGBA8 has two codes (0x0B01 / 0x0B03); keep must not rewrite 0x0B03 as 0x0B01
+        d3 = bytearray(d)
+        px = texture.parse(d)["frame_list"][0]["pixl_off"]
+        struct.pack_into("<I", d3, px + 0x1C, 0x0B03)
+        keep3 = texture.encode_into(bytes(d3), texture.decode_to_image(bytes(d3)))
+        _check("encode_into refuses a format change the exe cannot upload (16x32 -> BC1), "
+               "allows BC3, and keeps the 0x0B03 RGBA8 code byte-exact",
+               "BC1" in e1 and "square" in e1 and ok3 and keep3 == bytes(d3), e1)
+    else:
+        _skip("encode_into upload check", "common_touchpocket_08.texture not extracted")
+    fm = next(EXTRACTED.rglob("SYS_MENU_FONT_FAILURE_chn.model"), None)
+    if fm:
+        d = fm.read_bytes()
+        infos = texture.bntx_info(d)
+        k = next((t["index"] for t in infos if t["tile"] != 1 and t["image_size"] > t["size"]), None)
+        if k is not None:
+            t = infos[k]
+            src = Image.new("RGBA", (t["width"], t["height"]))
+            src.putdata([((x * 7) & 255, (y * 5) & 255, 128, 255)
+                         for y in range(t["height"]) for x in range(t["width"])])
+            nb = texture.bntx_replace(d, k, src)
+            t2 = texture.bntx_info(nb)[k]
+            dec = texture.decode_bntx(nb, k)
+            _, mean = (0, 0) if dec is None else (0, sum(abs(a - b) for a, b in zip(
+                dec.convert("RGBA").tobytes(), src.tobytes())) / (4 * t["width"] * t["height"]))
+            nb2 = texture.bntx_replace(nb, k, src)
+            _check("bntx_replace writes a block-linear (tileMode 0) slot linear and marks it "
+                   "tile 1 / image size = payload (decodable, re-replaceable, file size unchanged)",
+                   len(nb) == len(d) and t2["tile"] == 1 and t2["image_size"] == t["size"]
+                   and dec is not None and mean < 4 and nb2 == nb,
+                   f"{fm.name} #{k} {t['name']} {t['width']}x{t['height']} mean err {mean:.2f}")
+        else:
+            _skip("bntx tile-0 rewrite", f"{fm.name}: no block-linear texture")
+    else:
+        _skip("bntx tile-0 rewrite", "SYS_MENU_FONT_FAILURE_chn.model not extracted")
 
 
 def test_script_authoring():
@@ -4248,6 +4716,44 @@ def test_script_authoring():
         except Exception:
             pass
     _check("assemble rejects unknown ops / undefined labels / malformed choices cleanly", rej == 5)
+    # --- PROMPT_CHOICE engine limits (2026-09-24, RF4S.exe Script_VMStep 0xFFF4/5 + ChoiceDialog_*)
+    _many = lambda k: "PROMPT_CHOICE_FORCED " + ", ".join("#%d->A" % i for i in range(k)) + "\nA:\nEND"
+    try:
+        scriptasm.assemble(_many(129), 0x1000)
+        _rej129 = False
+    except script.ScriptError:
+        _rej129 = True
+    _ok128 = len(scriptasm.assemble(_many(128), 0x1000)[0]) > 6 * 128
+    _check("assemble caps a choice at 128 options (the game drops rows past 0x80)",
+           _rej129 and _ok128 and script.MAX_CHOICE_OPTIONS == 128)
+    _L = scriptasm.lint_listing
+    _lv = lambda probs: [lvl for _pc, lvl, _m in probs]
+    _hide_all = _L("ClearChoiceVisibleRange 0, 32\nSetChoiceVisibleBit 40, 1\n"
+                   "PROMPT_CHOICE_FORCED #1->A, #2->A\nA:\nEND")
+    _hide_ok = _L("SetChoiceVisibleMask 1, 0\nPROMPT_CHOICE_FORCED #1->A, #2->A\nA:\nEND")
+    _check("choice lint: a mask that hides every option is an error (empty menu, div-by-zero)",
+           _lv(_hide_all) == ["error"] and _hide_ok == [], f"{_hide_all} / {_hide_ok}")
+    _cx = _L("PROMPT_CHOICE CANCEL->A, #1->A, #2->B\nA:\nEND\nB:\nEND")
+    _cy = _L("PROMPT_CHOICE CANCEL->B, #1->A, #2->B\nA:\nEND\nB:\nEND")
+    _check("choice lint: CANCEL != last option's target warns (cancel key picks the last row)",
+           _lv(_cx) == ["warning"] and _cy == [], f"{_cx} / {_cy}")
+    _tid = _L("PROMPT_CHOICE CANCEL->B, #1->A, #200000->B\nA:\nEND\nB:\nEND", text_count=1000)
+    _check("choice lint: option id outside the text archive is an error (shows entry 0)",
+           _lv(_tid) == ["error"] and "#200000" in _tid[0][2])
+    _mt = _L("SetChoiceVisibleMask 0, 1, 1\nPROMPT_CHOICE_FORCED #1->A, #2->B, #3->B\nA:\nEND\nB:\nEND")
+    _mt_ok = _L("SetChoiceVisibleMask 1, 1, 0\nPROMPT_CHOICE_FORCED #1->A, #2->B, #3->B\nA:\nEND\nB:\nEND")
+    _check("choice lint: per-option targets under a mask that shifts rows warn (jump = visible row)",
+           _lv(_mt) == ["warning"] and _mt_ok == [], f"{_mt} / {_mt_ok}")
+    try:                                              # the shipped 40-option menu: decodes + lints clean
+        _b252 = c.banks[252]
+        _st40 = script.decode_statement(_b252.data, 0x08a2)
+        _probs40 = script.choice_problems(_b252.data, [_st40])
+        _check("shipped 40-option menu (bank 252 @0x08a2) decodes with 40 items, cancel = last target",
+               _st40 is not None and _st40.mnem == "PROMPT_CHOICE" and len(_st40.items) == 40
+               and _st40.code_targets[0] == _st40.code_targets[-1] and _probs40 == [],
+               f"{_st40 and len(_st40.items)} items, {_probs40}")
+    except IndexError:
+        _skip("40-option menu", "bank 252 missing")
     # --- minting a new scene: type-table entry on an empty tail bank + a busy bank -------
     c5 = script.Container(raw)
     c5.set_asm_resolver(c.asm_resolver)
@@ -4295,6 +4801,108 @@ def test_script_authoring():
         except Exception:
             pass
     _check("entry ops reject a type past the table, a bad pc, a bad index and missing body cleanly", bad == 4)
+    # --- engine-faithful checks (2026-09-24 audit vs RF4S.exe) --------------------------------
+    # eval_expr = Script_EvalExpressionBytecode (RF4S.exe+0x23E1C0): int32 wrap, C division
+    # (truncate toward zero), x/0 saturates to INT_MAX/INT_MIN/0, x%0 = 0, and a tag the
+    # evaluator has no case for yields no value (not static).
+    _E = lambda bs: script.eval_expr(bytes(bs), 0)
+    _ev = [_E([0x18, 0xF9, 0x17, 2, 0x84, 0]), _E([0x18, 0xF9, 0x17, 2, 0x85, 0]),
+           _E([0x17, 5, 0x14, 0x84, 0]), _E([0x18, 0xFB, 0x14, 0x84, 0]), _E([0x14, 0x14, 0x84, 0]),
+           _E([0x17, 5, 0x14, 0x85, 0]), _E([1, 0xFF, 0xFF, 0xFF, 0x7F, 0x16, 0x86, 0]),
+           _E([0x17, 1, 5, 0, 0, 0x86, 0]), _E([5, 0x34, 0x12]), _E([0x17, 9])]
+    _check("eval_expr follows the engine's int32 arithmetic (trunc div, x/0 saturation, wrap, bad tags)",
+           _ev == [(-3, True), (-1, True), (0x7FFFFFFF, True), (-0x80000000, True), (0, True), (0, True),
+                   (-0x80000000, True), (None, False), (0x1234, True), (None, False)], repr(_ev))
+    # SceneState_ParseMycfHeaderAndInstallReaders (RF4S.exe+0x23DAB0): word 1 != 0 = big-endian,
+    # word 2 must be 0x10001 -- the parser is LE-only and the engine rejects other versions.
+    _hdr_bad = 0
+    for _w, _v in ((4, 1), (8, 0x10002)):
+        _b = bytearray(raw)
+        struct.pack_into("<I", _b, _w, _v)
+        try:
+            script.Container(bytes(_b))
+        except script.ScriptError:
+            _hdr_bad += 1
+    _check("Container refuses a big-endian or non-0x10001 MYCF header", _hdr_bad == 2)
+    # grow_bank on a ZERO-length bank: the bank starts at the insertion point and must keep its
+    # offset (the old rule shifted it past its own new bytes).
+    _z = bytearray(raw)
+    _zc = script.Container(bytes(_z))
+    _zt = next(b for b in _zc.banks if b.kind == "tail")
+    struct.pack_into("<II", _z, _zt.slot, _zt.file_off, 0)
+    _zc = script.Container(bytes(_z))
+    _zb = next(b for b in _zc.banks if b.kind == "tail" and b.index == _zt.index)
+    _zc.grow_bank(_zb, b"\xAB" * 8)
+    _zr = script.Container(_zc.build())
+    _zb2 = next(b for b in _zr.banks if b.kind == "tail" and b.index == _zt.index)
+    _check("grow_bank on a zero-length bank keeps its offset and holds exactly the new bytes",
+           bytes(_zb2.data) == b"\xAB" * 8 and _zb2.file_off == _zt.file_off)
+    # appended code lands on an even pc even when the bank size is odd (263 shipped banks are),
+    # so add_entry/set_entry (which require even event pcs) accept it.
+    c7 = script.Container(raw)
+    _odd = next(b for b in c7.banks if len(b.data) % 2 and len(b.data) < 0xF000 and b.table_slots > 6)
+    _pc7, _ = c7.add_entry(_odd, 6, [], listing="DIALOG #5\nEND")
+    _recs7 = _odd.entry_records(6)
+    c7.set_entry(_odd, 6, len(_recs7) - 1, event_pc=_pc7)
+    _check("code appended to an odd-sized bank starts on an even pc (add_entry/set_entry accept it)",
+           _pc7 % 2 == 0 and script.decode_statement(_odd.data, _pc7).mnem == "DIALOG")
+    # delete / insert_after refuse statements that never fall through (JMP, choices, ...).
+    _nf = None
+    for _b8 in c7.banks[:20]:
+        for _sc8 in script.disassemble_bank(_b8, discover=False):
+            _nf = next((s for s in _sc8.stmts.values()
+                        if s.mnem in ("JMP", "PROMPT_CHOICE", "SWITCH_GE") and s.size >= 4), None)
+            if _nf:
+                break
+        if _nf:
+            _nfb = _b8
+            break
+    _nfr = 0
+    if _nf is not None:
+        for _fn in (lambda: c7.delete_statement(_nfb, _nf.pc),
+                    lambda: c7.insert_after(_nfb, _nf.pc, "DIALOG #5")):
+            try:
+                _fn()
+            except script.ScriptError:
+                _nfr += 1
+    _check("delete_statement / insert_after refuse a statement that never falls through",
+           _nf is not None and _nfr == 2, _nf.mnem if _nf else "none found")
+    # assembler: malformed / out-of-range fields raise AsmError (never a raw ValueError or a
+    # silent mask); zero-target SWITCH_GE / JMP_IND / RAND_BR (which read past their table in
+    # Script_VMStep / Script_Opcode_FFF2_ExecPrim) and > 11 SpawnMapEntity args are refused.
+    _asm_bad = 0
+    _bad_listings = ["DIALOG #abc", "FRAME x", "FRAME 70000", "PROMPT_CHOICE CANCEL->L, #zz->L\nL: END",
+                     "SWITCH_GE (reg0) ->", "JMP_IND", "RAND_BR", "DIALOG #99999999999",
+                     "op5 u16(70000)", "op5 localvar[0x1FFFFFFFF]", "op5 @zz",
+                     "op157 " + ", ".join(["1"] * 12)]
+    for _t in _bad_listings:
+        try:
+            scriptasm.assemble(_t, 0x100)
+        except scriptasm.AsmError:
+            _asm_bad += 1
+        except Exception:
+            pass
+    _ok157 = scriptasm.assemble("op157 " + ", ".join(["1"] * 11), 0x100)[0][:4] == b"\x9d\x00\x0b\x00"
+    _check("assembler rejects malformed/out-of-range fields, empty jump tables and op-157 overflow cleanly",
+           _asm_bad == len(_bad_listings) and _ok157, "%d/%d" % (_asm_bad, len(_bad_listings)))
+    # speaker slots 25/26/29 are named from NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70);
+    # the old guestNN mnemonics still assemble.
+    _check("SetSpeaker slots 25/26/29 = Soldier/Ethelberd/Traveler; legacy guestNN mnemonics still assemble",
+           script.opcode_mnemonic(66) == "SetSpeakerSoldier" and script.opcode_mnemonic(69) == "SetSpeakerEthelberd"
+           and scriptasm.assemble("SetSpeakerguest25 0, 0", 0x100)[0][:2] == b"\x42\x00"
+           and scriptasm.assemble("SetSpeakerTraveler 0, 0", 0x100)[0][:2] == b"\x4a\x00")
+    # a packed var whose width is not emdeb's keeps its raw var:0x form (it would re-assemble
+    # with the emdeb width otherwise).
+    if emf is not None:
+        _v0 = emf.get("REG_MAIN_SCENARIO")
+        _enc_ok = c.pack_var(_v0.bit_offset, _v0.bit_width)
+        _enc_w = c.pack_var(_v0.bit_offset, _v0.bit_width + 1)
+        _t_ok = script.disasm_expr(b"\x02" + struct.pack("<I", _enc_ok) + b"\x00", 0)[0]
+        _t_w = script.disasm_expr(b"\x02" + struct.pack("<I", _enc_w) + b"\x00", 0)[0]
+        _check("packed-var names only stand for the emdeb width (other widths stay var:0x..)",
+               _t_ok == "REG_MAIN_SCENARIO" and _t_w.startswith("var:0x")
+               and scriptasm.asm_expr(_t_w, resolver) == b"\x02" + struct.pack("<I", _enc_w) + b"\x00",
+               "%s / %s" % (_t_ok, _t_w))
     # --- CLI surface (argparse wiring only) ----------------------------------------------
     try:
         import rf4mod as _rf4
@@ -4312,6 +4920,49 @@ def test_script_authoring():
         _check("`rf4mod script expr` compiles an expression from the CLI", False, "SystemExit")
     except Exception as e:
         _check("`rf4mod script expr` compiles an expression from the CLI", False, repr(e))
+    # listing names: opcodes that share a mnemonic (SetSpeaker left/right pairs, handler
+    # aliases like 218/219) print as Name_N instead of a bare opN, and every name assembles back
+    from rf4s_modkit import scriptasm as _sa
+    _ln = [_sa.listing_name(o) for o in range(script.DISPATCHABLE_ACTION_OPS)]
+    _bad = [(o, n) for o, n in enumerate(_ln) if _sa.op_from_any(n) != o]
+    _bare = [o for o, n in enumerate(_ln) if re.fullmatch(r"op\d+", n)]
+    _check("every action opcode has a unique listing name that assembles back (Name_N for shared names)",
+           not _bad and len(set(_ln)) == len(_ln) and len(_bare) <= 2 and _ln[53] == "SetSpeakerJones_53",
+           _bad[:3] or f"{len(_bare)} bare opN left: {_bare}")
+    # the developers' test menus: bank 18 (Jones) carries the event / festival / date menus
+    _tp = _first("rf3mc.eng")
+    _mc = _first("rf3.mc")
+    if _tp and _mc:
+        import rf4mod as _rf4m
+        try:
+            _dm = script.dev_menus(script.Container(_mc.read_bytes()), _rf4m._dialog_fn(str(_tp)), banks=[18])
+        except Exception as e:  # noqa: BLE001
+            _dm = []; print("   dev_menus:", e)
+        _items = {nm: (tgt, first) for _b, _s, _st, rows in _dm for nm, tgt, first in rows}
+        _check("dev_menus finds bank 18's three '＊' test menus and routes '＊Hand Over Recipe' to its line",
+               len(_dm) == 3 and _items.get("＊Hand Over Recipe", (None, None))[1] == 23914,
+               f"{len(_dm)} menus, {len(_items)} items")
+    else:
+        _skip("dev_menus", "needs rf3.mc + rf3mc.eng")
+    # actor names shared with alternate forms above the character range still name the
+    # character: Clorica = 2 (also 308), Ventuswill = 21 (also 235 / 982)
+    _names_ok = (script.actor_leaf_text(2) == "actor(Clorica)" and script.actor_leaf_text(21) == "actor(Ventuswill)"
+                 and script.actor_leaf_text(308) == "actor(308)" and script.actor_leaf_value("Clorica") == 2
+                 and script.actor_leaf_text(27) == "actor(27)")
+    _check("actor(Clorica) / actor(Ventuswill) name ids 2 / 21; Traveler / Soldier ids stay numeric", _names_ok)
+    # add / sub / set: ModifyPlayerResource / ModifyLumber / ApplyFriendshipDelta take their
+    # mode from an argument's token KIND (null / zero / self leaves = kinds 4 / 5 / 6)
+    if _mc:
+        _cm = script.Container(_mc.read_bytes())
+        _b252 = _cm.banks[252]
+        _sc = next((s for s in script.disassemble_bank(_b252) if 0x099A in s.stmts), None)
+        _st = _sc.stmts[0x099A] if _sc else None
+        _mode = scriptasm.operand_text(_b252.data, _st.args[1], _st.op, 1) if _st else None
+        _check("mode leaves list as add / sub / set and assemble back to the same leaf bytes",
+               _st is not None and _st.op == 417 and _mode == "add"
+               and scriptasm._LEAF_WORDS["add"] == _b252.data[_st.args[1]:_st.args[1] + 1]
+               and scriptasm._LEAF_WORDS["sub"] == b"\x12" and scriptasm._LEAF_WORDS["set"] == b"\x13",
+               f"{_mode!r}")
 
 
 def test_emflags_extras():
@@ -4670,6 +5321,97 @@ def test_models():
     img = model.render_overmodel(om, 99 * 3, 66 * 3, 3 / 8.0)
     _check("the over-model renders top-down with transparent gaps",
            img.getchannel("A").getbbox() is not None and img.getpixel((150, 100))[3] == 0)
+    # effect layers (ANIM_DUNG_*): BlendType 2 = SrcAlpha/One (Scene_SubmitDrawList
+    # RF4S.exe+0x1B9430), UVs tile far outside 0..1, the vertex alpha fades the strips
+    dung = [model.load(B / f"ANIM_DUNG_{n}.model") for n in ("A02", "B01")]
+    _check("ANIM_DUNG materials are additive (BlendType 2)",
+           all(mt.blend_type == 2 for m in dung for mt in m.materials),
+           [(mt.name, mt.blend_type) for m in dung for mt in m.materials])
+    try:
+        import numpy as _np
+    except ImportError:
+        _np = None
+    if _np is None:
+        _skip("preview wraps UVs and fades by vertex alpha", "numpy not installed")
+    else:
+        arr = _np.random.default_rng(1).random((8, 8, 4)).astype(_np.float32)
+        a = model._sample_repeat(_np, arr, _np.array([0.3, -0.45]), _np.array([0.6, 0.2]))
+        b = model._sample_repeat(_np, arr, _np.array([2.3, 0.55]), _np.array([-1.4, 3.2]))
+        _check("preview samples UVs with repeat wrap", _np.allclose(a, b))
+        water = model.render(dung[1], "top", 200).getchannel("A")
+        cover = sum(water.histogram()[1:]) / (water.width * water.height)
+        _check("tiled water sheets (UVs to 6x) are textured across each sheet", cover > 0.15,
+               f"{cover:.0%} of the frame covered; 1% before UVs wrapped")
+        # rf4cmv.bfsha's shaders never read _c0 (the converted data stores 0 there): the
+        # BM_* bosses carry pure-black vertex colours and must not render black
+        tank = model.load(B / "BM_12_0.model")
+        black = all(c[:3] == (0.0, 0.0, 0.0) for vb in tank.vertex_buffers for c in vb.data.get("_c0", []))
+        im = model.render(tank, "front", 160, background=(0, 0, 0, 255)).convert("RGB")
+        lit = sum(im.convert("L").histogram()[40:])
+        _check("vertex colour is ignored like the game's shader (black _c0 still renders textured)",
+               black and lit > 0.2 * im.width * im.height, f"{lit} of {im.width * im.height} px lit")
+        cut = model.render(tank, "front", 160).getchannel("A").histogram()
+        partial = sum(cut[1:255])
+        # RGBA4444 is drawn with A in the top nibble and R in the low one (Rafflesia's leaves
+        # are green in-game); every shipped one has a 0/15-only top nibble = punch-out alpha
+        import struct as _st
+        a44, rt = [], []
+        for mf in ("BM_11_1", "BM_12_0", "M04_2"):
+            md = (B / f"{mf}.model").read_bytes()
+            for t in texture.bntx_info(md):
+                if t["fmt_name"] != "RGBA4444":
+                    continue
+                im4 = texture.decode_bntx(md, t["index"]).convert("RGBA")
+                a44.append(set(im4.getchannel("A").getdata()) <= {0, 255})
+                raw = md[t["data_off"]:t["data_off"] + t["image_size"]]
+                rt.append(texture._encode_raw(im4, "RGBA4444") == raw)
+        _rd = (B / "BM_11_2.model").read_bytes()          # BM_11_02 = the Ruffled Vine / Rafflesia leaves
+        raff = texture.decode_bntx(_rd, next(t["index"] for t in texture.bntx_info(_rd)
+                                             if t["name"] == "BM_11_02")).convert("RGB").resize((1, 1))
+        rr, gg, bb = raff.getpixel((0, 0))
+        _check("RGBA4444 decodes alpha from the top nibble (0/255 only) and re-encodes byte-exact",
+               a44 and all(a44) and all(rt), f"{len(a44)} textures")
+        _check("Rafflesia's leaf texture comes out leaf-coloured (not the red tint of R-in-top-nibble)",
+               gg > rr and gg > bb, f"mean rgb {(rr, gg, bb)}")
+        _check("costume shading punches alpha out (only 0 or 255 left, alpha test 0.5)",
+               tank.materials[0].shading == "costume" and partial < 0.02 * sum(cut), f"{partial} partial px")
+    # material animations (.bfmat): AnimChannel_SampleAsFloat curves driving texsrt0
+    from rf4s_modkit import matanim
+    bf = sorted(B.glob("*.bfmat"))
+    bad = []
+    for f in bf:
+        try:
+            matanim.parse(f.read_bytes())
+        except Exception as e:  # noqa: BLE001
+            bad.append((f.name, str(e)))
+    _check("every .bfmat material animation parses", bf and not bad, bad[:3] or f"{len(bf)} files")
+    a02 = matanim.load(B / "ANIM_DUNG_A02.bfmat")
+    fr_at = (0, 60, 120, 180, 239)
+    tx = [a02.materials[0].params[0].value(fr)[4] for fr in fr_at]
+    steps = [(b - a) / (fb - fa) for a, b, fa, fb in zip(tx[:4], tx[1:4], fr_at, fr_at[1:4])]
+    # linear over the one cubic segment; at frame 239 the seek lands on the last key itself
+    # (AnimCurve_SeekKey_FrameS8), whose quantized value is 0.992
+    _check("ANIM_DUNG_A02: lite_burst texsrt0 translate-U scrolls ~1 texture per 240-frame loop",
+           a02.loops and a02.frame_count == 239 and abs(tx[0]) < 0.01 and abs(tx[-1] - 1) < 0.02
+           and max(steps) - min(steps) < 1e-4, f"tx {[round(v, 3) for v in tx]}")
+    ident = matanim.texsrt_matrix([0, 1.0, 1.0, 0.0, 0.0, 0.0])
+    moved = matanim.apply_uv(matanim.texsrt_matrix([0, 1.0, 1.0, 0.0, 0.25, 0.0]), 0.5, 0.5)
+    _check("texsrt mode 0 (TexSrt_BuildMatrix2x3_PivotA): identity at rest, u' = u - tx",
+           all(abs(x - y) < 1e-6 for r, q in zip(ident, ((1, 0, 0), (0, 1, 0))) for x, y in zip(r, q))
+           and abs(moved[0] - 0.25) < 1e-6 and abs(moved[1] - 0.5) < 1e-6, f"{moved}")
+    cv = a02.materials[0].params[0].curves[0]
+    import copy as _copy
+    rep_cv = _copy.copy(cv); rep_cv.flags = (cv.flags & ~0x3000) | 0x1000       # post-wrap repeat
+    rel_cv = _copy.copy(cv); rel_cv.flags = (cv.flags & ~0x3000) | 0x3000; rel_cv.delta = 1.0
+    _check("curve wrap modes follow AnimChannel_SampleAsFloat (clamp / repeat / relative)",
+           abs(cv.evaluate(300) - cv.evaluate(239)) < 1e-6 and abs(rep_cv.evaluate(300) - cv.evaluate(61)) < 1e-6
+           and abs(rel_cv.evaluate(300) - (cv.evaluate(61) + 1.0)) < 1e-6)
+    if _np is not None:
+        f0 = model.render(dung[0], "top", 160, anim=a02, frame=0)
+        f60 = model.render(dung[0], "top", 160, anim=a02, frame=60)
+        loop = model.render(dung[0], "top", 160, anim=a02, frame=a02.frame_count)
+        _check("the preview scrolls with the animation and loops at the frame count",
+               f0.tobytes() != f60.tobytes() and f0.tobytes() == loop.tobytes())
     # export
     tmp = pathlib.Path(tempfile.mkdtemp())
     npc = model.load(B / "NPC_C_BADO.model")
@@ -5357,6 +6099,26 @@ def test_asset_explorer_gui():
         cutscene_editor.CutsceneExplorer(win, reader=app.source.read_named)
         dt = time.perf_counter() - t0
         _check("Cutscene editor opens without the all-bank coverage pass (< 2 s)", dt < 2.0, "%.2f s" % dt)
+        # an ANIM_DUNG_* effect model finds its .bfmat and plays it in the Model tab
+        show("ANIM_DUNG_A02.model")
+
+        def widgets(w):
+            for c in w.winfo_children():
+                yield c
+                yield from widgets(c)
+        btns = [w for w in widgets(app.content) if w.winfo_class() == "TButton" and str(w.cget("text")) == "Play"]
+        labels = [w for w in widgets(app.content) if w.winfo_class() == "TLabel"
+                  and str(w.cget("text")).startswith("frame ")]
+        before = str(labels[0].cget("text")) if labels else None
+        if btns:
+            btns[0].invoke()
+            t_end = time.perf_counter() + 0.6
+            while time.perf_counter() < t_end:
+                root.update(); time.sleep(0.02)
+            btns[0].invoke()
+        after = str(labels[0].cget("text")) if labels else None
+        _check("the Model tab plays an effect model's .bfmat (Play advances the frame)",
+               bool(btns) and before != after and not app._model_playing, f"{before!r} -> {after!r}")
         _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()

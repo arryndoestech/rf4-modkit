@@ -906,7 +906,9 @@ class MapEditorPanel:
             sev, _, msg = s.partition(": ")
             out.append((sev, "map", msg))
         if d.gen is not None:
-            out += [("WARN", "encounters", m) for m in d.gen.validate()]
+            for s in d.gen.validate():
+                sev, _, msg = s.partition(": ")
+                out.append(("ERROR", "encounters", msg) if sev == "ERROR" else ("WARN", "encounters", s))
         if d.si is not None and d.grid:
             W, H, _ = d.grid
             for i, sp in enumerate(d.si.spots):
@@ -1028,6 +1030,12 @@ class MapEditorPanel:
         d = self.doc
         if d is None or d.gen is None:
             messagebox.showinfo("Save encounters", "This map has no encounter table.")
+            return False
+        fatal = [m for s, where, m in self.validate() if s == "ERROR" and where == "encounters"]
+        if fatal and not messagebox.askyesno(
+                "Encounters have fatal problems", "The game would crash or hang on this table:\n\n"
+                + "\n".join("• " + x for x in fatal[:6]) + ("\n…" if len(fatal) > 6 else "")
+                + "\n\nSave anyway?"):
             return False
         p = self._ask_path("Save encounters", d.gen_path.name if d.gen_path else "Gen.bin", ".bin", "Gen table")
         if not p:

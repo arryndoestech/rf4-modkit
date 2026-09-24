@@ -258,7 +258,13 @@ def _principal_axis(pts, dims):
                 row = cov[i]
                 for j in range(dims):
                     row[j] += di * d[j]
-    v = [1.0] * dims
+    # Seed with the covariance column of largest norm, NOT (1,..,1): a cloud whose axis is
+    # orthogonal to the grey diagonal (a red/green checker: axis (1,-1,0)) maps (1,..,1) to
+    # zero and the block collapsed to its flat mean colour.
+    v = max(([cov[i][j] for i in range(dims)] for j in range(dims)),
+            key=lambda col: sum(x * x for x in col))
+    if sum(x * x for x in v) < 1e-18:
+        v = [1.0] * dims
     for _ in range(8):
         nv = [sum(cov[i][j] * v[j] for j in range(dims)) for i in range(dims)]
         nrm = sum(x * x for x in nv) ** 0.5
@@ -462,7 +468,7 @@ def _bc3_alpha_candidates(alphas, amin, amax):
         wts = []
         for a in alphas:
             k = min(range(8), key=lambda c: abs(a - pal[c]))
-            f = (1.0, 0.0) if k == 0 else (0.0, 1.0) if k == 1 else ((7 - k) / 7.0, (k - 1) / 7.0)
+            f = (1.0, 0.0) if k == 0 else (0.0, 1.0) if k == 1 else ((8 - k) / 7.0, (k - 1) / 7.0)
             wts.append(f)
         n0, n1 = _ls_refit([(a,) for a in alphas], wts, 1, [float(amax)], [float(amin)])
         a0, a1 = int(n0[0] + 0.5), int(n1[0] + 0.5)
@@ -489,7 +495,11 @@ def _bc3_block_py(px) -> bytes:
 def _axis_np(c):
     """Unit principal axis of centred points c (N, P, D) by power iteration."""
     cov = np.einsum("npi,npj->nij", c, c)
-    v = np.ones((c.shape[0], c.shape[2]))
+    # Seed = covariance column of largest norm (see _principal_axis): a (1,..,1) seed is
+    # annihilated when the axis is orthogonal to the grey diagonal (red/green blocks).
+    cn = (cov * cov).sum(1)                                        # (N, D) column norms
+    v = np.take_along_axis(cov, cn.argmax(1)[:, None, None], 2)[:, :, 0]
+    v = np.where((cn.max(1) > 1e-18)[:, None], v, 1.0)
     for _ in range(8):
         v = np.einsum("nij,nj->ni", cov, v)
         nrm = np.sqrt((v * v).sum(1, keepdims=True))
@@ -820,7 +830,7 @@ def _bc3_alpha_np(al):
     evaluate(imin, imax)                       # 6-level mode (0/255 come free)
     idx8 = evaluate(amax, amin)                # 8-level mode over the full range
     k = idx8.astype(np.float64)
-    a = np.where(idx8 == 0, 1.0, np.where(idx8 == 1, 0.0, (7 - k) / 7.0))
+    a = np.where(idx8 == 0, 1.0, np.where(idx8 == 1, 0.0, (8 - k) / 7.0))   # entry k>=2 = ((8-k)a0 + (k-1)a1)/7
     b = np.where(idx8 == 0, 0.0, np.where(idx8 == 1, 1.0, (k - 1) / 7.0))
     n0, n1 = _refit_np(al[:, :, None], a, b, amax[:, None], amin[:, None])
     r0 = np.floor(n0[:, 0] + 0.5); r1 = np.floor(n1[:, 0] + 0.5)

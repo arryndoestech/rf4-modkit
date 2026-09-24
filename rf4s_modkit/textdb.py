@@ -8,13 +8,20 @@ numeric id through `nsFileArchive` (item names id 16356, item descriptions 16360
 NPC/monster names 16369, dialogue, quest text, skill names, ...). See
 docs/09-file-formats.md §8 for the archive-id catalogue.
 
-Layout (verified against the corpus and the loader's index math):
+Layout (verified against the corpus and the loader, Text_CopyArchiveEntry @
+RF4S.exe+0x241310 via Text_LoadStringFromArchive @ +0x232290):
 
     +0x00  char[4]  "TEXT"
     +0x04  u32      entry_count
     +0x08  entry_count x { u32 length; u32 offset }   # offset ABSOLUTE from file start,
                                                        # length EXCLUDES the NUL terminator
     +...   string blobs, each NUL-terminated, stored consecutively
+
+The game copies exactly `length` bytes from `offset` and appends its own NUL, so the
+stored terminator is never read and no alignment is required; an index >= entry_count
+silently falls back to entry 0. Most archives end each string with one NUL, but 31
+shipped .jpn/.kor/.twn catalogs use two (`\0\0`); `parse` records the width in
+`terminator` and `build` reuses it, so every shipped archive rebuilds byte-exact.
 
 Strings are byte-faithful on read; decode with whatever encoding the locale uses
 (English/European = UTF-8/ASCII; Japanese/Chinese/Korean = UTF-8 in the PC port).
@@ -37,9 +44,11 @@ class TextDbError(Exception):
 
 
 class TextArchive:
-    """A parsed TEXT archive. `entries` is a list of raw `bytes` (no NUL)."""
+    """A parsed TEXT archive. `entries` is a list of raw `bytes` (no NUL).
+    `terminator` is the NUL count written after each string (1, or 2 in some CJK
+    catalogs; the game ignores it)."""
 
-    def __init__(self, entries: list[bytes]):
+    def __init__(self, entries: list[bytes], terminator: int = 1):
         # Guard the easy footgun: passing RAW archive bytes (or a str) instead of a list of
         # per-line entries. `list(b"...")` silently yields a list of ints, so text() would return
         # garbage with no error. Point the caller at the real parsers instead.
@@ -48,6 +57,7 @@ class TextArchive:
                 "TextArchive() takes a list of per-line `bytes`, not raw archive data -- "
                 "use TextArchive.parse(data) or TextArchive.load(path) to parse a TEXT archive.")
         self.entries: list[bytes] = list(entries)
+        self.terminator = terminator
 
     # ---- parsing --------------------------------------------------------- #
     @classmethod
@@ -60,6 +70,7 @@ class TextArchive:
         if count > (len(data) // 8):
             raise TextDbError(f"implausible entry_count {count} for {len(data)}-byte file")
         entries = []
+        spans = []
         for i in range(count):
             length, offset = struct.unpack_from("<II", data, 8 + i * 8)
             if offset == 0 and length == 0:
@@ -68,7 +79,21 @@ class TextArchive:
             if offset + length > len(data):
                 raise TextDbError(f"entry {i} runs past EOF (off={offset}, len={length})")
             entries.append(data[offset:offset + length])
-        return cls(entries)
+            if length:
+                spans.append((offset, length))
+        return cls(entries, terminator=cls._detect_terminator(data, spans))
+
+    @staticmethod
+    def _detect_terminator(data: bytes, spans) -> int:
+        """2 when every stored string is followed by exactly two NULs, else 1."""
+        if not spans:
+            return 1
+        spans = sorted(set(spans))
+        for k, (off, ln) in enumerate(spans):
+            nxt = spans[k + 1][0] if k + 1 < len(spans) else len(data)
+            if nxt - (off + ln) != 2 or data[off + ln:off + ln + 2] != b"\x00\x00":
+                return 1
+        return 2
 
     @classmethod
     def load(cls, path) -> "TextArchive":
@@ -113,7 +138,7 @@ class TextArchive:
                 continue
             off = strdata_start + len(blob)
             table += struct.pack("<II", len(e), off)
-            blob += e + b"\x00"
+            blob += e + b"\x00" * self.terminator
         return MAGIC + struct.pack("<I", count) + bytes(table) + bytes(blob)
 
     def save(self, path):

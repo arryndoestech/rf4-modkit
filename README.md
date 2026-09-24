@@ -82,6 +82,7 @@ tools/modding/
     ├── mbundle.py       # .mbundle archives     read + repack + Manifest sync
     ├── ident.py         # magic-based file-type identification
     ├── textdb.py        # TEXT string archives  read + write  (translations!)
+    ├── matanim.py       # .bfmat material animations  parse + evaluate (texsrt UV scroll of the ANIM_DUNG_* light / water layers)
     ├── texture.py       # .texture (BC7/RGBA8)  decode->PNG + encode from PNG into ANY template (flipbooks too); .model textures in place
     ├── bcenc.py         # BC1/BC3/BC7 encoders  same-size re-encodes (numpy-accelerated, pure-Python fallback)
     ├── rf4m.py          # .rf4m maps            parse + rebuild + full edit
@@ -513,7 +514,7 @@ names, grammar help, xrefs), `app` (the window).
 | Monster taming foods | `rf3MonsterPresent.bin` | `rf4mod gift monster-set` / `monster-clear` | ✅ the 4 per-species (item, tame bonus) slots |
 | NPC daily schedules | `rf3Schedule.bin` + `rf3ScheduleID.bin` | `rf4mod schedule` | ✅ per-(NPC, state) itineraries: set / add / remove stops, JSON decode → edit → encode (index sections recomputed; stock re-encodes byte-exact); spot kinds resolved to rooms |
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
-| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render`; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture **in place** in its own block format — file size and every container field unchanged |
+| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.bfmat` material animations played**: `res model-gif` and Play in the GUI's Model tab; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture **in place** in its own block format — file size and every container field unchanged |
 | Emote / portraits | `.psbData` `.emtbytes` | `rf4mod res` | 🔍 inspect (M2 PSB) |
 | Audio | `.ogg` `.wav` `.aif` | `rf4mod ident` | ➡️ swap (standard formats) |
 | Video | `.webm` | `rf4mod ident` | ➡️ swap (re-encode w/ ffmpeg) |
@@ -580,6 +581,7 @@ python rf4mod.py map ground-import MAP_FIELD_01 ground.png -o overrides/   # -> 
 python rf4mod.py res model-info NPC_C_BADO.model --bones             # shapes, materials, skeleton
 python rf4mod.py res model-export NPC_C_BADO.model out/              # OBJ + MTL + texture PNGs
 python rf4mod.py res model-render MAP_CITY_00.model --view top       # textured preview PNG
+python rf4mod.py res model-gif ANIM_DUNG_B01.model b01.gif          # one loop of its .bfmat (water scroll)
 
 # Textures inside a .model (map over-model scenery cards, character/monster/weapon/effect models)
 python rf4mod.py res texture-list MAP_CITY_00.model                    # index, name, format, size
@@ -632,6 +634,7 @@ written as expressions (`DistanceToTarget <= 110`, `RandomChance(50)`, `ActorIsN
 # Edit a cutscene / event script (rf3.mc): find a scene by its dialogue, read it, then
 # reword a line, retune an action arg, or insert a beat — every edit is byte-safe.
 python rf4mod.py script find rf3.mc "about to call you" --text rf3mc.eng   # → bank + pc of matches
+python rf4mod.py script dev-menus rf3.mc --text rf3mc.eng --bank 18  # the devs' ＊ test menus: event / festival / date → routine pc
 python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng --friendly # read the scene (author names)
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)

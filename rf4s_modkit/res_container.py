@@ -2,7 +2,7 @@ r"""
 res_container.py -- structural inspector for Nintendo NN containers used by RF4S.
 
 Covers the resource families that the PC port loads VERBATIM and only runs a
-pointer-fixup over (BFRES_FixupRelocationPointers, RF4S.exe+0x1CAA00):
+pointer-fixup over (BFRES_FixupRelocationPointers, RF4S.exe+0x3CAA00):
 
     .model   RES\0 wrapper around BFRES  (GfxCTR::Model)
     .texture RES\0 / BNTX                 (handled fully by texture.py)
@@ -20,9 +20,10 @@ locate the relocation table, enumerate the 4-char sub-block tags present, and re
 sizes -- enough to validate that a replacement file is the right type and shape
 before you inject it via a loose file or bundle repack.
 
-Relocation-table start (verified, BFRES_GetRelocationTableStart +0x1CA9B0):
+Relocation-table start (verified, BFRES_GetRelocationTableStart +0x3CA9B0):
   header[0] == 'R' (RES\0)  -> offset stored at +0x10
   otherwise (FRES/BNTX/...)  -> offset stored at +0x18
+PSB (M2 Emote) is not an NN container and has no such relocation table.
 """
 from __future__ import annotations
 
@@ -62,9 +63,9 @@ def inspect(data: bytes) -> dict:
     if magic is None:
         raise ResError(f"not a known NN container (magic={data[:4]!r})")
     is_res = data[0:1] == b"R"
-    reloc_field = 0x10 if is_res else 0x18
+    reloc_field = None if data[:4] == b"PSB\x00" else 0x10 if is_res else 0x18
     reloc_off = None
-    if len(data) >= reloc_field + 4:
+    if reloc_field is not None and len(data) >= reloc_field + 4:
         reloc_off = struct.unpack_from("<I", data, reloc_field)[0]
 
     # Enumerate which known sub-block tags appear, with first offset + count.
@@ -92,8 +93,10 @@ def summary(data: bytes) -> str:
     info = inspect(data)
     tags = ", ".join(f"{k}x{v['count']}" for k, v in info["subblocks"].items()) or "(none)"
     rel = info["reloc_table_offset"]
-    rel_s = f"0x{rel:X}" if rel is not None else "?"
+    rel_s = f"0x{rel:X}" if rel is not None else "-"
+    fld = info["reloc_table_field"]
+    fld_s = f"offset field +0x{fld:X}" if fld is not None else "PSB: no NN relocation table"
     return (f"{info['magic']}\n"
             f"  size            : {info['size']:,} bytes\n"
-            f"  reloc table @   : {rel_s}  (offset field +0x{info['reloc_table_field']:X})\n"
+            f"  reloc table @   : {rel_s}  ({fld_s})\n"
             f"  sub-blocks      : {tags}")

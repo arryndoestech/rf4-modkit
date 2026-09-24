@@ -45,6 +45,26 @@ Material user data read by the game: `DrawOrder`, `BlendType`, `CombineType`,
 map over-models, whose value becomes the mesh's depth as po * 1.5 - 0.3 (Map_SpawnEntity,
 RF4S.exe+0x194140).
 
+Blending: the loader keeps `BlendType` only when it is 0..4 (anything else -> 0), and
+Scene_SubmitDrawList (RF4S.exe+0x1B9430) binds one of five blend states by it. The states
+are built at boot by NN_AllocAndRegisterDefaultConfigBlocks5 (RF4S.exe+0x1C4690) through
+GfxCTR_ConvertBlendState (+0x3CA210), as nn::gfx (source, destination) factors:
+    0 blending off                    1 SrcAlpha, 1-SrcAlpha (normal alpha)
+    2 SrcAlpha, One (additive glow)   3 One, One (pure additive)   4 One, Zero
+Effect layers such as the ANIM_DUNG_* light shafts and water sheets are BlendType 2: an
+opaque-looking stripe or caustic texture ADDED onto the scene. Their UVs run far outside
+0..1 (up to 20 repeats), so the texture tiles. The `.bfmat` next to them is an FMAA
+material animation of the `texsrt0` shader parameter (a U or V scroll, see matanim.py).
+
+Shading (the GLSL source shipped inside Bundle/bundleMain/rf4cmv.bfsha, the one shader
+archive every material names): the vertex colour `_c0` is declared but NEVER read -- a
+comment in the vertex shader notes the converted data carries 0.0 there, so it is
+ignored (222 costume shapes, e.g. the BM_* bosses, store pure black). The fragment colour
+is the albedo texture times the light / combine terms; alpha depends on the shading model
+(Material.shader[1]):
+    body      texture alpha kept as is; pixels under 1/255 are discarded
+    costume   punch-out: discarded below `alpha_test` (shader default 0.5), else alpha 1
+
 Map over-models (`MAP_*.model`): every card is a flat quad in the model's XZ plane,
 rigidly bound to its own bone (skin 0) whose translation places it. Model units ARE map
 sub-units (8 per ATTR tile): X runs with the map's X and Z with the map's Y, so
@@ -62,6 +82,10 @@ from . import texture
 class ModelError(Exception):
     pass
 
+
+# costume shading: `alpha_test` default in rf4cmv.bfsha (no shipped material overrides it
+# in the user data this module reads)
+COSTUME_ALPHA_TEST = 0.5
 
 _COMPONENTS = {0x14: 1, 0x17: 2, 0x18: 3, 0x19: 4}
 _SCALAR = {0x05: "f", 0x03: "I"}
@@ -122,6 +146,18 @@ class Material:
     textures: list               # texture names (resolved against the embedded BNTX)
     shader: tuple                # (archive, model) names, e.g. ('rf4cmv', 'body')
     user_data: dict              # name -> list of values
+
+    @property
+    def shading(self):
+        """The rf4cmv shading model: 'body' (alpha as is), 'costume' (punch-out) or 'lighting'."""
+        return self.shader[1] if len(self.shader) > 1 else ""
+
+    @property
+    def blend_type(self):
+        """0..4 as the loader keeps it (GfxCTR_Model_BuildFromResource: missing or > 4 -> 0)."""
+        v = self.user_data.get("BlendType")
+        v = v[0] if v and isinstance(v[0], int) else 0
+        return v if 0 <= v <= 4 else 0
 
 
 @dataclass
@@ -393,7 +429,7 @@ def overmodel_cards(model):
 
 def render_overmodel(model, width_px, height_px, px_per_unit, *, textures=None):
     """Draw a map over-model top-down onto a transparent RGBA image of the given size:
-    each card's texture mapped through its UVs (one affine warp per triangle).
+    each card's texture mapped through its UVs (one affine warp per triangle, UVs wrap).
     `px_per_unit` = pixels per sub-unit (cell pixels / 8). `textures` optionally caches
     {texture name: PIL image} across calls."""
     from PIL import Image, ImageChops, ImageDraw
@@ -410,10 +446,9 @@ def render_overmodel(model, width_px, height_px, px_per_unit, *, textures=None):
         tex = textures[card.texture]
         if tex is None:
             continue
-        tw, th = tex.size
         for tri in card.triangles:
             dst = [(p[0] * px_per_unit, p[1] * px_per_unit) for p, _uv in tri]
-            src = [(uv[0] * tw, uv[1] * th) for _p, uv in tri]
+            src_img, src = _wrapped_source(tex, [uv for _p, uv in tri])
             x0, y0 = int(math.floor(min(p[0] for p in dst))), int(math.floor(min(p[1] for p in dst)))
             x1, y1 = int(math.ceil(max(p[0] for p in dst))), int(math.ceil(max(p[1] for p in dst)))
             if x1 <= x0 or y1 <= y0:
@@ -421,12 +456,35 @@ def render_overmodel(model, width_px, height_px, px_per_unit, *, textures=None):
             coeffs = _affine_dst_to_src(dst, src, x0, y0)
             if coeffs is None:
                 continue
-            patch = tex.transform((x1 - x0, y1 - y0), Image.AFFINE, coeffs, resample=Image.BILINEAR)
+            patch = src_img.transform((x1 - x0, y1 - y0), Image.AFFINE, coeffs, resample=Image.BILINEAR)
             mask = Image.new("L", patch.size, 0)
             ImageDraw.Draw(mask).polygon([(x - x0, y - y0) for x, y in dst], fill=255)
             patch.putalpha(ImageChops.multiply(patch.getchannel("A"), mask))
             _paste_clipped(img, patch, x0, y0)
     return img
+
+
+_MAX_TILED_PX = 4096 * 4096
+
+
+def _wrapped_source(tex, uvs):
+    """(source image, [(x, y)] pixel coords) for an affine paste of a triangle whose UVs may
+    leave 0..1: the texture is tiled over the triangle's whole UV range (REPEAT wrap, as the
+    game samples it -- e.g. MAP_ROOM_25/26 and the ANIM_DUNG_* effect sheets tile up to 23x)
+    and the UVs are shifted into it. Falls back to the plain texture when the tiling would
+    exceed ~16 Mpx."""
+    tw, th = tex.size
+    us, vs = [uv[0] for uv in uvs], [uv[1] for uv in uvs]
+    iu0, iv0 = math.floor(min(us)), math.floor(min(vs))
+    nu, nv = max(1, math.ceil(max(us)) - iu0), max(1, math.ceil(max(vs)) - iv0)
+    if (iu0, iv0, nu, nv) == (0, 0, 1, 1) or nu * nv * tw * th > _MAX_TILED_PX:
+        return tex, [(u * tw, v * th) for u, v in zip(us, vs)]
+    from PIL import Image
+    tiled = Image.new(tex.mode, (tw * nu, th * nv))
+    for j in range(nv):
+        for i in range(nu):
+            tiled.paste(tex, (i * tw, j * th))
+    return tiled, [((u - iu0) * tw, (v - iv0) * th) for u, v in zip(us, vs)]
 
 
 def _paste_clipped(img, patch, x0, y0):
@@ -462,25 +520,76 @@ VIEWS = {
 }
 
 
-def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=None):
-    """A textured preview of the whole model (orthographic, painter's-sorted triangles,
-    no lighting) as a PIL RGBA image of at most `size` px on its longer side. Views:
-    front / back / side / top. Map over-models are best seen from the top."""
-    from PIL import Image, ImageChops, ImageDraw
-    proj = VIEWS[view]
-    textures = {} if textures is None else textures
+def _triangles(model, proj, uv_mtx=None):
+    """[(depth, [p]*3, [uv]*3 | None, None, material index)] in view space (the 4th slot,
+    once the vertex colour, stays None: the game's shaders ignore `_c0`).
+    `uv_mtx` optionally maps a material index to a 2x3 UV matrix (a material animation)."""
     tris = []
     for sh in model.shapes:
         vb = model.vertex_buffers[sh.vertex_buffer]
         pos = [proj(p) for p in model.shape_vertices(sh)]
         uv = vb.data.get("_u0")
-        tex_name, _ = model.material_texture(sh.material, decode=False)
+        mtx = uv_mtx.get(sh.material) if uv_mtx else None
+        if uv and mtx:
+            (a, c, e), (b, d, f) = mtx
+            uv = [(a * t[0] + c * t[1] + e, b * t[0] + d * t[1] + f) for t in uv]
         for k in range(0, len(sh.indices) - 2, 3):
             ids = sh.indices[k:k + 3]
             if any(j >= len(pos) for j in ids):
                 continue
             tris.append((sum(pos[j][2] for j in ids) / 3.0, [pos[j] for j in ids],
-                         [uv[j] for j in ids] if uv else None, tex_name))
+                         [uv[j] for j in ids] if uv else None, None, sh.material))
+    return tris
+
+
+def _texture_for(model, material, textures):
+    """Decoded RGBA PIL image of a material's first texture, cached in `textures`."""
+    tex_name, _ = model.material_texture(material, decode=False)
+    if not tex_name:
+        return None
+    if tex_name not in textures:
+        ti = model.texture_index(tex_name)
+        try:
+            t = texture.decode_bntx(model.data, ti) if ti is not None else None
+        except Exception:
+            t = None
+        textures[tex_name] = t.convert("RGBA") if t is not None else None
+    return textures[tex_name]
+
+
+def material_uv_matrices(model, anim, frame):
+    """{material index: 2x3 UV matrix} for the materials a `matanim.MatAnimFile` animates
+    (bound by material name, as the game binds them), at `frame`. Looping animations wrap
+    the frame at the file's frame count."""
+    if anim is None:
+        return {}
+    if anim.loops and anim.frame_count > 0:
+        frame = frame % anim.frame_count
+    out = {}
+    for mt in model.materials:
+        mtx = anim.uv_matrix(mt.name, frame)
+        if mtx is not None:
+            out[mt.index] = mtx
+    return out
+
+
+def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=None,
+           anim=None, frame=0.0):
+    """A textured preview of the whole model (orthographic, painter's-sorted triangles,
+    no lighting) as a PIL RGBA image of at most `size` px on its longer side. Views:
+    front / back / side / top. Map over-models are best seen from the top. `anim` (a
+    `matanim.MatAnimFile`, e.g. the model's `.bfmat`) scrolls the animated materials' UVs
+    to `frame` (game frames, 1 per tick).
+
+    With numpy (the normal case) every pixel interpolates its UV, UVs wrap (repeat),
+    costume materials punch alpha out at 0.5, and each material blends the way its
+    BlendType tells the game to (see the module notes): 2 and 3 are additive, everything
+    else is drawn over. Vertex colour is ignored, as in the game. Without numpy it falls
+    back to a per-triangle affine paste that wraps UVs and punches out, but does not blend."""
+    from PIL import Image
+    proj = VIEWS[view]
+    textures = {} if textures is None else textures
+    tris = _triangles(model, proj, material_uv_matrices(model, anim, frame))
     if not tris:
         return Image.new("RGBA", (size, size), background)
     xs = [p[0] for t in tris for p in t[1]]
@@ -489,25 +598,149 @@ def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=N
     span = max(x1 - x0, y1 - y0, 1e-6)
     k = (size - 4) / span
     w, h = max(1, int((x1 - x0) * k) + 4), max(1, int((y1 - y0) * k) + 4)
+    tris.sort(key=lambda t: t[0])
+
+    def place(pts):
+        return [((p[0] - x0) * k + 2, (p[1] - y0) * k + 2) for p in pts]
+    try:
+        import numpy as np
+    except ImportError:
+        return _render_affine(model, tris, place, w, h, background, textures)
+    return _render_raster(np, model, tris, place, w, h, background, textures)
+
+
+def render_animation(model, anim, view="front", size=320, *, step=2, background=(32, 32, 36, 255),
+                     textures=None):
+    """One loop of a material animation as [PIL RGBA frames], one every `step` game frames
+    (the game advances 1 frame per tick at 60 ticks/s, so step 2 = 30 fps). Every frame is
+    fitted to the same box, so the geometry stays still while the UVs move."""
+    from PIL import Image
+    textures = {} if textures is None else textures
+    total = max(1, anim.frame_count if anim is not None else 1)
+    frames = [render(model, view, size, background=background, textures=textures, anim=anim, frame=f)
+              for f in range(0, total, max(1, step))]
+    w = max(f.width for f in frames)
+    h = max(f.height for f in frames)
+    out = []
+    for f in frames:
+        if f.size != (w, h):
+            g = Image.new("RGBA", (w, h), background)
+            g.paste(f, (0, 0))
+            f = g
+        out.append(f)
+    return out
+
+
+def save_gif(frames, path, *, step=2):
+    """Write render_animation() frames as a looping GIF at the game's speed (60 ticks/s)."""
+    rgb = [f.convert("RGB") for f in frames]
+    rgb[0].save(path, save_all=True, append_images=rgb[1:], duration=max(20, round(1000 * step / 60)),
+                loop=0, optimize=False)
+
+
+def _render_raster(np, model, tris, place, w, h, background, textures):
+    from PIL import Image
+    out = np.empty((h, w, 4), np.float32)           # straight (non-premultiplied) RGBA
+    out[...] = np.asarray(background, np.float32) / 255.0
+    arrays = {}
+    grey = np.array([150, 150, 160, 255], np.float32) / 255.0
+    for _d, pts, uvs, cols, mat in tris:
+        (ax, ay), (bx, by), (cx, cy) = place(pts)
+        det = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
+        if abs(det) < 1e-9:
+            continue
+        ix0, iy0 = max(0, int(math.floor(min(ax, bx, cx)))), max(0, int(math.floor(min(ay, by, cy))))
+        ix1, iy1 = min(w, int(math.ceil(max(ax, bx, cx))) + 1), min(h, int(math.ceil(max(ay, by, cy))) + 1)
+        if ix1 <= ix0 or iy1 <= iy0:
+            continue
+        gx, gy = np.meshgrid(np.arange(ix0, ix1, dtype=np.float32) + 0.5,
+                             np.arange(iy0, iy1, dtype=np.float32) + 0.5)
+        l1 = ((gx - ax) * (cy - ay) - (cx - ax) * (gy - ay)) / det
+        l2 = ((bx - ax) * (gy - ay) - (gx - ax) * (by - ay)) / det
+        l0 = 1.0 - l1 - l2
+        inside = (l0 >= -1e-4) & (l1 >= -1e-4) & (l2 >= -1e-4)
+        if not inside.any():
+            continue
+        lam = (l0[inside], l1[inside], l2[inside])
+        tex = _texture_for(model, mat, textures) if uvs else None
+        if tex is not None:
+            arr = arrays.get(id(tex))
+            if arr is None:
+                arr = arrays[id(tex)] = np.asarray(tex, np.float32) / 255.0
+            src = _sample_repeat(np, arr, sum(l * uvs[i][0] for i, l in enumerate(lam)),
+                                 sum(l * uvs[i][1] for i, l in enumerate(lam)))
+        else:
+            src = np.tile(grey, (len(lam[0]), 1))
+        mt = model.materials[mat] if 0 <= mat < len(model.materials) else None
+        blend = mt.blend_type if mt is not None else 0
+        keep = _alpha_keep(np, mt, src[:, 3])
+        if keep is not None:
+            if not keep.any():
+                continue
+            src = src[keep]
+            sub = np.zeros_like(inside)
+            sub[inside] = keep
+            inside = sub
+        if mt is not None and mt.shading == "costume":
+            src[:, 3] = 1.0
+        region = out[iy0:iy1, ix0:ix1]
+        d = region[inside]
+        da, sa = d[:, 3:4], src[:, 3:4]
+        if blend in (2, 3):
+            # colour = dst + src * (SrcAlpha | One): premultiplied sum, coverage grows with
+            # the added light so the preview also reads on a transparent background
+            add = src[:, :3] * (sa if blend == 2 else 1.0)
+            rgb = d[:, :3] * da + add
+            a = np.clip(np.maximum(da, add.max(axis=1, keepdims=True)), 0.0, 1.0)
+        else:
+            a = sa + da * (1.0 - sa)
+            rgb = src[:, :3] * sa + d[:, :3] * da * (1.0 - sa)
+        d[:, :3] = np.clip(rgb / np.maximum(a, 1e-6), 0.0, 1.0)
+        d[:, 3:4] = a
+        region[inside] = d
+    return Image.fromarray(np.clip(out * 255.0 + 0.5, 0, 255).astype(np.uint8), "RGBA")
+
+
+def _alpha_keep(np, mt, alpha):
+    """Boolean mask of the fragments the game keeps (None = keep all): costume discards
+    below its alpha test, body only below 1/255."""
+    if mt is not None and mt.shading == "costume":
+        return alpha >= COSTUME_ALPHA_TEST
+    return alpha >= 1.0 / 255.0
+
+
+def _sample_repeat(np, arr, u, v):
+    """Bilinear samples of `arr` (H, W, 4 floats) at UVs with REPEAT wrap (v = 0 is the top row)."""
+    th, tw = arr.shape[:2]
+    x = np.mod(u, 1.0) * tw - 0.5
+    y = np.mod(v, 1.0) * th - 0.5
+    xf, yf = np.floor(x), np.floor(y)
+    fx, fy = (x - xf)[:, None], (y - yf)[:, None]
+    x0, y0 = xf.astype(np.int64) % tw, yf.astype(np.int64) % th
+    x1, y1 = (x0 + 1) % tw, (y0 + 1) % th
+    top = arr[y0, x0] * (1 - fx) + arr[y0, x1] * fx
+    bot = arr[y1, x0] * (1 - fx) + arr[y1, x1] * fx
+    return top * (1 - fy) + bot * fy
+
+
+def _render_affine(model, tris, place, w, h, background, textures):
+    """numpy-free fallback: one affine texture paste per triangle (UVs wrap; no vertex
+    colour, no blend modes)."""
+    from PIL import Image, ImageChops, ImageDraw
     img = Image.new("RGBA", (w, h), background)
     flat = ImageDraw.Draw(img)
-    for _d, pts, uvs, tex_name in sorted(tris, key=lambda t: t[0]):
-        dst = [((p[0] - x0) * k + 2, (p[1] - y0) * k + 2) for p in pts]
-        tex = None
-        if tex_name and uvs:
-            if tex_name not in textures:
-                ti = model.texture_index(tex_name)
-                try:
-                    t = texture.decode_bntx(model.data, ti) if ti is not None else None
-                except Exception:
-                    t = None
-                textures[tex_name] = t.convert("RGBA") if t is not None else None
-            tex = textures[tex_name]
+    for _d, pts, uvs, _cols, mat in tris:
+        dst = place(pts)
+        tex = _texture_for(model, mat, textures) if uvs else None
+        mt = model.materials[mat] if 0 <= mat < len(model.materials) else None
+        if tex is not None and mt is not None and mt.shading == "costume":
+            cut = int(COSTUME_ALPHA_TEST * 255 + 0.5)
+            tex = tex.copy()
+            tex.putalpha(tex.getchannel("A").point(lambda a: 255 if a >= cut else 0))
         if tex is None:
             flat.polygon(dst, fill=(150, 150, 160, 255))
             continue
-        tw, th = tex.size
-        src = [(u * tw, v * th) for u, v in (uv[:2] for uv in uvs)]
+        src_img, src = _wrapped_source(tex, [uv[:2] for uv in uvs])
         bx0, by0 = int(math.floor(min(p[0] for p in dst))), int(math.floor(min(p[1] for p in dst)))
         bx1, by1 = int(math.ceil(max(p[0] for p in dst))), int(math.ceil(max(p[1] for p in dst)))
         if bx1 <= bx0 or by1 <= by0:
@@ -515,7 +748,7 @@ def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=N
         coeffs = _affine_dst_to_src(dst, src, bx0, by0)
         if coeffs is None:
             continue
-        patch = tex.transform((bx1 - bx0, by1 - by0), Image.AFFINE, coeffs, resample=Image.BILINEAR)
+        patch = src_img.transform((bx1 - bx0, by1 - by0), Image.AFFINE, coeffs, resample=Image.BILINEAR)
         mask = Image.new("L", patch.size, 0)
         ImageDraw.Draw(mask).polygon([(x - bx0, y - by0) for x, y in dst], fill=255)
         patch.putalpha(ImageChops.multiply(patch.getchannel("A"), mask))

@@ -2,8 +2,9 @@
 
 A "monster" in RF4S is simply a **char_id**: the numeric id indexes the 392x308-byte
 template DB `rf3NpcParam.bin`, and the engine hard-codes what each id RANGE means
-(villager / field monster / boss / event NPC / gate). See project_rf4s_monster_actor +
-project_rf4s_monster_drops.
+(villager / field monster / boss / event NPC / gate). The record is the IDB's CharTemplate_t,
+copied per char id by Char_GetTemplate (RF4S.exe+0x1C63B0) and read by Actor_RecomputeAllStats
+(+0xAD440) / Actor_LoadBaseStatsFromTemplate (+0xAF940).
 
 This module layers name/drop/AI resolution and the "new monster" workflow on top of the
 generic `nlcl` reader:
@@ -31,8 +32,9 @@ NUM_RECORDS = 392
 
 # element-affinity field suffixes (schema fields elem_<name>), in attack-flag bit order
 ELEMENTS = ["fire", "water", "earth", "wind", "light", "dark", "love", "none"]
-# status-proc resist field suffixes (schema fields res_<name>)
-STATUS = ["poison", "paralysis", "sleep", "seal", "fatigue", "cold", "faint", "drain"]
+# status-proc resist field suffixes (schema fields res_<name>), in the game's status-bit
+# order (proc mask / cure bits / resist skills 26..32): poison, seal, paralysis, sleep, ...
+STATUS = ["poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint", "drain"]
 
 # Q12 fixed-point unit used by element/resist fields (4096 = 100%)
 Q12 = 4096
@@ -117,18 +119,32 @@ def sheet(table: nlcl.NlclTable, char_id: int,
 
     elements = {e: row[f"elem_{e}"] for e in ELEMENTS}
     resists = {s: row[f"res_{s}"] for s in STATUS}
+    tot = base_totals(row)
 
     return {
         "id": char_id,
         "name": species_name(char_id, species),
         "semantics": id_semantics(char_id),
         "tameable": bool(species.get(char_id, {}).get("tameable")) if species else None,
-        "hp": row["hp"], "atk": row["atk"], "def": row["def"],
-        "mat": row["mat"], "kill_xp": row["kill_xp"],
+        "hp": row["hp"], "atk": tot["atk"], "def": tot["def"],
+        "mat": tot["mat"], "mdf": tot["mdf"], "kill_xp": row["kill_xp"],
+        "str": row["str"], "int": row["int"], "vit": row["vit"],
+        "flat_atk": row["flat_atk"], "flat_def": row["flat_def"],
+        "flat_mat": row["flat_mat"], "flat_mdf": row["flat_mdf"],
+        "level": row["base_level"], "tame_base": row["tame_base"],
         "ai_script": row["ai_script"], "ai_file": ai_file(row["ai_script"]),
         "model": row["model"], "anim": row["anim"],
         "drops": drops, "elements": elements, "resists": resists,
     }
+
+
+def base_totals(row: dict) -> dict:
+    """The template's ATK / DEF / MAT / MDF before level growth, as Actor_RecomputeAllStats
+    (+0xAD440) builds them: ATK = flat_atk + STR, MAT = flat_mat + INT,
+    DEF = flat_def + VIT/2, MDF = flat_mdf + VIT/2."""
+    half_vit = row["vit"] >> 1
+    return {"atk": row["flat_atk"] + row["str"], "def": row["flat_def"] + half_vit,
+            "mat": row["flat_mat"] + row["int"], "mdf": row["flat_mdf"] + half_vit}
 
 
 def _pct(v: int) -> str:
@@ -143,7 +159,10 @@ def render(table: nlcl.NlclTable, char_id: int,
     tame = " [tameable]" if m["tameable"] else ""
     out.append(f"#{m['id']}  {m['name'] or '???'}{tame}   ({m['semantics']})")
     out.append(f"  HP {m['hp']}   ATK {m['atk']}   DEF {m['def']}   MAT {m['mat']}"
-               f"   killXP {m['kill_xp']}")
+               f"   MDF {m['mdf']}   killXP {m['kill_xp']}   level {m['level']}")
+    out.append(f"    = flat ATK {m['flat_atk']} DEF {m['flat_def']} MAT {m['flat_mat']}"
+               f" MDF {m['flat_mdf']}  + STR {m['str']} INT {m['int']} VIT {m['vit']}"
+               f"   (tame base {m['tame_base']})")
     out.append(f"  AI {m['ai_script']} ({m['ai_file']})   model {m['model']}   anim {m['anim']}")
     if m["drops"]:
         out.append("  drops:")
@@ -171,7 +190,8 @@ def render_list(table: nlcl.NlclTable, species: dict | None = None,
     for cid in range(lo, hi + 1):
         row = table.row(cid, STEM)
         nm = species_name(cid, species) or "???"
-        out.append(f"{cid:>4}  {nm:<20} {row['hp']:>7} {row['atk']:>6}  {id_semantics(cid)}")
+        out.append(f"{cid:>4}  {nm:<20} {row['hp']:>7} {base_totals(row)['atk']:>6}  "
+                   f"{id_semantics(cid)}")
     return "\n".join(out)
 
 
@@ -179,7 +199,7 @@ def render_list(table: nlcl.NlclTable, species: dict | None = None,
 # new-monster helpers (cut-slot / data-only workflow)
 # --------------------------------------------------------------------------- #
 #: field-monster ids the shipped game never names or spawns (cut/unused). Verified via the
-#: rf3TxtNpc name table (project_rf4s_monster_actor): only 179/180/181 in the 48..199 band.
+#: rf3TxtNpc name table (index == char id): only 179/180/181 in the 48..199 band.
 KNOWN_CUT_IDS = [179, 180, 181]
 
 
@@ -212,8 +232,10 @@ def clone_record(table: nlcl.NlclTable, src: int, dst: int) -> None:
 
 
 def set_field(table: nlcl.NlclTable, char_id: int, field: str, value: int) -> None:
-    """Set a named schema field (hp/atk/def/mat/kill_xp/ai_script/model/anim/drop*_id/
-    drop*_pm/elem_*/res_*) on a monster record."""
+    """Set a named schema field (hp/str/int/vit/flat_atk/flat_def/flat_mat/flat_mdf/
+    kill_xp/tame_base/base_level/ai_script/model/anim/drop*_id/drop*_pm/elem_*/res_*) on a
+    monster record. The retired names atk/def/mat raise with a hint (they named the wrong
+    stat: +44/+48/+52 are STR/INT/VIT)."""
     table.set_field(char_id, field, value, STEM)
 
 

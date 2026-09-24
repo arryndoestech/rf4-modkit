@@ -28,7 +28,9 @@ Crafting_CraftFromInputs          +0x3D930  S[38] bit 0x4000: the NON-FOOD marke
                                             with it spoils a dish and is skipped in the
                                             medicine level average).
 DetailWindow_RenderRowByKind      +0x394F5  S[0] shown as the item detail "difficulty" row.
-S[9], S[13], S[39] and S[61..66] have no reader and are zero in the shipped file.
+S[9], S[13] and S[39] have no reader; S[61..66] (fed seal..faint procs) are summed into the dish
+record by Item_ComputeEffectiveStats but are zero in the shipped file. Per ingredient, dish
+record dword k-34 += S[k] for k = 34..73 (S[38] is ORed), i.e. the rf3UseItemParam layout.
 
 Units: "int" = plain stat points; "q12" = fixed point, 4096 = 100% (a chance, a resist, or a
 multiplier where +2048 means +50%); "flags" = the status word below.

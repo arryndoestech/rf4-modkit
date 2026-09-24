@@ -8,17 +8,23 @@ bundleVoiceEN, bundleVoiceJP.
 
 How the game finds files (verified in IDA -- see docs/15-modding-toolkit.md):
 
-  * `Manifest.plist` holds, per bundle, a `files` dict mapping each filename to
-    `{ "size": N, "offset": M }`. At boot `BundleManager_LoadManifest`
-    (+0x225D10) opens every bundle via `MFBundle_Open(path, 0, 0, tocDict)` --
-    the `preloadedTOC` path -- so the runtime reads each file's {size, offset}
-    FROM THE MANIFEST, not from the bundle's own embedded bplist TOC.
-  * `MFBundle_OpenEntry` (+0x98630) then just seeks to `offset` and reads `size`
-    bytes out of the .mbundle. No alignment, no checksum.
+  * `Manifest.plist` = `{ "bundles": [ {bundleName, files}, ... ] }`; `files` maps
+    each filename to `{ "size": N, "offset": M }`. At boot
+    `BundleManager_LoadManifest` (RF4S.exe+0x3E5D10) opens every listed bundle via
+    `MFBundle_Open(path, 0, 0, filesDict)` (+0x258790) -- the `preloadedTOC` path --
+    so the runtime reads each file's {size, offset} FROM THE MANIFEST
+    (MFDictionary_GetIntOrDefault, missing key = 0), not from the bundle's own
+    embedded bplist TOC. `bundleName` is resolved as a path, so it must carry the
+    `.mbundle` extension. (A manifest whose `bundles` is not an array is read as the
+    old `{name: filesDict}` layout.)
+  * `MFBundle_OpenEntry` (+0x258630) then just seeks to `offset` and reads `size`
+    bytes out of the .mbundle. No alignment, no checksum, no hash.
   * File resolution (`MFFileManager::fileExistsAtPath`, vtable slot 052 ->
-    +0x96570) iterates the mounted filesystem/bundle list and returns the FIRST
-    match. Loose-directory filesystems are mounted ahead of the archives, so a
-    loose file on disk shadows the bundled copy.
+    +0x256570, via MFFileManager_ResolvePathThroughMounts +0x2557D0) walks the mount
+    list in order and takes the FIRST match. `BundleManager_Mount` (+0x256E60)
+    appends, and LoadManifest mounts the loose-directory filesystems first and then
+    the bundles in manifest order -- so a loose file shadows every bundle, and an
+    earlier bundle shadows a later one.
 
 Practical consequences for this module:
 
@@ -27,17 +33,21 @@ Practical consequences for this module:
   * `patch_inplace`  -- overwrite bytes when the new size <= old size. O(1) write,
     updates the manifest size. Safest for quick tweaks.
   * `append_repack`  -- append new/replacement blobs at the end of the .mbundle and
-    repoint the manifest. O(size of changes), works even on the 4.7 GB bundle.
+    repoint the manifest. O(size of changes), works even on the 4.7 GB bundle; the
+    embedded TOC is re-emitted after the blobs so the bundle stays a valid bplist.
   * `rebuild_from_dir` -- write a brand-new clean .mbundle + matching manifest TOC
-    from a directory tree. O(total size); use for small bundles.
+    from a directory tree. O(total size); use for small bundles. A NEW manifest
+    entry goes first in `bundles` so its files win over the stock bundles.
 
 But the recommended install method for most mods is LOOSE FILES (see
 install_loose), which needs no bundle/manifest edits at all.
 """
 from __future__ import annotations
 
+import mmap
 import pathlib
 import shutil
+import struct
 
 from . import bplist
 
@@ -112,8 +122,11 @@ class Bundle:
             for name, meta in files.items():
                 self._toc[name] = (int(meta["offset"]), int(meta["size"]))
         else:
-            data = self.path.read_bytes()
-            root = bplist.loads(data, lazy_data=True)
+            # Memory-map instead of read_bytes(): bundleMain is 4.7 GB and only its TOC
+            # objects are touched (data blobs come back as lazy DataRefs).
+            with open(self.path, "rb") as f, \
+                    mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+                root = bplist.loads(data, lazy_data=True)
             if not isinstance(root, dict):
                 raise MbundleError(f"{self.path} root is {type(root).__name__}, expected dict")
             for name, val in root.items():
@@ -152,7 +165,7 @@ class Bundle:
                 safe = name.replace("\\", "/").lstrip("/")
                 if prefix and not safe.startswith(prefix):
                     continue
-                dest = out_dir / safe
+                dest = _safe_join(out_dir, safe)
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 f.seek(off)
                 dest.write_bytes(f.read(size))
@@ -162,6 +175,16 @@ class Bundle:
         return n
 
 
+def _safe_join(root: pathlib.Path, rel: str) -> pathlib.Path:
+    """root/rel, refusing a bundle-relative name that climbs out of root ('..', drive)."""
+    dest = root / rel
+    r = root.resolve()
+    d = dest.resolve()
+    if d != r and r not in d.parents:
+        raise MbundleError(f"refusing path {rel!r}: it escapes {root}")
+    return dest
+
+
 # --------------------------------------------------------------------------- #
 # Mutating operations (require a Manifest to stay runtime-correct)
 # --------------------------------------------------------------------------- #
@@ -169,7 +192,9 @@ def patch_inplace(bundle_path, manifest: Manifest, filename: str, new_bytes: byt
                   *, allow_grow=False) -> dict:
     """
     Overwrite an existing file's bytes in place. The default refuses to grow the
-    file (which would corrupt the bundle); pass allow_grow=False normally.
+    file; allow_grow=True permits it only when the grown span overlaps no other
+    manifest entry of this bundle (e.g. the last file, or one followed by padding).
+    The embedded bplist TOC keeps the old size (the runtime only reads the manifest).
 
     Returns the new manifest entry. Updates `manifest` in memory -- call
     manifest.save() to persist.
@@ -181,10 +206,17 @@ def patch_inplace(bundle_path, manifest: Manifest, filename: str, new_bytes: byt
         raise MbundleError(f"{filename!r} not in {bname}; use append_repack to add it")
     old = files[filename]
     old_off, old_size = int(old["offset"]), int(old["size"])
-    if len(new_bytes) > old_size and not allow_grow:
-        raise MbundleError(
-            f"new size {len(new_bytes)} > old size {old_size} for {filename!r}; "
-            f"use append_repack (in-place can only shrink-or-equal)")
+    if len(new_bytes) > old_size:
+        if not allow_grow:
+            raise MbundleError(
+                f"new size {len(new_bytes)} > old size {old_size} for {filename!r}; "
+                f"use append_repack (in-place can only shrink-or-equal)")
+        end = old_off + len(new_bytes)
+        for other, meta in files.items():
+            o_off, o_size = int(meta["offset"]), int(meta["size"])
+            if other != filename and o_size and o_off < end and o_off + o_size > old_off:
+                raise MbundleError(f"growing {filename!r} to {len(new_bytes)} bytes would "
+                                   f"overwrite {other!r}; use append_repack")
     with open(bundle_path, "r+b") as f:
         f.seek(old_off)
         f.write(new_bytes)
@@ -197,27 +229,101 @@ def append_repack(bundle_path, manifest: Manifest, replacements: dict,
     """
     Append modified/new files to the END of the .mbundle and repoint the manifest.
     `replacements` = {filename: bytes}. Works on any bundle size (only the new data
-    is written). The bundle's embedded bplist TOC becomes stale but is unused at
-    runtime; tools should read this bundle WITH the manifest afterwards.
+    and the TOC are written; the old blobs stay where they are).
+
+    Each blob is written as a bplist data object, followed by a fresh root dict,
+    offset table and trailer, so the file stays a valid bplist whose EMBEDDED TOC
+    matches the manifest (a plain append would leave the trailer inside the last
+    blob, and the bundle could no longer be listed without --use-manifest). Old
+    TOC/trailer bytes become unreferenced slack. If the bundle is not a bplist with
+    a dict root, the blobs are appended raw as before (manifest-only).
 
     Returns {filename: {size, offset}} for the appended entries. Updates `manifest`
     in memory -- call manifest.save() to persist.
     """
     bundle_path = pathlib.Path(bundle_path)
     bname = bundle_path.name
-    files = manifest.files(bname)
+    manifest.files(bname)                  # raises MbundleError if the bundle is not listed
+    toc = _read_embedded_toc(bundle_path)
     written = {}
-    with open(bundle_path, "ab") as f:
+    new_objs: list[tuple[int, str, int]] = []     # (value-object offset, name, payload offset)
+    with open(bundle_path, "r+b") as f:
+        f.seek(0, 2)
         for name, blob in replacements.items():
+            head = bplist._length_prefix(0x4, len(blob)) if toc is not None else b""
             cur = f.tell()
-            if align > 1 and cur % align:
-                pad = align - (cur % align)
+            payload = cur + len(head)
+            if align > 1 and payload % align:
+                pad = align - (payload % align)
                 f.write(b"\x00" * pad)
                 cur += pad
+                payload += pad
+            f.write(head)
             f.write(blob)
-            manifest.set_entry(bname, name, len(blob), cur)
-            written[name] = {"size": len(blob), "offset": cur}
+            new_objs.append((cur, name, payload))
+            manifest.set_entry(bname, name, len(blob), payload)
+            written[name] = {"size": len(blob), "offset": payload}
+        if toc is not None:
+            _append_toc(f, toc, new_objs)
     return written
+
+
+def _read_embedded_toc(bundle_path: pathlib.Path):
+    """(offsets, ref_size, [(name, key_idx, val_idx)]) of a bundle's embedded root dict,
+    or None when the file is not a bplist with a dict root."""
+    try:
+        with open(bundle_path, "rb") as f, \
+                mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            bp = bplist.Bplist(data)
+            pos = bp.top_object + 8
+            marker = data[pos]
+            if marker >> 4 != 0xD:
+                return None
+            pos += 1
+            count = marker & 0xF
+            if count == 0xF:
+                n = 1 << (data[pos] & 0xF)
+                count = int.from_bytes(data[pos + 1:pos + 1 + n], "big")
+                pos += 1 + n
+            krefs = [int.from_bytes(data[pos + 4 * i:pos + 4 * i + 4], "big") for i in range(count)]
+            pos += 4 * count
+            vrefs = [int.from_bytes(data[pos + 4 * i:pos + 4 * i + 4], "big") for i in range(count)]
+            entries = [(bp._resolve(k, True), k, v) for k, v in zip(krefs, vrefs)]
+            return list(bp.offsets), bp.ref_size, entries
+    except (bplist.BplistError, ValueError, IndexError, struct.error, OSError):
+        return None
+
+
+def _append_toc(f, toc, new_objs) -> None:
+    """Write new key strings, a new root dict, offset table and trailer at f's end."""
+    offsets, ref_size, entries = toc
+    offsets = list(offsets)
+    order = [name for name, _k, _v in entries]
+    refs = {name: (k, v) for name, k, v in entries}
+    for obj_off, name, _payload in new_objs:
+        v_idx = len(offsets)
+        offsets.append(obj_off)
+        if name in refs:
+            refs[name] = (refs[name][0], v_idx)
+        else:
+            f.seek(0, 2)
+            k_idx = len(offsets)
+            offsets.append(f.tell())
+            f.write(bplist.BplistWriter._encode_one_scalar(name))
+            refs[name] = (k_idx, v_idx)
+            order.append(name)
+    f.seek(0, 2)
+    root_off = f.tell()
+    offsets.append(root_off)
+    f.write(bplist._length_prefix(0xD, len(order)))
+    f.write(b"".join(refs[n][0].to_bytes(4, "big") for n in order))
+    f.write(b"".join(refs[n][1].to_bytes(4, "big") for n in order))
+    ot_off = f.tell()
+    # 4-byte offsets unless the table sits past 0x3FFFFFFF (bundleMain is 4.7 GB) -- the
+    # same rule as the engine's writer; the game reads every width other than 4 as u64.
+    osz = 8 if ot_off > 0x3FFFFFFF else 4
+    f.write(b"".join(o.to_bytes(osz, "big") for o in offsets))
+    f.write(bytes([osz, ref_size]) + struct.pack(">QQQ", len(offsets), root_off - 8, ot_off))
 
 
 def rebuild_from_dir(src_dir, out_bundle, manifest: "Manifest | None" = None,
@@ -227,7 +333,11 @@ def rebuild_from_dir(src_dir, out_bundle, manifest: "Manifest | None" = None,
     Filenames are stored relative to src_dir with forward slashes. Produces a
     self-consistent embedded bplist TOC, and -- if a Manifest + bundle_name are
     given -- replaces that bundle's manifest TOC with fresh {size, offset} entries
-    (call manifest.save() to persist).
+    (call manifest.save() to persist). `bundle_name` is the manifest `bundleName`,
+    i.e. the bundle's file name with its `.mbundle` extension. A bundle not yet in
+    the manifest is inserted FIRST, because the game mounts bundles in manifest
+    order and takes the first match (see the module docstring) -- appended last, its
+    files would stay shadowed by bundleMain's copies.
 
     Returns {filename: {size, offset}}.
     """
@@ -260,7 +370,7 @@ def rebuild_from_dir(src_dir, out_bundle, manifest: "Manifest | None" = None,
                 break
         if entry is None:
             entry = {"bundleName": bundle_name, "files": {}}
-            manifest.bundles.append(entry)
+            manifest.bundles.insert(0, entry)
         entry["files"] = dict(toc)
     return toc
 
@@ -280,7 +390,7 @@ def install_loose(game_root, filename: str, src_file) -> pathlib.Path:
     """
     game_root = pathlib.Path(game_root)
     safe = filename.replace("\\", "/").lstrip("/")
-    dest = game_root / safe
+    dest = _safe_join(game_root, safe)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src_file, dest)
     return dest

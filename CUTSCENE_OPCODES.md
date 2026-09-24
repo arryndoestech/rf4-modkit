@@ -145,65 +145,71 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3 (rare)
 
-### `op 17` — SetSpeakerMC(face frame, emote / voice id, emote / voice id 2)
+### `op 17` — SetSpeakerMC(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lest/Frey (slot 0, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Lest/Frey (slot 0, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 18` — SetSpeakerVishnal(face frame, emote / voice id, emote / voice id 2)
+### `op 18` — SetSpeakerVishnal(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Vishnal (slot 1, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Vishnal (slot 1, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 19` — SetSpeakerVishnal(face frame, emote / voice id, emote / voice id 2)
+### `op 19` — SetSpeakerVishnal(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Vishnal (slot 1, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Vishnal (slot 1, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 20` — SetSpeakerClorica(face frame, emote / voice id, emote / voice id 2)
+### `op 20` — SetSpeakerClorica(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Clorica (slot 2, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Clorica (slot 2, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 21` — SetSpeakerClorica(face frame, emote / voice id, emote / voice id 2)
+### `op 21` — SetSpeakerClorica(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Clorica (slot 2, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Clorica (slot 2, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 22` — SetSpeakerVolkanon(face frame, emote / voice id, emote / voice id 2)
+### `op 22` — SetSpeakerVolkanon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Volkanon (slot 3, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Volkanon (slot 3, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 23` — SetSpeakerVolkanon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -216,75 +222,82 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 24` — SetSpeakerForte(face frame, emote / voice id, emote / voice id 2)
+### `op 24` — SetSpeakerForte(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Forte (slot 4, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Forte (slot 4, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 25` — SetSpeakerForte(face frame, emote / voice id, emote / voice id 2)
+### `op 25` — SetSpeakerForte(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Forte (slot 4, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Forte (slot 4, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 26` — SetSpeakerKiel(face frame, emote / voice id, emote / voice id 2)
+### `op 26` — SetSpeakerKiel(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Kiel (slot 5, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Kiel (slot 5, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 27` — SetSpeakerKiel(face frame, emote / voice id, emote / voice id 2)
+### `op 27` — SetSpeakerKiel(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Kiel (slot 5, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Kiel (slot 5, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 28` — SetSpeakerBado(face frame, emote / voice id, emote / voice id 2)
+### `op 28` — SetSpeakerBado(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Bado (slot 6, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Bado (slot 6, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 29` — SetSpeakerBado(face frame, emote / voice id, emote / voice id 2)
+### `op 29` — SetSpeakerBado(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Bado (slot 6, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Bado (slot 6, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 30` — SetSpeakerMargaret(face frame, emote / voice id, emote / voice id 2)
+### `op 30` — SetSpeakerMargaret(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Margaret (slot 7, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Margaret (slot 7, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 31` — SetSpeakerMargaret(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -297,75 +310,82 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 32` — SetSpeakerDylas(face frame, emote / voice id, emote / voice id 2)
+### `op 32` — SetSpeakerDylas(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dylas (slot 8, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Dylas (slot 8, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 33` — SetSpeakerDylas(face frame, emote / voice id, emote / voice id 2)
+### `op 33` — SetSpeakerDylas(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dylas (slot 8, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Dylas (slot 8, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 34` — SetSpeakerArthur(face frame, emote / voice id, emote / voice id 2)
+### `op 34` — SetSpeakerArthur(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Arthur (slot 9, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Arthur (slot 9, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 35` — SetSpeakerArthur(face frame, emote / voice id, emote / voice id 2)
+### `op 35` — SetSpeakerArthur(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Arthur (slot 9, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Arthur (slot 9, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 36` — SetSpeakerPorcoline(face frame, emote / voice id, emote / voice id 2)
+### `op 36` — SetSpeakerPorcoline(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Porcoline (slot 10, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Porcoline (slot 10, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 37` — SetSpeakerPorcoline(face frame, emote / voice id, emote / voice id 2)
+### `op 37` — SetSpeakerPorcoline(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Porcoline (slot 10, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Porcoline (slot 10, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 38` — SetSpeakerXiaoPai(face frame, emote / voice id, emote / voice id 2)
+### `op 38` — SetSpeakerXiaoPai(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Xiao Pai (slot 11, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Xiao Pai (slot 11, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 39` — SetSpeakerXiaoPai(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -378,75 +398,82 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 40` — SetSpeakerLinFa(face frame, emote / voice id, emote / voice id 2)
+### `op 40` — SetSpeakerLinFa(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lin Fa (slot 12, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Lin Fa (slot 12, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 41` — SetSpeakerLinFa(face frame, emote / voice id, emote / voice id 2)
+### `op 41` — SetSpeakerLinFa(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lin Fa (slot 12, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Lin Fa (slot 12, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 42` — SetSpeakerAmber(face frame, emote / voice id, emote / voice id 2)
+### `op 42` — SetSpeakerAmber(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Amber (slot 13, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Amber (slot 13, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 43` — SetSpeakerAmber(face frame, emote / voice id, emote / voice id 2)
+### `op 43` — SetSpeakerAmber(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Amber (slot 13, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Amber (slot 13, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 44` — SetSpeakerIlluminata(face frame, emote / voice id, emote / voice id 2)
+### `op 44` — SetSpeakerIlluminata(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Illuminata (slot 14, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Illuminata (slot 14, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 45` — SetSpeakerIlluminata(face frame, emote / voice id, emote / voice id 2)
+### `op 45` — SetSpeakerIlluminata(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Illuminata (slot 14, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Illuminata (slot 14, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 46` — SetSpeakerDoug(face frame, emote / voice id, emote / voice id 2)
+### `op 46` — SetSpeakerDoug(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Doug (slot 15, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Doug (slot 15, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 47` — SetSpeakerDoug(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -459,75 +486,82 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 48` — SetSpeakerBlossom(face frame, emote / voice id, emote / voice id 2)
+### `op 48` — SetSpeakerBlossom(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Blossom (slot 16, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Blossom (slot 16, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 49` — SetSpeakerBlossom(face frame, emote / voice id, emote / voice id 2)
+### `op 49` — SetSpeakerBlossom(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Blossom (slot 16, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Blossom (slot 16, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 50` — SetSpeakerDolce(face frame, emote / voice id, emote / voice id 2)
+### `op 50` — SetSpeakerDolce(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dolce (slot 17, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Dolce (slot 17, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 51` — SetSpeakerDolce(face frame, emote / voice id, emote / voice id 2)
+### `op 51` — SetSpeakerDolce(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dolce (slot 17, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Dolce (slot 17, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 52` — SetSpeakerJones(face frame, emote / voice id, emote / voice id 2)
+### `op 52` — SetSpeakerJones(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Jones (slot 18, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Jones (slot 18, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 53` — SetSpeakerJones(face frame, emote / voice id, emote / voice id 2)
+### `op 53` — SetSpeakerJones(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Jones (slot 18, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Jones (slot 18, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 54` — SetSpeakerNancy(face frame, emote / voice id, emote / voice id 2)
+### `op 54` — SetSpeakerNancy(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Nancy (slot 19, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Nancy (slot 19, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 55` — SetSpeakerNancy(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -540,75 +574,82 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 56` — SetSpeakerLeon(face frame, emote / voice id, emote / voice id 2)
+### `op 56` — SetSpeakerLeon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Leon (slot 20, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Leon (slot 20, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 57` — SetSpeakerLeon(face frame, emote / voice id, emote / voice id 2)
+### `op 57` — SetSpeakerLeon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Leon (slot 20, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Leon (slot 20, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 58` — SetSpeakerVentuswill(face frame, emote / voice id, emote / voice id 2)
+### `op 58` — SetSpeakerVentuswill(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Ventuswill (slot 21, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Ventuswill (slot 21, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 59` — SetSpeakerVentuswill(face frame, emote / voice id, emote / voice id 2)
+### `op 59` — SetSpeakerVentuswill(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Ventuswill (slot 21, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Ventuswill (slot 21, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 60` — SetSpeakerSon(face frame, emote / voice id, emote / voice id 2)
+### `op 60` — SetSpeakerSon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Son (slot 22, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Son (slot 22, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 61` — SetSpeakerSon(face frame, emote / voice id, emote / voice id 2)
+### `op 61` — SetSpeakerSon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Son (slot 22, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Son (slot 22, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 62` — SetSpeakerDaughter(face frame, emote / voice id, emote / voice id 2)
+### `op 62` — SetSpeakerDaughter(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Daughter (slot 23, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Daughter (slot 23, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 63` — SetSpeakerDaughter(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -621,75 +662,82 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 64` — SetSpeakerPico(face frame, emote / voice id, emote / voice id 2)
+### `op 64` — SetSpeakerPico(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Pico (slot 24, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Pico (slot 24, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 65` — SetSpeakerPico(face frame, emote / voice id, emote / voice id 2)
+### `op 65` — SetSpeakerPico(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Pico (slot 24, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Pico (slot 24, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 66` — SetSpeakerguest25(face frame, emote / voice id, emote / voice id 2)
+### `op 66` — SetSpeakerSoldier(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=guest25? (slot 25, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Soldier (slot 25, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 67` — SetSpeakerguest25(face frame, emote / voice id, emote / voice id 2)
+### `op 67` — SetSpeakerSoldier(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=guest25? (slot 25, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Soldier (slot 25, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 68` — SetSpeakerguest26(face frame, emote / voice id, emote / voice id 2)
+### `op 68` — SetSpeakerEthelberd(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=guest26? (slot 26, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Ethelberd (slot 26, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 69` — SetSpeakerguest26(face frame, emote / voice id, emote / voice id 2)
+### `op 69` — SetSpeakerEthelberd(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=guest26? (slot 26, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Ethelberd (slot 26, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 70` — SetSpeakerBarrett(face frame, emote / voice id, emote / voice id 2)
+### `op 70` — SetSpeakerBarrett(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Barrett (slot 27, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Barrett (slot 27, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 71` — SetSpeakerBarrett(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
@@ -702,45 +750,49 @@ Args:
   2. emote / voice id 2
   3. emote / voice id 3
 
-### `op 72` — SetSpeakerRaven(face frame, emote / voice id, emote / voice id 2)
+### `op 72` — SetSpeakerRaven(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Raven (slot 28, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Raven (slot 28, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 73` — SetSpeakerRaven(face frame, emote / voice id, emote / voice id 2)
+### `op 73` — SetSpeakerRaven(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Raven (slot 28, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Raven (slot 28, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 74` — SetSpeakerguest29(face frame, emote / voice id, emote / voice id 2)
+### `op 74` — SetSpeakerTraveler(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=guest29? (slot 29, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Traveler (slot 29, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
-### `op 75` — SetSpeakerguest29(face frame, emote / voice id, emote / voice id 2)
+### `op 75` — SetSpeakerTraveler(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=guest29? (slot 29, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s) -- designates the speaker=Traveler (slot 29, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
 
 Args:
   0. face frame
   1. emote / voice id
   2. emote / voice id 2
+  3. emote / voice id 3 (rare)
 
 ### `op 83` — CloseDialogueBubbles(which)
 *handler:* `Script_VMOp_CloseBubblesWaitClosed`
@@ -1094,7 +1146,7 @@ Args:
 ### `op 610` — SetChoiceVisibleMask(choice 0 visible, choice 1 visible, …)
 *handler:* `Script_VMOp_SetSceneChoiceVisibleMaskFromArgs`
 
-REBUILD the scene's choice-visibility mask from a list of booleans — zeroes mask dword 0 (choices 0..31; dwords 1-3 are untouched), then sets bit i when arg i is non-zero. Each bit gates whether option i appears in the next PROMPT_CHOICE, and the picked VISIBLE ROW maps back through the set bits to the option's ORIGINAL index in reg0 (that's what the SWITCH_EQ after a staged prompt dispatches on). Writes 1 to reg0 now if any bit is set. IDA-verified 2026-08-17 (Script_VMOp_SetSceneChoiceVisibleMaskFromArgs).
+REBUILD the scene's choice-visibility mask from a list of booleans — zeroes mask dword 0 (choices 0..31; dwords 1-3 are untouched), then sets bit i when arg i is non-zero. Each bit gates whether option i appears in the next PROMPT_CHOICE, and the picked VISIBLE ROW maps back through the set bits to the option's ORIGINAL index in reg0 (that's what the SWITCH_EQ after a staged prompt dispatches on). Sets reg0 = 1 if any of the 128 mask bits is set, else 0. Only 32 args are meaningful: arg i >= 32 wraps onto bit i-32 (the shift is mod 32). IDA-verified 2026-08-17 / 2026-09-24 (Script_VMOp_SetSceneChoiceVisibleMaskFromArgs).
 
 Args:
   0. choice 0 visible
@@ -1104,7 +1156,7 @@ Args:
 ### `op 611` — ClearChoiceVisibleRange(start index, count)
 *handler:* `Script_VMOp_ClearSceneChoiceVisibleMaskRange`
 
-Clear COUNT choice-visibility bits starting at START (hide those choices; dword 0 only, i.e. options 0..31). arg0 = start bit, arg1 = count — NOT a from/to pair (IDA-verified 2026-08-17: clears bits [start, start+count)). Writes 1 to reg0 if any bit anywhere is still set. Companion to SetChoiceVisibleMask (op 610).
+Clear COUNT choice-visibility bits starting at START (hide those choices; dword 0 only, i.e. options 0..31). arg0 = start bit, arg1 = count — NOT a from/to pair (IDA-verified 2026-08-17: clears bits [start, start+count)). Sets reg0 = 1 if any bit anywhere is still set, else 0. CAUTION: a mask cleared to all-zero means 'no mask' -- the next prompt shows EVERY option (there is no way to hide all). Companion to SetChoiceVisibleMask (op 610).
 
 Args:
   0. start index
@@ -1113,7 +1165,7 @@ Args:
 ### `op 612` — SetChoiceVisibleBit(choice index, visible)
 *handler:* `Script_VMOp_ToggleSceneChoiceVisibleBit`
 
-Show or hide a SINGLE choice by index in the scene's choice-visibility mask. arg0 = choice index (0-127), arg1 = visible (1) / hidden (0). Writes 1 to reg0 if any choice is still visible — scripts branch on 'is anything left to offer'. The next PROMPT_CHOICE presents only flagged options and maps the pick back to the original index in reg0; the prompt then CLEARS the whole mask.
+Show or hide a SINGLE choice by index in the scene's choice-visibility mask. arg0 = choice index (0-127), arg1 = visible (1) / hidden (0). Sets reg0 = 1 if any choice is still visible, else 0 — scripts branch on 'is anything left to offer'. The next PROMPT_CHOICE presents only flagged options (jumping to target[visible row]) and puts the picked option's ORIGINAL index in reg0; the prompt then CLEARS the whole mask. The shipped idiom sets bit i for every option (1 or a flag expression), points all targets at one label and SWITCH_EQs on reg0. A mask with bits set only past the menu's last option opens an EMPTY menu that crashes on confirm. Bit 5 on a 4-option menu is harmless.
 
 Args:
   0. choice index (0-127)
@@ -1122,7 +1174,7 @@ Args:
 ### `op 613` — CalcChoicePrescroll(option index)
 *handler:* `Script_VMOp_CalcChoiceDialogPrescrollFromVisibleMask`
 
-Compute the upcoming choice menu's pre-scroll position. arg0 = an option index; the handler subtracts the number of HIDDEN options below it (clear bits in the visible mask at scene+244, capped by the option count at scene+243), i.e. arg0's position within the visible list, and stores the result in the GLOBAL g_choiceDialogPrescrollCount -- not in a VM register. Call between SetChoiceVisibleMask and PROMPT_CHOICE so the list opens positioned at that option.
+Pick the row the NEXT choice menu opens on (the default highlight). arg0 = a row index, stored in the GLOBAL g_choiceDialogPrescrollCount (not a VM register); when the menu builds its rows it moves the cursor down that many times (wrapping past the last row) and then zeroes it. The handler means to subtract the HIDDEN options below arg0 (clear bits of mask dword 0), but it only counts the options the current prompt has already queued (scene +243), which is 0 whenever a script can run this op -- so in practice the value is arg0 unchanged, i.e. a VISIBLE-row index; subtract hidden options yourself. Shipped use (8x): the menu reopens on the option picked last time (arg = a register). Call right before PROMPT_CHOICE. IDA-verified 2026-09-24 (Script_VMOp_CalcChoiceDialogPrescrollFromVisibleMask, ChoiceDialog_TickStateMachine state 3).
 
 Args:
   0. option index
@@ -1135,15 +1187,15 @@ Set which side speaks the NEXT dialogue line (byte 2 of the active line descript
 Args:
   0. side (2=right/secondary, else left)
 
-### `op 615` — ArmChoiceOption(staged value 1, staged value 2, staged value 3)
+### `op 615` — ArmChoiceOption(value 1, value 2, value 3)
 *handler:* `Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm`
 
-ARM the next DIALOG statement as a CHOICE OPTION: instead of displaying, that DIALOG's line is QUEUED into the pending-option list (44-byte record in g_dialoguePendingLineQueue) together with up to 3 staged follow-up values, gated on the option's visibility bit. The canonical list shape is [ArmChoiceOption(v); DIALOG line] × N — then a later PROMPT_CHOICE (often in a DIFFERENT scene; the queue is global) presents the queued lines. On selection the picked option's line is ECHOED as the next spoken line and its staged values are committed to the choice-commit state slots (kinds 4/5/6 — read back via the GetVar ops or ConsumeChoiceCommitResult). 1,803 uses — the most common choice idiom; 99.7%% are immediately followed by their DIALOG. IDA-verified 2026-08-17 (deferred path of Dialogue_HandleScriptActionShowLine + ChoiceDialog_CommitSelectionAndDispatchActions).
+ARM the next DIALOG as a choice ROW DESCRIPTION: instead of displaying, that DIALOG's line is QUEUED (44-byte record in the global g_dialoguePendingLineQueue, 128 slots) with up to 3 values (args past 3 are ignored; 0 = not stored), gated on the row's visibility bit when a mask is set. Shape: [ArmChoiceOption(v..); DIALOG line] x N, in row order, any time before the menu (often a separate scene). While the menu is open, the line queued for the HIGHLIGHTED visible row is shown in the dialogue box (on open and on every cursor move), and its values are written to element 0 of var arrays kind 4 / 5 / 6 (arg1 / arg2 / arg3 -- the SetVar4/5/6 arrays that the ＠ text tokens read) -- so the description can show per-row numbers. The menu's own option text still comes from the PROMPT_CHOICE ids; the queue is emptied when the menu closes. 1,839 uses (1,834 followed by their DIALOG). IDA-verified 2026-09-24 (Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm, deferred path of Dialogue_HandleScriptActionShowLine, ChoiceDialog_CommitSelectionAndDispatchActions).
 
 Args:
-  0. staged value 1
-  1. staged value 2
-  2. staged value 3
+  0. value 1 (-> SetVar4 slot 0)
+  1. value 2 (-> SetVar5 slot 0)
+  2. value 3 (-> SetVar6 slot 0)
 
 ### `op 623` — SetDialogueAutoAdvance(mode)
 *handler:* `Script_VMOp_SetDialogueAutoAdvanceTimingMode`
@@ -1164,7 +1216,7 @@ Args:
 ### `op 698` — SetShopkeeperMessage(shopkeeper message index)
 *handler:* `Script_VMOp_WriteJustmMessageRegAndCallback`
 
-Set the active shop's shopkeeper message/greeting line to `arg`. Writes arg (a message index) into the 10-bit packed GameFlag field 3006 = REG_JUSTM_MESSAGE (so the chosen greeting persists), then Shop_SetMessageTextFromArchive(arg): loads locale text archive 15206 (0x3B66), copies entry[arg] (clamped to <360) into the shop's dialogue-text sprite and reveals it with the typewriter effect. CORRECTION: this is NOT an achievement. The raw handler id 39870 decodes (via GameFlags_WriteField) to packed-flag id 3006, width 10 -- and 3006 is not among the ~30 named-achievement switch cases, so it falls through to a plain packed-flag write. The IDA name `WriteJustmMessageRegAndCallback` is accurate (Justm = the shopkeeper message register). Corpus: bank 292 @0x0e7e sets arg=244.
+Set the active shop's shopkeeper message/greeting line to `arg`. Writes arg (a message index) into the 10-bit packed GameFlag field 3006 = REG_JUSTM_MESSAGE (so the chosen greeting persists), then FMenu_SetShopMessageTextFromArchive(arg): loads locale text archive 15206 (0x3B66), copies entry[arg] (clamped to <360) into the shop's dialogue-text sprite and reveals it with the typewriter effect. CORRECTION: this is NOT an achievement. The raw handler id 39870 decodes (via GameFlags_WriteField) to packed-flag id 3006, width 10 -- and 3006 is not among the ~30 named-achievement switch cases, so it falls through to a plain packed-flag write. The IDA name `WriteJustmMessageRegAndCallback` is accurate (Justm = the shopkeeper message register). Corpus: bank 292 @0x0e7e sets arg=244.
 
 Args:
   0. shopkeeper message index (0-359, indexes locale text archive 15206)
@@ -3562,10 +3614,10 @@ Args:
      - `26` = Mistress Trupin
   1. anim id
 
-### `op 217` — ApplyFriendshipDelta(npc id, op kind, xp/value)
+### `op 217` — ApplyFriendshipDelta(npc id, mode, xp/value)
 *handler:* `ScriptVM_Op_ApplyFriendshipDeltaToNpc`
 
-Modify an NPC's friendship XP or absolute friendship. **3 args**: npc_id, op_kind, xp_or_value. Op-kind dispatch: **4 = ADD** (`Npc_AddFriendshipXpAndProcessLevelUp(npc, +xp)`); **5 = SUBTRACT** (`... , -xp)`); **6 = SET absolute** (`Npc_SetFriendshipPointsAbsoluteAndCheckMaxAchievement(npc, value)`). **Special: npc_id == 22 → dynamically resolves to the CHILD NPC id** via `GameFlags_ReadField(0, GF_REG_CHILD_ID, 5)`. That confirms slot 22 = Son is the runtime child-actor slot (paired with slot 23 = Daughter). Dev-menu debug branch uses this with (npc_id, 6, 99999999) = instant MAX friendship to unlock date/marriage flow.
+Modify an NPC's friendship XP or absolute friendship. **3 args**: npc_id, mode, xp_or_value. The mode is arg1's TOKEN KIND, not its value (ScriptVM_Op_ApplyFriendshipDeltaToNpc, RF4S.exe+0x1FD2B0, reads the kind slot at idx-4): a `null` leaf = kind 4 = **ADD** (`Npc_AddFriendshipXpAndProcessLevelUp(npc, +xp)`), `zero` = kind 5 = **SUBTRACT** (`... , -xp)`), `self` = kind 6 = **SET absolute** (`Npc_SetFriendshipPointsAbsoluteAndCheckMaxAchievement(npc, value)`); listings print them add / sub / set. All 283 shipped uses are add. npc_id >= 48 is ignored. **Special: npc_id == 22 → dynamically resolves to the CHILD NPC id** via `GameFlags_ReadField(0, GF_REG_CHILD_ID, 5)`. That confirms slot 22 = Son is the runtime child-actor slot (paired with slot 23 = Daughter). The developers' '＊Date' test branch adds 99999999 xp (instant max friendship).
 
 Args:
   0. npc id
@@ -3596,7 +3648,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. op kind (4=add, 5=sub, 6=set)
+  1. mode (add / sub / set = the null / zero / self leaf)
   2. xp/value
 
 ### `op 221` — AdjustCurrentNpcFriendship(op kind, xp/value)
@@ -4614,7 +4666,7 @@ Args:
 ### `op 290` — PostFamilyMilestones()
 *handler:* `ScriptVMOp_SetWifeStatus2AndFireBirthdayMarriageEvents`
 
-Write the packed marriage/family-status game-flag (packed id 4391 -> value 2) and run the family birthday/anniversary milestone check for today: compares the current date to the spouse's and children's birthdays and the wedding anniversary, setting the matching family-milestone game-flags. These go through GameFlags_WritePacked (packed game-flags), NOT Steam achievements. No args. Used in anniversary/birthday cutscenes.
+Write the packed marriage/family-status game-flag (packed id 4391 -> value 2) and run the family birthday/anniversary milestone check for today: compares the current date to the spouse's and children's birthdays and the wedding anniversary, setting the matching family-milestone game-flags. These go through GameFlags_WritePacked_OrAchievement (packed game-flags), NOT Steam achievements. No args. Used in anniversary/birthday cutscenes.
 
 ### `op 291` — SpawnChildEventRecords(char id, room id)
 *handler:* `ScriptVMOp_SpawnSpecialCalendarEventRecordsByChildNum`
@@ -5233,13 +5285,13 @@ Set the party outfit variant and sync friendship.
 Args:
   0. variant
 
-### `op 400` — SetPlayerLestOrFrey(gender)
+### `op 400` — SetPlayerMale(male)
 *handler:* `Script_VMOp_SetPlayerCharacterLestOrFrey`
 
-Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). **Formerly named `RefreshPlayerAndApplyDefaultName` -- the technical name hides that this is the actual character-swap op**. Dev menu label: 'Boy' / 'Girl'.
+Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). **Listed as `SetPlayerMale` (earlier `SetPlayerLestOrFrey`, still accepted; formerly `RefreshPlayerAndApplyDefaultName`) -- the technical name hides that this is the actual character-swap op**. Dev menu label: 'Boy' / 'Girl'.
 
 Args:
-  0. gender (1=Lest/Boy, 0=Frey/Girl)
+  0. male (1 = Lest / Boy, 0 = Frey / Girl)
 
 ### `op 427` — MaxWeaponSkills()
 *handler:* `Script_VMOp_SetFirst6WeaponSkillsToLevel30`
@@ -5908,10 +5960,10 @@ Args:
 ### `op 489` — SetCompanionMetFlag(clear)
 *handler:* `Script_VMOp_SetCompanionNpcRecordScriptedFlagAndQueueEncounter`
 
-Toggle both companions' 'already met / scripted-present' record flag: arg0 == 0 sets it (mark as met), non-zero clears it — and when cleared outside months 6-18, queues each companion's first-meeting encounter event. Used at a cutscene's end to control whether first-time-meeting dialogue fires.
+Toggle both companions' 'already met / scripted-present' record flag: arg0 == 0 sets it (mark as met), non-zero clears it — and when cleared while the clock hour is outside 6..18 (calendar field +8, the hour Script_VMOp_SetOrAddCalendarHourMinute writes; the handler Script_VMOp_SetCompanionNpcRecordScriptedFlagAndQueueEncounter, RF4S.exe+0x212840), queues each companion's first-meeting encounter event. Used at a cutscene's end to control whether first-time-meeting dialogue fires.
 
 Args:
-  0. clear (0=mark met, else clear + maybe queue meeting)
+  0. clear (0=mark met, else clear; queues the meeting at night)
 
 ### `op 494` — SetCompanionInvulnerable(slot, clear)
 *handler:* `Script_VMOp_SetCompanionArmorBreakBit4`
@@ -6271,7 +6323,7 @@ Args:
 ### `op 557` — SetNpcRecognitionFlags(value, npc ids)
 *handler:* `Script_VMOp_UnlockPerNpcAchievementByList`
 
-Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (an npc id of 0 falls back to the married partner). These are the 23 per-NPC recognition flags (1451-1473); like op290/op698 they go through GameFlags_WritePacked -- a graded packed-flag write, NOT one of the ~30 named Steam achievements (the old 'UnlockNpcAchievements' name overstated it).
+Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (an npc id of 0 falls back to the married partner). These are the 23 per-NPC recognition flags (1451-1473); like op290/op698 they go through GameFlags_WritePacked_OrAchievement -- a graded packed-flag write, NOT one of the ~30 named Steam achievements (the old 'UnlockNpcAchievements' name overstated it).
 
 Args:
   0. value
@@ -6280,7 +6332,7 @@ Args:
 ### `op 558` — SetNpcRecognitionFlags(value, npc ids)
 *handler:* `Script_VMOp_UnlockPerNpcAchievementByList`
 
-Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (duplicate of op 557; npc id 0 = the married partner). Per-NPC recognition flags 1451-1473 via GameFlags_WritePacked -- a packed-flag write, not a Steam achievement.
+Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (duplicate of op 557; npc id 0 = the married partner). Per-NPC recognition flags 1451-1473 via GameFlags_WritePacked_OrAchievement -- a packed-flag write, not a Steam achievement.
 
 Args:
   0. value
@@ -6368,7 +6420,7 @@ Args:
 ### `op 379` — PlayMusic(bgm id)
 *handler:* `Script_VMOp_PlayBGMOrRestore`
 
-Switch background music with a crossfade. **arg = -1 restores the contextual BGM** (clears the scripted-BGM marker bit 0x10000000 at ctx+116, calls Scene_ApplyContextualBGM). Otherwise starts BGM #arg via BGM_SwitchWithCrossfade and sets the scripted-BGM marker so the contextual picker won't override it. Also sets the 'first scripted BGM played' game-flag (packed id 1072, via GameFlags_WritePacked) -- an internal milestone flag, not a Steam achievement. Special case: `arg == 16777332` triggers an additional Sfx_ApplyVoiceVolume with category-bias 45.
+Switch background music with a crossfade. **arg = -1 restores the contextual BGM** (clears the scripted-BGM marker bit 0x10000000 at ctx+116, calls Scene_ApplyContextualBGM). Otherwise starts BGM #arg via BGM_SwitchWithCrossfade and sets the scripted-BGM marker so the contextual picker won't override it. Also sets the 'first scripted BGM played' game-flag (packed id 1072, via GameFlags_WritePacked_OrAchievement) -- an internal milestone flag, not a Steam achievement. Special case: `arg == 16777332` triggers an additional Sfx_ApplyVoiceVolume with category-bias 45.
 
 Args:
   0. bgm id (or -1 = restore)
@@ -6661,14 +6713,14 @@ Args:
   0. mode arg (op from token kind: 4=add, 5=sub, 6=set; value unused)
   1. amount
 
-### `op 417` — ModifyPlayerResource(resource code, op, amount)
+### `op 417` — ModifyPlayerResource(resource code, mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerResourceByCharCodeOp`
 
-Grant or take a player resource. arg0 = resource char-code: 'd'(100)=gold (caps at 2,000,000,000), 'i'(105)=stone, 'j'(106)=compost (both cap 50,000), 'f'(102)=armor def. arg1 = op: 4 = add, 5 = subtract, 6 = set. arg2 = amount. Subtracting gold plays the coin-clink SFX. The 'pay 1000 gold' / 'here's a reward' op.
+Grant or take a player resource (Script_VMOp_ModifyPlayerResourceByCharCodeOp, RF4S.exe+0x20D640). arg0 = resource char-code: 'd'(100)=gold (caps at 2,000,000,000; reaching 10M unlocks achievement 810), 'f'(102)=the player's level (base_stats.level), 'g'(103)=fodder (add/sub go through MonsterFarm_AddFodderToBin, set writes the bin), 'i'(105)=stone, 'j'(106)=compost (both cap 50,000); any other code does nothing -- the developers' '＊All Skills: Level 50' cheat passes the skill ids 0..39 and is a no-op in the shipped game. arg1 = the mode, taken from the argument's TOKEN KIND (the handler reads the kind slot at idx-4, not the value): `null` = add, `zero` = subtract, `self` = set; listings print them add / sub / set. arg2 = amount. Subtracting gold plays the coin-clink SFX. The 'pay 1000 gold' (`100, sub, 1000`) / 'here's a reward' (`100, add, N`) op.
 
 Args:
-  0. resource code (d=gold,i=stone,j=compost,f=def)
-  1. op (4=add,5=sub,6=set)
+  0. resource code (d=gold,f=level,g=fodder,i=stone,j=compost)
+  1. mode (add / sub / set = the null / zero / self leaf)
   2. amount
 
 ### `op 423` — GiveItem(item id, count, quality)
@@ -7227,7 +7279,7 @@ Args:
 ### `op 157` — SpawnMapEntity(entity type id, param 1, param 2, facing, sub-param, extra 5, extra 6, flag 7, flag 8, extra 9, extra 10)
 *handler:* `ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable`
 
-Spawn a map entity, dispatched by TYPE ID to the right spawner — the central script-side object-placement op (handler ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable). arg0 = entity type id: <20 → special trigger (treasure/quest item, Map_HandleSpecialTriggerEntity), 20-195 → placed game object 'pg_mobj' (Actor_AllocTask 65 → MapObj_SetupActorByTypeId), 196-335 → interactive object (door/stove/lift, Map_SpawnInteractiveObject), 336+ → decoration/scenery (MapDecoration_Spawn). arg1/arg2 = position, arg3 = facing (passed as DEGREES, handler multiplies by 182 = 65536/360 → u16 angle), arg4 = sub-param (handler multiplies by 40). args5-9 = up to 5 optional EXTRA placement params copied into the entity's setup struct; their meaning is ENTITY-TYPE-SPECIFIC (flags, linked ids, size, etc.). Dynamic prop/decor placement from a scene.
+Spawn a map entity, dispatched by TYPE ID to the right spawner — the central script-side object-placement op (handler ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable). arg0 = entity type id: <20 → special trigger (treasure/quest item, Map_HandleSpecialTriggerEntity), 20-195 → placed game object 'pg_mobj' (Actor_AllocTask 65 → MapObj_SetupActorByTypeId), 196-335 → interactive object (door/stove/lift, Map_SpawnInteractiveObject), 336+ → decoration/scenery (MapDecoration_Spawn). arg1/arg2 = position, arg3 = facing (passed as DEGREES, handler multiplies by 182 = 65536/360 → u16 angle), arg4 = sub-param (handler multiplies by 40). args 5-10 = up to 6 optional EXTRA placement params (the handler copies them into a 6-slot buffer without a bound check: never pass more than 11 args) copied into the entity's setup struct; their meaning is ENTITY-TYPE-SPECIFIC (flags, linked ids, size, etc.). Dynamic prop/decor placement from a scene.
 
 Args:
   0. entity type id
@@ -7454,10 +7506,16 @@ Args:
   1. count (0=random)
   2. category alt …
 
-### `op 508` — PopulateQuestKind2RandomAlts()
+### `op 508` — PopulateQuestKind2RandomAlts(item id, template param, template param, alt category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+
+Args:
+  0. item id
+  1. template param (byte4)
+  2. template param (byte5)
+  3. alt category seed …
 
 ### `op 509` — PopulateQuestKind2RandomAlts(item id, template param, template param, alt category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
@@ -7470,10 +7528,16 @@ Args:
   2. template param (byte5)
   3. alt category seed …
 
-### `op 510` — PopulateQuestKind2WithLiteralAlternates()
+### `op 510` — PopulateQuestKind2WithLiteralAlternates(item id, template param, template param, alt item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithLiteralAlternates`
 
 Populate the current NPC's daily quest-request slot using request template KIND 2 (With Literal Alternates). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.
+
+Args:
+  0. item id
+  1. template param (byte4)
+  2. template param (byte5)
+  3. alt item id … (first 4 kept)
 
 ### `op 511` — PopulateQuestKind3TwoItemsRandomCats()
 *handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
@@ -7485,15 +7549,27 @@ Populate the current NPC's daily quest-request slot using request template KIND 
 
 Populate the current NPC's daily quest-request slot using request template KIND 3 (Two Items Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
 
-### `op 513` — PopulateQuestKind4ChainedRandom()
+### `op 513` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Populate the current NPC's daily quest-request slot using request template KIND 4 (Chained Random). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
 
-### `op 514` — PopulateQuestKind4ChainedRandom()
+Args:
+  0. target item id
+  1. param (byte4)
+  2. param (byte5)
+  3. category seed … (one roll each)
+
+### `op 514` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Populate the current NPC's daily quest-request slot using request template KIND 4 (Chained Random). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+
+Args:
+  0. target item id
+  1. param (byte4)
+  2. param (byte5)
+  3. category seed … (one roll each)
 
 ### `op 515` — PopulateQuestKind4Byte4_1LiteralAlts(target item id, param, alt item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4Byte4_1LiteralAlts`
@@ -7505,10 +7581,13 @@ Args:
   1. param (byte5)
   2. alt item id …
 
-### `op 516` — PopulateQuestKind5SimpleNoAlts()
+### `op 516` — PopulateQuestKind5SimpleNoAlts(item id)
 *handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
 Populate the current NPC's daily quest-request slot using request template KIND 5 (Simple No Alts). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+
+Args:
+  0. item id
 
 ### `op 517` — PopulateQuestKind5SimpleNoAlts(item id)
 *handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
@@ -7537,10 +7616,14 @@ Args:
   0. goal number (level/count to reach)
   1. reward item ids (variadic, literal)
 
-### `op 521` — PopulateQuestKind9BackrefLiteralAlts()
+### `op 521` — PopulateQuestKind9BackrefLiteralAlts(item id, alt item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind9BackrefLiteralAlts`
 
 Populate the current NPC's daily quest-request slot using request template KIND 9 (Backref Literal Alts). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.
+
+Args:
+  0. item id
+  1. alt item id … (0 ends; first 4 kept)
 
 ### `op 522` — PopulateQuestKind10BackrefRandomCats(category id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefRandomCats`
@@ -7606,15 +7689,27 @@ Args:
 
 Run the 'first request-box quest submitted today' pipeline: mark the active request claimed, unlock the submit achievements, play the shared + per-quest reward scenes, and schedule tomorrow's request reroll. Does nothing if already submitted today or there is no active quest. Takes no arguments. Pairs with RequestBoxClaimFinalize (op 549).
 
-### `op 537` — PopulateQuestKind2WithRandomCats()
+### `op 537` — PopulateQuestKind2WithRandomCats(item id, template param, template param, alt category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
 
-### `op 538` — PopulateQuestKind2WithRandomCats()
+Args:
+  0. item id
+  1. template param (byte4)
+  2. template param (byte5)
+  3. alt category seed …
+
+### `op 538` — PopulateQuestKind2WithRandomCats(item id, template param, template param, alt category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+
+Args:
+  0. item id
+  1. template param (byte4)
+  2. template param (byte5)
+  3. alt category seed …
 
 ### `op 539` — PopulateQuestKind3TwoItemsRandomCats()
 *handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
@@ -7637,10 +7732,16 @@ Args:
   2. param (byte5)
   3. category seed … (one roll each)
 
-### `op 542` — PopulateQuestKind4ChainedRandom()
+### `op 542` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Populate the current NPC's daily quest-request slot using request template KIND 4 (Chained Random). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+
+Args:
+  0. target item id
+  1. param (byte4)
+  2. param (byte5)
+  3. category seed … (one roll each)
 
 ### `op 543` — PopulateQuestKind5SimpleNoAlts(item id)
 *handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
@@ -7650,10 +7751,13 @@ Populate the current NPC's daily quest-request slot using request template KIND 
 Args:
   0. item id
 
-### `op 544` — PopulateQuestKind5SimpleNoAlts()
+### `op 544` — PopulateQuestKind5SimpleNoAlts(item id)
 *handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
 Populate the current NPC's daily quest-request slot using request template KIND 5 (Simple No Alts). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+
+Args:
+  0. item id
 
 ### `op 545` — PopulateQuestKind6TwoArgsNoItem()
 *handler:* `Script_VMOp_PopulateQuestRequestKind6TwoArgsNoItem`
@@ -9822,12 +9926,12 @@ Args:
 ### `op 377` — GetChoiceResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Consume and read the last PROMPT_CHOICE result: after a menu commits, this opcode reads the committed value into the VM query register.
+Consume a PENDING INTERACTION result -- NOT a PROMPT_CHOICE reader (the choice menu never touches these bits). If scene-ctx +116 bit 24 is set, reg0 = the 2-bit value in bits 22-23 and bit 24 is cleared; otherwise reg0 is left alone. The pending bit is set by World_DispatchInteractionEvent for interaction kinds 4/44/45 (which also latch scene +0xA4 = 1/2/3 and clear bits 22-23) and cleared at the start of every other interaction. Name kept for listing compatibility. IDA-verified 2026-09-24 (Script_VMOp_ConsumeChoiceCommitResult).
 
 ### `op 378` — GetChoiceResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Consume and read the last PROMPT_CHOICE result (dupe of op 377).
+Same handler as op 377 (Script_VMOp_ConsumeChoiceCommitResult): consume the pending interaction result into reg0 -- not a PROMPT_CHOICE reader.
 
 ### `op 398` — QueryUnusedPoses(invert)
 *handler:* `Script_VMOp_QueryUnlockedAlternatePoseMask`
@@ -10685,11 +10789,11 @@ Indexed jump table, always-branch variant of SWITCH_EQ: jump to targets[value] w
 
 ### `0xFFF5` — PROMPT_CHOICE_FORCED
 
-Present a choice dialog the player CANNOT cancel -- one of the N u32 items MUST be picked. Same UI as PROMPT_CHOICE (each item is an rf3mc.<locale> string id) but with no CANCEL target. Branches to targets[picked VISIBLE ROW]. reg0: written ONLY when the choice was STAGED (a visibility mask via ops 610/612, or an ArmChoiceOption 615 queue) -- then reg0 = the picked option's ORIGINAL index (mapped through the mask bits), and a following SWITCH_EQ on reg0 dispatches it. An UNSTAGED prompt leaves reg0 UNTOUCHED -- shipped scenes rely on that to carry a GetPlayerPosition result in reg0/reg1 straight across a Yes/No prompt into the moves after it (the deck-fight chase). Layout: [op][N][N u16 targets][N u32 items]; size 6N+4. IDA-re-verified 2026-08-18 (SceneEvent_FinalizeAndPickFromBitmap).
+Present a choice menu with NO cancel key -- one of the N options must be picked (the cancel key does nothing). Same UI as PROMPT_CHOICE: each option is a full u32 rf3mc.<locale> text id (no flag bits; an id past the archive shows entry 0), 4 rows on screen with a wrap-around scrolling list, at most 128 options (the rest are silently dropped); option text goes through the normal ＠ substitution pass. Branches to targets[picked VISIBLE ROW]. reg0 is written ONLY when a visibility mask is set (ops 610/611/612): then only flagged options appear, reg0 = the picked option's ORIGINAL index, the mask is cleared, and the shipped idiom is all targets -> one label + SWITCH_EQ on reg0. A mask whose set bits all lie past option N-1 opens an EMPTY menu that crashes on confirm (divide by zero); an all-zero mask shows every option. An unmasked prompt leaves reg0 UNTOUCHED -- shipped scenes carry a GetPlayerPosition result in reg0/reg1 across a Yes/No prompt (the deck-fight chase). CalcChoicePrescroll (613) sets the initially highlighted row. Layout: [op][N][N u16 targets][N u32 items]; size 6N+4. IDA-verified 2026-09-24 (Script_VMStep case 0xFFF5, SceneEvent_FinalizeAndPickFromBitmap, ChoiceDialog_TickStateMachine).
 
 ### `0xFFF4` — PROMPT_CHOICE
 
-Present a cancellable choice dialog (B backs out). Branches to the CANCEL target (index 0) on dismissal, else to the picked row's target. reg0 follows the same STAGED-ONLY rule as PROMPT_CHOICE_FORCED: a visibility-mask or armed-option prompt writes the picked option's ORIGINAL index to reg0 (for the following SWITCH_EQ); an unstaged prompt leaves reg0 alone, so values parked there by query ops survive the prompt. With a staged visibility mask only flagged options appear, and the prompt clears the mask (and any armed queue) after the pick. Layout: [op][N][N+1 u16 targets: target[0]=cancel, target[1..N]=per-choice][N u32 items]; size = 6N+6. IDA-verified via Script_VMStep case 0xFFF4 + SceneEvent_FinalizeAndPickFromBitmap (2026-08-18).
+Present a choice menu whose cancel key jumps the cursor to the LAST option (and picks it when already there) -- so make the last option the 'never mind' one. The picked row's target is taken as for PROMPT_CHOICE_FORCED (same UI, 128-option cap, 4 visible rows, visibility-mask and reg0 rules). The CANCEL slot (target[0]) is only used for a NEGATIVE pick, which the menu never produces: 890 of the 891 shipped menus just repeat the last option's target there. Layout: [op][N][cancel u16][N u16 targets][N u32 items]; size = 6N+6. IDA-verified 2026-09-24 (Script_VMStep case 0xFFF4, ChoiceDialog_ConfirmViaScrollArrow, SceneEvent_FinalizeAndPickFromBitmap).
 
 ### `0xFFF3` — JMP_IND
 
@@ -10782,10 +10886,10 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 57 | `SetSpeakerLeon` | 58 | `SetSpeakerVentuswill` | 59 | `SetSpeakerVentuswill` |
 | 60 | `SetSpeakerSon` | 61 | `SetSpeakerSon` | 62 | `SetSpeakerDaughter` |
 | 63 | `SetSpeakerDaughter` | 64 | `SetSpeakerPico` | 65 | `SetSpeakerPico` |
-| 66 | `SetSpeakerguest25` | 67 | `SetSpeakerguest25` | 68 | `SetSpeakerguest26` |
-| 69 | `SetSpeakerguest26` | 70 | `SetSpeakerBarrett` | 71 | `SetSpeakerBarrett` |
-| 72 | `SetSpeakerRaven` | 73 | `SetSpeakerRaven` | 74 | `SetSpeakerguest29` |
-| 75 | `SetSpeakerguest29` | 77 | `SetActorFacingAngle` | 78 | `SetActorFacingAngle` |
+| 66 | `SetSpeakerSoldier` | 67 | `SetSpeakerSoldier` | 68 | `SetSpeakerEthelberd` |
+| 69 | `SetSpeakerEthelberd` | 70 | `SetSpeakerBarrett` | 71 | `SetSpeakerBarrett` |
+| 72 | `SetSpeakerRaven` | 73 | `SetSpeakerRaven` | 74 | `SetSpeakerTraveler` |
+| 75 | `SetSpeakerTraveler` | 77 | `SetActorFacingAngle` | 78 | `SetActorFacingAngle` |
 | 79 | `SetActorTurnAngle` | 80 | `SetActorTurnAngle` | 81 | `QueryActorMotionState` |
 | 82 | `QueryActorMotionState` | 83 | `CloseDialogueBubbles` | 84 | `SetActorMotionField62` |
 | 85 | `SetActorMotionField56` | 86 | `SetActorMotionField56` | 87 | `SetActorMotionField60` |
@@ -10892,7 +10996,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 389 | `FindVoiceSlot` | 390 | `StopVoiceId` | 392 | `PlayVoicedSound` |
 | 393 | `FreezePlayer` | 394 | `WarpPlayer` | 395 | `SetPlayerPose` |
 | 396 | `SetPlayerFacingAndPose` | 397 | `SetPartyOutfit` | 398 | `QueryUnusedPoses` |
-| 399 | `GetPlayerSubstate` | 400 | `SetPlayerLestOrFrey` | 401 | `MonsterFarmSpawn` |
+| 399 | `GetPlayerSubstate` | 400 | `SetPlayerMale` | 401 | `MonsterFarmSpawn` |
 | 402 | `SendMonsterToFarmOrClearFlags` | 403 | `GetMonsterRosterAbsent` | 404 | `GetMonsterRosterPresent` |
 | 405 | `SetMonsterFarmLovedToday` | 406 | `GetMonsterFarmLovedToday` | 407 | `QueryActiveKillCount` |
 | 408 | `CountLivingEnemies` | 409 | `CountTamedFarmMonsters` | 410 | `TameEventMonster` |

@@ -15,7 +15,8 @@ consumed by `MonsterTame_RollAttemptWithItem` RF4S.exe+0x96F30):
 How the bonus is used (`MonsterTame_RollAttemptWithItem`, read statically 2026-09-19; the roll
 succeeds when `chance >= (rand & 0x7F)`, so HIGHER chance = EASIER):
     chance = 2 * tame_base                    (monster stats+218, from the rf3NpcParam template)
-    if pref:  chance = pref + 2 * chance      (pref = this table's bonus for the fed item)
+    if pref:  chance = pref + 2 * chance      (pref = this table's bonus for the fed item, taken
+                                               as a SIGNED s16: 0x8000..0xFFFF subtract)
     if the monster is a boss-food monster (actor flags & 0x800) and pref == 0: refuse (-1)
     item CATEGORY (rf3ItemList +4) modifier, applied to ALL species:
         category 4  (Failed Dish 132 / Disastrous Dish 133)       -> chance >>= 1   (HURTS)
@@ -26,6 +27,8 @@ succeeds when `chance >= (rand & 0x7F)`, so HIGHER chance = EASIER):
     chance = (pet_count + 4 * hit_count + item_level + chance) >> min(same_species_tamed, 4), min 1
     level gap (monster level - player level, if > 0, species != 82/113): chance >>= gap >> 1
     roll: chance >= (rand & 0x7F) -> tamed (192), else fail reaction 24..179
+The roll is 16-bit signed arithmetic, so the writer limits a bonus to 0..32767 (MAX_BONUS); a
+listed item with bonus 0 behaves exactly like an unlisted one (and a boss-food monster refuses it).
 So the per-species bonus is **per-species, NOT universal**: an item only helps a monster that
 lists it (e.g. Onigiri 295 is listed for Goblin 52 / Hobgoblin 53 only), while the cooked-food
 +32 / failed-dish halving applies to every monster.  (The previous docstring had the category
@@ -41,6 +44,7 @@ FIRST_SPECIES = 48   # record 0 = species 48
 LAST_SPECIES = 253   # game rejects species > 253 (a1-48 > 0xCD)
 ENTRIES = 4
 ENTRY_SIZE = 8
+MAX_BONUS = 0x7FFF   # Monster_GetTamePreferenceFromArchive's u16 is used as an s16 by the roll
 COOKED_FOOD_CATEGORIES = range(5, 15)   # rf3ItemList +4 categories that add +32 to the roll
 FAILED_DISH_CATEGORY = 4                # halves the roll
 
@@ -78,8 +82,11 @@ def set_pref(buf: bytearray, species_id: int, slot: int, item_id: int, bonus: in
         raise IndexError("slot out of range (0..3)")
     if not (0 <= int(item_id) <= 0x7FF):
         raise ValueError("item id must be 0..2047 (the reader masks the fed item with 0x7FF)")
+    if not (0 <= int(bonus) <= MAX_BONUS):
+        raise ValueError(f"tame bonus must be 0..{MAX_BONUS}: MonsterTame_RollAttemptWithItem adds "
+                         f"it as a signed 16-bit value, so larger values make taming impossible")
     o = _base(len(buf), species_id) + slot * ENTRY_SIZE
-    struct.pack_into("<IH", buf, o, int(item_id), int(bonus) & 0xFFFF)   # pad u16 left as-is
+    struct.pack_into("<IH", buf, o, int(item_id), int(bonus))   # pad u16 left as-is
 
 
 def clear_pref(buf: bytearray, species_id: int, slot: int) -> None:

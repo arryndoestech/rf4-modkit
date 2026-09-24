@@ -20,28 +20,56 @@ most ONE pattern (268 of the 690 are empty). Layout, offsets absolute from file 
     +0x18 u32 pattern_count      +0x1C u32[pattern_count] pattern offsets
 
   pattern @P:  u32 entry_count, then entry_count x 24-byte ENTRIES:
-    +0  u16 gate_kind   actor placed by the encounter (359 "Gate" .. 390 elemental gates)
-    +2  u16 weight      relative pick weight among the pattern's entries
+    +0  u16 gate_kind   actor placed by the encounter (359 "Gate" .. 390 elemental gates).
+                        Encounter_SpawnMonsterFromTemplate sends kinds 48..277 down a
+                        path that stores through a NULL pointer (instant crash); every
+                        other kind goes through Actor_SpawnAtPos.
+    +2  u16 weight      relative pick weight among the pattern's entries (summed in a u16)
     +4  u32 -> hdr      16 B: {u32 1; u16 param_a; u8 count_min; u8 count_max;
-                        u16 spawn_delay; u16 flag; u32 0}  (copied into the behaviour task
-                        by the unpacker; Companion_TickAI +0x1E7870 reads the copy).
+                        u16 spawn_delay; u16 flag; u32 0}  (hdr+4..+15 copied into the
+                        behaviour task by the unpacker; Companion_TickAI +0x1E7870 reads
+                        the copy).
+                        param_a = the GATE'S LEVEL: Encounter_TickMonsterSpawnSlots
+                        levels the gate to param_a * (prince rank + 1) + 100 * rank - 1
+                        (0 = leave the actor's own level), and Companion_AcquireTarget
+                        levels each monster up to the gate when it is 16+ below. The
+                        fallback builder stores the same formula's result here.
                         count_min/count_max = monsters kept alive per gate (the tick
                         spawns while fewer than count_max are engaged, at least
-                        count_min at once; hard mode caps max at 4). spawn_delay = the
-                        respawn timer base in frames: first wave delay = spawn_delay +
-                        rand(0..127) (-32 above 32), between waves (spawn_delay +
-                        rand(0..63)) / 2 with a floor of 48. flag bit 8 (values 256 in
-                        16 entries) gates a leader-report path. param_a (60..280 in most
-                        shipped gates; the fallback stores the wave level there) has no
-                        reader in the tick -- kept verbatim.
+                        count_min at once; the engaged array holds 10; hard mode caps
+                        max at 4). spawn_delay = the respawn timer base in frames: first
+                        wave delay = spawn_delay + rand(0..127) (-32 above 32), between
+                        waves (spawn_delay + rand(0..63)) / 2 with a floor of 48.
+                        flag low byte != 0: the spawned gate gets actor state bits 0x24
+                        (as when the player has status 0x40000); flag high byte != 0
+                        (value 256 in 16 shipped entries) enables the leader-report path.
     +8  u32 -> gate positions  {u32 n; n x (u16 x, u16 y)}   sub-units, tile = >>3;
                         Encounter_TickMonsterSpawnSlots picks one at random for the gate
-    +12 u32 -> monster positions {u32 m; m x (u16 x, u16 y, u32 extra)}
-    +16 u32 -> roster   {u32 N; N x RECORD}   RECORD = {u16 monster_id; u16 level;
-                        u32 K; u32 weight[K]}  -- K per-record dwords, one per monster
-                        position (the unpacker clamps K to m); the fallback writes
-                        K = 1, weight = 1
-    +20 u32 -> roster (alternate)   always the same block as +16 in shipped data
+                        (n = 0 reads the dword after the count as a position)
+    +12 u32 -> monster positions {u32 m; m x (u16 x, u16 y, u32 radius)}  the monster
+                        appears at (x, y) + a random offset up to `radius` sub-units
+                        (only the low u16 is read), retried up to 64 times until the
+                        ATTR cell has bit 0x01 or 0x20 (Companion_TickAnimation)
+    +16 u32 -> roster   {u32 N; N x RECORD}   RECORD = {u16 monster_id; u16 pick_weight;
+                        u32 K; u32 pos_weight[K]}
+                        pick_weight = the monster's relative chance within the roster
+                        (Companion_TickMovement +0x1E8650 sums the u16 at record+2 and
+                        picks by it -- this is NOT a level; the old `level` name is kept
+                        as an alias). pos_weight[k] = chance of spawning at monster
+                        position k; only the LOW BYTE is read and the bytes are summed
+                        in a u8 (Companion_TickAnimation).
+                        STRIDE: every consumer steps through the roster with the FIXED
+                        stride 8 + 4*K0, K0 = the FIRST record's K (Companion_AcquireTarget,
+                        _TickMovement, _TickAnimation); only the unpacker's copy size is
+                        also N * (12 + 4*K0). So every record except the last must have
+                        K == K0, or the later records are read at the wrong offsets.
+                        K should equal m: the unpacker "clamps" by rewriting the cached
+                        archive after its copy (record 0's K, or m), so a mismatch reads
+                        positions past the table on this load and shifts the stride on
+                        the next one. The fallback writes K = 1, pos_weight = 1.
+    +20 u32 -> roster (alternate)   picked instead of +16 for (100 - p)% of the monsters,
+                        p = 70 (05-10h) / 55 (11-16h) / 45 (17-22h) / 30 (night); always
+                        the same block as +16 in shipped data
 
 Sub-blocks are SHARED freely between entries (a pattern's gates usually share the
 position tables and often the roster). After byte_size comes the generic NLCL footer:
@@ -55,8 +83,13 @@ This module parses the whole file into objects, lets you retune AND restructure 
 with recomputed offsets and footer. Unmodified files rebuild byte-for-byte (all 690).
 
 CORRECTION 2026-09-19: an earlier version assumed a fixed 24-byte roster record and
-misread every roster whose K is not 4 (e.g. GenA01 gate 1: Orc Archer level 0 instead
-of level 20). Record size is 8 + 4*K, K per record.
+misread every roster whose K is not 4 (e.g. GenA01 gate 1: Orc Archer pick weight 0
+instead of 20). Record size on disk is 8 + 4*K; the game reads with K0's stride.
+CORRECTION 2026-09-24: the record's high u16 is the monster's PICK WEIGHT, not a level
+(shipped values are 5 or 10 in ~70% of records); the gate level is hdr.param_a.
+Encounter_TickMonsterSpawnSlots spawns one gate PER PATTERN into the spawn task's
+2-slot gate array (the counter is not bounds-checked), so keep <= 2 patterns (every
+shipped file has 0 or 1).
 """
 from __future__ import annotations
 
@@ -69,6 +102,12 @@ MONSTER_LO, MONSTER_HI = 48, 254   # living-monster id range (bestiary)
 ENTRY_SIZE = 24
 HDR_SIZE = 16
 GATE_KIND_LO, GATE_KIND_HI = 359, 390   # the Gate actor family
+# Encounter_SpawnMonsterFromTemplate (RF4S.exe+0x1E5990): kinds 48..277 take a branch
+# that writes the spawned actor through a NULL pointer -> crash on the first spawn.
+CRASH_KIND_LO, CRASH_KIND_HI = 48, 0x115
+MAX_PATTERNS = 2            # gate slots in the encounter spawn task
+MAX_ENGAGED = 10            # engaged-monster slots per gate (Companion_TickAI)
+MAX_INDEX7 = 128            # roster / monster-position indices are kept in 7 bits
 
 
 class GenError(Exception):
@@ -139,7 +178,8 @@ class PosTable:
 
 
 class MonPosTable:
-    """Monster spawn points: {u32 m; m x (u16 x, u16 y, u32 extra)}."""
+    """Monster spawn points: {u32 m; m x (u16 x, u16 y, u32 extra)}. `extra` is the
+    scatter radius in sub-units (low u16 read by Companion_TickAnimation)."""
     __slots__ = ("points", "orig_off")
     RECORD = 8
 
@@ -171,9 +211,19 @@ class MonPosTable:
 class Spawn:
     """One roster record -> a monster the gate can generate.
 
-    `monster_id` low 16 bits of the packed dword, `level` (alias `param`, kept for the
-    older API) the high 16, `weights` = the K per-monster-position dwords."""
+    `monster_id` low 16 bits of the packed dword; the high 16 are the monster's PICK
+    WEIGHT within the roster (`pick_weight`; still stored as `level`, alias `param`, for
+    the older API -- the game never reads it as a level, see the module docstring);
+    `weights` = the K per-monster-position weights (low byte read)."""
     __slots__ = ("monster_id", "level", "weights", "rec_off")
+
+    @property
+    def pick_weight(self):
+        return self.level
+
+    @pick_weight.setter
+    def pick_weight(self, v):
+        self.level = v & 0xFFFF
 
     def __init__(self, monster_id, level, weights=None, rec_off=None):
         self.monster_id = monster_id & 0xFFFF
@@ -367,14 +417,17 @@ class GenTable:
         self._sync()
 
     def set_spawn_param(self, spawn: Spawn, param: int):
+        """Set the record's high u16 = the monster's pick weight in the roster."""
         spawn.level = param & 0xFFFF
         self._sync()
 
-    set_spawn_level = set_spawn_param
+    set_spawn_level = set_spawn_param          # historic name
+    set_spawn_pick_weight = set_spawn_param
 
     def set_spawn_weights(self, spawn: Spawn, weights):
         """Set the per-monster-position weights (K values). K should equal the number of
-        monster positions of every gate using the roster; the unpacker clamps it."""
+        monster positions of every gate using the roster, and every record must keep
+        record 0's K (the game reads the roster with record 0's stride) -- see validate()."""
         spawn.weights = [int(w) & 0xFFFFFFFF for w in weights]
         self._sync()
 
@@ -460,8 +513,10 @@ class GenTable:
         return ent
 
     def add_spawn(self, e: Entry, monster_id: int, level: int, weights=None) -> Spawn:
-        """Add a monster to the gate's roster. `weights` defaults to one weight of 10 per
-        monster position (K = number of monster positions), matching the stock files."""
+        """Add a monster to the gate's roster. `level` is the record's high u16 = the
+        monster's PICK WEIGHT within the roster (the historic name is kept for callers;
+        5 or 10 is typical). `weights` defaults to one weight of 10 per monster position
+        (K = number of monster positions), matching the stock files."""
         if weights is None:
             weights = [10] * max(1, len(e.mon_pos.points))
         s = Spawn(monster_id, level, weights)
@@ -524,33 +579,98 @@ class GenTable:
 
     # ---- consistency checks ---------------------------------------------- #
     def validate(self) -> list[str]:
-        """Problems the game would trip over: K != monster-position count (the unpacker
-        clamps K to the point count, dropping weights), empty position tables (the
-        random pick indexes them), gate kinds outside the Gate family, monsters outside
-        the bestiary, zero total weight."""
+        """Problems the game would trip over, checked against Encounter_TickMonster-
+        SpawnSlots, Encounter_SpawnMonsterFromTemplate, Map_LoadAndUnpackMonsterSpawn-
+        Tables and the Companion_* consumers. Lines starting 'ERROR: ' crash, hang or
+        corrupt memory; the rest load but misbehave."""
         out = []
+        err = lambda m: out.append("ERROR: " + m)
+        if len(self.patterns) > MAX_PATTERNS:
+            err(f"{len(self.patterns)} patterns: each spawns one gate into the spawn task's "
+                f"{MAX_PATTERNS}-slot gate array, unchecked -- the extra gates overwrite the "
+                f"monster slots behind it")
         for pi, entries in enumerate(self.patterns):
-            if entries and sum(e.weight for e in entries) == 0:
+            wsum = sum(e.weight for e in entries)
+            if entries and wsum == 0:
                 out.append(f"pattern {pi}: every gate has weight 0, nothing can be picked")
+            elif wsum > 0xFFFF:
+                out.append(f"pattern {pi}: gate weights sum to {wsum}; the tick sums them in a "
+                           f"u16 ({wsum & 0xFFFF}), which skews the pick")
             for ei, e in enumerate(entries):
                 tag = f"pattern {pi} gate {ei}"
-                if not (GATE_KIND_LO <= e.gate_kind <= GATE_KIND_HI):
+                if CRASH_KIND_LO <= e.gate_kind <= CRASH_KIND_HI:
+                    err(f"{tag}: kind {e.gate_kind} is in 48..277, which Encounter_Spawn"
+                        f"MonsterFromTemplate spawns through a NULL pointer (crash); use a "
+                        f"Gate actor (359..390)")
+                elif not (GATE_KIND_LO <= e.gate_kind <= GATE_KIND_HI):
                     out.append(f"{tag}: kind {e.gate_kind} is not a Gate actor (359..390)")
+                h = e.hdr
+                if h.count_min > MAX_ENGAGED:
+                    out.append(f"{tag}: count_min {h.count_min} > {MAX_ENGAGED} (the engaged-"
+                               f"monster slots) -- the gate never spawns a wave")
+                elif h.count_min > h.count_max:
+                    out.append(f"{tag}: count_min {h.count_min} > count_max {h.count_max}")
+                if h.count_max > MAX_ENGAGED:
+                    out.append(f"{tag}: count_max {h.count_max} is capped at {MAX_ENGAGED}")
                 if not e.gate_pos.points:
-                    out.append(f"{tag}: no gate positions (the spawner picks one at random)")
-                if not e.mon_pos.points:
-                    out.append(f"{tag}: no monster positions")
-                if not e.roster.spawns:
-                    out.append(f"{tag}: empty roster (the gate spawns nothing)")
+                    out.append(f"{tag}: no gate positions -- the tick still picks index 0 and "
+                               f"reads the dword after the count (the next block) as the gate "
+                               f"position (GenN03 ships like this)")
                 m = len(e.mon_pos.points)
-                for si, s in enumerate(e.roster.spawns):
-                    if len(s.weights) != m:
-                        out.append(f"{tag} monster {si}: {len(s.weights)} weights but {m} "
-                                   f"monster positions (the unpacker clamps K to the smaller)")
-                    if not (MONSTER_LO <= s.monster_id <= MONSTER_HI):
-                        out.append(f"{tag} monster {si}: id {s.monster_id} is not a bestiary "
-                                   f"monster (48..254)")
+                if not m:
+                    out.append(f"{tag}: no monster positions")
+                elif m > MAX_INDEX7:
+                    out.append(f"{tag}: {m} monster positions, but the picked index is kept "
+                               f"in 7 bits (only the first {MAX_INDEX7} are reachable)")
+                for rname, ro in (("roster", e.roster), ("alt roster", e.roster_alt)):
+                    if rname == "alt roster" and ro is e.roster:
+                        continue
+                    self._validate_roster(f"{tag} {rname}", ro, m, err, out)
         return out
+
+    @staticmethod
+    def _validate_roster(tag, roster, m, err, out):
+        sp = roster.spawns
+        if not sp:
+            err(f"{tag}: empty -- the consumers still read record 0 (past the block) as "
+                f"the monster to spawn")
+            return
+        if len(sp) > MAX_INDEX7:
+            out.append(f"{tag}: {len(sp)} records, but the picked index is kept in 7 bits "
+                       f"(only the first {MAX_INDEX7} are reachable)")
+        k0 = len(sp[0].weights)
+        bad = [i for i, s in enumerate(sp[:-1]) if len(s.weights) != k0]
+        if bad:
+            err(f"{tag}: records {bad} have K != {k0} (record 0's): the game steps through "
+                f"the roster with the fixed stride 8 + 4*K0, so every record after the first "
+                f"mismatch is read at the wrong offset (give every record the same K)")
+        if len(sp[-1].weights) > k0 + len(sp) - 1:
+            out.append(f"{tag}: the last record's {len(sp[-1].weights)} weights run past the "
+                       f"unpacker's copy (N * (12 + 4*K0) bytes); the tail reads uninitialised "
+                       f"memory")
+        if sum(s.level for s in sp) == 0:
+            out.append(f"{tag}: every pick_weight is 0, so no monster is ever picked")
+        for si, s in enumerate(sp):
+            k = len(s.weights)
+            if m and k != m:
+                (err if k > m else out.append)(
+                    f"{tag} monster {si}: {k} position weights but {m} monster positions -- "
+                    + ("the pick can land past the position table (garbage spawn point)"
+                       if k > m else "the unpacker then shrinks the cached position count")
+                    + "; keep K == monster positions")
+            if not (MONSTER_LO <= s.monster_id <= MONSTER_HI):
+                out.append(f"{tag} monster {si}: id {s.monster_id} is not a bestiary "
+                           f"monster (48..254)")
+            lb = sum(w & 0xFF for w in s.weights)
+            if k and lb == 0:
+                out.append(f"{tag} monster {si}: position weights are all 0 (low byte), so "
+                           f"its spawn point is never picked")
+            elif lb > 0xFF:
+                out.append(f"{tag} monster {si}: position weights sum to {lb}; the game sums "
+                           f"the low bytes in a u8 ({lb & 0xFF}) -- keep the total <= 255")
+            if any(w > 0xFF for w in s.weights):
+                out.append(f"{tag} monster {si}: a position weight above 255 -- only the "
+                           f"low byte is read")
 
     # ---- rebuild --------------------------------------------------------- #
     def _layout(self):
@@ -634,7 +754,7 @@ class GenTable:
                 lines.append(f"    [{ei}] gate {e.gate_kind}"
                              f"{' ('+gk+')' if gk else ''}  weight {e.weight}  "
                              f"keeps {h.count_min}-{h.count_max} alive, respawn base {h.spawn_delay} f"
-                             f"{', param_a ' + str(h.param_a) if h.param_a else ''}"
+                             f"{', gate level ' + str(h.param_a) if h.param_a else ''}"
                              f"  ({len(e.gate_pos.points)} gate pos, "
                              f"{len(e.mon_pos.points)} monster pos)")
                 for si, s in enumerate(e.spawns):
@@ -642,8 +762,8 @@ class GenTable:
                         continue
                     mn = name_fn(s.monster_id)
                     lines.append(f"         [{si}] {s.monster_id}"
-                                 f"{' ('+mn+')' if mn else ''}  lv {s.level}  "
-                                 f"weights {s.weights}")
+                                 f"{' ('+mn+')' if mn else ''}  pick weight {s.level}  "
+                                 f"position weights {s.weights}")
         roster = self.roster()
         if roster:
             top = ", ".join(f"{name_fn(i) or i}" for i, _ in roster.most_common())

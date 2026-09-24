@@ -16,10 +16,11 @@ rf3route.bin (10456 B):
     +20  u32 off_rooms (32)   -> room_count x 4 B  {u8 room_lo, u8 node_count, u16 first_node}
                                  room_lo == room id & 0xFF (the table is indexed by room id)
     +24  u32 off_nodes (3520) -> node_count x 12 B {i16 x, i16 y, u16 first_edge, u16 jitter,
-                                 u8 edge_count, u8 room, u16 0}   (tile units; << 12 = Q12 world)
+                                 u8 edge_count, u8 room, u16 0}   (SUB-UNITS, 8 per tile, like
+                                 MOBJ positions; << 12 = Q12 world -- Nav_FindNearestNodeInGroup)
     +28  u32 off_edges (7324) -> edge_count x 4 B  {u8 dest_room, u8 dest_node, u16 cost}
                                  dest_node = index within the destination room's node group;
-                                 cost 0 = room-transition edge
+                                 cost = distance in sub-units, 0 = room-transition edge
     The pathfinder indexes the room table and edge destinations with 8-bit room numbers, so only
     rooms 0..255 can carry nodes (shipped: 32 rooms with nodes, highest id 159).  Nodes are
     stored grouped by room and edges grouped by node, with first_node / first_edge as running
@@ -28,7 +29,11 @@ rf3route.bin (10456 B):
 rf3RouteResult.bin (50562 B = 318 rows x 159 B): nibble matrix `hop[dst][src]`:
     byte = data[stride*dst + (src >> 1)], even src = HIGH nibble, odd src = LOW nibble;
     the value is the index (0..14) into src's edge list of the edge that leads toward dst.
-    stride = ceil(node_count / 2) = 159; the shipped file carries one spare (all-zero) row.
+    The stride 159 is a CONSTANT in Nav_BuildPathFromAToB (`159 * dst + (src >> 1)`),
+    not derived from the node count, so the matrix is always written with 159-byte rows
+    and a graph can hold at most 318 nodes (src >> 1 must stay < 159). The shipped file
+    carries one spare (all-zero) row. A hop value >= the node's edge_count makes the
+    walker dereference NULL (crash); a hop can only name edges 0..15 (nibble).
     Nav_BuildPathFromAToB: cur = src; while cur != dst: e = edges[cur][hop[dst][cur]];
     cur = node(e.dest_room, e.dest_node); cost += e.cost.
     compute() rebuilds the matrix from the graph (shortest total cost, first edge on the path);
@@ -46,6 +51,9 @@ VERSION = 0x00010002
 HEADER_SIZE = 32
 MAX_ROOMS = 872
 MAX_HOPS = 64
+ENGINE_STRIDE = 159              # hard-coded row stride of rf3RouteResult in the walker
+MAX_NODES = 2 * ENGINE_STRIDE    # 318: src >> 1 must stay inside one 159-byte row
+MAX_HOP_EDGES = 16               # hop values are nibbles
 
 Room = namedtuple("Room", "room_lo node_count first_node")
 Node = namedtuple("Node", "x y first_edge jitter edge_count room")
@@ -118,6 +126,37 @@ class RouteGraph:
     def edge_target(self, e: Edge) -> int:
         return self.node_index(e.dest_room, e.dest_node)
 
+    # ---- validation ------------------------------------------------------ #
+    def validate(self) -> list[str]:
+        """'ERROR: ...' / 'WARN: ...' lines for what Nav_BuildPathFromAToB and
+        Nav_FindNearestNodeInGroup would trip over."""
+        errs, warns = [], []
+        n = len(self.nodes)
+        if n > MAX_NODES:
+            errs.append(f"{n} nodes: rf3RouteResult rows are a fixed {ENGINE_STRIDE} bytes in "
+                        f"the walker, so at most {MAX_NODES} nodes can be addressed")
+        try:
+            rooms = self.rooms()
+        except RouteError as e:
+            return [f"ERROR: {e}"]
+        for r, rm in enumerate(rooms):
+            if rm.node_count > 255:
+                errs.append(f"room {r}: {rm.node_count} nodes, but the count is a u8")
+        if any(nd.room > 255 for nd in self.nodes) or any(e.dest_room > 255 for e in self.edges):
+            errs.append("nodes/edges in rooms above 255: the pathfinder addresses rooms as u8")
+        for i, nd in enumerate(self.nodes):
+            if nd.edge_count > 255:
+                errs.append(f"node {i}: {nd.edge_count} edges, but the count is a u8")
+            elif nd.edge_count > MAX_HOP_EDGES:
+                warns.append(f"node {i}: {nd.edge_count} edges; the next-hop nibble can only "
+                             f"name edges 0..15, the rest are never taken")
+        for i in range(n):
+            for k, e in enumerate(self.edges_of(i)):
+                if e.dest_room >= len(rooms) or e.dest_node >= rooms[e.dest_room].node_count:
+                    errs.append(f"node {i} edge {k}: -> room {e.dest_room} node {e.dest_node}, "
+                                f"which does not exist (the walker dereferences NULL there)")
+        return [f"ERROR: {m}" for m in errs] + [f"WARN: {m}" for m in warns]
+
     # ---- build ----------------------------------------------------------- #
     def build(self) -> bytes:
         rooms = self.rooms()
@@ -181,6 +220,12 @@ class RouteResult:
 
     @classmethod
     def parse(cls, data: bytes, node_count: int | None = None) -> "RouteResult":
+        """The game always reads 159-byte rows; that stride is used whenever the length
+        is a whole number of them. Otherwise (a matrix written for another stride by an
+        older toolkit) the stride is taken from `node_count` or guessed."""
+        if data and len(data) % ENGINE_STRIDE == 0 and (
+                node_count is None or node_count <= MAX_NODES):
+            return cls(bytearray(data), ENGINE_STRIDE, len(data) // ENGINE_STRIDE)
         if node_count is None:
             # stride s = ceil(n/2) and rows in {2s-1, 2s}: len is s*(2s-1) or 2*s*s
             s0 = int(round((len(data) / 2) ** 0.5))
@@ -232,14 +277,21 @@ class RouteResult:
     def compute(cls, graph: RouteGraph, rows: int | None = None) -> "RouteResult":
         """Regenerate the matrix from the graph: for every dst, run Dijkstra on the REVERSED
         graph so each src learns the cheapest total cost, then record the first edge of a
-        cheapest route (lowest edge index on ties). Unreachable pairs keep hop 0."""
+        cheapest route (lowest edge index on ties). Unreachable pairs keep hop 0.
+
+        Rows are always ENGINE_STRIDE (159) bytes -- the walker's constant. (This used to
+        size rows as ceil(n/2), which only matched the game for 317/318 nodes: any other
+        node count produced a matrix the game reads at the wrong offsets.)"""
         n = len(graph.nodes)
+        if n > MAX_NODES:
+            raise RouteError(f"{n} nodes: the game's {ENGINE_STRIDE}-byte rows address at "
+                             f"most {MAX_NODES}")
         targets = [[graph.edge_target(e) for e in graph.edges_of(i)] for i in range(n)]
         rev = [[] for _ in range(n)]              # rev[v] = [(u, edge_idx_in_u, cost)]
         for u in range(n):
             for k, e in enumerate(graph.edges_of(u)):
                 rev[targets[u][k]].append((u, k, e.cost))
-        stride = (n + 1) // 2
+        stride = ENGINE_STRIDE
         rows = rows if rows is not None else n
         res = cls(bytearray(stride * rows), stride, rows)
         # distance = (total cost, hop count): the hop count breaks cost ties so that a pair of
@@ -267,7 +319,11 @@ class RouteResult:
                     if (e.cost + dist[t][0], 1 + dist[t][1]) == dist[src]:
                         best = k
                         break
-                if best is not None and best <= 15:
+                if best is not None and best > 15:
+                    raise RouteError(f"node {src} -> {dst}: the cheapest route leaves by edge "
+                                     f"{best}, but a hop nibble can only name edges 0..15 "
+                                     f"(reorder node {src}'s edges)")
+                if best is not None:
                     res.set_hop(src, dst, best)
         return res
 

@@ -373,7 +373,7 @@ class EncountersTab(ui.ScrollFrame):
         ui.Tip(b2, "Click the map to add a monster spawn point to the selected gate.")
         r = section(b, "Roster of the selected gate")
         self.roster = ttk.Treeview(r, columns=("mon", "lv", "w"), show="headings", height=6, selectmode="browse")
-        for c, t, w in (("mon", "monster", 170), ("lv", "level", 44), ("w", "weights", 80)):
+        for c, t, w in (("mon", "monster", 170), ("lv", "pick wt", 52), ("w", "weights", 80)):
             self.roster.heading(c, text=t)
             self.roster.column(c, width=w, anchor="w" if c != "lv" else "e", stretch=(c == "mon"))
         self.roster.pack(fill="x")
@@ -382,8 +382,8 @@ class EncountersTab(ui.ScrollFrame):
         mf.pack(fill="x", pady=(4, 0))
         self.mon = ui.FilterCombo(mf, data.monster_choices(), None, width=24)
         self.mon.pack(side="left", fill="x", expand=True)
-        ttk.Label(mf, text=" lv").pack(side="left")
-        self.lv = tk.StringVar(value="1")
+        ttk.Label(mf, text=" weight").pack(side="left")
+        self.lv = tk.StringVar(value="10")
         ttk.Entry(mf, textvariable=self.lv, width=4).pack(side="left")
         mb = ttk.Frame(r)
         mb.pack(fill="x", pady=(2, 0))
@@ -391,7 +391,8 @@ class EncountersTab(ui.ScrollFrame):
         ttk.Button(mb, text="Replace", command=self._replace_mon).pack(side="left", padx=2)
         ttk.Button(mb, text="Remove", command=self._remove_mon).pack(side="left")
         hint(b, "Gates (kind 359-390) are picked by weight; the roster lists the monsters a gate "
-                "spawns (id 48-254) at a level, with one weight per monster spawn point. On the map: "
+                "spawns (id 48-254), each with a pick weight (its relative chance; stock uses 5 or 10) and one "
+                "weight per monster spawn point. On the map: "
                 "orange G = gate positions, pink dots = monster spawn points (the selected gate's are "
                 "outlined white). Drag them with the Select tool. Gates often share one roster, so a "
                 "monster added to one shows up in all of them until you 'Make private'.").pack(
@@ -528,12 +529,12 @@ class EncountersTab(ui.ScrollFrame):
             return
         sp = e.spawns[int(s[0])]
         self.mon.var.set(f"{sp.monster_id}  {data.actor_name(sp.monster_id)}".strip())
-        self.lv.set(str(sp.level))
+        self.lv.set(str(sp.pick_weight))
 
     def _mon_values(self):
         mid, lv = data.leading_int(self.mon.var.get()), ui.to_int(self.lv.get())
         if mid is None or lv is None:
-            self.ed.status("Pick a monster and a level first.")
+            self.ed.status("Pick a monster and a pick weight first.")
             return None
         return mid & 0xFFFF, lv & 0xFFFF
 

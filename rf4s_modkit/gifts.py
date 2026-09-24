@@ -23,13 +23,17 @@ older version of this docstring cited +0x2DA520, which is an unrelated fixed-poi
          `archive + off`), but it is kept so rebuilt files stay byte-identical to stock.
 
 Entry u32: low16 = target, high16 = code.
-  target  0..0x7FFF        item id (the reader compares `item & 0x7FF`)
-          0x8000..0x80FF   item-id RANGE tag; low byte indexes g_itemCategoryRangeTable
-                           (RF4S.exe+0x4D5918, 12 u16 [min,max) pairs, vendored in ITEM_RANGE_TABLE)
+  target  0..0x7FF         item id: the reader compares the WHOLE 16-bit target with the
+                           gifted `item & 0x7FF`, so 0x800..0x7FFF never match (rejected)
+          0x8000..0x800B   item-id RANGE tag; low byte indexes g_itemCategoryRangeTable
+                           (RF4S.exe+0x4D5918, 12 u16 [min,max) pairs, vendored in ITEM_RANGE_TABLE);
+                           tags 12..255 would index past those 12 pairs (rejected)
           0x8100..         cross-ref: group (target - 0x8100) of rf3PresentCategory; the reader
                            walks that group's off1 list for a DIRECT item-id match only (no nested
                            ranges/xrefs) and returns the CATEGORY entry -- so its code, not the
-                           NPC entry's code, is what gets applied.
+                           NPC entry's code, is what gets applied. An index >= the category
+                           file's group count (21) is skipped silently (bounds-checked there).
+  The FP codes of loved/liked entries are applied as SIGNED 16-bit values (-32768..32767).
   The loop counters in the lookup are 8-bit: a sub-list (or a category list) must hold at most
   255 entries or the game spins forever.  build() enforces this.
 
@@ -63,6 +67,8 @@ GENERIC_DISLIKE_CODE = 0xFFFB     # what shipped files store for the other disli
 DEFAULT_FP = {"loved": 15, "liked": 9}
 NEUTRAL_FP = 5                    # unlisted item: +5 (once per day)
 MAX_LIST_ENTRIES = 255            # u8 loop counters in GiftTable_FindEntryByItemIdOrRangeOrCrossRef
+MAX_ITEM_ID = 0x7FF               # the gifted item is masked to 11 bits before the compare
+RANGE_TAGS = 12                   # g_itemCategoryRangeTable holds 12 [min, max) pairs
 
 Entry = namedtuple("Entry", "kind value code")   # kind: item|category|xref
 
@@ -91,12 +97,14 @@ def encode_target(kind: str, value: int) -> int:
     """Inverse of _decode_target."""
     value = int(value)
     if kind == "item":
-        if not (0 <= value < 0x8000):
-            raise GiftError(f"item id {value} out of range")
+        if not (0 <= value <= MAX_ITEM_ID):
+            raise GiftError(f"item id {value} out of range (0..{MAX_ITEM_ID}: the game compares "
+                            f"the entry with the 11-bit gifted item id)")
         return value
     if kind == "category":
-        if not (0 <= value <= 0xFF):
-            raise GiftError(f"range tag {value} out of range (0..255)")
+        if not (0 <= value < RANGE_TAGS):
+            raise GiftError(f"range tag {value} out of range (0..{RANGE_TAGS - 1}: "
+                            f"g_itemCategoryRangeTable has {RANGE_TAGS} entries)")
         return 0x8000 | value
     if kind == "xref":
         if not (0 <= value <= 0xFFFF - 0x8100):
@@ -195,6 +203,9 @@ class GiftTable:
         group so an item can never sit in two lists)."""
         if tier not in TIERS:
             raise GiftError(f"tier must be one of {TIERS}, not {tier!r}")
+        if not (-0x8000 <= int(entry.code) <= 0xFFFF):
+            raise GiftError(f"entry code {entry.code} does not fit 16 bits")
+        encode_target(entry.kind, entry.value)          # validate before touching the lists
         self.remove(entry.kind, entry.value, group)
         g = self.groups[group]
         if g.get(tier) is None:
@@ -213,6 +224,9 @@ class GiftTable:
             code = SIGNATURE_DISLIKE_CODE if signature else GENERIC_DISLIKE_CODE
         elif tier in DEFAULT_FP:
             code = DEFAULT_FP[tier] if fp is None else int(fp)
+            if not (-0x8000 <= code <= 0x7FFF):
+                raise GiftError(f"fp {code} out of range: the game applies the code as a "
+                                f"signed 16-bit friendship delta (-32768..32767)")
         else:
             raise GiftError(f"tier must be loved/liked/disliked/neutral, not {tier!r}")
         e = Entry("item", int(item_id), code & 0xFFFF)

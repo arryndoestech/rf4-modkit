@@ -47,10 +47,15 @@ rf3ScheduleID.bin: NLCL, 3898 records x 12 B = the SPOTS (record base = archive 
     +0 u16 room (872-room enum)   +2 i16 x   +4 i16 y   (tile units; << 12 = world Q12)
     +6 u8 facing (x 256 = angle)  +7 u8 action (bit0 -> the plan's 0x200 'act' bit)
     +8 u8 wander (jitter radius, tiles)   +9 u8 weight (pick weight within the kind)
-    +10 u8 flags (bit1 = eligible for the 25% kind-0 reroll of 0x2000-flagged NPCs; bit2 = skip
-    when the target map is overcrowded unless calendar state 1)   +11 u8 busy (runtime, 0 on disk)
+    +10 u8 flags (bit1 = eligible for the 25% kind-0 reroll of 0x2000-flagged NPCs; bit2 SET =
+    the spot is never picked unless the calendar state is 1 -- with bit2 clear the spot is
+    instead skipped while its map is overcrowded; re-read 2026-09-24, the old note had this
+    backwards)   +11 u8 busy (runtime, 0 on disk)
     room/x/y/facing/wander are read by PlaceNpcAtSliceWithJitter, weight/flags/busy by
     PickRandomScheduleSlotByKind; 'action' follows the IDB comment (its bit0 use is verified).
+    The picker sums the weights of one kind in a u8 (and walks the running total in a u8), so
+    a kind's total weight must stay <= 255 or the roll wraps: spot_weight_problems() checks.
+
 """
 from __future__ import annotations
 
@@ -171,6 +176,20 @@ def load_spots(data: bytes) -> list[Spot]:
     n = struct.unpack_from("<I", data, 24)[0]
     return [Spot(*struct.unpack_from("<HhhBBBBBB", data, SPOT_HEADER + SPOT_SIZE * i))
             for i in range(n)]
+
+
+MAX_KIND_WEIGHT = 255   # NpcSchedule_PickRandomScheduleSlotByKind sums a kind's weights in a u8
+
+
+def spot_weight_problems(spots: list[Spot]) -> list[tuple[int, int]]:
+    """[(kind, total weight)] for every kind whose summed spot weight exceeds 255 -- the picker
+    (RF4S.exe+0x2318E0) accumulates the weights in a u8, so such a kind rolls wrongly."""
+    out = []
+    for k in range(MAX_KIND + 1):
+        tot = sum(sp.weight for sp in kind_spots(k, spots))
+        if tot > MAX_KIND_WEIGHT:
+            out.append((k, tot))
+    return out
 
 
 def kind_spots(kind: int, spots: list[Spot]) -> list[Spot]:

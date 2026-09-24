@@ -23,8 +23,17 @@ Token rule (validated: walks all 242 files, 0 boundary violations):
       0xFFFFFFFF -> sentinel; 10000..10009 -> registers r0..r9.
 
 Each opcode consumes a fixed number of operand tokens (ARITY), except movement /
-action opcodes (VAR_OPS) which read up to N operands and stop at the next opcode --
-mirroring the handlers (shipped files always supply the full N).
+action opcodes (VAR_MAX) which read at most N operands and stop early at a high-bit token
+with id < 0x98 -- mirroring the handlers (shipped files always supply exactly N). Any
+token (opcode position included) in 10000..10009 is replaced by that register's value.
+
+The loader (MonsterScript_SpawnTaskAndLoadScript, RF4S.exe+0x1C6120) never checks the
+magic and takes the token count from the size word; the PC is 16-bit. Goto/call carry
+label ids, not offsets, and are resolved at run time by a linear scan that matches any
+token whose low 31 bits are 5 / 7 (operands too), so inserting or removing code needs no
+fix-ups, but a literal 5 or 7 operand followed by a label id can hijack a jump.
+`validate()` reports that and the other hazards (orphan tokens, missing / duplicate
+labels, unbalanced blocks, >1 loop, >10 on_tick sections, header mismatch).
 
 Two text forms, both byte-exact round-trips of the token stream:
 
@@ -139,14 +148,20 @@ ALIASES = {
 CMP = {0x95: '==', 0x96: '<=', 0x97: '>='}
 CMP_REV = {'==': 0x95, '<=': 0x96, '>=': 0x97}
 
-# Variable-arity handlers (verified 2026-09-17): they read up to N operand tokens and stop at the
-# first opcode token; shipped files always supply the full N. 0x15 reads exactly 3 (fixed).
-VAR_OPS = {
-    0x13, 0x14, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21,
-    0x22, 0x23, 0x24, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30,
-    0x31, 0x32, 0x34, 0x35, 0x36, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x43,
-    0x44, 0x45,
-}
+# Variable-arity handlers (verified 2026-09-17, re-checked 2026-09-24): each reads AT MOST N operand
+# tokens -- MonsterScript_Op13_ChaseTarget (RF4S.exe+0x1CAC20) and the others loop N times and stop
+# early at a token with the high bit set and (tok & 0x7FFFFFFF) < 0x98 (an opcode or a comparator);
+# missing operands read as 0 and the PC advances past only the tokens actually read. Tokens beyond N
+# are therefore NOT operands: the VM dispatches them as statements. Shipped files always supply
+# exactly N. 0x15 reads exactly 3 (fixed).
+VAR_MAX = {op: 2 for op in (0x13, 0x14, 0x17, 0x18, 0x19, 0x1A, 0x1C, 0x21, 0x22, 0x23, 0x27,
+                            0x29, 0x2A, 0x2B, 0x2D, 0x2E, 0x30, 0x40)}
+VAR_MAX.update({op: 1 for op in (0x1B, 0x1D, 0x1F, 0x20, 0x26, 0x2C, 0x32, 0x34, 0x35, 0x36, 0x39,
+                                 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x43, 0x44, 0x45)})
+VAR_MAX.update({op: 3 for op in (0x1E, 0x24, 0x28, 0x2F, 0x31)})
+VAR_OPS = set(VAR_MAX)
+VAR_STOP = 0x98            # a high-bit token with id below this ends a variable operand list
+MAX_TOKENS = 0xFFFF        # ctx->pc and the token count are u16 in the VM
 ARITY = {
     0x04: 1, 0x05: 1, 0x06: 1, 0x07: 1, 0x15: 3, 0x16: 2,
     0x41: 1, 0x42: 1, 0x58: 1, 0x59: 1, 0x5A: 1, 0x5B: 1, 0x5C: 1,
@@ -209,6 +224,11 @@ def is_opcode(tok: int) -> bool:
     return bool(tok & HI) and (tok & MASK) <= MAX_OPCODE and tok != SENTINEL
 
 
+def _var_stop(tok: int) -> bool:
+    """True where a variable-arity handler stops reading operands (see VAR_MAX)."""
+    return bool(tok & HI) and (tok & MASK) < VAR_STOP
+
+
 def opname(opid: int) -> str:
     return OPCODES.get(opid, f"OP_{opid:02X}")
 
@@ -225,7 +245,14 @@ def load_tokens(data: bytes) -> list[int]:
 
 
 def build(tokens: list[int]) -> bytes:
-    """Serialise a token list to a valid AIBN file (recomputes the size word)."""
+    """Serialise a token list to a valid AIBN file (recomputes the size word). Labels are
+    looked up by id at run time (see validate), so nothing else needs re-computing when
+    code is added or removed."""
+    if len(tokens) > MAX_TOKENS:
+        raise AibnError(f"{len(tokens)} tokens: the VM's program counter is 16-bit (max {MAX_TOKENS})")
+    bad = [i for i, t in enumerate(tokens) if not -0x80000000 <= t <= 0xFFFFFFFF]
+    if bad:
+        raise AibnError(f"token #{bad[0]} = {tokens[bad[0]]} does not fit in 32 bits")
     body = struct.pack(f"<{len(tokens)}I", *[t & 0xFFFFFFFF for t in tokens])
     size = 8 + len(body)
     return MAGIC + struct.pack("<I", size) + body
@@ -241,8 +268,10 @@ def fmt_operand(tok: int) -> str:
         idv = tok & MASK
         if idv in CMP:
             return CMP[idv]
-        if idv in (0x93, 0x94):
+        if idv == 0x93:            # any non-comparator id is "always true" in a comparator slot
             return "cmp.always"
+        if idv == 0x94:            # also always-true, but must not print as cmp.always (0x93)
+            return f"0x{tok:08X}"
         return str(tok - 0x100000000)
     if REG_BASE <= tok < REG_BASE + REG_COUNT:
         return f"r{tok - REG_BASE}"
@@ -263,8 +292,8 @@ def walk_statements(tokens: list[int]):
             yield i, opid, []
             i += 1
         elif opid in VAR_OPS:
-            j = i + 1
-            while j < n and not is_opcode(tokens[j]):
+            j, end = i + 1, min(n, i + 1 + VAR_MAX[opid])
+            while j < end and not _var_stop(tokens[j]):
                 j += 1
             yield i, opid, tokens[i + 1:j]
             i = j
@@ -310,7 +339,7 @@ def _cond_text(opid: int, ops: list[int]) -> str:
     """One condition as an expression: `Name <cmp> value`, `Name(args)` or `Name`."""
     name = COND_NAME.get(opid) or opname(opid)
     rendered = [fmt_operand(o) for o in ops]
-    if opid in CMP_COND_OPS and ops and (ops[0] & HI) and ((ops[0] & MASK) in CMP or (ops[0] & MASK) in CONNECTORS):
+    if opid in CMP_COND_OPS and ops and (ops[0] & HI) and ((ops[0] & MASK) in CMP or (ops[0] & MASK) == 0x93):
         return name + " " + " ".join(rendered)
     if not ops:
         return name
@@ -513,22 +542,33 @@ def _parse_operand(tok_str: str) -> int:
         return HI | 0x93
     if s.startswith("r") and s[1:].isdigit() and int(s[1:]) < REG_COUNT:
         return REG_BASE + int(s[1:])
-    val = int(s, 0)
-    if val < 0:
-        return val & 0xFFFFFFFF
-    return val
+    try:
+        val = int(s, 0)
+    except ValueError:
+        raise AibnError(f"bad operand {s!r} (integer, 0x hex, rN register, == <= >=, cmp.always or NULL)") from None
+    if not -0x80000000 <= val <= 0xFFFFFFFF:
+        raise AibnError(f"operand {s} does not fit in a 32-bit token")
+    return val & 0xFFFFFFFF
 
 
 def _name_to_op(name: str) -> int:
-    if "." in name and name.rsplit(".", 1)[1].lower().startswith("0x"):
-        return int(name.rsplit(".", 1)[1], 16)      # disambiguated form, e.g. RegAddImm.0x49
-    if name in NAME_TO_OP:
-        return NAME_TO_OP[name]
-    if name in COND_NAME_TO_OP:
-        return COND_NAME_TO_OP[name]
-    if name.startswith("OP_"):
-        return int(name[3:], 16)
-    raise AibnError(f"unknown opcode name {name!r}")
+    opid = None
+    try:
+        if "." in name and name.rsplit(".", 1)[1].lower().startswith("0x"):
+            opid = int(name.rsplit(".", 1)[1], 16)      # disambiguated form, e.g. RegAddImm.0x49
+        elif name in NAME_TO_OP:
+            opid = NAME_TO_OP[name]
+        elif name in COND_NAME_TO_OP:
+            opid = COND_NAME_TO_OP[name]
+        elif name.startswith("OP_"):
+            opid = int(name[3:], 16)
+    except ValueError:
+        pass
+    if opid is None:
+        raise AibnError(f"unknown opcode name {name!r} (`rf4mod ai ops` lists them)")
+    if not 0 <= opid <= MAX_OPCODE:
+        raise AibnError(f"opcode id {opid:#x} out of range 0x00..{MAX_OPCODE:#x}")
+    return opid
 
 
 _RE_CALL = re.compile(r"^(!?)([A-Za-z_][A-Za-z0-9_.]*)\((.*)\)$")
@@ -553,6 +593,8 @@ def _parse_cond(elem: str) -> list[int]:
     if m and not elem.endswith(")"):
         name, cmp_s, rest = m.group(1), m.group(2), m.group(3)
         if re.fullmatch(r"r\d", name):
+            if int(name[1:]) > 7:
+                raise AibnError(f"{name}: only r0..r7 have compare opcodes (0x6A..0x71)")
             opid = REG_CMP + int(name[1:])
         else:
             opid = _name_to_op(name)
@@ -589,67 +631,71 @@ def assemble(text: str) -> list[int]:
     """
     tokens: list[int] = []
     stack: list[str] = []
-    for raw in text.splitlines():
+
+    def one_line(raw: str) -> None:
         line = raw.strip()
         if not line or line.startswith("#") or line.startswith(";"):
-            continue
+            return
         for sep in (" #", "\t#"):          # trailing annotation comments
             cut = line.find(sep)
             if cut >= 0:
                 line = line[:cut].rstrip()
         if not line:
-            continue
+            return
         if line.startswith("."):
             tokens.append(_parse_operand(line[1:].strip()))
-            continue
+            return
         # ---- pretty form ----
         m = _RE_SUB.match(line)
         if m:
-            tokens += [HI | 0x07, _parse_operand(m.group(1))]
-            continue
+            tokens.extend([HI | 0x07, _parse_operand(m.group(1))])
+            return
         m = _RE_LABEL.match(line)
         if m:
-            tokens += [HI | 0x05, _parse_operand(m.group(1))]
-            continue
+            tokens.extend([HI | 0x05, _parse_operand(m.group(1))])
+            return
         if line == "on_tick:":
             tokens.append(HI | 0x09)
-            continue
+            return
         if line == "loop {":
             tokens.append(HI | 0x10)
             stack.append("loop")
-            continue
+            return
         m = _RE_IF.match(line)
         if m:
             tokens.append(HI | 0x0C)
-            tokens += _parse_chain(m.group(1))
+            tokens.extend(_parse_chain(m.group(1)))
             stack.append("if")
-            continue
+            return
         m = _RE_ELIF.match(line)
         if m:
             tokens.append(HI | 0x0F)
-            tokens += _parse_chain(m.group(1))
-            continue
+            tokens.extend(_parse_chain(m.group(1)))
+            return
         if line == "} else {":
             tokens.append(HI | 0x0D)
-            continue
+            return
         if line == "}":
             kind = stack.pop() if stack else "if"
             tokens.append(HI | (0x11 if kind == "loop" else 0x0E))
-            continue
+            return
         simple = {"end": 0x12, "return": 0x08, "restart": 0x0A, "yield": 0x03, "begin": 0x01,
                   "&&": 0x94, "||": 0x93}
         if line in simple:
             tokens.append(HI | simple[line])
-            continue
+            return
         m = _RE_GOTO.match(line)
         if m:
-            tokens += [HI | (0x04 if m.group(1) == "goto" else 0x06), _parse_operand(m.group(2))]
-            continue
+            tokens.extend([HI | (0x04 if m.group(1) == "goto" else 0x06), _parse_operand(m.group(2))])
+            return
         m = _RE_REGSET.match(line)
         if m:
+            if int(m.group(1)) > 7:
+                raise AibnError(f"r{m.group(1)}: only r0..r7 have add/set opcodes (0x48..0x57); "
+                                "r8/r9 can only be read as operands")
             base = REG_ADD if m.group(2) == "+=" else REG_SET
-            tokens += [HI | (base + int(m.group(1))), _parse_operand(m.group(3))]
-            continue
+            tokens.extend([HI | (base + int(m.group(1))), _parse_operand(m.group(3))])
+            return
         m = _RE_CALL.match(line)
         if m:
             bang, name, args = m.groups()
@@ -657,18 +703,24 @@ def assemble(text: str) -> list[int]:
             if opid in ACTION_OPS and not bang:
                 tokens.append(HI | 0x01)
             tokens.append(HI | opid)
-            tokens += [_parse_operand(a) for a in _split_args(args)]
-            continue
+            tokens.extend([_parse_operand(a) for a in _split_args(args)])
+            return
         m = _RE_CMP.match(line)
         if m:
-            tokens += _parse_cond(line)
-            continue
+            tokens.extend(_parse_cond(line))
+            return
         # ---- flat form: `OpName [operands...]` (also bare condition names) ----
         parts = line.split()
         opid = _name_to_op(parts[0])
         tokens.append(HI | opid)
         for p in parts[1:]:
             tokens.append(_parse_operand(p))
+
+    for ln_no, raw in enumerate(text.splitlines(), 1):
+        try:
+            one_line(raw)
+        except AibnError as ex:
+            raise AibnError(f"line {ln_no}: {ex}  -- {raw.strip()!r}") from None
     return tokens
 
 
@@ -678,3 +730,97 @@ def stats(tokens: list[int]) -> Counter:
         if opid is not None:
             c[opid] += 1
     return c
+
+
+# --------------------------------------------------------------------------- #
+# Static checks against how the VM really runs a script
+# --------------------------------------------------------------------------- #
+def _vm_find_label(tokens: list[int], marker: int, value: int):
+    """Index of the marker token MonsterScript_Op04_Goto (RF4S.exe+0x1D2F50) / _Op06_CallSubroutine
+    (+0x1D3090) jump to: they scan from token 1 for ANY token with (tok & 0x7FFFFFFF) == marker
+    (5 = label, 7 = sub) -- operands included -- and take the first one whose next token equals
+    the id; a non-matching hit skips that next token. None = not found (the VM ends the script)."""
+    i, n = 0, len(tokens)
+    while True:
+        i += 1
+        if i < n and (tokens[i] & MASK) == marker:
+            i += 1
+            if i < n and tokens[i] == value:
+                return i - 1
+        if i >= n:
+            return None
+
+
+def validate(tokens: list[int], data: bytes | None = None) -> list[str]:
+    """Things the VM (MonsterScript_RunnerTick RF4S.exe+0x1C65A0 and its handlers) would trip
+    over. `data` (the file bytes) also checks the header. Shipped scripts: only AI_m109, AI_m52
+    and AI_m36_b report anything (stock duplicate labels)."""
+    out = []
+    if data is not None:
+        if len(data) >= 8:
+            size = struct.unpack_from("<I", data, 4)[0]
+            if size != len(data) or (size - 8) % 4:
+                out.append(f"header size word {size} != file size {len(data)}: the loader "
+                           "(MonsterScript_SpawnTaskAndLoadScript +0x1C6120) takes the token count "
+                           "from (size-8)/4, not from the file length")
+        if data[:4] != MAGIC:
+            out.append(f"magic {data[:4]!r} is not 'AIBN' (the loader never checks it; the toolkit does)")
+    if len(tokens) > MAX_TOKENS:
+        out.append(f"{len(tokens)} tokens: the program counter is 16-bit (max {MAX_TOKENS})")
+    sts = list(walk_statements(tokens))
+    labels: dict = {}
+    loops = [0, 0]
+    on_tick = 0
+    depth = 0
+    prev = None
+    for idx, opid, ops in sts:
+        if opid is None:
+            why = ""
+            if prev is not None and prev[1] in VAR_MAX and len(prev[2]) == VAR_MAX[prev[1]]:
+                why = f" ({opname(prev[1])} reads at most {VAR_MAX[prev[1]]} operands)"
+            out.append(f"token #{idx} = {fmt_operand(ops[0])} sits where the VM expects an opcode{why}: "
+                       f"it dispatches g_monsterScriptOpcodeTable[tok & 0x7FFFFFFF]")
+        elif opid in (0x05, 0x07) and len(ops) == 1:
+            if (opid, ops[0]) in labels:
+                out.append(f"token #{idx}: duplicate {'sub' if opid == 7 else 'label'} {fmt_operand(ops[0])} "
+                           f"(the first one, token #{labels[(opid, ops[0])]}, always wins)")
+            else:
+                labels[(opid, ops[0])] = idx
+        elif opid == 0x10:
+            loops[0] += 1
+        elif opid == 0x11:
+            loops[1] += 1
+        elif opid == 0x09:
+            on_tick += 1
+        elif opid == 0x0C:
+            depth += 1
+        elif opid == 0x0E:
+            depth -= 1
+            if depth < 0:
+                out.append(f"token #{idx}: block close without a matching block open")
+                depth = 0
+        prev = (idx, opid, ops)
+    if depth:
+        out.append(f"{depth} block open(s) (0x0C) never closed (0x0E)")
+    if loops[0] > 1 or loops[1] > 1:
+        out.append(f"{loops[0]} loop starts / {loops[1]} loop ends: the loader keeps only the LAST of each "
+                   "(and starts the script at the last loop start)")
+    if on_tick > 10:
+        out.append(f"{on_tick} on_tick sections: the loader records only the first 10")
+    for idx, opid, ops in sts:
+        if opid not in (0x04, 0x06) or len(ops) != 1 or REG_BASE <= ops[0] < REG_BASE + REG_COUNT:
+            continue
+        marker = 0x05 if opid == 0x04 else 0x07
+        kind = "label" if marker == 0x05 else "sub"
+        verb = "goto" if opid == 0x04 else "call"
+        want = labels.get((marker, ops[0]))
+        got = _vm_find_label(tokens, marker, ops[0])
+        if got is None:
+            out.append(f"token #{idx}: {verb} {fmt_operand(ops[0])} has no {kind}: the VM ends the script "
+                       "(Monster_OnScriptEnd)")
+        elif got != want:
+            out.append(f"token #{idx}: {verb} {fmt_operand(ops[0])} lands at token #{got} (an operand equal to "
+                       f"{marker} followed by {fmt_operand(ops[0])}), not at the {kind} "
+                       + (f"at token #{want}" if want is not None else "(none exists)")
+                       + ": the VM label scan does not skip operands")
+    return out

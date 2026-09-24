@@ -482,7 +482,7 @@ class CutsceneExplorer:
             return msg
         if cls._names is None:
             pool = {}
-            for o in range(763):
+            for o in range(script.DISPATCHABLE_ACTION_OPS):
                 for nm in (script.opcode_mnemonic(o), script.opcode_name(o)):
                     if nm and not re.fullmatch(r"op\d+", nm) and nm.lower() not in pool:
                         pool[nm.lower()] = (nm, o)

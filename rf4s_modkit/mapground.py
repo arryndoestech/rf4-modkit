@@ -165,7 +165,7 @@ def tile_cache_size():
         return len(_TILE_CACHE)
 
 # Authoritative map -> ground-texture-set mapping, dumped from g_mapResourceTable
-# (RF4S.exe+0x...): the ground texture for a map is g_mapResourceTable[4*mapId + 1],
+# (RF4S.exe+0x9F9D10): the ground texture for a map is g_mapResourceTable[4*mapId + 1],
 # NOT the same-named .texture set. Only 121/872 maps happen to be name-matched; the
 # rest point at a *different* texture set (e.g. MAP_FIELD_13 -> MAP_FIELD_10,
 # MAP_FIELD_03 -> MAP_FIELD_203, MAP_DUNG_E01 -> MAP_DUNG_E02_UV). Loading by name
@@ -527,7 +527,7 @@ def stitch(reader, map_name: str, layer: int = 0, aspect=None):
             cols = gcols
     if not cols:
         cols = _infer_cols(sizes, aspect)
-    rows = n // cols
+    rows = -(-n // cols)       # a short last row (heuristic cols not dividing n) still gets placed
 
     # Row 0 (indices 0..cols-1) gives the column widths; column 0 (indices 0, cols,
     # 2*cols, …) gives the row heights.  In a well-formed atlas, every other row /
@@ -622,7 +622,7 @@ def tile_layout(reader, map_name: str, layer: int = 0, aspect=None):
             cols = gcols
     if not cols:
         cols = _infer_cols(sizes, aspect)
-    rows = n // cols
+    rows = -(-n // cols)       # a short last row (heuristic cols not dividing n) still gets placed
     col_widths = [sizes[c][0] for c in range(cols)]
     row_heights = [sizes[r * cols][1] for r in range(rows)]
     col_x = [sum(col_widths[:c]) for c in range(cols)]

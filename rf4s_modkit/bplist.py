@@ -13,6 +13,19 @@ Additionally, dict entries always use 4-byte big-endian object refs regardless o
 the trailer's `object_ref_size` (the 0xD branch of Bplist_ReadObject hard-codes
 `* 4`). Arrays honour `object_ref_size`.
 
+Limits of the game's reader that the WRITER must respect (a plist the Python reader
+accepts is not automatically one the game accepts):
+
+  * Offset-table entries are read as u32 when `offset_int_size == 4` and as u64 for
+    ANY other value (Bplist_ReadObjectByIndex @ +0x266730) -- 1- or 2-byte offset
+    tables, legal in Apple plists, are misread by the game. The engine's own writer
+    (MFPropertyList_SerializeToBinaryBuffer @ +0x267530) uses 4, or 8 once the offset
+    table starts past 0x3FFFFFFF, with `object_ref_size` 4; this writer does the same.
+  * Integers wider than 8 bytes (marker 0x14) make Bplist_ReadInt (+0x2678D0) free its
+    8-byte scratch buffer and read 16 bytes into the dangling pointer (heap
+    corruption), so the writer refuses ints outside the signed 64-bit range.
+  * Sets (0xC), UIDs (0x8) and dates (0x3) come back as NULL in the game.
+
 The offset table holds ABSOLUTE file offsets (entry 0 == 8, right after the magic).
 The root object is conventionally the last object in the file, and
 `top_object == root_absolute_offset - 8`.
@@ -65,7 +78,9 @@ class Bplist:
 
     def __init__(self, data: bytes):
         if data[:8] != MAGIC:
-            raise BplistError(f"not a binary plist (magic={data[:8]!r})")
+            raise BplistError(f"not a binary plist (magic={bytes(data[:8])!r})")
+        if len(data) < len(MAGIC) + TRAILER_LEN:
+            raise BplistError(f"truncated binary plist ({len(data)} bytes)")
         self.data = data
         t = data[-TRAILER_LEN:]
         self.offset_size = t[0]
@@ -75,6 +90,9 @@ class Bplist:
         self.offset_table_offset = struct.unpack_from(">Q", t, 18)[0]
         os_ = self.offset_size
         base = self.offset_table_offset
+        if not os_ or base + self.num_objects * os_ > len(data) - TRAILER_LEN:
+            raise BplistError(f"corrupt trailer: {self.num_objects} x {os_}-byte offsets at "
+                              f"{base:#x} overrun the {len(data)}-byte file")
         self.offsets = [
             int.from_bytes(data[base + i * os_: base + (i + 1) * os_], "big")
             for i in range(self.num_objects)
@@ -163,19 +181,21 @@ def load(path, lazy_data: bool = False):
 def _int_marker(value: int) -> bytes:
     """Encode an integer object (marker + big-endian body)."""
     if value < 0:
+        if value < -(1 << 63):
+            raise BplistError(f"integer too small for a signed 64-bit plist int: {value}")
         # Apple stores negatives as 8-byte two's complement.
         return b"\x13" + struct.pack(">q", value)
     for n, code in ((1, 0x10), (2, 0x11), (4, 0x12), (8, 0x13)):
         if value < (1 << (8 * n)):
             # An 8-byte body is decoded SIGNED (see _read_at), so a value with the top
-            # bit set (>= 2**63) would round-trip negative. Apple stores those as a
-            # 16-byte body (read unsigned) -- do the same so the round-trip is exact.
+            # bit set (>= 2**63) would round-trip negative. Apple would store it as a
+            # 16-byte body, but the game's Bplist_ReadInt (RF4S.exe+0x2678D0) corrupts its
+            # heap on any int wider than 8 bytes -- refuse instead of emitting 0x14.
             if n == 8 and value >= (1 << 63):
                 break
             return bytes([code]) + value.to_bytes(n, "big")
-    if value < (1 << 128):
-        return b"\x14" + value.to_bytes(16, "big")      # 16-byte int (read unsigned)
-    raise BplistError(f"integer too large: {value}")
+    raise BplistError(f"integer {value} does not fit a signed 64-bit plist int "
+                      f"(RF4S reads at most 8-byte ints)")
 
 
 def _length_prefix(hi_nibble: int, count: int) -> bytes:
@@ -195,9 +215,11 @@ class BplistWriter:
         # After build(), w.data_offsets maps id(bytes_value) -> absolute payload
         # offset, useful when you need a Manifest TOC pointing at embedded blobs.
 
-    Containers (dict/list) are deduped by identity; scalars are emitted once per
-    occurrence. Refs are resolved by re-deriving the object graph in build(), so
-    Python's interning of small ints/strings is irrelevant to correctness.
+    Containers (dict/list) are deduped by identity. Scalars (str/int/float/bool/None)
+    are deduped by (type, value) -- the engine's own writer keeps the same `seen` map
+    (MFPropertyList_SerializeToBinaryBuffer, RF4S.exe+0x267530), which is why the
+    shipped Manifest.plist stores "size"/"offset" once instead of once per file. Data
+    blobs are never deduped, so every bytes object keeps its own payload offset.
     """
 
     def __init__(self, root):
@@ -207,19 +229,31 @@ class BplistWriter:
     def build(self, ref_size: int = 4) -> bytes:
         """
         Produce the bplist bytes. `ref_size` is the array object-ref width (default
-        4, always safe). dict refs are always 4 bytes regardless (Muteki quirk).
+        4, what the engine writes; 1..8 are read correctly). dict refs are always 4
+        bytes regardless (Muteki quirk).
 
         One clean pass: flatten the tree recording, for each node, the child node
         indices it references; then emit objects, the offset table, and the trailer.
         """
+        if not 1 <= ref_size <= 8:
+            raise BplistError(f"ref_size must be 1..8 (the game reads refs with Bplist_ReadInt), "
+                              f"got {ref_size}")
         nodes: list[object] = []
         index_of_container: dict[int, int] = {}
+        index_of_scalar: dict[tuple, int] = {}
         # child_refs[node_index] = list of child node indices (for containers)
         child_refs: list[list[int]] = []
 
         def visit(obj) -> int:
-            if isinstance(obj, (dict, list)) and id(obj) in index_of_container:
-                return index_of_container[id(obj)]
+            if isinstance(obj, (dict, list)):
+                if id(obj) in index_of_container:
+                    return index_of_container[id(obj)]
+            elif not isinstance(obj, (bytes, bytearray)):
+                # (type, value): keeps True / 1 / 1.0 apart even though they compare equal
+                skey = (type(obj), obj)
+                if skey in index_of_scalar:
+                    return index_of_scalar[skey]
+                index_of_scalar[skey] = len(nodes)
             idx = len(nodes)
             nodes.append(obj)
             child_refs.append([])
@@ -235,6 +269,9 @@ class BplistWriter:
 
         root_idx = visit(self.root)
         num = len(nodes)
+        if num > (1 << (8 * min(ref_size, 4))):
+            raise BplistError(f"{num} objects do not fit {min(ref_size, 4)}-byte object refs "
+                              f"(dict refs are always 4 bytes)")
 
         # Emit objects, recording offsets. Object region starts at offset 8.
         body = bytearray()
@@ -263,14 +300,9 @@ class BplistWriter:
 
         object_region_end = 8 + len(body)
         ot_offset = object_region_end
-        max_off = max(offsets) if offsets else 8
-        offset_size = 1
-        for cand in (1, 2, 4, 8):
-            if max(max_off, ot_offset) < (1 << (8 * cand)):
-                offset_size = cand
-                break
-        else:
-            offset_size = 8
+        # Only 4 and 8 are read correctly by the game (Bplist_ReadObjectByIndex treats every
+        # width other than 4 as u64); pick them the way the engine's own writer does.
+        offset_size = 8 if ot_offset > 0x3FFFFFFF else 4
 
         out = bytearray(MAGIC)
         out += body

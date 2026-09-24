@@ -3,8 +3,8 @@
 Each curve file is a 28-byte NLCL header (entry_count 100 @+24) followed by a flat array of
 **100 little-endian i32 XP thresholds**, `table[level]` = XP needed to advance FROM that
 level to the next, then the 16-byte generic NLCL footer ({0,24,0,0}; an earlier version of
-this note miscounted it as "4 zero-pad entries"). Levels cap at 99 for the crafting skills
-and 999 for the rest -- 999-skills reuse `table[99]` as the asymptotic bracket. The main
+this note miscounted it as "4 zero-pad entries"). Levels cap at 99 for skills 17..20 and
+26..32 and at 999 for the rest -- 999-skills reuse `table[99]` as the asymptotic bracket. The main
 curve is a per-decade **sawtooth** (costs ramp within each 10-level band, then step down
 at each x10 boundary) under a rising overall envelope (e.g. 8 .. 20000).
 
@@ -14,6 +14,12 @@ Consumer-verified (re-read 2026-09-19):
     and `*(u32*)(LevelTable + 396)` (= table[99]) for every level past 99.
   * `Skill_GetLevelTable` (RF4S.exe+0x83E60): `nsFileArchive_GetData(archive) + 28`, the
     archive picked by the skill-id switch reproduced in FAMILY_ARCHIVE below.
+  * `Player_gainEXP` (RF4S.exe+0xB3DE0), the real level-up loop: the skill's XP counter is
+    clamped to 0..0xFFFFFF, then `while xp >= table[min(level, 99)]` (unsigned) it subtracts
+    the threshold and levels up, up to level 99 for skills 17..20 and 26..32 (the resist
+    skills; Player_GetSkillXpToNextLevel's UI cap only knows 17..20) and 999 otherwise. So a
+    threshold above 0xFFFFFF can NEVER be reached (the skill stops levelling) -- MAX_XP --
+    and a 0 threshold levels instantly to the cap.
 
 The archive-id -> filename pairing (ARCHIVE_FILE) was byte-confirmed on 2026-08-21 (per the
 IDB note on Skill_GetLevelTable: NLCL count 100 @+24, 444 bytes each); the curve FILE
@@ -27,10 +33,11 @@ import struct
 HEADER = 28
 REAL_LEVELS = 100          # the file holds exactly 100 i32 (+ the 16-byte NLCL footer)
 _CAP_OFFSET = 99 * 4       # table[99] = +396 within the array (the +0x18C the game reads)
+MAX_XP = 0xFFFFFF          # Player_gainEXP clamps the skill XP counter to this
 
 
 # Skill_GetLevelTable (+0x83E60): skill_id -> XP-curve archive id (IDA-verified switch).
-# Skill ids per the authoritative 40-slot table (project_rf4s_skill_ids):
+# Skill ids = the player's 40 skill slots (Actor_t.skills[0..39]):
 FAMILY_ARCHIVE = {
     **{s: 14821 for s in (13, 14, 15)},                       # Farming / (hole) / Mining
     **{s: 14822 for s in (16, 21, 26, 27, 28, 29, 30, 31, 32, 34, 35)},  # Fishing / Searching / Resist* / Taming / Throwing
@@ -95,20 +102,22 @@ def set_level_xp(buf: bytearray, level: int, value: int) -> None:
     if not (0 <= level < REAL_LEVELS):
         raise IndexError(f"level {level} out of range 0..{REAL_LEVELS - 1}")
     v = int(value)
-    if not (0 <= v <= 0x7FFFFFFF):
-        raise ValueError(f"xp {v} out of range 0..2147483647")
+    if not (0 <= v <= MAX_XP):
+        raise ValueError(f"xp {v} out of range 0..{MAX_XP} (Player_gainEXP clamps skill XP to "
+                         f"0xFFFFFF, so a larger threshold is never reached)")
     struct.pack_into("<i", buf, HEADER + level * 4, v)
 
 
 def scale_curve(buf: bytearray, percent: float, minimum: int = 1) -> list[int]:
     """Multiply every level's XP-to-next by `percent`/100 in place (rounded half-up,
     floored at `minimum` so no level becomes free) and return the new table. 50 = twice
-    as fast to level, 200 = twice as slow."""
+    as fast to level, 200 = twice as slow. Results are capped at MAX_XP (the largest
+    threshold the clamped XP counter can reach)."""
     if percent <= 0:
         raise ValueError("percent must be > 0")
     out = []
     for lvl, xp in enumerate(parse(bytes(buf))):
-        v = max(minimum, int(xp * percent / 100.0 + 0.5))
+        v = min(MAX_XP, max(minimum, int(xp * percent / 100.0 + 0.5)))
         set_level_xp(buf, lvl, v)
         out.append(v)
     return out

@@ -14,14 +14,16 @@ Verified against RF4S.exe (RF4S.exe+RVA):
   MiniMap_BuildInitialIcons      +0x139160  loads 11839, table = data + 28 (minimap work +56)
   Minimap_BuildForMap(mapId)     +0x13B3F0  sheet = rec[0]; resource = 12199 + sheet; the swaps
                                             in VARIANT_RULES; fog-of-war reveal
-  sub_7FF7C1EFB2E0               +0x13B2E0  reveal blit(tex, buf, x=rec[3], y=rec[4],
+  (unnamed)                      +0x13B2E0  reveal blit(tex, buf, x=rec[3], y=rec[4],
                                             w=rec[5], h=rec[6]) -- x/y travel in xmm2/xmm3,
                                             which is why a decompiler only shows w/h
-  sub_7FF7C1EFC480(roomId)       +0x13C480  reveal refresh when the sheet did not change
+  Minimap_BindRegionForMap(id)   +0x13C480  reveal refresh when the sheet did not change
   Minimap_UpdateNpcIcons         +0x13C680  icon px = rec[1] + ((rec[7] * (world_x >> 12)) >> 12)
                                             (y: rec[2] / rec[8]); NPCs inside a building are
-                                            drawn on sheet rec[10] at (rec[11], rec[12]),
-                                            4 px apart per rec[9] slot
+                                            drawn on sheet rec[10] at (rec[11], rec[12]):
+                                            rec[9] picks one of 12 byte counters on the
+                                            stack and each NPC in that building is drawn
+                                            4 px right of the previous one
   Minimap_BuildLocationNameLabel +0x138DB0  the name band -- see map_names.label_note()
 
 Record layout (13 x s32 -- also the `rf3MapMiniPos` schema in nlcl.py):
@@ -33,7 +35,10 @@ Record layout (13 x s32 -- also the `rf3MapMiniPos` schema in nlcl.py):
   [5]  reveal_w   [6] reveal_h  (w or h zero = no fog: towns, interiors, blanks)
   [7]  scale_x    [8] scale_y   Q12 fixed point, drawn px per world unit; world coordinates
                                 are 20.12 fixed, so `(scale * (world >> 12)) >> 12`
-  [9]  icon_slot                stacking slot of an interior's NPC icons on the parent sheet
+  [9]  icon_slot                stacking slot of an interior's NPC icons on the parent sheet:
+                                an index into a 12-byte counter array on the stack of
+                                Minimap_UpdateNpcIcons, UNCHECKED -- keep 0..11 (the stock
+                                table uses exactly 0..11); more corrupts the stack
   [10] parent_sheet             sheet that shows this interior's NPCs (73 = none)
   [11] icon_x     [12] icon_y   where those icons go on the parent sheet
 
@@ -63,6 +68,7 @@ DUMMY2_SHEET = 74                # mini_map_99_dummy2 -- the maze's second buffe
 LAST_STATIC_SHEET = 87           # mini_map_dung_q04 = resource 0x2FFE, the code's upper bound
 MAZE_TILE_SHEETS = range(88, 104)
 MAZE_MAP_IDS = range(442, 454)   # Sharance Maze floors: picture composed at runtime
+ICON_SLOTS = 12                  # byte counters indexed by rec[9] in Minimap_UpdateNpcIcons
 RECORD_SIZE = 52
 RECORD_FIELDS = ("sheet", "origin_x", "origin_y", "reveal_x", "reveal_y", "reveal_w",
                  "reveal_h", "scale_x", "scale_y", "icon_slot", "parent_sheet", "icon_x",
@@ -193,6 +199,24 @@ def record(map_id: int) -> dict | None:
         "parent_sheet": r[10] if has_parent else None,
         "icon": (r[11], r[12]) if has_parent else None,
     }
+
+
+def validate_record(rec) -> list[str]:
+    """'ERROR: ...' / 'WARN: ...' lines for one 13-dword rf3MapMiniPos record (as edited
+    through nlcl / the param editor), against how Minimap_BuildForMap and
+    Minimap_UpdateNpcIcons read it."""
+    r = [int(v) for v in rec]
+    if len(r) != len(RECORD_FIELDS):
+        return [f"ERROR: record has {len(r)} fields, expected {len(RECORD_FIELDS)}"]
+    out = []
+    if r[10] != DUMMY_SHEET and not (0 <= r[9] < ICON_SLOTS):
+        out.append(f"ERROR: icon_slot {r[9]} indexes Minimap_UpdateNpcIcons' {ICON_SLOTS}-byte "
+                   f"counter array unchecked (stack corruption); use 0..{ICON_SLOTS - 1}")
+    if r[0] < 0:
+        out.append(f"WARN: negative sheet {r[0]}")
+    if (r[5] and r[6]) and (r[5] < 0 or r[6] < 0 or r[3] < 0 or r[4] < 0):
+        out.append("WARN: negative fog-of-war reveal rectangle")
+    return out
 
 
 # --------------------------------------------------------------------------- #

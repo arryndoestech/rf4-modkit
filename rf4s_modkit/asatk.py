@@ -5,11 +5,14 @@ Each attack move (weapon combo step, charge, skill, tool swing, monster or boss 
 stream of **(opcode:u32, operand:u32) little-endian pairs**, no header, terminated by (66, 0).
 Once loaded by Actor_BeginAttackOrSkill (RF4S.exe+0x1610C0) the bytes are bound to the actor's
 AnimBindCtx (Actor_BindAnimArchiveToWidget +0xAB340) and pumped once per frame by the actor
-pre-tick Actor_PreTickFrameCleanupAndDecay (+0x9FC90) through g_animEventOpHandlerTable
-(+0x4BB7F0, 66 slots). Op 0 blocks the pump until the animation clock reaches its frame; every
-other op fires immediately and the pump continues with the next pair in the same frame; op 66
-deactivates the stream. Ops 62/63 chain into another move (their optional parameter pair is
-op 64, which has no handler of its own).
+pre-tick Actor_PreTickFrameCleanupAndDecay (+0x9FC90; the pump loop is at +0xA02E4) through
+g_animEventOpHandlerTable (+0x4BB7F0, 66 slots 0..65, slot 64 empty). The pump checks op == 66
+(END: deactivate) before dispatching and calls table[op] with NO bounds or null check, so op 64
+reached on its own or any op > 66 crashes the game. A handler returning non-zero stops the pump
+for this frame without advancing (the same pair runs again next frame): op 0 while its frame is
+still ahead, op 10 OFF right after an ON in the same frame, and ops 62/63 after chaining. Every
+other op fires immediately and the pump continues with the next pair in the same frame. Ops 62/63
+chain into another move (their optional parameter pair is op 64, which has no handler of its own).
 
 Opcode meanings below were verified against every handler on 2026-09-17 (all tagged V); the
 older data-inferred table (HIT_WIN/VEL_FWD/EFFECT on op 45) was wrong in several places and is
@@ -28,6 +31,10 @@ Operand kinds:
   onoff   flag: 0 = off, non-zero = on
   sfx     sound id 0x0100xxxx
   effkind effect kind (-1 = the actor's own attack effect, 0 = tool/weapon-element table)
+Handlers are the g_animEventOpHandlerTable entries, e.g. AnimEvent_Op0_WaitForFrame (+0xAB440),
+Attack_PopulateAttackInfoFromWeaponAndStatus (op 10, +0xAB7A0), AnimEvent_Op43_TriggerEffectKind
+(+0xAC940), AnimEvent_Op45_PlaySfxAtActor (+0xACCB0), AnimEvent_Op62_ChainNextAction (+0xACDD0),
+AnimEvent_Op63_ChainNextActionIfFlag400 (+0xACE60).
   action  action task id (Action_TriggerAttacker)
   tool    tool kind (1 hoe, 2 seed, 3 can, 4 fertilizer, 5 hand, 7 axe, 8 hammer, 9 sickle/cut)
   int     plain integer
@@ -42,7 +49,7 @@ CHAIN_PARAM_OP = 64
 
 # op -> (mnemonic, arg_kind, confidence, description)
 OPCODES = {
-    0:  ("FRAME",      "frame",   "V", "wait until the animation clock reaches this frame (events after it fire there)"),
+    0:  ("FRAME",      "frame",   "V", "wait until the animation clock reaches this frame (events after it fire there; a frame already passed fires at once)"),
     1:  ("SEEK_ANIM",  "frame",   "V", "seek the 3D model animation to this frame"),
     2:  ("ANIM_SPEED", "q12",     "V", ">0: multiply the model timescale by arg; <=0: restore it"),
     3:  ("DASH",       "q12",     "V", "velocity along facing (units/frame; negative = recoil)"),
@@ -52,7 +59,7 @@ OPCODES = {
     7:  ("FACE_TARGET","int",     "V", "face the lock-on / script target"),
     8:  ("FACE_TARGET_PLUS", "angle", "V", "face the last target, then add arg"),
     9:  ("FACE_ANCHOR","int",     "V", "face the map anchor point"),
-    10: ("HITBOX",     "onoff",   "V", "1 = ARM: new hit serial, AttackInfo filled from weapon+stats; 0 = disarm"),
+    10: ("HITBOX",     "onoff",   "V", "non-zero = ARM: new hit serial, AttackInfo filled from weapon+stats; 0 = disarm (deferred to the next frame, stalling the pump, when armed in this frame; binding the next move also disarms)"),
     11: ("HIT_DIR",    "angle",   "V", "swing direction = facing + arg"),
     12: ("REACH",      "q12",     "V", "hit reach = arg x (36 x weapon reach scale, +50% Art of Attack)"),
     13: ("ARC",        "q12",     "V", "hit arc = arg x (0x4000 (90 deg) x weapon arc scale)"),
@@ -85,7 +92,7 @@ OPCODES = {
     40: ("COMBO_WIN_ONHIT","onoff","V", "player: next-action window only if the swing connected"),
     41: ("DASH_WIN",   "onoff",   "V", "player: dash-cancel input window"),
     42: ("ACTION",     "action",  "V", "spawn action task at the actor (Action_TriggerAttacker)"),
-    43: ("EFFECT",     "effkind", "V", "Effect_ApplyByKindAndSpawn: -1 own attack effect, 0 tool/weapon table, else literal kind"),
+    43: ("EFFECT",     "effkind", "V", "Effect_ApplyByKindAndSpawn: -1 own attack effect, 0 player tool/weapon-element table (non-player: kind from its stats), else literal u16 kind (level 0 for non-players)"),
     44: ("TOOL_KIND",  "tool",    "V", "player: pending tool action for the facing tile"),
     45: ("SFX",        "sfx",     "V", "play sound at the actor"),
     46: ("FLAG_1",     "onoff",   "V", "stats flag 0x1 (active-swing marker)"),
@@ -104,9 +111,9 @@ OPCODES = {
     59: ("ALT_REACH",  "int",     "V", "collision box override (0 = restore body radius)"),
     60: ("HASTE_TINT", "int",     "V", "flicker_b = 1200 frames (attack anims 1.25x while it runs)"),
     61: ("TINT",       "int",     "V", "flicker_a = 1800 frames"),
-    62: ("CHAIN",      "int",     "V", "chain into skill arg (anim offset from a following op 64 pair, else arg)"),
-    63: ("CHAIN_ONHIT","int",     "V", "as CHAIN, only if the swing connected"),
-    64: ("CHAIN_ANIM", "int",     "V", "parameter pair of CHAIN: animation offset (no handler)"),
+    62: ("CHAIN",      "int",     "V", "chain into skill arg (anim offset = s16 arg of a following op 64 pair, else arg); later pairs of this stream never run"),
+    63: ("CHAIN_ONHIT","int",     "V", "as CHAIN, only if the swing connected (else the pump continues with the next pair)"),
+    64: ("CHAIN_ANIM", "int",     "V", "parameter pair of CHAIN: animation offset (empty handler slot: must directly follow op 62, never 63)"),
     65: ("REACH_FORCE","int",     "V", "hit reach x= force level from stagger bits (0 atk bits, 1 double hit)"),
     66: ("END",        "int",     "V", "end of stream"),
 }
@@ -235,6 +242,12 @@ class AsatkError(ValueError):
 _MNEMONIC_TO_OP = {v[0]: k for k, v in OPCODES.items()}
 
 
+def _op_in_range(op: int, name) -> int:
+    if op > 0xFFFFFFFF:
+        raise AsatkError(f"opcode {name!r} does not fit in 32 bits")
+    return op
+
+
 def op_from_name(name) -> int:
     """'HITBOX' / 'hitbox' / 'op10' / '10' -> 10."""
     if isinstance(name, int):
@@ -244,9 +257,9 @@ def op_from_name(name) -> int:
     if u in _MNEMONIC_TO_OP:
         return _MNEMONIC_TO_OP[u]
     if u.startswith("OP") and u[2:].isdigit():
-        return int(u[2:])
+        return _op_in_range(int(u[2:]), name)
     if s.isdigit():
-        return int(s)
+        return _op_in_range(int(s), name)
     raise AsatkError(f"unknown opcode {name!r} (use a mnemonic from `asatk ops`, opN or a number)")
 
 
@@ -257,12 +270,16 @@ def parse_operand(text) -> int:
     s = str(text).strip().lower()
     try:
         if s.endswith("q"):
-            return int(round(float(s[:-1]) * 4096)) & 0xFFFFFFFF
-        if s.endswith("deg"):
-            return int(round(float(s[:-3]) * 65536 / 360)) & 0xFFFFFFFF
-        return int(s, 0) & 0xFFFFFFFF
-    except ValueError:
+            v = int(round(float(s[:-1]) * 4096))
+        elif s.endswith("deg"):
+            v = int(round(float(s[:-3]) * 65536 / 360))
+        else:
+            v = int(s, 0)
+    except (ValueError, OverflowError):
         raise AsatkError(f"bad operand {text!r} (signed int, 0x hex, 1.5q or 90deg)") from None
+    if not -0x80000000 <= v <= 0xFFFFFFFF:
+        raise AsatkError(f"operand {text!r} does not fit in 32 bits")
+    return v & 0xFFFFFFFF
 
 
 def build(events) -> bytes:
@@ -302,7 +319,13 @@ def assemble(text: str) -> bytes:
             continue
         low = line.lower()
         if low.startswith("@frame"):
-            events.append((0, parse_operand(line.split()[1])))
+            parts = line.split()
+            if len(parts) != 2:
+                raise AsatkError(f"line {ln_no}: expected `@frame N`, got {line!r}")
+            try:
+                events.append((0, parse_operand(parts[1])))
+            except AsatkError as ex:
+                raise AsatkError(f"line {ln_no}: {ex}") from None
             continue
         if low in ("@end", "end"):
             events.append((END_OP, 0))
@@ -374,43 +397,60 @@ def insert_at_frame(events, frame: int, op, arg) -> list[Event]:
 
 
 def validate(events) -> list[str]:
-    """Things the pump would trip over: no END, FRAME markers out of order, a HITBOX left
-    armed at END, CHAIN_ANIM without a preceding CHAIN, unknown opcodes (the handler
-    table has 66 slots; anything above indexes past it)."""
+    """Things the pump (Actor_PreTickFrameCleanupAndDecay +0xA02E4) would trip over: no END,
+    FRAME markers out of order or out of range, a HITBOX left armed at END, a CHAIN_ANIM the
+    pump would dispatch (slot 64 is empty: crash), pairs after a CHAIN that never run, unknown
+    opcodes (the handler table has 66 slots; anything above END indexes past it: crash)."""
     out = []
     evs = list(events)
     if not any(e.op == END_OP for e in evs):
         out.append("no END (op 66): the pump runs off the end of the stream")
     last, armed = -1, False
-    for e in evs:
+    for k, e in enumerate(evs):
+        idx = getattr(e, "index", k)
+        prev = evs[k - 1].op if k else None
         if e.op > END_OP:
-            out.append(f"#{e.index}: opcode {e.op} has no handler (table has 0..66)")
+            out.append(f"#{idx}: opcode {e.op} has no handler (table has 0..65, 66 = END): the game crashes")
         if e.op == 0:
-            if e.arg < last:
-                out.append(f"#{e.index}: FRAME {e.arg} goes backwards (previous {last}); it never fires")
-            last = max(last, e.arg)
+            f = _s32(e.arg)
+            if not 0 <= f < 0x80000:
+                out.append(f"#{idx}: FRAME {f} out of range 0..524287 (arg << 12 overflows); it fires at once")
+            elif f < last:
+                out.append(f"#{idx}: FRAME {f} goes backwards (previous {last}): it fires at once, "
+                           f"together with the events of frame {last}")
+            last = max(last, f)
         elif e.op == 10:
             armed = bool(e.arg)
-        elif e.op == CHAIN_PARAM_OP and (e.index == 0 or evs[e.index - 1].op not in (62, 63)):
-            out.append(f"#{e.index}: CHAIN_ANIM without a CHAIN/CHAIN_ONHIT right before it")
+        elif e.op == CHAIN_PARAM_OP:
+            if prev == 63:
+                out.append(f"#{idx}: CHAIN_ANIM after CHAIN_ONHIT: when the swing misses the pump "
+                           "dispatches op 64 (empty handler slot): the game crashes")
+            elif prev != 62:
+                out.append(f"#{idx}: CHAIN_ANIM without a CHAIN right before it: the pump dispatches "
+                           "op 64 (empty handler slot): the game crashes")
         elif e.op == END_OP:
             if armed:
-                out.append(f"#{e.index}: END with the hitbox still armed (op 10 ON without OFF)")
+                out.append(f"#{idx}: END with the hitbox still armed (op 10 ON without OFF); it stays "
+                           "armed until the next move binds (28 stock timelines do this)")
             break
+        after_chain = prev == 62 or (prev == CHAIN_PARAM_OP and k >= 2 and evs[k - 2].op == 62)
+        if after_chain and e.op not in (CHAIN_PARAM_OP, END_OP):
+            out.append(f"#{idx}: {opname(e.op)} after a CHAIN never runs (the chain replaces this stream)")
     return out
 
 
 def _hit_windows(events):
-    """[(arm_frame, disarm_frame)] from HITBOX (op 10) ON/OFF pairs, tracking the FRAME clock."""
-    frame, open_f, out = 0, None, []
+    """[(arm_frame, disarm_frame)] from HITBOX (op 10) ON/OFF pairs, tracking the FRAME clock.
+    An OFF in the same pump frame as its ON is deferred by the handler to the next frame."""
+    frame, open_f, out, same = 0, None, [], False
     for e in events:
         if e.op == 0:
-            frame = e.arg
+            frame, same = e.arg, False
         elif e.op == 10:
             if e.arg:
-                open_f = frame
+                open_f, same = frame, True
             elif open_f is not None:
-                out.append((open_f, frame))
+                out.append((open_f, frame + 1 if same else frame))
                 open_f = None
     if open_f is not None:
         out.append((open_f, None))

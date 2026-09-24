@@ -222,11 +222,12 @@ class MapDocument:
     def set_cells(self, cells):
         """Write {(x, y): value} into ATTR in one pass (out-of-grid cells are skipped).
         Updates the cached grid in place. Returns how many cells actually changed."""
-        a = self.map.find(b"ATTR")
-        if not a or self.grid is None:
+        # the LAST ATTR chunk is the one the game keeps (and the one attr_grid() decodes)
+        a = self.map.live_chunk(b"ATTR")
+        if a is None or self.grid is None:
             raise rf4m.Rf4mError("this map has no ATTR grid")
         w, h, flat = self.grid
-        body = bytearray(a[0].payload)
+        body = bytearray(a.payload)
         n = 0
         for (x, y), v in cells.items():
             if 0 <= x < w and 0 <= y < h:
@@ -237,7 +238,7 @@ class MapDocument:
                     struct.pack_into("<I", body, 8 + 4 * k, v)
                     n += 1
         if n:
-            a[0].payload = bytes(body)
+            a.payload = bytes(body)
             self.attr_version += 1
         return n
 

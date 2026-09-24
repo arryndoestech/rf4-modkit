@@ -10,11 +10,12 @@ IDA-verified consumer shows they are spawned as ordinary visible item drops.)
 Engine chain (IDA-verified 2026-06-10)
 --------------------------------------
 - `GameSystems_Init` spawns the long-lived task **`search_item_mng`**.
-- Its tick (`RF4S.exe+0x231E80`) reacts to "needs roll" (map enter / day change):
-  `archive_id = g_searchItemArchiveByMapId[map_id]` (+0x31D260; 870 u32 slots,
-  305 non-zero covering archive ids **14878..15165** = exactly these 288 files;
-  seasonal map variants share their base map's archive), `nsFileArchive_Load`,
-  then `SearchItem_RollSpotsAndSpawnDailyItems` (+0x231FF0), then release.
+- Its tick `SearchItemMng_TickRollAndSpawnDailySpots` (RF4S.exe+0x231E80) reacts to
+  "needs roll" (set on map entry): `archive_id = g_searchItemArchiveByMapId[map_id]`
+  (+0x4DD260; 870 u32 slots, map ids >= 870 never roll; 305 non-zero covering archive
+  ids **14878..15165** = exactly these 288 files; seasonal map variants share their
+  base map's archive), `nsFileArchive_Load`, then
+  `SearchItem_RollSpotsAndSpawnFromArchive` (+0x231FF0), then release.
 - Roll algorithm (deterministic per day via `Calendar_DerivedDailyRandStream`;
   sleeping rerolls):
 
@@ -33,6 +34,18 @@ Engine chain (IDA-verified 2026-06-10)
 
   So at most **2 items per map per day**; the per-map "already rolled today" bit
   (in the manager's work buffer) reduces that to 1 once set.
+
+  Counter widths (from the disassembly): the spot index and the entry index are
+  u8 registers compared against the u32 counts, and `chance` / both weight sums are
+  u8. Consequences for edited files:
+    * a pool with more than 255 entries HANGS the game the first time a spot using it
+      wins its chance roll (the u8 entry counter wraps before reaching the count);
+    * more than 255 spots makes the spot loop wrap and re-roll the same streams; if no
+      spot then wins, it never ends (hang). The chance is also the LOW BYTE of the
+      count, so 256 spots = chance 0 = the first spot always spawns;
+    * a pool whose weight bytes sum to 0 (mod 256) never yields an item, but the spot
+      still consumes one decrement of `chance`.
+  See `SearchItemFile.validate()`.
 
 File layout
 -----------
@@ -100,6 +113,8 @@ DEFAULT_BUILD_DATE = 0x20201119
 SI_VERSION = 2
 MAX_DAILY_SPAWNS = 2          # engine cap per map per day
 WEIGHT_SUM_LIMIT = 255        # engine sums weights in a u8 -- avoid exceeding
+MAX_SPOTS = 255               # u8 spot counter in the roll loop (more -> possible hang)
+MAX_POOL_ENTRIES = 255        # u8 entry counter (more -> certain hang when rolled)
 
 
 class SearchItemError(Exception):
@@ -297,6 +312,51 @@ class SearchItemFile:
     def save(self, path) -> None:
         pathlib.Path(path).write_bytes(self.build())
 
+    # ---------------- validation ----------------------------------------- #
+    def validate(self) -> list[str]:
+        """What SearchItem_RollSpotsAndSpawnFromArchive (RF4S.exe+0x231FF0) would trip
+        over, as 'ERROR: ...' (hang) / 'WARN: ...' (loads, misbehaves) lines."""
+        errs, warns = [], []
+        n = len(self.spots)
+        if n > MAX_SPOTS:
+            errs.append(f"{n} spots: the roll loop counts spots in a u8, so past 255 it wraps "
+                        f"and re-rolls the same streams -- if no spot wins, the game hangs "
+                        f"(and the 1-in-N chance uses only the low byte, {n & 0xFF})")
+        seen = {}
+        for i, sp in enumerate(self.spots):
+            seen.setdefault(id(sp.pool), (i, sp.pool))
+            if not (0 <= sp.x <= 0xFFFF and 0 <= sp.y <= 0xFFFF):
+                errs.append(f"spot {i}: position ({sp.x},{sp.y}) does not fit the u16 fields")
+            elif sp.x < 4 or sp.y < 8:
+                warns.append(f"spot {i}: the item spawns at ((x-4),(y-8)) sub-units, so "
+                             f"({sp.x},{sp.y}) puts it off the map's top/left edge")
+        for i, pool in seen.values():
+            ne = len(pool.entries)
+            tag = f"pool of spot {i}"
+            if ne > MAX_POOL_ENTRIES:
+                errs.append(f"{tag}: {ne} entries -- the weight-sum loop counts entries in a "
+                            f"u8 and never reaches {ne}: the game HANGS when this pool is rolled "
+                            f"(max {MAX_POOL_ENTRIES})")
+            if ne == 0:
+                warns.append(f"{tag}: no entries -- a winning spot spawns nothing but still "
+                             f"uses up one step of the daily chance")
+                continue
+            raw = pool.total_weight()
+            if raw > WEIGHT_SUM_LIMIT:
+                warns.append(f"{tag}: weight bytes sum to {raw}; the engine sums in a u8 "
+                             f"({raw & 0xFF}), which skews or breaks the pick -- keep <= 255")
+            if pool.engine_total_weight() == 0:
+                warns.append(f"{tag}: engine weight total is 0, so this pool never yields an "
+                             f"item")
+            for k, e in enumerate(pool.entries):
+                if e.item_id > 0x7FF:
+                    warns.append(f"{tag} entry {k}: item id {e.item_id} -- the engine keeps "
+                                 f"only the low 11 bits ({e.effective_item_id})")
+                if e.weight > 0xFF:
+                    warns.append(f"{tag} entry {k}: weight {e.weight} -- only the low byte "
+                                 f"({e.effective_weight}) is read")
+        return [f"ERROR: {m}" for m in errs] + [f"WARN: {m}" for m in warns]
+
     # ---------------- inspection ----------------------------------------- #
     def dump(self, item_names: dict[int, str] | None = None) -> str:
         """Return a human-readable summary string."""
@@ -324,6 +384,7 @@ class SearchItemFile:
                 pct = (100.0 * e.effective_weight / total) if total else 0.0
                 nm = item_names.get(e.effective_item_id, f"item_{e.effective_item_id}")
                 lines.append(f"      {nm:<24}  w={e.effective_weight:3d}  (~{pct:4.1f}%)")
+        lines += [f"  ! {m}" for m in self.validate() if m.startswith("ERROR")]
         return "\n".join(lines)
 
 

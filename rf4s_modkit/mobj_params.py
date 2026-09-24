@@ -67,7 +67,7 @@ LANES = [
     ((196, 335), "interactive object", "Map_SpawnInteractiveObject",
      [(6, 4, "scale /4096/3 - NEGATIVE mirrors horizontally"),
       (7, 2, "sub-image index (sprite word +124)"),
-      (8, 4, "z bias (z = 2*(f8+f15)+4096) + interact word, template-adjusted (g_mapEntityTemplates +0x295030 adds a per-type bias)"),
+      (8, 4, "z bias (z = 2*(f8+f15)+4096) + interact word, template-adjusted (g_mapEntityTemplates +0x4D5030 adds a per-type bias)"),
       (9, 4, "collision half-width (>>4 -> tiles; stamped into tile flags when f11 != 0)"),
       (10, 4, "collision half-height"),
       (11, 4, "0 = register interactable trigger, nonzero = stamp collision instead"),
@@ -410,7 +410,9 @@ MAP_PARAMS = {
                   "/ 1 (overlay) via Map_PaletteBlend. Three records per map, one per slot, is "
                   "the stock pattern: this is how shipped maps set their lighting (MLIG is "
                   "left at the defaults everywhere).",
-             params=[(8, 4, "slot: 0 day (06-15h), 1 evening (16-18h), 2 night (19-05h)"),
+             params=[(8, 4, "slot: 0 day (06-15h), 1 evening (16-18h), 2 night (19-05h) -- "
+                            "used UNCHECKED as an array index when f12 = 0, so anything "
+                            "else writes past the tint slots (rf4m.validate flags it)"),
                      (9, 1, "red"), (10, 1, "green"), (11, 1, "blue"),
                      (12, 4, "0 = set the tint slot; 1 = blend into the ground layer; "
                              "2 = blend into the overlay layer")]),

@@ -172,11 +172,13 @@ def cmd_bundle_add(a):
 def cmd_bundle_rebuild(a):
     man = _manifest(a.manifest) if a.manifest or a.name else None
     out = pathlib.Path(a.out)
-    toc = mbundle.rebuild_from_dir(a.dir, out, man, a.name)
+    # the manifest bundleName is the bundle's file name (with .mbundle): the game resolves it as a path
+    name = (a.name or out.name) if man is not None else None
+    toc = mbundle.rebuild_from_dir(a.dir, out, man, name)
     if man is not None:
         man.save()
     print(f"rebuilt {out} from {a.dir}: {len(toc)} files"
-          + (f" + updated manifest entry {a.name!r}" if man is not None else ""))
+          + (f" + updated manifest entry {name!r}" if man is not None else ""))
 
 
 def cmd_install(a):
@@ -643,9 +645,13 @@ def cmd_ai_ops(a):
     from rf4s_modkit import aibn_meta
     _utf8_stdout()
     if a.opcode:
-        opid = aibn.NAME_TO_OP.get(a.opcode)
-        if opid is None:
+        try:
             opid = int(a.opcode, 0)
+        except ValueError:
+            try:
+                opid = aibn._name_to_op(a.opcode)      # mnemonic, alias or condition name
+            except aibn.AibnError as ex:
+                sys.exit(f"ai ops: {ex}")
         print(aibn_meta.describe(opid))
         return
     print("AIBN opcodes (verified 2026-09-17 from the RF4S.exe handlers; 'var<=N' = reads up to N operands)\n")
@@ -672,9 +678,29 @@ def cmd_ai_actions(a):
 
 def cmd_ai_asm(a):
     text = pathlib.Path(a.file).read_text(encoding="utf-8")
-    toks = aibn.assemble(text)
-    pathlib.Path(a.out).write_bytes(aibn.build(toks))
+    try:
+        toks = aibn.assemble(text)
+        blob = aibn.build(toks)
+    except aibn.AibnError as ex:
+        sys.exit(f"ai asm: {a.file}: {ex}")
+    pathlib.Path(a.out).write_bytes(blob)
+    for w in aibn.validate(toks):
+        print(f"  warning: {w}")
     print(f"assembled {a.file} -> {a.out} ({len(toks)} tokens)")
+
+
+def cmd_ai_check(a):
+    """Static checks against how the VM runs a script (aibn.validate)."""
+    p = _resolve_ai(a.target)
+    data = p.read_bytes()
+    try:
+        toks = aibn.load_tokens(data)
+    except aibn.AibnError as ex:
+        sys.exit(f"ai check: {p}: {ex}")
+    probs = aibn.validate(toks, data)
+    for w in probs:
+        print(f"  warning: {w}")
+    print(f"{p.name}: {len(toks)} tokens, {len(probs)} finding(s)")
 
 
 def cmd_ai_tokens(a):
@@ -694,7 +720,9 @@ def _resolve_asatk(arg: str) -> pathlib.Path:
         return exact[0]
     if len(matches) == 1:
         return matches[0]
-    return p
+    if len(matches) > 1:
+        sys.exit(f"'{arg}' ambiguous: {', '.join(m.name for m in matches[:10])}")
+    sys.exit(f"no as_atk timeline matching '{arg}'")
 
 
 def cmd_asatk_dump(a):
@@ -715,7 +743,10 @@ def _asatk_write(events, a, src):
 def cmd_asatk_asm(a):
     """Assemble a listing (as written by `asatk dump`) into an as_atk_*.bin."""
     text = pathlib.Path(a.text).read_text(encoding="utf-8")
-    blob = asatk.assemble(text)
+    try:
+        blob = asatk.assemble(text)
+    except asatk.AsatkError as ex:
+        sys.exit(f"asatk asm: {a.text}: {ex}")
     events = asatk.parse(blob, stop_at_end=False)
     _asatk_write(events, a, pathlib.Path(a.out) if a.out else pathlib.Path(a.text).with_suffix(".bin"))
 
@@ -723,26 +754,35 @@ def cmd_asatk_asm(a):
 def cmd_asatk_set(a):
     src = _resolve_asatk(a.target)
     events = asatk.parse(src.read_bytes(), stop_at_end=False)
-    events = asatk.set_event(events, a.index, a.op, a.arg)
+    try:
+        events = asatk.set_event(events, a.index, a.op, a.arg)
+    except asatk.AsatkError as ex:
+        sys.exit(f"asatk set: {ex}")
     _asatk_write(events, a, src)
 
 
 def cmd_asatk_insert(a):
     src = _resolve_asatk(a.target)
     events = asatk.parse(src.read_bytes(), stop_at_end=False)
-    if a.frame is not None:
-        events = asatk.insert_at_frame(events, a.frame, a.op, a.arg)
-    else:
-        if a.index is None:
-            sys.exit("give --index N (position in the stream) or --frame F (animation frame)")
-        events = asatk.insert_event(events, a.index, a.op, a.arg)
+    try:
+        if a.frame is not None:
+            events = asatk.insert_at_frame(events, a.frame, a.op, a.arg)
+        else:
+            if a.index is None:
+                sys.exit("give --index N (position in the stream) or --frame F (animation frame)")
+            events = asatk.insert_event(events, a.index, a.op, a.arg)
+    except asatk.AsatkError as ex:
+        sys.exit(f"asatk insert: {ex}")
     _asatk_write(events, a, src)
 
 
 def cmd_asatk_delete(a):
     src = _resolve_asatk(a.target)
     events = asatk.parse(src.read_bytes(), stop_at_end=False)
-    events = asatk.delete_event(events, a.index)
+    try:
+        events = asatk.delete_event(events, a.index)
+    except asatk.AsatkError as ex:
+        sys.exit(f"asatk delete: {ex}")
     _asatk_write(events, a, src)
 
 
@@ -852,9 +892,12 @@ def cmd_str_set(a):
     p, t = _str_table(a)
     names = strengthening.load_item_names()
     rid = _str_id(a.item, names)
-    for assign in a.set:
-        key, val = assign.split("=", 1)
-        t.set(rid, key, int(val, 0))
+    try:
+        for assign in a.set:
+            key, val = assign.split("=", 1)
+            t.set(rid, key, int(val, 0))
+    except nlcl.NlclError as e:
+        sys.exit(f"str set: {e}")
     out = pathlib.Path(a.out) if a.out else p
     t.save(out)
     print(f"#{rid} {t.label(rid, names)}: " + ", ".join(a.set) + f" -> {out}")
@@ -1425,9 +1468,12 @@ def cmd_monster_set(a):
     cid = _monster_id(a.record, sp)
     if cid is None:
         sys.exit(f"error: unknown monster '{a.record}'")
-    for assign in a.set:
-        key, val = assign.split("=", 1)
-        monster.set_field(t, cid, key.strip(), int(val, 0))
+    try:
+        for assign in a.set:
+            key, val = assign.split("=", 1)
+            monster.set_field(t, cid, key.strip(), int(val, 0))
+    except nlcl.NlclError as e:
+        sys.exit(f"monster set: {e}")
     out = pathlib.Path(a.out) if a.out else p
     monster.save(t, out)
     print(monster.render(t, cid, sp, monster.load_item_names()))
@@ -1557,7 +1603,7 @@ def cmd_skill_family(a):
     for arc in sorted(fams):
         f = skillcurve.ARCHIVE_FILE.get(arc, "?")
         print(f"  {arc}  {f + '.bin':<28s} skills {', '.join(fams[arc])}")
-    print("\n(archive<->file pairing inferred from name-lead + id order; not byte-confirmed)")
+    print("\n(archive<->file pairing byte-confirmed: NLCL count 100 @+24, 444 bytes each)")
 
 
 def cmd_skill_set(a):
@@ -1631,10 +1677,33 @@ def cmd_script_find(a):
         sys.exit("error: --text <rf3mc.locale> is required to search dialogue")
     hits = script.find_scenes_with_dialog(c, a.query, dlg)
     for bk, sc, ids in hits[: a.limit]:
+        # `bank N` = the container position --bank takes; bk.index counts within its kind
         sys.stdout.buffer.write(
-            (f"bank {bk.index} ({bk.kind}) type {sc.action_type} entry 0x{sc.entry_pc:04x}"
+            (f"bank {c.banks.index(bk)} ({bk.kind} {bk.index}) type {sc.action_type} entry 0x{sc.entry_pc:04x}"
              f"  lines={ids}\n").encode("utf-8", "replace"))
     print(f"\n{len(hits)} scene(s) match {a.query!r}")
+
+
+def cmd_script_dev_menus(a):
+    c = script.Container(_resolve(a.file).read_bytes())
+    dlg = _dialog_fn(a.text)
+    if dlg is None:
+        sys.exit("error: --text <rf3mc.locale> is required (the menu items are text lines)")
+    menus = script.dev_menus(c, dlg, banks=[a.bank] if a.bank is not None else None)
+    out = []
+    for bk, sc, st, rows in menus:
+        out.append(f"bank {c.banks.index(bk)} ({bk.kind} {bk.index}) scene 0x{sc.entry_pc:04x}  "
+                   f"menu @0x{st.pc:04x}  {len(rows)} items")
+        for nm, tgt, first in rows:
+            line = ""
+            if first is not None:
+                try:
+                    line = (dlg(first) or "").replace("\n", " ")
+                except Exception:
+                    line = ""
+            out.append(f"    {nm:<34} -> 0x{tgt:04x}" + (f"   #{first} \"{line[:70]}\"" if first is not None else "   (no dialogue)"))
+    sys.stdout.buffer.write(("\n".join(out) + "\n").encode("utf-8", "replace"))
+    print(f"{len(menus)} debug menu(s); use `script listing --bank N --pc <scene>` to read a routine")
 
 
 def cmd_script_set_dialog(a):
@@ -1938,8 +2007,17 @@ def cmd_script_check(a):
         sys.exit("error: pass --listing FILE or --stmt 'LINE / LINE'")
     try:
         region, labels = scriptasm.assemble(text, 0x1000, resolver=c.asm_resolver)
+        ntext = None
+        if getattr(a, "text", None):
+            ntext = len(textdb.TextArchive.load(_resolve(a.text)).entries)
+        problems = scriptasm.lint_listing(text, 0x1000, resolver=c.asm_resolver, text_count=ntext)
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
+    for pc, level, msg in problems:                  # engine-behaviour checks (choices)
+        print(f"{level}: statement at +0x{pc - 0x1000:04x}: {msg}")
+    nerr = sum(1 for _, level, _ in problems if level == "error")
+    if nerr:
+        sys.exit(f"assembled ({len(region)} bytes) but {nerr} choice error(s): the game would mishandle it")
     print(f"ok: {len(region)} bytes, labels {', '.join(f'{k}=0x{v:04x}' for k, v in labels.items()) or '(none)'}")
 
 
@@ -2408,7 +2486,8 @@ def cmd_res_texture_list(a):
     print(f"{a.file}: {len(infos)} texture(s) in the embedded BNTX")
     for t in infos:
         print(f"  {t['index']:3d}  {t['name']:32s} {t['fmt_name']:9s} {t['width']:5d}x{t['height']:<5d} "
-              f"{t['image_size']:9,d} B  data@0x{t['data_off']:x}  mips={t['mips']} tile={t['tile']}")
+              f"{t['image_size']:9,d} B  data@0x{t['data_off']:x}  mips={t['mips']} tile={t['tile']}"
+              + (f"\n       WARNING: {t['upload_issue']}" if t.get("upload_issue") else ""))
 
 
 def cmd_res_texture_decode(a):
@@ -2461,6 +2540,22 @@ def cmd_res_model_info(a):
         ud = model.user_data_text(mt)
         print(f"  {mt.index:3} {mt.name:<20} textures {mt.textures}  shader {'/'.join(mt.shader)}"
               + (f"  [{ud}]" if ud else ""))
+
+
+def cmd_res_model_gif(a):
+    from rf4s_modkit import matanim
+    model, m = _load_model(a.file)
+    src = pathlib.Path(a.anim) if a.anim else matanim.companion_path(_resolve(a.file))
+    if src is None or not pathlib.Path(src).is_file():
+        sys.exit(f"error: no .bfmat next to {a.file}; pass --anim")
+    try:
+        anim = matanim.load(src)
+    except matanim.MatAnimError as e:
+        sys.exit(f"error: {src}: {e}")
+    frames = model.render_animation(m, anim, a.view, a.size, step=a.step)
+    model.save_gif(frames, a.out, step=a.step)
+    print(f"wrote {a.out}: {len(frames)} frames ({anim.frame_count}-frame loop from {pathlib.Path(src).name}, "
+          f"every {a.step} game frame(s), {a.view} view)")
 
 
 def cmd_res_model_export(a):
@@ -2616,16 +2711,11 @@ def cmd_param_set(a):
     p = _resolve(a.file)
     t = nlcl.NlclTable.load(p)
     stem = p.stem
-    for assign in a.set:
-        key, val = assign.split("=", 1)
-        value = int(val, 0)
-        if ":" in key:                       # off:type form, e.g. 12:s32
-            off_s, typ = key.split(":", 1)
-            t.set(a.record, int(off_s, 0), value, typ)
-        elif key.lstrip("+").isdigit() or key.lstrip("+").lower().startswith("0x"):  # bare offset (dec or hex)
-            t.set(a.record, int(key, 0), value, "s32")
-        else:                                  # named field
-            t.set_field(a.record, key, value, stem)
+    try:
+        for assign in a.set:
+            _param_assign(t, a.record, assign, stem)
+    except nlcl.NlclError as e:
+        sys.exit(f"param set: {e}")
     out = pathlib.Path(a.out) if a.out else p
     out.write_bytes(t.build())
     print(f"rec {a.record}: {t.record_dwords(a.record)}")
@@ -2916,7 +3006,8 @@ def build_parser():
 
     b7 = bsub.add_parser("rebuild", help="build a fresh .mbundle from a directory")
     b7.add_argument("dir"); b7.add_argument("-o", "--out", required=True)
-    b7.add_argument("--manifest"); b7.add_argument("--name", help="manifest bundle name to update")
+    b7.add_argument("--manifest"); b7.add_argument("--name", help="manifest bundleName to update "
+                                                   "(default: the -o file name, e.g. bundleMod.mbundle)")
     b7.set_defaults(func=cmd_bundle_rebuild)
 
     # install
@@ -3055,6 +3146,9 @@ def build_parser():
     a3.add_argument("opcode", nargs="?"); a3.set_defaults(func=cmd_ai_ops)
     a4 = asub.add_parser("actions", help="the 35 scripted actions invoked by opcode 0x26")
     a4.add_argument("slot", nargs="?", type=int); a4.set_defaults(func=cmd_ai_actions)
+    a5 = asub.add_parser("check", help="static checks against how the VM runs the script "
+                                       "(orphan tokens, hijacked/missing labels, blocks, header)")
+    a5.add_argument("target"); a5.set_defaults(func=cmd_ai_check)
 
     # asatk (as_atk_*.bin attack-move timelines)
     pat = sub.add_parser("asatk", help="as_atk_*.bin attack-move timelines (hitbox/motion events)")
@@ -3209,7 +3303,7 @@ def build_parser():
     gf8 = gfsub.add_parser("monster-set", help="tame food: gift monster-set 52 auto Onigiri 15")
     gf8.add_argument("species", help="species id 48..253 (or name)")
     gf8.add_argument("slot", help="0..3, or auto (existing slot for the item, else first empty)")
-    gf8.add_argument("item"); gf8.add_argument("bonus", help="tame bonus added to the roll (u16)")
+    gf8.add_argument("item"); gf8.add_argument("bonus", help="tame bonus added to the roll (1..32767; read as s16)")
     gf8.add_argument("--file"); gf8.add_argument("-o", "--out")
     gf8.set_defaults(func=cmd_gift_monster_set)
     gf9 = gfsub.add_parser("monster-clear", help="empty a tame-food slot: gift monster-clear 52 1 | gift monster-clear 52 item --item Onigiri")
@@ -3250,7 +3344,8 @@ def build_parser():
     mo1.set_defaults(func=cmd_monster_list)
     mo2 = mosub.add_parser("free", help="list cut/unused ids usable for a data-only new monster")
     mo2.add_argument("--file"); mo2.set_defaults(func=cmd_monster_free)
-    mo3 = mosub.add_parser("set", help="edit template fields (hp/atk/def/mat/kill_xp/ai_script/"
+    mo3 = mosub.add_parser("set", help="edit template fields (hp/str/int/vit/flat_atk/flat_def/"
+                                       "flat_mat/flat_mdf/kill_xp/tame_base/base_level/ai_script/"
                                        "model/anim/dropN_id/dropN_pm/elem_*/res_*)")
     mo3.add_argument("record", help="char_id number or exact monster name")
     mo3.add_argument("--set", nargs="+", required=True, metavar="FIELD=VALUE",
@@ -3291,6 +3386,11 @@ def build_parser():
     sc2.add_argument("file"); sc2.add_argument("query")
     sc2.add_argument("--text", required=True); sc2.add_argument("--limit", type=int, default=30)
     sc2.set_defaults(func=cmd_script_find)
+    sc2m = scsub.add_parser("dev-menus", help="list the developers' '＊' test menus left in rf3.mc "
+                            "(per-NPC event / festival / date previews): each item -> its routine")
+    sc2m.add_argument("file"); sc2m.add_argument("--text", required=True)
+    sc2m.add_argument("--bank", type=int, help="only this bank")
+    sc2m.set_defaults(func=cmd_script_dev_menus)
     sc3 = scsub.add_parser("set-dialog", help="retarget a DIALOG to another line id")
     sc3.add_argument("file"); sc3.add_argument("--bank", type=int, required=True)
     sc3.add_argument("--pc", required=True, help="statement PC (hex ok, e.g. 0x3478)")
@@ -3364,7 +3464,9 @@ def build_parser():
     sca.add_argument("-o", "--out", required=True); sca.set_defaults(func=cmd_script_asm)
     scc = scsub.add_parser("check", help="syntax-check a listing (labels, opcodes, variables)")
     scc.add_argument("file", nargs="?", default="rf3.mc")
-    scc.add_argument("--listing"); scc.add_argument("--stmt"); scc.set_defaults(func=cmd_script_check)
+    scc.add_argument("--listing"); scc.add_argument("--stmt")
+    scc.add_argument("--text", help="rf3mc.<locale>: also check choice option ids against it")
+    scc.set_defaults(func=cmd_script_check)
     sce = scsub.add_parser("expr", help="compile an expression ('REG_WIFE_ID == 11') to bytes, or decode --hex")
     sce.add_argument("expr", nargs="?", default="")
     sce.add_argument("--hex", help="decode these expression bytes instead")
@@ -3541,6 +3643,15 @@ def build_parser():
                          "(bind pose, model space)")
     r5.add_argument("file"); r5.add_argument("out", help="output folder")
     r5.set_defaults(func=cmd_res_model_export)
+    r5g = rsub.add_parser("model-gif", help="play a .model's material animation (the .bfmat beside it: "
+                          "the ANIM_DUNG_* light shafts and water scroll) into a looping GIF")
+    r5g.add_argument("file"); r5g.add_argument("out", help="output .gif")
+    r5g.add_argument("--anim", help=".bfmat to use (default: the one next to the model)")
+    r5g.add_argument("--view", default="top", choices=("front", "back", "side", "top"))
+    r5g.add_argument("--size", type=int, default=320, help="longer side in px (default 320)")
+    r5g.add_argument("--step", type=int, default=2,
+                     help="game frames per GIF frame (the game runs 60/s; default 2 = 30 fps)")
+    r5g.set_defaults(func=cmd_res_model_gif)
     r6 = rsub.add_parser("model-render", help="render a textured preview PNG of a .model")
     r6.add_argument("file")
     r6.add_argument("--view", default="front", choices=("front", "back", "side", "top"),
@@ -3619,7 +3730,9 @@ def build_parser():
     g2.add_argument("--gate", type=int, help="new gate kind id")
     g2.add_argument("--weight", type=int, help="new weight")
     g2.add_argument("--spawn", action="append", help="spawn edit IDX=MONSTER_ID (repeatable)")
-    g2.add_argument("--level", action="append", help="level edit IDX=LEVEL (repeatable)")
+    g2.add_argument("--level", action="append",
+                    help="roster record high u16 IDX=VALUE (repeatable) -- the monster's PICK "
+                         "WEIGHT in the roster, not a level; the gate level is hdr param_a")
     g2.add_argument("--weights", action="append",
                     help="per-monster-position weights IDX=w1,w2,... (repeatable)")
     g2.add_argument("--per-spawn", dest="per_spawn", help="monsters kept alive per gate, e.g. 2-4")
@@ -3639,7 +3752,8 @@ def build_parser():
     g5.add_argument("file"); g5.add_argument("pattern", type=int); g5.add_argument("entry", type=int)
     g5.add_argument("--names"); g5.add_argument("-o", "--out")
     g5.set_defaults(func=cmd_gen_remove_gate)
-    g6 = gsub.add_parser("add-monster", help="add a monster (id, level) to a gate's roster")
+    g6 = gsub.add_parser("add-monster", help="add a monster (id, pick weight) to a gate's roster "
+                                             "(the 'level' argument is the record's pick weight)")
     g6.add_argument("file"); g6.add_argument("pattern", type=int); g6.add_argument("entry", type=int)
     g6.add_argument("monster", type=int); g6.add_argument("level", type=int)
     g6.add_argument("--weights", help="w1,w2,... one per monster position (default 10 each)")

@@ -31,7 +31,10 @@ DESC payload (buffer = DESC+0x10, size = DESC.size - 16), then MGTexture_LoadFro
 PIXL_FormatToMCTexFormat (+0x3D25B0) and uploads level 0 only through
 MGTexture_CreateFromBuffer -> MGTexture_LoadFromData -> MCTexture_GLUpload (+0x2A34F0):
 code 0x2001 (BC7) -> glCompressedTexImage2D(GL_COMPRESSED_RGBA_BPTC_UNORM, w, h, w*h bytes),
-code 0x0B01 (RGBA8) -> glTexImage2D(GL_RGBA, GL_UNSIGNED_BYTE, w*h*4 bytes). Nothing reads
+code 0x0B01 (RGBA8) -> glTexImage2D(GL_RGBA, GL_UNSIGNED_BYTE, w*h*4 bytes). The compressed
+size passed for BC2/3/7 is w*h and for BC1 ((w+3)/4)^2*8 (width twice), so block formats only
+upload at multiples of 4 and BC1 only on a square block grid -- see upload_problem; three
+shipped .model BC1 textures (efc_rocketL/R 64x32, I_WeaponL00 16x32) break that. Nothing reads
 mipCount, imageSize or the mip pointers beyond entry 0. Sprite_BindFrameTexture (+0x1B7D90)
 indexes the same pointer array with the frame index and takes each frame's size from its own
 PIXL, so flipbook frames may differ in size (8x12d00.texture: 10x 64x32 + 32x16 + 64x32).
@@ -149,8 +152,9 @@ def _u64(b, o):
 
 
 def payload_size(fmt_code: int, w: int, h: int) -> int:
-    """Level-0 payload bytes of a w x h image in PIXL format `fmt_code` (matches the
-    upload sizes in MCTexture_GLUpload: BC1 8 B / 4x4 block, BC2/3/7 16 B, raw w*h*bpp)."""
+    """Level-0 payload bytes of a w x h image in PIXL format `fmt_code` (BC1 8 B per 4x4
+    block, BC2/3/7 16 B, raw w*h*bpp). MCTexture_GLUpload computes its own compressed size,
+    which equals this only under the rules checked by upload_problem."""
     fmt_name, bpp, kind = PIXL_FMT_MAP.get(fmt_code, (None, 1, "unknown"))
     if kind in BC_KINDS:
         bpb = 8 if kind == "bc1" else 16
@@ -159,6 +163,38 @@ def payload_size(fmt_code: int, w: int, h: int) -> int:
         blk = 4 if kind == "astc4" else 6
         return ((w + blk - 1) // blk) * ((h + blk - 1) // blk) * 16
     return w * h * bpp
+
+
+def upload_problem(fmt_code: int, w: int, h: int) -> str | None:
+    """Why MCTexture_GLUpload (RF4S.exe+0x2A34F0) would hand the driver a wrong
+    `imageSize` for a w x h level 0 of PIXL/BRTI format `fmt_code`, or None when the
+    upload is well-formed. glCompressedTexImage2D rejects a size that does not match
+    the block count (GL_INVALID_VALUE -> the texture stays empty in game), and the exe
+    does not compute it from the block grid:
+      BC1 (MCTex 14): ((w+3)/4)^2 * 8 -- the WIDTH is used twice (RF4S.exe+0x2A3881..0x2A3890:
+                      lea eax,[rbx+3] / sar 2 / imul eax,eax / shl 3, rbx = width), so only
+                      frames with as many block rows as block columns upload;
+      BC2/BC3/BC7 (15/16/17): w*h -- equals the payload only when both are multiples of 4;
+      ASTC 4x4 / 6x6 (12/13): floor-divided block counts -- multiples of 4 / 6 only.
+    The raw formats go through glTexImage2D and have no such constraint."""
+    kind = PIXL_FMT_MAP.get(fmt_code, (None, 0, "unknown"))[2]
+    if kind == "bc1":
+        if (w + 3) // 4 != (h + 3) // 4:
+            return (f"BC1 {w}x{h}: the exe sizes a BC1 upload as ceil(w/4)^2 blocks (width used "
+                    f"for both axes), so a non-square block grid is rejected by the driver")
+        if w % 4 or h % 4:
+            return f"BC1 {w}x{h}: dimensions must be multiples of 4"
+        return None
+    if kind in ("bc2", "bc3", "bc7"):
+        if w % 4 or h % 4:
+            return (f"{kind.upper()} {w}x{h}: the exe passes w*h as the compressed size, which "
+                    f"matches the block payload only for multiples of 4")
+        return None
+    if kind in ("astc4", "astc6"):
+        blk = 4 if kind == "astc4" else 6
+        if w % blk or h % blk:
+            return f"ASTC {w}x{h}: dimensions must be multiples of {blk}"
+    return None
 
 
 def _name_at(data: bytes, off: int) -> str:
@@ -205,6 +241,7 @@ def _walk_container(data: bytes) -> dict | None:
             "image_size": _u32(data, px + _PIXL_IMGSZ),
             "mipptr_off": mipptr, "data_off": data_off,
             "size": payload_size(fmt_code, w, h),
+            "upload_issue": upload_problem(fmt_code, w, h),
         })
     return {
         "frame_list": frames, "desc_off": desc, "dic_off": dic,
@@ -238,7 +275,8 @@ def parse(data: bytes) -> dict:
         fr = {"index": 0, "name": "", "pixl_off": pixl, "fmt_code": fmt_code,
               "fmt_name": fmt_name, "kind": kind, "width": width, "height": height,
               "mips": 1, "image_size": 0, "mipptr_off": -1, "data_off": desc + _DESC_HDR,
-              "size": payload_size(fmt_code, width, height)}
+              "size": payload_size(fmt_code, width, height),
+              "upload_issue": upload_problem(fmt_code, width, height)}
         walk = {"frame_list": [fr], "desc_off": desc, "dic_off": -1, "desc_size": 0,
                 "rlt_off": -1, "rlt_ok": False, "file_size": len(data), "name": ""}
         container = False
@@ -395,6 +433,7 @@ def bntx_info(data: bytes) -> list:
             "tile": _u16(data, b + 0x12), "mips": _u16(data, b + _PIXL_MIPS),
             "image_size": _u32(data, b + _PIXL_IMGSZ), "brti_off": b, "data_off": data_off,
             "size": payload_size(fmt_code, w, h),
+            "upload_issue": upload_problem(fmt_code, w, h),
         })
     return out
 
@@ -407,7 +446,7 @@ def decode_bntx(data: bytes, index: int = 0):
     if not HAS_PIL:
         raise TextureError("Pillow required: pip install Pillow")
     infos = bntx_info(data)
-    if not infos or index >= len(infos):
+    if not infos or not 0 <= index < len(infos):
         return None
     t = infos[index]
     if t["tile"] != 1:
@@ -433,7 +472,10 @@ def bntx_replace(data: bytes, index: int, png, *, fmt: str | None = None) -> byt
     is exactly the same size (BC3 <-> BC7), and then the BRTI format code (+0x1C) is
     rewritten as well. The new level-0 bytes overwrite the old ones at data_off; the
     mip pointer, image size, mip count, name, _DIC and both relocation tables are left
-    untouched (nothing else is read for the upload -- docs/09 s4)."""
+    untouched (nothing else is read for the upload -- docs/09 s4). A format change the
+    engine cannot upload at this size is refused (upload_problem). A block-linear
+    (tileMode != 1) texture is rewritten linear in its slot and its BRTI tile mode /
+    image size set to match (the loader ignores both and uploads the slot linearly)."""
     if not HAS_PIL:
         raise TextureError("Pillow required: pip install Pillow")
     infos = bntx_info(data)
@@ -452,16 +494,28 @@ def bntx_replace(data: bytes, index: int, png, *, fmt: str | None = None) -> byt
     if t["data_off"] < 0 or t["data_off"] + t["image_size"] > len(data):
         raise TextureError(f"texture {index}: level-0 data outside the file")
     target = _resolve_target(t["fmt_name"], t["kind"], fmt)
-    code, payload = _encode_frame(im, target)
-    if len(payload) != t["image_size"]:
+    what = f"texture {index} ({t['name']})"
+    code, payload = _encode_checked(im, t, target, what, validate=False)
+    # The loader uploads exactly the level-0 payload from data_off and never reads the
+    # tile mode (MGTexture_LoadFromPIXL, RF4S.exe+0x3D2230, uses only +0x1C/+0x24/+0x28 of
+    # the BRTI), so a linear payload fits wherever the slot holds at least that much.
+    # A block-linear (tileMode 0) slot is larger than its linear payload (the 7 shipped
+    # ones are GOB-padded Switch leftovers that the PC build uploads as garbage); writing
+    # linear data there and marking the BRTI linear (tile = 1) makes it decodable here too.
+    linearise = t["tile"] != 1
+    if len(payload) != t["image_size"] and not (linearise and len(payload) <= t["image_size"]):
         raise TextureError(
             f"{target} payload is {len(payload):,} B but texture {index} holds {t['image_size']:,} B "
             f"({t['fmt_name']}); .model textures are replaced in place, so the format must keep "
             f"the payload size (leave fmt at 'keep', or BC3 <-> BC7)")
+    _validate_change(code, t, target, what)
     out = bytearray(data)
     out[t["data_off"]:t["data_off"] + len(payload)] = payload
     if code != t["fmt_code"]:
         struct.pack_into("<I", out, t["brti_off"] + _PIXL_FMT, code)
+    if linearise:     # tile mode + level-0 size, so the next replace sees a normal slot
+        struct.pack_into("<H", out, t["brti_off"] + 0x12, 1)
+        struct.pack_into("<I", out, t["brti_off"] + _PIXL_IMGSZ, len(payload))
     return bytes(out)
 
 
@@ -489,11 +543,18 @@ def bntx_list(data: bytes) -> list:
     return out
 
 
+# RGBA4444 (PIXL code 0x301): R in bits 0-3, G 4-7, B 8-11, A 12-15 of each little-endian
+# u16 -- the Switch (nn::gfx) memory order the data was authored in. In all 22 shipped
+# textures the top nibble is only ever 0 or 15 (a punch-out alpha), and the game draws them
+# in this order: Rafflesia (BM_11_01/02) shows green leaves in-game, checked 2026-09-24 with
+# the upload logged live -- the bytes reach glTexImage2D unchanged. The call itself names
+# GL_RGBA / GL_UNSIGNED_SHORT_4_4_4_4 (MCTexture_GLUpload RF4S.exe+0x2A34F0, case 6), which
+# by the GL spec would put R in the TOP nibble; what is on screen is the authority here.
 def _decode_rgba4444(raw, w, h):
     out = bytearray(w * h * 4)
     for i in range(w * h):
         v = raw[2 * i] | (raw[2 * i + 1] << 8)
-        r, g, b, a = (v >> 12) & 0xF, (v >> 8) & 0xF, (v >> 4) & 0xF, v & 0xF
+        r, g, b, a = v & 0xF, (v >> 4) & 0xF, (v >> 8) & 0xF, (v >> 12) & 0xF
         out[4 * i:4 * i + 4] = bytes((r * 17, g * 17, b * 17, a * 17))
     return Image.frombytes("RGBA", (w, h), bytes(out))
 
@@ -626,6 +687,9 @@ def describe(data: bytes) -> str:
             lines.append(f"  frame {fr['index']:2d}: {fr['name'] or '?':32s} {fr['fmt_name']:9s} "
                          f"{fr['width']}x{fr['height']}  mips={fr['mips']}  "
                          f"data@0x{fr['data_off']:x} ({fr['size']} B)")
+    for fr in info["frame_list"]:
+        if fr.get("upload_issue"):
+            lines.append(f"  WARNING frame {fr['index']}: {fr['upload_issue']} (MCTexture_GLUpload)")
     return "\n".join(lines)
 
 
@@ -642,7 +706,7 @@ def _encode_raw(img, fmt_name: str) -> bytes:
         out = bytearray(w * h * 2)
         for i in range(w * h):
             r, g, b, a = px[4 * i:4 * i + 4]
-            v = ((r >> 4) << 12) | ((g >> 4) << 8) | ((b >> 4) << 4) | (a >> 4)
+            v = (r >> 4) | ((g >> 4) << 4) | ((b >> 4) << 8) | ((a >> 4) << 12)   # see _decode_rgba4444
             out[2 * i] = v & 0xFF
             out[2 * i + 1] = (v >> 8) & 0xFF
         return bytes(out)
@@ -772,9 +836,30 @@ def encode_into(template: bytes, png, *, rotate: bool = True, frame: int | None 
             raise TextureError(
                 f"frame {i}: image is {new[i].size}, template frame is {shown} (as decoded); "
                 f"dimensions must match -- the sprite UV/quad data is per-sprite")
-        payloads.append(_encode_frame(im, _resolve_target(fr["fmt_name"], fr["kind"], fmt)))
+        payloads.append(_encode_checked(im, fr, _resolve_target(fr["fmt_name"], fr["kind"], fmt),
+                                        f"frame {i}"))
 
     return _rebuild(template, info, payloads)
+
+
+def _encode_checked(im, fr: dict, target: str, what: str, *, validate: bool = True) -> tuple:
+    """_encode_frame for template frame/texture `fr`, keeping the template's own format
+    code when the target IS its format (RGBA8 has two codes, 0x0B01 and 0x0B03), and
+    refusing a format CHANGE the engine could not upload at this size (upload_problem).
+    Re-encoding in the template's own format is always allowed -- it is what shipped."""
+    code, payload = _encode_frame(im, target)
+    if target == fr["fmt_name"]:
+        code = fr["fmt_code"]
+    if validate:
+        _validate_change(code, fr, target, what)
+    return code, payload
+
+
+def _validate_change(code: int, fr: dict, target: str, what: str) -> None:
+    if code != fr["fmt_code"]:
+        why = upload_problem(code, fr["width"], fr["height"])
+        if why:
+            raise TextureError(f"{what}: cannot store as {target}: {why}")
 
 
 def _rebuild(template: bytes, info: dict, payloads: list) -> bytes:

@@ -523,6 +523,7 @@ class App:
             self.root.after_cancel(self._anim_after)
         self._anim_after = None
         self._tex_playing = False
+        self._model_playing = False
         self._tex_frames = None
         mv = getattr(self, "_map_view", None)
         for w in self.content.winfo_children():
@@ -1303,7 +1304,37 @@ class App:
         txt.insert("end", "\n".join(lines)); txt.config(state="disabled")
         cv = tk.Canvas(body, bg="#202024", highlightthickness=0)
         cv.pack(side="left", fill="both", expand=True)
-        state = {"photo": None}
+        state = {"photo": None, "frame": 0.0, "textures": {}}
+        anim = self._model_material_anim(name, m)
+        if anim is not None:
+            # the .bfmat next to the model scrolls its effect layers (ANIM_DUNG_* light shafts
+            # and water): play it live at the game's 60 ticks/s, or write one loop as a GIF
+            fl = ttk.Label(bar, text="", width=13)
+            pb = ttk.Button(bar, text="Play", width=5)
+            ttk.Label(bar, text=f"{name.rsplit('/', 1)[-1].rsplit('.', 1)[0]}.bfmat").pack(side="left", padx=(8, 2))
+            pb.pack(side="left")
+            fl.pack(side="left", padx=4)
+            ttk.Button(bar, text="GIF…", width=5, command=lambda: self._export_model_gif(m, anim, view.get(), stem)
+                       ).pack(side="left")
+            self._model_playing = False
+            tick_ms = 50
+
+            def tick():
+                self._anim_after = None
+                if not self._model_playing or not cv.winfo_exists():
+                    return
+                state["frame"] = (state["frame"] + 60 * tick_ms / 1000.0) % max(1, anim.frame_count)
+                draw()
+                self._anim_after = self.root.after(tick_ms, tick)
+
+            def toggle():
+                self._model_playing = not self._model_playing
+                pb.config(text="Stop" if self._model_playing else "Play")
+                if self._model_playing and getattr(self, "_anim_after", None) is None:
+                    tick()
+            pb.config(command=toggle)
+        else:
+            fl = None
 
         def draw(_e=None):
             from PIL import ImageTk
@@ -1311,7 +1342,8 @@ class App:
                 return                         # another file was opened meanwhile
             size = max(160, min(cv.winfo_width(), cv.winfo_height()) - 8) if cv.winfo_width() > 1 else 480
             try:
-                im = _model.render(m, view.get(), size)
+                im = _model.render(m, view.get(), size, textures=state["textures"], anim=anim,
+                                   frame=state["frame"])
             except Exception as e:  # noqa: BLE001
                 info.config(text=f"render failed: {e}"); return
             state["photo"] = ImageTk.PhotoImage(im)
@@ -1320,10 +1352,48 @@ class App:
             self._pil = im
             self._export_kind = "png"
             self.export_btn.config(state="normal")
+            if fl is not None:
+                fl.config(text=f"frame {int(state['frame']):3}/{anim.frame_count}")
             info.config(text=f"{sum(len(s.indices) // 3 for s in m.shapes)} triangles · "
                              f"{len(m.bones)} bones · {view.get()} view")
         vc.bind("<<ComboboxSelected>>", draw)
         self.root.after_idle(draw)
+
+    def _model_material_anim(self, name, m):
+        """The parsed .bfmat beside a .model (same stem) when it animates one of the model's
+        materials, else None."""
+        from rf4s_modkit import matanim
+        src = getattr(self, "source", None)
+        if src is None:
+            return None
+        blob = src.read_named(name.rsplit("/", 1)[-1].rsplit(".", 1)[0] + ".bfmat")
+        if not blob:
+            return None
+        try:
+            anim = matanim.parse(blob)
+        except Exception:  # noqa: BLE001
+            return None
+        names = {mt.name for mt in m.materials}
+        if not any(ma.name in names and any(p.name.startswith("texsrt") for p in ma.params)
+                   for ma in anim.materials):
+            return None
+        return anim
+
+    def _export_model_gif(self, m, anim, view, stem):
+        from rf4s_modkit import model as _model
+        f = filedialog.asksaveasfilename(defaultextension=".gif", initialfile=stem + ".gif",
+                                         filetypes=[("GIF", "*.gif")])
+        if not f:
+            return
+        self.root.config(cursor="watch"); self.root.update_idletasks()
+        try:
+            frames = _model.render_animation(m, anim, view, 320, step=2)
+            _model.save_gif(frames, f, step=2)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Export GIF", str(e)); return
+        finally:
+            self.root.config(cursor="")
+        self.status.config(text=f"wrote {f} ({len(frames)} frames, one {anim.frame_count}-frame loop)")
 
     def _build_bntx_browser(self, nb, name, data):
         """A 'Textures' tab: list every embedded BNTX texture; click to preview
@@ -1444,11 +1514,11 @@ class App:
                     meta[gid] = ("gate", pi, ei)
                     for si, s in enumerate(e.spawns):
                         sid = tv.insert(gid, "end", text=f"  spawn {si}",
-                                        values=(s.monster_id, nmfn(s.monster_id), f"p {s.param}"))
+                                        values=(s.monster_id, nmfn(s.monster_id), f"wt {s.param}"))
                         meta[sid] = ("spawn", pi, ei, si)
         fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected (gate: kind+weight · spawn: monster+param)")
+        ed = ttk.LabelFrame(self.content, text="Edit selected (gate: kind+weight · spawn: monster+pick weight)")
         ed.pack(fill="x", padx=6, pady=4)
         row = ttk.Frame(ed); row.pack(fill="x", padx=4, pady=4)
         f1l = ttk.Label(row, text="field A"); f1l.pack(side="left")
@@ -1471,7 +1541,7 @@ class App:
                 v1.set(str(e.gate_kind)); v2.set(str(e.weight)); nmlbl.config(text=nmfn(e.gate_kind))
             else:
                 sp = g.patterns[m[1]][m[2]].spawns[m[3]]
-                f1l.config(text="monster id"); f2l.config(text="param")
+                f1l.config(text="monster id"); f2l.config(text="pick weight")
                 v1.set(str(sp.monster_id)); v2.set(str(sp.param)); nmlbl.config(text=nmfn(sp.monster_id))
         tv.bind("<<TreeviewSelect>>", on_sel)
 
@@ -2843,8 +2913,9 @@ class App:
                 if q and q not in str(i) and q not in nm.lower():
                     continue
                 row = t.row(i, stem)
+                tot = monster.base_totals(row)   # ATK/DEF = flat + STR / VIT/2 (template)
                 tv.insert("", "end", iid=str(i),
-                          values=(i, nm, row["hp"], row["atk"], row["def"], monster.id_semantics(i)))
+                          values=(i, nm, row["hp"], tot["atk"], tot["def"], monster.id_semantics(i)))
                 shown += 1
                 if shown >= MAX_TABLE_ROWS:
                     break

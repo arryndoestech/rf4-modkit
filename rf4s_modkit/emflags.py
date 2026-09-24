@@ -74,7 +74,7 @@ ZONE2_BLOCKS = [
                 "Script_VMOp_SetNpcStoryFlag / ClearPerNpcFlagBase981, the marriage commit, "
                 "Npc_IsInCurrentArea, NpcAi_ResolveVillagerBehavior"),
     (1007, 1036, "birthday gift given (1007 + char)", "set when the player gives the NPC a gift ON "
-                 "its birthday (NpcAi_OnReceivedThrownItem; script op 318 = 1007 + arg); "
+                 "its birthday (NpcAi_OnReceivedThrownItem_AdvanceProgressAndDispatchReaction; script op 318 = 1007 + arg); "
                  "Calendar_IsEventActive tests it for the birthday rows (calendar kind = char id)"),
     (1037, 1060, "NPC hidden (1037 + char)", "Npc_SetHiddenFlag / Npc_IsHidden, chars 0..23; the "
                  "whole range is cleared daily (PackedFlags_ClearRange24 from Day_UpdateNpcDailyFlags)"),

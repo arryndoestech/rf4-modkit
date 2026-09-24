@@ -57,6 +57,14 @@ class NlclError(Exception):
     pass
 
 
+def type_range(typ: str) -> tuple[int, int]:
+    """(min, max) value a field of int type `typ` can hold."""
+    bits = _FMT[typ][1] * 8
+    if typ.startswith("s"):
+        return -(1 << (bits - 1)), (1 << (bits - 1)) - 1
+    return 0, (1 << bits) - 1
+
+
 # --------------------------------------------------------------------------- #
 # Per-file field schemas (verified offsets). Each: list of (name, offset, type).
 # `key` is the field used as the row label / lookup id (default: record index).
@@ -103,10 +111,11 @@ FIELD_SCHEMAS = {
     "rf4TxtQuestRequestDetailFormat_split2_1": {
         # 33 x 4-byte companion of the 33 request detail-FORMAT strings
         # (rf4TxtQuestRequestDetailFormat_split2_2.<locale>, archive 16345 = this .bin; the
-        # quest's `category` byte indexes the string directly, see docs/23). byte0 = 2 on rows
+        # quest's `category` byte indexes the string directly, Quest_LoadDetailStrings
+        # RF4S.exe+0x1ED1F0). byte0 = 2 on rows
         # 1..3 ("Item Needed: %s" variants), else 0; bytes 1..3 always 0. VERIFIED DEAD DATA
         # (2026-09-19): every code site that names archive 16345 or its pointer
-        # (qword_7FF7BF78B188) only loads / zeroes / releases it -- QuestMenu_LoadDatabaseArchives
+        # (the qword at RF4S.exe+0xE9B188) only loads / zeroes / releases it -- QuestMenu_LoadDatabaseArchives
         # (RF4S.exe+0x3A440), QuestMenu_ReleaseDatabaseArchives (+0x3A4A0),
         # DailyRequest_RefreshAllNpcs (+0x1ED8B0), ScriptTask_FirstTimeInit (+0x1EE060) -- no
         # function dereferences the records, so `flag` has no gameplay effect. The twin's
@@ -140,8 +149,13 @@ FIELD_SCHEMAS = {
         # Player_GetSkillXpToNextLevel (+0x38440): table[level] for level < 99, table[99]
         # (+396) for every level past 99 of an uncapped skill; the file's 16 trailing bytes
         # are the NLCL footer, not pad. Full editor: rf4s_modkit.skillcurve / `rf4mod skill`.
+        # Player_gainEXP (+0xB3DE0) clamps the skill's XP counter to 0..0xFFFFFF before the
+        # unsigned `xp < table[min(level,99)]` compare, so a threshold above 0xFFFFFF can never
+        # be reached (the skill stops levelling); 0 levels instantly.
         "grow": "fixed:100",
         "fields": [("xp_to_next", 0, "s32")],
+        "limits": {"xp_to_next": (0, 0xFFFFFF, "Player_gainEXP clamps skill XP to 0xFFFFFF, "
+                                               "so a larger threshold is never reached")},
     },
     "rf3ParamSkillExpFarm": {"alias": "rf3ParamSkillExp"},
     "rf3ParamSkillExpFish": {"alias": "rf3ParamSkillExp"},
@@ -154,13 +168,26 @@ FIELD_SCHEMAS = {
         # the code bounds with the CONSTANT 1108 (0x454, e.g. Item_ComputeStackGoldValue
         # +0x454A0: `if (item_id >= 0x454) return 0`). Rows past 1108 are unreachable; the
         # per-item parallel tables + rf3TxtItem_split2_1/_2 (names/descriptions) share the id.
+        # PRICES (2026-09-24, Item_ComputeStackGoldValue +0x454A0): gold = price *
+        # rf3PriceTable[row][stack level] / 100 in u32 arithmetic; the SHOP buy path
+        # (Shop_BuildPageStockFromTemplate +0x3BC70, use_alt=1) uses buy_price (+8) with
+        # row byte +6, every sell/ship/value path (ShippingBin_ProcessOvernight +0x5F000,
+        # use_alt=0) uses sell_price (+12) with row byte +7. A row byte > 9 makes the item
+        # worth 0 (the guard returns 0), so the row bytes are limited to 0..9.
         "grow": "fixed:1108",
         "fields": [
             ("base_item", 0, "u32"),     # base/family item (King Cabbage -> Cabbage)
             ("category", 4, "u8"),       # ItemMetadata_t +4: <= 14 = usable (rf3UseItemParam row), 0..2/46 = crops
-            ("sell_price", 12, "s32"),   # verified: Cabbage 680 / Turnip 30 / Pumpkin 110
+            ("buy_price_row", 6, "u8"),  # rf3PriceTable row for the shop buy price
+            ("sell_price_row", 7, "u8"),  # rf3PriceTable row for the sell / ship value
+            ("buy_price", 8, "u32"),     # shop buy price (before the 10%/20% sale discount)
+            ("sell_price", 12, "u32"),   # verified: Cabbage 680 / Turnip 30 / Pumpkin 110 (read unsigned)
             ("crop_link", 16, "u32"),    # ItemMetadata_t.data_10: rf3CropParam record a SEED plants (Turnip Seed 753 -> 72)
         ],
+        "limits": {
+            "buy_price_row": (0, 9, "Item_ComputeStackGoldValue returns 0 for a price row > 9"),
+            "sell_price_row": (0, 9, "Item_ComputeStackGoldValue returns 0 for a price row > 9"),
+        },
     },
     "rf3PriceTable": {
         # 10 records x 10 u16 = the level-upgrade price multiplier grid. Reader (IDB 2026-09-19)
@@ -179,12 +206,25 @@ FIELD_SCHEMAS = {
         # fields IDA-verified vs Actor_RecomputeAllStats + live records (Orc[48] HP48/
         # ATK5/model756; boss[200] HP80000). model/anim/ai are DATA-DRIVEN resource ids
         # (ai_script N -> AIBN archive N+1; Orc 0 = AI_m00). drops: id (item, &0x7FF) +
-        # pm (per-mille ‰ chance). See project_rf4s_monster_actor / project_rf4s_monster_drops.
+        # pm (per-mille ‰ chance; Actor_RecomputeAllStats +0xAD440 copies the chances only
+        # for char ids 48..140 and >= 144). Field layout = the IDB's CharTemplate_t.
+        # STATS CORRECTED 2026-09-24 (Actor_RecomputeAllStats RF4S.exe+0xAD440):
+        # +44/+48/+52 are the STR/INT/VIT attributes -- ATK = flat_atk(+60) + STR,
+        # MAT = flat_mat(+64) + INT, DEF = flat_def(+72) + VIT/2, MDF = flat_mdf(+76) + VIT/2
+        # (before level growth). The old schema called +44/+48/+52 "atk"/"def"/"mat", so an
+        # edit of "def" actually raised the monster's MAGIC attack; those names now error.
+        # +80..+88 = the level-up STR/INT/VIT roll weights and +92..+108 the per-level
+        # ATK/MAT/DEF/MDF/HP growth percents (Actor_ApplyLevelUp +0xB2CE0).
         # element affinities (s32, Q12: +4096 = +100% damage taken = WEAK; negative = resist)
-        # + status-proc resists (s16, Q12: 4096 = 100% immune) IDA-verified vs
-        # Actor_LoadBaseStatsFromTemplate (RF4S.exe+0xC5F940): elements v9[38..45] copied to
-        # stats+100..128 (note the file swap: +204=neutral, +208=love/mask0x40); resists
-        # *((u16*)v9+92..106) copied to stats+152..166 (spaced 4 bytes apart in-file).
+        # + status-proc resists (low s16 of each dword, Q12: 4096 = 100% immune) IDA-verified vs
+        # Actor_LoadBaseStatsFromTemplate (RF4S.exe+0xAF940): elements [0..7] copied to
+        # stats+100..128 (note the swap: +176=neutral -> stats+128, +180=love -> stats+124);
+        # resists [k] copied to stats+152+2k. RESIST ORDER CORRECTED 2026-09-24: status k =
+        # poison, seal, paralysis, sleep, fatigue, cold, faint (+ drain) -- the order of the
+        # proc mask bits (Combat_GetStatusProcMask +0x961B0 tests stats+152+2k for bit k), of
+        # the cure bits Item_UseOnActor (+0xB4150) clears, and of the resist skills 26..32
+        # (Player_ApplyAllSkillGrowthBonusesFromArchive14818 +0xB0E00). The old schema put
+        # paralysis/sleep/seal at +188/+192/+196 (one slot off).
         # Live-cross-checked: boss[200] = ~100% status resist + fire-resist/water-weak.
         # ADD ROW (2026-09-19): Char_GetTemplate (RF4S.exe+0x1C63B0) copies archive 14812 +
         # 28 + 308*char_id into g_charTemplateBuffer with NO bound check and never reads the
@@ -193,9 +233,17 @@ FIELD_SCHEMAS = {
         "grow": "id-indexed:char id (Gen rosters / scripts); names in rf3TxtNpc_split2_1/_2",
         "fields": [
             ("ai_script", 34, "u16"),
-            ("hp", 40, "u32"), ("atk", 44, "u32"), ("def", 48, "u32"),
-            ("mat", 52, "u32"), ("kill_xp", 56, "u32"),
-            ("model", 272, "u16"), ("anim", 274, "u16"),
+            ("hp", 40, "u32"), ("str", 44, "s32"), ("int", 48, "s32"),
+            ("vit", 52, "s32"), ("kill_xp", 56, "u32"),
+            ("flat_atk", 60, "s32"), ("flat_mat", 64, "s32"), ("hunger_drain", 68, "s32"),
+            ("flat_def", 72, "s32"), ("flat_mdf", 76, "s32"),
+            ("lvup_w_str", 80, "s32"), ("lvup_w_int", 84, "s32"), ("lvup_w_vit", 88, "s32"),
+            ("grow_atk_pct", 92, "s32"), ("grow_mat_pct", 96, "s32"),
+            ("grow_def_pct", 100, "s32"), ("grow_mdf_pct", 104, "s32"),
+            ("grow_hp_pct", 108, "s32"),
+            ("tame_base", 220, "u16"),   # MonsterTame_RollAttemptWithItem: 0 = untameable
+            ("base_level", 288, "u16"),  # spawn level for char ids >= 48
+            ("model", 272, "s16"), ("anim", 274, "s16"),   # -1 = none (the exe tests == -1)
             ("drop0_id", 228, "u16"), ("drop1_id", 230, "u16"),
             ("drop2_id", 232, "u16"), ("drop3_id", 234, "u16"),
             ("drop0_pm", 236, "u32"), ("drop1_pm", 240, "u32"),
@@ -204,11 +252,16 @@ FIELD_SCHEMAS = {
             ("elem_earth", 160, "s32"), ("elem_wind", 164, "s32"),
             ("elem_light", 168, "s32"), ("elem_dark", 172, "s32"),
             ("elem_none", 176, "s32"), ("elem_love", 180, "s32"),
-            ("res_poison", 184, "s16"), ("res_paralysis", 188, "s16"),
-            ("res_sleep", 192, "s16"), ("res_seal", 196, "s16"),
+            ("res_poison", 184, "s16"), ("res_seal", 188, "s16"),
+            ("res_paralysis", 192, "s16"), ("res_sleep", 196, "s16"),
             ("res_fatigue", 200, "s16"), ("res_cold", 204, "s16"),
             ("res_faint", 208, "s16"), ("res_drain", 212, "s16"),
         ],
+        "renamed": {
+            "atk": "+44 is the STR attribute (field 'str'); flat ATK is 'flat_atk' (+60)",
+            "def": "+48 is the INT attribute (field 'int', feeds MAT); flat DEF is 'flat_def' (+72)",
+            "mat": "+52 is the VIT attribute (field 'vit', feeds DEF/MDF); flat MAT is 'flat_mat' (+64)",
+        },
     },
     "rf3CropParam": {
         # 93 x 108; record index != item id. Verified in +28 base: stage durations in
@@ -271,7 +324,13 @@ FIELD_SCHEMAS = {
         # 2026-06-11: this file == g_itemDatabase->ptr_68 (archive 14848, confirmed by
         # live byte-match of ptr_68 against the file's records). Read by
         # Item_ComputeEffectiveStats (ptr_68 + 180*item_id) and applied by Item_UseOnActor
-        # (+0xEF4150); field offsets are that function's v78[] effect-buffer reads.
+        # (+0xB4150); field offsets are that function's v78[] effect-buffer reads.
+        # CORRECTED 2026-09-24: the fed buff at +32/+36/+40 (and the % scalers +52/+56/+60)
+        # is STR / INT / VIT -- Item_UseOnActor multiplies +52 by str_base, +56 by int_base,
+        # +60 by vit_base -- not ATK/DEF/MAT; the permanent raises +160..+172 add to base HP /
+        # STR / INT / VIT. +64..+156 are the same while-fed knobs / resists / procs /
+        # elements that rf3ItemStrengthening S[50..73] add per ingredient (Item_Compute
+        # EffectiveStats sums S[k] into record dword k-34), named alike.
         #
         # The original hp@0/rp@4 schema was correct in spirit (rec1 HP=140, rec2 HP=600
         # are the +0 flat-HP-recovery values); the full layout:
@@ -284,12 +343,12 @@ FIELD_SCHEMAS = {
         #                      gated by proc-resist); 0x2000 = level-up (Lvl+ candy)
         #   +20 food_buff_min  buff duration, units of 10800 ticks = 3 min (0=no buff,
         #                      1=3min, 4=12min) -> "Fed" status icon 05
-        #   +24 buff_hp / +28 buff_rp / +32 buff_atk / +36 buff_def / +40 buff_mat
+        #   +24 buff_hp / +28 buff_rp / +32 buff_str / +36 buff_int / +40 buff_vit
         #                      flat temporary stat buffs while the food buff is active
-        #   +44 buff_hp_pct / +48 buff_rp_pct / +52 buff_atk_pct / +56 buff_def_pct /
-        #   +60 buff_mat_pct   the %-of-max/base scalers paired with +24..+40 (Q12)
-        #   +160..+172 perm_boost0..3  PERMANENT max-stat raises (stat-up seeds/dishes:
-        #                      write into stats->equip_record, gated by status bit 4)
+        #   +44 buff_hp_pct / +48 buff_rp_pct / +52 buff_str_pct / +56 buff_int_pct /
+        #   +60 buff_vit_pct   the %-of-max/base scalers paired with +24..+40 (Q12)
+        #   +160..+172 perm_hp / perm_str / perm_int / perm_vit  PERMANENT raises of the
+        #                      base HP / STR / INT / VIT (stat-up seeds/dishes)
         #   +176 level_scale   appraisal/cooking-level base multiplier, Q12 (~4096 = 1.0)
         # ADD ROW (2026-09-19): ptr_68 = archive 14848 + 28 (ItemDatabase_AllocateAndInit
         # +0x3FBE0, count never read); Item_ComputeEffectiveStats (+0x422C0) reads
@@ -302,15 +361,30 @@ FIELD_SCHEMAS = {
             ("hp_recover", 0, "s32"), ("rp_recover", 4, "s32"),
             ("hp_recover_pct", 8, "s32"), ("rp_recover_pct", 12, "s32"),
             ("effect_bits", 16, "u32"), ("food_buff_min", 20, "s32"),
-            ("buff_hp", 24, "s32"), ("buff_rp", 28, "s32"), ("buff_atk", 32, "s32"),
-            ("buff_def", 36, "s32"), ("buff_mat", 40, "s32"),
+            ("buff_hp", 24, "s32"), ("buff_rp", 28, "s32"), ("buff_str", 32, "s32"),
+            ("buff_int", 36, "s32"), ("buff_vit", 40, "s32"),
             ("buff_hp_pct", 44, "s32"), ("buff_rp_pct", 48, "s32"),
-            ("buff_atk_pct", 52, "s32"), ("buff_def_pct", 56, "s32"),
-            ("buff_mat_pct", 60, "s32"),
-            ("perm_boost0", 160, "s32"), ("perm_boost1", 164, "s32"),
-            ("perm_boost2", 168, "s32"), ("perm_boost3", 172, "s32"),
+            ("buff_str_pct", 52, "s32"), ("buff_int_pct", 56, "s32"),
+            ("buff_vit_pct", 60, "s32"),
+            ("buff_x64", 64, "s32"), ("buff_x68", 68, "s32"), ("buff_x72", 72, "s32"),
+        ] + [(f"fed_res_{s}", 76 + 4 * k, "s32") for k, s in enumerate(
+            ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
+        ] + [(f"fed_proc_{s}", 104 + 4 * k, "s32") for k, s in enumerate(
+            ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
+        ] + [(f"el_{s}", 132 + 4 * k, "s32") for k, s in enumerate(
+            ("fire", "water", "earth", "wind", "light", "dark", "love"))
+        ] + [
+            ("perm_hp", 160, "s32"), ("perm_str", 164, "s32"),
+            ("perm_int", 168, "s32"), ("perm_vit", 172, "s32"),
             ("level_scale", 176, "s32"),
         ],
+        "renamed": {
+            "buff_atk": "+32 is buff_str", "buff_def": "+36 is buff_int",
+            "buff_mat": "+40 is buff_vit", "buff_atk_pct": "+52 is buff_str_pct",
+            "buff_def_pct": "+56 is buff_int_pct", "buff_mat_pct": "+60 is buff_vit_pct",
+            "perm_boost0": "+160 is perm_hp", "perm_boost1": "+164 is perm_str",
+            "perm_boost2": "+168 is perm_int", "perm_boost3": "+172 is perm_vit",
+        },
     },
     "rf3ItemEquipmentParam": {
         # 1106 x 180; record index = item id. The base stat record Item_ComputeStats
@@ -339,17 +413,24 @@ FIELD_SCHEMAS = {
     "rf3Parameter": {
         # 200 x 24-byte CHARACTER-LEVEL curve = archive 14813 (row = character level 0..199).
         # IDA-verified: Player_GainXpAndLevelUp (RF4S.exe+0xB2800) reads xp_to_next at
-        # `data + 24*level + 28` (= record+0); Actor_ApplyLevelUp (+0xB2CE0) applies, per level,
-        # each pool += record[newLevel].colN - record[level].colN, writing equip_record +4/+10/
-        # +12/+16/+20 (col2 -> equip+10 = HP max per the disasm; +12/+16/+20 are 24-bit pools).
+        # `data + 24*level + 28` (= record+0); Actor_ApplyLevelUp (+0xB2CE0) applies, per level
+        # below 199, each base stat += record[newLevel].colN - record[level].colN into the base
+        # stat block (PlayerStats_t+416): +4 base HP (dword), +10 base RP (u16, clamp 0..65535),
+        # +12/+16/+20 base STR/INT/VIT (24-bit, clamp 0..10M). Actor_LoadBaseStatsFromTemplate
+        # (+0xAF940) then copies those into hp_max / rp_max / str_base / int_base / vit_base.
+        # CORRECTED 2026-09-24: the old names put "hp_max" on +8 (it is the RP column) and
+        # called the HP column "lvl_exp_base"; those names now error with a hint.
         #   +0  xp_to_next -- EXP to advance level->level+1 (VERIFIED; 4,10,22,.. -> ~1.5M)
-        #   +8  hp_max     -- per-level HP-max base (-> equip_record+10; 56 -> 900)
-        # col0/col2 are consumer-anchored; +4/+12/+16/+20 map to equip_record fields (applied as
-        # deltas) whose exact stat identity (EXP-base / RP / pools) is per the stats struct.
+        #   +4  hp  (25 -> 23144)   +8 rp (56 -> 900)   +12/+16/+20 str / int / vit
         "fields": [
-            ("xp_to_next", 0, "u32"), ("lvl_exp_base", 4, "u32"), ("hp_max", 8, "u32"),
-            ("pool_12", 12, "u32"), ("pool_16", 16, "u32"), ("pool_20", 20, "u32"),
+            ("xp_to_next", 0, "u32"), ("hp", 4, "u32"), ("rp", 8, "u32"),
+            ("str", 12, "u32"), ("int", 16, "u32"), ("vit", 20, "u32"),
         ],
+        "limits": {"rp": (0, 0xFFFF, "the base RP is a u16 (Actor_ApplyLevelUp clamps the "
+                                     "running total to 65535)")},
+        "renamed": {"lvl_exp_base": "+4 is the base HP column ('hp')",
+                    "hp_max": "+8 is the base RP column ('rp'); base HP is 'hp' (+4)",
+                    "pool_12": "+12 is 'str'", "pool_16": "+16 is 'int'", "pool_20": "+20 is 'vit'"},
     },
     "rf3ParameterNPC_01": {"alias": "rf3ParameterNPC"},
     "rf3ParameterNPC_02": {"alias": "rf3ParameterNPC"},
@@ -359,7 +440,7 @@ FIELD_SCHEMAS = {
         # (_01/_02/_03), selected by char-id category 0/1/2. *** VESTIGIAL / DEAD DATA ***
         # (RE-confirmed 2026-07-06, static referencer-exhaustion + live memory). These 3 archive
         # ids have exactly TWO referencers binary-wide: Game_PreloadAllArchives (loads them) and
-        # Actor_AdvanceLevelByDays (+0x1633b4, GetDatas the category's archive but DISCARDS the
+        # Actor_AdvanceLevelByDays (+0xB32D0, GetDatas the category's archive but DISCARDS the
         # pointer -- never indexed). No code reads the buffer, so EDITING THIS HAS NO GAMEPLAY
         # EFFECT. Real NPC/monster growth = rf3Parameter (14813, base+24*level via Actor_ApplyLevelUp)
         # + the static in-EXE g_levelStatBracketTable. Fields kept for inspection only; names are
@@ -409,7 +490,8 @@ FIELD_SCHEMAS = {
         #         inflicts 0x40..0x1000, 0x2000 leveliser) ORed in by Item_ComputeEffectiveStats.
         # S[1..8] core stats, S[10..12] knobs, S[14..21] on-hit procs + HP drain, S[22..33]
         # resists + reach, S[34..37] heals, S[40..52] fed buff, S[53..66] fed resists/procs,
-        # S[67..73] element affinities. S[9], S[13], S[39], S[61..66] are unread.
+        # S[67..73] element affinities. S[9], S[13], S[39] are unread; S[61..66] are summed
+        # into the dish record but zero in the shipped file.
         "names": "item",
         "fields": [(n, 4 * k, "s32") for k, n in enumerate([
             "difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "hunger_knob",
@@ -431,7 +513,8 @@ FIELD_SCHEMAS = {
         # 446 x 148-byte ACTION/SKILL/MAGIC param table = archive 14817 (shared by weapon
         # arts, spells, monster attacks; indexed by action_id 0..445). IDA-verified vs
         # Actor_ComputeDamageWithAtkScalarsAndElementBonus (RF4S.exe+0x96B40),
-        # Combat_CopyAttackEntry (+0x97250), Actor_BeginSkillEffectAnim (+0x161970):
+        # Combat_CopyAttackEntryAndScaleDamageToItemRecord (+0x97250), Actor_BeginSkillEffectAnim
+        # (+0x161970):
         #   dmg = base_dmg + (atk_scalar*ATK>>12) + (mat_scalar*MAT>>12), then *dmg_mult,
         #   +effect-level bonus (efflvl_mult), then *element bonus. flags = element/behaviour.
         # (Corrects the old Combat_GetAttackParamTableBase note: +28 is FLAGS, base dmg is +32.)
@@ -456,32 +539,47 @@ FIELD_SCHEMAS = {
     "rf3ParamSkillData": {
         # 176 x 32-byte SKILL CAST-COST table = archive 14819 (indexed by action_id). IDA-
         # verified vs Player_ChargeSkillCastCostByActionIdFromArchive14819 (RF4S.exe+0xB2170):
-        # RP cost = max(base_cost, (ATK * atk_coef * 16) >> 12), then discounted by the
-        # governing skill's level (gov_skill), doubled if cast with the wrong/ unmastered
-        # weapon. (Decompiler folds the 28-byte header into the field offset: record base =
-        # data + 28 + 32*id, fields record-relative.) Data-checked: skill 35 = 4 rising-cost
-        # tiers (RP 4/10/25/30).
+        # RP cost = max(base_cost, (rp_max_coef * 16 * RP_MAX) >> 12) (CORRECTED 2026-09-24:
+        # the coefficient scales the caster's MAX RP, stats+12, not ATK), then * (4096 -
+        # min(gov skill level, 100) * rf3ParamSkill[gov_skill].rp_discount) >> 12, doubled if
+        # cast with the wrong / unmastered weapon. The result is truncated to u16. (Decompiler
+        # folds the 28-byte header into the field offset: record base = data + 28 + 32*id,
+        # fields record-relative.) Data-checked: skill 35 = 4 rising-cost tiers (RP 4/10/25/30).
         "fields": [
-            ("atk_coef", 0, "u32"),      # if nonzero, RP cost scales with ATK
-            ("base_cost", 4, "u16"),     # flat RP cost
+            ("rp_max_coef", 0, "u32"),   # if nonzero, RP cost scales with the caster's max RP
+            ("base_cost", 4, "u16"),     # flat RP cost (compared as the dword +4, so keep +6 = 0)
             ("gov_skill", 12, "s32"),    # governing skill id (for the level discount + mastery gate)
         ],
+        "limits": {"gov_skill": (0, 39, "indexes the 40-row rf3ParamSkill table and the "
+                                        "caster's 40 skill slots")},
+        "renamed": {"atk_coef": "+0 scales the caster's MAX RP: 'rp_max_coef'"},
     },
     "rf3ParamSkill": {
         # 40 x 40-byte per-SKILL stat-growth table = archive 14818 (row index = skill id
-        # 0..39). IDA-verified vs Player_ApplyAllSkillGrowthBonusesFromArchive14818 (+0x360E00):
-        # for each skill, per-level stat gain = (coef * skill_level) >> 12, times a tier
-        # multiplier (tier1 = level/50 + 1 for HP/ATK; tier2 = level/300 + 1 for DEF/MAT/MDEF).
-        # ATK gain is additionally capped at (100*coef)>>12 per level. Value-fit confirms the
-        # mapping: weapon skills 0-5 = ATK+DEF growth (Axe[3] DEF=2x), magic 6-11 = MAT-lean,
-        # Farming[13] HP=8192 (life skills grant big HP). The +20..+36 tail is NOT read by the growth fn
-        # (consumer for those not yet found) -> exposed raw as unk*.
+        # 0..39). IDA-verified vs Player_ApplyAllSkillGrowthBonusesFromArchive14818 (+0xB0E00),
+        # CORRECTED 2026-09-24 (the old schema called the columns HP/ATK/DEF/MAT/MDF): for each
+        # skill at level L, with t50 = ceil(L/50) and t300 = ceil(L/300):
+        #   +0  hp_growth   hp_max  += ((coef * L) >> 12) * t50
+        #   +4  rp_growth   rp_max  += min((coef * L) >> 12, 100*coef/4096)   (clamp 0..65535)
+        #   +8  str_growth  str_base += ((coef * L) >> 12) * t300
+        #   +12 int_growth  int_base += ...        +16 vit_growth  vit_base += ...
+        #   +28 elem_dmg    magic skills 6..12 only: per-level element damage bonus added for
+        #                   the matching element bit (Actor_ComputeDamageWithAtkScalarsAndElement
+        #                   Bonus +0x96B40 reads rf3ParamSkill[6+e] +28)
+        #   +36 rp_discount per-level Q12 discount on RP costs governed by this skill
+        #                   (Player_ChargeSkillCastCostByActionIdFromArchive14819 +0xB2170:
+        #                   cost * (4096 - min(L,100)*coef) >> 12)
+        # Farming[13] HP=8192 (life skills grant big HP). +20/+24/+32 have no reader found.
         "fields": [
-            ("hp_growth", 0, "u32"), ("atk_growth", 4, "u32"), ("def_growth", 8, "u32"),
-            ("mat_growth", 12, "u32"), ("mdf_growth", 16, "u32"),
-            ("unk20", 20, "u32"), ("unk24", 24, "u32"), ("unk28", 28, "u32"),
-            ("unk32", 32, "u32"), ("unk36", 36, "u32"),
+            ("hp_growth", 0, "u32"), ("rp_growth", 4, "u32"), ("str_growth", 8, "u32"),
+            ("int_growth", 12, "u32"), ("vit_growth", 16, "u32"),
+            ("unk20", 20, "u32"), ("unk24", 24, "u32"), ("elem_dmg", 28, "s32"),
+            ("unk32", 32, "u32"), ("rp_discount", 36, "s32"),
         ],
+        "renamed": {"atk_growth": "+4 is rp_growth (feeds rp_max)",
+                    "def_growth": "+8 is str_growth", "mat_growth": "+12 is int_growth",
+                    "mdf_growth": "+16 is vit_growth", "unk28": "+28 is elem_dmg",
+                    "unk36": "+36 is rp_discount"},
     },
     "rf3TxtCalendar_split2_1": {
         # 45 x 4-byte CALENDAR EVENT table (decoded 2026-08-31; the DATA half of the
@@ -496,7 +594,7 @@ FIELD_SCHEMAS = {
         #               the calendar board shows the row only while that bit is set in
         #               the festival-scheduled bitmap g_effectAppliedBits.d1 (order
         #               effect 0 sets it)
-        # Engine reader traced 2026-08-31: CalendarEvent_IsVisibleAtDate
+        # Engine reader traced 2026-08-31: Calendar_IsEventActive
         # (RF4S.exe+0x1B860) — matches season+day, then gates festivals on the
         # scheduled bitmap and birthdays on GameFlags bit 1007+char_id (NPC met).
         # Editing season/day here is the data-side hook for moving festivals.
@@ -631,11 +729,15 @@ FIELD_SCHEMAS = {
         # rolls one of them per day weighted by `weight` (NpcSchedule_PickRandomScheduleSlotByKind
         # +0x2318E0). room/x/y/facing/wander are consumed by NpcSchedule_PlaceNpcAtSliceWithJitter
         # (+0x22EAA0: x,y tiles << 12; facing << 8; wander = jitter radius); weight/flags/busy by
-        # the picker (flags bit2 = skip when the target map is overcrowded, busy = runtime
-        # scratch); action bit0 feeds the plan's 0x200 bit (name per the IDB comment).
+        # the picker (CORRECTED 2026-09-24: flags bit2 SET = the spot is skipped unless the
+        # calendar state is 1; with bit2 clear the spot is skipped when its map is
+        # overcrowded; busy = runtime scratch). The picker sums the weights of a kind in a u8,
+        # so a kind's total weight must stay <= 255 (schedule.spot_weight_problems checks it;
+        # shipped max 152). action bit0 feeds the plan's 0x200 bit (name per the IDB comment).
         "fields": [("room", 0, "u16"), ("x", 2, "s16"), ("y", 4, "s16"), ("facing", 6, "u8"),
                    ("action", 7, "u8"), ("wander", 8, "u8"), ("weight", 9, "u8"),
                    ("flags", 10, "u8"), ("busy", 11, "u8")],
+        "limits": {"room": (0, 871, "a room id of the 872-room enum")},
     },
 }
 
@@ -745,12 +847,21 @@ class NlclTable:
         return struct.unpack_from(code, self.data, self._addr(rec, off))[0]
 
     def set(self, rec: int, off: int, value: int, typ: str = "s32"):
+        if typ not in _FMT:
+            raise NlclError(f"unknown field type {typ!r} (one of {', '.join(_FMT)})")
         code, sz = _FMT[typ]
         if off + sz > self.record_size:
             raise NlclError(f"{typ} at +{off} exceeds record size {self.record_size}")
-        struct.pack_into(code, self.data, self._addr(rec, off), int(value))
+        lo, hi = type_range(typ)
+        value = int(value)
+        if not (lo <= value <= hi):
+            # struct would raise a bare struct.error; name the field width instead
+            raise NlclError(f"value {value} does not fit {typ} ({lo}..{hi})")
+        struct.pack_into(code, self.data, self._addr(rec, off), value)
 
     def record(self, rec: int) -> bytes:
+        if not (0 <= rec < self.entry_count):   # a negative index would slice the header
+            raise NlclError(f"record {rec} out of range (0..{self.entry_count-1})")
         base = HEADER_SIZE + rec * self.record_size
         return bytes(self.data[base:base + self.record_size])
 
@@ -785,11 +896,21 @@ class NlclTable:
         return out
 
     def set_field(self, rec: int, name: str, value: int, stem: str):
+        """Write a named schema field. Besides the int-width check of set(), a schema may
+        carry "limits" {field: (min, max, why)} for values the exe accepts in the file but
+        misreads (e.g. an XP threshold the clamped XP counter can never reach), and
+        "renamed" {old: hint} for field names retired because they named the wrong stat."""
         sch = self.schema(stem)
         if not sch:
             raise NlclError(f"no schema for {stem}; edit by offset instead")
+        if name in sch.get("renamed", {}):
+            raise NlclError(f"{stem}: field {name!r} was renamed -- {sch['renamed'][name]}")
         for fname, off, typ in sch["fields"]:
             if fname == name:
+                lim = sch.get("limits", {}).get(name)
+                if lim and not (lim[0] <= int(value) <= lim[1]):
+                    raise NlclError(f"{stem}.{name} = {value} out of range "
+                                    f"{lim[0]}..{lim[1]}: {lim[2]}")
                 self.set(rec, off, value, typ)
                 return
         raise NlclError(f"{stem} has no field {name!r}")
