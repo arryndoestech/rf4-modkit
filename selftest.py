@@ -1119,9 +1119,13 @@ def test_mobj_types():
            and "box" in (mobj_params.flag_label(720) or "")
            and "recipe 341" in (mobj_params.flag_label(1403) or "")
            and mobj_params.flag_label(0) is None
-           and mobj_params.flag_label(-1) is None
-           and mobj_params.emdeb_flag_label(2811) == "FLG_ELISA_NO_75",
-           "2811 -> scene bit 6907; 1042 -> NPC-hide char 5; emdeb lookup separate")
+           and mobj_params.flag_label(-1) is None,
+           "2811 -> scene bit 6907; 1042 -> NPC-hide char 5")
+    if mobj_params._emflag_table() is None:
+        _skip("mobj emdeb_flag_label (region A)", "emdeb.bin not found in Bundle/")
+    else:
+        _check("mobj emdeb_flag_label names a region-A bit, separately from flag_label",
+               mobj_params.emdeb_flag_label(2811) == "FLG_ELISA_NO_75")
     _check("mobj display names replace codenames",
            mobj_types.mobj_display_name(48) == "BARRIER"
            and mobj_types.mobj_display_name(20) == "street light"
