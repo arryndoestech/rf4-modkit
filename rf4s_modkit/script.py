@@ -1400,6 +1400,11 @@ def encode_entry(event_id, subs):
     return bytes(out)
 
 
+# A bank's bytecode is addressed with u16 offsets (code targets, expression offsets), so
+# no bank can grow past 64 KiB. See Container.bank_space.
+BANK_ADDRESS_LIMIT = 0x10000
+
+
 class Container:
     """Parsed rf3.mc MYCF container. Structure-preserving (build() == original)."""
     def __init__(self, data):
@@ -1544,7 +1549,7 @@ class Container:
         extra = bytes(extra)
         delta = len(extra)
         start_in_bank = len(bank.data)
-        if start_in_bank + delta > 0x10000:
+        if start_in_bank + delta > BANK_ADDRESS_LIMIT:
             raise ScriptError("bank would exceed 64 KB (%d + %d); a new bank is needed"
                               % (start_in_bank, delta))
         ins_at = bank.file_off + len(bank.data)        # physical insertion point
@@ -1599,6 +1604,24 @@ class Container:
         if off is None:
             raise ScriptError("unknown bank kind %r" % (kind,))
         return struct.unpack_from("<I", self.data, off)[0]
+
+    def bank_space(self, bank):
+        """Room left in one bank: {'used', 'limit', 'free', 'buffer'}. The hard limit is
+        BANK_ADDRESS_LIMIT (65,536 bytes): every branch / CALL target and expression offset
+        in the bytecode is a u16 (Script_VMStep RF4S.exe+0x23EF60, Script_EvalExpressionOrVar
+        +0x23EA10 index the bank with 16-bit offsets), and grow_bank refuses to pass it.
+        'buffer' is the header's load-buffer size for the bank's kind (MycfBankSlot_LoadBank
+        +0x23F9C0 copies into it); grow_bank raises it automatically, so it is not a limit.
+        Dialogue text is not counted: it lives in rf3mc.<locale>, not in the bank."""
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        used = len(bank.data)
+        try:
+            buf = self.max_bank_size(bank.kind)
+        except ScriptError:
+            buf = None
+        return {"used": used, "limit": BANK_ADDRESS_LIMIT,
+                "free": max(0, BANK_ADDRESS_LIMIT - used), "buffer": buf}
 
     def validate_bank_sizes(self):
         """[] when every bank fits the buffer the engine will allocate for it, else one

@@ -1706,6 +1706,27 @@ def cmd_script_dev_menus(a):
     print(f"{len(menus)} debug menu(s); use `script listing --bank N --pc <scene>` to read a routine")
 
 
+def cmd_script_space(a):
+    """How much bytecode each bank can still take (64 KiB per bank)."""
+    c = script.Container(_resolve(a.file).read_bytes())
+    sel = [a.bank] if a.bank is not None else range(len(c.banks))
+    rows = []
+    for pos in sel:
+        b = c.banks[pos]
+        sp = c.bank_space(b)
+        rows.append((sp["free"], pos, b, sp))
+    if a.bank is None:
+        rows.sort(key=lambda r: (r[0], r[1]))
+        rows = rows[: a.limit]
+    print(f"{'bank':>5}  {'kind':<12} {'used':>7}  {'free':>7}  {'full':>5}")
+    for free, pos, b, sp in rows:
+        print(f"{pos:>5}  {b.kind + ' ' + str(b.index):<12} {sp['used']:>7,}  {free:>7,}  "
+              f"{100 * sp['used'] / sp['limit']:>4.0f}%")
+    print(f"limit: {script.BANK_ADDRESS_LIMIT:,} bytes of bytecode per bank (u16 offsets); dialogue text "
+          f"lives in rf3mc.<locale> and does not count" +
+          ("" if a.bank is not None else f"; showing the {len(rows)} fullest banks (--limit)"))
+
+
 def cmd_script_set_dialog(a):
     c = script.Container(_resolve(a.file).read_bytes())
     c.banks[a.bank].set_dialog_id(int(a.pc, 0), a.line)
@@ -3391,6 +3412,11 @@ def build_parser():
     sc2m.add_argument("file"); sc2m.add_argument("--text", required=True)
     sc2m.add_argument("--bank", type=int, help="only this bank")
     sc2m.set_defaults(func=cmd_script_dev_menus)
+    sc2s = scsub.add_parser("space", help="how much bytecode each bank can still take "
+                            "(64 KiB per bank; fullest banks first)")
+    sc2s.add_argument("file"); sc2s.add_argument("--bank", type=int, help="only this bank (container position)")
+    sc2s.add_argument("--limit", type=int, default=25, help="how many banks to list (default 25)")
+    sc2s.set_defaults(func=cmd_script_space)
     sc3 = scsub.add_parser("set-dialog", help="retarget a DIALOG to another line id")
     sc3.add_argument("file"); sc3.add_argument("--bank", type=int, required=True)
     sc3.add_argument("--pc", required=True, help="statement PC (hex ok, e.g. 0x3478)")

@@ -3169,7 +3169,7 @@ Spawn (or reposition) an event/cutscene NPC in the calendar-event registry. arg0
 
 Args:
   0. char id (model)
-     - *(enum: 364 values — use the in-editor picker or the id database)*
+     - *(enum: 392 values — use the in-editor picker or the id database)*
   1. event key (scene-local handle)
   2. x (tiles)
   3. y (tiles)
@@ -3182,7 +3182,7 @@ Spawn an event/cutscene NPC that carries a pose/scene VARIANT index — always c
 
 Args:
   0. char id (model)
-     - *(enum: 364 values — use the in-editor picker or the id database)*
+     - *(enum: 392 values — use the in-editor picker or the id database)*
   1. event key (scene-local handle)
   2. x (tiles)
   3. y (tiles)
@@ -3196,7 +3196,7 @@ Spawn an event NPC that trails at a follow speed — always claims a NEW registr
 
 Args:
   0. char id (model)
-     - *(enum: 364 values — use the in-editor picker or the id database)*
+     - *(enum: 392 values — use the in-editor picker or the id database)*
   1. event key (scene-local handle)
   2. x (tiles)
   3. y (tiles)
@@ -3211,7 +3211,7 @@ Remove a spawned event actor from the calendar-event registry, matching on BOTH 
 
 Args:
   0. char id
-     - *(enum: 364 values — use the in-editor picker or the id database)*
+     - *(enum: 392 values — use the in-editor picker or the id database)*
   1. event key
 
 ### `op 160` — EventNpcWalkToTile(event key, x, y, speed, run)

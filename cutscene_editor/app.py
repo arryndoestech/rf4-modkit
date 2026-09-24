@@ -80,8 +80,13 @@ class CutsceneExplorer:
         paned.add(side, weight=0, minsize=300, width=380)
         self.inspector = Inspector(side, self)
         self.inspector.pack(fill="both", expand=True)
-        self.status_lbl = ttk.Label(self.frame, anchor="w", padding=(6, 2), font=("Segoe UI", 8))
-        self.status_lbl.pack(fill="x", side="bottom")
+        sbar = ttk.Frame(self.frame)
+        sbar.pack(fill="x", side="bottom")
+        # room left in the open bank (64 KiB of bytecode per bank), refreshed with every status
+        self.space_lbl = ttk.Label(sbar, anchor="e", padding=(6, 2), font=("Segoe UI", 8))
+        self.space_lbl.pack(side="right")
+        self.status_lbl = ttk.Label(sbar, anchor="w", padding=(6, 2), font=("Segoe UI", 8))
+        self.status_lbl.pack(side="left", fill="x", expand=True)
         tag = "CutEd%d" % id(self)
         for seq, fn in (("<Control-z>", self.undo), ("<Control-y>", self.redo),
                         ("<Control-Z>", self.redo), ("<Control-s>", self.save_all),
@@ -879,6 +884,25 @@ class CutsceneExplorer:
             self.status_fn(s)
         try:
             self.status_lbl.config(text=s)
+        except (tk.TclError, AttributeError):
+            pass
+        self.update_space()
+
+    def space_text(self):
+        """'Bank 18: 9,054 B free of 65,536 (86% used)' for the open bank, or ''."""
+        c = self.doc.container if self.doc is not None else None
+        pos = getattr(self, "bank_pos", None)
+        if c is None or pos is None or not 0 <= pos < len(c.banks):
+            return ""
+        sp = c.bank_space(c.banks[pos])
+        return "Bank %d: %s B free of %s (%d%% used)" % (
+            pos, format(sp["free"], ","), format(sp["limit"], ","), round(100 * sp["used"] / sp["limit"]))
+
+    def update_space(self):
+        try:
+            txt = self.space_text()
+            self.space_lbl.config(text=txt, foreground=(
+                "#b00020" if txt and self.doc.container.bank_space(self.bank_pos)["free"] < 1024 else ""))
         except (tk.TclError, AttributeError):
             pass
 

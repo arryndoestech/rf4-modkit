@@ -4659,11 +4659,24 @@ def _load_char_models():
         return {}
 
 
+def _load_all_char_names():
+    """Every rf3NpcParam row's name (char_names.json, index == char id), including the
+    model-less rows char_models.json leaves out."""
+    import json as _json
+    try:
+        from .refdata import refdata_path as _rp
+        return {int(_k): _v for _k, _v in _json.loads(_rp("char_names.json").read_text(encoding="utf-8")).items()
+                if _v and not _k.startswith("_") and int(_k) < 392}   # rf3NpcParam has 392 rows
+    except Exception:
+        return {}
+
+
 _CHAR_MODELS = _load_char_models()
+_ALL_CHAR_NAMES = _load_all_char_names()
 EVENT_CHAR_IDS = {}
-for _ci in sorted(set(_CHAR_MODELS) | set(_CHAR_NAMES)):
+for _ci in sorted(set(_CHAR_MODELS) | set(_CHAR_NAMES) | set(_ALL_CHAR_NAMES)):
     _cm = _CHAR_MODELS.get(_ci, {})
-    _nm2 = _cm.get("name") or _CHAR_NAMES.get(_ci) or ("char#%d" % _ci)
+    _nm2 = _cm.get("name") or _CHAR_NAMES.get(_ci) or _ALL_CHAR_NAMES.get(_ci) or ("char#%d" % _ci)
     if _ci == 0:
         _nm2 = "Lest/Frey"
     _mdl = _cm.get("model")
@@ -4672,8 +4685,13 @@ for _ci in sorted(set(_CHAR_MODELS) | set(_CHAR_NAMES)):
         _dsc = ("Character '%s' (char id %d). Field model %s/%s (rf3NpcParam+272 = %d)."
                 % (_nm2, _ci, _cm.get("kind", "chr"), _mdl, _cm.get("model_index", -1)))
     else:
-        _lbl = _nm2
-        _dsc = "Character '%s' (char id %d). No field model (rf3NpcParam+272 = -1)." % (_nm2, _ci)
+        # no model: spawned it is an invisible actor. 269/270 'Search' are the cutscene
+        # MARKERS -- EventSpawnNpc 269 is the most-spawned char (314 uses): a point that
+        # FaceEventActor / move ops then target by its event key
+        _lbl = "%s (no model)" % _nm2
+        _dsc = ("Character '%s' (char id %d). No field model (rf3NpcParam+272 = -1): it spawns "
+                "invisible, as a marker other actors face or walk to by its event key."
+                % (_nm2, _ci))
     EVENT_CHAR_IDS[_ci] = (_lbl, _dsc)
 # Spawn ops 153/154/155 arg0 + registry cleanup 156 arg0 address the full roster (overrides the
 # villager-only dict the auto-extend loop assigned from the "char id" label).

@@ -4950,6 +4950,12 @@ def test_script_authoring():
                  and script.actor_leaf_text(308) == "actor(308)" and script.actor_leaf_value("Clorica") == 2
                  and script.actor_leaf_text(27) == "actor(27)")
     _check("actor(Clorica) / actor(Ventuswill) name ids 2 / 21; Traveler / Soldier ids stay numeric", _names_ok)
+    # the event-spawn ops' char table covers every rf3NpcParam row, model-less markers too
+    from rf4s_modkit import opcode_meta as _om
+    _ec = _om.ENUM_ARG_VALUES.get((153, 0), {})
+    _check("EventSpawnNpc's char table lists all 392 rows, 269 'Search' as a model-less marker",
+           len(_ec) == 392 and _ec.get(269, ("",))[0] == "Search (no model)"
+           and _ec.get(9, ("",))[0].startswith("Arthur ["), f"{len(_ec)} rows, 269 = {_ec.get(269)}")
     # add / sub / set: ModifyPlayerResource / ModifyLumber / ApplyFriendshipDelta take their
     # mode from an argument's token KIND (null / zero / self leaves = kinds 4 / 5 / 6)
     if _mc:
@@ -5902,6 +5908,11 @@ def test_cutscene_editor_workflows():
         sc, pc, st = pick
         cx.show_bank(48, sc.entry_pc)
         cx.select((pc, None)); root.update_idletasks()
+        _sp = cx.doc.container.bank_space(48)
+        _check("the status bar shows the open bank's room (64 KiB of bytecode per bank)",
+               cx.space_lbl.cget("text") == "Bank 48: %s B free of 65,536 (%d%% used)"
+               % (format(_sp["free"], ","), round(100 * _sp["used"] / 65536))
+               and _sp["used"] + _sp["free"] == 65536, cx.space_lbl.cget("text"))
 
         def entries(w, out):
             for ch in w.winfo_children():

@@ -635,6 +635,7 @@ written as expressions (`DistanceToTarget <= 110`, `RandomChance(50)`, `ActorIsN
 # reword a line, retune an action arg, or insert a beat — every edit is byte-safe.
 python rf4mod.py script find rf3.mc "about to call you" --text rf3mc.eng   # → bank + pc of matches
 python rf4mod.py script dev-menus rf3.mc --text rf3mc.eng --bank 18  # the devs' ＊ test menus: event / festival / date → routine pc
+python rf4mod.py script space rf3.mc [--bank N]                     # bytecode room left per bank (64 KiB each; fullest first)
 python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng --friendly # read the scene (author names)
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)
