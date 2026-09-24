@@ -316,11 +316,22 @@ _M_LOW = {
          "NO portrait ('no portrait dispatch' — the handler's own contract). This is how "
          "off-screen and un-introduced characters speak — the opening's captain monologue "
          "(name string 738) and the stowaway bandits' whispers (392) both talk through it. "
-         "arg0 = the NAME-PLATE string id (a name-archive entry, not an rf3mc line id; "
-         "latched at sceneCtx+108 so repeats are free); arg1 = the text-tick chime class "
-         "(0 = default 16785916, 1 = happy, 2 = excited, 3 = variant). IDA-verified "
-         "(NpcBubble_DispatchSimpleScriptedLine, RF4S.exe+0x20A240).",
-         ["name string id", "chime/tone (0=default,1=happy,2=excited,3=variant3)"]),
+         "arg0 = the NAME-PLATE string id: an entry of the character-name archive (the same "
+         "list as char_names.json -- 21 Ventuswill, 236 Ethelwill, 392 '???', 738 Joyful "
+         "Captain; not an rf3mc line id), shown through Dialogue_LoadAndShowText(archive, id, 2) "
+         "and latched at task+108 so repeating it is free. arg1 = the TEXT BLIP, the tick sound "
+         "played while the line types out (Dialogue_SetTickChimeSfxId; no voice acting is "
+         "involved; the typewriter, Sprite_TickTypewriterDripText RF4S.exe+0x246AD0, plays it on every "
+         "4th character and restarts the count at each line break): 0 = male blip (sfx 16785916 = "
+         "SE_WORDS_M.wav), 1 = female blip (16785917 = SE_WORDS_F.ogg), 2 = monster / animal blip "
+         "(16785918 = SE_WORDS_O.wav; Buffamoo, Fiergaenger), 3 = dragon blip (16785975 = "
+         "SE_WORDS_D.wav; Ventuswill in dragon form, Ancient Bone) -- names from "
+         "common_audio_data.bdat, the files sit in bundleMain; 4+ = the PLAYER's own blip -- male for Lest's model "
+         "(model 1217 = NPC_PLAYER_00), female for Frey's (1233 = NPC_PLAYER_01), male again when "
+         "neither and player control flag 0x8000000 is set. Shipped uses: 651x 0, 170x 1, "
+         "5x 2, 105x 3 (931 in all). IDA-verified (NpcBubble_DispatchSimpleScriptedLine, "
+         "RF4S.exe+0x20A240).",
+         ["name string id (name archive)", "text blip (0 male, 1 female, 2 monster, 3 dragon, 4+ player's)"]),
     11: ("SetDialogStateBit", "dialogue", "Dialogue-state toggle: sets bit0 of the dialogue state word "
          "(g_gameGlobalsSlotTable scratch field entries[4]) to (arg==0). Runs before lines (~1584x); "
          "a per-line render/advance mode flag (exact purpose tentative).", ["mode (0 sets the bit)"]),
@@ -4699,6 +4710,32 @@ for _eco in ((153, 0), (154, 0), (155, 0), (156, 0)):
     if EVENT_CHAR_IDS:
         ENUM_ARG_VALUES[_eco] = EVENT_CHAR_IDS
 
+# op 10 SetSpeakerVoice: arg0 = a name-plate id in the character-name archive (the full list,
+# up to ~1000 -- the soldiers / customers / '???' plates sit above the 392 rf3NpcParam rows),
+# arg1 = the text-blip class (NpcBubble_DispatchSimpleScriptedLine, RF4S.exe+0x20A240)
+def _load_name_plates():
+    import json as _json
+    try:
+        from .refdata import refdata_path as _rp
+        _d = _json.loads(_rp("char_names.json").read_text(encoding="utf-8"))
+        return {int(_k): (_v, "Name plate '%s' (name archive entry %s)." % (_v, _k))
+                for _k, _v in _d.items() if _v and not _k.startswith("_")}
+    except Exception:
+        return {}
+
+
+_NAME_PLATES = _load_name_plates()
+if _NAME_PLATES:
+    ENUM_ARG_VALUES[(10, 0)] = _NAME_PLATES
+TEXT_BLIPS = {
+    0: ("male blip", "SE_WORDS_M.wav (sfx 16785916): the male blip (soldiers, travellers, Ethelwill)."),
+    1: ("female blip", "SE_WORDS_F.ogg (sfx 16785917): the female blip ('???', Trupin, Eliza, Frey)."),
+    2: ("monster blip", "SE_WORDS_O.wav (sfx 16785918): the monster / animal blip (Buffamoo, Fiergaenger)."),
+    3: ("dragon blip", "SE_WORDS_D.wav (sfx 16785975): the dragon blip (Ventuswill's dragon form, Ancient Bone)."),
+    4: ("player's blip", "Any value >= 4: the player's own blip -- male for Lest, female for Frey."),
+}
+ENUM_ARG_VALUES[(10, 1)] = TEXT_BLIPS
+
 # op 437 NpcWantsItem arg1 is LABELLED "npc (char id)", so the auto-extend loop wired CHAR_IDS to
 # it -- but the corpus proves token position 1 always holds a present-CATEGORY ref (0x8100+cat,
 # observed 0x8101..0x8114 = categories 1-20 of gift archive 14850), NEVER a char id. The handler
@@ -5420,3 +5457,23 @@ MODE_LEAF_WORDS = {0x11: "add", 0x12: "sub", 0x13: "set"}
 def arg_limit(op):
     """(max_args, reason) for an op whose handler overflows past that many args, else None."""
     return ARG_LIMITS.get(op)
+
+
+# --- sound-id annotations (2026-09-24) ----------------------------------------------------------
+# PlaySound (385) and PlayVoicedSound (392, after Sfx_FindOrPreemptVoice) call Sfx_PlayById
+# (RF4S.exe+0x19B6F0) -> Sfx_StartSoundInSlot -> Sfx_PlaySoundWithDedupAndVoiceKill, which
+# resolves the id with SoundCache_Get; PlaySfxWithNpcRemap (387) goes through
+# Sfx_PlayByIdWithNpcVariantRemap to the same player; StopVoiceId (390) matches the playing
+# slot's sound id (Sfx_StopVoiceIfMatchingTargetIdCallback). Label = the audio file name from
+# the game's own common/voice_en tables (soundtable.SOUND_LABELS), read lazily on first use;
+# the mapping is empty (no label, bare number) when the bundle isn't available.
+try:
+    from .soundtable import SOUND_LABELS as _SOUND_LABELS
+except ImportError:                                   # imported as a top-level module
+    try:
+        from rf4s_modkit.soundtable import SOUND_LABELS as _SOUND_LABELS
+    except ImportError:
+        _SOUND_LABELS = None
+if _SOUND_LABELS is not None:
+    for _sk in ((385, 0), (387, 0), (390, 0), (392, 0)):
+        ENUM_ARG_VALUES.setdefault(_sk, _SOUND_LABELS)

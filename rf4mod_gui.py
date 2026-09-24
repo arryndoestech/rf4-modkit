@@ -1246,6 +1246,8 @@ class App:
         # scenery atlases, named MOBJ_<map>_NN). Offer a texture browser alongside the
         # raw container structure. BNTX here is LINEAR BC (no Tegra swizzle), so every
         # texture decodes directly. (Falls back to structure-only without Pillow.)
+        if data[:4] == b"PSB\x00" and HAS_PIL and self._view_psb(name, data):
+            return
         from rf4s_modkit import model as _model
         is_mesh = _model.is_mesh(data)
         if HAS_PIL and (is_mesh or (data.find(b"BNTX") >= 0 and texture.bntx_list(data))):
@@ -1263,6 +1265,36 @@ class App:
         if data[:4] == b"RES\x00" and not is_mesh:
             txt.insert("end", "\n\n(a UI screen layout: .model files for menus carry no mesh)")
         txt.config(state="disabled")
+
+    def _view_psb(self, name, data):
+        """E-mote portrait (.psbData / .emtbytes): the part atlas on a zoomable canvas
+        (Export = PNG) with the PSB summary.  Repaint via `rf4mod psb replace-texture`.
+        Returns False (caller falls back to the structure view) if it cannot decode."""
+        from rf4s_modkit import psb as _psb
+        try:
+            ps = _psb.PSB(data)
+            texs = ps.textures()
+            img = _psb.decode_texture(ps, texs[0]) if texs else None
+        except Exception:  # noqa: BLE001
+            return False
+        if img is None:
+            return False
+        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        t = texs[0]
+        ttk.Label(bar, text=f"E-mote atlas '{t['source']}'  {t['type']} {t['width']}x{t['height']}"
+                            f"  {len(t['icons'])} parts").pack(side="left", padx=6)
+        for z, lbl in ((0.25, "¼×"), (0.5, "½×"), (1, "1×"), (2, "2×")):
+            ttk.Button(bar, text=lbl, width=4,
+                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+        info = tk.Text(self.content, height=9, wrap="word", font=("Consolas", 9))
+        info.insert("end", _psb.summary(ps, pathlib.PurePosixPath(name).name)); info.config(state="disabled")
+        info.pack(fill="x")
+        self._pil = img
+        self._img_canvas = self._make_image_canvas()
+        self._set_zoom(0.5)
+        self._export_kind = "png"
+        self.export_btn.config(state="normal")
+        return True
 
     def _build_model_tab(self, nb, name, data):
         """'Model' tab: a textured preview of the meshes (front / back / side / top), the
@@ -1311,7 +1343,7 @@ class App:
             # and water): play it live at the game's 60 ticks/s, or write one loop as a GIF
             fl = ttk.Label(bar, text="", width=13)
             pb = ttk.Button(bar, text="Play", width=5)
-            ttk.Label(bar, text=f"{name.rsplit('/', 1)[-1].rsplit('.', 1)[0]}.bfmat").pack(side="left", padx=(8, 2))
+            ttk.Label(bar, text=anim.file_name or f"{name.rsplit('/', 1)[-1].rsplit('.', 1)[0]}.bfmat").pack(side="left", padx=(8, 2))
             pb.pack(side="left")
             fl.pack(side="left", padx=4)
             ttk.Button(bar, text="GIF…", width=5, command=lambda: self._export_model_gif(m, anim, view.get(), stem)
@@ -1335,6 +1367,7 @@ class App:
             pb.config(command=toggle)
         else:
             fl = None
+        skel_bar = self._model_skel_controls(frame, name, m, state, view, lambda: draw())
 
         def draw(_e=None):
             from PIL import ImageTk
@@ -1342,10 +1375,24 @@ class App:
                 return                         # another file was opened meanwhile
             size = max(160, min(cv.winfo_width(), cv.winfo_height()) - 8) if cv.winfo_width() > 1 else 480
             try:
+                sk = state.get("skel")
+                if sk is not None:             # skeletal animation selected: pose + fixed box
+                    from rf4s_modkit import skelanim as _sk
+                    m.pose = _sk.pose_bones(m, sk, state["sframe"])
+                    box = state["boxes"].get(view.get())
+                    if box is None:
+                        box = state["boxes"][view.get()] = self._skel_box(m, sk, view.get())
+                        m.pose = _sk.pose_bones(m, sk, state["sframe"])
+                else:
+                    m.pose, box = None, None
                 im = _model.render(m, view.get(), size, textures=state["textures"], anim=anim,
-                                   frame=state["frame"])
+                                   frame=state["frame"], box=box)
             except Exception as e:  # noqa: BLE001
                 info.config(text=f"render failed: {e}"); return
+            finally:
+                m.pose = None
+            if skel_bar is not None:
+                skel_bar(state)
             state["photo"] = ImageTk.PhotoImage(im)
             cv.delete("all")
             cv.create_image(4, 4, anchor="nw", image=state["photo"])
@@ -1359,6 +1406,105 @@ class App:
         vc.bind("<<ComboboxSelected>>", draw)
         self.root.after_idle(draw)
 
+    def _model_skel_controls(self, frame, name, m, state, view, redraw):
+        """A 'motion' row under the Model tab listing the .bfskl skeletal animations that
+        drive this model (skelanim.anim_candidates) with Play / GIF…. Returns a callback that
+        refreshes the frame label after each draw, or None when the model has none."""
+        from rf4s_modkit import skelanim as _sk
+        src = getattr(self, "source", None)
+        if src is None or not m.bones:
+            return None
+        stem = pathlib.PurePosixPath(name).stem
+        names = _sk.anim_candidates(stem, [n for n, _g, _l in src.entries])
+        if not names:
+            return None
+        row = ttk.Frame(frame); row.pack(side="bottom", fill="x")
+        ttk.Label(row, text="motion").pack(side="left", padx=(6, 2))
+        choice = tk.StringVar(value="(bind pose)")
+        cb = ttk.Combobox(row, textvariable=choice, values=["(bind pose)"] + names, width=34, state="readonly")
+        cb.pack(side="left")
+        pb = ttk.Button(row, text="Play", width=5)
+        pb.pack(side="left", padx=4)
+        lab = ttk.Label(row, text="", width=26)
+        lab.pack(side="left")
+        state.update(skel=None, sframe=0.0, boxes={}, splaying=False)
+        import time as _time
+
+        def select(_e=None):
+            state.update(skel=None, sframe=0.0, boxes={})
+            n = choice.get()
+            if n in names:
+                try:
+                    a = _sk.parse(src.read_named(n) or b"")
+                except Exception as e:  # noqa: BLE001
+                    lab.config(text=f"cannot read: {e}"); return
+                if not _sk.bound_bones(m, a)[0]:
+                    lab.config(text="drives none of this model's bones"); return
+                state["skel"] = a
+            redraw()
+
+        def tick(last):
+            self._skel_after = None
+            if not state["splaying"] or not row.winfo_exists() or state["skel"] is None:
+                return
+            now = _time.monotonic()
+            a = state["skel"]
+            state["sframe"] = a.wrap(state["sframe"] + 60.0 * (now - last))
+            if not a.loops and state["sframe"] >= a.frame_count:
+                state["sframe"] = 0.0
+            redraw()
+            self._skel_after = self.root.after(15, lambda: tick(now))
+
+        def toggle():
+            state["splaying"] = not state["splaying"] and state["skel"] is not None
+            pb.config(text="Stop" if state["splaying"] else "Play")
+            if state["splaying"] and getattr(self, "_skel_after", None) is None:
+                tick(_time.monotonic())
+        pb.config(command=toggle)
+
+        def gif():
+            a = state["skel"]
+            if a is None:
+                return
+            f = filedialog.asksaveasfilename(defaultextension=".gif", initialfile=f"{stem}_{a.name}.gif",
+                                             filetypes=[("GIF", "*.gif")])
+            if not f:
+                return
+            from rf4s_modkit import model as _model
+            self.root.config(cursor="watch"); self.root.update_idletasks()
+            try:
+                frames = _model.render_skeletal_animation(m, a, view.get(), 320, step=2)
+                _model.save_gif(frames, f, step=2)
+            except Exception as e:  # noqa: BLE001
+                messagebox.showerror("Export GIF", str(e)); return
+            finally:
+                self.root.config(cursor="")
+            self.status.config(text=f"wrote {f} ({len(frames)} frames of {a.name})")
+        ttk.Button(row, text="GIF…", width=5, command=gif).pack(side="left")
+        cb.bind("<<ComboboxSelected>>", select)
+
+        def update(st):
+            a = st.get("skel")
+            lab.config(text=f"frame {int(st['sframe']):3}/{a.frame_count} {'loop' if a.loops else 'once'}"
+                       if a is not None else "")
+        return update
+
+    @staticmethod
+    def _skel_box(m, anim, view):
+        """Union view box of a skeletal animation sampled at 8 frames (keeps playback still)."""
+        from rf4s_modkit import model as _model, skelanim as _sk
+        proj = _model.VIEWS[view]
+        box = None
+        n = max(1, anim.frame_count)
+        for k in range(8):
+            m.pose = _sk.pose_bones(m, anim, n * k / 8.0)
+            pts = [proj(p) for sh in m.shapes for p in m.shape_vertices(sh)]
+            if pts:
+                b = (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+                box = b if box is None else (min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3]))
+        m.pose = None
+        return box
+
     def _model_material_anim(self, name, m):
         """The parsed .bfmat beside a .model (same stem) when it animates one of the model's
         materials, else None."""
@@ -1366,18 +1512,19 @@ class App:
         src = getattr(self, "source", None)
         if src is None:
             return None
-        blob = src.read_named(name.rsplit("/", 1)[-1].rsplit(".", 1)[0] + ".bfmat")
-        if not blob:
-            return None
-        try:
-            anim = matanim.parse(blob)
-        except Exception:  # noqa: BLE001
-            return None
-        names = {mt.name for mt in m.materials}
-        if not any(ma.name in names and any(p.name.startswith("texsrt") for p in ma.params)
-                   for ma in anim.materials):
-            return None
-        return anim
+        # same stem first, then the shipped .bfmat whose materials the model carries
+        # (SYS_MENU_ANIME_01 -> anim_com01 ...); UV scroll, texture patterns and opacity
+        for stem in matanim.companion_stems(name.rsplit("/", 1)[-1].rsplit(".", 1)[0]):
+            blob = src.read_named(stem + ".bfmat")
+            if not blob:
+                continue
+            try:
+                anim = matanim.parse(blob)
+            except Exception:  # noqa: BLE001
+                continue
+            if matanim.binds(anim, m):
+                return anim
+        return None
 
     def _export_model_gif(self, m, anim, view, stem):
         from rf4s_modkit import model as _model

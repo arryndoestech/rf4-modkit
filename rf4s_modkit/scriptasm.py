@@ -956,6 +956,10 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
         lines.append("    JMP %s" % labels[scene.entry_pc] +
                      "                                   ; entry is not the lowest statement")
 
+    try:
+        speakers = script.dialog_speakers(scene, bank) if comments else {}
+    except Exception:  # noqa: BLE001 - a comment aid; never break the listing
+        speakers = {}
     for pc, st in scene.stmts.items():
         if pc in labels:
             lines.append("%s:" % labels[pc])
@@ -970,6 +974,8 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                         note = '"%s"' % s.replace("\n", "\\n").replace('"', "'")
                 except Exception:
                     pass
+            if pc in speakers:
+                note = ("[%s] %s" % (speakers[pc], note)).rstrip()
         elif st.op < 0xFFF0:
             name = listing_name(st.op) if friendly else ("op%d" % st.op)
             args = [operand_text(buf, a, st.op, i) for i, a in enumerate(st.args)]

@@ -28,8 +28,13 @@ screen layouts -- calendar, shop, camp menu ... -- with no mesh block, see `is_m
                  (0xFFFF = root), +0x34 u32 flags (bit 12 = Euler XYZ rotation, set on all
                  7,935 shipped bones), +0x38 scale xyz, rotation xyz(w), translation xyz),
                  +0x20 -> u16 matrix-to-bone table (smooth then rigid matrices; a vertex's
-                 `_i0` values index it), +0x4C u16 bone count, +0x4E u16 smooth-matrix
-                 count, +0x50 u16 rigid-matrix count
+                 `_i0` values index it), +0x28 -> inverse bind matrices (3x4 f32 row-major,
+                 0x30 each, one per smooth matrix; the skin-matrix builder RF4S.exe+0x3D8650
+                 multiplies world[matrix_to_bone[k]] by entry k), +0x4C u16 bone count,
+                 +0x4E u16 smooth-matrix count, +0x50 u16 rigid-matrix count
+    Skinning: smooth (skin 2+) vertices are stored in bind-pose model space, rigid and
+    single-influence ones in their bone's space (all shipped skin-1 vertices index rigid
+    matrices). Set `Model.pose` (skelanim.pose_bones) to deform them; see skin_palette.
     MATL (0xB8)  +0x10 name, +0x28 -> shader assign ({archive, model} names), +0x38 ->
                  texture names (u64 each), +0x70 -> user data (0x40 each: u64 name, u64 data,
                  u32 count, u8 type 0 int / 1 float / 2 string), +0xA8 u8 texture count,
@@ -56,14 +61,19 @@ opaque-looking stripe or caustic texture ADDED onto the scene. Their UVs run far
 0..1 (up to 20 repeats), so the texture tiles. The `.bfmat` next to them is an FMAA
 material animation of the `texsrt0` shader parameter (a U or V scroll, see matanim.py).
 
-Shading (the GLSL source shipped inside Bundle/bundleMain/rf4cmv.bfsha, the one shader
-archive every material names): the vertex colour `_c0` is declared but NEVER read -- a
-comment in the vertex shader notes the converted data carries 0.0 there, so it is
-ignored (222 costume shapes, e.g. the BM_* bosses, store pure black). The fragment colour
-is the albedo texture times the light / combine terms; alpha depends on the shading model
-(Material.shader[1]):
-    body      texture alpha kept as is; pixels under 1/255 are discarded
-    costume   punch-out: discarded below `alpha_test` (shader default 0.5), else alpha 1
+Shading on PC: the GLSL inside the .bfsha archives is NOT compiled; the game compiles the
+loose Muteki programs in bundleMuteki (mtk_body / mtk_item / mtk_billboard, see
+shaderarchive.py). The program is picked from the vertex attributes the material's shading
+model lists (rf4cmv body / costume: _p0 _i0 _i1 _w0 _w1 _u0 _u1; lighting adds _n0; none
+lists `_c0`), intersected with the shape's buffer (RF4S.exe+0x1BF5F0 -> selector +0x3C4720):
+    mtk_body   a skinned shape (_i0) or a `lighting` material with normals: alpha is
+               ROUNDED -- discarded below 0.5, else drawn opaque
+    mtk_item   everything else (static props, map cards, BM_* bosses, ANIM_DUNG_*): the
+               texture alpha is kept, only alpha <= 0.1 is discarded
+The vertex colour `_c0` never reaches a model draw (no shading model binds it; mtk_body's
+source even notes the converted data carries 0.0 there -- 222 shapes such as the BM_*
+bosses store pure black), so it is ignored. Costume vs body only chooses that attribute
+list, which is the same for both, so it does not change the program or the alpha test.
 
 Map over-models (`MAP_*.model`): every card is a flat quad in the model's XZ plane,
 rigidly bound to its own bone (skin 0) whose translation places it. Model units ARE map
@@ -83,9 +93,20 @@ class ModelError(Exception):
     pass
 
 
-# costume shading: `alpha_test` default in rf4cmv.bfsha (no shipped material overrides it
-# in the user data this module reads)
-COSTUME_ALPHA_TEST = 0.5
+# fragment alpha tests of the two Muteki model programs (bundleMuteki mtk_body_f / mtk_item_f)
+BODY_ALPHA_CUT = 0.5          # mtk_body: alpha rounded -> discarded below 0.5, else opaque
+ITEM_ALPHA_CUT = 0.1          # mtk_item: discarded at alpha <= 0.1, else kept as is
+COSTUME_ALPHA_TEST = BODY_ALPHA_CUT     # old name (the costume rule it stood for was wrong)
+
+
+def shape_program(model, shape):
+    """'body' or 'item': the Muteki program the PC game draws `shape` with (see the notes)."""
+    vb = model.vertex_buffers[shape.vertex_buffer]
+    names = {a.name for a in vb.attributes}
+    mt = model.materials[shape.material] if 0 <= shape.material < len(model.materials) else None
+    if "_i0" in names or (mt is not None and mt.shading == "lighting" and "_n0" in names):
+        return "body"
+    return "item"
 
 _COMPONENTS = {0x14: 1, 0x17: 2, 0x18: 3, 0x19: 4}
 _SCALAR = {0x05: "f", 0x03: "I"}
@@ -169,24 +190,64 @@ class Model:
     textures: list               # texture.bntx_info() dicts of the embedded BNTX
     data: bytes = field(repr=False, default=b"")
     matrix_to_bone: list = field(default_factory=list)   # skinning matrix index -> bone
+    smooth_count: int = 0        # SKEL +0x4E: the first N skinning matrices are smooth
+    inverse_bind: list = field(default_factory=list)     # SKEL +0x28: 4x4 per smooth matrix
+    # pose hook: a list of Bone (same order as `bones`, e.g. skelanim.pose_bones()) that
+    # replaces the bind pose in bone_matrix / shape_vertices while set; None = bind pose
+    pose: list | None = field(default=None, repr=False)
 
     # ---- transforms ------------------------------------------------------ #
     def bone_matrix(self, i):
-        """Bone `i`'s model-space 4x4 matrix (row-major, column vectors)."""
+        """Bone `i`'s model-space 4x4 matrix (row-major, column vectors), posed by
+        `self.pose` when set."""
+        bones = self.pose if self.pose is not None else self.bones
         m = _identity()
         seen = 0
-        while 0 <= i < len(self.bones) and seen < len(self.bones):
-            m = _mul(_local(self.bones[i]), m)
-            i = self.bones[i].parent
+        while 0 <= i < len(bones) and seen < len(bones):
+            m = _mul(_local(bones[i]), m)
+            i = bones[i].parent
             seen += 1
         return m
 
+    def skin_palette(self):
+        """The skinning matrices the game uploads (the skin-matrix builder at
+        RF4S.exe+0x3D8650): smooth matrix k = world[matrix_to_bone[k]] * inverse_bind[k],
+        rigid matrices = world[bone]. At the bind pose the smooth ones are identity."""
+        world = world_matrices(self.pose if self.pose is not None else self.bones)
+        out = []
+        for k, b in enumerate(self.matrix_to_bone):
+            w = world[b] if 0 <= b < len(world) else _identity()
+            out.append(_mul(w, self.inverse_bind[k]) if k < min(self.smooth_count, len(self.inverse_bind)) else w)
+        return out
+
     def shape_vertices(self, shape):
         """[(x, y, z)] of a shape's vertices in model space. Rigid shapes (skin 0) are
-        moved by their bone; single-influence shapes by the bone in `_i0`; blended
-        shapes (2+) are stored in model space already."""
+        moved by their bone; skinned shapes (1+) by the skinning palette (`skin_palette`)
+        through `_i0` / `_w0` (linear blend skinning; smooth-skinned vertices are stored
+        in bind-pose model space, so an unposed model returns them as stored)."""
         vb = self.vertex_buffers[shape.vertex_buffer]
         pos = vb.data.get("_p0", [])
+        if self.pose is not None and shape.skin >= 1 and "_i0" in vb.data and self.matrix_to_bone:
+            pal = self.skin_palette()
+            n = len(pal)
+            wts = vb.data.get("_w0")
+            out = []
+            for k, (p, ix) in enumerate(zip(pos, vb.data["_i0"])):
+                if shape.skin == 1 or wts is None:
+                    m = pal[ix[0]] if ix[0] < n else _identity()
+                    out.append(_apply(m, p))
+                    continue
+                w = wts[k]
+                x = y = z = 0.0
+                for j in range(min(shape.skin, len(ix), len(w))):
+                    if w[j] == 0.0 or ix[j] >= n:
+                        continue
+                    q = _apply(pal[ix[j]], p)
+                    x += w[j] * q[0]
+                    y += w[j] * q[1]
+                    z += w[j] * q[2]
+                out.append((x, y, z))
+            return out
         if shape.skin == 0:
             m = self.bone_matrix(shape.bone)
             return [_apply(m, p) for p in pos]
@@ -299,12 +360,17 @@ def parse(data, *, decode_vertices=True):
         shapes.append(Shape(u16(s + 0x5C), name(u64(s + 0x10)), u16(s + 0x5E), u16(s + 0x60),
                             u16(s + 0x62), u8(s + 0x66), prim, idx))
 
-    bones, m2b = [], []
+    bones, m2b, inv, n_smooth = [], [], [], 0
     S = u64(M + 0x20)
     if data[S:S + 4] == b"SKEL":
-        nmtx = u16(S + 0x4E) + u16(S + 0x50)
+        n_smooth = u16(S + 0x4E)
+        nmtx = n_smooth + u16(S + 0x50)
         if u64(S + 0x20) and nmtx:
             m2b = list(struct.unpack_from("<%dH" % nmtx, data, u64(S + 0x20)))
+        if u64(S + 0x28) and n_smooth:
+            for k in range(n_smooth):
+                f = struct.unpack_from("<12f", data, u64(S + 0x28) + 0x30 * k)
+                inv.append([list(f[0:4]), list(f[4:8]), list(f[8:12]), [0.0, 0.0, 0.0, 1.0]])
         for b in range(u16(S + 0x4C)):
             o = u64(S + 0x18) + 0x60 * b
             f = struct.unpack_from("<10f", data, o + 0x38)
@@ -336,7 +402,7 @@ def parse(data, *, decode_vertices=True):
             ud[name(u64(e))] = vals
         mats.append(Material(i, name(u64(m + 0x10)), texs, shader, ud))
 
-    return Model(vbs, shapes, bones, mats, texture.bntx_info(data), data, m2b)
+    return Model(vbs, shapes, bones, mats, texture.bntx_info(data), data, m2b, n_smooth, inv)
 
 
 def load(path):
@@ -360,6 +426,21 @@ def _apply(m, p):
     return (m[0][0] * x + m[0][1] * y + m[0][2] * z + m[0][3],
             m[1][0] * x + m[1][1] * y + m[1][2] * z + m[1][3],
             m[2][0] * x + m[2][1] * y + m[2][2] * z + m[2][3])
+
+
+def world_matrices(bones):
+    """Model-space 4x4 matrices of every bone in a list of Bone (parents resolved once)."""
+    out = [None] * len(bones)
+
+    def get(i, depth=0):
+        if out[i] is None:
+            p = bones[i].parent
+            loc = _local(bones[i])
+            out[i] = _mul(get(p, depth + 1), loc) if 0 <= p < len(bones) and p != i and depth < len(bones) else loc
+        return out[i]
+    for i in range(len(bones)):
+        get(i)
+    return out
 
 
 def _local(b):
@@ -521,12 +602,13 @@ VIEWS = {
 
 
 def _triangles(model, proj, uv_mtx=None):
-    """[(depth, [p]*3, [uv]*3 | None, None, material index)] in view space (the 4th slot,
-    once the vertex colour, stays None: the game's shaders ignore `_c0`).
+    """[(depth, [p]*3, [uv]*3 | None, program, material index)] in view space; program =
+    shape_program() ('body' / 'item', which decides the alpha test).
     `uv_mtx` optionally maps a material index to a 2x3 UV matrix (a material animation)."""
     tris = []
     for sh in model.shapes:
         vb = model.vertex_buffers[sh.vertex_buffer]
+        prog = shape_program(model, sh)
         pos = [proj(p) for p in model.shape_vertices(sh)]
         uv = vb.data.get("_u0")
         mtx = uv_mtx.get(sh.material) if uv_mtx else None
@@ -538,13 +620,14 @@ def _triangles(model, proj, uv_mtx=None):
             if any(j >= len(pos) for j in ids):
                 continue
             tris.append((sum(pos[j][2] for j in ids) / 3.0, [pos[j] for j in ids],
-                         [uv[j] for j in ids] if uv else None, None, sh.material))
+                         [uv[j] for j in ids] if uv else None, prog, sh.material))
     return tris
 
 
-def _texture_for(model, material, textures):
-    """Decoded RGBA PIL image of a material's first texture, cached in `textures`."""
-    tex_name, _ = model.material_texture(material, decode=False)
+def _texture_for(model, material, textures, name=None):
+    """Decoded RGBA PIL image of a material's first texture (or of the embedded texture
+    `name`, a material animation's texture-pattern pick), cached in `textures`."""
+    tex_name = name or model.material_texture(material, decode=False)[0]
     if not tex_name:
         return None
     if tex_name not in textures:
@@ -559,12 +642,11 @@ def _texture_for(model, material, textures):
 
 def material_uv_matrices(model, anim, frame):
     """{material index: 2x3 UV matrix} for the materials a `matanim.MatAnimFile` animates
-    (bound by material name, as the game binds them), at `frame`. Looping animations wrap
-    the frame at the file's frame count."""
+    (bound by material name, as the game binds them), at `frame`. The frame wraps at the
+    file's frame count whatever its loop flag, as the game's tick wraps it (matanim.py)."""
     if anim is None:
         return {}
-    if anim.loops and anim.frame_count > 0:
-        frame = frame % anim.frame_count
+    frame = anim.play_frame(frame)
     out = {}
     for mt in model.materials:
         mtx = anim.uv_matrix(mt.name, frame)
@@ -574,12 +656,13 @@ def material_uv_matrices(model, anim, frame):
 
 
 def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=None,
-           anim=None, frame=0.0):
+           anim=None, frame=0.0, box=None):
     """A textured preview of the whole model (orthographic, painter's-sorted triangles,
     no lighting) as a PIL RGBA image of at most `size` px on its longer side. Views:
     front / back / side / top. Map over-models are best seen from the top. `anim` (a
-    `matanim.MatAnimFile`, e.g. the model's `.bfmat`) scrolls the animated materials' UVs
-    to `frame` (game frames, 1 per tick).
+    `matanim.MatAnimFile`, e.g. the model's `.bfmat`) scrolls the animated materials' UVs,
+    swaps their albedo texture (texture patterns: eye blinks, emblem swaps) and fades them
+    (opacity) to `frame` (game frames, 1 per tick).
 
     With numpy (the normal case) every pixel interpolates its UV, UVs wrap (repeat),
     costume materials punch alpha out at 0.5, and each material blends the way its
@@ -590,11 +673,15 @@ def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=N
     proj = VIEWS[view]
     textures = {} if textures is None else textures
     tris = _triangles(model, proj, material_uv_matrices(model, anim, frame))
+    from . import matanim
+    mstate = matanim.material_state(model, anim, frame) if anim is not None else {}
     if not tris:
         return Image.new("RGBA", (size, size), background)
     xs = [p[0] for t in tris for p in t[1]]
     ys = [p[1] for t in tris for p in t[1]]
-    x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+    # `box` = fixed (x0, y0, x1, y1) in view space (render_skeletal_animation keeps every
+    # frame in one box so the character moves instead of being re-fitted)
+    x0, y0, x1, y1 = box if box is not None else (min(xs), min(ys), max(xs), max(ys))
     span = max(x1 - x0, y1 - y0, 1e-6)
     k = (size - 4) / span
     w, h = max(1, int((x1 - x0) * k) + 4), max(1, int((y1 - y0) * k) + 4)
@@ -605,8 +692,8 @@ def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=N
     try:
         import numpy as np
     except ImportError:
-        return _render_affine(model, tris, place, w, h, background, textures)
-    return _render_raster(np, model, tris, place, w, h, background, textures)
+        return _render_affine(model, tris, place, w, h, background, textures, mstate)
+    return _render_raster(np, model, tris, place, w, h, background, textures, mstate)
 
 
 def render_animation(model, anim, view="front", size=320, *, step=2, background=(32, 32, 36, 255),
@@ -631,6 +718,37 @@ def render_animation(model, anim, view="front", size=320, *, step=2, background=
     return out
 
 
+def render_skeletal_animation(model, skel, view="front", size=320, *, step=2,
+                              background=(32, 32, 36, 255), textures=None, frames=None):
+    """One pass of a `skelanim.SkelAnimFile` (a .bfskl bound to this model by bone name) as
+    [PIL RGBA frames], one every `step` game frames (1 animation frame per tick at 60/s).
+    Rigid shapes follow their bone, skinned shapes are linear-blend skinned through the
+    inverse bind matrices (see `skin_palette`). All frames share one view box. `frames`
+    optionally lists the exact frames to draw. The model's pose hook is restored after."""
+    from . import skelanim
+    textures = {} if textures is None else textures
+    total = max(1, skel.frame_count)
+    todo = list(frames) if frames is not None else list(range(0, total + (0 if skel.loops else 1), max(1, step)))
+    proj = VIEWS[view]
+    saved = model.pose
+    try:
+        poses, box = [], None
+        for f in todo:
+            model.pose = skelanim.pose_bones(model, skel, f)
+            pts = [proj(p) for sh in model.shapes for p in model.shape_vertices(sh)]
+            poses.append(model.pose)
+            if pts:
+                b = (min(p[0] for p in pts), min(p[1] for p in pts), max(p[0] for p in pts), max(p[1] for p in pts))
+                box = b if box is None else (min(box[0], b[0]), min(box[1], b[1]), max(box[2], b[2]), max(box[3], b[3]))
+        out = []
+        for pz in poses:
+            model.pose = pz
+            out.append(render(model, view, size, background=background, textures=textures, box=box))
+    finally:
+        model.pose = saved
+    return out
+
+
 def save_gif(frames, path, *, step=2):
     """Write render_animation() frames as a looping GIF at the game's speed (60 ticks/s)."""
     rgb = [f.convert("RGB") for f in frames]
@@ -638,7 +756,7 @@ def save_gif(frames, path, *, step=2):
                 loop=0, optimize=False)
 
 
-def _render_raster(np, model, tris, place, w, h, background, textures):
+def _render_raster(np, model, tris, place, w, h, background, textures, mstate=None):
     from PIL import Image
     out = np.empty((h, w, 4), np.float32)           # straight (non-premultiplied) RGBA
     out[...] = np.asarray(background, np.float32) / 255.0
@@ -662,7 +780,8 @@ def _render_raster(np, model, tris, place, w, h, background, textures):
         if not inside.any():
             continue
         lam = (l0[inside], l1[inside], l2[inside])
-        tex = _texture_for(model, mat, textures) if uvs else None
+        st = mstate.get(mat, {}) if mstate else {}
+        tex = _texture_for(model, mat, textures, st.get("texture")) if uvs else None
         if tex is not None:
             arr = arrays.get(id(tex))
             if arr is None:
@@ -671,9 +790,13 @@ def _render_raster(np, model, tris, place, w, h, background, textures):
                                  sum(l * uvs[i][1] for i, l in enumerate(lam)))
         else:
             src = np.tile(grey, (len(lam[0]), 1))
+        if "opacity" in st:
+            # rf4cmv: albedo.a *= clamp(opacity.r, 0, 1) before the 1/255 discard
+            src = src.copy()
+            src[:, 3] *= st["opacity"]
         mt = model.materials[mat] if 0 <= mat < len(model.materials) else None
         blend = mt.blend_type if mt is not None else 0
-        keep = _alpha_keep(np, mt, src[:, 3])
+        keep = _alpha_keep(np, cols, src[:, 3])
         if keep is not None:
             if not keep.any():
                 continue
@@ -681,7 +804,7 @@ def _render_raster(np, model, tris, place, w, h, background, textures):
             sub = np.zeros_like(inside)
             sub[inside] = keep
             inside = sub
-        if mt is not None and mt.shading == "costume":
+        if cols == "body":
             src[:, 3] = 1.0
         region = out[iy0:iy1, ix0:ix1]
         d = region[inside]
@@ -701,12 +824,12 @@ def _render_raster(np, model, tris, place, w, h, background, textures):
     return Image.fromarray(np.clip(out * 255.0 + 0.5, 0, 255).astype(np.uint8), "RGBA")
 
 
-def _alpha_keep(np, mt, alpha):
-    """Boolean mask of the fragments the game keeps (None = keep all): costume discards
-    below its alpha test, body only below 1/255."""
-    if mt is not None and mt.shading == "costume":
-        return alpha >= COSTUME_ALPHA_TEST
-    return alpha >= 1.0 / 255.0
+def _alpha_keep(np, program, alpha):
+    """Boolean mask of the fragments the game keeps: mtk_body rounds alpha (keeps >= 0.5),
+    mtk_item discards alpha <= 0.1."""
+    if program == "body":
+        return alpha >= BODY_ALPHA_CUT
+    return alpha > ITEM_ALPHA_CUT
 
 
 def _sample_repeat(np, arr, u, v):
@@ -723,20 +846,28 @@ def _sample_repeat(np, arr, u, v):
     return top * (1 - fy) + bot * fy
 
 
-def _render_affine(model, tris, place, w, h, background, textures):
+def _render_affine(model, tris, place, w, h, background, textures, mstate=None):
     """numpy-free fallback: one affine texture paste per triangle (UVs wrap; no vertex
     colour, no blend modes)."""
     from PIL import Image, ImageChops, ImageDraw
     img = Image.new("RGBA", (w, h), background)
     flat = ImageDraw.Draw(img)
-    for _d, pts, uvs, _cols, mat in tris:
+    for _d, pts, uvs, prog, mat in tris:
         dst = place(pts)
-        tex = _texture_for(model, mat, textures) if uvs else None
+        st = mstate.get(mat, {}) if mstate else {}
+        tex = _texture_for(model, mat, textures, st.get("texture")) if uvs else None
+        if tex is not None and "opacity" in st:
+            tex = tex.copy()
+            tex.putalpha(tex.getchannel("A").point(lambda a, k=st["opacity"]: int(a * k + 0.5)))
         mt = model.materials[mat] if 0 <= mat < len(model.materials) else None
-        if tex is not None and mt is not None and mt.shading == "costume":
-            cut = int(COSTUME_ALPHA_TEST * 255 + 0.5)
+        if tex is not None and prog == "body":
+            cut = int(BODY_ALPHA_CUT * 255 + 0.5)
             tex = tex.copy()
             tex.putalpha(tex.getchannel("A").point(lambda a: 255 if a >= cut else 0))
+        elif tex is not None:
+            cut = int(ITEM_ALPHA_CUT * 255)
+            tex = tex.copy()
+            tex.putalpha(tex.getchannel("A").point(lambda a: a if a > cut else 0))
         if tex is None:
             flat.polygon(dst, fill=(150, 150, 160, 255))
             continue
@@ -760,6 +891,38 @@ def _render_affine(model, tris, place, w, h, background, textures):
 # --------------------------------------------------------------------------- #
 # export
 # --------------------------------------------------------------------------- #
+def _model_space_normals(model, sh, nrm):
+    """`_n0` in model space, in the same (bind-pose) frames as the exported positions: the
+    shape's bone for skin 0, the `_i0` bone for skin 1, as stored for smooth skins (inverse
+    transpose of the bone's linear part, renormalised). modelwrite.import_obj inverts this."""
+    if not nrm or sh.skin >= 2:
+        return nrm
+    vb = model.vertex_buffers[sh.vertex_buffer]
+    m2b = model.matrix_to_bone
+    cache = {}
+
+    def nmat(b):
+        if b not in cache:
+            m = model.bone_matrix(b)
+            a = [row[:3] for row in m[:3]]
+            c = [[a[(r + 1) % 3][(k + 1) % 3] * a[(r + 2) % 3][(k + 2) % 3]
+                  - a[(r + 1) % 3][(k + 2) % 3] * a[(r + 2) % 3][(k + 1) % 3] for k in range(3)]
+                 for r in range(3)]                     # cofactors = det * inverse transpose
+            if sum(a[0][k] * c[0][k] for k in range(3)) < 0:    # mirrored bone: keep the side
+                c = [[-x for x in row] for row in c]
+            cache[b] = c
+        return cache[b]
+    ix = vb.data.get("_i0")
+    out = []
+    for k, n in enumerate(nrm):
+        b = sh.bone if sh.skin == 0 or not ix else (m2b[ix[k][0]] if ix[k][0] < len(m2b) else ix[k][0])
+        c = nmat(b)
+        v = [c[r][0] * n[0] + c[r][1] * n[1] + c[r][2] * n[2] for r in range(3)]
+        ln = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+        out.append(tuple(x / ln for x in v) if ln > 1e-20 else tuple(n[:3]))
+    return out
+
+
 def to_obj(model, stem="model"):
     """Wavefront OBJ + MTL text for the whole model (model space; one object per shape,
     one material per g3d material, textures referenced as <texture name>.png)."""
@@ -769,7 +932,7 @@ def to_obj(model, stem="model"):
         vb = model.vertex_buffers[sh.vertex_buffer]
         pos = model.shape_vertices(sh)
         uv = vb.data.get("_u0")
-        nrm = vb.data.get("_n0")
+        nrm = _model_space_normals(model, sh, vb.data.get("_n0"))
         o.append(f"o {sh.name or 'shape%d' % sh.index}")
         mat = model.materials[sh.material] if sh.material < len(model.materials) else None
         if mat:

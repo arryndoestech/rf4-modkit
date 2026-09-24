@@ -779,6 +779,10 @@ def arg_repr(buf, off, op=None, ai=None):
     resolved value when static, else the decoded infix expression, else `expr@0xNNNN`.
     With the statement's `op` and the argument index `ai`, a tag-3/4 constant in a known
     slot is named: actor(Forte), map(MAP_CITY_00) (see leaf_slot_kind)."""
+    if (op is not None and 0 <= off < len(buf) and buf[off] in (0x11, 0x12, 0x13)
+            and (op, ai) in meta.MODE_ARG_SLOTS):
+        # the handler reads this argument's token KIND as its add / sub / set mode
+        return meta.MODE_LEAF_WORDS[buf[off]]
     if op is not None and 0 <= off < len(buf) and buf[off] in (3, 4):
         kind = leaf_slot_kind(op, ai)
         n = _u32(buf, off + 1) or 0
@@ -2075,6 +2079,138 @@ def iter_scenes(container, discover=True):
     for bk in container.banks:
         for sc in disassemble_bank(bk, discover=discover):
             yield bk, sc
+
+
+# ---- who speaks each DIALOG line -------------------------------------------------------
+# A DIALOG carries only the text id; the speaker is whatever speaker op ran last, and it
+# persists across lines until the next speaker op or EndDialogue (op 92). Speaker ops: the
+# portrait cues 16..75 (slot = (op - 16) // 2, opcode_meta.portrait_speaker_slot) and
+# SetSpeakerVoice (op 10: a name plate from the character-name archive, arg0).
+_SPEAKER_UNKNOWN = object()          # no speaker established, or paths disagree
+_SPEAKER_IN = object()               # "whatever the caller had" (routine summaries)
+_SPEAKER_CLEAR_OPS = {92}            # EndDialogue clears the speaker
+_SPEAKER_OPAQUE_OPS = {6, 7, 8, 9, 12, 13, 14, 15}   # own-line / bubble ops: effect unverified
+
+
+def _speaker_of(bank, st):
+    """(changes, name) for one statement: changes=False leaves the speaker as it is."""
+    op = st.op
+    if 16 <= op <= 75:
+        slot = meta.portrait_speaker_slot(op)
+        names = getattr(meta, "PORTRAIT_SPEAKERS", [])
+        if slot and slot[0] < len(names):
+            return True, ("player" if slot[0] == 0 else names[slot[0]])
+        return True, _SPEAKER_UNKNOWN
+    if op == 10:
+        if st.args:
+            v, ok = eval_expr(bank.data, st.args[0])
+            if ok and v is not None:
+                nm = meta.enum_arg_label(10, 0, v)
+                return True, (nm if nm else _SPEAKER_UNKNOWN)
+        return True, _SPEAKER_UNKNOWN
+    if op in _SPEAKER_CLEAR_OPS or op in _SPEAKER_OPAQUE_OPS:
+        return True, _SPEAKER_UNKNOWN
+    return False, None
+
+
+def dialog_speakers(scene, bank):
+    """{DIALOG pc: speaker name} for the lines whose speaker is certain: every path that
+    reaches the line set the same speaker first -- through branches, into CALLed routines
+    of the same scene and back out of them. A line inside a routine that does not set the
+    speaker itself takes its callers' speaker, and only when all of them agree. Lines with
+    no speaker op before them, or with paths that disagree, are left out (their speaker
+    comes from outside the scene: the game, or code that is not in this scene)."""
+    stmts = scene.stmts
+
+    def merge(a, b):
+        if a is None:
+            return b
+        if b is None or a is b or a == b:
+            return a
+        return _SPEAKER_UNKNOWN
+
+    # routine key None = the scene entry; else the CALL target pc
+    before = {}                      # (routine, pc) -> state before the statement
+    exits = {}                       # routine -> exit state (relative to _SPEAKER_IN)
+    call_sites = {}                  # routine -> [(caller routine, state at the call)]
+    done = set()
+
+    def run(routine, entry, state_in, depth):
+        work = [(entry, state_in)]
+        exit_state = None
+        guard = 0
+        while work and guard < 50000:
+            guard += 1
+            pc, st_in = work.pop()
+            st = stmts.get(pc)
+            if st is None:
+                continue
+            key = (routine, pc)
+            old = before.get(key)
+            new = merge(old, st_in)
+            if old is not None and (new is old or new == old):
+                continue
+            before[key] = new
+            cur = new
+            if st.mnem == "CALL" and st.code_targets:
+                tgt = st.code_targets[0]
+                if tgt in stmts and depth < 12:
+                    call_sites.setdefault(tgt, []).append((routine, cur))
+                    if tgt not in done:
+                        done.add(tgt)
+                        exits[tgt] = None                # recursion guard
+                        exits[tgt] = run(tgt, tgt, _SPEAKER_IN, depth + 1)
+                    out = exits.get(tgt)
+                    cur = _SPEAKER_UNKNOWN if out is None else (cur if out is _SPEAKER_IN else out)
+                else:
+                    cur = _SPEAKER_UNKNOWN
+                work.append((pc + st.size, cur))
+                continue
+            changes, nm = _speaker_of(bank, st)
+            if changes:
+                cur = nm
+            if st.mnem in ("END", "RET"):
+                exit_state = merge(exit_state, cur)
+                continue
+            for t in st.code_targets:
+                if t is not None:
+                    work.append((t, cur))
+            if st.falls_through and not st.terminator:
+                work.append((pc + st.size, cur))
+        return exit_state if exit_state is not None else _SPEAKER_UNKNOWN
+
+    run(None, scene.entry_pc, _SPEAKER_UNKNOWN, 0)
+
+    resolving = set()
+
+    def routine_input(routine):
+        """The speaker every caller of `routine` passes in (merged), or _SPEAKER_UNKNOWN."""
+        if routine is None:
+            return _SPEAKER_UNKNOWN
+        if routine in resolving:
+            return _SPEAKER_UNKNOWN
+        resolving.add(routine)
+        acc = None
+        for caller, st_in in call_sites.get(routine, []):
+            acc = merge(acc, resolve(caller, st_in))
+        resolving.discard(routine)
+        return _SPEAKER_UNKNOWN if acc is None else acc
+
+    def resolve(routine, state):
+        return routine_input(routine) if state is _SPEAKER_IN else state
+
+    out = {}
+    for (routine, pc), state in before.items():
+        st = stmts.get(pc)
+        if st is None or st.mnem != "DIALOG":
+            continue
+        name = resolve(routine, state)
+        prev = out.get(pc, None)
+        if pc in out and prev != name:
+            out[pc] = _SPEAKER_UNKNOWN              # the same line reached with two speakers
+        else:
+            out[pc] = name
+    return {pc: nm for pc, nm in out.items() if isinstance(nm, str)}
 
 
 def find_scenes_with_dialog(container, substring, dialog):

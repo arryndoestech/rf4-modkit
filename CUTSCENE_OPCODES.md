@@ -75,14 +75,20 @@ Show a dialogue line (portrait speaks; reads speaker/line tokens).
 Args:
   0. speaker/line id
 
-### `op 10` — SetSpeakerVoice(name string id, chime/tone)
+### `op 10` — SetSpeakerVoice(name string id, text blip)
 *handler:* `NpcBubble_DispatchSimpleScriptedLine`
 
-Set the speaker for the following DIALOG line(s) to a NAMED VOICE: name plate only, NO portrait ('no portrait dispatch' — the handler's own contract). This is how off-screen and un-introduced characters speak — the opening's captain monologue (name string 738) and the stowaway bandits' whispers (392) both talk through it. arg0 = the NAME-PLATE string id (a name-archive entry, not an rf3mc line id; latched at sceneCtx+108 so repeats are free); arg1 = the text-tick chime class (0 = default 16785916, 1 = happy, 2 = excited, 3 = variant). IDA-verified (NpcBubble_DispatchSimpleScriptedLine, RF4S.exe+0x20A240).
+Set the speaker for the following DIALOG line(s) to a NAMED VOICE: name plate only, NO portrait ('no portrait dispatch' — the handler's own contract). This is how off-screen and un-introduced characters speak — the opening's captain monologue (name string 738) and the stowaway bandits' whispers (392) both talk through it. arg0 = the NAME-PLATE string id: an entry of the character-name archive (the same list as char_names.json -- 21 Ventuswill, 236 Ethelwill, 392 '???', 738 Joyful Captain; not an rf3mc line id), shown through Dialogue_LoadAndShowText(archive, id, 2) and latched at task+108 so repeating it is free. arg1 = the TEXT BLIP, the tick sound played while the line types out (Dialogue_SetTickChimeSfxId; no voice acting is involved; the typewriter, Sprite_TickTypewriterDripText RF4S.exe+0x246AD0, plays it on every 4th character and restarts the count at each line break): 0 = male blip (sfx 16785916 = SE_WORDS_M.wav), 1 = female blip (16785917 = SE_WORDS_F.ogg), 2 = monster / animal blip (16785918 = SE_WORDS_O.wav; Buffamoo, Fiergaenger), 3 = dragon blip (16785975 = SE_WORDS_D.wav; Ventuswill in dragon form, Ancient Bone) -- names from common_audio_data.bdat, the files sit in bundleMain; 4+ = the PLAYER's own blip -- male for Lest's model (model 1217 = NPC_PLAYER_00), female for Frey's (1233 = NPC_PLAYER_01), male again when neither and player control flag 0x8000000 is set. Shipped uses: 651x 0, 170x 1, 5x 2, 105x 3 (931 in all). IDA-verified (NpcBubble_DispatchSimpleScriptedLine, RF4S.exe+0x20A240).
 
 Args:
-  0. name string id
-  1. chime/tone (0=default,1=happy,2=excited,3=variant3)
+  0. name string id (name archive)
+     - *(enum: 1000 values — use the in-editor picker or the id database)*
+  1. text blip (0 male, 1 female, 2 monster, 3 dragon, 4+ player's)
+     - `0` = male blip
+     - `1` = female blip
+     - `2` = monster blip
+     - `3` = dragon blip
+     - `4` = player's blip
 
 ### `op 11` — SetDialogStateBit(mode)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`

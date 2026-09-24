@@ -82,7 +82,9 @@ tools/modding/
     ├── mbundle.py       # .mbundle archives     read + repack + Manifest sync
     ├── ident.py         # magic-based file-type identification
     ├── textdb.py        # TEXT string archives  read + write  (translations!)
-    ├── matanim.py       # .bfmat material animations  parse + evaluate (texsrt UV scroll of the ANIM_DUNG_* light / water layers)
+    ├── matanim.py       # .bfmat material animations  parse + evaluate + byte-exact write (texsrt UV scroll, texture patterns = BM_* eye blinks, opacity fades); JSON dump / retime
+    ├── shaderarchive.py # shaders: loose Muteki GLSL (compiled) preprocess/replace + .bfsha FSHA/BNSH source read/extract
+    ├── skelanim.py      # .bfskl skeletal animations (FSKA) parse + evaluate; poses / skins a .model (render_skeletal_animation)
     ├── texture.py       # .texture (BC7/RGBA8)  decode->PNG + encode from PNG into ANY template (flipbooks too); .model textures in place
     ├── bcenc.py         # BC1/BC3/BC7 encoders  same-size re-encodes (numpy-accelerated, pure-Python fallback)
     ├── rf4m.py          # .rf4m maps            parse + rebuild + full edit
@@ -250,7 +252,8 @@ files **read-on-demand** (so the 4.7 GB `bundleMain` is never loaded whole), or 
 | `rf3PresentNpc*.bin` / `rf3MonsterPresent.bin` | gift preferences / taming foods with **set / signature / remove** controls and Save |
 | `rf3Schedule.bin` | per-(NPC, state) itineraries with **apply / add / remove stop** controls and Save |
 | `rf3route.bin` / `rf3RouteResult.bin` | navigation graph tree (rooms → nodes → edges), **path query**, JSON export/import, next-hop matrix rebuild |
-| `.model` / `.bfskl` / `.psbData` | NN container structure |
+| `.psbData` / `.emtbytes` | E-mote portrait atlas (zoomable, Export PNG) + PSB summary |
+| `.model` / `.bfskl` | NN container structure |
 | anything else | identification + hex preview |
 
 `Extract…` saves the selected asset's raw bytes to disk. Image/JSON viewers degrade to
@@ -514,11 +517,13 @@ names, grammar help, xrefs), `app` (the window).
 | Monster taming foods | `rf3MonsterPresent.bin` | `rf4mod gift monster-set` / `monster-clear` | ✅ the 4 per-species (item, tame bonus) slots |
 | NPC daily schedules | `rf3Schedule.bin` + `rf3ScheduleID.bin` | `rf4mod schedule` | ✅ per-(NPC, state) itineraries: set / add / remove stops, JSON decode → edit → encode (index sections recomputed; stock re-encodes byte-exact); spot kinds resolved to rooms |
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
-| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.bfmat` material animations played**: `res model-gif` and Play in the GUI's Model tab; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture **in place** in its own block format — file size and every container field unchanged |
-| Emote / portraits | `.psbData` `.emtbytes` | `rf4mod res` | 🔍 inspect (M2 PSB) |
-| Audio | `.ogg` `.wav` `.aif` | `rf4mod ident` | ➡️ swap (standard formats) |
+| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.model` meshes written** (`rf4s_modkit.modelwrite`, statically verified, not yet tried in game): `res model-import MODEL SHAPE mesh.obj` replaces one shape's geometry with any vertex / triangle count (memory pool, buffer sizes, submesh, bounds and every relocated pointer rebuilt; an unmodified export re-imports byte-identically; skin weights copied from the nearest original vertex), `res model-transform` moves / scales / rotates a shape in place; ✅ **`.bfmat` material animations played and written** (all 59 rebuild byte for byte): `res model-gif` and Play in the GUI's Model tab show texsrt UV scroll, texture patterns (BM_* eye blinks / emblem swaps, anim_com* frame flips) and opacity fades; the `.bfmat` is found by stem or by material name (SYS_MENU_ANIME_09 -> anim_com09); `res bfmat-info` lists curves (`--json` dumps an editable file), `res bfmat-build JSON OUT` encodes it, `res bfmat-set IN OUT --speed 2` retimes; ✅ **`.bfskl` skeletal animations played** (all 2,001 parse): `res anim-info` (`--json` dump, `--model` binding) / `res anim-gif MODEL ANIM out.gif`, and the Model tab's motion row — bones bind by name, skinned meshes blended through the inverse bind matrices; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture **in place** in its own block format — file size and every container field unchanged |
+| Emote / portraits | `.psbData` (loaded) `.emtbytes` (never loaded by the PC exe) | `rf4mod psb` | ✅ full E-mote PSB v4 reader (all 130 parse; `.emtbytes` header decrypted): `psb info` (atlas, face-frame timelines 0-5 = 通常/怒り/哀しみ/笑顔/驚き/照れ, variables), `psb dump -o DIR [--resources]` (whole tree → JSON), `psb textures -o DIR [--parts]` (RGBA8 / ASTC atlas → PNG, plus every named part crop); ✅ **repaint a portrait**: `psb replace-texture X.psbData edited.png -o out/` (same size; only the atlas bytes change, re-parsed and checked). Keep part outlines where they are — the mesh/part rectangles are absolute atlas pixels |
+| Sound-id table | `common_audio_data.bdat`, `voice_en_audio_data.bdat` (`voice_jp_…` ships but is never loaded) | `rf4mod sound` | ✅ `list` / `show` / `find` (all three tables) / `set` volume · priority · flags / point an id at another file / `add` a brand-new id / `remove`; byte-exact rebuild of all 3 stock tables; PlaySound / PlayVoicedSound listings show the file name. New sound: drop `SE_MYMOD.ogg` (or .wav/.flac/.mp3, sniffed by magic) under `Bundle\00_mods\`, `rf4mod sound add common_audio_data.bdat auto SE_MYMOD.ogg -o my.bdat`, `rf4mod install <game> common_audio_data.bdat my.bdat`, restart, `PlaySound(<id>)` |
+| Audio | `.ogg` `.wav` `.flac` `.mp3` | `rf4mod ident` | ➡️ swap (standard formats; the loader sniffs OggS / RIFF / fLaC / else MP3 — AIFF is not decoded; the one shipped `UISelect.aif` is referenced nowhere in the exe) |
 | Video | `.webm` | `rf4mod ident` | ➡️ swap (re-encode w/ ffmpeg) |
-| Images / fonts / shaders | `.png` `.ttf` `.ttc` `.glsl` `.hlsl` | `rf4mod ident` | ➡️ edit directly |
+| Images / fonts | `.png` `.ttf` `.ttc` | `rf4mod ident` | ➡️ edit directly |
+| Shaders | `.glsl` `.glsl.inc` (bundleMuteki), `.bfsha` | `rf4mod shader` | ✅ the game compiles **only the loose bundleMuteki GLSL** (`mtk_body/item/billboard` = every model, from source at each start, no shader cache): `shader list`, `shader extract mtk_body -o dir` (includes inlined as GL gets them), `shader replace mtk_body_f.glsl edited.glsl -o dir` (checks includes / `#version` / `main`) then `install`. `.bfsha` GLSL is never compiled on PC (the nn::gfx shader init is a stub), so it is read + extracted only (`shader list/extract rf4cmv.bfsha`); `.hlsl` files are never loaded |
 
 ✅ = the toolkit fully reads and rewrites it · 🔍 = identify + structural inspect ·
 ➡️ = standard format, edit/replace with off-the-shelf tools
@@ -595,6 +600,12 @@ python rf4mod.py res model-info NPC_C_BADO.model --bones             # shapes, m
 python rf4mod.py res model-export NPC_C_BADO.model out/              # OBJ + MTL + texture PNGs
 python rf4mod.py res model-render MAP_CITY_00.model --view top       # textured preview PNG
 python rf4mod.py res model-gif ANIM_DUNG_B01.model b01.gif          # one loop of its .bfmat (water scroll)
+python rf4mod.py res model-gif BM_05.model bm05.gif --view front     # the boss's eye texture pattern
+python rf4mod.py res bfmat-info BM_05.bfmat                          # materials, params, patterns, curve keys
+python rf4mod.py res bfmat-set ANIM_DUNG_B01.bfmat fast.bfmat --speed 2   # scroll twice as fast
+python rf4mod.py res anim-gif NPC_A_CLORICA.model 00W_002_walk.bfskl walk.gif --view side   # a .bfskl on a character
+python rf4mod.py res model-import NPC_C_BADO.model 1 part.obj -o out.model   # replace shape 1 from an OBJ (any vertex count; pool + pointers rebuilt)
+python rf4mod.py res model-transform NPC_C_BADO.model 0 --scale 1.2 --rotate 0,45,0 -o out.model   # move / scale / rotate a shape in place
 
 # Textures inside a .model (map over-model scenery cards, character/monster/weapon/effect models)
 python rf4mod.py res texture-list MAP_CITY_00.model                    # index, name, format, size

@@ -24,6 +24,7 @@ Relocation-table start (verified, BFRES_GetRelocationTableStart +0x3CA9B0):
   header[0] == 'R' (RES\0)  -> offset stored at +0x10
   otherwise (FRES/BNTX/...)  -> offset stored at +0x18
 PSB (M2 Emote) is not an NN container and has no such relocation table.
+The full E-mote PSB reader (tree, atlas PNG, repaint) is rf4s_modkit.psb.
 """
 from __future__ import annotations
 

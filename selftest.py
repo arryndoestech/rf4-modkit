@@ -2706,7 +2706,7 @@ def test_script():
         and len(om.arg_names(405)) == 2 and any("loved" in _a for _a in _la(405))
         and len(om.arg_names(478)) == 2 and any("scripted" in _a for _a in _la(478))
         and len(om.arg_names(10)) == 2 and any("name string" in _a for _a in _la(10))
-        and any("chime" in _a or "tone" in _a for _a in _la(10)))
+        and any("blip" in _a for _a in _la(10)))      # arg1 = the text blip (SE_WORDS_M/F/O/D)
     _check("opcode_meta: five scene-ops carry their IDA-verified arg labels (464/609/405/478/10)",
            _labelfix)
     # accuracy pin (IDA-verified 2026-07-11, batch 2): four roll ops were TECHNICAL-only with []
@@ -3514,6 +3514,85 @@ def test_strengthening():
     _check("strengthening edit round-trip", t2.row(887).atk == 500 and t2.row(887).mat == 95)
     _check("strengthening nlcl schema agrees with the module",
            [f[0] for f in nlcl.FIELD_SCHEMAS["rf3ItemStrengthening"]["fields"]] == strengthening.NAMES)
+
+
+def test_sound_table():
+    print("sound table (*_audio_data.bdat):")
+    import tempfile
+    from rf4s_modkit import soundtable as _st, opcode_meta as _om
+    paths = {n: (EXTRACTED / "bundleMain" / n) for n in _st.TABLE_NAMES}
+    paths = {n: (p if p.is_file() else _first(n)) for n, p in paths.items()}
+    if not all(paths.values()):
+        _skip("sound table", "no *_audio_data.bdat present")
+        return
+    tabs = {}
+    for n, p in paths.items():
+        raw = p.read_bytes()
+        t = _st.SoundTable.parse(raw)
+        tabs[n] = t
+        _check(f"sound {n}: byte-exact round trip ({len(t)} ids)", t.build() == raw)
+    c, e, j = (tabs[n] for n in _st.TABLE_NAMES)
+    _check("sound counts (541 common, 8386 voice_en/jp; one info record per row)",
+           len(c) == 541 and len(e) == 8386 and len(j) == 8386
+           and all(len(t.infos) == len(t) for t in tabs.values()))
+    words = {16785916: "SE_WORDS_M.wav", 16785917: "SE_WORDS_F.ogg",
+             16785918: "SE_WORDS_O.wav", 16785975: "SE_WORDS_D.wav"}
+    _check("sound text-blip ids SE_WORDS_M/F/O/D (16785916/17/18/16785975)",
+           all(c.get(k).file == v and c.get(k).name == v.rsplit(".", 1)[0]
+               for k, v in words.items()))
+    _check("sound SE_WORDS_M fields (vol 65, priority 80, flag0 1, flag1 0)",
+           c.get(16785916).info.as_dict() == dict(volume=65, priority=80, flag0=1, flag1=0,
+                                                   name="SE_WORDS_M", file="SE_WORDS_M.wav"))
+    # duplicate id: the later row wins (SoundCache_ParseBdatEntries re-points the node)
+    _check("sound duplicate id 16785897 resolves to the later row (SE_SAVE.wav)",
+           c.get(16785897).file == "SE_SAVE.wav" and len(c.duplicates()) == 2)
+    _check("sound voice id range == Sfx_PlayById voice-slider range",
+           min(k for k in e.effective() if k) == _st.VOICE_SLIDER_IDS.start
+           and max(e.effective()) == _st.VOICE_SLIDER_IDS.stop - 1)
+    _check("sound voice_jp differs from voice_en only in 45 STRM_*_REV files",
+           [r[0] for r in e.rows] == [r[0] for r in j.rows]
+           and sum(1 for a, b in zip(e.infos, j.infos) if a != b) == 45)
+    # edit
+    t = _st.SoundTable.parse(paths["common_audio_data.bdat"].read_bytes())
+    t.set(16785916, volume=90, priority=100, flag1=1)
+    t.rename(16785917, "SE_MYMOD_BLIP.ogg", name="SE_MYMOD_BLIP")
+    t2 = _st.SoundTable.parse(t.build())
+    _check("sound edit round trip (volume/priority/flag1, rename file+name)",
+           t2.get(16785916).info.volume == 90 and t2.get(16785916).info.priority == 100
+           and t2.get(16785916).info.flag1 == 1 and t2.get(16785917).file == "SE_MYMOD_BLIP.ogg"
+           and t2.get(16785918).file == "SE_WORDS_O.wav" and len(t2) == 541)
+    # add a brand-new id, re-parse, then remove it again
+    new_id = t.free_id([e])
+    t.add(new_id, "SE_MYMOD_BELL.ogg", volume=120, priority=80, flag1=0)
+    t3 = _st.SoundTable.parse(t.build())
+    ne = t3.get(new_id)
+    _check("sound add-entry re-parse (new id, name = file stem, strings in the pool)",
+           ne is not None and ne.file == "SE_MYMOD_BELL.ogg" and ne.name == "SE_MYMOD_BELL"
+           and ne.info.volume == 120 and len(t3) == 542 and new_id not in _st.VOICE_SLIDER_IDS
+           and t3.get(16785975).file == "SE_WORDS_D.wav")
+    t3.remove(new_id)
+    _check("sound remove restores the edited table byte for byte",
+           t3.build() == t2.build())
+    try:
+        t3.add(16785916, "X.ogg")
+        dup_ok = False
+    except _st.SoundTableError:
+        dup_ok = True
+    _check("sound add refuses an existing id without replace", dup_ok)
+    # find across tables + the lazy opcode annotation
+    hits = _st.find_all(16777511, tabs)
+    _check("sound find by id spans the tables (voice_jp flagged not-loaded)",
+           {h[0] for h in hits} == {"voice_en_audio_data.bdat", "voice_jp_audio_data.bdat"}
+           and any(h[2] for h in hits if h[0] == "voice_en_audio_data.bdat")
+           and not any(h[2] for h in hits if h[0] == "voice_jp_audio_data.bdat"))
+    lab = _st.LazySoundLabels(paths["common_audio_data.bdat"].parent.parent)
+    _check("sound labels on PlaySound/PlayVoicedSound listings",
+           _om.enum_arg_label(385, 0, 16785916) == "SE_WORDS_M.wav"
+           and _om.enum_arg_label(392, 0, 16777511) == "V_PLAM_TITLE_RUNE4.ogg"
+           and _om.render_action(385, ["16785917"]) == "PlaySound(16785917=SE_WORDS_F.ogg)"
+           and lab.get(16785975, ("",))[0] == "SE_WORDS_D.wav")
+    empty = _st.LazySoundLabels(tempfile.gettempdir())
+    _check("sound labels stay optional without a bundle", not empty and empty.get(1) is None)
 
 
 def test_asatk():
@@ -4965,6 +5044,18 @@ def test_script_authoring():
                f"{len(_dm)} menus, {len(_items)} items")
     else:
         _skip("dev_menus", "needs rf3.mc + rf3mc.eng")
+    # who speaks each DIALOG: only certain speakers are labelled -- set on every path,
+    # through CALLed routines (bank 210's request board speaks as the 'Eliza' name plate
+    # after the player's "By the way..."); a line after EndDialogue gets no label
+    if _mc:
+        _c210 = script.Container(_mc.read_bytes())
+        _b210 = _c210.banks[210]
+        _s210 = next((s for s in script.disassemble_bank(_b210) if s.entry_pc == 0x02D4), None)
+        _spk = script.dialog_speakers(_s210, _b210) if _s210 else {}
+        _check("DIALOG speakers: [player] 'By the way...', then [Eliza] via CALL; none after EndDialogue",
+               _spk.get(0x0E22) == "player" and _spk.get(0x0E4A) == "Eliza"
+               and _spk.get(0x0E6A) == "Eliza" and 0x0220 not in _spk,
+               f"{_spk.get(0x0E22)!r} / {_spk.get(0x0E4A)!r} / {_spk.get(0x0220)!r}")
     # actor names shared with alternate forms above the character range still name the
     # character: Clorica = 2 (also 308), Ventuswill = 21 (also 235 / 982)
     _names_ok = (script.actor_leaf_text(2) == "actor(Clorica)" and script.actor_leaf_text(21) == "actor(Ventuswill)"
@@ -4988,7 +5079,8 @@ def test_script_authoring():
         _check("mode leaves list as add / sub / set and assemble back to the same leaf bytes",
                _st is not None and _st.op == 417 and _mode == "add"
                and scriptasm._LEAF_WORDS["add"] == _b252.data[_st.args[1]:_st.args[1] + 1]
-               and scriptasm._LEAF_WORDS["sub"] == b"\x12" and scriptasm._LEAF_WORDS["set"] == b"\x13",
+               and scriptasm._LEAF_WORDS["sub"] == b"\x12" and scriptasm._LEAF_WORDS["set"] == b"\x13"
+               and script.arg_repr(_b252.data, _st.args[1], _st.op, 1) == "add",   # the editor's Script tab
                f"{_mode!r}")
 
 
@@ -5377,8 +5469,6 @@ def test_models():
         lit = sum(im.convert("L").histogram()[40:])
         _check("vertex colour is ignored like the game's shader (black _c0 still renders textured)",
                black and lit > 0.2 * im.width * im.height, f"{lit} of {im.width * im.height} px lit")
-        cut = model.render(tank, "front", 160).getchannel("A").histogram()
-        partial = sum(cut[1:255])
         # RGBA4444 is drawn with A in the top nibble and R in the low one (Rafflesia's leaves
         # are green in-game); every shipped one has a 0/15-only top nibble = punch-out alpha
         import struct as _st
@@ -5400,8 +5490,16 @@ def test_models():
                a44 and all(a44) and all(rt), f"{len(a44)} textures")
         _check("Rafflesia's leaf texture comes out leaf-coloured (not the red tint of R-in-top-nibble)",
                gg > rr and gg > bb, f"mean rgb {(rr, gg, bb)}")
-        _check("costume shading punches alpha out (only 0 or 255 left, alpha test 0.5)",
-               tank.materials[0].shading == "costume" and partial < 0.02 * sum(cut), f"{partial} partial px")
+        # alpha follows the Muteki program the PC game picks (bundleMuteki mtk_body / mtk_item):
+        # skinned shapes -> mtk_body (alpha rounded), the rest -> mtk_item (alpha kept, <= 0.1 dropped)
+        clo = model.load(B / "NPC_A_CLORICA.model")
+        _progs = {model.shape_program(clo, s) for s in clo.shapes if s.skin >= 1}
+        _hb = model.render(clo, "front", 160).getchannel("A").histogram()
+        _hi = model.render(tank, "front", 160).getchannel("A").histogram()
+        _check("alpha follows the PC program: skinned = mtk_body (0/255 only), BM_12 = mtk_item (nothing <= 0.1 kept)",
+               _progs == {"body"} and model.shape_program(tank, tank.shapes[0]) == "item"
+               and sum(_hb[1:255]) < 0.02 * sum(_hb) and sum(_hi[1:26]) == 0,
+               f"{_progs}, body partial {sum(_hb[1:255])}, item low {sum(_hi[1:26])}")
     # material animations (.bfmat): AnimChannel_SampleAsFloat curves driving texsrt0
     from rf4s_modkit import matanim
     bf = sorted(B.glob("*.bfmat"))
@@ -5457,6 +5555,161 @@ def test_models():
     _check("the map editor draws the over-model scenery over the ground",
            plain is not None and scen is not None and scen.size == plain.size
            and scen.tobytes() != plain.convert("RGBA").tobytes(), f"{scen.size if scen else None}")
+
+
+def test_model_import():
+    """.model geometry writing (rf4s_modkit.modelwrite): the pool rebuild is byte-exact on
+    shipped files, OBJ export -> import round-trips byte-identically, a replaced shape
+    re-parses with its new counts and positions, the relocation table / embedded textures
+    survive a pool that grows or shrinks, and in-place transforms touch only their shape."""
+    print("model import: rebuild, OBJ round trip, shape replacement, transforms:")
+    import math
+    import struct
+    from rf4s_modkit import model, modelwrite as mw, res_container, texture
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files:
+        _skip("model import", "no extracted .model files"); return
+    sample = files[::8] if QUICK else files
+    n = same = valid = 0
+    for f in sample:
+        d = f.read_bytes()
+        if not model.is_mesh(d):
+            continue
+        n += 1
+        try:
+            same += mw.rebuild(d) == d
+            valid += not mw.validate(d)
+        except mw.ModelWriteError:
+            pass
+    _check("no-op pool rebuild is byte-identical and the loader walk validates"
+           + (" (every 8th .model)" if QUICK else " (every mesh .model)"),
+           n > 0 and same == n and valid == n, f"{same}/{n} identical, {valid}/{n} valid")
+
+    # export -> import round trip, every shape
+    rt_models = [B / x for x in ("I_ShieldJ03.model", "NPC_C_BADO.model", "BM_44_1.model", "BM_04.model",
+                                 "MAP_CITY_00.model", "ANIM_DUNG_A02.model")] if QUICK else files
+    shapes = ident = 0
+    far = []
+    for f in rt_models:
+        d = f.read_bytes() if f.is_file() else b""
+        if not model.is_mesh(d):
+            continue
+        m = model.parse(d)
+        obj = model.to_obj(m)[0]
+        for si in range(len(m.shapes)):
+            shapes += 1
+            ident += mw.import_obj(d, si, obj) == d
+            if QUICK or si == 0:        # rebuild every vertex from the OBJ values (frames math)
+                r = mw.import_obj(d, si, obj, keep_exact=False)
+                m2 = model.parse(r)
+                a, b = m.shape_vertices(m.shapes[si]), m2.shape_vertices(m2.shapes[si])
+                e = max((max(abs(x - y) for x, y in zip(p, q)) / max(1.0, max(map(abs, p)))
+                         for p, q in zip(a, b)), default=0.0)
+                if e > 1e-5 or m2.shapes[si].indices != m.shapes[si].indices or mw.validate(r):
+                    far.append((f.name, si, e))
+    _check("OBJ export -> import of an unmodified OBJ is byte-identical, shape by shape",
+           shapes > 0 and ident == shapes, f"{ident}/{shapes} shapes")
+    _check("re-deriving every vertex from the OBJ lands back on the exported positions "
+           "(bone frames for skin 0/1, model space for smooth skins)", not far, f"{far[:3]}")
+
+    # replace a shape with a cube (shrinks the pool) / a big grid (grows it)
+    npc_p = B / "NPC_C_BADO.model"
+    shield_p = B / "I_ShieldJ03.model"
+    for path, si in ((shield_p, 0), (npc_p, 1), (B / "BM_04.model", 0)):
+        if not path.is_file():
+            _skip(f"cube import {path.name}", "file missing"); continue
+        d = path.read_bytes()
+        m = model.parse(d)
+        cube = mw.cube_obj((1.0, 2.0, 3.0), 10.0)
+        r = mw.import_obj(d, si, cube)
+        m2 = model.parse(r)
+        sh2 = m2.shapes[si]
+        pos = m2.shape_vertices(sh2)
+        want = [o.vertices for o in mw.parse_obj(cube)][0]
+        pos_ok = len(pos) == 24 and all(max(abs(x - y) for x, y in zip(p, w[0])) < 1e-4 for p, w in zip(pos, want))
+        others = all(m2.vertex_buffers[i].data == m.vertex_buffers[i].data and m2.shapes[i].indices == m.shapes[i].indices
+                     for i in range(len(m.shapes)) if i != si)
+        tex_ok = [t["name"] for t in texture.bntx_info(r)] == [t["name"] for t in texture.bntx_info(d)] and \
+            all(texture.decode_bntx(r, t["index"]).tobytes() == texture.decode_bntx(d, t["index"]).tobytes()
+                for t in texture.bntx_info(d)[:2])
+        info = res_container.inspect(r)
+        rlt_ok = info["reloc_table_offset"] == struct.unpack_from("<I", r, 0x10)[0] and \
+            r[info["reloc_table_offset"]:info["reloc_table_offset"] + 4] == b"_RLT"
+        _check(f"{path.name} shape {si} (skin {m.shapes[si].skin}) -> cube: 24 v / 12 t at the OBJ positions, "
+               f"other shapes and textures intact, relocation walk clean",
+               m2.vertex_buffers[sh2.vertex_buffer].count == 24 and len(sh2.indices) == 36 and pos_ok
+               and others and tex_ok and rlt_ok and not mw.validate(r),
+               f"{len(d):,} -> {len(r):,} B")
+    if shield_p.is_file():
+        d = shield_p.read_bytes()
+        N = 40
+        pts = [(math.cos(2 * math.pi * i / N) * 5, j * 1.0, math.sin(2 * math.pi * i / N) * 5)
+               for j in range(N) for i in range(N)]
+        tris = [(j * N + i, j * N + (i + 1) % N, (j + 1) * N + i) for j in range(N - 1) for i in range(N)] + \
+               [(j * N + (i + 1) % N, (j + 1) * N + (i + 1) % N, (j + 1) * N + i) for j in range(N - 1) for i in range(N)]
+        r = mw.replace_shape(d, 0, pts, tris)
+        m2 = model.parse(r)
+        slots_old = {s for s, _t in mw.relocation_slots(d)}
+        slots_new = {s for s, _t in mw.relocation_slots(r)}
+        L = mw.layout(r)
+        box = struct.unpack_from("<6f", r, L.shapes[0].bbox)
+        raw = m2.vertex_buffers[0].data["_p0"]
+        (c, e), rad = mw._bounds(raw)
+        _check("a 1600-vertex import grows the pool: tail shifted by 4 KiB pages, every slot and "
+               "texture still resolves, submesh / buffer sizes / bounds follow the new mesh",
+               len(r) > len(d) and (len(r) - len(d)) % 0x1000 == 0 and slots_old == slots_new
+               and m2.vertex_buffers[0].count == 1600 and len(m2.shapes[0].indices) == 3 * len(tris)
+               and not mw.validate(r) and texture.decode_bntx(r, 0) is not None
+               and tuple(box) == tuple(c) + tuple(e)
+               and abs(struct.unpack_from("<f", r, L.shapes[0].radius)[0] - rad) < 1e-6,
+               f"{len(d):,} -> {len(r):,} B")
+        # back: re-importing the original export restores the original counts
+        back = mw.import_obj(r, 0, model.to_obj(model.parse(d))[0])
+        mb = model.parse(back)
+        _check("importing the original OBJ back restores the original geometry and file size",
+               len(back) == len(d) and mb.shapes[0].indices == model.parse(d).shapes[0].indices
+               and all(max(abs(x - y) for x, y in zip(p, q)) < 1e-4 for p, q in
+                       zip(mb.shape_vertices(mb.shapes[0]), model.parse(d).shape_vertices(model.parse(d).shapes[0]))))
+
+    # render after round trip
+    try:
+        import numpy as _npm  # noqa: F401  (the raster renderer)
+    except ImportError:
+        _npm = None
+    if _npm is not None and npc_p.is_file():
+        d = npc_p.read_bytes()
+        m = model.parse(d)
+        r = mw.import_obj(d, 0, model.to_obj(m)[0])
+        _check("render after an export -> import round trip is pixel-identical",
+               model.render(m, "front", 160).tobytes() == model.render(model.parse(r), "front", 160).tobytes())
+
+    # in-place transforms
+    if npc_p.is_file() and shield_p.is_file():
+        for path in (shield_p, npc_p, B / "BM_04.model"):
+            if not path.is_file():
+                continue
+            d = path.read_bytes()
+            m = model.parse(d)
+            L = mw.layout(d)
+            sh = L.shapes[0]
+            t = mw.transform_shape(d, 0, offset=(1.0, 2.0, 3.0))
+            m2 = model.parse(t)
+            a, b = m.shape_vertices(m.shapes[0]), m2.shape_vertices(m2.shapes[0])
+            moved = all(abs(q[k] - p[k] - (1.0, 2.0, 3.0)[k]) < 1e-3 * max(1.0, abs(p[k])) for p, q in zip(a, b) for k in range(3))
+            vb0 = L.pool + sh.vertex_offset
+            vb1 = vb0 + sh.buffers[0][2]
+            touched = {i for i in range(len(d)) if d[i] != t[i]} if len(t) == len(d) else {-1}
+            allowed = set(range(vb0, vb1)) | set(range(sh.bbox, sh.bbox + 0x18 * (1 + sh.n_submesh))) | \
+                set(range(sh.radius, sh.radius + 4))
+            back = mw.transform_shape(mw.transform_shape(d, 0, scale=2.0, rotate=(10, 20, 30)),
+                                      0, matrix=mw._inv4(mw.transform_matrix(2.0, None, (10, 20, 30),
+                                                                             mw.shape_center(m, 0))))
+            c = model.parse(back).shape_vertices(model.parse(back).shapes[0])
+            inv_ok = all(max(abs(x - y) for x, y in zip(p, q)) < 1e-3 * max(1.0, max(map(abs, p))) for p, q in zip(a, c))
+            _check(f"{path.name}: transform offset moves shape 0 (skin {m.shapes[0].skin}) in model space, "
+                   f"touches only its vertices and bounds; scale+rotate then the inverse returns",
+                   len(t) == len(d) and moved and touched <= allowed and not mw.validate(t) and inv_ok)
 
 
 def test_attr_tooltips():
@@ -6155,6 +6408,469 @@ def test_asset_explorer_gui():
     finally:
         root.destroy()
 
+def test_material_anims():
+    """matanim.py (2026-09-24): all 59 .bfmat parse and rebuild byte for byte (also through
+    the JSON dump), texture patterns (AnimChannel_SampleAsInt step curves) swap a BM_*
+    eye texture between frames, opacity fades a material's alpha, retiming keeps the loop
+    closed, and the bfmat-info / -build / -set CLI runs."""
+    print("material animations (.bfmat FMAA):")
+    import json as _json
+    import subprocess, tempfile
+    from rf4s_modkit import matanim, model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(B.glob("*.bfmat"))
+    bad, kinds = [], {}
+    for f in files:
+        d = f.read_bytes()
+        try:
+            a = matanim.parse(d)
+            if matanim.build(a) != d:
+                bad.append((f.name, "build"))
+            elif matanim.build(matanim.from_json(_json.loads(_json.dumps(matanim.to_json(a))))) != d:
+                bad.append((f.name, "json"))
+            for m in a.materials:
+                for p in m.params:
+                    kinds[p.name] = kinds.get(p.name, 0) + 1
+                kinds["pattern"] = kinds.get("pattern", 0) + len(m.patterns)
+        except Exception as e:  # noqa: BLE001
+            bad.append((f.name, repr(e)))
+    _check("all .bfmat parse and rebuild byte for byte (build + JSON round trip)",
+           len(files) == 59 and not bad, bad[:3] or f"{len(files)} files")
+    _check("shipped material animations: texsrt0 49, opacity 46, texture patterns 29, nothing else",
+           kinds == {"texsrt0": 49, "opacity": 46, "pattern": 29}, str(kinds))
+
+    # texture pattern: BM_05's eye (sampler _a0) steps through bm05_eye00..03
+    m5, a5 = model.load(B / "BM_05.model"), matanim.load(B / "BM_05.bfmat")
+    mi = next(mt.index for mt in m5.materials if mt.name == "BM_05_me")
+    picks = [matanim.material_state(m5, a5, f).get(mi, {}).get("texture") for f in (0, 3, 5, 8)]
+    _check("BM_05 eye pattern picks bm05_eye00/01/02/03 at frames 0/3/5/8 (step int keys)",
+           picks == ["bm05_eye00", "bm05_eye01", "bm05_eye02", "bm05_eye03"]
+           and matanim.material_samplers(m5, mi) == ["_a0"], str(picks))
+    r0 = model.render(m5, "front", 160, anim=a5, frame=0)
+    r8 = model.render(m5, "front", 160, anim=a5, frame=8)
+    rn = model.render(m5, "front", 160)
+    _check("a BM_* blink changes the rendered texture between frames (frame 0 = no anim)",
+           r0.tobytes() != r8.tobytes() and r0.tobytes() == rn.tobytes())
+    a2 = matanim.load(B / "BM_02.bfmat")
+    p2 = a2.material("BM_02_03").patterns[0]
+    _check("pattern index clamps to the texture array; the frame wraps at the frame count "
+           "(BM_02's key at frame 34 = frame count never plays)",
+           p2.index(34, 5) == 4 and a2.play_frame(34) == 0 and p2.index(a2.play_frame(34), 5) == 0
+           and p2.index(24, 5) == 3)
+    # opacity: level_up's text cards fade in
+    ml, al = model.load(B / "level_up.model"), matanim.load(B / "level_up.bfmat")
+    s0, s30 = matanim.material_state(ml, al, 0), matanim.material_state(ml, al, 30)
+    alpha = lambda im: sum(im.getchannel("A").tobytes())
+    i0, i30 = model.render(ml, "top", 160, anim=al, frame=0), model.render(ml, "top", 160, anim=al, frame=30)
+    _check("opacity (rateOpacityData.r, clamped) fades level_up: 0 at frame 0, visible at 30",
+           all(v["opacity"] == 0.0 for v in s0.values()) and max(v["opacity"] for v in s30.values()) > 0.5
+           and alpha(i0) == 0 and alpha(i30) > 0, f"alpha {alpha(i0)} -> {alpha(i30)}")
+    # retime: twice as fast, the curve still ends on the (new) last frame
+    a02 = matanim.load(B / "ANIM_DUNG_A02.bfmat")
+    before = [a02.materials[0].params[0].value(f)[4] for f in (0, 120, 239)]
+    matanim.retime(a02, 2.0)
+    fast = matanim.parse(matanim.build(a02))
+    after = [fast.materials[0].params[0].value(f * 120 / 239)[4] for f in (0, 120, 239)]
+    _check("retime x2: 239 -> 120 frames, same values at the scaled frame (ratio 120/239)",
+           fast.frame_count == 120 and fast.materials[0].params[0].curves[0].end == 120.0
+           and all(abs(x - y) < 1e-4 for x, y in zip(before, after)),
+           f"{[round(v, 3) for v in before]} vs {[round(v, 3) for v in after]}")
+    # companions by material name
+    _check("companion .bfmat found by material name (SYS_MENU_ANIME_09 -> anim_com09, efc_start_deu -> font_start)",
+           "anim_com09" in matanim.companion_stems("SYS_MENU_ANIME_09")
+           and "font_start" in matanim.companion_stems("efc_start_deu")
+           and matanim.binds(matanim.load(B / "anim_com09.bfmat"), model.load(B / "SYS_MENU_ANIME_09.model")))
+    # CLI
+    cli = [sys.executable, str(pathlib.Path(__file__).with_name("rf4mod.py")), "res"]
+    with tempfile.TemporaryDirectory() as td:
+        j, o, s = pathlib.Path(td) / "b.json", pathlib.Path(td) / "b.bfmat", pathlib.Path(td) / "s.bfmat"
+        r1 = subprocess.run(cli + ["bfmat-info", str(B / "BM_10.bfmat")], capture_output=True, text=True)
+        r2 = subprocess.run(cli + ["bfmat-info", str(B / "BM_10.bfmat"), "--json", str(j)], capture_output=True, text=True)
+        r3 = subprocess.run(cli + ["bfmat-build", str(j), str(o)], capture_output=True, text=True)
+        r4 = subprocess.run(cli + ["bfmat-set", str(B / "BM_10.bfmat"), str(s), "--speed", "0.5"],
+                            capture_output=True, text=True)
+        ok = (r1.returncode == 0 and "BM_10_fw08" in r1.stdout and r3.returncode == 0
+              and o.read_bytes() == (B / "BM_10.bfmat").read_bytes()
+              and r4.returncode == 0 and matanim.load(s).frame_count == 46)
+        _check("CLI res bfmat-info / bfmat-build (byte-exact) / bfmat-set --speed",
+               ok, (r1.stderr + r2.stderr + r3.stderr + r4.stderr)[-300:])
+
+
+def test_skeletal_anims():
+    """skelanim.py (2026-09-24): every .bfskl parses (FRES/FSKA, Euler XYZ, cubic curves),
+    a walk cycle moves bones between frames and loops back, the posed/skinned render of a
+    character differs from its bind pose, the CLI anim-info / anim-gif run, and the Model
+    tab's motion row plays."""
+    print("skeletal animations (.bfskl FSKA):")
+    from rf4s_modkit import skelanim, model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(B.glob("*.bfskl"))
+    if not files:
+        _skip("skeletal animations", "no extracted bundleMain"); return
+    sample = files[::25] if QUICK else files
+    bad = []
+    for f in sample:
+        try:
+            a = skelanim.parse(f.read_bytes())
+            if sum(len(b.curves) for b in a.bones) != a.curve_count or not a.euler:
+                bad.append(f.name)
+        except Exception as e:
+            bad.append(f"{f.name}: {e}")
+    _check(f"{len(sample)}{' sampled' if QUICK else ''} of {len(files)} .bfskl parse; curve totals "
+           "match FSKA +0x50; all Euler XYZ", len(files) == 2001 and not bad, str(bad[:3]))
+    walk = skelanim.load(B / "00W_002_walk.bfskl")
+    m = model.load(B / "NPC_A_CLORICA.model")
+    thigh = walk.bone("Bip01_L_Thigh")
+    bind = next(b for b in m.bones if b.name == "Bip01_L_Thigh")
+    # rn: the curves' own value at the (unwrapped) last frame -- the cycle is seamless
+    r0, rh, rn = (thigh.srt(f, bind)[1] for f in (0, walk.frame_count / 2, walk.frame_count - 1e-3))
+    _check("walk cycle: the thigh swings between frame 0 and mid-cycle and loops back at frameCount",
+           walk.loops and max(abs(x - y) for x, y in zip(r0, rh)) > 0.2
+           and max(abs(x - y) for x, y in zip(r0, rn)) < 1e-3 and walk.wrap(walk.frame_count) == 0.0,
+           f"{r0} / {rh} / {rn}")
+    matched, _ao, model_only = skelanim.bound_bones(m, walk)
+    _check("bones bind by name (all 25 of Clorica's bones are driven by the 00W_ walk)",
+           len(matched) == len(m.bones) and not model_only, f"{len(matched)}/{len(m.bones)}")
+    m.pose = None
+    pal = m.skin_palette()
+    ident = all(abs(pal[k][r][c] - (1.0 if r == c else 0.0)) < 1e-3
+                for k in range(m.smooth_count) for r in range(3) for c in range(4))
+    _check("inverse bind matrices (SKEL +0x28) invert the bind pose: smooth palette = identity",
+           m.smooth_count == 24 and len(m.inverse_bind) == 24 and ident)
+    frames = model.render_skeletal_animation(m, walk, "side", 160, frames=[0, walk.frame_count // 4])
+    bind_im = model.render(m, "side", 160, background=(32, 32, 36, 255))
+    from PIL import ImageChops
+    diff = ImageChops.difference(frames[0].convert("RGB"), frames[1].convert("RGB")).getbbox()
+    _check("posed + skinned render moves between frames and differs from the bind pose",
+           diff is not None and frames[0].tobytes() != bind_im.tobytes() and m.pose is None)
+    cands = skelanim.anims_for_model(B / "M24_3.model")
+    _check("anims_for_model: monster variants use their skeleton's set (M24_3 -> M24_0_*)",
+           cands and all(p.name.startswith("M24_0_") for p in cands), str(cands[:2]))
+    import subprocess, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        gif = pathlib.Path(td) / "a.gif"
+        r1 = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("rf4mod.py")), "res", "anim-info",
+                             str(B / "M03_0_02.bfskl"), "--model", str(B / "M03_0.model")],
+                            capture_output=True, text=True)
+        r2 = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("rf4mod.py")), "res", "anim-gif",
+                             str(B / "M03_0.model"), str(B / "M03_0_02.bfskl"), str(gif), "--size", "96",
+                             "--step", "12"], capture_output=True, text=True)
+        from PIL import Image
+        n_fr = Image.open(gif).n_frames if gif.is_file() else 0
+    _check("CLI res anim-info / anim-gif", r1.returncode == 0 and "20 bones matched" in r1.stdout
+           and r2.returncode == 0 and n_fr == 4, (r1.stderr or r2.stderr)[-200:] + f" frames={n_fr}")
+    # GUI: the Model tab's motion row lists the model's .bfskl and plays one
+    try:
+        import tkinter as tk
+        import importlib.util, time
+        spec = importlib.util.spec_from_file_location("rf4mod_gui_sk", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+        gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+        root = tk.Tk(); root.withdraw()
+    except Exception as e:
+        _skip("Model tab motion row", repr(e)); return
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        app = gui.App(root, initial=str(B))
+        ent = next(e for e in app.source.entries if e[0].rsplit("/", 1)[-1] == "M03_0.model")
+        app._show(ent[0], ent[2]()); root.update()
+
+        def widgets(w):
+            for c in w.winfo_children():
+                yield c
+                yield from widgets(c)
+        cbs = [w for w in widgets(app.content) if w.winfo_class() == "TCombobox"
+               and any(str(v).endswith(".bfskl") for v in w.cget("values"))]
+        ok = False
+        if cbs:
+            cbs[0].set("M03_0_02.bfskl"); cbs[0].event_generate("<<ComboboxSelected>>"); root.update()
+            lab = [w for w in widgets(app.content) if w.winfo_class() == "TLabel"
+                   and str(w.cget("text")).startswith("frame ") and "/48" in str(w.cget("text"))]
+            play = [w for w in cbs[0].master.winfo_children() if w.winfo_class() == "TButton"
+                    and str(w.cget("text")) == "Play"]
+            before = str(lab[0].cget("text")) if lab else None
+            if play:
+                play[0].invoke()
+                t_end = time.perf_counter() + 1.0
+                while time.perf_counter() < t_end:
+                    root.update(); time.sleep(0.02)
+                play[0].invoke()
+            after = str(lab[0].cget("text")) if lab else None
+            ok = bool(lab and play) and before != after
+        _check("Model tab: motion row lists the model's .bfskl and Play advances the frame",
+               ok and not errs, f"{len(cbs)} combos, errs={len(errs)}")
+    finally:
+        root.destroy()
+
+
+def test_portraits():
+    """E-mote character portraits (.psbData / .emtbytes) -- rf4s_modkit.psb."""
+    print("portraits (E-mote PSB):")
+    from rf4s_modkit import psb as _psb
+    files = sorted(EXTRACTED.rglob("*.psbData")) + sorted(EXTRACTED.rglob("*.emtbytes"))
+    if not files:
+        _skip("psb corpus", "no .psbData/.emtbytes extracted"); return
+    bad, fmts, face_missing = [], {}, []
+    for f in files:
+        try:
+            p = _psb.PSB(f.read_bytes())
+            ts = p.textures()
+            if len(ts) != 1 or _psb._bytes_per_texture(ts[0]) != ts[0]["length"]:
+                bad.append(f"{f.name}: textures {[(t['type'], t['length']) for t in ts]}")
+            else:
+                fmts[(f.suffix, ts[0]["type"], p.encrypted)] = fmts.get((f.suffix, ts[0]["type"], p.encrypted), 0) + 1
+            tl = {_psb.repair_text(x) for x in p.timelines() if isinstance(x, str)}
+            # SP-variant files are only loaded for the SP1/SP2 face rows (RF4S.exe+0x1D8730):
+            # they must carry that row; several omit the six everyday faces.
+            sp = re.search(r"_SP(\d?)\.", f.name)
+            need = ([_psb.FACE_TIMELINES[6 if sp.group(1) in ("", "1") else 7]] if sp
+                    else list(_psb.FACE_TIMELINES[:6]))
+            # (B_FORTE / PLAYER_W_SMALL carry no NN_ id and are not in the exe's path table)
+            if re.match(r"\d\d_", f.name) and not all(x in tl for x in need):
+                face_missing.append(f.name)
+        except Exception as e:  # noqa: BLE001
+            bad.append(f"{f.name}: {e}")
+    _check("psb: every .psbData/.emtbytes parses (checksum, tree, one atlas of the right size)",
+           not bad, f"{len(files) - len(bad)}/{len(files)} ok; " + ("; ".join(bad[:3]) or
+                                                                   ", ".join(f"{k[0]} {k[1]} enc={k[2]} x{v}" for k, v in sorted(fmts.items()))))
+    _check("psb: .psbData = RGBA8 plain, .emtbytes = ASTC_8BPP header-encrypted",
+           set(fmts) <= {(".psbData", "RGBA8", 0), (".emtbytes", "ASTC_8BPP", 1)}, str(sorted(fmts)))
+    _check("psb: face frames 0..5 (通常..照れ) are timelines in every base/outfit portrait, SP1/SP2 in the SP files",
+           not face_missing, f"missing in {face_missing[:4]}" if face_missing else f"{len(files)} files")
+    exe = REPO / "RF4S.exe"
+    if exe.is_file():
+        eb = exe.read_bytes()
+        paths = set(m.group(1).decode() for m in re.finditer(rb"rom:/emote/([A-Z0-9_]+\.psbData)\x00", eb))
+        have = {f.name for f in files}
+        _check("psb: RF4S.exe's 64 rom:/emote/*.psbData all ship; exe never names .emtbytes",
+               len(paths) == 64 and paths <= have and b"emtbytes" not in eb,
+               f"{len(paths)} exe paths, missing={sorted(paths - have)[:3]}")
+    else:
+        _skip("psb exe path table", "RF4S.exe not next to Bundle")
+    a_p = next((f for f in files if f.name == "02_CLORICA.psbData"), None)
+    e_p = next((f for f in files if f.name == "02_CLORICA.emtbytes"), None)
+    if not (a_p and e_p):
+        _skip("psb Clorica checks", "02_CLORICA not extracted"); return
+    a, e = _psb.PSB(a_p.read_bytes()), _psb.PSB(e_p.read_bytes())
+    fa = {_psb.repair_text(s) for s in a.strings} - {"RGBA8"}
+    fe = set(e.strings) - {"ASTC_8BPP"}
+    _check("psb: .psbData text repair == the .emtbytes clean UTF-8 (strings + names)",
+           fa == fe and {_psb.repair_text(n) for n in a.names} == set(e.names),
+           f"{len(fa)} strings, {len(a.names)} names")
+    try:
+        import json as _json
+        js = _json.dumps(_psb.to_jsonable(a), ensure_ascii=False)
+        _check("psb: JSON dump of the full tree", '"$res": 0' in js and "照れ" in js, f"{len(js):,} chars")
+    except Exception as ex:  # noqa: BLE001
+        _check("psb: JSON dump of the full tree", False, str(ex))
+    if not texture.HAS_PIL:
+        _skip("psb atlas decode", "Pillow missing"); return
+    from PIL import Image, ImageOps, ImageChops
+    ta = a.textures()[0]
+    im = _psb.decode_texture(a, ta)
+    alpha = im.getchannel("A")
+    hist = alpha.histogram()
+    opaque = hist[255] / (im.width * im.height)
+    colors = len(im.convert("RGB").resize((128, 128)).getcolors(1 << 16) or [])
+    _check("psb: Clorica atlas decodes to a plausible image",
+           im.size == (2048, 1236) and hist[0] > 0 and 0.2 < opaque < 0.8 and colors > 500,
+           f"{im.size[0]}x{im.size[1]}, {opaque:.0%} opaque, {colors} colours, {len(ta['icons'])} parts")
+    try:
+        import texture2ddecoder  # noqa: F401
+        ie = _psb.decode_texture(e, e.textures()[0])
+        diff = ImageChops.difference(im, ie).convert("L").histogram()
+        mad = sum(i * c for i, c in enumerate(diff)) / (im.width * im.height)
+        _check("psb: .emtbytes ASTC atlas matches the .psbData RGBA8 atlas", mad < 1.0, f"mean |d| {mad:.3f}")
+    except ImportError:
+        _skip("psb ASTC decode", "texture2ddecoder missing")
+    same = _psb.replace_texture(a, ta, im)
+    _check("psb: replace with the decoded atlas is byte-identical", same == a.data)
+    rgb = ImageOps.invert(im.convert("RGB")); rgb.putalpha(alpha)
+    blob = _psb.replace_texture(a, ta, rgb)
+    o, n = ta["offset"], ta["length"]
+    r = _psb.PSB(blob)
+    back = _psb.decode_texture(r, r.textures()[0])
+    _check("psb: repaint round-trip (re-parses, pixels = PNG, every other byte identical)",
+           len(blob) == len(a.data) and blob[:o] == a.data[:o] and blob[o + n:] == a.data[o + n:]
+           and back.tobytes() == rgb.tobytes() and blob[o:o + n] != a.data[o:o + n])
+    try:
+        _psb.replace_texture(a, ta, im.resize((64, 64)))
+        _check("psb: wrong-size PNG refused", False)
+    except _psb.PSBError:
+        _check("psb: wrong-size PNG refused", True)
+    try:
+        _psb.replace_texture(e, e.textures()[0], im)
+        _check("psb: ASTC (.emtbytes) replace refused", False)
+    except _psb.PSBError:
+        _check("psb: ASTC (.emtbytes) replace refused", True)
+    # asset explorer: a .psbData shows its atlas (zoomable canvas, Export = PNG)
+    try:
+        import importlib.util
+        import tkinter as tk
+        spec = importlib.util.spec_from_file_location("rf4mod_gui_p", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+        gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+        _headless_dialogs()
+        root = tk.Tk(); root.withdraw()
+        errs = []
+        root.report_callback_exception = lambda *x: errs.append(x)
+        try:
+            app = gui.App(root, initial=str(a_p.parent))
+            ent = next(x for x in app.source.entries if x[0].rsplit("/", 1)[-1] == a_p.name)
+            app._show(ent[0], ent[2]()); root.update_idletasks()
+            _check("psb: asset explorer shows the portrait atlas for a .psbData",
+                   app._pil is not None and app._pil.size == im.size and app._export_kind == "png" and not errs)
+        finally:
+            root.destroy()
+    except Exception as ex:  # noqa: BLE001
+        _skip("psb asset explorer view", str(ex))
+
+
+def test_shader_archive():
+    """Shaders: .bfsha (FSHA+BNSH GLSL source arrays, read/extract only) and the loose
+    bundleMuteki GLSL the PC build actually compiles (preprocess + validated replace)."""
+    print("\n[shaderarchive]")
+    from rf4s_modkit import shaderarchive as sa
+    main = next((p for p in (EXTRACTED / "bundleMain", BUNDLE_DIR / "bundleMain") if p.is_dir()), None)
+    if main is None or not (main / "rf4cmv.bfsha").is_file():
+        _skip("shader archives", "bundleMain/*.bfsha not extracted")
+        return
+    arcs = {}
+    for n in ("rf4cmv", "notexture", "billboard"):
+        try:
+            arcs[n] = sa.load(main / f"{n}.bfsha")
+        except Exception as e:  # noqa: BLE001
+            _check(f"{n}.bfsha parses", False, str(e))
+    _check("all 3 .bfsha archives parse", len(arcs) == 3,
+           ", ".join(f"{n}: {len(a.models)} model(s)" for n, a in arcs.items()))
+    if len(arcs) != 3:
+        return
+    names = [m.name for m in arcs["rf4cmv"].models]
+    _check("rf4cmv shading models body / costume / lighting (+ env)",
+           names[:3] == ["body", "costume", "lighting"], str(names))
+    bad, nsec, reloc_bad = [], 0, []
+    for n, a in arcs.items():
+        rel = set(a.pointers)
+        for m in a.models:
+            brel = {m.bnsh_offset + o for o in sa.relocation_pointers(a.data, m.bnsh_offset)}
+            if m.bnsh_offset and (m.offset + 0x98) not in rel:
+                reloc_bad.append(f"{n}/{m.name} BNSH ptr")
+            for v in m.variations:
+                for s in v.source_stages:
+                    nsec += 1
+                    src = s.source
+                    define = b"NN_G3D_VERTEX_SHADER" if s.stage == "vertex" else b"NN_G3D_FRAGMENT_SHADER"
+                    if not (src.startswith(b"#version 430") and define in s.prologue
+                            and len(s.pieces) == 3):
+                        bad.append(f"{n}/{m.name}/{s.stage}")
+                    for p in s.pieces:
+                        if a.data[p.offset + p.size] != 0 or p.ptr_field not in brel:
+                            bad.append(f"{n}/{m.name}/{s.stage}@0x{p.offset:X}")
+    _check("every source section = #version 430 + option #defines + body, NUL-terminated, "
+           "piece pointers listed in the BNSH _RLT", not bad and nsec == 12,
+           f"{nsec} sections" + (f"; bad {bad[:4]}" if bad else ""))
+    _check("each shading model's BNSH pointer is relocated by the FSHA _RLT", not reloc_bad,
+           str(reloc_bad[:3]))
+    body = arcs["rf4cmv"].model("body")
+    _check("body: static albedo_tex/multi_tex, dynamic skinning/coord/system_id, 1 program",
+           [o.name for o in body.static_options] == ["albedo_tex", "multi_tex"]
+           and [o.name for o in body.dynamic_options] == ["skinning", "coord", "system_id"]
+           and body.program_count == 1 and "_p0" in body.attribs)
+    offs = sorted((p.offset, p.size) for a in [arcs["rf4cmv"]] for _m, _v, s in a.sections()
+                  for p in s.pieces)
+    _check("rf4cmv source pieces are distinct (no shared blocks between stages/models)",
+           all(o1 + n1 <= o2 for (o1, n1), (o2, _n2) in zip(offs, offs[1:])))
+    try:
+        blob = arcs["rf4cmv"].switch_binary("body", "vertex")
+        _check("Switch GPU binary (zlib) decompresses to the recorded size",
+               len(blob) == arcs["rf4cmv"].model("body").variations[0].binary_stages[0][2])
+    except Exception as e:  # noqa: BLE001
+        _check("Switch GPU binary (zlib) decompresses", False, str(e))
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_shader_"))
+    try:
+        written = arcs["rf4cmv"].extract(tmp)
+        want = {f"{m}.{e}.glsl" for m in ("body", "costume", "lighting", "env") for e in ("vert", "frag")}
+        got = {p.name for p in written}
+        same = all((tmp / "rf4cmv" / f"{m.name}.{sa.STAGE_EXT[s.stage]}.glsl").read_bytes() == s.source
+                   for m, _v, s in arcs["rf4cmv"].sections())
+        _check("extract writes body/costume/lighting/env vert+frag, byte-equal to the parsed "
+               "sections (+ index.json)", want <= got and same and "index.json" in got)
+
+        # ---- loose Muteki GLSL: the route the exe compiles -------------------------------
+        mut = next((p for p in (EXTRACTED / "bundleMuteki", BUNDLE_DIR / "bundleMuteki")
+                    if p.is_dir()), None)
+        if mut is None or not (mut / "mtk_body_f.glsl").is_file():
+            _skip("loose Muteki GLSL", "bundleMuteki not extracted")
+            return
+        idx = sa.ShaderIndex(mut)
+        progs = idx.programs()
+        _check("loose programs mtk_body / mtk_item / mtk_billboard have _v and _f files",
+               all(progs[n]["vertex"] and progs[n]["fragment"]
+                   for n in ("mtk_body", "mtk_item", "mtk_billboard")))
+        miss_all, n_exp = [], 0
+        for n, f in progs.items():
+            if f["vertex"] and f["fragment"]:
+                r = sa.expand_program(n, idx)
+                n_exp += 1
+                miss_all += r["missing"]
+                if b"#include" in re.sub(rb"//[^\n]*|/\*.*?\*/", b"", r["vertex"] + r["fragment"],
+                                         flags=re.S):
+                    miss_all.append(f"{n}: unexpanded #include")
+        _check("every loose program preprocesses with all #includes resolved",
+               not miss_all and n_exp >= 10, f"{n_exp} programs" + (f"; {miss_all[:3]}" if miss_all else ""))
+        orig = (mut / "mtk_body_f.glsl").read_bytes()
+        dest, probs = sa.replace_loose("mtk_body_f.glsl", orig, tmp / "noop", idx)
+        _check("no-op replace of mtk_body_f.glsl writes the shipped bytes back unchanged",
+               dest.read_bytes() == orig and not probs, str(probs[:2]))
+        marker = b"\n// rf4s_modkit selftest edit\n"
+        edited = orig + marker
+        dest, probs = sa.replace_loose("mtk_body_f.glsl", edited, tmp / "mod", idx)
+        over = sa.ShaderIndex(tmp / "mod", mut)
+        new = sa.expand_program("mtk_body", over)["fragment"]
+        base = sa.expand_program("mtk_body", idx)
+        others_same = all(sa.expand_program(n, over) == sa.expand_program(n, idx)
+                          for n in ("mtk_item", "mtk_billboard"))
+        _check("replaced source re-reads with the new text; vertex + other programs untouched",
+               not probs and marker in new and marker not in base["fragment"]
+               and sa.expand_program("mtk_body", over)["vertex"] == base["vertex"] and others_same)
+        _, probs = sa.replace_loose("mtk_body_f.glsl", b"void f(){}\n#include <no_such.inc>\n",
+                                    tmp / "bad", idx)
+        _check("replace flags a missing #include / #version / main()",
+               any("no_such" in p for p in probs) and any("#version" in p for p in probs)
+               and any("main()" in p for p in probs))
+        v = sa.preprocess(b"#version 430\nx\n", idx, defines={"K": 1})
+        _check("preprocess: #version > 330 -> 330 + fp64 extension; defines after #version",
+               v == b"#version 330\n#extension GL_ARB_gpu_shader_fp64 : enable\n#define K 1\nx\n", repr(v))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    # ---- static exe evidence (offline disassembly anchors) -------------------------------
+    exe = REPO / "RF4S.exe"
+    if not exe.is_file():
+        _skip("RF4S.exe shader anchors", "RF4S.exe not next to Bundle/")
+        return
+    d = exe.read_bytes()
+    pe = struct.unpack_from("<I", d, 0x3C)[0]
+    nsec_pe = struct.unpack_from("<H", d, pe + 6)[0]
+    sh = pe + 24 + struct.unpack_from("<H", d, pe + 20)[0]
+    secs = [struct.unpack_from("<8sIIII", d, sh + 40 * i) for i in range(nsec_pe)]
+
+    def at(rva, n):
+        for _nm, vs, va, rs, rp in secs:
+            if va <= rva < va + rs:
+                return d[rp + rva - va:rp + rva - va + n]
+        return b""
+
+    def rip_target(rva, ilen=7):
+        return rva + ilen + struct.unpack_from("<i", at(rva + 3, 4))[0]
+    _check("exe: nn::gfx Shader init shim RF4S.exe+0x3D52A0 is `mov byte [rcx],1; xor eax,eax; ret`",
+           at(0x3D52A0, 6) == bytes.fromhex("c60101" "33c0c3"))
+    _check("exe: MCShader_ctor_base calls glShaderSource via the glew IAT slot (RF4S.exe+0x28B3FB/+0x28B47B)",
+           at(0x28B3FB, 3) == b"\x48\x8b\x05" and rip_target(0x28B3FB) == 0x443930
+           and rip_target(0x28B47B) == 0x443930)
+    _check("exe: loose-file loader formats \"%s_v.glsl\" (RF4S.exe+0x27EB4D)",
+           at(rip_target(0x27EB4D), 10) == b"%s_v.glsl\x00")
+
+
 def run() -> int:
     import time
     mode = "QUICK (--quick: corpus sweeps skipped/sliced — run without it for the full stamp)" \
@@ -6165,13 +6881,14 @@ def run() -> int:
               test_aibn, test_strings, test_gen, test_param, test_mapground,
               test_search_items, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
-              test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
+              test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
               test_script_authoring, test_emflags_extras, test_cutscene_editor_authoring,
-              test_models, test_attr_tooltips, test_ground_texture_replacement,
+              test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows,
-              test_cutscene_editor_workflows, test_asset_explorer_gui):
+              test_cutscene_editor_workflows, test_asset_explorer_gui, test_portraits,
+              test_shader_archive):
         t0 = time.perf_counter()
         try:
             t()

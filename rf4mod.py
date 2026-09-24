@@ -190,6 +190,100 @@ def cmd_install(a):
           f"{mbundle.MOD_FOLDER} folder) to uninstall")
 
 
+def _shader_index(extra=()):
+    from rf4s_modkit import shaderarchive as sa
+    return sa.ShaderIndex(*extra, EXTRACTED, BUNDLE_DIR)
+
+
+def cmd_shader_list(a):
+    """`shader list` -- the loose GLSL programs the PC build compiles, or one .bfsha archive."""
+    from rf4s_modkit import shaderarchive as sa
+    if a.target and a.target.lower().endswith(".bfsha"):
+        arc = sa.load(_resolve(a.target))
+        if a.json:
+            print(json.dumps(arc.summary(), indent=1))
+            return
+        print(f"{arc.name}.bfsha  FSHA v{arc.version >> 16}.{(arc.version >> 8) & 0xFF}."
+              f"{arc.version & 0xFF}  {len(arc.data)} bytes  {len(arc.models)} shading model(s)"
+              f"  {len(arc.pointers)} relocated pointers")
+        for m in arc.models:
+            opts = ", ".join(f"{o.name}[{len(o.choices)}]" for o in m.static_options)
+            dyn = ", ".join(f"{o.name}[{len(o.choices)}]" for o in m.dynamic_options)
+            print(f"  {m.name:<10} programs {m.program_count}  static: {opts or '-'}  "
+                  f"dynamic: {dyn or '-'}")
+            print(f"             attribs {' '.join(m.attribs)}  samplers {' '.join(m.samplers)}"
+                  f"  blocks {' '.join(m.uniform_blocks)}")
+            for v in m.variations:
+                for s in v.source_stages:
+                    print(f"             v{v.index} {s.stage:<7} GLSL " + " + ".join(
+                        f"{p.size}@0x{p.offset:X}" for p in s.pieces))
+        print("note: the PC build never compiles this GLSL (its nn::gfx shader init is a stub);"
+              " edit the loose bundleMuteki *.glsl files instead -- see `shader list`")
+        return
+    idx = _shader_index([a.target] if a.target else [])
+    progs = idx.programs()
+    print("GLSL programs the PC build compiles (MCShader_ctor_base, from loose files):")
+    for name, files in progs.items():
+        use, mask = sa.MUTEKI_PROGRAMS.get(name, ("not named in the exe (maybe unused)", None))
+        have = "/".join(k[0] if k != "discard_fragment" else "d"
+                        for k, v in files.items() if v) or "MISSING"
+        print(f"  {name:<14} [{have:<5}] {('mask 0x%X' % mask) if mask is not None else '':<10} {use}")
+    incs = sorted(n for n in idx.files if n.endswith(".glsl.inc"))
+    print(f"include files ({len(incs)}): {', '.join(incs)}")
+    print("v/f/d = _v.glsl / _f.glsl / _discard_f.glsl present. .hlsl twins are never loaded. "
+          "Edit a copy, then `shader replace` + `rf4mod install`.")
+
+
+def cmd_shader_extract(a):
+    """`shader extract` -- .bfsha -> every GLSL section; program name -> sources as GL sees them."""
+    from rf4s_modkit import shaderarchive as sa
+    out = pathlib.Path(a.out)
+    if a.target.lower().endswith(".bfsha"):
+        arc = sa.load(_resolve(a.target))
+        for p in arc.extract(out, with_prologue=not a.body_only):
+            print(f"  wrote {p}")
+        return
+    idx = _shader_index()
+    names = list(idx.programs()) if a.target == "all" else [a.target]
+    out.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        name = name[:-7] if name.endswith("_v.glsl") else name
+        for discard in (False, True):
+            if discard and idx.get(f"{name}_discard_f.glsl") is None:
+                continue
+            try:
+                r = sa.expand_program(name, idx, discard=discard)
+            except KeyError as e:
+                print(f"  skip: {e}")
+                break
+            tag = name + ("_discard" if discard else "")
+            for st, ext in (("vertex", "vert"), ("fragment", "frag")):
+                if st == "vertex" and discard:
+                    continue
+                p = out / f"{tag}.{ext}.glsl"
+                p.write_bytes(r[st])
+                print(f"  wrote {p}  ({len(r[st])} bytes, includes inlined)")
+            for m in r["missing"]:
+                print(f"  WARNING: #include <{m}> not found")
+
+
+def cmd_shader_replace(a):
+    """`shader replace` -- validate an edited loose shader and write it for `rf4mod install`."""
+    from rf4s_modkit import shaderarchive as sa
+    if a.name.lower().endswith(".bfsha"):
+        raise SystemExit("the PC build never compiles .bfsha GLSL (nn::gfx shader init "
+                         "RF4S.exe+0x3D52A0 is a stub): edit the loose bundleMuteki *.glsl "
+                         "program instead (`rf4mod shader list`)")
+    idx = _shader_index()
+    dest, probs = sa.replace_loose(a.name, _resolve(a.edited) if not pathlib.Path(a.edited).is_file()
+                                   else pathlib.Path(a.edited), a.out, idx)
+    print(f"wrote {dest}")
+    for p in probs:
+        print(f"  WARNING: {p}")
+    print(f"install: python rf4mod.py install <game root> {dest.name} {dest}  "
+          "(compiled from source at every start; no shader cache to clear)")
+
+
 def cmd_mods(a):
     """What overrides the game right now: loose files under Bundle\\ that replace packed ones."""
     bdir = mbundle.bundle_dir(a.game_root)
@@ -2528,6 +2622,79 @@ def cmd_strings_encode(a):
 
 
 # --------------------------------------------------------------------------- #
+# psb (E-mote character portraits: .psbData / .emtbytes)
+# --------------------------------------------------------------------------- #
+def _psb_load(path_arg):
+    from rf4s_modkit import psb as _psb
+    p = _resolve(path_arg)
+    try:
+        return _psb, p, _psb.PSB(p.read_bytes())
+    except _psb.PSBError as e:
+        sys.exit(f"error: {p.name}: {e}")
+
+
+def cmd_psb_info(a):
+    _psb, p, ps = _psb_load(a.file)
+    print(_psb.summary(ps, p.name))
+    if a.timelines:
+        for t in ps.timelines():
+            print("   ", _psb.repair_text(t) if isinstance(t, str) else t)
+
+
+def cmd_psb_dump(a):
+    _psb, p, ps = _psb_load(a.file)
+    out = pathlib.Path(a.out)
+    target = out / f"{p.name}.json" if out.suffix.lower() != ".json" else out
+    written = _psb.dump_json(ps, target, repair=not a.raw_text,
+                             resources_dir=(target.parent / f"{p.name}_res") if a.resources else None)
+    print(f"wrote {target}" + (f" + {len(written) - 1} resource file(s)" if a.resources else ""))
+
+
+def cmd_psb_textures(a):
+    _psb, p, ps = _psb_load(a.file)
+    out = pathlib.Path(a.out); out.mkdir(parents=True, exist_ok=True)
+    for t in ps.textures():
+        try:
+            im = _psb.decode_texture(ps, t)
+        except _psb.PSBError as e:
+            sys.exit(f"error: {e}")
+        dst = out / f"{p.stem}_{t['source']}.png"
+        im.save(dst)
+        print(f"{t['type']} {t['width']}x{t['height']} -> {dst}")
+        if a.parts:
+            pd = out / f"{p.stem}_{t['source']}_parts"; pd.mkdir(exist_ok=True)
+            icons = _psb.icon_images(ps, t, im)
+            for name, crop in icons.items():
+                if crop.width and crop.height:
+                    crop.save(pd / f"{name}.png")
+            print(f"  {len(icons)} part crop(s) -> {pd}")
+
+
+def cmd_psb_replace_texture(a):
+    _psb, p, ps = _psb_load(a.file)
+    from PIL import Image
+    texs = [t for t in ps.textures() if a.source in (None, t["source"])]
+    if not texs:
+        sys.exit(f"error: no texture source {a.source!r} in {p.name}")
+    out = pathlib.Path(a.out)
+    if out.is_dir():
+        out = out / p.name
+    if out.resolve() == p.resolve():
+        sys.exit("error: refusing to overwrite the input in place; pick another -o")
+    try:
+        blob = _psb.replace_texture(ps, texs[0], Image.open(a.png))
+        chk = _psb.PSB(blob)
+    except _psb.PSBError as e:
+        sys.exit(f"error: {e}")
+    t = texs[0]
+    same = blob[:t["offset"]] == ps.data[:t["offset"]] and blob[t["offset"] + t["length"]:] == ps.data[t["offset"] + t["length"]:]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(blob)
+    print(f"wrote {out} ({len(blob):,} B; atlas '{t['source']}' replaced, re-parsed OK, "
+          f"all other bytes identical: {same}, textures={len(chk.textures())})")
+
+
+# --------------------------------------------------------------------------- #
 # res (NN containers)
 # --------------------------------------------------------------------------- #
 def cmd_res_info(a):
@@ -2614,6 +2781,62 @@ def cmd_res_model_gif(a):
           f"every {a.step} game frame(s), {a.view} view)")
 
 
+def _load_bfmat(path):
+    from rf4s_modkit import matanim
+    p = _resolve(path)
+    try:
+        return matanim.load(p)
+    except (OSError, matanim.MatAnimError) as e:
+        sys.exit(f"error: {path}: {e}")
+
+
+def cmd_res_bfmat_info(a):
+    import json
+    from rf4s_modkit import matanim
+    anim = _load_bfmat(a.file)
+    if a.json:
+        pathlib.Path(a.json).write_text(json.dumps(matanim.to_json(anim), indent=1), encoding="utf-8")
+        print(f"wrote {a.json} (edit it, then: rf4mod res bfmat-build {a.json} OUT.bfmat)")
+    else:
+        print(matanim.describe(anim))
+
+
+def cmd_res_bfmat_build(a):
+    import json
+    import struct
+    from rf4s_modkit import matanim
+    try:
+        anim = matanim.from_json(json.loads(pathlib.Path(a.json).read_text(encoding="utf-8")))
+        data = matanim.build(anim)
+    except (OSError, ValueError, KeyError, TypeError, struct.error, matanim.MatAnimError) as e:
+        sys.exit(f"error: {a.json}: {e}")
+    pathlib.Path(a.out).write_bytes(data)
+    print(f"wrote {a.out} ({len(data)} bytes, {len(anim.materials)} material anims, "
+          f"{anim.curve_count} curves, {anim.frame_count} frames)")
+
+
+def cmd_res_bfmat_set(a):
+    from rf4s_modkit import matanim
+    anim = _load_bfmat(a.file)
+    notes = []
+    try:
+        if a.speed is not None:
+            matanim.retime(anim, a.speed)
+            notes.append(f"speed x{a.speed:g}")
+        if a.frame_count is not None:
+            anim.frame_count = a.frame_count
+            notes.append(f"frame count {a.frame_count}")
+        if a.loop is not None:
+            anim.flags = (anim.flags | 4) if a.loop == "on" else (anim.flags & ~4)
+            notes.append(f"loop flag {a.loop}")
+        data = matanim.build(anim)
+    except matanim.MatAnimError as e:
+        sys.exit(f"error: {e}")
+    pathlib.Path(a.out).write_bytes(data)
+    print(f"wrote {a.out}: {', '.join(notes) or 'rebuilt unchanged'} "
+          f"({anim.frame_count} frames, {len(data)} bytes)")
+
+
 def cmd_res_model_export(a):
     model, m = _load_model(a.file)
     stem = pathlib.Path(a.file).stem
@@ -2623,12 +2846,114 @@ def cmd_res_model_export(a):
           f"({len(written)} files: {stem}.obj, {stem}.mtl and {len(written) - 2} texture PNG(s))")
 
 
+def _floats(s, n, what):
+    try:
+        v = [float(x) for x in s.replace(" ", "").split(",")]
+    except ValueError:
+        sys.exit(f"error: {what} must be {n} comma-separated numbers, got {s!r}")
+    if len(v) == 1 and what == "--scale":
+        v = v * 3
+    if len(v) != n:
+        sys.exit(f"error: {what} must be {n} comma-separated numbers, got {s!r}")
+    return tuple(v)
+
+
+def cmd_res_model_import(a):
+    from rf4s_modkit import model, modelwrite
+    data = _resolve(a.file).read_bytes()
+    try:
+        m = model.parse(data)
+        si = modelwrite.resolve_shape(m, a.shape)
+        out = modelwrite.import_obj(data, si, pathlib.Path(a.obj).read_text(encoding="utf-8"),
+                                    object_name=a.object)
+    except (model.ModelError, modelwrite.ModelWriteError) as e:
+        sys.exit(f"error: {e}")
+    probs = modelwrite.validate(out)
+    if probs:
+        sys.exit("error: the rebuilt file does not check out: " + "; ".join(probs))
+    pathlib.Path(a.out).write_bytes(out)
+    m2 = model.parse(out)
+    old, new = m.shapes[si], m2.shapes[si]
+    print(f"replaced shape {si} ({old.name}, skin {old.skin}) of {a.file} from {a.obj}: "
+          f"{m.vertex_buffers[old.vertex_buffer].count} v / {len(old.indices) // 3} t -> "
+          f"{m2.vertex_buffers[new.vertex_buffer].count} v / {len(new.indices) // 3} t  "
+          f"-> {a.out} ({_size_note(len(data), len(out))})"
+          + ("  [unchanged: byte-identical]" if out == data else ""))
+    if old.skin >= 2 and out != data:
+        print("  note: smooth-skinned shape -- new vertices took their bone indices / weights from "
+              "the nearest original vertex")
+
+
+def cmd_res_model_transform(a):
+    from rf4s_modkit import model, modelwrite
+    data = _resolve(a.file).read_bytes()
+    if not (a.scale or a.offset or a.rotate):
+        sys.exit("error: give at least one of --scale / --offset / --rotate")
+    pivot = a.pivot if a.pivot in ("center", "origin") else _floats(a.pivot, 3, "--pivot")
+    try:
+        m = model.parse(data)
+        shapes = range(len(m.shapes)) if a.shape == "all" else [modelwrite.resolve_shape(m, a.shape)]
+        out = data
+        for si in shapes:
+            out = modelwrite.transform_shape(
+                out, si, scale=_floats(a.scale, 3, "--scale") if a.scale else None,
+                offset=_floats(a.offset, 3, "--offset") if a.offset else None,
+                rotate=_floats(a.rotate, 3, "--rotate") if a.rotate else None, pivot=pivot)
+    except (model.ModelError, modelwrite.ModelWriteError) as e:
+        sys.exit(f"error: {e}")
+    pathlib.Path(a.out).write_bytes(out)
+    print(f"transformed {len(shapes)} shape(s) of {a.file} in place -> {a.out} "
+          f"({_size_note(len(data), len(out))})")
+
+
 def cmd_res_model_render(a):
     model, m = _load_model(a.file)
     im = model.render(m, a.view, a.size)
     out = a.out or f"{pathlib.Path(a.file).stem}_{a.view}.png"
     im.save(out)
     print(f"rendered {a.file} ({a.view} view, {im.width}x{im.height}) -> {out}")
+
+
+def _load_skelanim(path):
+    from rf4s_modkit import skelanim
+    try:
+        return skelanim.load(_resolve(path))
+    except (OSError, skelanim.SkelAnimError) as e:
+        sys.exit(f"error: {path}: {e}")
+
+
+def cmd_res_anim_info(a):
+    from rf4s_modkit import skelanim
+    anim = _load_skelanim(a.file)
+    if a.json:
+        text = json.dumps(skelanim.to_json(anim), indent=1)
+        if a.json == "-":
+            print(text)
+        else:
+            pathlib.Path(a.json).write_text(text, encoding="utf-8")
+            print(f"wrote {a.json}")
+        return
+    print(skelanim.summary(anim))
+    if a.model:
+        model, m = _load_model(a.model)
+        matched, anim_only, model_only = skelanim.bound_bones(m, anim)
+        print(f"binds to {a.model}: {len(matched)} bones matched, {len(anim_only)} anim-only "
+              f"(ignored), {len(model_only)} model bones keep their bind pose"
+              + (f": {', '.join(model_only)}" if model_only else ""))
+
+
+def cmd_res_anim_gif(a):
+    from rf4s_modkit import skelanim
+    model, m = _load_model(a.model)
+    anim = _load_skelanim(a.anim)
+    matched = skelanim.bound_bones(m, anim)[0]
+    if not matched:
+        sys.exit(f"error: {a.anim} drives none of {a.model}'s bones (wrong skeleton?)")
+    frames = model.render_skeletal_animation(m, anim, a.view, a.size, step=a.step)
+    model.save_gif(frames, a.out, step=a.step)
+    print(f"wrote {a.out}: {len(frames)} frames ({anim.frame_count}-frame "
+          f"{'loop' if anim.loops else 'one-shot'} {anim.name}, {len(matched)} bones bound, "
+          f"every {a.step} game frame(s), {a.view} view)")
 
 
 # --------------------------------------------------------------------------- #
@@ -3137,6 +3462,30 @@ def build_parser():
                     help="storage format: keep (default) = the template frame's own format; or force "
                          "BC7 / BC3 / BC1 / RGBA8 (4x the size of BC7) / RGBA4444 / ABGR1555 / GL_RED_8bpp")
     x2.set_defaults(func=cmd_texture_encode)
+
+    # psb (E-mote portraits)
+    pps = sub.add_parser("psb", help="E-mote character portraits (.psbData / .emtbytes): info, "
+                         "JSON dump, atlas PNG export, atlas replace")
+    pssub = pps.add_subparsers(dest="op", required=True)
+    ps0 = pssub.add_parser("info", help="header, atlas, face-frame timelines, variables")
+    ps0.add_argument("file"); ps0.add_argument("--timelines", action="store_true",
+                                               help="also list every timeline label")
+    ps0.set_defaults(func=cmd_psb_info)
+    ps1 = pssub.add_parser("dump", help="full object tree -> JSON (resources as {$res: i})")
+    ps1.add_argument("file"); ps1.add_argument("-o", "--out", required=True, help="dir or .json path")
+    ps1.add_argument("--resources", action="store_true", help="also write every chunk as .bin")
+    ps1.add_argument("--raw-text", action="store_true",
+                     help="keep the .psbData double-encoded strings as stored (default: repaired)")
+    ps1.set_defaults(func=cmd_psb_dump)
+    ps2 = pssub.add_parser("textures", help="atlas -> PNG (RGBA8, or ASTC for .emtbytes)")
+    ps2.add_argument("file"); ps2.add_argument("-o", "--out", required=True)
+    ps2.add_argument("--parts", action="store_true", help="also crop every named part (source/*/icon)")
+    ps2.set_defaults(func=cmd_psb_textures)
+    ps3 = pssub.add_parser("replace-texture", help="repaint: same-size PNG -> new .psbData "
+                           "(only the atlas bytes change)")
+    ps3.add_argument("file"); ps3.add_argument("png"); ps3.add_argument("-o", "--out", required=True)
+    ps3.add_argument("--source", help="texture source name (default: the first, 'tex')")
+    ps3.set_defaults(func=cmd_psb_replace_texture)
 
     # map
     pm = sub.add_parser("map", help=".rf4m map inspect")
@@ -3721,8 +4070,9 @@ def build_parser():
                          "(bind pose, model space)")
     r5.add_argument("file"); r5.add_argument("out", help="output folder")
     r5.set_defaults(func=cmd_res_model_export)
-    r5g = rsub.add_parser("model-gif", help="play a .model's material animation (the .bfmat beside it: "
-                          "the ANIM_DUNG_* light shafts and water scroll) into a looping GIF")
+    r5g = rsub.add_parser("model-gif", help="play a .model's material animation (the .bfmat beside it or "
+                          "bound by material name: UV scroll of the ANIM_DUNG_* light shafts and water, "
+                          "BM_* eye / emblem texture patterns, opacity fades) into a looping GIF")
     r5g.add_argument("file"); r5g.add_argument("out", help="output .gif")
     r5g.add_argument("--anim", help=".bfmat to use (default: the one next to the model)")
     r5g.add_argument("--view", default="top", choices=("front", "back", "side", "top"))
@@ -3730,6 +4080,22 @@ def build_parser():
     r5g.add_argument("--step", type=int, default=2,
                      help="game frames per GIF frame (the game runs 60/s; default 2 = 30 fps)")
     r5g.set_defaults(func=cmd_res_model_gif)
+    r5i = rsub.add_parser("bfmat-info", help="list a .bfmat material animation: materials, animated "
+                          "parameters (texsrt0 / opacity), texture patterns and their curve keys")
+    r5i.add_argument("file")
+    r5i.add_argument("--json", metavar="OUT", help="write an editable JSON dump instead (bfmat-build encodes it)")
+    r5i.set_defaults(func=cmd_res_bfmat_info)
+    r5b = rsub.add_parser("bfmat-build", help="encode a bfmat-info --json dump back into a .bfmat "
+                          "(an unedited dump rebuilds the original byte for byte)")
+    r5b.add_argument("json"); r5b.add_argument("out", help="output .bfmat")
+    r5b.set_defaults(func=cmd_res_bfmat_build)
+    r5s = rsub.add_parser("bfmat-set", help="retime a .bfmat: --speed 2 plays twice as fast (every key "
+                          "frame and the frame count divided by 2)")
+    r5s.add_argument("file"); r5s.add_argument("out", help="output .bfmat")
+    r5s.add_argument("--speed", type=float, help="playback speed factor (>0)")
+    r5s.add_argument("--frame-count", type=int, help="set the frame count (the game wraps at it)")
+    r5s.add_argument("--loop", choices=("on", "off"), help="set the FMAA loop flag (the game ignores it)")
+    r5s.set_defaults(func=cmd_res_bfmat_set)
     r6 = rsub.add_parser("model-render", help="render a textured preview PNG of a .model")
     r6.add_argument("file")
     r6.add_argument("--view", default="front", choices=("front", "back", "side", "top"),
@@ -3737,6 +4103,38 @@ def build_parser():
     r6.add_argument("--size", type=int, default=512)
     r6.add_argument("-o", "--out", help="default <model>_<view>.png")
     r6.set_defaults(func=cmd_res_model_render)
+    r7 = rsub.add_parser("model-import", help="replace one shape's geometry from an OBJ (the "
+                         "model-export format; any vertex/triangle count -- the memory pool and "
+                         "every pointer behind it are rebuilt)")
+    r7.add_argument("file"); r7.add_argument("shape", help="shape index or name (model-info)")
+    r7.add_argument("obj", help="OBJ file (v in model space, as model-export writes)")
+    r7.add_argument("--object", help="OBJ object to use (default: the only one / the one named "
+                    "like the shape)")
+    r7.add_argument("-o", "--out", required=True)
+    r7.set_defaults(func=cmd_res_model_import)
+    r8 = rsub.add_parser("model-transform", help="move / scale / rotate one shape's vertices in "
+                         "place (model space; file size unchanged)")
+    r8.add_argument("file"); r8.add_argument("shape", help="shape index or name, or 'all'")
+    r8.add_argument("--scale", help="s or sx,sy,sz")
+    r8.add_argument("--offset", help="x,y,z (model units)")
+    r8.add_argument("--rotate", help="rx,ry,rz degrees (Euler XYZ, as the bones)")
+    r8.add_argument("--pivot", default="center",
+                    help="center (default: the shape's box centre), origin, or x,y,z")
+    r8.add_argument("-o", "--out", required=True)
+    r8.set_defaults(func=cmd_res_model_transform)
+    r7 = rsub.add_parser("anim-info", help="a .bfskl skeletal animation: frames, loop, rotation "
+                         "mode, per-bone base values and animated channels (--json: full dump)")
+    r7.add_argument("file"); r7.add_argument("--model", help="also report how it binds to this .model")
+    r7.add_argument("--json", metavar="OUT", help="write the full curve dump as JSON ('-' = stdout)")
+    r7.set_defaults(func=cmd_res_anim_info)
+    r8 = rsub.add_parser("anim-gif", help="play a .bfskl on a .model (bones bound by name, "
+                         "skinned meshes blended) into a GIF")
+    r8.add_argument("model"); r8.add_argument("anim"); r8.add_argument("out", help="output .gif")
+    r8.add_argument("--view", default="front", choices=("front", "back", "side", "top"))
+    r8.add_argument("--size", type=int, default=320, help="longer side in px (default 320)")
+    r8.add_argument("--step", type=int, default=2,
+                    help="game frames per GIF frame (1 animation frame per tick at 60/s; default 2)")
+    r8.set_defaults(func=cmd_res_anim_gif)
 
     # param (NLCL fixed-record param tables)
     pp2 = sub.add_parser("param", help="NLCL param tables (item/crop/price/recipe/skill/...)")
@@ -3845,7 +4243,73 @@ def build_parser():
     g8 = gsub.add_parser("validate", help="check a Gen file for things the spawner trips over")
     g8.add_argument("file"); g8.set_defaults(func=cmd_gen_validate)
 
+    # sound (*_audio_data.bdat sound-id table)
+    psd = sub.add_parser("sound", help="sound-id table (*_audio_data.bdat): list / edit / add sounds")
+    sdsub = psd.add_subparsers(dest="scmd", required=True)
+    sd0 = sdsub.add_parser("list", help="list ids: id, volume, priority, flags, file [base name]")
+    sd0.add_argument("file", help="common_audio_data.bdat / voice_en_audio_data.bdat / a path")
+    sd0.add_argument("--grep", help="only names matching a glob or substring")
+    sd0.add_argument("--limit", type=int, default=0)
+    sd0.add_argument("--json", action="store_true")
+    sd0.set_defaults(func=cmd_sound_list)
+    sd1 = sdsub.add_parser("show", help="decode one or more sounds (by id or name)")
+    sd1.add_argument("file"); sd1.add_argument("keys", nargs="+")
+    sd1.set_defaults(func=cmd_sound_show)
+
+    def _sound_fields(sp, defaults):
+        sp.add_argument("--volume", type=int, default=127 if defaults else None,
+                        help="0-255, play volume = value/255")
+        sp.add_argument("--priority", type=int, default=64 if defaults else None,
+                        help="0-255 voice priority (64 default, 80 UI/SE)")
+        sp.add_argument("--flag0", type=int, default=0 if defaults else None, help="0/1 (no reader on PC)")
+        sp.add_argument("--flag1", type=int, default=0 if defaults else None,
+                        help="0/1 exclusive/high class (voice/stream kill rules)")
+        sp.add_argument("--name", help="base name (LoopPoints key; default = file stem on add)")
+        sp.add_argument("-o", "--out", required=True, help="output .bdat (never the input)")
+
+    sd2 = sdsub.add_parser("set", help="edit one id: sound set common_audio_data.bdat SE_WORDS_M "
+                                       "--volume 90 -o out.bdat")
+    sd2.add_argument("file"); sd2.add_argument("key", help="sound id or base/file name")
+    sd2.add_argument("--file", dest="sound_file", help="point the id at another audio file")
+    _sound_fields(sd2, False)
+    sd2.set_defaults(func=cmd_sound_set)
+    sd3 = sdsub.add_parser("add", help="add a NEW id: sound add common_audio_data.bdat auto "
+                                       "SE_MYMOD.ogg -o out.bdat")
+    sd3.add_argument("file"); sd3.add_argument("id", help="new sound id, or 'auto' (next free)")
+    sd3.add_argument("sound_file", help="audio file name (.ogg/.wav/.flac/.mp3) under Bundle\\")
+    sd3.add_argument("--replace", action="store_true", help="overwrite an existing id")
+    _sound_fields(sd3, True)
+    sd3.set_defaults(func=cmd_sound_add)
+    sd4 = sdsub.add_parser("remove", help="delete an id (all its rows)")
+    sd4.add_argument("file"); sd4.add_argument("key")
+    sd4.add_argument("-o", "--out", required=True)
+    sd4.set_defaults(func=cmd_sound_remove)
+    sd5 = sdsub.add_parser("find", help="search all three tables by id or name")
+    sd5.add_argument("query"); sd5.add_argument("--bundle", help="Bundle folder (default: auto)")
+    sd5.add_argument("--limit", type=int, default=0)
+    sd5.set_defaults(func=cmd_sound_find)
+
     # mapview (graphical map explorer)
+    # shader (loose Muteki GLSL = what the PC build compiles; .bfsha GLSL is reference only)
+    psd = sub.add_parser("shader", help="GLSL shaders: loose bundleMuteki programs (compiled by the "
+                                        "game) + .bfsha shader archives (read/extract only)")
+    psdsub = psd.add_subparsers(dest="op", required=True)
+    sdl = psdsub.add_parser("list", help="list the compiled programs, or one .bfsha's shading models")
+    sdl.add_argument("target", nargs="?", help="a .bfsha, or an extra folder of loose shaders")
+    sdl.add_argument("--json", action="store_true", help="(.bfsha) full summary as JSON")
+    sdl.set_defaults(func=cmd_shader_list)
+    sde = psdsub.add_parser("extract", help="a .bfsha -> every GLSL section; a program name "
+                                            "(mtk_body) or 'all' -> sources with includes inlined")
+    sde.add_argument("target"); sde.add_argument("-o", "--out", required=True)
+    sde.add_argument("--body-only", action="store_true",
+                     help="(.bfsha) drop the #version/#define prologue pieces")
+    sde.set_defaults(func=cmd_shader_extract)
+    sdr = psdsub.add_parser("replace", help="validate an edited loose shader file (e.g. "
+                                            "mtk_body_f.glsl) and write it to -o for `install`")
+    sdr.add_argument("name", help="shader file name as shipped, e.g. mtk_body_f.glsl / rf4lib.glsl.inc")
+    sdr.add_argument("edited"); sdr.add_argument("-o", "--out", required=True)
+    sdr.set_defaults(func=cmd_shader_replace)
+
     pmv = sub.add_parser("mapview", help="launch the interactive map explorer GUI")
     pmv.add_argument("map", nargs="?", help="map name or .rf4m path to open")
     pmv.set_defaults(func=cmd_mapview)
@@ -3857,6 +4321,142 @@ def build_parser():
     pst.set_defaults(func=cmd_selftest)
 
     return p
+
+
+# --------------------------------------------------------------------------- #
+# sound  (*_audio_data.bdat sound-id table; see rf4s_modkit/soundtable.py)
+# --------------------------------------------------------------------------- #
+def _sound_load(arg):
+    from rf4s_modkit import soundtable
+    p = _resolve(arg)
+    if not p.is_file():
+        p2 = soundtable.find_table(arg)
+        if p2 is None:
+            sys.exit(f"error: sound table not found: {arg}")
+        p = p2
+    try:
+        return p, soundtable.SoundTable.load(p)
+    except soundtable.SoundTableError as e:
+        sys.exit(f"error: {p}: {e}")
+
+
+def _sound_write(t, src, out):
+    from rf4s_modkit import soundtable
+    outp = pathlib.Path(out)
+    try:
+        if outp.resolve() == pathlib.Path(src).resolve():
+            sys.exit("error: refusing to overwrite the input table in place; write to -o and "
+                     "install it with `rf4mod install <game> <name>.bdat <out>` (Bundle\\00_mods)")
+    except OSError:
+        pass
+    try:
+        data = t.build()
+    except soundtable.SoundTableError as e:
+        sys.exit(f"error: {e}")
+    outp.parent.mkdir(parents=True, exist_ok=True)
+    outp.write_bytes(data)
+    print(f"wrote {outp} ({len(t)} ids, {len(data)} bytes)")
+    try:
+        known = {m for _s, m in soundtable.SoundTable.load(src).problems()}
+    except (OSError, soundtable.SoundTableError):
+        known = set()
+    for sev, msg in t.problems():
+        if sev == "warning" and msg not in known:       # only what this edit introduced
+            print(f"  warning: {msg}")
+
+
+def _sound_key(t, key):
+    e = t.lookup(key)
+    if e is None:
+        sys.exit(f"error: no sound {key!r} in this table")
+    return e
+
+
+def cmd_sound_list(a):
+    from rf4s_modkit import soundtable
+    _utf8_stdout()
+    p, t = _sound_load(a.file)
+    rows = t.search(a.grep) if a.grep else t.entries()
+    if a.json:
+        print(json.dumps([dict(id=e.sound_id, row=e.row, **e.info.as_dict()) for e in rows], indent=1))
+        return
+    print(f"# {p.name}: {len(t)} ids, {len(t.infos)} records")
+    print(f"{'id':>9} {'hex':>10} vol pri f0 f1  file  [name when different]")
+    for e in rows[: a.limit or None]:
+        i = e.info
+        extra = "" if i.file.rsplit(".", 1)[0] == i.name else f"  [{i.name}]"
+        print(f"{e.sound_id:>9} {e.sound_id:#010x} {i.volume:>3} {i.priority:>3} {i.flag0:>2} {i.flag1:>2}  {i.file}{extra}")
+    for sev, msg in t.problems():
+        print(f"# {sev}: {msg}")
+
+
+def cmd_sound_show(a):
+    from rf4s_modkit import soundtable
+    _utf8_stdout()
+    p, t = _sound_load(a.file)
+    for k in a.keys:
+        print(soundtable.describe(_sound_key(t, k), p.name))
+
+
+def cmd_sound_set(a):
+    from rf4s_modkit import soundtable
+    p, t = _sound_load(a.file)
+    e = _sound_key(t, a.key)
+    try:
+        t.set(e.sound_id, volume=a.volume, priority=a.priority, flag0=a.flag0, flag1=a.flag1,
+              name=a.name, file=a.sound_file)
+    except soundtable.SoundTableError as ex:
+        sys.exit(f"error: {ex}")
+    print(soundtable.describe(t.get(e.sound_id), p.name))
+    _sound_write(t, p, a.out)
+
+
+def cmd_sound_add(a):
+    from rf4s_modkit import soundtable
+    p, t = _sound_load(a.file)
+    if a.id.lower() == "auto":
+        others = [x for n, x in soundtable.load_tables(names=soundtable.LOADED_TABLES).items()
+                  if n != p.name]
+        sid = t.free_id(others)
+    else:
+        sid = soundtable._as_id(a.id)
+        if sid is None:
+            sys.exit(f"error: bad sound id {a.id!r} (a number or 'auto')")
+    try:
+        e = t.add(sid, a.sound_file, name=a.name, volume=a.volume, priority=a.priority,
+                  flag0=a.flag0, flag1=a.flag1, replace_existing=a.replace)
+    except soundtable.SoundTableError as ex:
+        sys.exit(f"error: {ex}")
+    print(soundtable.describe(e, p.name))
+    _sound_write(t, p, a.out)
+    print(f"  next: put {a.sound_file} under Bundle\\00_mods\\ and install the table there too; "
+          f"play it with PlaySound({e.sound_id})")
+
+
+def cmd_sound_remove(a):
+    from rf4s_modkit import soundtable
+    p, t = _sound_load(a.file)
+    e = _sound_key(t, a.key)
+    n = t.remove(e.sound_id)
+    print(f"removed id {e.sound_id} ({e.file}): {n} row(s)")
+    _sound_write(t, p, a.out)
+
+
+def cmd_sound_find(a):
+    from rf4s_modkit import soundtable
+    _utf8_stdout()
+    tables = soundtable.load_tables(a.bundle)
+    if not tables:
+        sys.exit("error: no *_audio_data.bdat found (pass --bundle <Bundle folder>)")
+    hits = soundtable.find_all(a.query, tables)
+    for n, e, eff in hits[: a.limit or None]:
+        i = e.info
+        tag = "" if eff else ("  (not loaded by the game)" if n not in soundtable.LOADED_TABLES
+                              else "  (shadowed by a later row/table)")
+        print(f"{n:<26} {e.sound_id:>9} {e.sound_id:#010x} vol {i.volume:>3} pri {i.priority:>3} "
+              f"f0 {i.flag0} f1 {i.flag1}  {i.file}  [{i.name}]{tag}")
+    if not hits:
+        print(f"no sound matches {a.query!r}")
 
 
 def main(argv=None):
