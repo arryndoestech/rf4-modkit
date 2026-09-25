@@ -7097,6 +7097,52 @@ def test_asset_explorer_gui():
         after = str(labels[0].cget("text")) if labels else None
         _check("the Model tab plays an effect model's .bfmat (Play advances the frame)",
                bool(btns) and before != after and not app._model_playing, f"{before!r} -> {after!r}")
+        # categories, sizes and sorting (a first-time user's "what kind of file is this?")
+        from rf4s_modkit import assetcat
+        samples = {"01_M_VIZNAR.ogg": "audio", "00_PLAYER_M_body_00.texture": "texture",
+                   "MAP_CITY_00.rf4m": "map", "SI_CITY_00.bin": "map", "GenA01.bin": "map",
+                   "AI_m00.bin": "ai", "as_atk_0001.bin": "attack", "rf3ItemData.bin": "data",
+                   "rf3mc.eng": "text", "rf4TxtShop_split2_2.eng": "text", "rf3.mc": "script",
+                   "em.bin": "script", "Achievement.minterface": "ui", "blur_f.glsl": "shader",
+                   "AS_ARTHUR.sav": "save", "AppConfig.plist": "other"}
+        wrong = {n: assetcat.category_of(n) for n, k in samples.items() if assetcat.category_of(n) != k}
+        _check("asset categories come from the names (voice / texture / map + SI + Gen / AI / attack / "
+               "data / text / script / UI / shader / save / other)", not wrong, str(wrong))
+        src = app.source
+        some = next(i for i, e in enumerate(src.entries) if e[0].endswith(".rf4m"))
+        real = (B / src.entries[some][0]).stat().st_size
+        _check("the explorer knows every file's size (from the directory scan, nothing opened)",
+               all(x is not None for x in src.sizes) and src.sizes[some] == real, f"{src.sizes[some]} vs {real}")
+        maps = next(v for v in app.cat_cb.cget("values") if v.startswith("Maps"))
+        app.cat_var.set(maps)
+        app.filter_var.set("")
+        app._apply_filter_now()
+        t = app.tree
+        leaves = []
+        for g in t.get_children():
+            if g in app._group_indices:
+                t.item(g, open=True); t.focus(g); app._on_group_open(None)
+                leaves += list(t.get_children(g))
+            else:
+                leaves.append(g)
+        cats_ok = leaves and all(t.item(k, "values")[0] == "Maps" for k in leaves if k in app._index)
+        app._sort_by("size"); app._sort_by("size")            # biggest first
+        sizes = []
+        for g in t.get_children():
+            kids = t.get_children(g) if g in app._group_indices else [g]
+            sizes += [src.sizes[app._index[k]] for k in kids if k in app._index]
+        _check("Show: Maps lists only maps; clicking Size twice sorts biggest first and keeps groups open",
+               cats_ok and sizes and sizes == sorted(sizes, reverse=True)
+               and t.heading("size", "text").endswith("▼"), f"{len(sizes)} rows")
+        app.filter_var.set("city")
+        app._apply_filter_now()
+        hits = [app._index[k] for g in t.get_children() for k in (t.get_children(g) or [g]) if k in app._index]
+        _check("the category and the text filter combine (Maps + 'city' = town maps only)",
+               hits and all("city" in src.entries[i][0].lower() and src.categories()[i] == "map" for i in hits),
+               f"{len(hits)} hits")
+        app.filter_var.set("")
+        app.cat_var.set(app.ALL_CATS)
+        app._apply_filter_now()
         _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()

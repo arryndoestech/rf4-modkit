@@ -263,8 +263,17 @@ python tools/modding/rf4mod_gui.py <path>   # open a manifest / bundle / folder 
 A single-window explorer (Tkinter, stdlib) built on the same library. The left pane
 is a tree of every asset — open a `Manifest.plist` to browse all six bundles' 38,000+
 files **read-on-demand** (so the 4.7 GB `bundleMain` is never loaded whole), or open a
-`.mbundle`, a folder of extracted files, or one file. Selecting an asset shows a
-**type-aware viewer**:
+`.mbundle`, a folder of extracted files, or one file.
+
+**Finding files without knowing their names:** every file has a **Category** (Audio,
+Textures & images, 3D models, Animations, Maps, Monster AI, Attack timelines, Game data
+tables, Text & dialogue, Scripts & events, UI, Shaders, …) and a **Size**. The **Show:**
+box next to Filter lists only one category, with its file count, and combines with the
+text filter (Maps + `city` = the town maps). Click a column header (Asset, Category, Size)
+to sort by it; click again to reverse (Size ▼ = biggest first). Categories come from the
+file names (`rf4s_modkit/assetcat.py`), so nothing has to be opened to sort 38,000 files.
+
+Selecting an asset shows a **type-aware viewer**:
 
 | Selected | Viewer |
 |---|---|

@@ -51,7 +51,7 @@ IMAGE_FMTS = {"png", "jpg", "gif", "bmp", "tiff", "dds", "ico", "webp", "image"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".jfif", ".gif", ".bmp", ".tif", ".tiff",
               ".webp", ".tga", ".dds", ".ico"}
 
-from rf4s_modkit import gamepaths  # noqa: E402
+from rf4s_modkit import assetcat, gamepaths  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 # the game copy's Bundle folder: saved setting, else the nearest Bundle above the toolkit,
@@ -148,9 +148,43 @@ class Source:
     def __init__(self, label: str):
         self.label = label
         self.entries: list[tuple[str, str, object]] = []  # (name, group, loader)
+        self.sizes: list = []                               # bytes per entry (None = unknown)
+        self._cats = None
 
-    def add(self, name: str, group: str, loader):
+    def add(self, name: str, group: str, loader, size=None):
         self.entries.append((name, group, loader))
+        self.sizes.append(size)
+        self._cats = None
+
+    def categories(self):
+        """rf4s_modkit.assetcat category key per entry (from the names; nothing is opened)."""
+        if self._cats is None or len(self._cats) != len(self.entries):
+            self._cats = [assetcat.category_of(e[0]) for e in self.entries]
+        return self._cats
+
+    @staticmethod
+    def _scan(folder):
+        """[(rel path, full path, size)] of every file under `folder`. os.scandir hands out
+        the size with the name on Windows, so sizing ~38k files costs nothing extra."""
+        import os
+        out, stack = [], [(str(folder), "")]
+        while stack:
+            d, rel = stack.pop()
+            try:
+                it = os.scandir(d)
+            except OSError:
+                continue
+            with it:
+                for de in it:
+                    r = f"{rel}/{de.name}" if rel else de.name
+                    try:
+                        if de.is_dir(follow_symlinks=False):
+                            stack.append((de.path, r))
+                        elif de.is_file():
+                            out.append((r, de.path, de.stat().st_size))
+                    except OSError:
+                        pass
+        return out
 
     def read_named(self, filename):
         """Return bytes for a file by basename (any group), or None. Used to fetch a
@@ -181,20 +215,18 @@ class Source:
         for bname in man.bundle_names():
             bpath = bdir / bname
             udir = bdir / mbundle.unpack_dir_name(bname)
-            loose = set()
+            loose = {}
             if udir.is_dir():
-                for dirpath, _dirs, files in os.walk(udir):
-                    rel = os.path.relpath(dirpath, udir)
-                    for fn in files:
-                        loose.add(fn if rel == "." else os.path.join(rel, fn).replace(os.sep, "/"))
+                loose = {rel: size for rel, _full, size in cls._scan(udir)}
             bundle = mbundle.Bundle(bpath, manifest=man) if bpath.is_file() else None
-            for name in man.files(bname):
+            for name, info in man.files(bname).items():
                 rel = name.replace("\\", "/").lstrip("/")
                 if rel in loose:
                     fp = udir / rel
-                    src.add(name, bname, (lambda f: (lambda: f.read_bytes()))(fp))
+                    src.add(name, bname, (lambda f: (lambda: f.read_bytes()))(fp), loose[rel])
                 elif bundle is not None:
-                    src.add(name, bname, (lambda b, n: (lambda: b.read(n)))(bundle, name))
+                    src.add(name, bname, (lambda b, n: (lambda: b.read(n)))(bundle, name),
+                            (info or {}).get("size"))
         return src
 
     @classmethod
@@ -209,7 +241,7 @@ class Source:
         bundle = mbundle.Bundle(bpath, manifest=man)
         src = cls(f"Bundle: {bpath.name}")
         for name in bundle.names():
-            src.add(name, bpath.name, (lambda n: (lambda: bundle.read(n)))(name))
+            src.add(name, bpath.name, (lambda n: (lambda: bundle.read(n)))(name), bundle.info(name)[1])
         return src
 
     @classmethod
@@ -223,25 +255,20 @@ class Source:
         folder = pathlib.Path(folder)
         root = str(folder)
         src = cls(f"Folder: {folder.name}")
-        found = []
-        for dirpath, dirnames, filenames in os.walk(root):
-            rel_dir = os.path.relpath(dirpath, root)
-            rel_dir = "" if rel_dir == "." else rel_dir.replace(os.sep, "/")
-            for fn in filenames:
-                found.append((f"{rel_dir}/{fn}" if rel_dir else fn, os.path.join(dirpath, fn)))
+        found = cls._scan(root)
         # same order the pathlib version produced: part by part (so "numpy/" sorts before
         # "numpy-2.5.3.dist-info/"), case-insensitively on Windows
         found.sort(key=lambda rf: os.path.normcase(rf[1]).split(os.sep))
-        for rel, full in found:
+        for rel, full, size in found:
             group = rel.split("/", 1)[0] if "/" in rel else ""
-            src.add(rel, group, (lambda fp: (lambda: pathlib.Path(fp).read_bytes()))(full))
+            src.add(rel, group, (lambda fp: (lambda: pathlib.Path(fp).read_bytes()))(full), size)
         return src
 
     @classmethod
     def from_file(cls, file) -> "Source":
         p = pathlib.Path(file)
         src = cls(f"File: {p.name}")
-        src.add(p.name, "", lambda: p.read_bytes())
+        src.add(p.name, "", lambda: p.read_bytes(), p.stat().st_size)
         return src
 
 
@@ -316,6 +343,16 @@ class App:
         fe = ttk.Entry(bar, textvariable=self.filter_var, width=28)
         fe.pack(side="left", padx=2)
         fe.bind("<Return>", lambda _e: self._apply_filter_now())
+        ttk.Label(bar, text="Show:").pack(side="left", padx=(8, 0))
+        self.cat_var = tk.StringVar(value=self.ALL_CATS)
+        self.cat_cb = ttk.Combobox(bar, textvariable=self.cat_var, state="readonly", width=26,
+                                   values=[self.ALL_CATS])
+        self.cat_cb.pack(side="left", padx=2)
+        self.cat_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter_now())
+        from guiutil import Tip
+        Tip(self.cat_cb, "Show only one kind of file (textures, voice lines, maps...). Works together "
+                         "with the Filter box: Maps + 'city' = every town map.")
+        Tip(fe, "Show only files whose name contains this text (Enter applies at once).")
         self.count_lbl = ttk.Label(bar, text="")
         self.count_lbl.pack(side="right", padx=8)
 
@@ -329,10 +366,12 @@ class App:
         left = ttk.Frame(paned)
         self._left = left
         paned.add(left, weight=0, minsize=160)   # keeps its width; the content gets the rest
-        self.tree = ttk.Treeview(left, columns=("size",), show="tree headings")
-        self.tree.heading("#0", text="Asset")
-        self.tree.heading("size", text="Size")
-        self.tree.column("size", width=90, anchor="e", stretch=False)
+        self.tree = ttk.Treeview(left, columns=("cat", "size"), show="tree headings")
+        self._sort = ("name", False)
+        for col, text in (("#0", "Asset"), ("cat", "Category"), ("size", "Size")):
+            self.tree.heading(col, text=text, command=lambda c=col: self._sort_by(c))
+        self.tree.column("cat", width=120, stretch=False)
+        self.tree.column("size", width=80, anchor="e", stretch=False)
         vs = ttk.Scrollbar(left, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y")
@@ -440,6 +479,73 @@ class App:
         self._filter_after = None
         self._refresh_tree()
 
+    ALL_CATS = "All categories"
+
+    def _cat_filter(self):
+        """The category key the Show box picks, or None for all."""
+        t = self.cat_var.get() if hasattr(self, "cat_var") else self.ALL_CATS
+        for key, title, _d in assetcat.CATEGORIES:
+            if t.startswith(title + "  (") or t == title:
+                return key
+        return None
+
+    def _fill_cat_box(self):
+        """'Title  (count)' for the categories this source has, in assetcat order."""
+        if not self.source:
+            self.cat_cb.configure(values=[self.ALL_CATS])
+            return
+        from collections import Counter
+        n = Counter(self.source.categories())
+        vals = [self.ALL_CATS] + ["%s  (%d)" % (title, n[key]) for key, title, _d in assetcat.CATEGORIES
+                                  if n.get(key)]
+        self.cat_cb.configure(values=vals)
+        cur = self._cat_filter()
+        self.cat_var.set(next((v for v in vals if cur and v.startswith(assetcat.title(cur) + "  (")),
+                              self.ALL_CATS))
+
+    @staticmethod
+    def _fmt_size(n):
+        if n is None:
+            return ""
+        for unit, div in (("GB", 1 << 30), ("MB", 1 << 20), ("KB", 1 << 10)):
+            if n >= div:
+                return "%.1f %s" % (n / div, unit)
+        return "%d B" % n
+
+    def _row_values(self, i):
+        return (assetcat.title(self.source.categories()[i]), self._fmt_size(self.source.sizes[i]))
+
+    def _sorted(self, idxs):
+        """Entry indices in the order the clicked column header asks for."""
+        col, rev = self._sort
+        src = self.source
+        lower = self._lower_names()
+        if col == "cat":
+            cats = src.categories()
+            key = lambda i: (assetcat.title(cats[i]), lower[i])
+        elif col == "size":
+            key = lambda i: (src.sizes[i] if src.sizes[i] is not None else -1, lower[i])
+        else:
+            key = lambda i: lower[i]
+        return sorted(idxs, key=key, reverse=rev)
+
+    def _sort_by(self, col):
+        col = {"#0": "name"}.get(col, col)
+        cur, rev = self._sort
+        self._sort = (col, (not rev) if cur == col else False)
+        arrow = " \u25bc" if self._sort[1] else " \u25b2"
+        for c, text, key in (("#0", "Asset", "name"), ("cat", "Category", "cat"), ("size", "Size", "size")):
+            self.tree.heading(c, text=text + (arrow if key == self._sort[0] else ""))
+        # re-list, keeping the groups that were open
+        was_open = {self.tree.item(g, "text").split("  (")[0] for g in self.tree.get_children()
+                    if self.tree.item(g, "open")}
+        self._refresh_tree()
+        for g in self.tree.get_children():
+            if self.tree.item(g, "text").split("  (")[0] in was_open and g in self._group_indices:
+                self.tree.item(g, open=True)
+                self.tree.focus(g)
+                self._on_group_open(None)
+
     def _lower_names(self):
         """Lower-cased entry names, computed once per source (the filter compares against
         every name on each refresh)."""
@@ -458,21 +564,25 @@ class App:
             return
         flt = self.filter_var.get().lower()
         n = len(self.source.entries)
+        if len(self.cat_cb.cget("values")) <= 1:
+            self._fill_cat_box()
+        cat = self._cat_filter()
+        cats = self.source.categories()
+        keep = range(n) if cat is None else [i for i in range(n) if cats[i] == cat]
 
         if flt:
             # Flat search across ALL groups, capped.
             groups, shown = {}, 0
             lower = self._lower_names()
-            for i, (name, group, _l) in enumerate(self.source.entries):
-                if flt not in lower[i]:
-                    continue
+            for i in self._sorted([i for i in keep if flt in lower[i]]):
+                name, group, _l = self.source.entries[i]
                 parent = ""
                 if group:
                     if group not in groups:
                         groups[group] = self.tree.insert("", "end", text=group, open=True)
                     parent = groups[group]
                 disp = name[len(group) + 1:] if group and name.startswith(group + "/") else name
-                self._index[self.tree.insert(parent, "end", text=disp, values=("",))] = i
+                self._index[self.tree.insert(parent, "end", text=disp, values=self._row_values(i))] = i
                 shown += 1
                 if shown >= self.FILTER_CAP:
                     break
@@ -480,21 +590,26 @@ class App:
                                   + (" (capped)" if shown >= self.FILTER_CAP else ""))
             return
 
-        # No filter: one collapsed node per group (so EVERY group is visible),
+        # No text filter: one collapsed node per group (so EVERY group is visible),
         # children loaded lazily on expand. Avoids the old global row cap that
-        # only ever filled with the first (alphabetically-first) group.
+        # only ever filled with the first (alphabetically-first) group. A category
+        # filter narrows the groups the same way (no cap: groups load lazily).
         from collections import defaultdict
         gmap = defaultdict(list)
         ungrouped = []
-        for i, (name, group, _l) in enumerate(self.source.entries):
+        for i in keep:
+            group = self.source.entries[i][1]
             (gmap[group] if group else ungrouped).append(i)
         for group in sorted(gmap):
             gid = self.tree.insert("", "end", text=f"{group}  ({len(gmap[group])})", open=False)
             self._group_indices[gid] = gmap[group]
             self.tree.insert(gid, "end", text="…")   # placeholder -> shows expand arrow
-        for i in ungrouped:
-            self._index[self.tree.insert("", "end", text=self.source.entries[i][0], values=("",))] = i
-        self.count_lbl.config(text=f"{n} entries in {len(gmap)} group(s)")
+        for i in self._sorted(ungrouped):
+            self._index[self.tree.insert("", "end", text=self.source.entries[i][0],
+                                         values=self._row_values(i))] = i
+        shown = sum(len(v) for v in gmap.values()) + len(ungrouped)
+        self.count_lbl.config(text=(f"{n} entries in {len(gmap)} group(s)" if cat is None else
+                                    f"{shown} {assetcat.title(cat).lower()} in {len(gmap)} group(s)"))
 
     def _on_group_open(self, _evt):
         gid = self.tree.focus()
@@ -502,11 +617,11 @@ class App:
             return
         self._group_loaded.add(gid)
         self.tree.delete(*self.tree.get_children(gid))   # drop placeholder
-        idxs = self._group_indices[gid]
+        idxs = self._sorted(self._group_indices[gid])
         for i in idxs[:self.GROUP_CAP]:
             name, group, _l = self.source.entries[i]
             disp = name[len(group) + 1:] if group and name.startswith(group + "/") else name
-            self._index[self.tree.insert(gid, "end", text=disp, values=("",))] = i
+            self._index[self.tree.insert(gid, "end", text=disp, values=self._row_values(i))] = i
         if len(idxs) > self.GROUP_CAP:
             self.tree.insert(gid, "end", text=f"… (+{len(idxs) - self.GROUP_CAP} more — use Filter)")
 
