@@ -16,6 +16,8 @@ import tkinter as tk
 from collections import Counter
 from tkinter import filedialog, messagebox, ttk
 
+from guiutil import shortcut_scope
+
 from rf4s_modkit import map_names, mapground, mobj_types, rf4m, search_items
 
 from . import data, dialogs, render, tools, ui
@@ -162,21 +164,14 @@ class MapEditorPanel:
         c.bind("<Key-0>", lambda _e: self.view_fit())
         c.bind("<bracketleft>", lambda _e: self.set_brush(max(1, self.brush - 1 if self.brush <= 3 else self.brush - 2)))
         c.bind("<bracketright>", lambda _e: self.set_brush(min(9, self.brush + 1 if self.brush < 3 else self.brush + 2)))
-        # Ctrl shortcuts work wherever the focus is inside the editor
-        tag = f"MapEd{id(self)}"
-        self._tag = tag
-        self.frame.bind_class(tag, "<Control-z>", lambda _e: (self.undo(), "break")[1])
-        self.frame.bind_class(tag, "<Control-y>", lambda _e: (self.redo(), "break")[1])
-        self.frame.bind_class(tag, "<Control-Z>", lambda _e: (self.redo(), "break")[1])
-        self.frame.bind_class(tag, "<Control-s>", lambda _e: (self.save_all(), "break")[1])
-
-        def add_tag(w):
-            tags = w.bindtags()
-            if tag not in tags:
-                w.bindtags((tags[0], tag) + tags[1:])
-            for ch in w.winfo_children():
-                add_tag(ch)
-        add_tag(self.frame)
+        # Ctrl shortcuts work wherever the focus is inside the editor, including panel widgets
+        # built later (guiutil.shortcut_scope: both letter cases for Caps Lock, Shift tells
+        # redo from undo, widgets tagged when they take the focus)
+        self._tag = f"MapEd{id(self)}"
+        self.retag = shortcut_scope(self.frame, self._tag, [
+            ("z", lambda e: self.redo() if e.state & 0x0001 else self.undo()),
+            ("y", lambda e: self.redo()),
+            ("s", lambda e: self.save_all())])
 
     # ------------------------------------------------------------------ #
     # host API

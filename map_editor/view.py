@@ -63,6 +63,7 @@ class MapView(ttk.Frame):
         self.canvas.pack(side="left", fill="both", expand=True)
         c = self.canvas
         c.bind("<MouseWheel>", self._wheel)
+        c.bind("<Configure>", lambda _e: self._update_scrollregion(), add="+")
         c.bind("<Shift-MouseWheel>", lambda e: c.xview_scroll(-(e.delta // 120) * 3, "units"))
         c.bind("<Control-MouseWheel>", self._ctrl_wheel)
         c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
@@ -175,7 +176,7 @@ class MapView(ttk.Frame):
                         rgb = self.colors.get(cells[y * W + x], attrs.ATTR_FLOOR)
                         c.create_rectangle(x * cp, y * cp, x * cp + cp, y * cp + cp,
                                            fill="#%02x%02x%02x" % rgb, width=0, tags=("bg",))
-            c.config(scrollregion=(0, 0, W * self.cp, H * self.cp))
+            self._update_scrollregion()
         for g in render.GROUPS:
             if g in dirty:
                 self._draw_group(g)
@@ -317,6 +318,26 @@ class MapView(ttk.Frame):
         W, H, _ = d.grid
         return max(z for z in ZOOMS if z == ZOOMS[0] or max(W, H) * z <= MAX_CANVAS_PX)
 
+    def _region_size(self):
+        """(width, height) of the scroll region: the map, but never smaller than the canvas.
+        A Tk canvas only pins its content while the region is larger than the window; a
+        smaller region can be scrolled anywhere inside it, so a map shorter than the window
+        (12 px zoom on most maps) could be dragged away from the top. Padding the region to
+        the window keeps the map anchored top-left at every zoom."""
+        d = self.doc
+        if d is None or d.grid is None:
+            return 1, 1
+        W, H, _ = d.grid
+        c = self.canvas
+        return max(1, W * self.cp, c.winfo_width()), max(1, H * self.cp, c.winfo_height())
+
+    def _update_scrollregion(self):
+        if self.doc is None or self.doc.grid is None:
+            return
+        rw, rh = self._region_size()
+        if self.canvas.cget("scrollregion") != "0 0 %d %d" % (rw, rh):
+            self.canvas.config(scrollregion=(0, 0, rw, rh))
+
     def set_zoom(self, cp, anchor=None):
         """Zoom to `cp` px per tile, keeping the canvas point under `anchor` (widget x, y)
         fixed; without an anchor the view centre stays put."""
@@ -333,8 +354,7 @@ class MapView(ttk.Frame):
             self.on_zoom()
         d = self.doc
         if d is not None and d.grid:
-            W, H, _ = d.grid
-            tw, th = max(1, W * cp), max(1, H * cp)
+            tw, th = self._region_size()
             c.xview_moveto(max(0.0, (mx * cp - ax) / tw))
             c.yview_moveto(max(0.0, (my * cp - ay) / th))
 
@@ -377,11 +397,11 @@ class MapView(ttk.Frame):
         d = self.doc
         if d is None or d.grid is None:
             return
-        W, H, _ = d.grid
         c = self.canvas
         cw, ch = c.winfo_width(), c.winfo_height()
-        c.xview_moveto(max(0.0, (tx * self.cp - cw / 2) / max(1, W * self.cp)))
-        c.yview_moveto(max(0.0, (ty * self.cp - ch / 2) / max(1, H * self.cp)))
+        rw, rh = self._region_size()
+        c.xview_moveto(max(0.0, (tx * self.cp - cw / 2) / rw))
+        c.yview_moveto(max(0.0, (ty * self.cp - ch / 2) / rh))
 
     def _wheel(self, e):
         self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")

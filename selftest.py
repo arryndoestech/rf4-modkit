@@ -6272,6 +6272,79 @@ def test_map_editor_workflows():
             saved = panel.save_si()
             _check("SI save writes through a Save dialog; the game's SI file is untouched",
                    saved and out.is_file() and si_path.read_bytes() == si_orig and not panel.is_dirty())
+        # Ctrl shortcuts reach widgets built after startup (tagged when they take the focus)
+        # and survive Caps Lock; Shift tells redo from undo
+        import tkinter as _tk
+        _late = _tk.Entry(panel.frame)                     # a field built after startup
+        _late.pack()
+        root.update_idletasks()
+        _untagged = panel._tag not in _late.bindtags()
+        # Tk delivers focus events only to a shown window: show it off-screen for a moment
+        # (the harness never packs the panel's parent frame, so pack it too)
+        panel.frame.master.pack(fill="both", expand=True)
+        root.geometry("+-10000+-10000")
+        root.deiconify()
+        root.update()
+        _late.event_generate("<FocusIn>", when="now")
+        _tagged, _view = panel._tag in _late.bindtags(), _late.winfo_viewable()
+        _late.focus_force()                                # key events go to the focus widget
+        root.update()
+        _calls = []
+        _fns = (panel.save_all, panel.undo, panel.redo)
+        panel.save_all = lambda: _calls.append("save")
+        panel.undo = lambda: _calls.append("undo")
+        panel.redo = lambda: _calls.append("redo")
+        try:
+            for _seq, _st in (("<Control-s>", 0x4), ("<Control-S>", 0x6),
+                              ("<Control-Z>", 0x6), ("<Control-Z>", 0x5), ("<Control-y>", 0x4)):
+                _late.event_generate(_seq, state=_st, when="now")
+        finally:
+            panel.save_all, panel.undo, panel.redo = _fns
+            _late.destroy()
+            root.withdraw()
+        _check("map editor: Ctrl+S / Z / Y reach a widget built later (tagged on focus), also "
+               "with Caps Lock; Shift+Z redoes",
+               _untagged and _calls == ["save", "save", "undo", "redo", "redo"],
+               f"calls={_calls} tagged={_tagged} viewable={_view} grab={root.grab_current()}")
+        # the map stays anchored top-left: a map smaller than the window can't be scrolled
+        # away from the corner (Tk lets a small scroll region float), a big one stays in bounds
+        from map_editor import view as _mev
+        _v = panel.view
+        _cv = _v.canvas
+        root.geometry("1600x1200+-10000+-10000")
+        root.deiconify()
+        root.update()
+        _W, _H, _ = panel.doc.grid
+        _small = [z for z in _mev.ZOOMS if _W * z < _cv.winfo_width() and _H * z < _cv.winfo_height()]
+        _anch = bool(_small)
+        if _small:
+            _v.set_zoom(_small[-1])
+            root.update()
+            for _dir in (-10, 10):
+                _cv.yview_scroll(_dir, "units")
+                _cv.xview_scroll(_dir, "units")
+                root.update()
+                _anch = _anch and _cv.canvasx(0) == 0 and _cv.canvasy(0) == 0
+        _inb = True
+        root.geometry("700x500+-10000+-10000")                # small window: the map outgrows it
+        root.update()
+        _big = [z for z in _mev.ZOOMS if _W * z > _cv.winfo_width() + 100 and _H * z > _cv.winfo_height() + 100
+                and z <= _v.max_zoom()]
+        if _big:
+            _v.set_zoom(_big[0])
+            root.update()
+            _cv.yview_scroll(10 ** 6, "units")
+            _cv.xview_scroll(10 ** 6, "units")
+            root.update()
+            _inb = (_cv.canvasy(0) > 0 and _cv.canvasy(_cv.winfo_height()) <= _H * _v.cp + 1
+                    and _cv.canvasx(_cv.winfo_width()) <= _W * _v.cp + 1)
+            _cv.yview_scroll(-10 ** 6, "units")
+            root.update()
+            _inb = _inb and _cv.canvasy(0) == 0
+        root.withdraw()
+        _check("map view: a map smaller than the window stays anchored top-left while scrolling; "
+               "a bigger one scrolls only within the map",
+               _anch and _inb and bool(_big), f"small={_small[-1:]} big={_big[:1]}")
         _check("the workflows raised no callback errors", not errs, f"{len(errs)}")
     finally:
         box["save"] = ""

@@ -95,6 +95,42 @@ def later(widget, fn, ms=0):
     return handle[0]
 
 
+def shortcut_scope(frame, tag, bindings):
+    """Editor-wide Ctrl shortcuts that work wherever the keyboard focus is inside `frame`,
+    including widgets built later (panels that rebuild their forms on every selection).
+
+    `bindings` = [(letter, fn(event))]; each letter is bound in both cases, so Caps Lock
+    doesn't turn Ctrl+S into an unbound <Control-S>. The handler gets the event: tell undo
+    from redo by the Shift bit (event.state & 1), not by the letter's case. Every widget
+    under `frame` gets `tag` now, and any widget created later gets it the moment it takes
+    the focus (before a key can reach it). Returns a retag(widget=None) function for
+    callers that want to tag a subtree right away."""
+    for letter, fn in bindings:
+        for seq in ("<Control-%s>" % letter.lower(), "<Control-%s>" % letter.upper()):
+            frame.bind_class(tag, seq, lambda e, fn=fn: (fn(e), "break")[1])
+
+    def retag(w=None):
+        stack = [frame if w is None else w]
+        while stack:
+            x = stack.pop()
+            tags = x.bindtags()
+            if tag not in tags:
+                x.bindtags((tags[0], tag) + tags[1:])
+            stack.extend(x.winfo_children())
+
+    inside = str(frame) + "."
+
+    def on_focus(e):
+        w = e.widget
+        if isinstance(w, tk.Misc) and (w is frame or str(w).startswith(inside)):
+            tags = w.bindtags()
+            if tag not in tags:
+                w.bindtags((tags[0], tag) + tags[1:])
+    frame.winfo_toplevel().bind("<FocusIn>", on_focus, add="+")
+    retag()
+    return retag
+
+
 def hint(parent, text, wrap=320, **kw):
     lab = ttk.Label(parent, text=text, font=SMALL_FONT, foreground=MUTED, wraplength=wrap,
                     justify="left", **kw)

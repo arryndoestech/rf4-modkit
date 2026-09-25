@@ -15,7 +15,7 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from guiutil import Paned, Tip, later
+from guiutil import Paned, Tip, later, shortcut_scope
 from rf4s_modkit import mbundle, script, scriptasm, textlint
 
 from . import catalog, dialogs
@@ -88,32 +88,20 @@ class CutsceneExplorer:
         self.space_lbl.pack(side="right")
         self.status_lbl = ttk.Label(sbar, anchor="w", padding=(6, 2), font=("Segoe UI", 8))
         self.status_lbl.pack(side="left", fill="x", expand=True)
-        tag = "CutEd%d" % id(self)
-        self._bindtag = tag
-        # Caps Lock turns Ctrl+S into <Control-S>: bind both cases; Z/z tell undo from redo
-        # by the Shift bit, not by the letter's case
-        shift = lambda e: bool(e.state & 0x0001)
-        for seq, fn in (("<Control-z>", lambda e: (self.redo if shift(e) else self.undo)()),
-                        ("<Control-Z>", lambda e: (self.redo if shift(e) else self.undo)()),
-                        ("<Control-y>", lambda e: self.redo()), ("<Control-Y>", lambda e: self.redo()),
-                        ("<Control-s>", lambda e: self.save_all()), ("<Control-S>", lambda e: self.save_all()),
-                        ("<Control-f>", lambda e: self.focus_search()),
-                        ("<Control-F>", lambda e: self.focus_search())):
-            self.frame.bind_class(tag, seq, lambda e, fn=fn: (fn(e), "break")[1])
-        self.retag()
+        self._bindtag = "CutEd%d" % id(self)
+        # Ctrl+S / Z / Y / F anywhere in the editor (guiutil.shortcut_scope: both letter
+        # cases for Caps Lock, Shift tells redo from undo, later widgets tagged on focus)
+        self._retag = shortcut_scope(self.frame, self._bindtag, [
+            ("z", lambda e: self.redo() if e.state & 0x0001 else self.undo()),
+            ("y", lambda e: self.redo()),
+            ("s", lambda e: self.save_all()),
+            ("f", lambda e: self.focus_search())])
 
     def retag(self, w=None):
-        """Give `w` (default: the whole editor) and everything under it the editor's shortcut
-        tag (Ctrl+S / Z / Y / F). Panels that rebuild their widgets -- the Inspector on every
-        selection -- call this, or the new widgets would swallow the shortcuts."""
-        tag = self._bindtag
-        stack = [self.frame if w is None else w]
-        while stack:
-            x = stack.pop()
-            tags = x.bindtags()
-            if tag not in tags:
-                x.bindtags((tags[0], tag) + tags[1:])
-            stack.extend(x.winfo_children())
+        """Tag `w` (default: the whole editor) for the shortcuts right away. Panels that
+        rebuild their widgets -- the Inspector on every selection -- call this; anything
+        missed still gets the tag when it takes the focus."""
+        self._retag(w)
 
     def _build_toolbar(self):
         bar = ttk.Frame(self.frame, padding=(2, 2))
