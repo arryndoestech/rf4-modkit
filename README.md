@@ -501,12 +501,30 @@ registrations. The **Overview** tab summarises the scene: speakers, every dialog
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
 control flow.
 
-**Event Manager…** opens the em.bin window: entries decoded to `FLG_`/`REG_` names, a **Filter**
-that matches the decoded text (`IS_WBED` → `EV_PROPOSE_DISABLE`; `REG_DATE_COUNT` → all 11
-marriage gates), the scenes that use the selected entry, in-place value and operator edits (with a
-one-line explanation of each operator, e.g. `MUL_S → t = t * v`), and whole conditions / actions
-added from text (`Hour >= 6 AND (12 > Hour OR FLG_RAINBOW == 1)`, `alt: REG_WIFE_ID = 3`,
-`CALL EV_FOO`) or removed. Selecting `em.bin` in the asset explorer opens the same window.
+**Event Manager…** opens the em.bin window. em.bin holds the game's 272 rules, each asked "is this
+true right now?" to decide which talk plays, whether a shop is open or which event fires today:
+
+- **Browser** (left): entries grouped by topic (dates, marriage & family, everyday events, shops,
+  boss rematches…), each with an English description (translated from emdeb's Japanese labels),
+  what it holds (✔ condition, ▶ actions) and how many scene statements use it. The search box
+  matches descriptions, names and everything an entry checks or changes (`kiel love`,
+  `REG_DATE_COUNT`, `rain`); Enter opens the first match.
+- **Rule** (middle): the entry as sentences — "True when any one of these ways holds", each way's
+  requirements ("Hour of the day is at least 6", "Dating Amber", "“The date is today” is true"),
+  its other test (condition B), the actions scenes run, and who uses it (double-click a scene to
+  open it, or an entry to go there). Hold **Alt** over a line for its exact em.bin form.
+- **Inspector** (right): edit the selected line with pickers — what a requirement checks (a game
+  value, a variable, another entry), how ("is at least", "is less than"…), and against what (named
+  values for seasons, characters, maps, on/off); what an action changes and how ("set to", "add"…).
+  **Add an alternative (OR)**, **Add a requirement (AND)**, **Add a way**, **Add an action
+  before / after** and **Remove** work next to the selection. New lines start as placeholders
+  that change nothing, so em.bin keeps working at every step.
+- **Checks**: the toolbar counts problems. Errors (a condition that loops back to itself, an entry
+  that doesn't exist, dividing by zero) make Save refuse; warnings flag things like the weather
+  queries, which RF4S never answers (they always read 0). **Type it…** still takes the text form
+  (`Hour >= 6 AND Season == 1`, `alt: REG_WIFE_ID = 3`, `CALL EV_FOO`).
+
+Selecting `em.bin` in the asset explorer opens the same window.
 
 **Undo / Redo** (↶ ↷, Ctrl+Z / Ctrl+Y) cover every edit — script, dialogue in every locale and
 em.bin — byte-exact. A step stores only what changed; an edit that changes nothing records

@@ -5408,43 +5408,40 @@ def test_cutscene_editor_authoring():
         em = doc.em
         if emw is not None and em is not None:
             n_before = len(em.entries)
-            box["yesno"] = False           # 'copy the selected entry?' -> no, an empty one
-            emw.add_entry()
-            box["yesno"] = True
-            _check("Event Manager 'Add entry' appends a new em.bin entry (tracked as unsaved)",
-                   len(em.entries) == n_before + 1 and "em.bin" in doc.dirty_parts())
-            nidx = em.entries[-1].idx
-            emw.select_idx(nidx)
+            box["askstring"] = "SELFTEST_ENTRY"
+            nidx = emw.add_entry()
+            box["askstring"] = None
+            _check("Event Manager 'New entry' appends a named em.bin entry (tracked as unsaved)",
+                   len(doc.em.entries) == n_before + 1 and "em.bin" in doc.dirty_parts()
+                   and doc.em.entries[nidx].name == "SELFTEST_ENTRY" and emw.idx == nidx)
             # NB: EmScript._relayout() re-creates the Entry objects, so re-fetch by id
             # after every structural edit (the window itself re-selects by id and refills).
             ex.ask_spec = lambda title, prompt, validate, initial="": "Hour >= 6 AND FLG_RAINBOW == 1"
-            emw.add_condition()
-            new = em.entries[nidx]
-            _check("Event Manager 'Add condition' parses the spec grammar into a new OR-slot",
+            emw.type_it()
+            new = doc.em.entries[nidx]
+            _check("Event Manager 'Type it…' parses a condition into a new way",
                    len(new.cond_a) == 1 and len(new.cond_a[0]) == 2)
             ex.ask_spec = lambda title, prompt, validate, initial="": "alt: REG_WIFE_ID = 3"
-            emw.add_action()
-            new = em.entries[nidx]
-            _check("Event Manager 'Add action' honours the alt: prefix",
+            emw.type_it()
+            new = doc.em.entries[nidx]
+            _check("Event Manager 'Type it…' reads an action and honours the alt: prefix",
                    len(new.alt_actions) == 1 and not new.actions)
-            emw.refresh_struct(new)
-            kinds = [it[0] for it in emw.struct_items]
-            _check("structure picker lists the slot, its expressions and the action",
-                   kinds == ["cond", "cond", "cond", "act"], kinds)
+            kinds = [r.key[0] for r in emw.rows if r.key and r.key[0] in ("expr", "act")]
+            _check("the rule view lists each requirement and the action as selectable lines",
+                   kinds == ["expr", "expr", "act"], kinds)
             rej = []
             for spec in ("Hour >>= 6", "NOT_A_VARIABLE_X == 1", "slot=9 Hour >= 6"):
                 try:
-                    em_window.parse_condition(em, new, spec)
+                    em_window.parse_condition(doc.em, new, spec)
                 except Exception:
                     rej.append(spec)
             _check("condition specs are validated before they are applied", len(rej) == 3, rej)
-            emw.struct_cb.current([i for i, it in enumerate(emw.struct_items) if it[0] == "act"][0])
-            emw.remove_action()
-            _check("Event Manager 'Remove action' drops the picked action",
-                   not em.entries[nidx].alt_actions)
+            emw.select(("act", "alt", 0))
+            emw.remove_selected()
+            _check("Event Manager 'Remove' drops the selected action", not doc.em.entries[nidx].alt_actions)
             from rf4s_modkit import emscript as _emsc
             _check("em.bin with the new entry + condition re-serialises and reparses",
-                   len(_emsc.EmScript.parse(em.serialize(), em.names).entries) == len(em.entries))
+                   len(_emsc.EmScript.parse(doc.em.serialize(), doc.em.names).entries) == len(doc.em.entries))
             for _ in range(4):              # remove action, add action, condition, entry
                 ex.undo()
             # undo re-parses em.bin into a fresh EmScript, so read doc.em again
@@ -6657,6 +6654,69 @@ def test_cutscene_editor_workflows():
                "the explanation popup uses Alt",
                _tb is not None and cx._bindtag in _tb.bindtags()
                and _calls == ["save", "save", "undo", "redo"] and _alt_ok, f"calls={_calls}")
+        # right after an edit applies, the Inspector rebuilds and destroys the focused box; the
+        # focus must land back inside the editor (it used to drop onto the bare window, where
+        # Ctrl+S did nothing until the user clicked somewhere)
+        cx.select((dpc, None))
+        root.update()
+        _stack, _tb2 = [cx.inspector.form], None
+        while _stack and _tb2 is None:
+            _w0 = _stack.pop()
+            _tb2 = _w0 if isinstance(_w0, tk.Text) else None
+            _stack.extend(_w0.winfo_children())
+        _refocus_ok = False
+        if _tb2 is not None:
+            _tb2.focus_force()
+            root.update()
+            _tb2.insert("end", " (edit)")
+            _tb2._commit()                                   # Ctrl+Enter / leaving the box
+            root.update()
+            _f = cx.frame.focus_get()
+            _calls = []
+            _orig_save = cx.save_all
+            cx.save_all = lambda: _calls.append("save")
+            try:
+                if _f is not None:
+                    _f.event_generate("<Control-s>", state=0x4, when="now")
+            finally:
+                cx.save_all = _orig_save
+            _refocus_ok = (_f is not None and str(_f).startswith(str(cx.frame) + ".")
+                           and _calls == ["save"])
+            cx.undo()
+        # the Event Manager window shares the shortcuts; Save asks before skipping an
+        # unapplied Source-tab listing
+        _em_ok = True
+        if doc.em is not None:
+            _emw = cx.open_event_manager()
+            root.update()
+            _emw.text.focus_force()
+            root.update()
+            _calls = []
+            _orig_save = cx.save_all
+            cx.save_all = lambda: _calls.append("save")
+            try:
+                _emw.text.event_generate("<Control-s>", state=0x4, when="now")
+            finally:
+                cx.save_all = _orig_save
+            _em_ok = _calls == ["save"]
+            _emw.win.destroy()
+        cx.source.load(force=True)
+        cx.source.text.insert("end", "\n; a hand edit")
+        cx.source.text.edit_modified(True)
+        _asked = []
+        import cutscene_editor.app as _ceapp
+        _orig_ask = _ceapp.messagebox.askyesnocancel
+        _ceapp.messagebox.askyesnocancel = lambda *a, **k: (_asked.append(1), None)[1]   # Cancel
+        try:
+            _src_ok = cx.source.pending() and cx.save_all() is False and _asked == [1]
+        finally:
+            _ceapp.messagebox.askyesnocancel = _orig_ask
+            cx.source.load(force=True)
+        _src_ok = _src_ok and not cx.source.pending()
+        _check("after an edit applies the focus stays in the editor (Ctrl+S works at once); the "
+               "Event Manager window has the shortcuts; Save asks about an unapplied Source listing",
+               _refocus_ok and _em_ok and _src_ok,
+               f"refocus={_refocus_ok} em={_em_ok} source={_src_ok}")
         # search: the first hit stays highlighted in the results and opens at the matching line
         _br = cx.browser
         _br.mode.set("dialogue")
@@ -6747,6 +6807,201 @@ def test_cutscene_editor_workflows():
         _check("every interactive control in the editor carries a hover tip", not untipped,
                str(sorted(untipped)[:6]))
         _check("cutscene editor workflows raised no callback errors", not errs, f"{len(errs)}")
+    finally:
+        root.destroy()
+
+
+def test_event_manager():
+    """The Event Manager makeover (2026-09-25): emtext's English layer (descriptions, groups,
+    query labels verified against Script_QueryGameState, sentences), emscript's replace/insert
+    helpers, the problem checks Save relies on, and the window's browse / read / edit flow."""
+    print("event manager (emtext + em_window):")
+    from rf4s_modkit import emflags, emscript, emtext, script
+    em_p, db_p = _first("em.bin"), _first("emdeb.bin")
+    if not (em_p and db_p):
+        _skip("event manager", "em.bin / emdeb.bin not extracted"); return
+    names = emscript.EmNames.parse(db_p.read_bytes())
+    orig = em_p.read_bytes()
+    em = emscript.EmScript.parse(orig, names)
+    # -- the English layer --
+    _check("every entry has an English description and a browser group",
+           all(emtext.entry_text(e.name) for e in em.entries)
+           and all(emtext.entry_group(e.name) in {k for k, _t, _f in emtext.GROUPS} for e in em.entries))
+    qi = lambda n: emtext.query_info(names, [i for i, (en, _j) in enumerate(names.query_names) if en == n][0])
+    _check("query labels: characters from the roster order, value kinds, RF4S's unanswered queries",
+           qi("LOVE_KEEL")[0] == "Love level with Kiel" and qi("LOVE_SYELZA")[0] == "Love level with Ventuswill"
+           and qi("Season")[1] == "season" and qi("Party")[1] == "char" and qi("PLAYER_MAP")[1] == "map"
+           and "always reads 0" in qi("Weather")[2] and not qi("Hour")[2])
+    lab = lambda i: emtext.entry_text(em.entries[i].name)
+    day = em.by_name["EV_CMN_DAYTIME"]
+    fin = em.by_name["EV_DATE_FINISH"]
+    s_day = [emtext.expr_text(names, x, lab) for x in day.cond_a[0]]
+    s_fin = [emtext.action_text(names, a, lab) for a in fin.alt_actions]
+    _check("sentences read the way the game means them ('12 > Hour' = Hour is less than 12; on/off)",
+           s_day == ["Hour of the day (0–23) is at least 6", "Hour of the day (0–23) is less than 12"]
+           and s_fin[0] == "turn FLG_DATE_FES_NOW off" and s_fin[2] == "set REG_DATE_MAP to 0", str(s_day + s_fin))
+    _check("the shipped em.bin has no problems", not emtext.problems(em),
+           str(emtext.problems(em)[:2]))
+    # -- model helpers --
+    k = day.idx
+    em.insert_expr(k, "a", 0, 0, em.make_expr("Season == 1"), link="or")
+    em.insert_expr(k, "a", 0, 0, em.make_expr("FLG_RAINBOW == 1"), link="and")
+    shape = [[x.pretty(names) for _i, x in g] for g in emtext.groups_of(em.entries[k].cond_a[0])]
+    em.replace_expr(k, "a", 0, 1, em.make_expr("Season == 2"))
+    shape2 = [[x.pretty(names) for _i, x in g] for g in emtext.groups_of(em.entries[k].cond_a[0])]
+    _check("insert_expr: OR joins the requirement's group, AND starts a new one; replace keeps the link",
+           shape == [["Hour >= 6", "Season == 1"], ["FLG_RAINBOW == 1"], ["12 > Hour"]]
+           and shape2 == [["Hour >= 6", "Season == 2"], ["FLG_RAINBOW == 1"], ["12 > Hour"]], str(shape2))
+    em2 = emscript.EmScript.parse(orig, names)
+    ap = em2.by_name["EV_DATE_APPO"].idx
+    em2.add_condition(ap, "a", [em2.make_expr("condA(#%d)" % ap)])
+    em2.add_action(ap, "main", em2.parse_action_spec("REG_DATE_MAP /= 0"))
+    em2.add_action(ap, "main", emscript.Action(0x00, "CALL", entry=9999))
+    msgs = [m for lvl, i, _p, m in emtext.problems(em2) if lvl == "error" and i == ap]
+    _check("checks: a condition that loops back to itself, dividing by zero, running a missing entry",
+           any("loops back" in m for m in msgs) and any("divides by zero" in m for m in msgs)
+           and any("#9999" in m for m in msgs), str(msgs))
+    # zone 2 (absolute bits 4096..6655): em.bin can reach it though emdeb names nothing there
+    em3 = emscript.EmScript.parse(orig, names)
+    z = em3.by_name["EV_DATE_APPO"].idx
+    kiel_gift = [t for t, tok in emtext.zone2_choices() if "birthday gift given · Kiel" in t]
+    em3.add_condition(z, "a", [em3.make_expr("flag@%d/1 == 1" % (4096 + 1007 + 5))])
+    s_z = emtext.expr_text(names, em3.entries[z].cond_a[-1][0])
+    ok_z = not emtext.problems(em3)
+    em3.add_condition(z, "a", [em3.make_expr("flag@7000/1 == 1")])
+    _check("zone-2 flags: pickable per character, read by name, valid (not 'past the end'); past bit "
+           "6655 is an error",
+           kiel_gift and "birthday gift given" in s_z and "Kiel" in s_z and ok_z
+           and any("past the end of the 6656-bit" in m for _l, _i, _p, m in emtext.problems(em3)), s_z)
+    # -- the window --
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("event manager window", "no tkinter: %s" % e); return
+    box = _headless_dialogs()
+    root = tk.Tk()
+    root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+
+    def reader(name):
+        p = _first(name)
+        return p.read_bytes() if p else None
+    try:
+        top = tk.Toplevel(root)
+        top.geometry("+-10000+-10000")
+        cx = ce.CutsceneExplorer(top, reader=reader)
+        doc = cx.doc
+        base = doc.em.build()
+        w = cx.open_event_manager()
+        w.win.geometry("1320x780+-10000+-10000")
+        root.update()
+        groups = w.tree.get_children()
+        _check("browser: entries grouped by topic, each group counted",
+               len(groups) == len({emtext.entry_group(e.name) for e in doc.em.entries})
+               and sum(len(w.tree.get_children(g)) for g in groups) == len(doc.em.entries))
+        k = doc.em.by_name["EV_CMN_DAYTIME"].idx
+        w.open_entry(k)
+        root.update()
+        text = "\n".join("".join(s for s, _t in r.segs) for r in w.rows)
+        _check("rule view: the entry reads as sentences (ways, requirements, its other test)",
+               "True when any one of these ways holds" in text and "is less than 12" in text
+               and "Its other test (condition B)" in text and w.tree.selection() == ("e:%d" % k,))
+        key = ("expr", "a", 0, 0)
+        w.select(key)
+        root.update()
+
+        def widgets(cls):
+            out, stack = [], [w.insp.body]
+            while stack:
+                x = stack.pop()
+                if x.winfo_class() == cls:
+                    out.append(x)
+                stack.extend(x.winfo_children())
+            return out
+        how = next(c for c in widgets("TCombobox") if "is at least" in c.cget("values"))
+        how.set("is more than")
+        how.event_generate("<<ComboboxSelected>>")
+        root.update()
+        _check("Inspector: picking 'is more than' rewrites the requirement in place",
+               doc.em.entries[k].cond_a[0][0].pretty(doc.em.names) == "Hour > 6" and w.sel == key)
+        n0 = len(doc.em.entries[k].cond_a[0])
+        w.add_requirement("a", 0, 0, "or")
+        w.add_requirement("a", 0, 0, "and")
+        w.add_way("a")
+        w.add_action_to("main")
+        root.update()
+        e = doc.em.entries[k]
+        _check("placeholders change nothing: OR-ed 'never', AND-ed 'always', a 'never' way, 'run #0'",
+               [x.pretty(doc.em.names) for x in e.cond_a[0]][:3] == ["Hour > 6", "FALSE", "TRUE"]
+               and len(e.cond_a[0]) == n0 + 2 and [x.kind for x in e.cond_a[-1]] == ["false"]
+               and e.actions[0].name == "CALL" and e.actions[0].entry == 0
+               and not doc.em.entries[0].actions and not emtext.problems(doc.em))
+        w.select(("act", "main", 0))
+        w._switch_act(("act", "main", 0), "change")
+        root.update()
+        _check("an action switched to 'changes a variable' shows variable / operation / value pickers",
+               doc.em.entries[k].actions[0].name == "ADD" and len(widgets("TCombobox")) == 3)
+        # every control of the requirement and action forms has a hover tip
+        untipped = [c for c in widgets("TCombobox") + widgets("TButton") + widgets("TRadiobutton")
+                    if not c.bind("<Enter>")]
+        w.select(key)
+        root.update()
+        untipped += [c for c in widgets("TCombobox") + widgets("TButton") + widgets("TRadiobutton")
+                     if not c.bind("<Enter>")]
+        _check("every control in the requirement and action forms has a hover tip", not untipped,
+               str([str(c) for c in untipped[:3]]))
+        _check("Alt-hover explains a line precisely (the raw em.bin form, the query's id)",
+               "em.bin: Hour > 6" in w.explain(key) and "game query 3 Hour" in w.explain(key))
+        w.q.set("kiel love")
+        root.update()
+        w.open_first_match()
+        root.update()
+        _check("search narrows the browser and Enter opens the first match",
+               doc.em.entries[w.idx].name == "EV_LOVE_TALK_KEEL" and len(w.matches()) >= 1)
+        w.q.set("")
+        ap = doc.em.by_name["EV_DATE_APPO"].idx
+        w.open_entry(ap)
+        w.add_requirement("a", 0, 0, "or")
+        w._set_ref(("expr", "a", 0, 1), {"ref": ap, "test": "cond_a"})
+        root.update()
+        box["msgs"].clear()
+        refused = cx._refuse_broken_text("Save")
+        _check("a condition that loops back to itself is an error and Save refuses em.bin",
+               refused and any("loops back" in m for _t, m in box["msgs"])
+               and w.prob_btn.cget("text").startswith("⚠"), str(box["msgs"][:1]))
+        # fully custom content: a new entry, a new scene naming it, one computing its entry id
+        import tempfile as _tf
+        box["askstring"] = "MY_CUSTOM_EVENT"
+        new = w.add_entry()
+        box["askstring"] = None
+        pos = next(i for i, bk in enumerate(doc.container.banks)
+                   if i > 300 and not list(script.disassemble_bank(bk)))
+        cx.add_entry(pos, 7, [], "FRAME 0\nEvalCondScriptA(%d)\nEND" % new)
+        cx.add_entry(pos, 7, [], "FRAME 0\nEvalCondScriptA(reg0)\nEND")
+        w.open_entry(new)
+        root.update()
+        text = "\n".join("".join(s for s, _t in r.segs) for r in w.rows)
+        side = pathlib.Path(_tf.mkdtemp()) / "emdeb_extra.json"      # never the game folder
+        doc.em.names.flags.extra_path = str(side)
+        cx._save_em_names()
+        fresh = emscript.EmNames.parse(_first("emdeb.bin").read_bytes())
+        fresh.merge_entry_names(emflags.read_entry_names(str(side)))
+        back = emscript.EmScript.parse(doc.em.build(), fresh)
+        _check("custom content: a new scene naming a new entry is counted live; a computed entry id "
+               "is listed; custom names survive a save; they get their own group",
+               [u[0] for u in cx.em_uses(new)] == [pos] and w.tree.set("e:%d" % new, "uses") == "1"
+               and "at run time" in text and back.entries[new].name == "MY_CUSTOM_EVENT"
+               and emtext.entry_group("MY_CUSTOM_EVENT") == "custom", f"uses={cx.em_uses(new)[:1]}")
+        for _ in range(40):
+            if doc.em.build() == base and not doc.script_dirty():
+                break
+            cx.undo()
+            root.update()
+        _check("undo walks every Event Manager edit back to the shipped em.bin", doc.em.build() == base)
+        _check("event manager raised no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()
 
@@ -7325,7 +7580,7 @@ def run() -> int:
               test_script_authoring, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows,
-              test_cutscene_editor_workflows, test_asset_explorer_gui, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
         try:

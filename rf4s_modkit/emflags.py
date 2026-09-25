@@ -426,6 +426,47 @@ class EmFlagTable:
                             width=v.bit_width, kind=v.kind) for v in self.variables]
 
 
+def extra_path_default():
+    """Where the sidecar lives: the existing one, else next to the bundle's emdeb.bin."""
+    p = find_extra()
+    if p:
+        return p
+    return os.path.join(os.path.dirname(os.path.abspath(find_emdeb())), EXTRA_FILENAME)
+
+
+def read_entry_names(path):
+    """{entry id: name} of the modder-named em.bin entries stored in the sidecar."""
+    import json
+    if not path or not os.path.isfile(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        d = json.load(f)
+    if not isinstance(d, dict):
+        return {}
+    return {int(k): str(v) for k, v in (d.get("entries") or {}).items()}
+
+
+def save_entry_names(path, names):
+    """Store {entry id: name} in the sidecar (the variables in it are kept). emdeb.bin is the
+    game's debug name table and is never rewritten -- the game refers to entries by number,
+    so these names only exist for the toolkit."""
+    import json
+    d = {}
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, list):
+            d = {"variables": d}
+    if not names and not d.get("entries"):
+        return None
+    d.setdefault("_comment", "modder-defined Event-Manager variables and entry names (merged by "
+                             "the RF4S modkit; the game itself never reads names)")
+    d["entries"] = {str(k): v for k, v in sorted(names.items())}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(d, f, ensure_ascii=False, indent=1)
+    return path
+
+
 def find_extra():
     """The default sidecar path (next to the bundle's emdeb.bin) if it exists, else None."""
     try:

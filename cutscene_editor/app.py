@@ -45,6 +45,7 @@ class CutsceneExplorer:
         self.pad_locales = tk.BooleanVar(value=True)
         self._em_window = None
         self._em_uses = None
+        self._em_bank_uses = {}              # bank pos -> (bank bytes, [(entry id | None, ...)])
         self._build()
         if isinstance(parent, (tk.Tk, tk.Toplevel)):
             parent.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -95,7 +96,8 @@ class CutsceneExplorer:
             ("z", lambda e: self.redo() if e.state & 0x0001 else self.undo()),
             ("y", lambda e: self.redo()),
             ("s", lambda e: self.save_all()),
-            ("f", lambda e: self.focus_search())])
+            ("f", lambda e: self.focus_search())],
+            home=lambda: getattr(getattr(self, "view", None), "text", None))   # the Script rows
 
     def retag(self, w=None):
         """Tag `w` (default: the whole editor) for the shortcuts right away. Panels that
@@ -453,6 +455,10 @@ class CutsceneExplorer:
     def _refuse_broken_text(self, title):
         bad = ["• rf3mc.%s line #%d: %s" % (loc, lid, x.message) for loc, lid, x in self.text_errors()]
         bad += ["• bank %d @0x%04x: %s" % e for e in self.arg_count_errors()]
+        if self.doc.em_dirty():                    # em.bin: loops, missing entries, divide by zero
+            from rf4s_modkit import emtext
+            bad += ["• em.bin #%d: %s" % (idx, msg) for level, idx, _p, msg in emtext.problems(self.doc.em)
+                    if level == "error"]
         if not bad:
             return False
         lines = bad[:8] + (["• … and %d more" % (len(bad) - 8)] if len(bad) > 8 else [])
@@ -862,26 +868,52 @@ class CutsceneExplorer:
         self._em_window = EventManagerWindow(self)
         return self._em_window
 
+    def _em_bank_scan(self, pos, bk):
+        """[(entry id or None, scene entry, pc, stmt)] for the em bridge ops (371-374, 444) in
+        one bank; None = the entry id is computed at run time (a variable, not a number)."""
+        out, seen = [], set()
+        for sc in script.disassemble_bank(bk):
+            for pc, st in sc.stmts.items():
+                if st.op not in script.EMF_ENTRY_OPS or pc in seen:
+                    continue
+                ai = script.EMF_ENTRY_OPS[st.op]
+                if ai >= len(st.args):
+                    continue
+                seen.add(pc)
+                try:
+                    eid = int(script.arg_repr(bk.data, st.args[ai]))
+                except (ValueError, TypeError):
+                    eid = None
+                out.append((eid, sc.entry_pc, pc, st))
+        return out
+
+    def _em_index(self):
+        """{entry id or None: [(bank pos, scene entry, pc, stmt)]}. Rebuilt after every edit, but
+        a bank is only re-scanned when its bytes changed (a full scan takes seconds; one bank
+        a fraction of one), so custom scenes are always counted."""
+        if self._em_uses is None:
+            uses, cache = {}, self._em_bank_uses
+            for pos, bk in enumerate(self.doc.container.banks):
+                data = bytes(bk.data)
+                hit = cache.get(pos)
+                if hit is None or hit[0] != data:
+                    hit = cache[pos] = (data, self._em_bank_scan(pos, bk))
+                for eid, entry, pc, st in hit[1]:
+                    uses.setdefault(eid, []).append((pos, entry, pc, st))
+            self._em_uses = uses
+        return self._em_uses
+
     def em_uses(self, entry_idx):
         """[(bank pos, scene entry, pc, stmt)] of every scene op naming em entry `entry_idx`."""
-        if self._em_uses is None:
-            uses, seen = {}, set()
-            for pos, bk in enumerate(self.doc.container.banks):
-                for sc in script.disassemble_bank(bk):
-                    for pc, st in sc.stmts.items():
-                        if st.op not in script.EMF_ENTRY_OPS or (pos, pc) in seen:
-                            continue
-                        ai = script.EMF_ENTRY_OPS[st.op]
-                        if ai >= len(st.args):
-                            continue
-                        seen.add((pos, pc))
-                        try:
-                            eid = int(script.arg_repr(bk.data, st.args[ai]))
-                        except (ValueError, TypeError):
-                            continue
-                        uses.setdefault(eid, []).append((pos, sc.entry_pc, pc, st))
-            self._em_uses = uses
-        return self._em_uses.get(entry_idx, [])
+        return self._em_index().get(entry_idx, [])
+
+    def em_dynamic_uses(self):
+        """The scene ops whose em entry is computed at run time (a variable): they may use any
+        entry, so the Event Manager lists them under every entry's 'Used by'."""
+        return self._em_index().get(None, [])
+
+    def em_use_counts(self):
+        return {k: len(v) for k, v in self._em_index().items() if k is not None}
 
     def ask_spec(self, title, prompt, validate, initial=""):
         return dialogs.ask_spec(self.frame, title, prompt, validate, initial)
@@ -949,6 +981,16 @@ class CutsceneExplorer:
         files are overwritten where they came from, without asking (save_to_game); otherwise
         each one is saved through a file dialog."""
         self.flush_edits()
+        if self.source.pending():          # hand edits in the Source tab count only once applied
+            ans = messagebox.askyesnocancel(
+                "Source tab", "The Source tab has an edited listing that isn't applied to the "
+                "scene yet.\n\nApply it before saving?\n(No saves without it; the listing stays "
+                "in the Source tab.)", parent=self.frame)
+            if ans is None:
+                return False
+            if ans and not self.source.apply():
+                self.nb.select(self.nb.index(self.source))
+                return False
         parts = self.unsaved()
         if not parts:
             self.status("Nothing to save")
@@ -1049,12 +1091,25 @@ class CutsceneExplorer:
             messagebox.showerror("Save", "Could not write %s:\n%s\n\n(Is the game running with the "
                                          "file open?)" % (name, e), parent=self.frame)
             return False
+        if "em.bin" in blobs:
+            self._save_em_names()
         self.doc.mark_saved(script_="rf3.mc" in blobs, locales=[n[6:] for n in blobs if n.startswith("rf3mc.")],
                             em="em.bin" in blobs)
         self._chrome()
         note = " (originals of %s kept in %s)" % (", ".join(backed), self.BACKUP_DIR) if backed else ""
         self.status("Saved %s%s -- restart the game to see it" % (", ".join(written), note))
         return True
+
+    def _save_em_names(self):
+        """Keep the names of custom em.bin entries: emdeb.bin (the game's debug name table) is
+        never rewritten, so they go to the emdeb_extra.json sidecar next to it."""
+        from rf4s_modkit import emflags
+        try:
+            path = self.doc.em.names.flags.extra_path or emflags.extra_path_default()
+            if emflags.save_entry_names(path, self.doc.em.custom_entry_names()):
+                self.doc.em.names.flags.extra_path = path
+        except (OSError, ValueError) as e:
+            self.status("em.bin saved; the custom entry names could not be kept: %s" % e)
 
     def save_script(self):
         if self.doc.container is None:
@@ -1108,6 +1163,8 @@ class CutsceneExplorer:
         em = self.doc.em
         if em is None:
             return False
+        if self._refuse_broken_text("Save em.bin"):
+            return False
         f = filedialog.asksaveasfilename(title="Save em.bin", defaultextension=".bin", initialfile="em.bin")
         if not f:
             return False
@@ -1116,6 +1173,7 @@ class CutsceneExplorer:
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Save em.bin", str(e))
             return False
+        self._save_em_names()
         self.doc.mark_saved(em=True)
         self._chrome()
         self.status("Saved %s" % f)

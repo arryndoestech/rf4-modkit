@@ -4487,10 +4487,10 @@ Args:
   0. npc index
   1. mode (1=add companion, -1=remove, other=presence bit only)
 
-### `op 281` — ApplyNpcDateOutcome(npc, outcome state)
+### `op 281` — SetNpcDateState(npc, date state)
 *handler:* `NpcSchedule_ApplyStateAndAwardFriendship`
 
-Set an NPC's date/event OUTCOME state (3-bit, into its record). arg0 = npc (char id), arg1 = outcome state. State 4 = a successful date, which AWARDS friendship XP (enough to level up on the first date, otherwise +55). Use at the end of a dating/event scene.
+Set an NPC's DATE STATE (3 bits at npc record +55; read by QueryNpcDateState, op 280, and em.bin's DATE_STATE query): 0 no date, 1 a date is promised for tomorrow, 2 the date is today, 3 on the date, 4 the date went well, 5 turned you down today. arg0 = npc (char id), arg1 = the state. Setting 4 also AWARDS friendship (up to the next level on the first date, otherwise +55). Lifecycle (traced 2026-09-25): the invitation scene sets 1 when the NPC accepts ('I would love to accompany you!') or 5 when they decline ('I have work to do tomorrow'); Day_UpdateNpcDailyFlags (RF4S.exe+0x227AE0) turns 1 into 2 at the daily rollover, clears 5, and treats a 2 that is still 2 as a stood-up date (stood-up mark 1-3, back to 0, em.bin EV_DATE_FINISH); Npc_TryDateInvitation_NightFinale does the same at 18:00/22:00; the date-day talk sets 3 when the date starts; leaving the party with 3 or 4 ends the date (Companion_SyncToScene: back to 0 + EV_DATE_FINISH).
 
 Args:
   0. npc (char id)
@@ -4521,7 +4521,13 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. outcome state (4=success)
+  1. date state
+     - `0` = no date
+     - `1` = date promised
+     - `2` = date today
+     - `3` = on the date
+     - `4` = date went well
+     - `5` = turned you down
 
 ### `op 284` — MountActor(actor, mount event key)
 *handler:* `ScriptVMOp_MountActorOrDismountByCalendarEventKey`
@@ -9547,7 +9553,7 @@ Args:
 ### `op 280` — QueryNpcDateState(npc)
 *handler:* `Script_VMOp_QueryNpcDateState`
 
-Read an NPC's 3-bit DATE STATE (dating/relationship progression, npc record +55 & 7) into reg0 -- NOT a facing direction. arg0 = npc (char id); yields 0 if the NPC can't be resolved. Byte-for-byte duplicate of Npc_GetDateState, which backs EMQ_DATE_STATE (query 124) and the EMQ_SUBEV_ENABLE_* gates (tested against 0 or 5). Branch on it to gate date/relationship sub-events.
+Read an NPC's DATE STATE (npc record +55 & 7) into reg0 -- NOT a facing direction: 0 no date, 1 a date is promised for tomorrow, 2 the date is today, 3 on the date, 4 the date went well, 5 turned you down today (6/7 unused). arg0 = npc (char id); yields 0 if the NPC can't be resolved. Same read as Npc_GetDateState, which backs em.bin's DATE_STATE query (124) and the SUBEV_ENABLE_* gates (a sub-event may start at 0 or 5, i.e. with no date pending). Set by op 281 SetNpcDateState. Lifecycle (traced 2026-09-25): the invitation scene sets 1 when the NPC accepts ('I would love to accompany you!') or 5 when they decline ('I have work to do tomorrow'); Day_UpdateNpcDailyFlags (RF4S.exe+0x227AE0) turns 1 into 2 at the daily rollover, clears 5, and treats a 2 that is still 2 as a stood-up date (stood-up mark 1-3, back to 0, em.bin EV_DATE_FINISH); Npc_TryDateInvitation_NightFinale does the same at 18:00/22:00; the date-day talk sets 3 when the date starts; leaving the party with 3 or 4 ends the date (Companion_SyncToScene: back to 0 + EV_DATE_FINISH).
 
 Args:
   0. npc (char id)
@@ -10968,7 +10974,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 271 | `RefreshNpcSchedule` | 272 | `nop` | 273 | `QueryNpcPresent` |
 | 274 | `QueryNpcPresent` | 275 | `SetNpcPresenceState` | 276 | `QueryNpcModelId` |
 | 277 | `QueryNpcModelId` | 278 | `QueryNpcFavoriteItem` | 279 | `QueryNpcFavoriteItem` |
-| 280 | `QueryNpcDateState` | 281 | `ApplyNpcDateOutcome` | 282 | `QueryNpcActorPresent` |
+| 280 | `QueryNpcDateState` | 281 | `SetNpcDateState` | 282 | `QueryNpcActorPresent` |
 | 283 | `QueryCompanionNpcId` | 284 | `MountActor` | 285 | `SetSceneReadyFlag` |
 | 286 | `ShakeActor` | 287 | `SetNpcOutfit` | 288 | `QueryNpcActorStateWord` |
 | 289 | `CarryBaby` | 290 | `PostFamilyMilestones` | 291 | `SpawnChildEventRecords` |

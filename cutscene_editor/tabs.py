@@ -141,6 +141,12 @@ class SourceTab(ttk.Frame):
                      % (n, "" if n == 1 else "s", len(region)), "ok")
         return region
 
+    def pending(self):
+        """True when the listing was edited by hand and differs from the scene (not applied)."""
+        if self.app.scene is None or not self.text.edit_modified():
+            return False
+        return self.text.get("1.0", "end-1c").strip() != self.listing().strip()
+
     def apply(self):
         app = self.app
         if app.scene is None:

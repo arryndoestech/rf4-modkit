@@ -171,7 +171,8 @@ class MapEditorPanel:
         self.retag = shortcut_scope(self.frame, self._tag, [
             ("z", lambda e: self.redo() if e.state & 0x0001 else self.undo()),
             ("y", lambda e: self.redo()),
-            ("s", lambda e: self.save_all())])
+            ("s", lambda e: self.save_all())],
+            home=lambda: getattr(getattr(self, "view", None), "canvas", None))  # the map
 
     # ------------------------------------------------------------------ #
     # host API

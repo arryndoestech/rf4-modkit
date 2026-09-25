@@ -149,6 +149,9 @@ CONTROL = {
 # args names label each positional argument for the tooltip.
 # NOTE: keys here are the OLD (+302-shifted) indices; they get shifted to the real
 # action ids below. See the _M assembly after this dict.
+# the date-state lifecycle, shared by ops 280 / 281
+_DATE_LIFE = "Lifecycle (traced 2026-09-25): the invitation scene sets 1 when the NPC accepts ('I would love to accompany you!') or 5 when they decline ('I have work to do tomorrow'); Day_UpdateNpcDailyFlags (RF4S.exe+0x227AE0) turns 1 into 2 at the daily rollover, clears 5, and treats a 2 that is still 2 as a stood-up date (stood-up mark 1-3, back to 0, em.bin EV_DATE_FINISH); Npc_TryDateInvitation_NightFinale does the same at 18:00/22:00; the date-day talk sets 3 when the date starts; leaving the party with 3 or 4 ends the date (Companion_SyncToScene: back to 0 + EV_DATE_FINISH)."
+
 _M_OLDBASE = {
     # --- dialogue / portraits / emotes ---
     14:  ("SetNpcVisible", "dialogue", "Show or hide a scene NPC.", ["npc id", "visible"]),
@@ -1841,12 +1844,13 @@ _M.update({
           "Alias of op 266 (same handler): pin an NPC to a scripted spot/state, or clear it.",
           ["npc (char id)", "persist", "x (tiles)", "y (tiles)", "facing (0-255)",
            "apply (0=clear)", "sched kind", "sub kind", "state"]),
-    281: ("ApplyNpcDateOutcome", "actor",
-          "Set an NPC's date/event OUTCOME state (3-bit, into its record). arg0 = npc (char "
-          "id), arg1 = outcome state. State 4 = a successful date, which AWARDS friendship XP "
-          "(enough to level up on the first date, otherwise +55). Use at the end of a "
-          "dating/event scene.",
-          ["npc (char id)", "outcome state (4=success)"]),
+    281: ("SetNpcDateState", "actor",
+          "Set an NPC's DATE STATE (3 bits at npc record +55; read by QueryNpcDateState, op 280, "
+          "and em.bin's DATE_STATE query): 0 no date, 1 a date is promised for tomorrow, 2 the "
+          "date is today, 3 on the date, 4 the date went well, 5 turned you down today. arg0 = npc "
+          "(char id), arg1 = the state. Setting 4 also AWARDS friendship (up to the next level on "
+          "the first date, otherwise +55). " + _DATE_LIFE,
+          ["npc (char id)", "date state"]),
     298: ("ApplyPendingNpcPlan", "actor",
           "Apply an NPC's PENDING schedule plan for today — re-parses and applies its "
           "calendar-computed schedule, clears its scene reservation, and refreshes the "
@@ -4863,6 +4867,18 @@ BOX_STYLES = {0: ("normal box", "The normal message box."),
               4: ("tail only", "No box, just the speech tail.")}
 ENUM_ARG_VALUES[(93, 0)] = BOX_STYLES
 
+# An NPC's date state (npc record +55 & 7): op 281 SetNpcDateState writes it, op 280 and
+# em.bin's DATE_STATE query read it -- the lifecycle is in op 281's description.
+DATE_STATES = {0: ("no date", "No date with this NPC."),
+               1: ("date promised", "They accepted an invitation: the date is tomorrow."),
+               2: ("date today", "The date is today (1 becomes 2 at the daily rollover). Still 2 at "
+                                 "18:00 / 22:00 or the next rollover = stood up."),
+               3: ("on the date", "The date has started: they are with you. It ends when they leave "
+                                  "your party."),
+               4: ("date went well", "Setting it awards friendship; it ends when they leave your party."),
+               5: ("turned you down", "They declined today's invitation; cleared at the next rollover.")}
+ENUM_ARG_VALUES[(281, 1)] = DATE_STATES
+
 # Skill sub-arg of QueryPlayerVariable (op416 arg1 = the skill id, used when arg0 selects 'Skill').
 # render_action already value-decodes it via the stat-query path; this just adds the dropdown.
 ENUM_ARG_VALUES[(416, 1)] = SKILL_IDS
@@ -5173,7 +5189,7 @@ _AUDIT_2026_09_01 = {
         "Set NPC [arg0]'s presence/companion state. arg1 = -1: clear the NPC's bit in the global presence mask (qword_...B300-family dword) and clear its record's companion bit (+52 bit 0x400000). Any other arg1 value sets the presence-mask bit; arg1 == 1 ADDITIONALLY marks the NPC as companion (+52: set bit 0x400000 and state bits 0x300), copies a record flag to byte +16, and writes 0 into packed game-flag 768. So: 1 = add as companion, -1 = remove, other values touch only the presence bit.",
         ['npc index', 'mode (1=add companion, -1=remove, other=presence bit only)']),
     280: ('QueryNpcDateState', 'query',
-        "Read an NPC's 3-bit DATE STATE (dating/relationship progression, npc record +55 & 7) into reg0 -- NOT a facing direction. arg0 = npc (char id); yields 0 if the NPC can't be resolved. Byte-for-byte duplicate of Npc_GetDateState, which backs EMQ_DATE_STATE (query 124) and the EMQ_SUBEV_ENABLE_* gates (tested against 0 or 5). Branch on it to gate date/relationship sub-events.",
+        "Read an NPC's DATE STATE (npc record +55 & 7) into reg0 -- NOT a facing direction: 0 no date, 1 a date is promised for tomorrow, 2 the date is today, 3 on the date, 4 the date went well, 5 turned you down today (6/7 unused). arg0 = npc (char id); yields 0 if the NPC can't be resolved. Same read as Npc_GetDateState, which backs em.bin's DATE_STATE query (124) and the SUBEV_ENABLE_* gates (a sub-event may start at 0 or 5, i.e. with no date pending). Set by op 281 SetNpcDateState. " + _DATE_LIFE,
         ['npc (char id)']),
     285: ('SetSceneReadyFlag', 'flow',
         "Set a scene-state control bit (scene state +72 bit 0x1) when arg0 is 0 — a low-level 'wait / ready' marker the scene loop checks. arg0 = mode (0 sets it).",

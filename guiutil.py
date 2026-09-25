@@ -95,7 +95,7 @@ def later(widget, fn, ms=0):
     return handle[0]
 
 
-def shortcut_scope(frame, tag, bindings):
+def shortcut_scope(frame, tag, bindings, home=None):
     """Editor-wide Ctrl shortcuts that work wherever the keyboard focus is inside `frame`,
     including widgets built later (panels that rebuild their forms on every selection).
 
@@ -103,11 +103,38 @@ def shortcut_scope(frame, tag, bindings):
     doesn't turn Ctrl+S into an unbound <Control-S>. The handler gets the event: tell undo
     from redo by the Shift bit (event.state & 1), not by the letter's case. Every widget
     under `frame` gets `tag` now, and any widget created later gets it the moment it takes
-    the focus (before a key can reach it). Returns a retag(widget=None) function for
-    callers that want to tag a subtree right away."""
+    the focus (before a key can reach it).
+
+    When the focused widget is destroyed (a panel rebuilding its form right after an edit
+    applied), Tk drops the focus onto the bare toplevel, outside the scope, and the next
+    Ctrl+S would go nowhere until the user clicked somewhere. The focus is handed to
+    `home()` (a widget inside `frame`; default the frame itself) instead.
+
+    Returns a retag(widget=None) function for callers that want to tag a subtree now."""
     for letter, fn in bindings:
         for seq in ("<Control-%s>" % letter.lower(), "<Control-%s>" % letter.upper()):
             frame.bind_class(tag, seq, lambda e, fn=fn: (fn(e), "break")[1])
+    top = frame.winfo_toplevel()
+    focused = {"w": None}
+
+    def refocus():
+        try:
+            f = frame.focus_get()
+        except (KeyError, tk.TclError):            # focus on a widget being torn down
+            f = None
+        if f is None or f is top:
+            target = (home() if home else None) or frame
+            try:
+                if target.winfo_exists():
+                    target.focus_set()
+            except tk.TclError:
+                pass
+
+    def on_destroy(e):
+        if e.widget is focused["w"]:
+            focused["w"] = None
+            frame.after_idle(refocus)
+    frame.bind_class(tag, "<Destroy>", on_destroy, add="+")
 
     def retag(w=None):
         stack = [frame if w is None else w]
@@ -126,7 +153,8 @@ def shortcut_scope(frame, tag, bindings):
             tags = w.bindtags()
             if tag not in tags:
                 w.bindtags((tags[0], tag) + tags[1:])
-    frame.winfo_toplevel().bind("<FocusIn>", on_focus, add="+")
+            focused["w"] = w
+    top.bind("<FocusIn>", on_focus, add="+")
     retag()
     return retag
 

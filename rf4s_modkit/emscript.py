@@ -248,6 +248,7 @@ class EmNames(object):
 
     def __init__(self, entry_names, query_names, flags):
         self.entry_names = entry_names    # list[(en, jp)]
+        self.shipped_entry_names = [en for en, _jp in entry_names]    # emdeb.bin's own
         self.query_names = query_names    # list[(en, jp)]
         self.flags = flags                # emflags.EmFlagTable
         self._flag_sorted = sorted(v.bit_offset for v in flags.variables)
@@ -278,7 +279,22 @@ class EmNames(object):
             queries.append((rd(eo, el), rd(jo, jl, True)))
         if flags is None:
             flags = emflags.EmFlagTable.parse(d)
-        return cls(entries, queries, flags)
+        out = cls(entries, queries, flags)
+        # entry names given in the toolkit (emdeb_extra.json "entries"; emdeb.bin itself is
+        # never rewritten) -- custom entries keep their names after a save
+        try:
+            out.merge_entry_names(emflags.read_entry_names(flags.extra_path or emflags.find_extra()))
+        except (OSError, ValueError):
+            pass
+        return out
+
+    def merge_entry_names(self, names):
+        """Apply {entry id: name} over the table (ids past emdeb's list extend it)."""
+        for i, nm in sorted((names or {}).items()):
+            while len(self.entry_names) <= i:
+                self.entry_names.append(("", ""))
+            self.entry_names[i] = (nm, self.entry_names[i][1] if nm == self.entry_names[i][0] else "")
+        return len(names or {})
 
     @classmethod
     def load(cls, path=None):
@@ -900,6 +916,68 @@ class EmScript(object):
         self._relayout()
         return removed
 
+    def _slot(self, key, which, slot):
+        e = self.entries[self._idx(key)]
+        slots = (e.cond_a if which == "a" else e.cond_b) or []
+        if not 0 <= slot < len(slots):
+            raise IndexError("entry %d has no cond %s slot %d" % (e.idx, which, slot))
+        return e, slots[slot]
+
+    def replace_expr(self, key, which, slot, index, expr):
+        """Put `expr` in place of expression `index` of an OR-slot, keeping its OR-link to the
+        next expression (so the slot's groups keep their shape)."""
+        _e, xs = self._slot(key, which, slot)
+        if not 0 <= index < len(xs):
+            raise IndexError("cond %s slot %d has no expr %d" % (which, slot, index))
+        expr.op_byte = (expr.op_byte & 0x7F) | (xs[index].op_byte & 0x80)
+        self._pack_expr(expr)                        # validate before mutating
+        xs[index] = expr
+        self._relayout()
+        return index
+
+    def insert_expr(self, key, which, slot, index, expr, link="and"):
+        """Add `expr` next to expression `index` of an OR-slot: link='or' makes it an
+        alternative inside that expression's OR-group (right after it); link='and' starts a new
+        group (a new requirement) right after that group. Returns the new expression's index."""
+        _e, xs = self._slot(key, which, slot)
+        if not 0 <= index < len(xs):
+            raise IndexError("cond %s slot %d has no expr %d" % (which, slot, index))
+        self._pack_expr(expr)
+        if link == "or":
+            expr.op_byte = (expr.op_byte & 0x7F) | (xs[index].op_byte & 0x80)
+            xs[index].op_byte |= 0x80                # ... OR the new one
+            pos = index + 1
+        elif link == "and":
+            end = index
+            while end < len(xs) and xs[end].op_byte & 0x80:
+                end += 1                             # the last member of index's OR-group
+            expr.op_byte &= 0x7F
+            pos = end + 1
+        else:
+            raise ValueError("link must be 'and' or 'or'")
+        xs.insert(pos, expr)
+        self._relayout()
+        return pos
+
+    def replace_action(self, key, stream, index, action):
+        """Put `action` in place of action `index` of an entry's main/alt stream."""
+        e = self.entries[self._idx(key)]
+        acts = e.actions if stream == "main" else e.alt_actions
+        if not 0 <= index < len(acts):
+            raise IndexError("entry %d has no %s action %d" % (e.idx, stream, index))
+        self._pack_action(action)
+        acts[index] = action
+        self._relayout()
+        return index
+
+    def make_expr(self, text):
+        """ONE condition term from text (`Hour >= 6`, `!condA(EV_X)`, TRUE ...), OR-link clear."""
+        xs = self.parse_condition_spec(text)
+        if len(xs) != 1:
+            raise ValueError("expected one requirement, got %d" % len(xs))
+        xs[0].op_byte &= 0x7F
+        return xs[0]
+
     def add_action(self, key, stream, action, index=None):
         """Insert an Action (from parse_action_spec) into an entry's main/alt stream at
         `index` (default: append). Returns the index."""
@@ -927,6 +1005,13 @@ class EmScript(object):
         return removed
 
     # -- spec mini-language (what `rf4mod em add / add-cond / add-action` accept) ------
+    def custom_entry_names(self):
+        """{entry id: name} for names that differ from emdeb.bin's at that id (new entries, and
+        every name that moved when an entry was deleted) -- what the sidecar stores."""
+        shipped = self.names.shipped_entry_names
+        return {e.idx: e.name for e in self.entries
+                if e.name and (e.idx >= len(shipped) or shipped[e.idx] != e.name)}
+
     def entry_id(self, tok):
         """'#12' / '12' -> 12; an emdeb entry name -> its id."""
         tok = str(tok).strip()
