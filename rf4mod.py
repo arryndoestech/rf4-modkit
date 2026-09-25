@@ -40,10 +40,13 @@ ITEM_NAMES = _refdata_path("rf4s_item_names.json")
 
 # Repo root = two levels up from tools/modding/. Bundle dir + extracted dir.
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
-BUNDLE_DIR = REPO / "Bundle"
+# The game copy's Bundle folder (rf4s_modkit.gamepaths: saved setting, else the nearest
+# Bundle above the toolkit, else $RF4S_BUNDLE); `rf4mod.py game <folder>` sets it.
+from rf4s_modkit import gamepaths  # noqa: E402
+BUNDLE_DIR = gamepaths.bundle_dir()
 # Extraction root: support both Bundle/extracted/<bundle>/... and a flat
 # Bundle/<bundle>/... layout (the toolkit unpacks to either).
-EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
+EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
 DEFAULT_MANIFEST = BUNDLE_DIR / "Manifest.plist"
 
 
@@ -181,8 +184,42 @@ def cmd_bundle_rebuild(a):
           + (f" + updated manifest entry {name!r}" if man is not None else ""))
 
 
+def _game_root(a):
+    """The game_root argument, else the saved / found game copy."""
+    if a.game_root:
+        return pathlib.Path(a.game_root)
+    b = gamepaths.find_bundle_dir()
+    if b is None:
+        sys.exit("no game folder set: pass it, or run  rf4mod.py game <your game copy>")
+    return b
+
+
+def cmd_game(a):
+    """Show or set the game copy every tool uses."""
+    if a.forget:
+        gamepaths.forget()
+        print("forgot the saved game folder")
+    elif a.folder:
+        try:
+            b = gamepaths.save(a.folder)
+        except ValueError as e:
+            sys.exit(f"can't use {a.folder}: {e}")
+        print(f"saved: {b}  (in {gamepaths.settings_path()})")
+    b = gamepaths.find_bundle_dir(refresh=True)
+    print(f"game Bundle folder: {b if b else '(none found)'}")
+    for src, c in gamepaths.candidates():
+        why = gamepaths.problem(c)
+        print(f"  {src:<24} {c}" + (f"   -- not used: {why}" if why else ""))
+    if b is not None and not gamepaths.is_unpacked(b):
+        print("  the archives are not unpacked yet (the map editor needs that): rf4mod.py unpack")
+
+
 def cmd_install(a):
-    root = pathlib.Path(a.game_root)
+    if len(a.args) not in (2, 3):
+        sys.exit("usage: rf4mod.py install [GAME] NAME FILE")
+    a.game_root = a.args[0] if len(a.args) == 3 else None
+    a.name, a.file = a.args[-2:]
+    root = _game_root(a)
     dest = mbundle.install_loose(root, a.name, a.file)
     print(f"installed loose file -> {dest}")
     print("  the game indexes every file under Bundle\\ at startup, ahead of the .mbundle archives:"
@@ -286,6 +323,7 @@ def cmd_shader_replace(a):
 
 def cmd_mods(a):
     """What overrides the game right now: loose files under Bundle\\ that replace packed ones."""
+    a.game_root = _game_root(a)
     bdir = mbundle.bundle_dir(a.game_root)
     mani = bdir / "Manifest.plist"
     man = mbundle.Manifest(mani) if mani.is_file() else None
@@ -303,6 +341,7 @@ def cmd_mods(a):
 
 
 def cmd_unpack(a):
+    a.game_root = _game_root(a)
     bdir = mbundle.bundle_dir(a.game_root)
     man = mbundle.Manifest(bdir / "Manifest.plist")
     res = mbundle.unpack(a.game_root, man, voice=a.voice,
@@ -3396,22 +3435,27 @@ def build_parser():
     # install
     pin = sub.add_parser("install", help="install a loose-file override (recommended): "
                          "copies FILE to <game>\\Bundle\\00_mods\\NAME")
-    pin.add_argument("game_root", help="the game folder (or its Bundle folder)")
-    pin.add_argument("name", help="the game file it replaces, e.g. rf3.mc")
-    pin.add_argument("file", help="your modified file")
+    pin.add_argument("args", nargs="+", metavar="[GAME] NAME FILE",
+                     help="the game folder (optional: default the saved one), the game file it "
+                          "replaces (e.g. rf3.mc) and your modified file")
     pin.set_defaults(func=cmd_install)
     pmo = sub.add_parser("mods", help="list the loose files that override the game right now")
-    pmo.add_argument("game_root", help="the game folder (or its Bundle folder)")
+    pmo.add_argument("game_root", nargs="?", help="the game folder (default: the saved one)")
     pmo.add_argument("--all", action="store_true", help="also list extracted files that replace nothing")
     pmo.add_argument("--limit", type=int, default=200)
     pmo.set_defaults(func=cmd_mods)
     pun = sub.add_parser("unpack", help="extract every .mbundle into Bundle\\<bundle>\\ "
                          "(resumable; the game runs from the extracted folders too)")
-    pun.add_argument("game_root", help="the game folder (or its Bundle folder)")
+    pun.add_argument("game_root", nargs="?", help="the game folder (default: the saved one)")
     pun.add_argument("--voice", choices=("none", "en", "jp", "both"), default="none",
                      help="voice bundles to extract (default none: they share every file name, "
                           "and extracted, EN wins whatever the voice setting says)")
     pun.set_defaults(func=cmd_unpack)
+    pga = sub.add_parser("game", help="show or set the game copy every tool uses "
+                         "(a copy outside Steam's folders)")
+    pga.add_argument("folder", nargs="?", help="the game copy (the folder with RF4S.exe and Bundle)")
+    pga.add_argument("--forget", action="store_true", help="drop the saved folder")
+    pga.set_defaults(func=cmd_game)
 
     # plist
     pp = sub.add_parser("plist", help="bplist (.minterface/.plist) <-> JSON")
@@ -3935,7 +3979,7 @@ def build_parser():
     e1.add_argument("entry")
     e2 = emsub.add_parser("queries", help="list the 218 named game-state queries")
     e3 = emsub.add_parser("xref", help="scan rf3.mc for CondScript bridge ops -> entry names")
-    e3.add_argument("mc", nargs="?", default=str(REPO / "Bundle" / "bundlePatch1" / "rf3.mc"))
+    e3.add_argument("mc", nargs="?", default=str(BUNDLE_DIR / "bundlePatch1" / "rf3.mc"))
     e4 = emsub.add_parser("set", help="edit a condition/action in place (byte-safe)")
     e4.add_argument("entry", help="entry id or name (e.g. EV_BOSS_SP_DEAD)")
     e4.add_argument("--cond", choices=("a", "b"), help="target a condition (use --slot/--expr)")

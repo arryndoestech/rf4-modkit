@@ -1057,10 +1057,9 @@ class EmScript(object):
 
 def find_em():
     """Locate em.bin next to emdeb.bin in the game bundle."""
-    cands = [
-        os.path.join(os.path.dirname(__file__), "..", "..", "..",
-                     "Bundle", "bundleMain", "em.bin"),
-    ]
+    from . import gamepaths
+    cands = [str(gamepaths.game_file("bundleMain", "em.bin")),
+             str(gamepaths.extracted_dir() / "bundleMain" / "em.bin")]
     for c in cands:
         if os.path.isfile(c):
             return c

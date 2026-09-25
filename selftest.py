@@ -23,7 +23,8 @@ from rf4s_modkit import (  # noqa: E402
 )
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
-BUNDLE_DIR = REPO / "Bundle"
+from rf4s_modkit import gamepaths as _gamepaths  # noqa: E402
+BUNDLE_DIR = _gamepaths.bundle_dir()             # the game copy (rf4s_modkit.gamepaths)
 # Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
 
@@ -82,7 +83,7 @@ def _first(glob):
 def test_bplist():
     print("bplist:")
     for f in ("KeyBindings.plist", "MUKeyCodeConversion.plist"):
-        p = REPO / f
+        p = BUNDLE_DIR.parent / f           # the game copy
         if not p.is_file():
             _skip(f"bplist round-trip {f}", "file not present")
             continue
@@ -6665,7 +6666,7 @@ def test_portraits():
            set(fmts) <= {(".psbData", "RGBA8", 0), (".emtbytes", "ASTC_8BPP", 1)}, str(sorted(fmts)))
     _check("psb: face frames 0..5 (通常..照れ) are timelines in every base/outfit portrait, SP1/SP2 in the SP files",
            not face_missing, f"missing in {face_missing[:4]}" if face_missing else f"{len(files)} files")
-    exe = REPO / "RF4S.exe"
+    exe = BUNDLE_DIR.parent / "RF4S.exe"          # the game copy
     if exe.is_file():
         eb = exe.read_bytes()
         paths = set(m.group(1).decode() for m in re.finditer(rb"rom:/emote/([A-Z0-9_]+\.psbData)\x00", eb))
@@ -6872,7 +6873,7 @@ def test_shader_archive():
         shutil.rmtree(tmp, ignore_errors=True)
 
     # ---- static exe evidence (offline disassembly anchors) -------------------------------
-    exe = REPO / "RF4S.exe"
+    exe = BUNDLE_DIR.parent / "RF4S.exe"          # the game copy
     if not exe.is_file():
         _skip("RF4S.exe shader anchors", "RF4S.exe not next to Bundle/")
         return

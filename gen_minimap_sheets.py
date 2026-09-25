@@ -39,7 +39,8 @@ from rf4s_modkit import map_names, minimap, rf4m, texture  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent      # tools/modding/../..
 DOCS = REPO / "docs"
-BUNDLE_DIR = REPO / "Bundle"
+from rf4s_modkit import gamepaths  # noqa: E402
+BUNDLE_DIR = gamepaths.bundle_dir()
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
 
 GREEN, RED, ORANGE, BLUE = (40, 230, 40, 255), (255, 40, 40, 255), (255, 150, 0, 255), (40, 160, 255, 255)

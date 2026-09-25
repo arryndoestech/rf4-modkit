@@ -854,9 +854,12 @@ class CutsceneExplorer:
         """Install every edited file as a loose override under a chosen game root."""
         if self.doc.container is None:
             return False
-        root = filedialog.askdirectory(title="Game folder (overrides go to Bundle\\00_mods)")
-        if not root:
-            return False
+        from rf4s_modkit import gamepaths
+        root = gamepaths.find_bundle_dir()          # the game copy every tool uses
+        if root is None:
+            root = filedialog.askdirectory(title="Game folder (overrides go to Bundle\\00_mods)")
+            if not root:
+                return False
         import tempfile
         stage = pathlib.Path(tempfile.mkdtemp())
         files = {"rf3.mc": self.doc.container.build()}

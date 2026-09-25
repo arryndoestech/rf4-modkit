@@ -42,7 +42,8 @@ from rf4s_modkit import rf4m, mapground  # noqa: E402
 from PIL import Image
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
-BUNDLE = REPO / "Bundle"
+from rf4s_modkit import gamepaths  # noqa: E402
+BUNDLE = gamepaths.bundle_dir()
 ROOMS_CSV = [
     pathlib.Path(__file__).resolve().parent / "refdata" / "rf4s_rooms.csv",
     REPO / "tools" / "rf4s_rooms.csv",

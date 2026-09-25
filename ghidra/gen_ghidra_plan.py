@@ -31,7 +31,8 @@ sys.path.insert(0, str(HERE.parent))
 from rf4s_modkit import script                       # noqa: E402
 from rf4s_modkit.textdb import TextArchive           # noqa: E402
 
-DEFAULT_MC = str(HERE.parent.parent.parent / "Bundle" / "bundlePatch1" / "rf3.mc")   # <root>/Bundle next to tools/
+from rf4s_modkit import gamepaths                    # noqa: E402
+DEFAULT_MC = str(gamepaths.game_file("bundlePatch1", "rf3.mc"))   # the game copy
 
 # control-flow reference kinds for Ghidra (applied as RefType by the apply script)
 _REFKIND = {"CALL": "call", "JMP": "jump"}

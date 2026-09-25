@@ -6,51 +6,61 @@ that ships in the game's `.mbundle` archives.
 
 ## Quick start (Windows, fresh Python)
 
-You need **Python 3.10 or newer** from <https://python.org> and your own copy of
-RF4S (Steam). No game data is included here; the tools read the game's own files.
+You need your own copy of RF4S (Steam). No game data is included here; the tools
+read the game's own files. Python is installed for you if it is missing (step 2).
 
-1. **Put this folder inside the game folder** as `tools\modding`. In Steam:
-   right-click *Rune Factory 4 Special* → *Manage* → *Browse local files*. That opens
-   the folder holding `RF4S.exe` and `Bundle\`. Create `tools\` there and unzip into
-   it, so you end up with:
+The toolkit works on a **copy** of the game, never on the Steam install: mods are
+written into the copy's `Bundle\` folder, and you start the game from the copy's
+`RF4S.exe` to try them. The Steam install is only ever read (to make the copy).
+
+1. **Unzip the toolkit anywhere**, for example into your game copy. If you don't have
+   a copy yet, the toolkit makes one for you on first start (step 2). If you unzip it
+   inside the copy, it finds the game there on its own, whether it ends up as
+   `<copy>\rf4s-modkit\`, `<copy>\rf4s-modkit\rf4s-modkit\` (Windows' *Extract
+   All…* adds that second folder) or `<copy>\tools\modding\`:
 
    ```
-   Rune Factory 4 Special\
+   Rune Factory 4 Special (modding copy)\
    ├── Bundle\            ← the game's (Manifest.plist, bundleMain.mbundle, …)
    ├── RF4S.exe
-   └── tools\
-       └── modding\       ← this folder (rf4mod.py, rf4mod_gui.py, README.md, …)
+   └── rf4s-modkit\       ← this folder (start.bat, rf4mod_gui.py, README.md, …)
    ```
 
-   The tools look for the game at `..\..\Bundle` from this folder, so nothing has
-   to be copied or extracted.
-2. **Open a terminal in the game folder** (in Explorer: click the address bar,
-   type `cmd`, press Enter) and install the three libraries once:
+2. **Double-click `start.bat`** in this folder. The first time, it finds Python 3.10+
+   (and offers to install it with winget if there is none), creates a private
+   environment in `.venv` here and installs the three libraries into it; that takes
+   a minute. After that it just starts the GUI. Keep its console window open while
+   you work: closing it closes the GUI, and any error shows up there.
+
+   **By hand instead:** open a terminal in the game folder (in Explorer: click the
+   address bar, type `cmd`, press Enter), install the libraries once and start the GUI:
 
    ```bat
    py -m pip install -r tools\modding\requirements.txt
+   py tools\modding\rf4mod_gui.py
    ```
 
    (`py` is the launcher the python.org installer always adds; `python` works too
    if you ticked *Add Python to PATH*.)
-3. **Start the GUI:**
+3. **Use the GUI.**
+   If it can't find a game copy, it asks: **Use my game copy…** (the folder with
+   `RF4S.exe` and `Bundle\`), or **Copy the game from Steam…** (pick the Steam install
+   — Steam: right-click the game → *Manage* → *Browse local files* shows it — and a
+   place for the copy; it needs as much free space as the game). A folder inside
+   Steam's `steamapps\` is refused. It then offers to **unpack** the `.mbundle`
+   archives into the copy's `Bundle\` folder, which the map editor and the name /
+   texture lookups read; the game runs the same with them. The choice is saved, and
+   the toolbar's **Game folder…** button shows or changes it.
 
-   ```bat
-   py tools\modding\rf4mod_gui.py
-   ```
-
-   It opens the game's bundles on its own. Pick a map for the **map editor**, or
-   use the **Cutscenes** button for the **cutscene editor**. The command-line tool
-   is `py tools\modding\rf4mod.py --help`.
+   Then it opens the game's bundles. Pick a map for the **map editor**, or use the
+   **Cutscenes** button for the **cutscene editor**. The command-line tool is
+   `rf4mod.py --help` (in this folder); `rf4mod.py game` shows or sets the game copy.
 4. *(Optional)* check the install: `py tools\modding\rf4mod.py selftest --quick`
    (about a minute; drop `--quick` for the full run, several minutes). It should end
    with `N/N checks passed`. Checks that need extracted files are *skipped*, not failed.
 
 Edits are saved as separate files and never overwrite the game's bundles unless you
-choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod). You can
-also keep the toolkit elsewhere: put it at `<anywhere>\tools\modding\` with the
-game's `Bundle\` (or a link to it) at `<anywhere>\Bundle\`, or use the GUI's
-*Open Manifest…* to point at the game.
+choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod).
 
 Everything is grounded in the `RF4S.exe` loader code (reverse-engineered in IDA);
 code comments cite the IDA function names and `RF4S.exe+RVA` each fact was verified
@@ -150,17 +160,27 @@ python tools/modding/rf4mod.py selftest
 
 ### Bundle layout
 
-The toolkit needs to find your RF4S install's `Bundle/` directory (the one
-containing `Manifest.plist` and the `bundle*.mbundle` archives).
-It looks at `../../Bundle` from this folder and accepts three layouts:
+The toolkit needs the `Bundle/` directory of your game **copy** (the one containing
+`Manifest.plist` and the `bundle*.mbundle` archives). Every tool finds it the same way
+(`rf4s_modkit/gamepaths.py`), in this order:
 
-- **The game's own `Bundle/`** (`Manifest.plist` + `bundle*.mbundle`) — what a
-  Steam install has. The GUI, map editor and cutscene editor read the archives
-  directly; nothing needs extracting. Easiest: unzip the toolkit into the game
-  folder as `tools/modding/` (see Quick start), or link the game's `Bundle/` next
-  to `tools/` (`mklink /J Bundle "<game folder>\Bundle"`).
-- **`Bundle/<bundle>/`** — bundles extracted into folders (`bundleMain/`, …) with
-  `rf4mod bundle extract-all`. The selftest's per-file checks use this layout.
+1. the folder saved in the toolkit's settings (`%APPDATA%\RF4S Modding Toolkit\settings.json`),
+   set by the GUI's first-start window / **Game folder…** button or by
+   `rf4mod.py game <copy>` (`rf4mod.py game --forget` drops it);
+2. the nearest `Bundle/` folder above the toolkit (up to four levels: `tools/modding/`,
+   `rf4s-modkit/`, `rf4s-modkit/rf4s-modkit/` inside the copy all work);
+3. the `RF4S_BUNDLE` environment variable.
+
+A folder inside a Steam library (`…\steamapps\…`) is never used, and nothing is ever
+written there. `rf4mod.py game` prints what was found and why a candidate was skipped.
+The contents can be in any of these layouts:
+
+- **The game's own `Bundle/`** (`Manifest.plist` + `bundle*.mbundle`) — a plain copy
+  of the Steam install. The asset explorer reads the archives directly; the map
+  editor's map list and the cross-file lookups need them unpacked (next layout).
+- **`Bundle/<bundle>/`** — bundles unpacked into folders (`bundleMain/`, …) by the
+  setup window's *Unpack*, `rf4mod.py unpack` or `rf4mod bundle extract-all`. The
+  selftest's per-file checks use this layout.
 - **`Bundle/extracted/`** — extracted contents in one flat directory.
 
 For the GUI's "Open Manifest…" + map editor "Open .rf4m…" buttons, you can also

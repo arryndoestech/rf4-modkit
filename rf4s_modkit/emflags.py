@@ -437,10 +437,9 @@ def find_extra():
 
 def find_emdeb():
     """Locate emdeb.bin in the game bundle (a few common roots)."""
-    cands = [
-        os.path.join(os.path.dirname(__file__), "..", "..", "..",
-                     "Bundle", "bundleMain", "emdeb.bin"),
-    ]
+    from . import gamepaths
+    cands = [str(gamepaths.game_file("bundleMain", "emdeb.bin")),
+             str(gamepaths.extracted_dir() / "bundleMain" / "emdeb.bin")]
     for c in cands:
         if os.path.isfile(c):
             return c

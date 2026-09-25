@@ -433,14 +433,9 @@ def describe(entry: SoundEntry, table_name="") -> str:
 
 
 def default_bundle_root():
-    """The extracted Bundle folder: $RF4S_BUNDLE, else <repo>/Bundle next to tools/."""
-    env = os.environ.get("RF4S_BUNDLE")
-    cands = [pathlib.Path(env)] if env else []
-    cands.append(pathlib.Path(__file__).resolve().parent.parent.parent.parent / "Bundle")
-    for c in cands:
-        if c.is_dir():
-            return c
-    return None
+    """The game copy's Bundle folder (rf4s_modkit.gamepaths), or None."""
+    from . import gamepaths
+    return gamepaths.find_bundle_dir()
 
 
 def find_table(name, bundle_root=None):

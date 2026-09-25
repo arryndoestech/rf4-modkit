@@ -38,7 +38,8 @@ from rf4s_modkit import map_names, minimap  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent      # tools/modding/../..
 DOCS = REPO / "docs"
-BUNDLE_DIR = REPO / "Bundle"
+from rf4s_modkit import gamepaths  # noqa: E402
+BUNDLE_DIR = gamepaths.bundle_dir()
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
 
 

@@ -1,5 +1,7 @@
 # ---- Python ------------------------------------------------------------------
 __pycache__/
+# start.bat's private environment
+.venv/
 *.py[cod]
 
 # ---- regenerated / scratch output ---------------------------------------------

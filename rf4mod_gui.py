@@ -51,11 +51,27 @@ IMAGE_FMTS = {"png", "jpg", "gif", "bmp", "tiff", "dds", "ico", "webp", "image"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".jfif", ".gif", ".bmp", ".tif", ".tiff",
               ".webp", ".tga", ".dds", ".ico"}
 
+from rf4s_modkit import gamepaths  # noqa: E402
+
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
-BUNDLE_DIR = REPO / "Bundle"
+# the game copy's Bundle folder: saved setting, else the nearest Bundle above the toolkit,
+# else $RF4S_BUNDLE (rf4s_modkit.gamepaths); main() asks for it when none is found
+BUNDLE_DIR = gamepaths.bundle_dir()
 # Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
-EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
+EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
 DEFAULT_MANIFEST = BUNDLE_DIR / "Manifest.plist"
+
+
+def _use_game_paths():
+    """Re-derive the path globals here and in the map editor after the game folder changed
+    (called before any window or cache exists)."""
+    global BUNDLE_DIR, EXTRACTED, DEFAULT_MANIFEST
+    BUNDLE_DIR = gamepaths.bundle_dir()
+    EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
+    DEFAULT_MANIFEST = BUNDLE_DIR / "Manifest.plist"
+    md = sys.modules.get("map_editor.data")
+    if md is not None:
+        md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
 ACTOR_NAMES_PATH = _refdata_path("rf4s_actor_names.json")   # vendored in modding/refdata/,
                                                             # legacy tools/ as fallback
@@ -266,6 +282,7 @@ class App:
         self._collapse_btn.pack(side="left", padx=(2, 6), pady=3)
         ttk.Button(bar, text="Open Manifest…", command=self.cmd_open_manifest).pack(side="left", padx=2, pady=3)
         ttk.Button(bar, text="Open Bundle…", command=self.cmd_open_bundle).pack(side="left", padx=2)
+        ttk.Button(bar, text="Game folder…", command=self.cmd_game_folder).pack(side="left", padx=2)
         ttk.Button(bar, text="Open Folder…", command=self.cmd_open_folder).pack(side="left", padx=2)
         ttk.Button(bar, text="Open File…", command=self.cmd_open_file).pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
@@ -364,6 +381,14 @@ class App:
                                        filetypes=[("Manifest", "Manifest.plist *.plist"), ("All", "*.*")])
         if f:
             self.load_source(lambda: Source.from_manifest(f))
+
+    def cmd_game_folder(self):
+        """Show / change the game copy every tool uses (takes effect on the next start)."""
+        import game_setup
+        before = gamepaths.find_bundle_dir()
+        if game_setup.run(self.root, current=before) and gamepaths.find_bundle_dir() != before:
+            messagebox.showinfo("Game folder", "Saved. Close and start the toolkit again to "
+                                "use the new game folder in every tool.", parent=self.root)
 
     def cmd_open_bundle(self):
         f = filedialog.askopenfilename(title="Open .mbundle",
@@ -3247,6 +3272,18 @@ class App:
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     root = tk.Tk()
+    found = gamepaths.find_bundle_dir()
+    if not argv and (found is None or (not gamepaths.is_unpacked(found)
+                                       and gamepaths.get_setting("unpack_asked") != str(found))):
+        # no usable game copy, or one not unpacked yet (asked once per copy): ask for one /
+        # offer to copy and unpack it before anything reads the game files
+        import game_setup
+        if found is not None:
+            gamepaths.set_setting("unpack_asked", str(found))
+        root.withdraw()
+        if game_setup.run(root, current=found) or found is not None:
+            _use_game_paths()
+        root.deiconify()
     App(root, initial=argv[0] if argv else None)
     root.mainloop()
 
