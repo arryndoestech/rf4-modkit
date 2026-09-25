@@ -282,6 +282,7 @@ class _GenHost:
     Edits change the working copy at once (Save table… writes it)."""
 
     PICTURE_PX = 440
+    PICTURE_PAD = 12                     # the picture column's padx (6 + 6)
 
     def __init__(self, app, name, g):
         import types
@@ -391,10 +392,48 @@ class _GenHost:
             self.status(f"Saved the monster spawns → {f}")
 
     # ---- the flat map picture ------------------------------------------------------- #
-    def build_picture(self, parent):
+    def _grid(self):
+        """(W, H) of the current map's ATTR grid (cached), or None."""
+        if not self.map:
+            return None
+        cache = self.__dict__.setdefault("_grids", {})
+        if self.map not in cache:
+            try:
+                blob = self.app.source.read_named(self.map)
+                grid = rf4m.Rf4mMap.parse(blob).attr_grid() if blob else None
+                cache[self.map] = (grid[0], grid[1]) if grid else None
+            except Exception:  # noqa: BLE001
+                cache[self.map] = None
+        return cache[self.map]
+
+    def picture_size(self):
+        """(width, height) the picture will have: PICTURE_PX on the long side, the map's
+        aspect ratio -- known from the ATTR grid before any image is decoded."""
+        g = self._grid()
+        if not g:
+            return None
+        W, H = g
+        if W >= H:
+            return self.PICTURE_PX, max(1, round(self.PICTURE_PX * H / W))
+        return max(1, round(self.PICTURE_PX * W / H)), self.PICTURE_PX
+
+    def presize_pane(self, width):
+        """Give the Encounters pane's scroll area its final width before it is shown, so it is
+        laid out once (guiutil.ScrollFrame would otherwise size it on its first <Configure>)."""
+        pane = self.pane
+        sb = next((c for c in pane.winfo_children() if isinstance(c, ttk.Scrollbar)), None)
+        w = max(50, width - (sb.winfo_reqwidth() if sb is not None else 0))
+        pane.canvas.configure(width=w)
+        pane.canvas.itemconfigure(pane._win, width=w)
+        pane._seen_w = w
+
+    def build_picture(self, parent, size=None):
         f = ttk.Frame(parent)
         f.pack(side="left", fill="y", padx=(6, 6))
         self._lbl = tk.Label(f, bd=0, cursor="crosshair")
+        if size:                             # the final size now; the picture is drawn into it
+            self._blank = tk.PhotoImage(width=size[0], height=size[1])
+            self._lbl.config(image=self._blank)
         self._lbl.pack(anchor="n")
         self._lbl.bind("<ButtonPress-1>", self._press)
         self._lbl.bind("<B1-Motion>", self._motion)
@@ -413,15 +452,12 @@ class _GenHost:
                 from rf4s_modkit import mapground
                 from PIL import Image
                 src = self.app.source
-                blob = src.read_named(self.map)
-                grid = rf4m.Rf4mMap.parse(blob).attr_grid() if blob else None
+                grid, size = self._grid(), self.picture_size()
                 comp = mapground.stitch_composite(src.read_named, med.map_base(self.map),
-                                                  aspect=grid[:2] if grid else None)
+                                                  aspect=grid) if grid else None
                 if grid and comp:
-                    img = comp[0].convert("RGB")
-                    sc = min(self.PICTURE_PX / img.width, self.PICTURE_PX / img.height, 1.0)
-                    img = img.resize((max(1, int(img.width * sc)), max(1, int(img.height * sc))), Image.BILINEAR)
-                    got = (img, img.width / max(1, grid[0]))
+                    img = comp[0].convert("RGB").resize(size, Image.BILINEAR)
+                    got = (img, size[0] / grid[0])
             except Exception:  # noqa: BLE001 - no picture; the pane still works
                 got = None
             self._ground[self.map] = got
@@ -2046,18 +2082,26 @@ class App:
         ttk.Label(self.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
                   wraplength=940).pack(anchor="w", padx=6)
         host.build_map_row(maps)
-        body = ttk.Frame(self.content)
-        body.pack(fill="both", expand=True)
-        host.build_picture(body)
+        # Lay the view out ONCE: the picture's size comes from the map's ATTR grid (no image
+        # needed) and the pane gets the rest of the width up front. Otherwise the Encounters
+        # pane was drawn at its natural width and re-laid-out ~25 ms later when its scroll area
+        # learned the real one -- a visible redraw on every Gen file.
+        total_w = self.content.winfo_width()
+        pic = host.picture_size()
+        body = ttk.Frame(self.content)       # built unpacked, shown when complete
+        host.build_picture(body, pic)
         pane = me_tabs.EncountersTab(body, host)
         pane.pack(side="left", fill="both", expand=True)
         host.pane = pane
+        if total_w > 1:
+            host.presize_pane(total_w - ((pic[0] if pic else 0) + host.PICTURE_PAD))
         pane.refresh()
         first = pane.gates.get_children()
         if first:                            # the first gate: its roster shows, its points light up
             pane.gates.selection_set(first[0])
             pane._gate_picked()
         host.redraw()
+        body.pack(fill="both", expand=True)
 
     # ---- Gen files: the map they belong to ------------------------------------------------ #
     def _maps_for_gen(self, gen_name):

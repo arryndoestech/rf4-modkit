@@ -120,6 +120,10 @@ class _Setup:
             "and keep your Steam install as it is.\n\n"
             "Choose the game folder (the one with RF4S.exe in it), or let the toolkit make a "
             "copy for you. A copy takes about 5 GB of disk space.")).pack(anchor="w")
+        ttk.Label(f, foreground="#555", wraplength=520, justify="left", text=(
+            "\nWhere is the game? In Steam: Library → right-click Rune Factory 4 Special "
+            "→ Manage → Browse local files. That opens the game folder (the one with "
+            "RF4S.exe), which is the folder to choose, or the one to copy from.")).pack(anchor="w")
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(16, 0))
         ttk.Button(b, text="Choose another folder..." if current else "Choose the game folder...",
