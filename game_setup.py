@@ -113,13 +113,17 @@ class _Setup:
                "Couldn't find the game."
         ttk.Label(f, text=head, font=("TkDefaultFont", 10, "bold"), justify="left").pack(anchor="w")
         ttk.Label(f, justify="left", wraplength=520, text=(
+            "\nEvery tool in the toolkit reads and writes this game folder. You can switch to "
+            "another one, or make a new copy of the game (about 5 GB of disk space)."
+            if current else
             "\nModding changes the game's files, so it's best to work on a copy of the game "
             "and keep your Steam install as it is.\n\n"
             "Choose the game folder (the one with RF4S.exe in it), or let the toolkit make a "
             "copy for you. A copy takes about 5 GB of disk space.")).pack(anchor="w")
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(16, 0))
-        ttk.Button(b, text="Choose the game folder...", command=self.pick).pack(side="left")
+        ttk.Button(b, text="Choose another folder..." if current else "Choose the game folder...",
+                   command=self.pick).pack(side="left")
         ttk.Button(b, text="Make a copy for me...", command=self.copy).pack(side="left", padx=8)
         if current and not gamepaths.is_unpacked(current):
             ttk.Button(b, text="Unpack the game files...",
