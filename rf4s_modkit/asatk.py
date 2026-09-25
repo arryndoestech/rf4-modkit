@@ -220,7 +220,6 @@ def summary(data: bytes) -> dict:
         "last_frame": frames[-1] if frames else None,
         "n_frame_markers": len(frames),
         "hit_windows": windows,
-        "hit_window": windows,   # legacy key kept for older callers and selftest.py
         "effects": [_s32(e.arg) for e in events if e.op == 43],
         "actions": [e.arg for e in events if e.op == 42],
         "sounds": [f"0x{e.arg:08X}" for e in events if e.op == 45],

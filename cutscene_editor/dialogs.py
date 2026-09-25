@@ -5,7 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from guiutil import FilterCombo, Tip, hint, later
+from guiutil import FilterCombo, ScrollFrame, Tip, hint, later
 
 from . import catalog
 from .inspector import SPEAKER_CHOICES
@@ -109,9 +109,234 @@ def ask_spec(parent, title, prompt, validate, initial=""):
     return out["text"]
 
 
-def ask_dialogue(parent, default_speaker=None):
-    """'Add a dialogue line': optional speaker change + the text. Returns
-    {'speaker': (slot, side) | None, 'text': str} or None."""
+_THUMBS = {}
+
+
+def face_thumbnail(reader, file_name, size=64):
+    """A Tk image of a portrait face texture, cropped to its visible part (cached)."""
+    key = (file_name, size)
+    if key in _THUMBS:
+        return _THUMBS[key]
+    img = None
+    try:
+        from PIL import Image, ImageTk
+        from rf4s_modkit import texture
+        raw = reader(file_name + ".texture") if reader else None
+        if raw:
+            im = texture.decode_to_image(raw).convert("RGBA")
+            box = im.getbbox()
+            if box:
+                im = im.crop(box)
+            im.thumbnail((size, size))
+            bg = Image.new("RGBA", (size, size), (64, 64, 78, 255))
+            bg.alpha_composite(im, ((size - im.width) // 2, (size - im.height) // 2))
+            img = ImageTk.PhotoImage(bg)
+    except Exception:  # noqa: BLE001 - a missing / odd texture just shows no picture
+        img = None
+    _THUMBS[key] = img
+    return img
+
+
+class FacePicker:
+    """The portrait face of a speaker cue (rf4s_modkit.portraits): a button with the current
+    face's picture; clicking it opens every face of that speaker as pictures to choose from.
+    Story mode shows these classic faces; for the twelve candidates a note says what the
+    same id shows in Newlywed mode. `set_slot` picks the speaker, `value()` is the face id,
+    `set_value(id)` shows an existing one."""
+
+    def __init__(self, parent, on_change=None, reader=None):
+        from rf4s_modkit import portraits as pt
+        self.pt = pt
+        self.reader = reader
+        self.on_change = on_change
+        self.slot = None
+        self._value = 0
+        self.frame = ttk.Frame(parent)
+        self.btn = ttk.Button(self.frame, text="(pick a speaker)", compound="left", command=self.choose)
+        self.btn.pack(side="left")
+        Tip(self.btn, "The face the portrait shows for the following lines. Click to see them all.")
+        self.note = ttk.Label(parent, text="", foreground="#666", wraplength=420, justify="left")
+
+    # -- state -------------------------------------------------------------------------- #
+    def set_slot(self, slot):
+        self.slot = slot
+        if slot is None or not self.pt.has_portrait(slot):
+            self.btn.config(state="disabled", text="(no portrait)" if slot is not None else
+                            "(pick a speaker)", image="")
+            self.note.config(text="")
+            return
+        self.btn.config(state="normal")
+        self._show()
+
+    def value(self):
+        return self._value if self.slot is not None and self.pt.has_portrait(self.slot) else 0
+
+    def set_value(self, face_id):
+        if face_id is None:
+            return False
+        self._value = int(face_id)
+        if self.slot is not None:
+            self._show()
+        return self.slot is not None and self.pt.face_file(self.slot, self._value) is not None
+
+    def _show(self):
+        pt, v = self.pt, self._value
+        lab = pt.label(self.slot, v) or str(v)
+        f = pt.face_file(self.slot, v)
+        img = face_thumbnail(self.reader, f, 40) if f else None
+        self.btn.config(text="  %s  (%d)" % (lab, v), image=img or "")
+        self.btn._img = img
+        nl = pt.emote_label(self.slot, v) if pt.has_newlywed(self.slot) else None
+        self.note.config(text=("In Newlywed mode (animated portraits) this id shows: %s." % nl) if nl else "")
+
+    # -- chooser ------------------------------------------------------------------------ #
+    def choose(self):
+        if self.slot is None or not self.pt.has_portrait(self.slot):
+            return
+        pt = self.pt
+        win = tk.Toplevel(self.frame)
+        win.title("Pick a face")
+        win.transient(self.frame.winfo_toplevel())
+        cols, cell_w, cell_h = 8, 86, 96
+        faces = pt.faces(self.slot)
+        ttk.Label(win, text="Story-mode faces (the first six are the same moods for everyone). "
+                            "Click one.", foreground="#555", padding=(6, 6, 6, 2)).pack(anchor="w")
+        bottom = ttk.Frame(win, padding=6)
+        bottom.pack(side="bottom", fill="x")
+        ttk.Button(bottom, text="Cancel", command=win.destroy).pack(side="right")
+        # only the face buttons scroll; the heading and Cancel stay put
+        rows = (len(faces) + cols - 1) // cols
+        sf = ScrollFrame(win, width=cols * cell_w + 8)
+        sf.canvas.configure(height=min(rows, 5) * cell_h)
+        sf.pack(fill="both", expand=True, padx=6)
+        win._imgs = []
+        for k, (fid, f, mood) in enumerate(faces):
+            img = face_thumbnail(self.reader, f, 64)
+            win._imgs.append(img)
+            cap = "%d  %s" % (fid, mood) if mood else str(fid)
+            b = tk.Button(sf.body, text=cap, image=img or "", compound="top", width=76,
+                          relief="sunken" if fid == self._value else "raised",
+                          command=lambda fid=fid: self._picked(win, fid))
+            b.grid(row=k // cols, column=k % cols, padx=2, pady=2)
+            Tip(b, "%s\nface id %d" % (f, fid))
+        sf.bind_wheel_tree()
+        win.grab_set()
+
+    def _picked(self, win, fid):
+        win.destroy()
+        changed = fid != self._value
+        self._value = fid
+        self._show()
+        if changed and self.on_change:
+            self.on_change(fid)
+
+
+def box_thumbnail(reader, style, w=150, h=44):
+    """A Tk image of a message-box style: the top edge of talk_win<n> with its tail (cached)."""
+    key = ("box", style, w, h)
+    if key in _THUMBS:
+        return _THUMBS[key]
+    img = None
+    try:
+        from PIL import Image, ImageTk
+        from rf4s_modkit import texture
+
+        def load(n):
+            raw = reader(n + ".texture") if reader else None
+            return texture.decode_to_image(raw).convert("RGBA") if raw else None
+        bg = Image.new("RGBA", (w, h), (64, 64, 78, 255))
+        tail = load("talk_hige%d" % (0 if style == 4 else style))
+        if style != 4:
+            win = load("talk_win%d" % style)
+            if win is not None:
+                box = win.getbbox() or (0, 0, win.width, win.height)
+                edge = win.crop((box[0] + 100, box[1], box[0] + 300, box[1] + 60))
+                edge.thumbnail((w - 30, h - 4))
+                bg.alpha_composite(edge, (2, 2))
+        if tail is not None:
+            tb = tail.getbbox()
+            if tb:
+                tail = tail.crop(tb)
+            tail.thumbnail((26, h - 6))
+            bg.alpha_composite(tail, (w - 28, 3))
+        img = ImageTk.PhotoImage(bg)
+    except Exception:  # noqa: BLE001 - a missing texture just shows no picture
+        img = None
+    _THUMBS[key] = img
+    return img
+
+
+class BoxStylePicker:
+    """The message-box style (ops 93-97): a button with the current style's picture; clicking
+    it shows the styles as pictures. `allow` = the styles offered (ops 94-97 can't express
+    style 4), `keep` adds a 'keep the current box' choice (value None)."""
+
+    def __init__(self, parent, on_change=None, reader=None, allow=(0, 1, 2, 3, 4), keep=False):
+        from rf4s_modkit import opcode_meta
+        self.names = opcode_meta.BOX_STYLES
+        self.reader = reader
+        self.on_change = on_change
+        self.allow = tuple(allow)
+        self.keep = keep
+        self._value = None if keep else 0
+        self.frame = ttk.Frame(parent)
+        self.btn = ttk.Button(self.frame, compound="left", command=self.choose)
+        self.btn.pack(side="left")
+        Tip(self.btn, "The style of the message box for the following lines. Click to see them.")
+        self._show()
+
+    def value(self):
+        return self._value
+
+    def set_value(self, style):
+        self._value = style
+        self._show()
+
+    def _caption(self, style):
+        if style is None:
+            return "(keep the current box)"
+        nm, desc = self.names.get(style, ("style %d" % style, ""))
+        return "%s  (%d)" % (nm, style)
+
+    def _show(self):
+        img = box_thumbnail(self.reader, self._value, 90, 26) if self._value is not None else None
+        self.btn.config(text="  " + self._caption(self._value), image=img or "")
+        self.btn._img = img
+
+    def choose(self):
+        win = tk.Toplevel(self.frame)
+        win.title("Pick a box style")
+        win.transient(self.frame.winfo_toplevel())
+        body = ttk.Frame(win, padding=6)
+        body.pack(fill="both", expand=True)
+        win._imgs = []
+        opts = ([None] if self.keep else []) + list(self.allow)
+        for k, style in enumerate(opts):
+            img = box_thumbnail(self.reader, style) if style is not None else None
+            win._imgs.append(img)
+            desc = self.names.get(style, ("", ""))[1] if style is not None else \
+                "Don't change the box; the style set earlier stays."
+            b = tk.Button(body, text=self._caption(style), image=img or "", compound="top",
+                          width=160, relief="sunken" if style == self._value else "raised",
+                          command=lambda s=style: self._picked(win, s))
+            b.grid(row=0, column=k, padx=3, pady=3, sticky="n")
+            Tip(b, desc)
+        ttk.Button(body, text="Cancel", command=win.destroy).grid(row=1, column=len(opts) - 1,
+                                                                  sticky="e", pady=(6, 0))
+        win.grab_set()
+
+    def _picked(self, win, style):
+        win.destroy()
+        changed = style != self._value
+        self._value = style
+        self._show()
+        if changed and self.on_change:
+            self.on_change(style)
+
+
+def ask_dialogue(parent, default_speaker=None, reader=None):
+    """'Add a dialogue line': optional speaker change (with the portrait's face) + the text.
+    Returns {'speaker': (slot, side) | None, 'face': face id, 'text': str} or None."""
     win = _modal(parent, "Add a dialogue line")
     frm = ttk.Frame(win, padding=8)
     frm.pack(fill="both", expand=True)
@@ -126,15 +351,30 @@ def ask_dialogue(parent, default_speaker=None):
     sr.grid(row=1, column=1, sticky="w", padx=4)
     for s in ("left", "right"):
         ttk.Radiobutton(sr, text=s, value=s, variable=side).pack(side="left", padx=(0, 6))
-    ttk.Label(frm, text="Text").grid(row=2, column=0, sticky="nw", pady=(6, 0))
+    ttk.Label(frm, text="Face").grid(row=2, column=0, sticky="w", pady=(4, 0))
+    face = FacePicker(frm, reader=reader)
+    face.frame.grid(row=2, column=1, sticky="w", padx=4, pady=(4, 0))
+    face.note.grid(row=3, column=1, sticky="w", padx=4)
+
+    def speaker_slot():
+        choice = spk.var.get().split()
+        return int(choice[0]) if choice and choice[0].isdigit() else None
+    spk._on_pick = lambda _t: face.set_slot(speaker_slot())
+    spk.var.trace_add("write", lambda *_a: face.set_slot(speaker_slot()))
+    face.set_slot(speaker_slot())
+    ttk.Label(frm, text="Box style").grid(row=8, column=0, sticky="w", pady=(4, 0))
+    box = BoxStylePicker(frm, reader=reader, keep=True)
+    box.frame.grid(row=8, column=1, sticky="w", padx=4, pady=(4, 0))
+    ttk.Label(frm, text="Text").grid(row=4, column=0, sticky="nw", pady=(6, 0))
     txt = tk.Text(frm, height=5, width=60, wrap="word", font=("Segoe UI", 10), undo=True)
-    txt.grid(row=2, column=1, sticky="nsew", padx=4, pady=(6, 0))
+    txt.grid(row=4, column=1, sticky="nsew", padx=4, pady=(6, 0))
     hint(frm, "The text becomes a new line in every locale (the others get it untranslated until "
-              "you edit them).", wrap=460).grid(row=3, column=1, sticky="w", padx=4)
+              "you edit them). The face applies when you pick a speaker.", wrap=460).grid(
+        row=5, column=1, sticky="w", padx=4)
     frm.columnconfigure(1, weight=1)
-    frm.rowconfigure(2, weight=1)
+    frm.rowconfigure(4, weight=1)
     err = ttk.Label(frm, text="", foreground="#b02020")
-    err.grid(row=4, column=1, sticky="w")
+    err.grid(row=6, column=1, sticky="w")
     out = {}
 
     def ok(_e=None):
@@ -146,10 +386,10 @@ def ask_dialogue(parent, default_speaker=None):
         s = None
         if choice and choice[0].isdigit():
             s = (int(choice[0]), 1 if side.get() == "right" else 0)
-        out.update(speaker=s, text=t)
+        out.update(speaker=s, face=face.value() if s is not None else 0, box=box.value(), text=t)
         win.destroy()
     bb = ttk.Frame(frm)
-    bb.grid(row=5, column=0, columnspan=2, sticky="we", pady=(6, 0))
+    bb.grid(row=9, column=0, columnspan=2, sticky="we", pady=(6, 0))
     ttk.Button(bb, text="Add line", command=ok).pack(side="right", padx=2)
     ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
     win.bind("<Control-Return>", ok)

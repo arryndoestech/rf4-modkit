@@ -511,9 +511,15 @@ added from text (`Hour >= 6 AND (12 > Hour OR FLG_RAINBOW == 1)`, `alt: REG_WIFE
 **Undo / Redo** (↶ ↷, Ctrl+Z / Ctrl+Y) cover every edit — script, dialogue in every locale and
 em.bin — byte-exact. A step stores only what changed; an edit that changes nothing records
 nothing. *Unsaved* is a byte comparison against what was loaded or saved, so undoing back to it
-makes the file clean again, and closing or opening another `rf3.mc` asks first. **Save** writes the
-changed files (all at once with Ctrl+S, or one at a time) or installs them into the game as loose
-files. *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
+makes the file clean again, and closing or opening another `rf3.mc` asks first. **Save** (Ctrl+S)
+writes the changed files straight into your game folder without asking, over the copies the
+game loads: an unpacked `Bundle\bundlePatch1\rf3.mc`, `Bundle\bundleMain\rf3mc.<locale>` and so
+on, or an existing `Bundle\00_mods` override. A file the game only has inside a packed
+`.mbundle` goes to `Bundle\00_mods`. The first time a file is overwritten, the original is copied
+to `ModdingBackup\` in the game folder, keeping the same path; copy it back to undo everything. A
+file opened with *Open rf3.mc…* is saved back where it was opened. *Save … as…* writes a copy
+anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`. Restart the game to see
+changes. *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
@@ -529,6 +535,42 @@ Code: `cutscene_editor/` — `document` (the files, one undo history, unsaved tr
 `tabs` (Source / Triggers / Overview), `dialogs`, `em_window`, `catalog` (trigger types, bank
 names, grammar help, xrefs), `app` (the window).
 
+
+**Portrait faces.** *Add dialogue line* and a selected speaker cue both have a **Face**
+button that shows the current face as a picture. Click it to see all of that speaker's faces
+and pick one. The face is the cue's first argument (`rf4s_modkit/portraits.py`, tables read
+from `RF4S.exe` into `refdata/portrait_faces.json`):
+
+- **Story mode (the main game)** draws the classic 2D portraits for every speaker: the
+  villagers, the children, Pico and the guests. Face id N is the N-th
+  `<NN>_<NAME>_face_…` file of that character. Ids 0–5 are the same six moods for everyone
+  (normal, angry, crying, smile, surprised, shy); the rest are per-character, so the pictures
+  are the names. 255 / 254 are the SP1 / SP2 portraits.
+- **Newlywed mode** draws the animated E-mote portraits (`*.psbData`) instead, for the player
+  and the twelve candidates. The same id is translated to an E-mote face, and the picker notes
+  what it shows there. Ids of 1000 and up (face × gesture) only exist in Newlywed mode.
+
+The outfit (swimsuit, pajama, wedding) follows the character's state; the script doesn't
+choose it. The listing names the shared moods (`SetSpeakerVolkanon(right, angry, …)`) and
+numbers the rest (`face 29`).
+
+**Box style.** `SetBoxNormal`, `SetBoxShout`, `SetBoxThought`, `SetBoxTrembling` (ops 94–97) and
+`SetDialogueBoxStyle` (op 93) set the **message-box style**: 0 normal, 1 shout (jagged box, screen flash), 2 thought (cloud box,
+the line holds about a second), 3 trembling (wavy box), 4 tail only (no box, op 93 only). Their
+Inspector and *Add dialogue line* have a **Box style** picker that shows the game's own box art.
+
+**Text checks.** Every line you edit or add is checked the way the game reads it
+(`rf4s_modkit/textlint.py`; the grammar is in the RF4S docs, chapter 48, *Text control codes*):
+
+- **Refused**: a `＠‡A,B＠` gender switch without its comma, without the closing fullwidth
+  `＠`, or with a side longer than 63 bytes. The game crashes on those.
+- **Warned, but applied**: a `＠…＠` the game doesn't know or with a slot number out of range
+  (shown as written), an odd number of `＋` (blue) or `／` (red) marks (the colour runs to the
+  end of the line), text after a NUL, a stray carriage return.
+- **Shown under the text box while you type**, together with a note when a token reads a text
+  slot that no `SetVar` opcode in the scene sets.
+
+Save and Install refuse to write while an edited line would crash the game.
 ## What can be modded, and how
 
 | Format | Extensions | Tool | Round-trip |
@@ -613,7 +655,8 @@ python rf4mod.py ident path/to/file
 # Translate: dump the English catalog to JSON, edit, rebuild
 python rf4mod.py text decode rf3mc.eng -o eng.json
 #   ...edit eng.json...
-python rf4mod.py text encode eng.json -o rf3mc.eng
+python rf4mod.py text encode eng.json -o rf3mc.eng     # refuses lines the game would crash on
+python rf4mod.py text check rf3mc.eng                   # list lines the game would show wrongly
 python rf4mod.py install "C:/Games/RF4S" rf3mc.eng rf3mc.eng
 
 # View a texture (flipbooks: --frame N, or --strip for every frame side by side)

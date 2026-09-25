@@ -729,10 +729,15 @@ def test_aibn():
     missing = sorted(o for o in seen if aibn_meta.record(o) is None)
     _check("aibn_meta covers every shipped opcode", not missing, f"missing {[hex(o) for o in missing]}")
     _check("aibn_meta scripted-action table has 35 slots", len(aibn_meta.SCRIPTED_ACTIONS) == 35)
-    # the renamed mnemonics and their pre-2026-09-17 aliases assemble to the same tokens
-    _check("aibn aliases (old mnemonics) still assemble",
-           aibn.assemble("TickAI 90 30\nWander 32 0xFFFF\nConnector") ==
-           aibn.assemble("BackAwayFromTarget 90 30\nBlinkTeleportNearTarget 32 0xFFFF\nAndConnector"))
+    # only the current mnemonics assemble (the pre-2026-09-17 names are gone)
+    try:
+        aibn.assemble("TickAI 90 30")
+        _old_refused = False
+    except Exception:  # noqa: BLE001 - any refusal
+        _old_refused = True
+    _check("aibn: current mnemonics assemble, old ones are refused",
+           _old_refused and aibn.assemble("BackAwayFromTarget 90 30\nBlinkTeleportNearTarget 32 0xFFFF\n"
+                                          "AndConnector") is not None)
     _check("aibn 0x15 RandomWalkInRoom is fixed arity 3", aibn.ARITY.get(0x15) == 3 and 0x15 not in aibn.VAR_OPS)
     # 2026-09-24 audit against the VM handlers (RF4S.exe IDB):
     H = aibn.HI
@@ -996,8 +1001,8 @@ def test_param():
             t.set_field(48, "def", 10, "rf3NpcParam")
             _ren = False
         except nlcl.NlclError as e:
-            _ren = "INT" in str(e)
-        _check("rf3NpcParam retired 'def' (was +48 = INT) raises with a hint", _ren)
+            _ren = True
+        _check("rf3NpcParam: an unknown column name ('def') is refused", _ren)
     stg = next((p for p in files if p.name == "rf3ItemStrengthening.bin"), None)
     if stg:
         t = nlcl.NlclTable.load(stg)
@@ -1086,8 +1091,8 @@ def test_param():
             t.set_field(0, "atk_growth", 1, "rf3ParamSkill")
             _ren = False
         except nlcl.NlclError as e:
-            _ren = "rp_growth" in str(e)
-        _check("rf3ParamSkill retired column name raises with a hint", _ren)
+            _ren = True
+        _check("rf3ParamSkill: an unknown column name is refused", _ren)
     if il:
         t = nlcl.NlclTable.load(il)
         ok = t.get(1, 12) == 680 and t.get(29, 12) == 30   # Cabbage 680 / Turnip 30
@@ -1648,9 +1653,9 @@ def test_script():
                  lambda: _erc.banks[1].set_dialog_id(0xFFFE, 5),
                  lambda: _erc.banks[1].set_expr_value(0xFFFFF, 5),
                  lambda: _erc.banks[1].set_expr_value(None, 5),
-                 lambda: _erc.insert_before(_erc.banks[1], 0xFFFE, [("dialog", 8)]),
+                 lambda: _erc.insert_before(_erc.banks[1], 0xFFFE, "DIALOG #8"),
                  lambda: _erc.delete_statement(_erc.banks[1], 0xFFFE),
-                 lambda: _erc.rewrite_scene(1, 0xFFFE, [("dialog", 8)])):
+                 lambda: _erc.rewrite_scene(1, 0xFFFE, "DIALOG #8")):
         try:
             _efn()
             _erob = False
@@ -2468,7 +2473,7 @@ def test_script():
     if target:
         b5, s5, dpc5 = target
         before = sum(1 for st in s5.stmts.values() if st.mnem == "DIALOG")
-        c5.insert_before(b5, dpc5, [("dialog", 8709)])
+        c5.insert_before(b5, dpc5, "DIALOG #8709")
         c5b = script.Container(c5.build())
         s5b = script.disassemble_scene(c5b.banks[b5.index], s5.action_type, s5.entry_pc)
         ids = [st.dialog_id for st in s5b.stmts.values() if st.mnem == "DIALOG"]
@@ -2479,7 +2484,7 @@ def test_script():
                    for i in range(0, len(c5b.banks), 211) if i != b5.index))
         # rewrite_scene: author a fresh body on the same trigger
         c6 = script.Container(raw)
-        c6.rewrite_scene(b5.index, s5.entry_pc, [("dialog", 8709), ("dialog", 8709)])
+        c6.rewrite_scene(b5.index, s5.entry_pc, "DIALOG #8709\nDIALOG #8709")
         s6 = script.disassemble_scene(c6.banks[b5.index], s5.action_type, s5.entry_pc)
         ids6 = [st.dialog_id for st in s6.stmts.values() if st.mnem == "DIALOG"]
         _check("rewrite_scene installs the new body",
@@ -2490,7 +2495,7 @@ def test_script():
         c7 = script.Container(raw)
         b7 = c7.banks[b5.index]
         b7.set_dialog_id(dpc5, 9001)                    # 1) in-place edit
-        c7.insert_before(b7, dpc5, [("dialog", 9002)])  # 2) grow + trampoline (shifts offsets)
+        c7.insert_before(b7, dpc5, "DIALOG #9002")  # 2) grow + trampoline (shifts offsets)
         _ids7 = [st.dialog_id
                  for sc in script.disassemble_bank(script.Container(c7.build()).banks[b5.index],
                                                     discover=False)
@@ -2503,7 +2508,7 @@ def test_script():
         c8 = script.Container(raw)
         _give = script.op_from_name("GiveItem")
         c8.insert_before(c8.banks[b5.index], dpc5,
-                         [("dialog", 8801), ("action", _give, [258, 1, 0])])
+                         "DIALOG #8801\nop%d 258, 1, 0" % _give)
         s8 = script.disassemble_scene(c8.banks[b5.index], s5.action_type, s5.entry_pc)
         _m8 = [script.opcode_mnemonic(st.op) for st in s8.stmts.values() if st.op < 0xFFF0]
         _d8 = [st.dialog_id for st in s8.stmts.values() if st.mnem == "DIALOG"]
@@ -2550,7 +2555,7 @@ def test_script():
         _gdpc = next((pc for sc in _gsc for pc, st in sc.stmts.items() if st.mnem == "DIALOG"), None)
         if _gdpc is not None:
             _gb.set_dialog_id(_gdpc, 7777)
-        cg.insert_before(_gb, next(iter(_gsc[0].stmts)), [("dialog", 7778)])
+        cg.insert_before(_gb, next(iter(_gsc[0].stmts)), "DIALOG #7778")
         cg2 = script.Container(cg.build())
         _gb2 = next(b for b in cg2.banks if b.kind == "global")
         _gids = [st.dialog_id for sc in script.disassemble_bank(_gb2, discover=False)
@@ -2783,16 +2788,16 @@ def test_script():
     _d322 = om.describe(322).lower()
     _check("opcode_meta: op322 = mood byte (record+56), disambiguated from the +57 emote byte",
            "+56" in _d322 and "+57" in _d322 and "mood / facial expression" not in _d322)
-    # emote-space map (IDA-verified 2026-07-12): three DISTINCT emote-id spaces must stay separated --
-    # op93 SetDialogueSpeakerEmote = dialogue-portrait expression, a 3-BIT field 0-7 (handler stores
-    # emote_id<<9 into HUD word bits 0xE00) of which only 0-5 are named (SPEAKER_EMOTES); op319 = the
-    # per-NPC record+57 emote byte (a different value space, 95-103 in scenes); bubble emotes 186-192
-    # (ARG_HINTS 'emote/mood'). op93's picker names exactly the 6 known 0-5 expressions.
+    # op93 SetDialogueBoxStyle (and ops 94-97 SetBoxNormal/Shout/Thought/Trembling) set the
+    # MESSAGE-BOX style, not a face
+    # (re-verified 2026-09-25: task+160 picks window art talk_win<n> = archive 15851+n and tail
+    # talk_hige<n>; 4 = tail only). The 2026-07-12 reading ("3-bit portrait expression, 0-5 =
+    # normal/angry/... ") was wrong. The picker names the five real styles.
     _d93 = om.describe(93).lower()
     _e93 = om.ENUM_ARG_VALUES.get((93, 0), {})
-    _check("opcode_meta: op93 emote = 3-bit portrait field (0-5 named), distinct from op319's +57 byte",
-           "3-bit" in _d93 and "op319" in _d93 and set(_e93) == {0, 1, 2, 3, 4, 5}
-           and _e93[1][0] == "angry" and _e93[5][0] == "blush")
+    _check("opcode_meta: op93 = the message-box style (0 normal, 1 shout, 2 thought, 3 trembling, 4 tail only)",
+           "box style" in _d93 and "talk_win" in _d93 and set(_e93) == {0, 1, 2, 3, 4}
+           and _e93[1][0] == "shout" and _e93[4][0] == "tail only")
     # accuracy pin (IDA-verified 2026-07-11, batch 3): three ops carried the generic auto-desc
     # "Rolls a value via the RNG (usually a random item id)" that was FLATLY WRONG -- op631 is a
     # deterministic name-seeded hash, op632 uses the DAILY-seeded (reload-safe) RNG not the global
@@ -3307,13 +3312,13 @@ def test_schedule():
         _skip("schedule decode", "no rf3Schedule.bin present")
         return
     d = p.read_bytes()
-    _check("schedule magic", schedule.header(d)["magic"] == schedule.MAGIC)
-    scheds = schedule.schedules(d)
+    _check("schedule magic", int.from_bytes(d[:4], "little") == schedule.MAGIC)
+    scheds = [lst for _k, lst in schedule.Schedule.parse(d).ordered_cells()]
     _check("schedule split (>100 schedules)", len(scheds) > 100)
-    # every waypoint has an in-range slot (0..110) and room (<872); schedules start at day-start
-    wps = schedule.waypoints(d)
-    _check("schedule waypoints in range",
-           all(0 <= w.slot <= 110 and w.room < 872 for w in wps))
+    # every stop has an in-range slot (0..110) and spot kind (<872); schedules start at day-start
+    wps = [w for lst in scheds for w in lst]
+    _check("schedule stops in range",
+           all(0 <= w.slot <= 110 and w.spot < 872 for w in wps))
     _check("schedule first stop = 06:00 day-start",
            scheds[0][0].slot == 24 and schedule.slot_to_time(24) == "06:00")
     # NpcSchedule_PickRandomScheduleSlotByKind sums a kind's spot weights in a u8
@@ -3630,7 +3635,7 @@ def test_asatk():
     _check("asatk frame markers monotonic", all(b >= a for a, b in zip(frames, frames[1:])))
     # HIT_WIN open/close pairs must be well-formed (open frame <= close frame)
     _check("asatk hit-window open<=close",
-           all(o is None or c is None or o <= c for o, c in summ["hit_window"]))
+           all(o is None or c is None or o <= c for o, c in summ["hit_windows"]))
     # render must not throw and must mention END
     _check("asatk render", "@END" in asatk.render(d))
 
@@ -3698,11 +3703,11 @@ def test_gen_structural():
     g = gen.GenTable.load(a01)
     e1 = g.patterns[0][1]
     _check("gen roster records are 8+4K bytes (GenA01 gate 1: Orc weight 50 + Orc Archer 20)",
-           [(s.monster_id, s.level, s.weights) for s in e1.spawns]
+           [(s.monster_id, s.pick_weight, s.weights) for s in e1.spawns]
            == [(48, 50, [20, 10]), (50, 20, [50, 10])]
            and [s.pick_weight for s in e1.spawns] == [50, 20]
            and (e1.hdr.count_min, e1.hdr.count_max) == (2, 2),
-           str([(s.monster_id, s.level) for s in e1.spawns]))
+           str([(s.monster_id, s.pick_weight) for s in e1.spawns]))
     # 2026-09-24: consumers read the roster with record 0's stride, kinds 48..277 crash
     # Encounter_SpawnMonsterFromTemplate, > 2 patterns overflow the gate slots.
     stock_err = [p.name for p in files
@@ -3727,7 +3732,7 @@ def test_gen_structural():
     g2 = gen.GenTable(g.build())
     n2 = g2.patterns[0][2]
     ok = (len(g2.patterns[0]) == 3 and n2.gate_kind == 360 and n2.weight == 7
-          and [(s.monster_id, s.level, s.weights) for s in n2.spawns]
+          and [(s.monster_id, s.pick_weight, s.weights) for s in n2.spawns]
           == [(48, 50, [20, 10, 10]), (50, 20, [50, 10, 10]), (55, 33, [10, 10, 10])]
           and len(n2.mon_pos.points) == 3 and not g2.validate()
           and len(search_items.parse_nlcl_footer(g2.build())) == 12)
@@ -3990,9 +3995,10 @@ def test_behaviour_edits():
         _check("schedule add/set/remove round trip (time order kept, other cells intact)",
                gone.spot == 2 and lst[0].slot == 26 and lst[2] == schedule.Slice(29, 1, 6)
                and len(lst) == 19 and sc3.get(2, 0) == orig2)
-        _check("schedule legacy API (schedules/waypoints/.room alias) still decodes",
-               len(schedule.schedules(d)) == 426 and len(schedule.waypoints(d)) == 5686
-               and schedule.waypoints(d)[0].room == 2)
+        _cells = schedule.Schedule.parse(d).ordered_cells()
+        _check("schedule: 426 schedules, 5686 stops, the first stop's spot is 2",
+               len(_cells) == 426 and sum(len(v) for _k, v in _cells) == 5686
+               and _cells[0][1][0].spot == 2)
         if _rfm is not None:
             out = tmp / "sched.bin"
             _rfm.main(["schedule", "set", "1", "weekday0", "0", "--time", "06:30", "--file", str(sp),
@@ -5003,12 +5009,12 @@ def test_script_authoring():
     _ok157 = scriptasm.assemble("op157 " + ", ".join(["1"] * 11), 0x100)[0][:4] == b"\x9d\x00\x0b\x00"
     _check("assembler rejects malformed/out-of-range fields, empty jump tables and op-157 overflow cleanly",
            _asm_bad == len(_bad_listings) and _ok157, "%d/%d" % (_asm_bad, len(_bad_listings)))
-    # speaker slots 25/26/29 are named from NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70);
-    # the old guestNN mnemonics still assemble.
-    _check("SetSpeaker slots 25/26/29 = Soldier/Ethelberd/Traveler; legacy guestNN mnemonics still assemble",
+    # speaker slots 25/26/29 are named from NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70)
+    _check("SetSpeaker slots 25/26/29 = Soldier/Ethelberd/Traveler (no old names kept)",
            script.opcode_mnemonic(66) == "SetSpeakerSoldier" and script.opcode_mnemonic(69) == "SetSpeakerEthelberd"
-           and scriptasm.assemble("SetSpeakerguest25 0, 0", 0x100)[0][:2] == b"\x42\x00"
-           and scriptasm.assemble("SetSpeakerTraveler 0, 0", 0x100)[0][:2] == b"\x4a\x00")
+           and scriptasm.assemble("SetSpeakerTraveler 0, 0", 0x100)[0][:2] == b"\x4a\x00"
+           and script.meta.op_from_mnemonic("SetSpeakerguest25") is None
+           and script.meta.op_from_mnemonic("SetSpeakerEmote1") is None)
     # a packed var whose width is not emdeb's keeps its raw var:0x form (it would re-assemble
     # with the emdeb width otherwise).
     if emf is not None:
@@ -5202,6 +5208,81 @@ def test_emflags_extras():
         _check("em.bin condition grammar accepts the sidecar variables", len(ex) == 2)
     except FileNotFoundError:
         _skip("em condition with extras", "em.bin not found")
+
+
+def test_portrait_faces():
+    """rf4s_modkit.portraits: what a SetSpeaker face id shows, read from RF4S.exe -- the classic
+    Story-mode faces for every speaker, the Newlywed-mode E-mote mapping for the candidates --
+    checked against the shipped face files and every speaker cue in rf3.mc."""
+    print("portraits (SetSpeaker faces):")
+    from rf4s_modkit import portraits as pt, script
+    _check("Story mode: every speaker slot 0..28 has classic faces; ids 0..5 are the shared moods",
+           all(pt.has_portrait(s_) for s_ in range(29)) and len(pt.faces(3)) == 34
+           and [pt.label(3, i) for i in range(6)] == ["normal", "angry", "crying", "smile", "surprised", "shy"]
+           and pt.face_file(4, 10) == "04_FORTE_face_010_047" and pt.label(4, 255) == "special 1 (SP1)")
+    _check("Newlywed mode: 12 candidates + the player map the same ids to E-mote faces; 1000+ ids are Newlywed-only",
+           sum(pt.has_newlywed(s_) for s_ in range(29)) == 13 and not pt.has_newlywed(3)
+           and pt.emote_label(4, 10) == "anger 2" and pt.label(4, 1394).startswith("Newlywed-only"))
+    bm = _first("04_FORTE_face_000_NORMAL.texture")
+    if bm:
+        missing = [f for s_ in range(29) for _i, f, _m in pt.faces(s_)
+                   if not (bm.parent / (f + ".texture")).is_file()]
+        _check("every listed face file ships", not missing, f"{len(missing)} missing {missing[:3]}")
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("shipped face ids fit the face lists", "rf3.mc not extracted")
+        return
+    c = script.Container(mc.read_bytes())
+    bad, n, newly = [], 0, 0
+    for b in c.banks:
+        for sc in script.disassemble_bank(b):
+            for st in sc.stmts.values():
+                if not (script.is_portrait_op(st.op) and st.args):
+                    continue
+                slot = (st.op - 16) >> 1
+                v = script.static_arg(b, st, 0)
+                if v is None or not pt.has_portrait(slot):
+                    continue
+                n += 1
+                if v >= 1000:
+                    newly += 1
+                elif pt.face_file(slot, v) is None:
+                    bad.append((slot, v))
+    # one shipped cue gives Raven (slot 28, a single face) face 4: the game reads whatever
+    # archive follows her face file -- a quirk of the shipped script, listed as known
+    bad = [x for x in bad if x != (28, 4)]
+    _check("every shipped face id < 1000 names a face file of its speaker (known: one Raven cue)",
+           n > 10000 and not bad, f"{n} cues ({newly} Newlywed-only ids), {len(bad)} bad {bad[:5]}")
+
+
+def test_textlint():
+    """rf4s_modkit.textlint: the game's text grammar (docs/48) -- what crashes, what shows
+    wrongly -- and the shipped text passes."""
+    print("textlint (game text checks):")
+    from rf4s_modkit import textlint as tl
+    lv = lambda t: [x.level for x in tl.lint(t)]                       # noqa: E731
+    _check("＠‡A,B＠: a missing comma, a missing closing ＠ or a >63-byte side is an error",
+           "error" in lv("ich bin ＠‡kein keine＠") and "error" in lv("ich bin ＠‡kein,keine")
+           and "error" in lv("＠‡" + "x" * 64 + ",y＠") and "error" not in lv("ich bin ＠‡kein,keine＠"))
+    toks = [(t.kind, t.slot) for t in tl.tokens("＠キャラ０＠ got ＠アイテムＦ＠ in ＠マップＮ＠ for ＠金１＠ "
+                                               "＠しゅじんこうくん＠ ＠キール＠ ＠Ｚ＠")]
+    _check("tokens: slot kinds and base-32 / bare-number slots decode like the game",
+           toks == [(0, 0), (1, 15), (2, 23), (4, 1), (None, None), (None, None), (3, 35)], str(toks))
+    _check("warnings: unknown token, slot out of range, odd ＋, carriage return; lone ＠ and NUL padding are fine",
+           lv("＠ほげ＠") == ["warning"] and lv("＠マップＯ＠") == ["warning"]
+           and lv("a ＋b") == ["warning"] and lv("a\r\nb") == ["warning"]
+           and lv("＠") == [] and lv("text\x00\x00") == [])
+    _check("info: a token whose text slot the scene never sets (op 343 SetVar1 writes slot 0 only)",
+           [x.level for x in tl.lint("＠アイテム１＠", slots={1: {0}})] == ["info"]
+           and tl.lint("＠アイテム０＠", slots={1: {0}}) == [])
+    eng = _first("rf3mc.eng")
+    if eng:
+        texts = textdb.TextArchive.load(eng).texts()
+        bad = [(i, x.message) for i, t in enumerate(texts) for x in tl.errors(t)]
+        _check("every shipped rf3mc.eng line passes (no errors)", not bad and len(texts) > 100000,
+               f"{len(bad)} errors {bad[:2]}")
+    else:
+        _skip("shipped text passes textlint", "rf3mc.eng not extracted")
 
 
 def test_cutscene_editor_authoring():
@@ -6321,6 +6402,109 @@ def test_cutscene_editor_workflows():
         cx.undo()
         _check("insert dialogue / detach line add a new line and undo exactly (script + every locale)",
                grew and detached and doc.container.build() == orig and not doc.dirty_parts())
+        # text checks (textlint): a line the game would crash on is refused, a warning-only
+        # edit goes through; Save refuses an edited line that was broken behind the editor's back
+        box["msgs"].clear()
+        refused = cx.set_text(lid, "Ich bin ＠‡kein keine＠") is False
+        refused = refused and list(doc.textarc.entries) == before and any(
+            "comma" in m for _t, m in box["msgs"])
+        box["msgs"].clear()
+        cx.set_text(lid, "a ＋blue word")
+        warned = doc.text(lid) == "a ＋blue word" and any("odd number" in m for _t, m in box["msgs"])
+        doc.textarc.set_text(lid, "＠‡broken")
+        save_refused = bool(cx.text_errors()) and cx.save_text() is False
+        cx.undo()
+        doc.textarc.entries[:] = before
+        _check("text check: a crash-prone line is refused, a warning is shown, Save refuses broken lines",
+               refused and warned and save_refused, f"{refused} {warned} {save_refused}")
+        # a new line with a face: the cue carries it, the picker names it, undo is exact
+        from rf4s_modkit import portraits as _pt
+        from cutscene_editor.dialogs import FacePicker as _FP
+        _fpk = _FP(tk.Toplevel(root), reader=doc.reader)
+        _fpk.set_slot(3)                                  # Volkanon: classic faces in Story mode
+        _fset = _fpk.set_value(3) and _fpk.value() == 3 and "smile" in _fpk.btn.cget("text")
+        _fpk.choose()
+        _all = []
+        _stack = [root]
+        while _stack:
+            _w0 = _stack.pop()
+            _all.append(_w0)
+            _stack.extend(_w0.winfo_children())
+        _grid = [w for w in _all if isinstance(w, tk.Toplevel) and w.title() == "Pick a face"]
+        _fset = _fset and bool(_grid)
+        for _w in _grid:
+            _w.destroy()
+        _fpk.set_slot(4)
+        _fpk.set_value(10)
+        _fset = _fset and "Newlywed" in _fpk.note.cget("text")   # Forte: the Newlywed note
+        _n0 = len(cx.scene.stmts)
+        _nid = cx.insert_dialogue_after(dpc, (3, 1), "Face test", 3)
+        _cue = next((t for t in cx.scene.stmts.values()
+                     if t.op == script.portrait_opcode(3, 1) and script.static_arg(cx.bank, t, 0) == 3), None)
+        cx.undo()
+        _check("add a dialogue line with a face: the cue carries it, the picture picker works (Volkanon too), undo is exact",
+               _nid is not None and _cue is not None and _fset
+               and doc.container.build() == orig and len(cx.scene.stmts) == _n0,
+               f"id={_nid} cue={_cue is not None} picker={_fset}")
+        # the message-box style (ops 93-97): the picker, switching 94-97, and a new line with a box
+        from cutscene_editor.dialogs import BoxStylePicker as _BP
+        _bp = _BP(tk.Toplevel(root), reader=doc.reader, keep=True)
+        _bok = _bp.value() is None
+        _bp.set_value(2)
+        _bok = _bok and _bp.value() == 2 and "thought" in _bp.btn.cget("text")
+        _epc = next((q for q, t in cx.scene.stmts.items() if 94 <= t.op <= 97), None)
+        if _epc is not None:
+            _op0 = cx.stmt(_epc).op
+            cx.set_opcode(_epc, 94 + ((_op0 - 94 + 1) % 4))
+            _bok = _bok and cx.stmt(_epc).op != _op0
+            cx.undo()
+        _nid2 = cx.insert_dialogue_after(dpc, (4, 0), "Box test", 0, 1)
+        _boxed = any(t.op == 95 for t in cx.scene.stmts.values())
+        cx.undo()
+        _nid3 = cx.insert_dialogue_after(dpc, None, "Tail test", 0, 4)
+        _tail = any(t.op == 93 and script.static_arg(cx.bank, t, 0) == 4 for t in cx.scene.stmts.values())
+        cx.undo()
+        _check("box style: the picker, switching ops 94-97 and new lines with a box (op 95 / op 93 4) undo exactly",
+               _bok and _boxed and _tail and doc.container.build() == orig
+               and script.opcode_describe(95).startswith("Dialogue box style 1"),
+               f"picker/switch={_bok} op95={_boxed} op93-4={_tail}")
+        # Save writes straight over the game folder's own files -- here a throwaway copy
+        from rf4s_modkit import gamepaths as _gp
+        import shutil as _sh
+        import tempfile as _tf
+        _tmpg = pathlib.Path(_tf.mkdtemp()) / "game"
+        _old_find = _gp.find_bundle_dir
+        try:
+            for _n in ("rf3.mc", "rf3mc.%s" % doc.locale):
+                _src = _first(_n)
+                if _src is None:
+                    raise FileNotFoundError(_n)
+                _rel = _src.relative_to(_src.parents[1])            # e.g. bundleMain/rf3mc.eng
+                (_tmpg / "Bundle" / _rel).parent.mkdir(parents=True, exist_ok=True)
+                _sh.copy2(_src, _tmpg / "Bundle" / _rel)
+            (_tmpg / "Bundle" / "Manifest.plist").write_bytes(b"")
+            _gp.find_bundle_dir = lambda refresh=False: _tmpg / "Bundle"
+            _t = cx.save_targets()
+            _eng = _t["rf3mc.%s" % doc.locale]
+            _orig_eng = _eng.read_bytes()
+            box["save"] = ""                                   # a file dialog would cancel the save
+            cx.set_text(lid, "selftest save line")
+            _saved = cx.save_all()
+            _back = _tmpg / cx.BACKUP_DIR / _eng.relative_to(_tmpg)
+            _ok = (_saved is True and not doc.dirty_parts()
+                   and textdb.TextArchive.parse(_eng.read_bytes()).text(lid) == "selftest save line"
+                   and _back.is_file() and _back.read_bytes() == _orig_eng
+                   and _t["rf3.mc"].parent.name == _first("rf3.mc").parent.name)
+            cx.undo()
+            cx.save_all()
+            _ok = _ok and _back.read_bytes() == _orig_eng and _eng.read_bytes() == _orig_eng
+            _check("Save overwrites the game folder's own files without asking; originals kept once in ModdingBackup",
+                   _ok, f"saved={_saved} targets={sorted(_t)}")
+        except FileNotFoundError as _e:
+            _skip("save into the game folder", f"{_e} not extracted")
+        finally:
+            _gp.find_bundle_dir = _old_find
+            _sh.rmtree(_tmpg.parent, ignore_errors=True)
         box["yesnocancel"] = None
         cx.set_text(lid, "selftest line")
         _check("unsaved dialogue: closing asks, Cancel stays", cx.confirm_discard("close") is False)
@@ -6928,7 +7112,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_emflags_extras, test_cutscene_editor_authoring,
+              test_script_authoring, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows,
               test_cutscene_editor_workflows, test_asset_explorer_gui, test_portraits,

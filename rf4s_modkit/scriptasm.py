@@ -830,6 +830,11 @@ def _enum_value(op, index, name):
                 return v
     if 16 <= op <= 75:
         if index == 0:
+            # the six moods every portrait shares (face ids 0..5, portraits.py), SP1/SP2
+            story = {"normal": 0, "angry": 1, "crying": 2, "smile": 3, "surprised": 4, "shy": 5,
+                     "sp1": 255, "sp2": 254}
+            if name.lower() in story:
+                return story[name.lower()]
             for v, nm in getattr(meta, "FACE_FRAMES", {}).items():
                 lab = nm[0] if isinstance(nm, (tuple, list)) else nm
                 if isinstance(lab, str) and lab.lower() == name.lower():
@@ -867,24 +872,6 @@ def lint_listing(text, base=0x1000, resolver=None, text_count=None):
     return script.choice_problems(buf, stmts, text_count)
 
 
-def specs_to_listing(specs):
-    """Convert the legacy statement specs (('dialog', id) / ('action', op, [ints]) /
-    ('raw', bytes)) into listing lines."""
-    lines = []
-    for spec in specs:
-        if spec[0] == "dialog":
-            lines.append("DIALOG #%d" % (spec[1] & 0xFFFFFFFF))
-        elif spec[0] == "action":
-            _, op, args = spec
-            lines.append("op%d %s" % (op, ", ".join(str(int(v)) for v in args)))
-        elif spec[0] == "raw":
-            lines.append(".raw " + bytes(spec[1]).hex())
-        else:
-            raise AsmError("bad statement spec %r" % (spec,))
-    return "\n".join(lines)
-
-
-# ---- listing generation (the inverse) -----------------------------------------------------
 def operand_text(buf, off, op=None, ai=None):
     """Assembler-ready text for the operand at `off`: a bare int for static literals,
     `(expr)` for runtime expressions, leaf forms verbatim, or `@0xOFF` when the bytes

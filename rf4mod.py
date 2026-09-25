@@ -408,9 +408,43 @@ def cmd_text_decode(a):
         print(out)
 
 
+def _text_issues(strings, levels=("error",)):
+    """[(index, Issue)] for the given strings (rf4s_modkit.textlint, docs/48)."""
+    from rf4s_modkit import textlint
+    return [(i, x) for i, t in enumerate(strings) for x in textlint.lint(t) if x.level in levels]
+
+
+def _refuse_broken(pairs, force):
+    if not pairs:
+        return
+    for i, x in pairs[:20]:
+        print(f"  line {i}: {x.message}", file=sys.stderr)
+    if len(pairs) > 20:
+        print(f"  ... and {len(pairs) - 20} more", file=sys.stderr)
+    if not force:
+        sys.exit(f"{len(pairs)} line(s) would break the game (see above); fix them, or pass --force")
+    print(f"--force: writing anyway ({len(pairs)} line(s) would break the game)", file=sys.stderr)
+
+
 def cmd_text_encode(a):
+    data = json.loads(pathlib.Path(a.json).read_text(encoding="utf-8"))
+    if isinstance(data, list):
+        _refuse_broken(_text_issues([t if isinstance(t, str) else "" for t in data]), a.force)
     n = textdb.from_json(a.json, a.out, a.enc)
     print(f"encoded {n} strings -> {a.out}")
+
+
+def cmd_text_check(a):
+    """Every issue the game would have with an archive's lines (docs/48)."""
+    arc = textdb.TextArchive.load(_resolve(a.file))
+    levels = ("error", "warning", "info") if a.all else ("error", "warning")
+    found = _text_issues(arc.texts(a.enc), levels)
+    for i, x in found[: a.limit]:
+        print(f"{i:>6}  {x.level:<7} {x.message}")
+    errs = sum(1 for _i, x in found if x.level == "error")
+    print(f"{len(arc)} lines: {errs} error(s), {len(found) - errs} other issue(s)")
+    if errs:
+        sys.exit(1)
 
 
 def cmd_text_add(a):
@@ -421,6 +455,7 @@ def cmd_text_add(a):
         # bare append gives mismatched ids) -- pad the shorter archive with empty lines first.
         arc.entries.extend([b""] * (pad_to - len(arc)))
     new_id = len(arc)                                  # a new line's id == the (padded) length
+    _refuse_broken([(new_id, x) for _i, x in _text_issues([a.text])], a.force)
     arc.entries.append(a.text.encode(a.enc))
     arc.save(a.out)
     print(f"appended line as id {new_id} -> {a.out}   "
@@ -1173,12 +1208,6 @@ def cmd_schedule_show(a):
     spots = _schedule_spots()
     npc = _npc_id(a.npc) if a.npc is not None else None
     state = schedule.state_code(a.state) if a.state is not None else None
-    if a.id is not None:                     # legacy: the Nth schedule in file order
-        cells = schedule.Schedule.parse(data).ordered_cells()
-        i = int(a.id, 0)
-        if not (0 <= i < len(cells)):
-            sys.exit(f"error: schedule {i} out of range (0..{len(cells) - 1})")
-        (npc, state), _lst = cells[i]
     limit = None if (npc is not None or state is not None) else a.limit
     print(schedule.render(data, name_fn=map_names.map_name, limit=limit, spots=spots,
                           npc_name_fn=lambda n: _char_names().get(n, ""),
@@ -2005,10 +2034,10 @@ def cmd_script_insert(a):
     c = _script_load(a)
     text = _listing_text(a)
     if a.dialogue is not None:
-        specs = [("dialog", a.dialogue)]
+        specs = "DIALOG #%d" % a.dialogue
     elif a.action:
         parts = [int(x, 0) for x in a.action.split()]
-        specs = [("action", parts[0], parts[1:])]
+        specs = "op%d %s" % (parts[0], ", ".join(str(v) for v in parts[1:]))
     elif text is not None:
         specs = text
     else:
@@ -2030,20 +2059,21 @@ def cmd_script_delete(a):
 
 
 def _parse_beats(s):
-    specs = []
+    """'d:LINE;a:OP,arg,arg' -> listing lines."""
+    lines = []
     for part in s.split(";"):
         part = part.strip()
         if not part:
             continue
         kind, _, rest = part.partition(":")
         if kind == "d":
-            specs.append(("dialog", int(rest, 0)))
+            lines.append("DIALOG #%d" % int(rest, 0))
         elif kind == "a":
             nums = [int(x, 0) for x in rest.split(",")]
-            specs.append(("action", nums[0], nums[1:]))
+            lines.append("op%d %s" % (nums[0], ", ".join(str(v) for v in nums[1:])))
         else:
             sys.exit(f"bad beat {part!r} (use d:LINE or a:OP,arg,arg)")
-    return specs
+    return lines
 
 
 def cmd_script_rewrite(a):
@@ -2053,8 +2083,8 @@ def cmd_script_rewrite(a):
         specs = text
         n = sum(1 for ln in text.splitlines() if ln.strip() and not ln.strip().startswith(";"))
     elif a.beats:
-        specs = _parse_beats(a.beats)
-        n = len(specs)
+        beats = _parse_beats(a.beats)
+        specs, n = "\n".join(beats), len(beats)
     else:
         sys.exit("error: pass --beats 'd:LINE;a:OP,arg' or --listing FILE")
     try:
@@ -3311,9 +3341,9 @@ def cmd_gen_set(a):
     for assign in (a.spawn or []):
         idx, mid = assign.split("=", 1)
         g.set_spawn_monster(e.spawns[int(idx)], int(mid, 0))
-    for assign in (a.level or []):
-        idx, lvl = assign.split("=", 1)
-        g.set_spawn_level(e.spawns[int(idx)], int(lvl, 0))
+    for assign in (a.pick_weight or []):
+        idx, pw = assign.split("=", 1)
+        g.set_spawn_pick_weight(e.spawns[int(idx)], int(pw, 0))
     for assign in (a.weights or []):
         idx, ws = assign.split("=", 1)
         g.set_spawn_weights(e.spawns[int(idx)], [int(w, 0) for w in ws.split(",")])
@@ -3350,7 +3380,7 @@ def cmd_gen_add_monster(a):
     g = gen.GenTable.load(_resolve(a.file))
     e = g.patterns[a.pattern][a.entry]
     weights = [int(w, 0) for w in a.weights.split(",")] if a.weights else None
-    g.add_spawn(e, a.monster, a.level, weights)
+    g.add_spawn(e, a.monster, a.pick_weight, weights)
     _gen_write(g, a)
 
 
@@ -3484,7 +3514,15 @@ def build_parser():
     t1 = tsub.add_parser("decode"); t1.add_argument("file"); t1.add_argument("-o", "--out")
     t1.add_argument("--enc", default="utf-8"); t1.set_defaults(func=cmd_text_decode)
     t2 = tsub.add_parser("encode"); t2.add_argument("json"); t2.add_argument("-o", "--out", required=True)
-    t2.add_argument("--enc", default="utf-8"); t2.set_defaults(func=cmd_text_encode)
+    t2.add_argument("--enc", default="utf-8")
+    t2.add_argument("--force", action="store_true", help="write even lines the game would crash on")
+    t2.set_defaults(func=cmd_text_encode)
+    tc = tsub.add_parser("check", help="list the lines the game would show wrongly or crash on "
+                         "(bad ＠ tokens, a broken ＠‡A,B＠, odd ＋/／ colour marks...)")
+    tc.add_argument("file"); tc.add_argument("--enc", default="utf-8")
+    tc.add_argument("--all", action="store_true", help="also list informational notes")
+    tc.add_argument("--limit", type=int, default=200)
+    tc.set_defaults(func=cmd_text_check)
     t3 = tsub.add_parser("add", help="append a NEW line to a TEXT archive (e.g. a new dialogue line "
                          "for rf3mc.<locale>); prints the new line id for retarget/insert")
     t3.add_argument("file"); t3.add_argument("--text", required=True, help="the new line's text")
@@ -3492,6 +3530,7 @@ def build_parser():
     t3.add_argument("--pad-to", type=int, dest="pad_to", metavar="N",
                     help="pad the archive to length N first, so the new line lands at the SAME id "
                          "in every locale (rf3mc.eng is 1 line longer than the others)")
+    t3.add_argument("--force", action="store_true", help="add the line even if the game would crash on it")
     t3.add_argument("-o", "--out", required=True); t3.set_defaults(func=cmd_text_add)
 
     # texture
@@ -3711,7 +3750,6 @@ def build_parser():
     sh0.add_argument("file", nargs="?", help="rf3Schedule.bin (default: auto-locate)")
     sh0.add_argument("--npc", help="only this NPC (id 0..47 or name, e.g. Vishnal)")
     sh0.add_argument("--state", help="only this state: 0..17 or weekday0..5 / rain0..5 / festival / festival21 / married / date")
-    sh0.add_argument("--id", help="the Nth schedule in file order (legacy)")
     sh0.add_argument("--limit", type=int, default=8, help="max schedules to print (default 8)")
     sh0.set_defaults(func=cmd_schedule_show)
     sh1 = shsub.add_parser("decode", help="rf3Schedule.bin -> JSON (edit, then `schedule encode`)")
@@ -4261,9 +4299,9 @@ def build_parser():
     g2.add_argument("--gate", type=int, help="new gate kind id")
     g2.add_argument("--weight", type=int, help="new weight")
     g2.add_argument("--spawn", action="append", help="spawn edit IDX=MONSTER_ID (repeatable)")
-    g2.add_argument("--level", action="append",
-                    help="roster record high u16 IDX=VALUE (repeatable) -- the monster's PICK "
-                         "WEIGHT in the roster, not a level; the gate level is hdr param_a")
+    g2.add_argument("--pick-weight", dest="pick_weight", action="append",
+                    help="IDX=VALUE (repeatable): the roster monster's pick weight (the record's "
+                         "high u16); the gate level is hdr param_a")
     g2.add_argument("--weights", action="append",
                     help="per-monster-position weights IDX=w1,w2,... (repeatable)")
     g2.add_argument("--per-spawn", dest="per_spawn", help="monsters kept alive per gate, e.g. 2-4")
@@ -4283,10 +4321,9 @@ def build_parser():
     g5.add_argument("file"); g5.add_argument("pattern", type=int); g5.add_argument("entry", type=int)
     g5.add_argument("--names"); g5.add_argument("-o", "--out")
     g5.set_defaults(func=cmd_gen_remove_gate)
-    g6 = gsub.add_parser("add-monster", help="add a monster (id, pick weight) to a gate's roster "
-                                             "(the 'level' argument is the record's pick weight)")
+    g6 = gsub.add_parser("add-monster", help="add a monster (id, pick weight) to a gate's roster")
     g6.add_argument("file"); g6.add_argument("pattern", type=int); g6.add_argument("entry", type=int)
-    g6.add_argument("monster", type=int); g6.add_argument("level", type=int)
+    g6.add_argument("monster", type=int); g6.add_argument("pick_weight", type=int)
     g6.add_argument("--weights", help="w1,w2,... one per monster position (default 10 each)")
     g6.add_argument("--names"); g6.add_argument("-o", "--out")
     g6.set_defaults(func=cmd_gen_add_monster)

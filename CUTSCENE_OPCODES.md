@@ -815,39 +815,38 @@ Args:
 
 Close both speaker bubbles and commit the dialogue state -- the end of a spoken exchange. ALSO CLEARS THE SPEAKER (sceneCtx+108 = -1): the next DIALOG without a new SetSpeaker is narration again (plain box, no name/portrait). Returns to the scene controller when no other event is in flight. The #2 most-used action op (10,564 uses) -- every dialogue beat ends with one.
 
-### `op 93` — SetDialogueSpeakerEmote(emote id)
+### `op 93` — SetDialogueBoxStyle(box style)
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteByArg`
 
-Set the CURRENT dialogue speaker's facial emote/expression and re-target the portrait to it. arg0 = emote id: a 3-bit field (0..7), of which the game names 0-5 (0=normal, 1=angry, 2=sad, 3=laugh, 4=surprise, 5=blush -- the picker); 6-7 are valid field values but have no named portrait. This is the dialogue-portrait expression (0-7), a DIFFERENT space from op319 SetEmote's per-NPC record+57 emote byte. Use to change a speaker's expression mid-conversation without re-issuing the SetSpeaker.
+Set the dialogue box style from an argument (the general form of ops 94-97, and the only way to get style 4). It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.
 
 Args:
-  0. emote id (0-7)
-     - `0` = normal
-     - `1` = angry
-     - `2` = sad
-     - `3` = laugh
-     - `4` = surprise
-     - `5` = blush
+  0. box style (0 normal, 1 shout, 2 thought, 3 trembling, 4 tail only)
+     - `0` = normal box
+     - `1` = shout
+     - `2` = thought
+     - `3` = trembling
+     - `4` = tail only
 
-### `op 94` — SetSpeakerEmote0()
+### `op 94` — SetBoxNormal()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 
-Set the current dialogue speaker's facial emote to 0 and retarget the portrait (Dialogue_SetSpeakerEmoteAndRetargetPortrait). The emote id is ENCODED BY THE OPCODE: emote = op - 94; ops 94-97 share this one handler (emotes 0-3), which reads its own opcode back from sceneCtx+260 — it does NOT read an actor field. Takes no args. The general form is op 93, which takes the emote as a normal argument.
+Dialogue box style 0: the normal box. Ops 94-97 = styles 0-3, the style is the opcode (op - 94); op 93 takes it as an argument. It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.
 
-### `op 95` — SetSpeakerEmote1()
+### `op 95` — SetBoxShout()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 
-Set the current dialogue speaker's facial emote to the FIXED id 1 and retarget the portrait. Ops 94-97 share one handler that recovers the emote from the opcode itself: emote = op - 94 (94->0, 95->1, 96->2, 97->3), read from the currently-dispatching opcode byte at sceneCtx+260. Calls Dialogue_SetSpeakerEmoteAndRetargetPortrait(1). No args. The general form is op 93 (SetSpeakerEmoteByArg), which takes the emote as a normal argument.
+Dialogue box style 1: shout -- a jagged box with a screen flash. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.
 
-### `op 96` — SetSpeakerEmote2()
+### `op 96` — SetBoxThought()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 
-Set the current dialogue speaker's facial emote to the FIXED emote id 2 and retarget the portrait (Dialogue_SetSpeakerEmoteAndRetargetPortrait). The emote id is encoded in the OPCODE, not read from the actor: ops 94-97 share this handler and map to emotes 0-3 (emote = op - 94, recovered from the currently-dispatching opcode at sceneCtx+260). The general form is op 93, which takes the emote as a normal argument. Takes no args. Corpus: appears right after a SetSpeaker* cue, before the DIALOG line.
+Dialogue box style 2: thought -- a cloud box with a bubble-trail tail; the line holds about a second. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.
 
-### `op 97` — SetSpeakerEmote3()
+### `op 97` — SetBoxTrembling()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 
-Set the dialogue speaker's facial emote to id 3 and retarget the portrait (Dialogue_SetSpeakerEmoteAndRetargetPortrait). The emote id is ENCODED IN THE OPCODE, not read from the actor: ops 94-97 map to emote 0-3 via (opcode - 94), same trick as the SetSpeaker cluster. Takes no args. The general form is op 93 (SetDialogueSpeakerEmoteByArg), which takes the emote id as a normal argument.
+Dialogue box style 3: trembling -- a wavy box. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.
 
 ### `op 98` — SetDialogueField161(value)
 *handler:* `Script_VMOp_SetDialogueField161`
@@ -3463,7 +3462,7 @@ Args:
 ### `op 203` — SetCameraMapBounds(mode)
 *handler:* `Script_VMOp_ApplyCameraMapBoundsAndZoom`
 
-Recompute and re-apply the camera's per-map clamp bounds and zoom for the current map — NOT a player rotation (old name was wrong). The handler calls Camera_SetBoundsForMap(active input-context/map id, flag), passing 0xFFFF while input is suppressed; that callee sets the script/follow camera's centre clamp from the map's tile dims and re-applies the small-map zoom. arg: 0 = write the camera distance directly onto the player's camera rig (flag=1 path); non-zero = apply via Camera_SetDistanceAndZoomFactor (flag=0 path). Used after scripted camera moves/zooms to restore the normal map camera.
+Recompute and re-apply the camera's per-map clamp bounds and zoom for the current map — NOT a player rotation. The handler calls Camera_SetBoundsForMap(active input-context/map id, flag), passing 0xFFFF while input is suppressed; that callee sets the script/follow camera's centre clamp from the map's tile dims and re-applies the small-map zoom. arg: 0 = write the camera distance directly onto the player's camera rig (flag=1 path); non-zero = apply via Camera_SetDistanceAndZoomFactor (flag=0 path). Used after scripted camera moves/zooms to restore the normal map camera.
 
 Args:
   0. mode (0=direct distance write, else standard zoom apply)
@@ -5006,7 +5005,7 @@ Args:
 ### `op 302` — SetNpcActionDelay(npc, base wait)
 *handler:* `Script_VMOp_SetNpcActionDelayWithJitter`
 
-Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship — the old name came from a mislabeled IDB function and was settled as wrong (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).
+Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).
 
 Args:
   0. npc (char id)
@@ -5042,7 +5041,7 @@ Args:
 ### `op 303` — SetNpcActionDelay(npc, delay)
 *handler:* `Script_VMOp_SetNpcActionDelayWithJitter`
 
-Alias of op 302 (same handler). Despite the old name it does NOT touch friendship: writes a jittered WAIT into the NPC's schedule countdown (npc record +212, decremented once per NpcSchedule_Tick; on expiry the NPC performs its next scheduled action). Written value is uniform in [0.75 x arg1, 1.125 x arg1); arg1 <= 0 writes nothing. Starting a move or interaction clears the timer. arg0 = npc (char id, < 48), arg1 = requested delay (ticks).
+Alias of op 302 (same handler). It does NOT touch friendship: writes a jittered WAIT into the NPC's schedule countdown (npc record +212, decremented once per NpcSchedule_Tick; on expiry the NPC performs its next scheduled action). Written value is uniform in [0.75 x arg1, 1.125 x arg1); arg1 <= 0 writes nothing. Starting a move or interaction clears the timer. arg0 = npc (char id, < 48), arg1 = requested delay (ticks).
 
 Args:
   0. npc (char id)
@@ -5296,7 +5295,7 @@ Args:
 ### `op 400` — SetPlayerMale(male)
 *handler:* `Script_VMOp_SetPlayerCharacterLestOrFrey`
 
-Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). **Listed as `SetPlayerMale` (earlier `SetPlayerLestOrFrey`, still accepted; formerly `RefreshPlayerAndApplyDefaultName`) -- the technical name hides that this is the actual character-swap op**. Dev menu label: 'Boy' / 'Girl'.
+Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). This is the actual character-swap op. Dev menu label: 'Boy' / 'Girl'.
 
 Args:
   0. male (1 = Lest / Boy, 0 = Frey / Girl)
@@ -6801,7 +6800,7 @@ Args:
 ### `op 452` — SpawnItemAtTile(item id, count, quality, x tile, y tile, as-drop)
 *handler:* `Script_VMOp_SpawnItemAtTileAsDropOrVisual`
 
-Spawn an item in the world at a map tile -- as a droppable pickup or a visual-only prop, chosen by the last arg (handler Item_SpawnAtPositionAsDropOrVisual). NOT a shipping-bin op despite the old name (real shipping = QueryShippingBoxTotalGold @ op 649). Verified: 28 scene call sites pass (item, count, quality, x_tile, y_tile, drop).
+Spawn an item in the world at a map tile -- as a droppable pickup or a visual-only prop, chosen by the last arg (handler Item_SpawnAtPositionAsDropOrVisual). NOT a shipping-bin op (real shipping = QueryShippingBoxTotalGold @ op 649). Verified: 28 scene call sites pass (item, count, quality, x_tile, y_tile, drop).
 
 Args:
   0. item id
@@ -7532,7 +7531,7 @@ Args:
 ### `op 509` — PopulateQuestKind2RandomAlts(item id, template param, template param, alt category seed …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 2, whose alternate objective items are rolled AT RANDOM from shop-category tables ('cats' in the old name meant categories, not animals: Shop_RollByCategoryFromTable re-rolls each seed until the result differs from the main item; up to 4 alternates). arg0 = objective item id; then two template params; trailing args = alternate category seeds. Distinct from the literal-alternates (slot 208) and chained-random (slot 209) siblings. See docs/23.
+Populate the current NPC's daily quest-request slot using request template KIND 2, whose alternate objective items are rolled AT RANDOM from shop-category tables (Shop_RollByCategoryFromTable re-rolls each seed until the result differs from the main item; up to 4 alternates). arg0 = objective item id; then two template params; trailing args = alternate category seeds. Distinct from the literal-alternates (slot 208) and chained-random (slot 209) siblings. See docs/23.
 
 Args:
   0. item id
@@ -7622,7 +7621,7 @@ Populate the current NPC's daily quest-request slot using request template KIND 
 ### `op 520` — PostQuestGoalNumber(goal number, reward item ids)
 *handler:* `Script_VMOp_PopulateQuestRequestKind8_GoalNumberLiteralRewards`
 
-Post a request-box GOAL-NUMBER quest (slot kind 8): an objective with NO target item where the player must reach a number — a skill level, an upgrade level, a tamed-monster count, a craft count. arg0 = the goal number shown to the player (display only: completion is checked by the request scene itself via query ops / em conditions, never by slot progress); further args = LITERAL reward item ids written verbatim into reward_items[0..3] (stops at the first 0; no category roll). Also binds the posted slot to the script task's reward-template pointer (task+136) so the accept/complete/reward-popup ops that follow read this quest. All 6 retail uses are Eliza tutorial requests in bank 210, e.g. (20,3000) = 'Raise Skill Levels!' (any skill >= 20), (15,1052 Rush Attack) = 'Upgrade Weapons!', (5,0) = 'Befriend Monsters!'. IDA-verified 2026-09-01; formerly 'PopulateQuestKind8BackrefLiteralAlts' (the 'alternate objective items' reading was wrong — the literals are the REWARDS).
+Post a request-box GOAL-NUMBER quest (slot kind 8): an objective with NO target item where the player must reach a number — a skill level, an upgrade level, a tamed-monster count, a craft count. arg0 = the goal number shown to the player (display only: completion is checked by the request scene itself via query ops / em conditions, never by slot progress); further args = LITERAL reward item ids written verbatim into reward_items[0..3] (stops at the first 0; no category roll). Also binds the posted slot to the script task's reward-template pointer (task+136) so the accept/complete/reward-popup ops that follow read this quest. All 6 retail uses are Eliza tutorial requests in bank 210, e.g. (20,3000) = 'Raise Skill Levels!' (any skill >= 20), (15,1052 Rush Attack) = 'Upgrade Weapons!', (5,0) = 'Befriend Monsters!'. IDA-verified 2026-09-01: the literals are the REWARDS, not alternate objective items.
 
 Args:
   0. goal number (level/count to reach)
@@ -7804,7 +7803,7 @@ Args:
 ### `op 2` — Wait(duration)
 *handler:* `Script_VMOp_WaitUnitsAndAdvanceReaction`
 
-WAIT — pause the scene for a scripted duration. The one argument is a TIME in script units: 200 units = 1 frame, so 12000 = 1 second, 6000 = 0.5 s, 3000 = 0.25 s (the corpus's four most common values are exactly these). Any value 1..200 yields exactly one frame — `Wait(1)` is the idiomatic single-frame yield. This is the single most common pacing op (5,529 uses). Two traps, both engine-verified: the argument's expression KIND must be 0 (a computed expression — a plain literal is silently ignored, which is why the compiler always emits waits as expressions), and there must be EXACTLY one argument. The old name 'EndReactionAndJump' described a side call (Quest_OnReactionDispatched_AdvanceState), not the behaviour — IDA-verified as the wait primitive (vm[+120] = units, state -> WAITING; RF4S.exe+0x1FAB50).
+WAIT — pause the scene for a scripted duration. The one argument is a TIME in script units: 200 units = 1 frame, so 12000 = 1 second, 6000 = 0.5 s, 3000 = 0.25 s (the corpus's four most common values are exactly these). Any value 1..200 yields exactly one frame — `Wait(1)` is the idiomatic single-frame yield. This is the single most common pacing op (5,529 uses). Two traps, both engine-verified: the argument's expression KIND must be 0 (a computed expression — a plain literal is silently ignored, which is why the compiler always emits waits as expressions), and there must be EXACTLY one argument. IDA-verified as the wait primitive (vm[+120] = units, state -> WAITING; RF4S.exe+0x1FAB50).
 
 Args:
   0. duration (units; 200 = 1 frame, 12000 = 1 s)
@@ -8605,7 +8604,7 @@ Args:
 ### `op 195` — WaitCameraAtMark()
 *handler:* `Script_VMOp_QueryCameraAtMarkAnchor`
 
-BARRIER: block the scene until the CAMERA has arrived at the mark anchor set by SetCameraPosition/SetCameraTarget (ops 186/190) — per-axis |camera − anchor| <= 2048 Q12 = half a tile (Chebyshev). No args. This is what paces every scripted camera sweep: `SetCameraTarget(x, y, speed); WaitCameraAtMark()` holds until the pan lands. (The old name 'QueryPlayerMovedFromMark' followed the technical symbol; the IDB comparison is against g_cameraPosQ12, the CAMERA, not the player.)
+BARRIER: block the scene until the CAMERA has arrived at the mark anchor set by SetCameraPosition/SetCameraTarget (ops 186/190) — per-axis |camera − anchor| <= 2048 Q12 = half a tile (Chebyshev). No args. This is what paces every scripted camera sweep: `SetCameraTarget(x, y, speed); WaitCameraAtMark()` holds until the pan lands. (The IDB comparison is against g_cameraPosQ12, the CAMERA, not the player.)
 
 ### `op 196` — QueryPlayerMovedBeyondSnapshot(threshold)
 *handler:* `Script_VMOp_QueryPlayerMovedBeyondDistFromAnchor`
@@ -9935,12 +9934,12 @@ Evaluate em.bin entry [id]'s condition B (the entry's alternate/negated variant,
 Args:
   0. em entry id
 
-### `op 377` — GetChoiceResult()
+### `op 377` — ConsumeInteractionResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Consume a PENDING INTERACTION result -- NOT a PROMPT_CHOICE reader (the choice menu never touches these bits). If scene-ctx +116 bit 24 is set, reg0 = the 2-bit value in bits 22-23 and bit 24 is cleared; otherwise reg0 is left alone. The pending bit is set by World_DispatchInteractionEvent for interaction kinds 4/44/45 (which also latch scene +0xA4 = 1/2/3 and clear bits 22-23) and cleared at the start of every other interaction. Name kept for listing compatibility. IDA-verified 2026-09-24 (Script_VMOp_ConsumeChoiceCommitResult).
+Consume a PENDING INTERACTION result -- NOT a PROMPT_CHOICE reader (the choice menu never touches these bits). If scene-ctx +116 bit 24 is set, reg0 = the 2-bit value in bits 22-23 and bit 24 is cleared; otherwise reg0 is left alone. The pending bit is set by World_DispatchInteractionEvent for interaction kinds 4/44/45 (which also latch scene +0xA4 = 1/2/3 and clear bits 22-23) and cleared at the start of every other interaction. IDA-verified 2026-09-24 (Script_VMOp_ConsumeChoiceCommitResult).
 
-### `op 378` — GetChoiceResult()
+### `op 378` — ConsumeInteractionResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
 Same handler as op 377 (Script_VMOp_ConsumeChoiceCommitResult): consume the pending interaction result into reg0 -- not a PROMPT_CHOICE reader.
@@ -9961,12 +9960,12 @@ Read the player's substate id.
 ### `op 403` — GetMonsterRosterAbsent()
 *handler:* `Script_VMOp_QueryMonsterRosterAbsentMask`
 
-For monster ids 1-3, write to the VM outputs whether each is NOT active in the monster roster (inverted presence flag, fixed context). Produces three outputs. (Formerly mislabeled a 'fishing' op.)
+For monster ids 1-3, write to the VM outputs whether each is NOT active in the monster roster (inverted presence flag, fixed context). Produces three outputs.
 
 ### `op 404` — GetMonsterRosterPresent(input context)
 *handler:* `Script_VMOp_QueryMonsterRosterPresentMaskByCtx`
 
-For monster ids 1-3, write to the VM outputs whether each IS active in the monster roster within input context [arg0]. Produces three outputs. (Formerly mislabeled a 'fishing' op.)
+For monster ids 1-3, write to the VM outputs whether each IS active in the monster roster within input context [arg0]. Produces three outputs.
 
 Args:
   0. input context
@@ -10003,7 +10002,7 @@ Args:
 ### `op 414` — GetChoiceIndexAndItem()
 *handler:* `Script_VMOp_GetScriptChoiceIndexAndItemId`
 
-Read the last scripted item-selection result into TWO VM outputs: query register 0 = the choice slot index (0-7, extracted from scene-ctx +116 bits 6-8), register 1 = the associated item id (11-bit, from ctx+40 field +380). DISTINCT from GetChoiceResult (op 377/378 = Script_VMOp_ConsumeChoiceCommitResult, a different handler) -- this one (Script_VMOp_GetScriptChoiceIndexAndItemId) returns the index+item pair for an item-pick menu, not the committed PROMPT_CHOICE value.
+Read the last scripted item-selection result into TWO VM outputs: query register 0 = the choice slot index (0-7, extracted from scene-ctx +116 bits 6-8), register 1 = the associated item id (11-bit, from ctx+40 field +380). DISTINCT from ConsumeInteractionResult (ops 377/378) -- eResult (op 377/378 = Script_VMOp_ConsumeChoiceCommitResult, a different handler) -- this one (Script_VMOp_GetScriptChoiceIndexAndItemId) returns the index+item pair for an item-pick menu, not the committed PROMPT_CHOICE value.
 
 ### `op 416` — QueryPlayerVariable(variable, skill id)
 *handler:* `Script_VMOp_QueryPlayerStatByCharCode`
@@ -10817,7 +10816,7 @@ Weighted-random branch: pick one of N targets at random, each weighted by an exp
 
 ### `0xFFF1` — FRAME
 
-Frame setup (formerly mislabeled 'RET' -- it does NOT return): sets the frame base to the current operand-stack top and reserves [local slots] entries for locals (always even -- the stack holds value/kind pairs, 2 per local), then execution FALLS THROUGH to the next statement. Typically the first statement of a CALLed subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep case 0xFFF1, corrected 2026-08-06.
+Frame setup (it does NOT return): sets the frame base to the current operand-stack top and reserves [local slots] entries for locals (always even -- the stack holds value/kind pairs, 2 per local), then execution FALLS THROUGH to the next statement. Typically the first statement of a CALLed subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep case 0xFFF1, corrected 2026-08-06.
 
 ## Expression operands (argument encoding)
 
@@ -10906,9 +10905,9 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 82 | `QueryActorMotionState` | 83 | `CloseDialogueBubbles` | 84 | `SetActorMotionField62` |
 | 85 | `SetActorMotionField56` | 86 | `SetActorMotionField56` | 87 | `SetActorMotionField60` |
 | 88 | `SetActorMotionField60` | 89 | `SetActorMotionMask` | 90 | `SetActorMotionMask` |
-| 91 | `SetSceneBit` | 92 | `EndDialogue` | 93 | `SetDialogueSpeakerEmote` |
-| 94 | `SetSpeakerEmote0` | 95 | `SetSpeakerEmote1` | 96 | `SetSpeakerEmote2` |
-| 97 | `SetSpeakerEmote3` | 98 | `SetDialogueField161` | 99 | `TeleportActor` |
+| 91 | `SetSceneBit` | 92 | `EndDialogue` | 93 | `SetDialogueBoxStyle` |
+| 94 | `SetBoxNormal` | 95 | `SetBoxShout` | 96 | `SetBoxThought` |
+| 97 | `SetBoxTrembling` | 98 | `SetDialogueField161` | 99 | `TeleportActor` |
 | 100 | `TeleportActor` | 101 | `PlaceOrFaceActor` | 102 | `PlaceOrFaceActor` |
 | 103 | `TurnActorToAngle` | 104 | `TurnActorToAngle` | 105 | `QueryCalendarEventStub` |
 | 106 | `RotateActorInPlace` | 107 | `TurnActorToFaceTarget` | 108 | `TurnActorToFaceTarget` |
@@ -11001,7 +11000,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 367 | `GetVar14` | 369 | `QueryPlayerCanInteract` | 370 | `SetSceneStateBit1` |
 | 371 | `EvalCondScriptA` | 372 | `EvalCondScriptB` | 373 | `DispatchCondScriptEntry` |
 | 374 | `CondScriptDispatchAltAction` | 375 | `TriggerWorldAction` | 376 | `BeginShopkeeperInteraction` |
-| 377 | `GetChoiceResult` | 378 | `GetChoiceResult` | 379 | `PlayMusic` |
+| 377 | `ConsumeInteractionResult` | 378 | `ConsumeInteractionResult` | 379 | `PlayMusic` |
 | 380 | `StopMusic` | 381 | `nop` | 382 | `SetSfxVolume` |
 | 383 | `SetSfxDuckingBypass` | 384 | `ResetSfxScratch` | 385 | `PlaySound` |
 | 386 | `StopVoices` | 387 | `PlaySfxWithNpcRemap` | 388 | `nop` |

@@ -73,8 +73,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-ACTOR_NAMES_PATH = _refdata_path("rf4s_actor_names.json")   # vendored in modding/refdata/,
-                                                            # legacy tools/ as fallback
+ACTOR_NAMES_PATH = _refdata_path("rf4s_actor_names.json")   # vendored in modding/refdata/
 
 
 def _load_actor_names():
@@ -230,8 +229,9 @@ class Source:
             rel_dir = "" if rel_dir == "." else rel_dir.replace(os.sep, "/")
             for fn in filenames:
                 found.append((f"{rel_dir}/{fn}" if rel_dir else fn, os.path.join(dirpath, fn)))
-        # same order the pathlib version produced (Windows paths compare case-insensitively)
-        found.sort(key=lambda rf: os.path.normcase(rf[1]))
+        # same order the pathlib version produced: part by part (so "numpy/" sorts before
+        # "numpy-2.5.3.dist-info/"), case-insensitively on Windows
+        found.sort(key=lambda rf: os.path.normcase(rf[1]).split(os.sep))
         for rel, full in found:
             group = rel.split("/", 1)[0] if "/" in rel else ""
             src.add(rel, group, (lambda fp: (lambda: pathlib.Path(fp).read_bytes()))(full))
@@ -1744,7 +1744,7 @@ class App:
                 g.set_gate_kind(m[1], m[2], a); g.set_weight(m[1], m[2], b)
             else:
                 sp = g.patterns[m[1]][m[2]].spawns[m[3]]
-                g.set_spawn_monster(sp, a); g.set_spawn_param(sp, b)
+                g.set_spawn_monster(sp, a); g.set_spawn_pick_weight(sp, b)
             self.cur_data = g.build()
             fill()
             # fill() rebuilt the tree with fresh iids; re-select the same gate/spawn so
@@ -1773,7 +1773,7 @@ class App:
         assembles back into the working copy (2026-09-19)."""
         s = asatk.summary(data)
         bar = ttk.Frame(self.content); bar.pack(fill="x")
-        hw = ", ".join(f"{o}-{c}" for o, c in s["hit_window"]) or "(none)"
+        hw = ", ".join(f"{o}-{c}" for o, c in s["hit_windows"]) or "(none)"
         ttk.Label(bar, text=f"Attack timeline — {s['pairs']} events, "
                             f"frames {s['first_frame']}..{s['last_frame']}, "
                             f"hit-window {hw}, effects {', '.join(str(e) for e in s['effects']) or '(none)'}",

@@ -21,9 +21,9 @@ import sys
 TOOLKIT = pathlib.Path(__file__).resolve().parent.parent      # the folder holding rf4mod.py
 ENV_VAR = "RF4S_BUNDLE"
 SEARCH_UP = 4                                                 # parent levels searched in step 2
-# where step 2 looked before this module existed (<toolkit>\..\..\Bundle); used as the
-# placeholder path when nothing is found, so callers keep working with "not there"
-LEGACY_BUNDLE = TOOLKIT.parent.parent / "Bundle"
+# the placeholder path returned when no game is found (<toolkit>/../../Bundle): callers get
+# a path that simply does not exist
+NO_GAME_BUNDLE = TOOLKIT.parent.parent / "Bundle"
 
 
 def settings_path() -> pathlib.Path:
@@ -155,8 +155,8 @@ def find_bundle_dir(refresh: bool = False) -> pathlib.Path | None:
 
 
 def bundle_dir() -> pathlib.Path:
-    """find_bundle_dir(), or the old default path (which then simply doesn't exist)."""
-    return find_bundle_dir() or LEGACY_BUNDLE
+    """find_bundle_dir(), or a placeholder path that does not exist."""
+    return find_bundle_dir() or NO_GAME_BUNDLE
 
 
 def extracted_dir(bdir=None) -> pathlib.Path:

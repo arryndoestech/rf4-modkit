@@ -447,7 +447,7 @@ class EncountersTab(ui.ScrollFrame):
             ok = gen.MONSTER_LO <= s.monster_id <= gen.MONSTER_HI
             r.insert("", "end", iid=str(k), values=(f"{s.monster_id}  {data.actor_name(s.monster_id) or '?'}"
                                                     + ("" if ok else "  (not a monster)"),
-                                                    s.level, " ".join(map(str, s.weights))))
+                                                    s.pick_weight, " ".join(map(str, s.weights))))
         if keep and r.exists(keep[0]):
             r.selection_set(keep[0])
         g = self.ed.doc.gen
@@ -560,7 +560,7 @@ class EncountersTab(ui.ScrollFrame):
             g = self.ed.doc.gen
             sp = g.patterns[pi][ei].spawns[k]
             g.set_spawn_monster(sp, v[0])
-            g.set_spawn_param(sp, v[1])
+            g.set_spawn_pick_weight(sp, v[1])
         self.ed.apply("Edit roster monster", "gen", do)
 
     def _remove_mon(self):

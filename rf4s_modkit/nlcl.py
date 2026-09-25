@@ -257,11 +257,6 @@ FIELD_SCHEMAS = {
             ("res_fatigue", 200, "s16"), ("res_cold", 204, "s16"),
             ("res_faint", 208, "s16"), ("res_drain", 212, "s16"),
         ],
-        "renamed": {
-            "atk": "+44 is the STR attribute (field 'str'); flat ATK is 'flat_atk' (+60)",
-            "def": "+48 is the INT attribute (field 'int', feeds MAT); flat DEF is 'flat_def' (+72)",
-            "mat": "+52 is the VIT attribute (field 'vit', feeds DEF/MDF); flat MAT is 'flat_mat' (+64)",
-        },
     },
     "rf3CropParam": {
         # 93 x 108; record index != item id. Verified in +28 base: stage durations in
@@ -378,13 +373,6 @@ FIELD_SCHEMAS = {
             ("perm_int", 168, "s32"), ("perm_vit", 172, "s32"),
             ("level_scale", 176, "s32"),
         ],
-        "renamed": {
-            "buff_atk": "+32 is buff_str", "buff_def": "+36 is buff_int",
-            "buff_mat": "+40 is buff_vit", "buff_atk_pct": "+52 is buff_str_pct",
-            "buff_def_pct": "+56 is buff_int_pct", "buff_mat_pct": "+60 is buff_vit_pct",
-            "perm_boost0": "+160 is perm_hp", "perm_boost1": "+164 is perm_str",
-            "perm_boost2": "+168 is perm_int", "perm_boost3": "+172 is perm_vit",
-        },
     },
     "rf3ItemEquipmentParam": {
         # 1106 x 180; record index = item id. The base stat record Item_ComputeStats
@@ -428,9 +416,6 @@ FIELD_SCHEMAS = {
         ],
         "limits": {"rp": (0, 0xFFFF, "the base RP is a u16 (Actor_ApplyLevelUp clamps the "
                                      "running total to 65535)")},
-        "renamed": {"lvl_exp_base": "+4 is the base HP column ('hp')",
-                    "hp_max": "+8 is the base RP column ('rp'); base HP is 'hp' (+4)",
-                    "pool_12": "+12 is 'str'", "pool_16": "+16 is 'int'", "pool_20": "+20 is 'vit'"},
     },
     "rf3ParameterNPC_01": {"alias": "rf3ParameterNPC"},
     "rf3ParameterNPC_02": {"alias": "rf3ParameterNPC"},
@@ -552,7 +537,6 @@ FIELD_SCHEMAS = {
         ],
         "limits": {"gov_skill": (0, 39, "indexes the 40-row rf3ParamSkill table and the "
                                         "caster's 40 skill slots")},
-        "renamed": {"atk_coef": "+0 scales the caster's MAX RP: 'rp_max_coef'"},
     },
     "rf3ParamSkill": {
         # 40 x 40-byte per-SKILL stat-growth table = archive 14818 (row index = skill id
@@ -576,10 +560,6 @@ FIELD_SCHEMAS = {
             ("unk20", 20, "u32"), ("unk24", 24, "u32"), ("elem_dmg", 28, "s32"),
             ("unk32", 32, "u32"), ("rp_discount", 36, "s32"),
         ],
-        "renamed": {"atk_growth": "+4 is rp_growth (feeds rp_max)",
-                    "def_growth": "+8 is str_growth", "mat_growth": "+12 is int_growth",
-                    "mdf_growth": "+16 is vit_growth", "unk28": "+28 is elem_dmg",
-                    "unk36": "+36 is rp_discount"},
     },
     "rf3TxtCalendar_split2_1": {
         # 45 x 4-byte CALENDAR EVENT table (decoded 2026-08-31; the DATA half of the
@@ -898,13 +878,10 @@ class NlclTable:
     def set_field(self, rec: int, name: str, value: int, stem: str):
         """Write a named schema field. Besides the int-width check of set(), a schema may
         carry "limits" {field: (min, max, why)} for values the exe accepts in the file but
-        misreads (e.g. an XP threshold the clamped XP counter can never reach), and
-        "renamed" {old: hint} for field names retired because they named the wrong stat."""
+        misreads (e.g. an XP threshold the clamped XP counter can never reach)."""
         sch = self.schema(stem)
         if not sch:
             raise NlclError(f"no schema for {stem}; edit by offset instead")
-        if name in sch.get("renamed", {}):
-            raise NlclError(f"{stem}: field {name!r} was renamed -- {sch['renamed'][name]}")
         for fname, off, typ in sch["fields"]:
             if fname == name:
                 lim = sch.get("limits", {}).get(name)

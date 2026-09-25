@@ -96,7 +96,6 @@ class ModelError(Exception):
 # fragment alpha tests of the two Muteki model programs (bundleMuteki mtk_body_f / mtk_item_f)
 BODY_ALPHA_CUT = 0.5          # mtk_body: alpha rounded -> discarded below 0.5, else opaque
 ITEM_ALPHA_CUT = 0.1          # mtk_item: discarded at alpha <= 0.1, else kept as is
-COSTUME_ALPHA_TEST = BODY_ALPHA_CUT     # old name (the costume rule it stood for was wrong)
 
 
 def shape_program(model, shape):

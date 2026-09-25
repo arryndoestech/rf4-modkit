@@ -16,7 +16,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from guiutil import FilterCombo, ScrollFrame, Tip, commit_entry, hint, section, set_text, to_int
-from rf4s_modkit import script, scriptasm
+from rf4s_modkit import script, scriptasm, textlint
 
 from .render import CHOICE_OPS, SceneText
 
@@ -129,6 +129,23 @@ class Inspector(ScrollFrame):
         cur = app.doc.text(lid)
         box.insert("1.0", cur or "")
         box.edit_modified(False)
+        check = ttk.Label(f, text="", wraplength=330, justify="left")
+        check.pack(anchor="w", padx=8)
+        colours = {"error": "#c0392b", "warning": "#b9770e", "info": "#666"}
+
+        def recheck(_e=None):
+            issues = textlint.lint(box.get("1.0", "end-1c"), slots=app.scene_slots())
+            if not issues:
+                check.config(text="")
+                return
+            worst = issues[0].level
+            for lvl in ("error", "warning"):
+                if any(x.level == lvl for x in issues):
+                    worst = lvl
+                    break
+            check.config(text=textlint.format_issues(issues, limit=4), foreground=colours[worst])
+        box.bind("<KeyRelease>", recheck, add="+")
+        recheck()
 
         def commit(_e=None):
             new = box.get("1.0", "end-1c")
@@ -212,11 +229,43 @@ class Inspector(ScrollFrame):
         self.primary = combo
         hint(f, "The speaker is part of the opcode, so changing it keeps the arguments below.",
              wrap=330).pack(anchor="w", padx=8, pady=(2, 0))
+        if st.args:
+            fr = ttk.Frame(f)
+            fr.pack(fill="x", padx=8, pady=(6, 0))
+            ttk.Label(fr, text="Face").pack(side="left")
+            from .dialogs import FacePicker
+            cur = script.static_arg(app.bank, st, 0)
+            fp = FacePicker(fr, on_change=lambda v: v != cur and app.set_arg(st.pc, 0, str(v)),
+                            reader=app.doc.reader)
+            fp.frame.pack(side="left", padx=4)
+            fp.set_slot(slot)
+            fp.note.pack(anchor="w", padx=8)
+            if cur is not None:
+                fp.set_value(cur)
         self._arg_rows(st, txt)
 
     # ---- action -------------------------------------------------------------------- #
     def _action_form(self, st, txt):
         self._header(script.opcode_mnemonic(st.op), st, script.opcode_describe(st.op))
+        if 93 <= st.op <= 97:                       # the message-box style
+            app = self.app
+            from .dialogs import BoxStylePicker
+            r = ttk.Frame(self.form)
+            r.pack(fill="x", padx=8, pady=(6, 0))
+            ttk.Label(r, text="Box style").pack(side="left")
+            if st.op == 93:
+                cur = script.static_arg(app.bank, st, 0) if st.args else None
+                bp = BoxStylePicker(r, reader=app.doc.reader,
+                                    on_change=lambda v: app.set_arg(st.pc, 0, str(v)))
+                if cur is not None:
+                    bp.set_value(cur)
+            else:
+                bp = BoxStylePicker(r, reader=app.doc.reader, allow=(0, 1, 2, 3),
+                                    on_change=lambda v: app.set_opcode(st.pc, 94 + v))
+                bp.set_value(st.op - 94)
+                hint(self.form, "Tail only (4) needs SetDialogueBoxStyle (op 93).",
+                     wrap=330).pack(anchor="w", padx=8)
+            bp.frame.pack(side="left", padx=4)
         self._arg_rows(st, txt)
         emf = txt.emf_hint(st)
         if emf:

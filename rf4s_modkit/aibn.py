@@ -63,7 +63,7 @@ Two text forms, both byte-exact round-trips of the token stream:
 
   * **flat** -- one `OpName [operands]` line per statement, every structural token explicit
     (`BlockOpen`, `RuleSeparator`, `LabelMarker.0x7 100`, ...). `assemble()` accepts both
-    forms (and the pre-2026-09-17 mnemonics via ALIASES), strips `# ...` comments, and
+    forms, strips `# ...` comments, and
     ignores indentation.
 """
 from __future__ import annotations
@@ -132,19 +132,6 @@ OPCODES = {
     0x90: 'IfEntityField338Cmp', 0x91: 'IfEntityField340Cmp', 0x92: 'IfEntityField342Cmp',
     0x93: 'OrConnector', 0x94: 'AndConnector',
 }
-# Mnemonics used by disassemblies written before the 2026-09-17 handler re-read. The assembler
-# still accepts them (they map to the same opcode ids); new disassemblies use the names above.
-ALIASES = {
-    'TickAI': 0x14, 'Wander': 0x16, 'MoveToTargetPosition': 0x1E, 'StartActionImmediately': 0x2D,
-    'BeginActionVariant': 0x34, 'PlayDialogActionWithNpcKind': 0x37, 'SetCtxField66': 0x3E,
-    'SetCtxField68': 0x3F, 'SetCombatParam': 0x42, 'BeginActionThenTeleport': 0x43,
-    'SetCtxField98': 0x58, 'SetActorField490': 0x59, 'SetActorField492': 0x5A,
-    'SetActorField494': 0x5B, 'IfCtxField98Cmp': 0x64, 'IfActorField490Cmp': 0x65,
-    'IfActorField492Cmp': 0x66, 'IfActorField494Cmp': 0x67, 'IfCtxBit6OrActorSub232Flag800': 0x69,
-    'IfCurrentActionCmpOrGrabbed': 0x73, 'IfWidgetFloat392Cmp': 0x7B, 'IfActorControlFlag80000': 0x7D,
-    'IfGameFlag45B': 0x83, 'IfEntityField178NotZero': 0x88, 'StepOneTokenAndCheckEnd': 0x8A,
-    'IfGameFlagC6Cmp': 0x8C, 'IfMyNpcIdWithAgeShift': 0x8D, 'SkipToActions': 0x93, 'Connector': 0x94,
-}
 CMP = {0x95: '==', 0x96: '<=', 0x97: '>='}
 CMP_REV = {'==': 0x95, '<=': 0x96, '>=': 0x97}
 
@@ -190,8 +177,6 @@ REG_ADD, REG_SET, REG_CMP = 0x48, 0x50, 0x6A
 # their base id 0x48 etc.).
 NAME_TO_OP = {}
 for _id, _nm in OPCODES.items():
-    NAME_TO_OP.setdefault(_nm, _id)
-for _nm, _id in ALIASES.items():
     NAME_TO_OP.setdefault(_nm, _id)
 
 

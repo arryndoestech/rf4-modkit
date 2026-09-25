@@ -21,7 +21,6 @@ BUNDLE_DIR = gamepaths.bundle_dir()              # the game copy (rf4s_modkit.ga
 EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
 ROOMS_CSV_CANDIDATES = [
     pathlib.Path(__file__).resolve().parent.parent / "refdata" / "rf4s_rooms.csv",
-    REPO / "tools" / "rf4s_rooms.csv",
 ]
 SEASON_RE = re.compile(r"_(SPRING|SUMMER|AUTUMN|FALL|WINTER)$", re.I)
 

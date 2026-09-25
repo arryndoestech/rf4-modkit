@@ -1032,14 +1032,11 @@ def decode_statement(buf, pc):
 
 # ---- container ---------------------------------------------------------------------
 def _listing_of(specs):
-    """Listing text for `specs`: either text already, or the legacy spec list."""
+    """Listing text for `specs` (listing text is the only statement format)."""
     if isinstance(specs, str):
         return specs
-    try:
-        from . import scriptasm
-    except ImportError:
-        import scriptasm
-    return scriptasm.specs_to_listing(specs)
+    raise ScriptError("statements must be listing text (e.g. 'DIALOG #12'), not %s"
+                      % type(specs).__name__)
 
 
 # The action-opcode dispatch table g_sceneActionHandlerTable (RF4S.exe+0x4DB790) holds
@@ -1663,17 +1660,13 @@ class Container:
     def _assemble_region(self, base, specs, fallthrough_to):
         """Assemble `specs` into a self-contained region that will live at in-bank
         offset `base`, ending with a JMP to `fallthrough_to` (or END when None).
-        `specs` is either listing TEXT (see scriptasm: full statement language with
-        expressions, branches, labels) or the legacy spec list:
-          ('dialog', line_id)               -> show a dialogue line
-          ('action', opcode, [int,...])     -> action op with literal args
-          ('raw', bytes)                    -> verbatim statement bytes (args already resolved)
-        Returns bytes."""
+        `specs` is listing TEXT (see scriptasm: the full statement language with
+        expressions, branches, labels, and `.raw` for verbatim bytes). Returns bytes."""
         try:
             from . import scriptasm
         except ImportError:
             import scriptasm
-        text = specs if isinstance(specs, str) else scriptasm.specs_to_listing(specs)
+        text = _listing_of(specs)
         region, _labels = scriptasm.assemble(text, base, resolver=self.asm_resolver,
                                              fallthrough_to=fallthrough_to)
         return region
@@ -2119,6 +2112,13 @@ def _speaker_const_arg(bank, st, i=0):
     v, ok = eval_expr(buf, off)
     return v if ok else None
 
+
+def static_arg(bank, st, i=0):
+    """Static integer value of statement argument `i` (a literal, or a tag-3/4 leaf's
+    constant), or None when it is computed at run time."""
+    if i >= len(st.args):
+        return None
+    return _speaker_const_arg(bank, st, i)
 
 def _name_plate(n):
     nm = meta.enum_arg_label(10, 0, n) if n is not None else None

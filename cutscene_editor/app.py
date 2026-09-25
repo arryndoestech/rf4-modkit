@@ -16,7 +16,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from guiutil import Paned, Tip, later
-from rf4s_modkit import mbundle, script, scriptasm
+from rf4s_modkit import mbundle, script, scriptasm, textlint
 
 from . import catalog, dialogs
 from .browser import Browser
@@ -40,6 +40,7 @@ class CutsceneExplorer:
         self.bank_pos = None
         self.bank = None
         self.scene = None
+        self._edited_lines = set()         # (locale, line id) edited this session, re-checked on save
         self.sel = None                      # (pc, option)
         self.pad_locales = tk.BooleanVar(value=True)
         self._em_window = None
@@ -111,17 +112,19 @@ class CutsceneExplorer:
                 "up next to it, then in the loaded game source).")
         mb = ttk.Menubutton(bar, text="Save")
         m = tk.Menu(mb, tearoff=False)
-        m.add_command(label="Save all changed files…", accelerator="Ctrl+S", command=self.save_all)
+        m.add_command(label="Save changes into the game folder", accelerator="Ctrl+S", command=self.save_all)
         m.add_separator()
-        m.add_command(label="Save rf3.mc (scenes)…", command=self.save_script)
-        m.add_command(label="Save dialogue (rf3mc.<locale>)…", command=self.save_text)
-        m.add_command(label="Save em.bin (Event Manager)…", command=self.save_em)
+        m.add_command(label="Save rf3.mc (scenes) as…", command=self.save_script)
+        m.add_command(label="Save dialogue (rf3mc.<locale>) as…", command=self.save_text)
+        m.add_command(label="Save em.bin (Event Manager) as…", command=self.save_em)
         m.add_separator()
-        m.add_command(label="Install into the game as loose files…", command=self.install)
+        m.add_command(label="Install as loose files (Bundle\\00_mods)", command=self.install)
         mb["menu"] = m
         mb.pack(side="left", padx=4)
-        Tip(mb, "Write the changed files: rf3.mc (scenes), rf3mc.<locale> (dialogue), em.bin "
-                "(Event Manager). Install copies them into the game as loose files.")
+        Tip(mb, "Save (Ctrl+S) writes the changed files -- rf3.mc (scenes), rf3mc.<locale> "
+                "(dialogue), em.bin (Event Manager) -- straight over the ones the game loads from "
+                "your game folder, without asking; the first time, the originals are copied to "
+                "ModdingBackup in the game folder. 'Save … as…' writes a copy elsewhere instead.")
         self.undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo)
         self.undo_btn.pack(side="left")
         Tip(self.undo_btn, lambda: self._undo_tip("undo"))
@@ -361,11 +364,64 @@ class CutsceneExplorer:
             fn()
 
     # ---- dialogue ---------------------------------------------------------------- #
+    def check_text(self, text, what):
+        """Check a line the way the game reads it (rf4s_modkit.textlint, docs/48). Errors --
+        text the game can crash on -- refuse the edit; warnings let it through, with a note."""
+        issues = textlint.lint(text)
+        errs = [x for x in issues if x.level == "error"]
+        if errs:
+            messagebox.showerror("Text the game can't show", "%s:\n\n%s\n\nThe edit was not applied."
+                                 % (what, textlint.format_issues(errs)), parent=self.frame)
+            return False
+        warns = [x for x in issues if x.level == "warning"]
+        if warns:
+            messagebox.showwarning("Check this text", "%s was changed, but:\n\n%s"
+                                   % (what, textlint.format_issues(warns)), parent=self.frame)
+        return True
+
+    def scene_slots(self):
+        """{kind: slots} the open scene's SetVar opcodes write (for the Inspector's live check)."""
+        if self.scene is None or self.bank is None:
+            return None
+        key = (id(self.scene), id(self.bank))
+        if getattr(self, "_slots_key", None) != key:
+            try:
+                self._slots = textlint.scene_slot_writes(self.scene, self.bank)
+            except Exception:  # noqa: BLE001 - a hint only
+                self._slots = None
+            self._slots_key = key
+        return self._slots
+
+    def text_errors(self):
+        """[(locale, line id, issue)] for the lines edited this session that would break."""
+        out = []
+        for loc, lid in sorted(self._edited_lines):
+            arc = self.doc.arcs.get(loc) if hasattr(self.doc, "arcs") else None
+            if arc is None or not 0 <= lid < len(arc):
+                continue
+            for x in textlint.errors(arc.text(lid)):
+                out.append((loc, lid, x))
+        return out
+
+    def _refuse_broken_text(self, title):
+        bad = self.text_errors()
+        if not bad:
+            return False
+        lines = ["• rf3mc.%s line #%d: %s" % (loc, lid, x.message) for loc, lid, x in bad[:8]]
+        if len(bad) > 8:
+            lines.append("• … and %d more" % (len(bad) - 8))
+        messagebox.showerror(title, "These lines would break the game; fix them first:\n\n"
+                             + "\n".join(lines), parent=self.frame)
+        return True
+
     def set_text(self, line_id, text):
         arc = self.doc.textarc
         if arc is None:
             self.status("rf3mc.%s is not loaded" % self.doc.locale)
             return False
+        if not self.check_text(text, "Line #%d" % line_id):
+            return False
+        self._edited_lines.add((self.doc.locale, line_id))
         return self.apply("Edit line #%d (%s)" % (line_id, self.doc.locale), lambda: arc.set_text(line_id, text))
 
     def retarget(self, pc, line_id):
@@ -375,11 +431,14 @@ class CutsceneExplorer:
     def add_line(self, text):
         """Append a new dialogue line (in every locale when the toolbar box is ticked)."""
         box = {}
+        if not self.check_text(text, "The new line"):
+            return None
 
         def do():
             box["id"], box["locs"] = self.doc.add_line(text, self.pad_locales.get())
         if not self.apply("Add dialogue line", do):
             return None
+        self._edited_lines.add((self.doc.locale, box["id"]))
         return box["id"]
 
     def detach_line(self, pc, text):
@@ -388,11 +447,14 @@ class CutsceneExplorer:
             self.status("type the line's text first")
             return None
         box = {}
+        if not self.check_text(text, "The new line"):
+            return None
 
         def do():
             box["id"], _l = self.doc.add_line(text, self.pad_locales.get())
             self.bank.set_dialog_id(pc, box["id"])
         if self.apply("New line for DIALOG @0x%04x" % pc, do):
+            self._edited_lines.add((self.doc.locale, box["id"]))
             return box["id"]
         return None
 
@@ -507,21 +569,36 @@ class CutsceneExplorer:
             self._select_after(pc)
         return ok
 
-    def insert_dialogue_after(self, pc, speaker, text):
-        """Add a new line (all locales) and insert [SetSpeaker] + DIALOG after `pc`."""
+    def set_opcode(self, pc, op):
+        """Change a statement's opcode, keeping its arguments (e.g. ops 94-97, the box style)."""
+        st = self.stmt(pc)
+        if st is None or st.op == op:
+            return False
+        return self.apply("%s -> %s @0x%04x" % (script.opcode_mnemonic(st.op), script.opcode_mnemonic(op), pc),
+                          lambda: self.bank.set_action_opcode(pc, op))
+
+    def insert_dialogue_after(self, pc, speaker, text, face=0, box_style=None):
+        """Add a new line (all locales) and insert [SetSpeaker] + DIALOG after `pc`. `face` is
+        the SetSpeaker face id (rf4s_modkit.portraits: the N-th face of the speaker); it needs
+        a speaker."""
         box = {}
+        if not self.check_text(text, "The new line"):
+            return None
 
         def do():
             nid, _l = self.doc.add_line(text, self.pad_locales.get())
             box["id"] = nid
             specs = []
             if speaker is not None:
-                # both sides share one mnemonic, so name the opcode by number; (0, 0) = the
-                # default face and no emote, what 47,833 of the shipped speaker cues carry
-                specs.append("op%d 0, 0" % script.portrait_opcode(*speaker))
+                # both sides share one mnemonic, so name the opcode by number; face 0 with no
+                # emote (0) is what 47,833 of the shipped speaker cues carry
+                specs.append("op%d %d, 0" % (script.portrait_opcode(*speaker), int(face or 0)))
+            if box_style is not None:                # the message-box style (ops 94-97 / 93)
+                specs.append("op%d" % (94 + box_style) if 0 <= box_style <= 3 else "op93 %d" % box_style)
             specs.append("DIALOG #%d" % nid)
             self.doc.container.insert_after(self.bank, pc, "\n".join(specs))
         if self.apply("Add dialogue after @0x%04x" % pc, do):
+            self._edited_lines.add((self.doc.locale, box["id"]))
             self._select_after(pc)
             return box["id"]
         return None
@@ -549,10 +626,11 @@ class CutsceneExplorer:
         if self.doc.textarc is None:
             self.status("rf3mc.%s is not loaded" % self.doc.locale)
             return None
-        spec = dialogs.ask_dialogue(self.frame)
+        spec = dialogs.ask_dialogue(self.frame, reader=self.doc.reader)
         if not spec:
             return None
-        return self.insert_dialogue_after(self.sel[0], spec["speaker"], spec["text"])
+        return self.insert_dialogue_after(self.sel[0], spec["speaker"], spec["text"], spec.get("face", 0),
+                                          spec.get("box"))
 
     def delete_selected(self):
         if self.sel is None:
@@ -777,17 +855,115 @@ class CutsceneExplorer:
             self.parent.destroy()
 
     def save_all(self):
+        """Save every changed file. With a game folder set (or a file opened from disk) the
+        files are overwritten where they came from, without asking (save_to_game); otherwise
+        each one is saved through a file dialog."""
         self.flush_edits()
         parts = self.unsaved()
         if not parts:
             self.status("Nothing to save")
             return True
+        if self.save_targets() is not None:
+            return self.save_to_game()
         if "rf3.mc" in parts and not self.save_script():
             return False
         if any(p.startswith("rf3mc.") for p in parts) and not self.save_text():
             return False
         if "em.bin" in parts and not self.save_em():
             return False
+        return True
+
+    # ---- saving straight into the game folder ----------------------------------------- #
+    BACKUP_DIR = "ModdingBackup"
+
+    def save_targets(self):
+        """{file name: path to overwrite} for everything that can change, or None when there
+        is nowhere to write without asking. A file opened with Open rf3.mc… is written back
+        in place (its rf3mc.<locale> / em.bin too, when they sit next to it). Otherwise each
+        file goes over the copy the game loads from the game folder (the Bundle/** winner:
+        a Bundle\\00_mods override, else the unpacked original), or into Bundle\\00_mods when
+        the game only has it inside a packed .mbundle."""
+        from rf4s_modkit import gamepaths
+        names = ["rf3.mc", "em.bin"] + ["rf3mc.%s" % loc for loc in set(self.doc.dirty_locales())
+                                        | {self.doc.locale}]
+        out = {}
+        opened = getattr(self.doc, "path", None)
+        if opened is not None:
+            out["rf3.mc"] = pathlib.Path(opened)
+            for n in names[1:]:
+                if (pathlib.Path(opened).parent / n).is_file():
+                    out[n] = pathlib.Path(opened).parent / n
+        bdir = gamepaths.find_bundle_dir()
+        if bdir is None:
+            return out if opened is not None else None
+        idx = mbundle.loose_index(bdir)
+        for n in names:
+            if n in out:
+                continue
+            hits = idx.get(n.lower())
+            out[n] = (bdir / hits[0]) if hits else (bdir / mbundle.MOD_FOLDER / n)
+        return out
+
+    def _backup_once(self, target):
+        """Copy the file about to be overwritten to <game>/ModdingBackup/<same path>, once."""
+        from rf4s_modkit import gamepaths
+        import shutil
+        bdir = gamepaths.find_bundle_dir()
+        if bdir is None or not target.is_file():
+            return None
+        try:
+            rel = target.resolve().relative_to(bdir.parent.resolve())
+        except ValueError:
+            return None                                # a file outside the game folder
+        dest = bdir.parent / self.BACKUP_DIR / rel
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(target, dest)
+            return dest
+        return None
+
+    def save_to_game(self):
+        """Overwrite the changed files where they came from, without asking."""
+        self.flush_edits()
+        if self._refuse_broken_text("Save"):
+            return False
+        targets = self.save_targets()
+        if targets is None:
+            return self.save_all()
+        blobs = {}
+        if self.doc.script_dirty():
+            blobs["rf3.mc"] = self.doc.container.build()
+        for loc in self.doc.dirty_locales():
+            blobs["rf3mc.%s" % loc] = self.doc.arcs[loc].build()
+        if self.doc.em_dirty():
+            blobs["em.bin"] = self.doc.em.build()
+        missing = [n for n in blobs if n not in targets]
+        if missing:
+            messagebox.showerror("Save", "No place to save %s: set the game folder (Game folder… "
+                                         "in the main window), or use Save … as…" % ", ".join(missing),
+                                 parent=self.frame)
+            return False
+        written, backed = [], []
+        try:
+            for name, blob in blobs.items():
+                t = targets[name]
+                b = self._backup_once(t)
+                if b is not None:
+                    backed.append(name)
+                t.parent.mkdir(parents=True, exist_ok=True)
+                tmp = t.with_name(t.name + ".saving")
+                tmp.write_bytes(blob)
+                tmp.replace(t)
+                written.append(str(t))
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Save", "Could not write %s:\n%s\n\n(Is the game running with the "
+                                         "file open?)" % (name, e), parent=self.frame)
+            return False
+        self.doc.mark_saved(script_="rf3.mc" in blobs, locales=[n[6:] for n in blobs if n.startswith("rf3mc.")],
+                            em="em.bin" in blobs)
+        self._chrome()
+        note = " (originals of %s kept in %s)" % (", ".join(backed), self.BACKUP_DIR) if backed else ""
+        self.status("Saved %s%s -- restart the game to see it" % (", ".join(written), note))
         return True
 
     def save_script(self):
@@ -811,6 +987,8 @@ class CutsceneExplorer:
         under its own rf3mc.<locale> name, so line ids stay aligned."""
         if self.doc.textarc is None:
             messagebox.showinfo("Save dialogue", "rf3mc.%s is not loaded." % self.doc.locale)
+            return False
+        if self._refuse_broken_text("Save dialogue"):
             return False
         f = filedialog.asksaveasfilename(title="Save rf3mc.%s" % self.doc.locale,
                                          initialfile="rf3mc.%s" % self.doc.locale)
@@ -853,6 +1031,8 @@ class CutsceneExplorer:
     def install(self):
         """Install every edited file as a loose override under a chosen game root."""
         if self.doc.container is None:
+            return False
+        if self._refuse_broken_text("Install"):
             return False
         from rf4s_modkit import gamepaths
         root = gamepaths.find_bundle_dir()          # the game copy every tool uses

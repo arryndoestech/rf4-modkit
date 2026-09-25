@@ -255,7 +255,7 @@ def _walk_container(data: bytes) -> dict | None:
 
 def parse(data: bytes) -> dict:
     """Metadata of a .texture. Top-level keys describe frame 0 (fmt_code, fmt_name, kind,
-    width, height, pixel_off) for backward compatibility; `frames` is the frame count and
+    width, height, pixel_off) as a shortcut; `frames` is the frame count and
     `frame_list` holds one dict per frame (index, name, pixl_off, fmt_code, fmt_name, kind,
     width, height, mips, data_off, size). `container` is True when the pointer walk
     succeeded (required for encoding)."""
@@ -299,11 +299,6 @@ def parse(data: bytes) -> dict:
     info.update({k: walk[k] for k in ("desc_off", "dic_off", "desc_size", "rlt_off",
                                        "rlt_ok", "file_size", "name")})
     return info
-
-
-def _payload_size(info: dict) -> int:
-    """Level-0 payload bytes of frame 0 (kept for callers of the old helper)."""
-    return payload_size(info["fmt_code"], info["width"], info["height"])
 
 
 def frame_count(data: bytes, info: dict | None = None) -> int:

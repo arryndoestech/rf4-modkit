@@ -54,8 +54,8 @@ most ONE pattern (268 of the 690 are empty). Layout, offsets absolute from file 
                         u32 K; u32 pos_weight[K]}
                         pick_weight = the monster's relative chance within the roster
                         (Companion_TickMovement +0x1E8650 sums the u16 at record+2 and
-                        picks by it -- this is NOT a level; the old `level` name is kept
-                        as an alias). pos_weight[k] = chance of spawning at monster
+                        picks by it -- this is NOT a level). pos_weight[k] = chance of
+                        spawning at monster
                         position k; only the LOW BYTE is read and the bytes are summed
                         in a u8 (Companion_TickAnimation).
                         STRIDE: every consumer steps through the roster with the FIXED
@@ -211,37 +211,20 @@ class MonPosTable:
 class Spawn:
     """One roster record -> a monster the gate can generate.
 
-    `monster_id` low 16 bits of the packed dword; the high 16 are the monster's PICK
-    WEIGHT within the roster (`pick_weight`; still stored as `level`, alias `param`, for
-    the older API -- the game never reads it as a level, see the module docstring);
-    `weights` = the K per-monster-position weights (low byte read)."""
-    __slots__ = ("monster_id", "level", "weights", "rec_off")
+    `monster_id` low 16 bits of the packed dword; `pick_weight` the high 16 = the
+    monster's PICK WEIGHT within the roster (the game never reads it as a level, see the
+    module docstring); `weights` = the K per-monster-position weights (low byte read)."""
+    __slots__ = ("monster_id", "pick_weight", "weights", "rec_off")
 
-    @property
-    def pick_weight(self):
-        return self.level
-
-    @pick_weight.setter
-    def pick_weight(self, v):
-        self.level = v & 0xFFFF
-
-    def __init__(self, monster_id, level, weights=None, rec_off=None):
+    def __init__(self, monster_id, pick_weight, weights=None, rec_off=None):
         self.monster_id = monster_id & 0xFFFF
-        self.level = level & 0xFFFF
+        self.pick_weight = pick_weight & 0xFFFF
         self.weights = list(weights or [])
         self.rec_off = rec_off        # absolute offset of the record (after parse/build)
 
     @property
-    def param(self):
-        return self.level
-
-    @param.setter
-    def param(self, v):
-        self.level = v & 0xFFFF
-
-    @property
     def packed(self) -> int:
-        return (self.level << 16) | self.monster_id
+        return (self.pick_weight << 16) | self.monster_id
 
     def size(self) -> int:
         return 8 + 4 * len(self.weights)
@@ -284,7 +267,7 @@ class Roster:
         return 4 + sum(s.size() for s in self.spawns)
 
     def copy(self) -> "Roster":
-        return Roster([Spawn(s.monster_id, s.level, list(s.weights)) for s in self.spawns])
+        return Roster([Spawn(s.monster_id, s.pick_weight, list(s.weights)) for s in self.spawns])
 
 
 class Entry:
@@ -412,17 +395,14 @@ class GenTable:
         self._sync()
 
     def set_spawn_monster(self, spawn: Spawn, monster_id: int):
-        """Replace a spawn record's monster id (keeps the level)."""
+        """Replace a spawn record's monster id (keeps the pick weight)."""
         spawn.monster_id = monster_id & 0xFFFF
         self._sync()
 
-    def set_spawn_param(self, spawn: Spawn, param: int):
+    def set_spawn_pick_weight(self, spawn: Spawn, pick_weight: int):
         """Set the record's high u16 = the monster's pick weight in the roster."""
-        spawn.level = param & 0xFFFF
+        spawn.pick_weight = pick_weight & 0xFFFF
         self._sync()
-
-    set_spawn_level = set_spawn_param          # historic name
-    set_spawn_pick_weight = set_spawn_param
 
     def set_spawn_weights(self, spawn: Spawn, weights):
         """Set the per-monster-position weights (K values). K should equal the number of
@@ -512,14 +492,14 @@ class GenTable:
         self._sync()
         return ent
 
-    def add_spawn(self, e: Entry, monster_id: int, level: int, weights=None) -> Spawn:
-        """Add a monster to the gate's roster. `level` is the record's high u16 = the
-        monster's PICK WEIGHT within the roster (the historic name is kept for callers;
-        5 or 10 is typical). `weights` defaults to one weight of 10 per monster position
+    def add_spawn(self, e: Entry, monster_id: int, pick_weight: int, weights=None) -> Spawn:
+        """Add a monster to the gate's roster. `pick_weight` is the record's high u16 = the
+        monster's pick weight within the roster (5 or 10 is typical). `weights` defaults to
+        one weight of 10 per monster position
         (K = number of monster positions), matching the stock files."""
         if weights is None:
             weights = [10] * max(1, len(e.mon_pos.points))
-        s = Spawn(monster_id, level, weights)
+        s = Spawn(monster_id, pick_weight, weights)
         e.roster.spawns.append(s)
         self._sync()
         return s
@@ -648,7 +628,7 @@ class GenTable:
             out.append(f"{tag}: the last record's {len(sp[-1].weights)} weights run past the "
                        f"unpacker's copy (N * (12 + 4*K0) bytes); the tail reads uninitialised "
                        f"memory")
-        if sum(s.level for s in sp) == 0:
+        if sum(s.pick_weight for s in sp) == 0:
             out.append(f"{tag}: every pick_weight is 0, so no monster is ever picked")
         for si, s in enumerate(sp):
             k = len(s.weights)
@@ -762,7 +742,7 @@ class GenTable:
                         continue
                     mn = name_fn(s.monster_id)
                     lines.append(f"         [{si}] {s.monster_id}"
-                                 f"{' ('+mn+')' if mn else ''}  pick weight {s.level}  "
+                                 f"{' ('+mn+')' if mn else ''}  pick weight {s.pick_weight}  "
                                  f"position weights {s.weights}")
         roster = self.roster()
         if roster:

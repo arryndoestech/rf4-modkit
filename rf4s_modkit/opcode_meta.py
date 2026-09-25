@@ -53,7 +53,7 @@ CONTROL = {
                           "base 0) it ends the scene (task state 1 READY). So `CALL -> Lx ... "
                           "Lx: ... RET` is a subroutine, and only a top-level RET terminates "
                           "the script. (Displayed as END before 2026-09-01.)"),
-    "FRAME":     ("flow", "Frame setup (formerly mislabeled 'RET' -- it does NOT return): sets "
+    "FRAME":     ("flow", "Frame setup (it does NOT return): sets "
                           "the frame base to the current operand-stack top and reserves "
                           "[local slots] entries for locals (always even -- the stack holds "
                           "value/kind pairs, 2 per local), then execution FALLS THROUGH to the "
@@ -267,7 +267,7 @@ _M_OLDBASE = {
     121: ("GiveItem", "item", "Give the player an item (stack + quality).", ["item id", "count", "quality"]),
     123: ("ForceHoldItem", "item", "Force the player to hold an item (or consume it).", ["item id"]),
     126: ("TakeItem", "item", "Remove an item from any container.", ["item id", "count"]),
-    150: ("SpawnItemAtTile", "item", "Spawn an item in the world at a map tile -- as a droppable pickup or a visual-only prop, chosen by the last arg (handler Item_SpawnAtPositionAsDropOrVisual). NOT a shipping-bin op despite the old name (real shipping = QueryShippingBoxTotalGold @ op 649). Verified: 28 scene call sites pass (item, count, quality, x_tile, y_tile, drop).", ["item id", "count", "quality", "x tile", "y tile", "as-drop (0=visual, 1=pickup)"]),
+    150: ("SpawnItemAtTile", "item", "Spawn an item in the world at a map tile -- as a droppable pickup or a visual-only prop, chosen by the last arg (handler Item_SpawnAtPositionAsDropOrVisual). NOT a shipping-bin op (real shipping = QueryShippingBoxTotalGold @ op 649). Verified: 28 scene call sites pass (item, count, quality, x_tile, y_tile, drop).", ["item id", "count", "quality", "x tile", "y tile", "as-drop (0=visual, 1=pickup)"]),
     155: ("ShowRewardPopup", "item", "Show a reward popup for up to 4 items.", ["item0", "item1", "item2", "item3"]),
     156: ("ShowQuestReward", "item", "Show the NPC quest-reward popup.", []),
     158: ("AddRewardItem", "item", "Add an item to the reward-slot popup.", ["item id", "count"]),
@@ -296,7 +296,7 @@ _M_OLDBASE = {
     # --- scene flow (kept close to technical -- no clean author verb) ---
     30:  ("BeginBeat", "flow", "Begin a scripted scene action (prunes pending UI events).", []),
     31:  ("BeginBeat2", "flow", "Begin a scripted scene action (variant; caches a game-flag value).", []),
-    75:  ("GetChoiceResult", "flow", "Consume the committed choice-dialog result.", []),
+    75:  ("ConsumeInteractionResult", "flow", "Consume the pending interaction result.", []),
     257: ("ReturnToTownPrompt", "flow", "Spawn the return-to-town prompt and pause the VM.", []),
 }
 
@@ -386,17 +386,13 @@ PORTRAIT_SPEAKERS = [
 ]
 # Identifier-safe tag per slot, used to build the `SetSpeaker$<tag>` mnemonic. Slot 0 =
 # "MC" (the player / main character, whose real name is the save name). Spaces/slashes
-# stripped so the tag is a clean suffix. The old guestNN tags of slots 25/26/29 are still
-# accepted by op_from_mnemonic (_LEGACY_MNEMONICS) so older listings keep assembling.
+# stripped so the tag is a clean suffix.
 PORTRAIT_SPEAKER_TAGS = [
     "MC", "Vishnal", "Clorica", "Volkanon", "Forte", "Kiel", "Bado", "Margaret",
     "Dylas", "Arthur", "Porcoline", "XiaoPai", "LinFa", "Amber", "Illuminata", "Doug",
     "Blossom", "Dolce", "Jones", "Nancy", "Leon", "Ventuswill", "Son", "Daughter",
     "Pico", "Soldier", "Ethelberd", "Barrett", "Raven", "Traveler",
 ]
-# Mnemonics renamed after the handler check above: old spelling -> opcode.
-_LEGACY_MNEMONICS = {"setspeakerguest25": 66, "setspeakerguest26": 68, "setspeakerguest29": 74,
-                     "setplayerlestorfrey": 400}   # renamed SetPlayerMale 2026-09-24
 
 
 def portrait_speaker_slot(op):
@@ -530,10 +526,8 @@ _M.update({
          "scene controller when no other event is in flight. The #2 most-used action op "
          "(10,564 uses) -- every dialogue beat ends with one.", []),
 })
-for _op in (94, 95, 96, 97):
-    _M[_op] = ("SetSpeakerEmote", "dialogue",
-               "Set the current dialogue speaker's facial emote/expression (from the actor's "
-               "emote field) and retarget the portrait.", [])
+for _op, _nm in ((94, "SetBoxNormal"), (95, "SetBoxShout"), (96, "SetBoxThought"), (97, "SetBoxTrembling")):
+    _M[_op] = (_nm, "dialogue", "Set the dialogue box style (see the full entry below).", [])
 
 # ---- Event Manager (em.bin / EMF_) bridge ops -- IDA-verified 2026-07-04 ----------
 # The one arg is an em.bin ENTRY id (0..271; names in emdeb.bin, see emscript.py).
@@ -646,15 +640,15 @@ _M.update({
           "show closed-dialog instead'. Then World_DispatchInteractionEvent fires "
           "with arg 1 (shop id) in a1+25. arg 2 = mode (always 0 in vanilla).",
           ["shopkeeper npc", "shop id", "mode"]),
-    377: ("GetChoiceResult", "query",
+    377: ("ConsumeInteractionResult", "query",
           "Consume a PENDING INTERACTION result -- NOT a PROMPT_CHOICE reader (the choice "
           "menu never touches these bits). If scene-ctx +116 bit 24 is set, reg0 = the 2-bit "
           "value in bits 22-23 and bit 24 is cleared; otherwise reg0 is left alone. The "
           "pending bit is set by World_DispatchInteractionEvent for interaction kinds 4/44/45 "
           "(which also latch scene +0xA4 = 1/2/3 and clear bits 22-23) and cleared at the start "
-          "of every other interaction. Name kept for listing compatibility. IDA-verified "
+          "of every other interaction. IDA-verified "
           "2026-09-24 (Script_VMOp_ConsumeChoiceCommitResult).", []),
-    378: ("GetChoiceResult", "query",
+    378: ("ConsumeInteractionResult", "query",
           "Same handler as op 377 (Script_VMOp_ConsumeChoiceCommitResult): consume the "
           "pending interaction result into reg0 -- not a PROMPT_CHOICE reader.", []),
     445: ("GetFlagBit", "query",
@@ -906,7 +900,7 @@ _M.update({
           "refreshes equipped sprites + scene state, zeros the save-snapshot scratch, "
           "and reloads the greeting string from archive 16369 (NPC name archive): "
           "arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). "
-          "**Listed as `SetPlayerMale` (earlier `SetPlayerLestOrFrey`, still accepted; formerly `RefreshPlayerAndApplyDefaultName`) -- the technical name "
+          "**Listed as `SetPlayerMale` -- the technical name "
           "hides that this is the actual character-swap op**. Dev menu label: 'Boy' / "
           "'Girl'.",
           ["gender (1=Lest/Boy, 0=Frey/Girl)"]),
@@ -1496,14 +1490,10 @@ _M.update({
 
 # ---- dialogue speaker/emote ops decoded 2026-07-11 (93, 98) ------------------------
 _M.update({
-    93: ("SetDialogueSpeakerEmote", "dialogue",
-         "Set the CURRENT dialogue speaker's facial emote/expression and re-target the "
-         "portrait to it. arg0 = emote id: a 3-bit field (0..7), of which the game names 0-5 "
-         "(0=normal, 1=angry, 2=sad, 3=laugh, 4=surprise, 5=blush -- the picker); 6-7 are valid "
-         "field values but have no named portrait. This is the dialogue-portrait expression "
-         "(0-7), a DIFFERENT space from op319 SetEmote's per-NPC record+57 emote byte. Use to "
-         "change a speaker's expression mid-conversation without re-issuing the SetSpeaker.",
-         ["emote id (0-7)"]),
+    93: ("SetDialogueBoxStyle", "dialogue",
+         "Set the dialogue box style from an argument (the general form of ops 94-97, and the "
+         "only way to get style 4). " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
+         ["box style (0 normal, 1 shout, 2 thought, 3 trembling, 4 tail only)"]),
     98: ("SetDialogueField161", "dialogue",
          "Write a byte to field +161 of the current dialogue task. arg0 = value. Low-level "
          "dialogue-display flag; exact effect is engine-internal (only touched by a few "
@@ -2328,8 +2318,8 @@ _M.update({
           "SetCameraPosition/SetCameraTarget (ops 186/190) — per-axis |camera − anchor| <= "
           "2048 Q12 = half a tile (Chebyshev). No args. This is what paces every scripted "
           "camera sweep: `SetCameraTarget(x, y, speed); WaitCameraAtMark()` holds until the "
-          "pan lands. (The old name 'QueryPlayerMovedFromMark' followed the technical symbol; "
-          "the IDB comparison is against g_cameraPosQ12, the CAMERA, not the player.)",
+          "pan lands. (The IDB comparison is against g_cameraPosQ12, the CAMERA, not the "
+          "player.)",
           []),
     206: ("CancelNpcPathOrEquipMainhand", "actor",
           "Dual-purpose. For an NPC (arg0 != 0): cancel its pending path / scripted action so "
@@ -2407,9 +2397,8 @@ _M.update({
         "common pacing op (5,529 uses). Two traps, both engine-verified: the argument's "
         "expression KIND must be 0 (a computed expression — a plain literal is silently "
         "ignored, which is why the compiler always emits waits as expressions), and there must "
-        "be EXACTLY one argument. The old name 'EndReactionAndJump' described a side call "
-        "(Quest_OnReactionDispatched_AdvanceState), not the behaviour — IDA-verified as the "
-        "wait primitive (vm[+120] = units, state -> WAITING; RF4S.exe+0x1FAB50).",
+        "be EXACTLY one argument. IDA-verified as the wait primitive (vm[+120] = units, "
+        "state -> WAITING; RF4S.exe+0x1FAB50).",
         ["duration (units; 200 = 1 frame, 12000 = 1 s)"]),
     3: ("WaitReset", "flow",
         "Wait variant that also RESETS the quest-reaction state first (op 2's sibling handler; "
@@ -2705,9 +2694,8 @@ _M.update({
           "(task+136) so the accept/complete/reward-popup ops that follow read this quest. "
           "All 6 retail uses are Eliza tutorial requests in bank 210, e.g. (20,3000) = "
           "'Raise Skill Levels!' (any skill >= 20), (15,1052 Rush Attack) = 'Upgrade "
-          "Weapons!', (5,0) = 'Befriend Monsters!'. IDA-verified 2026-09-01; formerly "
-          "'PopulateQuestKind8BackrefLiteralAlts' (the 'alternate objective items' reading "
-          "was wrong — the literals are the REWARDS).",
+          "Weapons!', (5,0) = 'Befriend Monsters!'. IDA-verified 2026-09-01: the literals are "
+          "the REWARDS, not alternate objective items.",
           ["goal number (level/count to reach)", "reward item ids (variadic, literal)"]),
     525: ("QuestOnComplete", "quest",
           "Run the quest-completion handler for the current request — award friendship / "
@@ -2806,7 +2794,7 @@ _M.update({
           ["item id", "count", "quality filter (>0=plain only)"]),
 })
 
-# --- dialogue-box descriptor writers (formerly mislabeled 'NpcFriendshipEntries' ops) --------
+# --- dialogue-box descriptor writers ---------------------------------------------------------
 # These write into the shared dialogue state block (g_gameGlobalsSlotTable slots 3/9), which the
 # speech-box loaders/state-machine read every frame. IDA handlers renamed accordingly; verified
 # by tracing Dialogue_LoadAndShowText / Dialogue_LoadEventLineWithPortrait / DialogueBox_TickStateMachine.
@@ -3174,13 +3162,11 @@ _M.update({
 _M.update({
     403: ("GetMonsterRosterAbsent", "query",
           "For monster ids 1-3, write to the VM outputs whether each is NOT active in the monster "
-          "roster (inverted presence flag, fixed context). Produces three outputs. (Formerly "
-          "mislabeled a 'fishing' op.)",
+          "roster (inverted presence flag, fixed context). Produces three outputs.",
           []),
     404: ("GetMonsterRosterPresent", "query",
           "For monster ids 1-3, write to the VM outputs whether each IS active in the monster "
-          "roster within input context [arg0]. Produces three outputs. (Formerly mislabeled a "
-          "'fishing' op.)",
+          "roster within input context [arg0]. Produces three outputs.",
           ["input context"]),
     408: ("CountLivingEnemies", "query",
           "Count the living monsters on the field EXCLUDING the two boss char ids (141/142) into "
@@ -3275,7 +3261,7 @@ _M.update({
     414: ("GetChoiceIndexAndItem", "query",
           "Read the last scripted item-selection result into TWO VM outputs: query register 0 = "
           "the choice slot index (0-7, extracted from scene-ctx +116 bits 6-8), register 1 = the "
-          "associated item id (11-bit, from ctx+40 field +380). DISTINCT from GetChoiceResult "
+          "associated item id (11-bit, from ctx+40 field +380). DISTINCT from ConsumeInteractionResult (ops 377/378) -- eResult "
           "(op 377/378 = Script_VMOp_ConsumeChoiceCommitResult, a different handler) -- this one "
           "(Script_VMOp_GetScriptChoiceIndexAndItemId) returns the index+item pair for an "
           "item-pick menu, not the committed PROMPT_CHOICE value.",
@@ -3776,9 +3762,6 @@ ARG_HINTS = {
     "duration_ms": "fade length in milliseconds",
     "mode": "opcode-specific mode selector (see the action id list on the tooltip)",
     "mode (1/-1)": "1 = add/set, -1 = remove/clear",
-    "actor class": "BeginShopkeeperInteraction: shopkeeper NPC id -- routes to a per-NPC "
-                   "day-off table (see the mnemonic tooltip). Legacy arg-name; equivalent "
-                   "to 'shopkeeper npc'.",
     "shopkeeper npc": "NPC id (usually indirect via localvar[]) of the shopkeeper you're "
                       "talking to. Selects the day-off + shop-kind override. Vanilla ids: "
                       "6=Bado, 8=Dylas, 9=Arthur, 10=Porcoline, 11=Xiao Pai, 12=Lin Fa, "
@@ -3856,8 +3839,6 @@ def op_from_mnemonic(name):
             _m = mnemonic(_o)
             if _m and _m not in _skip:
                 _OP_BY_MNEMONIC.setdefault(_m.lower(), _o)   # keep the lowest op for aliases
-        for _m, _o in _LEGACY_MNEMONICS.items():
-            _OP_BY_MNEMONIC.setdefault(_m, _o)
     return _OP_BY_MNEMONIC.get((name or "").strip().lower())
 
 
@@ -4869,14 +4850,18 @@ PLAYER_VARS = {_pc: (PLAYER_VAR_BY_CHARCODE[_pc],
                for _pc in PLAYER_VAR_BY_CHARCODE}
 ENUM_ARG_VALUES[(416, 0)] = PLAYER_VARS
 
-# Dialogue-speaker emote/expression (op93 SetDialogueSpeakerEmote arg0 = 0-7). The emote byte is
+# Dialogue box style (op93 SetDialogueBoxStyle arg0). The byte is
 # stored as the portrait VARIANT (task+160 -> portrait sprite 15851+variant), the same variant
 # space as the live-verified canonical face frames -- so 0-5 reuse FACE_FRAMES names; 6/7 are
 # unnamed extra frames (stay raw).
-SPEAKER_EMOTES = {_e: (FACE_FRAMES[_e], "Speaker expression '%s' (portrait variant %d)."
-                       % (FACE_FRAMES[_e], _e))
-                  for _e in range(6) if _e in FACE_FRAMES}
-ENUM_ARG_VALUES[(93, 0)] = SPEAKER_EMOTES
+# (verified 2026-09-25: it is the message-box style, see op 93's description; the old face
+# names were wrong)
+BOX_STYLES = {0: ("normal box", "The normal message box."),
+              1: ("shout", "Jagged box, with a screen flash."),
+              2: ("thought", "Cloud box with a bubble-trail tail; the line holds about a second."),
+              3: ("trembling", "Wavy box."),
+              4: ("tail only", "No box, just the speech tail.")}
+ENUM_ARG_VALUES[(93, 0)] = BOX_STYLES
 
 # Skill sub-arg of QueryPlayerVariable (op416 arg1 = the skill id, used when arg0 selects 'Skill').
 # render_action already value-decodes it via the stat-query path; this just adds the dropdown.
@@ -4958,8 +4943,15 @@ def render_action(op, arg_strs):
             except (ValueError, TypeError):
                 decorated.append(raw)
                 continue
-            if i == 0:                            # face frame
-                name = face_frame_name(v)
+            if i == 0:                            # face: the speaker's own portrait table
+                name = None
+                try:
+                    from . import portraits as _pt
+                    slot = (op - 16) >> 1
+                    name = _pt.label(slot, v) if _pt.has_portrait(slot) else None
+                except ImportError:
+                    pass
+                name = name or face_frame_name(v)
                 decorated.append(name if name else str(v))
             elif i == 1:                          # emote / mood
                 if v == 0:
@@ -5069,17 +5061,17 @@ _AUDIT_2026_09_01 = {
     90: ('SetActorMotionMask', 'actor',
         "Alias of op 89 (same handler): set an actor's motion mask byte (motion struct +66) from a SHIFT COUNT, not a raw mask: writes 127>>n for n in 1..254, otherwise 0xFF. arg0 = actor (char id, resolved via a1+96/+88). Exact field semantics uncertain; unused in the shipped corpus.",
         ['actor (char id)', 'shift n (writes 127>>n; 0/255 = 0xFF)']),
-    94: ('SetSpeakerEmote0', 'dialogue',
-        "Set the current dialogue speaker's facial emote to 0 and retarget the portrait (Dialogue_SetSpeakerEmoteAndRetargetPortrait). The emote id is ENCODED BY THE OPCODE: emote = op - 94; ops 94-97 share this one handler (emotes 0-3), which reads its own opcode back from sceneCtx+260 — it does NOT read an actor field. Takes no args. The general form is op 93, which takes the emote as a normal argument.",
+    94: ('SetBoxNormal', 'dialogue',
+        "Dialogue box style 0: the normal box. Ops 94-97 = styles 0-3, the style is the opcode (op - 94); op 93 takes it as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
         []),
-    95: ('SetSpeakerEmote1', 'dialogue',
-        "Set the current dialogue speaker's facial emote to the FIXED id 1 and retarget the portrait. Ops 94-97 share one handler that recovers the emote from the opcode itself: emote = op - 94 (94->0, 95->1, 96->2, 97->3), read from the currently-dispatching opcode byte at sceneCtx+260. Calls Dialogue_SetSpeakerEmoteAndRetargetPortrait(1). No args. The general form is op 93 (SetSpeakerEmoteByArg), which takes the emote as a normal argument.",
+    95: ('SetBoxShout', 'dialogue',
+        "Dialogue box style 1: shout -- a jagged box with a screen flash. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
         []),
-    96: ('SetSpeakerEmote2', 'dialogue',
-        "Set the current dialogue speaker's facial emote to the FIXED emote id 2 and retarget the portrait (Dialogue_SetSpeakerEmoteAndRetargetPortrait). The emote id is encoded in the OPCODE, not read from the actor: ops 94-97 share this handler and map to emotes 0-3 (emote = op - 94, recovered from the currently-dispatching opcode at sceneCtx+260). The general form is op 93, which takes the emote as a normal argument. Takes no args. Corpus: appears right after a SetSpeaker* cue, before the DIALOG line.",
+    96: ('SetBoxThought', 'dialogue',
+        "Dialogue box style 2: thought -- a cloud box with a bubble-trail tail; the line holds about a second. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
         []),
-    97: ('SetSpeakerEmote3', 'dialogue',
-        "Set the dialogue speaker's facial emote to id 3 and retarget the portrait (Dialogue_SetSpeakerEmoteAndRetargetPortrait). The emote id is ENCODED IN THE OPCODE, not read from the actor: ops 94-97 map to emote 0-3 via (opcode - 94), same trick as the SetSpeaker cluster. Takes no args. The general form is op 93 (SetDialogueSpeakerEmoteByArg), which takes the emote id as a normal argument.",
+    97: ('SetBoxTrembling', 'dialogue',
+        "Dialogue box style 3: trembling -- a wavy box. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
         []),
     105: ('QueryCalendarEventStub', 'query',
         'Always writes 0 to the VM output — the intended calendar-event lookup is stubbed on the PC port (for arg >= 0x30 the search over g_calendarEventMng runs but its result is discarded). arg0 = event id (consumed by the arg decoder). Treat as returning 0.',
@@ -5142,7 +5134,7 @@ _AUDIT_2026_09_01 = {
         "Enable/disable the camera's SETTLE (soft-landing) mode — bit 0x40 of the camera state flags. When set, once the camera is within ~12 frames' worth of travel of its target its velocity decays 0.8125x per frame down to a 0.125 floor, giving a decelerating arrival instead of a constant-velocity stop. Effective on scripted pans (the follow camera rewrites its speed every frame, overwriting the decay). arg0 non-zero sets, 0 clears. Resolved 2026-08-25 via Widget_TickTransformEaseTowardTargets bit-0x40 arm.",
         ['settle on (0/1)']),
     203: ('SetCameraMapBounds', 'actor',
-        "Recompute and re-apply the camera's per-map clamp bounds and zoom for the current map — NOT a player rotation (old name was wrong). The handler calls Camera_SetBoundsForMap(active input-context/map id, flag), passing 0xFFFF while input is suppressed; that callee sets the script/follow camera's centre clamp from the map's tile dims and re-applies the small-map zoom. arg: 0 = write the camera distance directly onto the player's camera rig (flag=1 path); non-zero = apply via Camera_SetDistanceAndZoomFactor (flag=0 path). Used after scripted camera moves/zooms to restore the normal map camera.",
+        "Recompute and re-apply the camera's per-map clamp bounds and zoom for the current map — NOT a player rotation. The handler calls Camera_SetBoundsForMap(active input-context/map id, flag), passing 0xFFFF while input is suppressed; that callee sets the script/follow camera's centre clamp from the map's tile dims and re-applies the small-map zoom. arg: 0 = write the camera distance directly onto the player's camera rig (flag=1 path); non-zero = apply via Camera_SetDistanceAndZoomFactor (flag=0 path). Used after scripted camera moves/zooms to restore the normal map camera.",
         ['mode (0=direct distance write, else standard zoom apply)']),
     204: ('SleepInBed', 'flow',
         "Run the go-to-bed / sleep-to-next-day sequence. arg0 != 0 (retail always 1): the full blocking cinematic FSM - bed anim + voice line, spouse/child walk to the bedside, fade to black, Player_SleepInBed (save snapshot + Day_OnAdvance day rollover), position restore, fade back in, morning BGM/weather; pressing the skip button fast-forwards the fades. arg0 == 0: calls Player_SleepInBed immediately with no cinematic. Dev menu 'Sleep' passes [1].",
@@ -5193,10 +5185,10 @@ _AUDIT_2026_09_01 = {
         "Put an NPC back on a daily-schedule state. arg0 = npc (char id), arg1 = state. Two distinct paths: arg1 != -1 -> Npc_ResetDailyScheduleAndAi(npc, state) (resets schedule AND AI) and returns WITHOUT touching the scene reservation; arg1 == -1 -> recompute today's state (record +17, or Schedule_GetNpcStateForToday when the computed bit +228&1 is clear), apply via Npc_ApplyScheduleState, and clear this scene's placed-actor/reservation bit (ctx+352 bit npc). Heavier than op 296; use at scene end to hand an NPC back to normal life.",
         ['npc (char id)', 'state (-1 = auto)']),
     302: ('SetNpcActionDelay', 'actor',
-        "Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship — the old name came from a mislabeled IDB function and was settled as wrong (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).",
+        "Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).",
         ['npc (char id)', 'base wait (ticks, jittered 0.75x-1.125x)']),
     303: ('SetNpcActionDelay', 'actor',
-        "Alias of op 302 (same handler). Despite the old name it does NOT touch friendship: writes a jittered WAIT into the NPC's schedule countdown (npc record +212, decremented once per NpcSchedule_Tick; on expiry the NPC performs its next scheduled action). Written value is uniform in [0.75 x arg1, 1.125 x arg1); arg1 <= 0 writes nothing. Starting a move or interaction clears the timer. arg0 = npc (char id, < 48), arg1 = requested delay (ticks).",
+        "Alias of op 302 (same handler). It does NOT touch friendship: writes a jittered WAIT into the NPC's schedule countdown (npc record +212, decremented once per NpcSchedule_Tick; on expiry the NPC performs its next scheduled action). Written value is uniform in [0.75 x arg1, 1.125 x arg1); arg1 <= 0 writes nothing. Starting a move or interaction clears the timer. arg0 = npc (char id, < 48), arg1 = requested delay (ticks).",
         ['npc (char id)', 'delay (ticks, jittered 0.75-1.125x)']),
     305: ('GetSeason', 'time',
         'Read the current calendar SEASON index into the VM output — NOT the hour. The handler reads cal_inner+16, and the verified calendar layout (from the SetTime handler and Calendar_NormalizeTimeCarry) is [+0 sec, +4 minute, +8 hour, +12 day, +16 season, +20 year]: the real hour lives at +8. Season is 0-3 (Spring..Winter). No args.',
@@ -5241,7 +5233,7 @@ _AUDIT_2026_09_01 = {
         'Lock or release player input (scripted freeze). INVERTED sense: arg0 == 0 FREEZES the player (sets control_flags bit 4, scene-node word bit 1, and the input-disabled bit 0x20000000 on actor_inner); arg0 != 0 releases all three. Shipped scenes open with FreezePlayer(0) and close with FreezePlayer(1).',
         ['release (0=freeze, nonzero=unfreeze)']),
     400: ('SetPlayerMale', 'actor',
-        "Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). **Listed as `SetPlayerMale` (earlier `SetPlayerLestOrFrey`, still accepted; formerly `RefreshPlayerAndApplyDefaultName`) -- the technical name hides that this is the actual character-swap op**. Dev menu label: 'Boy' / 'Girl'.",
+        "Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). This is the actual character-swap op. Dev menu label: 'Boy' / 'Girl'.",
         ['male (1 = Lest / Boy, 0 = Frey / Girl)']),
     406: ('GetMonsterFarmLovedToday', 'query',
         "Read whether the farm monster the script is CURRENTLY addressing (the barn roster record whose task ptr matches the script ctx subject at +32) has been 'loved'/cared for today (g_MonsterFarmTable record flag bit 18) into the VM output; 0 if the subject is not a barn monster. Takes NO args. Counterpart of op 405.",
@@ -5262,7 +5254,7 @@ _AUDIT_2026_09_01 = {
         "Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).",
         []),
     509: ('PopulateQuestKind2RandomAlts', 'quest',
-        "Populate the current NPC's daily quest-request slot using request template KIND 2, whose alternate objective items are rolled AT RANDOM from shop-category tables ('cats' in the old name meant categories, not animals: Shop_RollByCategoryFromTable re-rolls each seed until the result differs from the main item; up to 4 alternates). arg0 = objective item id; then two template params; trailing args = alternate category seeds. Distinct from the literal-alternates (slot 208) and chained-random (slot 209) siblings. See docs/23.",
+        "Populate the current NPC's daily quest-request slot using request template KIND 2, whose alternate objective items are rolled AT RANDOM from shop-category tables (Shop_RollByCategoryFromTable re-rolls each seed until the result differs from the main item; up to 4 alternates). arg0 = objective item id; then two template params; trailing args = alternate category seeds. Distinct from the literal-alternates (slot 208) and chained-random (slot 209) siblings. See docs/23.",
         ['item id', 'template param (byte4)', 'template param (byte5)', 'alt category seed …']),
     515: ('PopulateQuestKind4Byte4_1LiteralAlts', 'quest',
         "Populate the current NPC's daily quest-request slot using request template KIND 4 (Byte4_1 Literal Alts). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.",

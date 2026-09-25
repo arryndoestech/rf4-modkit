@@ -114,15 +114,9 @@ class Slice(namedtuple("Slice", "slot flags spot")):
     __slots__ = ()
 
     @property
-    def room(self):        # legacy alias: the pre-2026-09 decoder mislabelled the kind as a room
-        return self.spot
-
-    @property
     def time(self) -> str:
         return slot_to_time(self.slot)
 
-
-Waypoint = Slice          # legacy name
 
 Spot = namedtuple("Spot", "room x y facing action wander weight flags busy")
 
@@ -389,24 +383,8 @@ def _check_slice(s: Slice) -> None:
 
 
 # ----------------------------------------------------------------------------- #
-# legacy helpers (kept for the GUI / older callers)
+# text rendering
 # ----------------------------------------------------------------------------- #
-def header(data: bytes) -> dict:
-    magic, sec_a, sec_b, data_off = struct.unpack_from("<IIII", data, 0)
-    return {"magic": magic, "rows": magic & 0xFFFF, "cols": magic >> 16,
-            "section_a": sec_a, "section_b": sec_b, "data_off": data_off}
-
-
-def waypoints(data: bytes) -> list[Slice]:
-    """Every slice of the stream in file order."""
-    return [s for _k, lst in Schedule.parse(data).ordered_cells() for s in lst]
-
-
-def schedules(data: bytes) -> list[list[Slice]]:
-    """One list per (npc, state) cell that has a schedule, in file order."""
-    return [lst for _k, lst in Schedule.parse(data).ordered_cells()]
-
-
 def render(data: bytes, name_fn=None, limit: int | None = None, spots: list[Spot] | None = None,
            npc_name_fn=None, only_npc: int | None = None, only_state: int | None = None) -> str:
     """Human-readable itineraries per (npc, state)."""
