@@ -266,7 +266,8 @@ files **read-on-demand** (so the 4.7 GB `bundleMain` is never loaded whole), or 
 `.mbundle`, a folder of extracted files, or one file.
 
 **Finding files without knowing their names:** every file has a **Category** (Audio,
-Textures & images, 3D models, Animations, Maps, Monster AI, Attack timelines, Game data
+Textures & images, 3D models, Animations, Maps, Monster spawns (the `Gen` monster generators),
+Gathering spots (the `SI_` daily pick-up item pools), Monster AI, Attack timelines, Game data
 tables, Text & dialogue, Scripts & events, UI, Shaders, …) and a **Size**. The **Show:**
 box next to Filter lists only one category, with its file count, and combines with the
 text filter (Maps + `city` = the town maps). Click a column header (Asset, Category, Size)
@@ -283,7 +284,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON** |
 | `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*) · Events · Chunks · read-only Hex |
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
-| `Gen*.bin` | monster encounter table editor (gates/spawns, names, weights) |
+| `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Encounters** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
 | `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. See `docs/16`. |
 | `rf3*.bin` (NLCL) | param-table grid editor (named fields where decoded); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown above the editor |

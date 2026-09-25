@@ -165,14 +165,27 @@ def leading_int(text):
 
 
 # ---- sidecar files ------------------------------------------------------- #
-def gen_file_for_map(name):
-    """MAP_DUNG_X## -> GenX##.bin ; MAP_FIELD_## -> GenField##.bin."""
+def gen_name_for_map(name):
+    """MAP_DUNG_X## -> GenX##.bin ; MAP_FIELD_## -> GenField##.bin (seasonal variants share
+    their base map's table), or None for maps without a monster generator."""
     m = re.search(r"DUNG_([A-Z]+)(\d+)", str(name)) or re.search(r"(FIELD)_?(\d+)", str(name))
     if not m:
         return None
     area, num = m.group(1), int(m.group(2))
-    fn = f"GenField{num:02d}.bin" if area == "FIELD" else f"Gen{area}{num:02d}.bin"
-    return find_extracted(fn)
+    return f"GenField{num:02d}.bin" if area == "FIELD" else f"Gen{area}{num:02d}.bin"
+
+
+def gen_file_for_map(name):
+    fn = gen_name_for_map(name)
+    return find_extracted(fn) if fn else None
+
+
+def maps_for_gen(gen_name, map_names):
+    """The maps (from `map_names`) whose monster generator is `gen_name`, the base map first,
+    then its seasonal variants."""
+    want = map_base(gen_name).rsplit(".", 1)[0].lower() + ".bin"
+    hits = [n for n in map_names if (gen_name_for_map(map_base(n)) or "").lower() == want]
+    return sorted(hits, key=lambda n: (SEASON_RE.search(map_base(n)) is not None, map_base(n)))
 
 
 def si_name_for_map(name):

@@ -275,6 +275,250 @@ class Source:
 # --------------------------------------------------------------------------- #
 # Main application
 # --------------------------------------------------------------------------- #
+class _GenHost:
+    """Everything map_editor.tabs.EncountersTab asks of an editor (doc.gen, the selected gate,
+    apply, status, start_add), for a Gen file shown on its own: the explorer's Gen view uses
+    the map editor's Encounters pane with a flat picture of the map instead of the editor.
+    Edits change the working copy at once (Save table… writes it)."""
+
+    PICTURE_PX = 440
+
+    def __init__(self, app, name, g):
+        import types
+        self.app, self.name = app, name
+        self.doc = types.SimpleNamespace(gen=g, gen_path=pathlib.Path(name))
+        self.gate_index = None
+        self.pane = None
+        self.map = None                  # the entry name of the map pictured
+        self._ground = {}                # map entry name -> (scaled RGB picture, W, H) | None
+        self._pending = None             # 'gpos' / 'mpos' while waiting for a click on the map
+        self._drag = None
+        self._lbl = None
+
+    # ---- what the Encounters pane calls -------------------------------------------- #
+    @property
+    def active_gate(self):
+        g = self.doc.gen
+        if self.gate_index is None:
+            return None
+        try:
+            return g.patterns[self.gate_index[0]][self.gate_index[1]]
+        except IndexError:
+            return None
+
+    def set_active_gate(self, idx):
+        self.gate_index = tuple(idx) if idx is not None else None
+        if self.pane is not None:
+            self.pane.refresh()
+        self.redraw()
+
+    def apply(self, label, _aspects, fn):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001 - report the refusal, keep the view alive
+            messagebox.showerror("Not applied", f"{label}:\n{e}")
+            return False
+        self._changed(label)
+        return True
+
+    def status(self, msg):
+        self.app.status.config(text=msg)
+
+    def start_add(self, kind):
+        if self.active_gate is None:
+            self.status("Select a gate first.")
+            return
+        if not self.map:
+            self.status("There is no map picture to click: add positions in the map editor.")
+            return
+        self._pending = kind
+        self.status("Click the map picture to place the new %s." % ("gate position" if kind == "gpos"
+                                                                    else "monster spawn point"))
+
+    def _changed(self, label):
+        self.app.cur_data = self.doc.gen.build()
+        if self.pane is not None:
+            self.pane.refresh()
+        self.redraw()
+        self.status(label + "  — Save table… (or Extract…) writes the file")
+
+    # ---- the map row ------------------------------------------------------------- #
+    def build_map_row(self, maps):
+        from guiutil import Tip
+        from map_editor import data as med
+        from rf4s_modkit import map_names as mn
+        app = self.app
+        row = ttk.Frame(app.content)
+        row.pack(fill="x", padx=6, pady=(2, 4))
+        self.map = maps[0][0] if maps else None
+        if not maps:
+            ttk.Label(row, text="No map uses this table (its name matches no map).",
+                      foreground="#777").pack(side="left")
+        else:
+            def place(n):
+                mid = med.map_id(n)
+                where = mn.describe_destination(mid)[0] if mid is not None else ""
+                return med.map_base(n) + (f"  ({where})" if where else "")
+            ttk.Label(row, text="Map:").pack(side="left")
+            if len(maps) > 1:
+                var = tk.StringVar(value=place(maps[0][0]))
+                cb = ttk.Combobox(row, textvariable=var, state="readonly", width=46,
+                                  values=[place(n) for n, _i in maps])
+                cb.pack(side="left", padx=4)
+                Tip(cb, "The maps that use this table (seasonal versions share it). The picture "
+                        "shows the one picked here.")
+
+                def pick(_e=None):
+                    self.map = maps[cb.current()][0]
+                    self.redraw()
+                cb.bind("<<ComboboxSelected>>", pick)
+            else:
+                ttk.Label(row, text=place(maps[0][0]), font=("Segoe UI", 9, "bold")).pack(side="left", padx=4)
+            ob = ttk.Button(row, text="Open in map editor", command=lambda: app._open_map_encounters(self.map))
+            ob.pack(side="left", padx=8)
+            Tip(ob, "Open this map in the full map editor, on its Encounters tab.")
+        sb = ttk.Button(row, text="Save table…", command=self.save)
+        sb.pack(side="right")
+        Tip(sb, "Write this Gen file (with your edits) to disk.")
+
+    def save(self):
+        blob = self.doc.gen.build()
+        self.app.cur_data = blob
+        f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile=pathlib.Path(self.name).name,
+                                         filetypes=[("Gen table", "*.bin"), ("All", "*.*")])
+        if f:
+            pathlib.Path(f).write_bytes(blob)
+            self.status(f"Saved the monster spawns → {f}")
+
+    # ---- the flat map picture ------------------------------------------------------- #
+    def build_picture(self, parent):
+        f = ttk.Frame(parent)
+        f.pack(side="left", fill="y", padx=(6, 6))
+        self._lbl = tk.Label(f, bd=0, cursor="crosshair")
+        self._lbl.pack(anchor="n")
+        self._lbl.bind("<ButtonPress-1>", self._press)
+        self._lbl.bind("<B1-Motion>", self._motion)
+        self._lbl.bind("<ButtonRelease-1>", self._release)
+        ttk.Label(f, text="\u25c6 gate   \u25cf monster point   (drag to move; the selected gate's are bright)",
+                  foreground="#666", font=("Segoe UI", 8)).pack(anchor="w")
+
+    def _picture(self):
+        """(scaled picture, pixels per map tile) for the current map, or None."""
+        if not self.map:
+            return None
+        if self.map not in self._ground:
+            got = None
+            try:
+                from map_editor import data as med
+                from rf4s_modkit import mapground
+                from PIL import Image
+                src = self.app.source
+                blob = src.read_named(self.map)
+                grid = rf4m.Rf4mMap.parse(blob).attr_grid() if blob else None
+                comp = mapground.stitch_composite(src.read_named, med.map_base(self.map),
+                                                  aspect=grid[:2] if grid else None)
+                if grid and comp:
+                    img = comp[0].convert("RGB")
+                    sc = min(self.PICTURE_PX / img.width, self.PICTURE_PX / img.height, 1.0)
+                    img = img.resize((max(1, int(img.width * sc)), max(1, int(img.height * sc))), Image.BILINEAR)
+                    got = (img, img.width / max(1, grid[0]))
+            except Exception:  # noqa: BLE001 - no picture; the pane still works
+                got = None
+            self._ground[self.map] = got
+        return self._ground[self.map]
+
+    def _points(self):
+        """[(kind, rec_off, x, y, mine)] for every gate / monster position in the file."""
+        g, active = self.doc.gen, self.active_gate
+        out, seen = [], set()
+        for _pi, _ei, e in g.all_entries():
+            mine = e is active
+            for kind, pts in (("mpos", g.monster_positions_off(e)), ("gpos", g.gate_positions_off(e))):
+                for off, x, y in pts:
+                    if (kind, off) in seen and not mine:
+                        continue
+                    seen.add((kind, off))
+                    out.append((kind, off, x, y, mine))
+        out.sort(key=lambda p: (p[4], p[0] == "gpos"))          # the selected gate's on top
+        return out
+
+    def redraw(self):
+        if self._lbl is None:
+            return
+        got = self._picture()
+        if not got:
+            self._lbl.config(image="", text="(no map picture)", width=30, height=10)
+            return
+        from PIL import ImageDraw, ImageTk
+        base, ppt = got
+        img = base.copy()
+        d = ImageDraw.Draw(img)
+        dim = self.active_gate is not None
+        for kind, off, x, y, mine in self._points():
+            if self._drag and self._drag[1] == off and self._drag[0] == kind:
+                x, y = self._drag[2], self._drag[3]
+            cx, cy = x / 8 * ppt, y / 8 * ppt
+            lit = mine or not dim
+            edge = "#ffffff" if (mine and dim) else "#000000"
+            if kind == "mpos":
+                r = 4 if mine else 3
+                d.ellipse((cx - r, cy - r, cx + r, cy + r), fill="#e0443a" if lit else "#7a3a36", outline=edge)
+            else:
+                r = 8 if mine else 6
+                d.polygon((cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy),
+                          fill="#f0a020" if lit else "#7a5a20", outline=edge)
+        self._photo = ImageTk.PhotoImage(img)
+        self._lbl.config(image=self._photo, text="")
+
+    def _to_gen(self, ev):
+        got = self._picture()
+        if not got:
+            return None
+        ppt = got[1]
+        return int(round(ev.x / ppt * 8)), int(round(ev.y / ppt * 8))
+
+    def _press(self, ev):
+        got = self._picture()
+        if not got:
+            return
+        pos = self._to_gen(ev)
+        if self._pending:                                    # '+ gate' / '+ spawn', then a click
+            kind, self._pending = self._pending, None
+            e = self.active_gate
+            if e is None:
+                return
+            g = self.doc.gen
+            if kind == "gpos":
+                self.apply("Add gate position", "gen", lambda: g.add_gate_position(e, *pos))
+            else:
+                self.apply("Add monster spawn point", "gen", lambda: g.add_monster_position(e, *pos))
+            return
+        ppt = got[1]
+        best = None
+        for kind, off, x, y, mine in self._points():
+            dd = (x / 8 * ppt - ev.x) ** 2 + (y / 8 * ppt - ev.y) ** 2
+            if dd <= 81 and (best is None or (mine, -dd) > (best[4], -best[5])):
+                best = (kind, off, x, y, mine, dd)
+        if best is not None:
+            self._drag = [best[0], best[1], best[2], best[3]]
+
+    def _motion(self, ev):
+        if self._drag:
+            pos = self._to_gen(ev)
+            if pos:
+                self._drag[2], self._drag[3] = pos
+                self.redraw()
+
+    def _release(self, _ev):
+        if not self._drag:
+            return
+        kind, off, x, y = self._drag
+        self._drag = None
+        g = self.doc.gen
+        self.apply("Move %s" % ("gate position" if kind == "gpos" else "monster spawn point"), "gen",
+                   lambda: g.set_position(off, x, y))
+
+
 class App:
     def __init__(self, root: tk.Tk, initial=None):
         self.root = root
@@ -1787,101 +2031,87 @@ class App:
         self.status.config(text=f"Exported {n}/{len(lst)} textures -> {d}")
 
     def _view_gen(self, name, data):
+        """A monster generator: the flat picture of its map (gates ◆, monster points ●, drag
+        them; '+ gate' / '+ spawn' then click the picture) beside the map editor's own
+        Encounters pane (gates, weights, counts, rosters). 'Open in map editor' switches to the
+        full editor; 'Save table…' writes the file."""
+        from map_editor import tabs as me_tabs
         g = gen.GenTable(data)
         self._gen = g
+        maps = self._maps_for_gen(name)
+        host = _GenHost(self, name, g)
+        self._gen_host = host
         nmfn = _load_actor_names()
-        roster = g.roster()
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
-        rtxt = ", ".join(f"{nmfn(i) or i}×{c}" for i, c in roster.most_common()) or "(none)"
-        ttk.Label(bar, text=f"Monster encounter table — roster: {rtxt}",
-                  wraplength=940).pack(side="left", padx=6)
+        rtxt = ", ".join(f"{nmfn(i) or i}×{c}" for i, c in g.roster().most_common()) or "(none)"
+        ttk.Label(self.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
+                  wraplength=940).pack(anchor="w", padx=6)
+        host.build_map_row(maps)
+        body = ttk.Frame(self.content)
+        body.pack(fill="both", expand=True)
+        host.build_picture(body)
+        pane = me_tabs.EncountersTab(body, host)
+        pane.pack(side="left", fill="both", expand=True)
+        host.pane = pane
+        pane.refresh()
+        first = pane.gates.get_children()
+        if first:                            # the first gate: its roster shows, its points light up
+            pane.gates.selection_set(first[0])
+            pane._gate_picked()
+        host.redraw()
 
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
-        tv = ttk.Treeview(top, columns=("id", "nm", "extra"), show="tree headings", height=14)
-        tv.heading("#0", text="Gate / Spawn"); tv.column("#0", width=170)
-        tv.heading("id", text="id"); tv.column("id", width=60, anchor="e")
-        tv.heading("nm", text="name"); tv.column("nm", width=200)
-        tv.heading("extra", text="weight / param"); tv.column("extra", width=120, anchor="e")
-        vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(side="left", fill="both", expand=True)
-        meta = {}   # iid -> ('gate',pi,ei) | ('spawn',pi,ei,si)
+    # ---- Gen files: the map they belong to ------------------------------------------------ #
+    def _maps_for_gen(self, gen_name):
+        """[(entry name, entry index)] of the maps whose monster generator this Gen file is."""
+        from map_editor import data as med
+        idx = {}
+        for i, (n, _g, _l) in enumerate(self.source.entries if self.source else ()):
+            if n.lower().endswith(".rf4m"):
+                idx.setdefault(n, i)
+        return [(n, idx[n]) for n in med.maps_for_gen(pathlib.Path(gen_name).name, list(idx))]
 
-        def fill():
-            tv.delete(*tv.get_children()); meta.clear()
-            for pi, entries in enumerate(g.patterns):
-                for ei, e in enumerate(entries):
-                    gid = tv.insert("", "end", text=f"P{pi}.E{ei} gate", open=True,
-                                    values=(e.gate_kind, nmfn(e.gate_kind), f"wt {e.weight}"))
-                    meta[gid] = ("gate", pi, ei)
-                    for si, s in enumerate(e.spawns):
-                        sid = tv.insert(gid, "end", text=f"  spawn {si}",
-                                        values=(s.monster_id, nmfn(s.monster_id), f"wt {s.param}"))
-                        meta[sid] = ("spawn", pi, ei, si)
-        fill()
-
-        ed = ttk.LabelFrame(self.content, text="Edit selected (gate: kind+weight · spawn: monster+pick weight)")
-        ed.pack(fill="x", padx=6, pady=4)
-        row = ttk.Frame(ed); row.pack(fill="x", padx=4, pady=4)
-        f1l = ttk.Label(row, text="field A"); f1l.pack(side="left")
-        v1 = tk.StringVar(); ttk.Entry(row, textvariable=v1, width=8).pack(side="left", padx=(2, 12))
-        f2l = ttk.Label(row, text="field B"); f2l.pack(side="left")
-        v2 = tk.StringVar(); ttk.Entry(row, textvariable=v2, width=8).pack(side="left", padx=2)
-        nmlbl = ttk.Label(row, text=""); nmlbl.pack(side="left", padx=10)
-        sel = {"iid": None}
-
-        def on_sel(_e=None):
-            s = tv.selection()
-            if not s:
-                return
-            sel["iid"] = s[0]; m = meta.get(s[0])
-            if not m:
-                return
-            if m[0] == "gate":
-                e = g.patterns[m[1]][m[2]]
-                f1l.config(text="gate kind"); f2l.config(text="weight")
-                v1.set(str(e.gate_kind)); v2.set(str(e.weight)); nmlbl.config(text=nmfn(e.gate_kind))
-            else:
-                sp = g.patterns[m[1]][m[2]].spawns[m[3]]
-                f1l.config(text="monster id"); f2l.config(text="pick weight")
-                v1.set(str(sp.monster_id)); v2.set(str(sp.param)); nmlbl.config(text=nmfn(sp.monster_id))
-        tv.bind("<<TreeviewSelect>>", on_sel)
-
-        def apply_edit():
-            m = meta.get(sel["iid"])
-            if not m:
-                return
+    def _open_map_encounters(self, map_name):
+        """Show a map in the embedded map editor on its Encounters tab (and select it in the
+        file list)."""
+        if not map_name or not self.source:
+            return
+        i = next((k for k, e in enumerate(self.source.entries) if e[0] == map_name), None)
+        if i is None:
+            return
+        name, _g, loader = self.source.entries[i]
+        self._reveal_entry(i)
+        self._show(name, loader())
+        panel = getattr(self, "_map_panel", None)
+        if panel is not None:
             try:
-                a, b = int(v1.get(), 0), int(v2.get(), 0)
-            except ValueError as e:
-                messagebox.showerror("Bad value", str(e)); return
-            if m[0] == "gate":
-                g.set_gate_kind(m[1], m[2], a); g.set_weight(m[1], m[2], b)
-            else:
-                sp = g.patterns[m[1]][m[2]].spawns[m[3]]
-                g.set_spawn_monster(sp, a); g.set_spawn_pick_weight(sp, b)
-            self.cur_data = g.build()
-            fill()
-            # fill() rebuilt the tree with fresh iids; re-select the same gate/spawn so
-            # the edit boxes stay live and a follow-up Apply isn't a silent no-op
-            # (matches the MOBJ / param / monster / search-item editors).
-            for iid2, mk in meta.items():
-                if mk == m:
-                    sel["iid"] = iid2
-                    tv.selection_set(iid2); tv.see(iid2)
-                    break
-            self.status.config(text="Applied — use Save table… or Extract… to write")
+                panel.nb.select(panel.encounters)
+            except tk.TclError:
+                pass
+        self.status.config(text=f"{pathlib.Path(name).name}: Encounters tab (its monster generator)")
 
-        def save_tbl():
-            blob = g.build(); self.cur_data = blob
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
-                filetypes=[("Gen table", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(blob)
-                self.status.config(text=f"Saved encounter table → {f}")
-        ttk.Button(row, text="Save table…", command=save_tbl).pack(side="right", padx=4)
-        ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
+    def _reveal_entry(self, i):
+        """Select entry `i` in the file list without re-opening it (clears a filter that
+        hides it; opens its group)."""
+        iid = next((k for k, v in self._index.items() if v == i), None)
+        if iid is None:
+            for gid, idxs in self._group_indices.items():
+                if i in idxs:
+                    self.tree.item(gid, open=True)
+                    self.tree.focus(gid)
+                    self._on_group_open(None)
+                    iid = next((k for k, v in self._index.items() if v == i), None)
+                    break
+        if iid is None and (self.filter_var.get() or self._cat_filter()):
+            self.filter_var.set("")
+            self.cat_var.set(self.ALL_CATS)
+            self._apply_filter_now()
+            return self._reveal_entry(i)
+        if iid is not None:
+            self._suppress_select = True
+            try:
+                self.tree.selection_set(iid)
+                self.tree.see(iid)
+            finally:
+                self.root.after_idle(lambda: setattr(self, "_suppress_select", False))
 
     def _view_asatk(self, name, data):
         """as_atk_*.bin attack-move timeline: rendered view + an editable listing that

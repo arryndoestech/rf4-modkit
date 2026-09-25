@@ -7100,13 +7100,13 @@ def test_asset_explorer_gui():
         # categories, sizes and sorting (a first-time user's "what kind of file is this?")
         from rf4s_modkit import assetcat
         samples = {"01_M_VIZNAR.ogg": "audio", "00_PLAYER_M_body_00.texture": "texture",
-                   "MAP_CITY_00.rf4m": "map", "SI_CITY_00.bin": "map", "GenA01.bin": "map",
+                   "MAP_CITY_00.rf4m": "map", "SI_CITY_00.bin": "gather", "GenA01.bin": "spawn",
                    "AI_m00.bin": "ai", "as_atk_0001.bin": "attack", "rf3ItemData.bin": "data",
                    "rf3mc.eng": "text", "rf4TxtShop_split2_2.eng": "text", "rf3.mc": "script",
                    "em.bin": "script", "Achievement.minterface": "ui", "blur_f.glsl": "shader",
                    "AS_ARTHUR.sav": "save", "AppConfig.plist": "other"}
         wrong = {n: assetcat.category_of(n) for n, k in samples.items() if assetcat.category_of(n) != k}
-        _check("asset categories come from the names (voice / texture / map + SI + Gen / AI / attack / "
+        _check("asset categories come from the names (voice / texture / map / Gen spawns / SI gathering / AI / attack / "
                "data / text / script / UI / shader / save / other)", not wrong, str(wrong))
         src = app.source
         some = next(i for i, e in enumerate(src.entries) if e[0].endswith(".rf4m"))
@@ -7143,6 +7143,76 @@ def test_asset_explorer_gui():
         app.filter_var.set("")
         app.cat_var.set(app.ALL_CATS)
         app._apply_filter_now()
+        # every kind of viewer opens without falling back to "[viewer note] <error>" (a renamed
+        # field once broke the Gen viewer: 'Spawn' object has no attribute 'param')
+        notes = []
+        _orig_hex = gui.App._view_hex
+        gui.App._view_hex = lambda self, name, data, error=None: (
+            notes.append((name, error)) if error else None, _orig_hex(self, name, data, error))[1]
+        try:
+            byname = {e[0].rsplit("/", 1)[-1]: e for e in src.entries}
+            cats, seen_cat, sample = src.categories(), set(), []
+            for i, e in enumerate(src.entries):             # the first file of every category
+                if cats[i] not in seen_cat:
+                    seen_cat.add(cats[i])
+                    sample.append(e)
+            sample += [byname[n] for n in ("GenE89.bin", "SI_CITY_00.bin", "AI_m00.bin", "em.bin",
+                                           "rf3NpcParam.bin", "rf3Schedule.bin", "rf3MonsterPresent.bin",
+                                           "rf3ItemStrengthening.bin", "rf3route.bin", "rf3mc.eng")
+                       if n in byname]
+            for n, _g, loader in sample:
+                app._show(n, loader())
+                root.update_idletasks()
+        finally:
+            gui.App._view_hex = _orig_hex
+        _check("every kind of file opens in its viewer without an error note (%d kinds sampled)"
+               % len(sample), not notes, str(notes[:3]))
+        def _find(w, cls):
+            out = [w] if w.winfo_class() == cls else []
+            for c in w.winfo_children():
+                out += _find(c, cls)
+            return out
+        from map_editor import data as _med
+        if "GenE89.bin" in byname:
+            # a monster generator: the flat map picture + the map editor's Encounters pane
+            n, _g, loader = byname["GenE89.bin"]
+            app._show(n, loader())
+            root.update()
+            h = app._gen_host
+            _view_ok = (h.map is not None and h.map.endswith("MAP_DUNG_E89.rf4m") and h._picture() is not None
+                        and type(h.pane).__name__ == "EncountersTab" and h.gate_index == (0, 0)
+                        and len(h.pane.roster.get_children()) > 0)
+            # drag a gate position on the picture, '+ spawn' then click, a roster edit
+            ge = h.active_gate
+            _off, _x0, _y0 = h.doc.gen.gate_positions_off(ge)[0]
+            _ppt = h._picture()[1]
+            _ev = type("E", (), {})()
+            _ev.x, _ev.y = _x0 / 8 * _ppt, _y0 / 8 * _ppt
+            h._press(_ev); _ev.x += 16; h._motion(_ev); h._release(_ev)
+            _t = gen.GenTable(app.cur_data)
+            _moved = _t.gate_positions_off(_t.patterns[0][0])[0][1] != _x0
+            _n0 = len(h.doc.gen.monster_positions_off(h.active_gate))
+            h.start_add("mpos"); _ev.x, _ev.y = 60, 80; h._press(_ev)
+            _added = len(h.doc.gen.monster_positions_off(h.active_gate)) == _n0 + 1
+            _sp = h.active_gate.spawns[0]
+            h.apply("Edit roster monster", "gen", lambda: h.doc.gen.set_spawn_pick_weight(_sp, 7))
+            _edited = gen.GenTable(app.cur_data).patterns[0][0].spawns[0].pick_weight == 7
+            _fld = _med.maps_for_gen("GenField01.bin", ["MAP_FIELD_01_SUMMER.rf4m", "MAP_FIELD_01.rf4m",
+                                                        "MAP_FIELD_02.rf4m", "MAP_DUNG_E89.rf4m"])
+            _check("Gen view: its map's picture + the Encounters pane (first gate selected); drag a gate, "
+                   "'+ spawn' + click, a roster edit all reach the file; seasonal maps share the table",
+                   _view_ok and _moved and _added and _edited
+                   and _fld == ["MAP_FIELD_01.rf4m", "MAP_FIELD_01_SUMMER.rf4m"],
+                   f"view={_view_ok} moved={_moved} added={_added} edited={_edited} field={_fld}")
+            _ob = next((x for x in _find(app.content, "TButton") if x.cget("text") == "Open in map editor"), None)
+            _ok_btn = False
+            if _ob is not None:
+                _ob.invoke()
+                root.update()
+                _p = app._map_panel
+                _ok_btn = (app.cur_name.endswith("MAP_DUNG_E89.rf4m") and _p is not None
+                           and _p.nb.tab(_p.nb.select(), "text") == "Encounters")
+            _check("Gen view: 'Open in map editor' lands on that map's Encounters tab", _ok_btn)
         _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()

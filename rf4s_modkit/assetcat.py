@@ -3,9 +3,9 @@ explorer's Category column and filter.
 
 Decided from the name alone (extension and the game's own naming prefixes), so ~38k files are
 categorised instantly without opening any of them. The categories follow what a modder is looking
-for, not the container format: a map's search items (SI_*.bin) and monster spawns (Gen*.bin) sit
-with the maps, the AI and attack-timeline .bin files have their own groups, and every rf3Txt* /
-rf3mc.<lang> file is text whatever its extension.
+for, not the container format: the monster generators (Gen*.bin), the gathering-spot item pools
+(SI_*.bin), the AI and the attack-timeline .bin files each have their own group, and every
+rf3Txt* / rf3mc.<lang> file is text whatever its extension.
 """
 from __future__ import annotations
 
@@ -17,7 +17,9 @@ CATEGORIES = (
     ("model", "3D models", "models and their materials"),
     ("anim", "Animations", "skeletal animations"),
     ("portrait", "Portraits", "dialogue portraits (Newlywed mode)"),
-    ("map", "Maps", "maps, their search items (SI_) and monster spawns (Gen)"),
+    ("map", "Maps", "the maps themselves (.rf4m)"),
+    ("spawn", "Monster spawns", "which monsters appear on each map, and how often (Gen)"),
+    ("gather", "Gathering spots", "the items that appear at pick-up spots each day (SI_)"),
     ("ai", "Monster AI", "enemy behaviour scripts (AI_)"),
     ("attack", "Attack timelines", "attack animations' hitboxes, effects and sounds (as_)"),
     ("data", "Game data tables", "item, monster, skill and shop tables (rf3*.bin)"),
@@ -58,8 +60,10 @@ def category_of(name: str) -> str:
     if base.startswith(("rf3mc.", "rf3txt", "rf4txt")):
         return "text"
     if ext == ".bin":
-        if base.startswith("si_") or base.startswith("gen"):
-            return "map"
+        if base.startswith("gen"):
+            return "spawn"
+        if base.startswith("si_"):
+            return "gather"
         if base.startswith("ai_"):
             return "ai"
         if base.startswith("as_"):
