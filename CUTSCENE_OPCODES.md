@@ -62,7 +62,7 @@ Args:
 ### `op 8` — DialogueLine(line id)
 *handler:* `Dialogue_ProcessLineDirective`
 
-Show a dialogue line. arg0 = line id: >=0x30 = text-archive entry id (the common case, rendered as DIALOG #NNNN), 1-26 = standard slot load, 27-47 = event-participant line (portrait shown for 27-33/41-47), 0xFFFF = end marker. Also picks the speaker's dialogue tick-chime SFX class (Dialogue_PickChimeClassForSpeaker) before showing the text.
+Show a dialogue line. arg0 = line id: >=0x30 = text-archive entry id (the common case, rendered as DIALOG #NNNN), 1-26 = standard slot load, 27-47 = event-participant line (portrait shown for 27-33/41-47), 0xFFFF = end marker. Also picks the speaker's dialogue tick-chime SFX class (Dialogue_PickChimeClassForSpeaker) before showing the text. SPEAKER NOTE (IDA-verified 2026-09-25): arg0 is a NAME-ARCHIVE id, not a text line -- the handler loads that name into the name plate of the message box (Dialogue_LoadAndShowText with the name archive of the task, the same path as SetSpeakerVoice), so the following DIALOG lines are spoken by it. Dialogue_ProcessLineDirective RF4S.exe+0x209DF0: 1-26 = the name of that villager (1 = Vishnal), >= 48 = any name entry, 0 = clear the name, 27-47 = an event participant resolved at run time.
 
 Args:
   0. line id (>=0x30 archive entry; 1-26 std slot; 27-47 event line; 0xFFFF end)
@@ -90,13 +90,15 @@ Args:
      - `3` = dragon blip
      - `4` = player's blip
 
-### `op 11` — SetDialogStateBit(mode)
+### `op 11` — SetDialogStateBit(name label)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
 
-Dialogue-state toggle: sets bit0 of the dialogue state word (g_gameGlobalsSlotTable scratch field entries[4]) to (arg==0). Runs before lines (~1584x); a per-line render/advance mode flag (exact purpose tentative).
+Name-label toggle for the following lines: writes bit 0 of the dialogue flags word (g_gameGlobalsSlotTable.entries[4]) = (arg == 0) (ScriptVMOp11_SetSceneStateBit0FromArg). Dialogue_LoadAndShowLine / Dialogue_LoadAndShowText / DialogueBox_SpawnBubbleAndSpeakerNameSprites copy that bit into the speaker-name label's hide bit (sprite flag 8) -- the same bit narration mode and the '???' no-name entry force on. So 0 = hide the name (inner voice, sound words, retold speech), 1 = show it. It does NOT pick a side: the left/right slot comes from the portrait cue (SetSpeakerX left/right). Loading a new name plate (SetSpeakerVoice / DialogueLine) clears the bit again. Corpus: bank 300 alternates 1 before quoted speech and 0 before first-person narration; bank 4 puts 0 before '*WHOOSH!*' (IDA + corpus 2026-09-25).
 
 Args:
-  0. mode (0 sets the bit)
+  0. name label (0 = hide, 1 = show)
+     - `0` = hide name
+     - `1` = show name
 
 ### `op 12` — BubbleLineV3(speaker, index, sub)
 *handler:* `NpcBubble_DispatchScriptedLineV3Tokens`
@@ -111,7 +113,7 @@ Args:
 ### `op 13` — BubbleLineV3(line id, line index, sub index)
 *handler:* `NpcBubble_DispatchScriptedLineV3Tokens`
 
-Show a scripted speech bubble (3 tokens). arg0 = line id (also picks the chime SFX class and, when changed, remaps via Dialogue_RemapBubbleLineId24To28 into the shown text), arg1 = line index (compacted to a 0-5 bubble category), arg2 = sub index. Builds a bubble descriptor and calls NpcBubble_DispatchFromDescriptor; blocks while a fade runs. Per the IDB analysis the first token is a LINE id, not a speaker id. Unused in the shipped corpus.
+Show a scripted speech bubble (3 tokens). arg0 = line id (also picks the chime SFX class and, when changed, remaps via Dialogue_RemapBubbleLineId24To28 into the shown text), arg1 = line index (compacted to a 0-5 bubble category), arg2 = sub index. Builds a bubble descriptor and calls NpcBubble_DispatchFromDescriptor; blocks while a fade runs. Per the IDB analysis the first token is a LINE id, not a speaker id. Unused in the shipped corpus. SPEAKER NOTE (IDA-verified 2026-09-25): arg0 is a NAME-ARCHIVE id, not a text line -- the handler loads that name into the name plate of the message box (Dialogue_LoadAndShowText with the name archive of the task, the same path as SetSpeakerVoice), so the following DIALOG lines are spoken by it. NpcBubble_DispatchScriptedLineV3Tokens RF4S.exe+0x207A70; ids 24-28 are remapped (24->309 Pico, 25->149 Soldier, 26->239 Ethelberd, 27->24 Barrett, 28->25 Raven).
 
 Args:
   0. line id
@@ -121,7 +123,7 @@ Args:
 ### `op 14` — BubbleLineV4(line id, line index, sub index, param)
 *handler:* `NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport`
 
-Show a scripted speech bubble (4 tokens; PSB-emote capable). arg0 = line id (NOT a speaker: when the emote feature flag is on and line id >= 30 it is remapped through the NPC emote PSB table; otherwise used directly for the bubble text). arg1 = line index, arg2 = sub index (>= 0x1F0 triggers the sfx sub-action chain), arg3 = param.
+Show a scripted speech bubble (4 tokens; PSB-emote capable). arg0 = line id (NOT a speaker: when the emote feature flag is on and line id >= 30 it is remapped through the NPC emote PSB table; otherwise used directly for the bubble text). arg1 = line index, arg2 = sub index (>= 0x1F0 triggers the sfx sub-action chain), arg3 = param. SPEAKER NOTE (IDA-verified 2026-09-25): arg0 is a NAME-ARCHIVE id, not a text line -- the handler loads that name into the name plate of the message box (Dialogue_LoadAndShowText with the name archive of the task, the same path as SetSpeakerVoice), so the following DIALOG lines are spoken by it. NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport RF4S.exe+0x207CE0; the id is used as is.
 
 Args:
   0. line id
@@ -1185,13 +1187,13 @@ Pick the row the NEXT choice menu opens on (the default highlight). arg0 = a row
 Args:
   0. option index
 
-### `op 614` — SetDialogueSpeaker(side)
+### `op 614` — SetDialogueSpeaker(mode)
 *handler:* `Script_VMOp_SetDialogueSpeakerSideByte`
 
-Set which side speaks the NEXT dialogue line (byte 2 of the active line descriptor). Value 2 = secondary/right-side speaker: the nameplate + text box render on the right using the question/choice-bubble widgets and recoloured nameplate. Any other value = the normal left speaker. Lets a script flip the apparent speaker between two on-screen characters.
+Set the dialogue box MODE: byte 2 of the dialogue mode word g_gameGlobalsSlotTable.entries[9] (Script_VMOp_SetDialogueSpeakerSideByte RF4S.exe+0x21C740). Value 2 = NARRATION: the box hides the speaker-name label (DialogueBox_SpawnBubbleAndSpeakerNameSprites), the typewriter mutes the text blips (Sprite_TickTypewriterDripText) and about forty other dialogue-box paths switch to their mode-2 variant; value 1 is tested by the HUD and bubble code too; 0 = normal. The HUD teardown resets it (IDA-verified 2026-09-25; the older 'right-side speaker' reading was wrong).
 
 Args:
-  0. side (2=right/secondary, else left)
+  0. mode (2 = narration: no name label, no blips; 0 = normal)
 
 ### `op 615` — ArmChoiceOption(value 1, value 2, value 3)
 *handler:* `Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm`
@@ -1230,10 +1232,10 @@ Args:
 ### `op 699` — SetDialogueSpeakerIf(condition)
 *handler:* `Script_VMOp_SetDialogueSecondarySpeakerIfNonzero`
 
-Conditional form of SetDialogueSpeaker (op 614): if arg0 is non-zero, mark the next line as spoken by the secondary (right-side) speaker (descriptor byte 2 = 2); if zero, leave the current speaker side unchanged. Handy for 'if this NPC is present, put the line on their side'.
+Conditional NARRATION switch (Script_VMOp_SetDialogueSecondarySpeakerIfNonzero RF4S.exe+0x220250): a non-zero arg0 sets the dialogue mode (op 614) to 2 -- speaker-name label hidden, text blips muted, so the following lines read as narration; zero leaves the mode alone (IDA-verified 2026-09-25; not a 'right-side speaker').
 
 Args:
-  0. condition (non-zero = right speaker)
+  0. condition (non-zero = switch to narration)
 
 ## Camera / screen
 
@@ -6468,6 +6470,7 @@ Play a sound effect by id.
 
 Args:
   0. sfx id
+     - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 386` — StopVoices()
 *handler:* `Script_VMOp_VoiceStopAllActive`
@@ -6481,6 +6484,7 @@ Play a sound/voice by id, applying the per-NPC variant remap (calls Sfx_PlayById
 
 Args:
   0. sfx / voice id
+     - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 389` — FindVoiceSlot((ignored by the handler))
 *handler:* `Script_VMOp_FindOrPreemptVoiceSlot`
@@ -6497,6 +6501,7 @@ Stop the voice matching an id.
 
 Args:
   0. voice id
+     - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 392` — PlayVoicedSound(sfx id)
 *handler:* `Script_VMOp_PlaySfxByIdViaVoiceSlot`
@@ -6505,6 +6510,7 @@ Play a sound effect via a dedicated voice slot.
 
 Args:
   0. sfx id
+     - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 461` — SuppressRewardJingle()
 *handler:* `Script_VMOp_SuppressNextRewardPopupSfx`

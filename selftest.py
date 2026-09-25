@@ -1986,7 +1986,9 @@ def test_script():
                         _pv, _pok = script.eval_expr(_ed, _paoff)
                         if _pok and _pv is not None and _pv >= 0:
                             _pick_tot[(_est.op, _pai)] = _pick_tot.get((_est.op, _pai), 0) + 1
-                            if _pv >= 0x8000:   # far above any real id space (items/chars/rooms/...)
+                            if _pv >= 0x8000 and _pv not in om.ENUM_ARG_VALUES[(_est.op, _pai)]:
+                                # far above any real id space and not a known key (sound ids
+                                # are 0x1000000|n by design and resolve through the table)
                                 _pick_imp[(_est.op, _pai)] = _pick_imp.get((_est.op, _pai), 0) + 1
                 for _eoff in list(_est.args) + list(getattr(_est, "expr_refs", None) or []):
                     if _eoff is None or not (0 <= _eoff < _en):
@@ -5052,10 +5054,36 @@ def test_script_authoring():
         _b210 = _c210.banks[210]
         _s210 = next((s for s in script.disassemble_bank(_b210) if s.entry_pc == 0x02D4), None)
         _spk = script.dialog_speakers(_s210, _b210) if _s210 else {}
-        _check("DIALOG speakers: [player] 'By the way...', then [Eliza] via CALL; none after EndDialogue",
+        _check("DIALOG speakers: player 'By the way...', then Eliza via CALL; none after EndDialogue",
                _spk.get(0x0E22) == "player" and _spk.get(0x0E4A) == "Eliza"
                and _spk.get(0x0E6A) == "Eliza" and 0x0220 not in _spk,
                f"{_spk.get(0x0E22)!r} / {_spk.get(0x0E4A)!r} / {_spk.get(0x0220)!r}")
+        # DialogueLine (op 8) names the speaker from the name archive (1 = Vishnal), and
+        # SetDialogueSpeakerIf 1 (op 699) switches the box to narration (no name, no blips)
+        _b300 = _c210.banks[300]
+        _s300 = next((s for s in script.disassemble_bank(_b300) if s.entry_pc == 0x49AE), None)
+        _sp3 = script.dialog_speakers(_s300, _b300) if _s300 else {}
+        _check("DIALOG speakers: op 8 DialogueLine 1 -> Vishnal; op 699 -> narration",
+               _sp3.get(0x021A) == "Vishnal" and _sp3.get(0x1EBC) == script.SPEAKER_NARRATION,
+               f"{_sp3.get(0x021A)!r} / {_sp3.get(0x1EBC)!r}")
+        # the cutscene editor's Script view shows the same (it used the last speaker op in
+        # display order, so Eliza's board lines read as 'MC')
+        try:
+            from cutscene_editor import render as _cer
+
+            class _Doc:
+                em = None
+
+                def text(self, i):
+                    return "x"
+            _rows = _cer.SceneText(_Doc(), _b210, _s210).story_rows()
+            _who = {r.key[0]: "".join(x[0] for x in r.segs).strip().split(":")[0]
+                    for r in _rows if r.key and r.key[0] in (0x0E22, 0x0E4A, 0x0220)}
+            _check("the Script view labels the board lines Eliza and leaves speaker-less lines bare",
+                   _who.get(0x0E22) == "MC" and _who.get(0x0E4A) == "Eliza" and _who.get(0x0220) == "“x”",
+                   f"{_who}")
+        except ImportError as e:
+            _skip("Script view speakers", str(e))
     # actor names shared with alternate forms above the character range still name the
     # character: Clorica = 2 (also 308), Ventuswill = 21 (also 235 / 982)
     _names_ok = (script.actor_leaf_text(2) == "actor(Clorica)" and script.actor_leaf_text(21) == "actor(Ventuswill)"

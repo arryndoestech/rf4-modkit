@@ -2089,7 +2089,40 @@ def iter_scenes(container, discover=True):
 _SPEAKER_UNKNOWN = object()          # no speaker established, or paths disagree
 _SPEAKER_IN = object()               # "whatever the caller had" (routine summaries)
 _SPEAKER_CLEAR_OPS = {92}            # EndDialogue clears the speaker
-_SPEAKER_OPAQUE_OPS = {6, 7, 8, 9, 12, 13, 14, 15}   # own-line / bubble ops: effect unverified
+_SPEAKER_OPAQUE_OPS = set()          # (every speaker-related op is now modelled below)
+# Ops 8/9, 12/13 and 14/15 also set the name plate: each loads name-archive entry arg0 into
+# the message box (Dialogue_LoadAndShowText with the task's name archive, latched at task+108
+# -- the same path SetSpeakerVoice takes): Dialogue_ProcessLineDirective RF4S.exe+0x209DF0
+# (1..26 and >= 48 = that name, 0 = clear, 27..47 = event participant, resolved at run time),
+# NpcBubble_DispatchScriptedLineV3Tokens +0x207A70 (id remapped by
+# Dialogue_RemapBubbleLineId24To28: 24->309, 25->149, 26->239, 27->24, 28->25),
+# NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport +0x207CE0 (id used as is).
+# Ops 6/7 (Script_VMOp_ShowNpcBubble +0x207900) only float a bubble over an actor and leave
+# the message-box speaker alone.
+_BUBBLE_ID_REMAP = {24: 309, 25: 149, 26: 239, 27: 24, 28: 25}
+# Narration mode: ops 614 (Script_VMOp_SetDialogueSpeakerSideByte RF4S.exe+0x21C740, value 2)
+# and 699 (Script_VMOp_SetDialogueSecondarySpeakerIfNonzero +0x220250, any non-zero arg) set
+# byte 2 of the dialogue mode word g_gameGlobalsSlotTable.entries[9] to 2; with it the box
+# hides the speaker-name label (DialogueBox_SpawnBubbleAndSpeakerNameSprites) and the
+# typewriter mutes the text blips (Sprite_TickTypewriterDripText). The HUD teardown resets it.
+SPEAKER_NARRATION = "narration"
+
+
+def _speaker_const_arg(bank, st, i=0):
+    """Static integer value of argument `i` (a literal, or a tag-3/4 leaf's constant), else None."""
+    if i >= len(st.args):
+        return None
+    off = st.args[i]
+    buf = bank.data
+    if 0 <= off < len(buf) and buf[off] in (3, 4):
+        return _u32(buf, off + 1)
+    v, ok = eval_expr(buf, off)
+    return v if ok else None
+
+
+def _name_plate(n):
+    nm = meta.enum_arg_label(10, 0, n) if n is not None else None
+    return nm if nm else _SPEAKER_UNKNOWN
 
 
 def _speaker_of(bank, st):
@@ -2107,6 +2140,24 @@ def _speaker_of(bank, st):
             if ok and v is not None:
                 nm = meta.enum_arg_label(10, 0, v)
                 return True, (nm if nm else _SPEAKER_UNKNOWN)
+        return True, _SPEAKER_UNKNOWN
+    if op in (8, 9):
+        v = _speaker_const_arg(bank, st)
+        if v is not None and (1 <= v <= 26 or 48 <= v < 0xFFFF):
+            return True, _name_plate(v)
+        return True, _SPEAKER_UNKNOWN                      # 0 clears; 27..47 run time
+    if op == 699:
+        v = _speaker_const_arg(bank, st)
+        if v is None:
+            return True, _SPEAKER_UNKNOWN
+        return (True, SPEAKER_NARRATION) if v else (False, None)
+    if op == 614:
+        v = _speaker_const_arg(bank, st)
+        return True, (SPEAKER_NARRATION if v == 2 else _SPEAKER_UNKNOWN)
+    if op in (12, 13, 14, 15):
+        v = _speaker_const_arg(bank, st)
+        if v:
+            return True, _name_plate(_BUBBLE_ID_REMAP.get(v, v) if op in (12, 13) else v)
         return True, _SPEAKER_UNKNOWN
     if op in _SPEAKER_CLEAR_OPS or op in _SPEAKER_OPAQUE_OPS:
         return True, _SPEAKER_UNKNOWN

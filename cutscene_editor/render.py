@@ -103,6 +103,44 @@ class SceneText:
         extra = f" {st.items[0]}" if st.mnem == "FRAME" and st.items else ""
         return f"{head}{st.mnem}{extra}{cond}{(' -> ' + tg) if tg else ''}"
 
+    # ---- who speaks each line ---------------------------------------------------------- #
+    def line_speakers(self):
+        """{DIALOG pc: display name} for the lines whose speaker is certain (set on every
+        path to the line, through CALLs -- script.dialog_speakers); other lines have none."""
+        key = (id(self.scene), id(self.bank))
+        if getattr(self, "_spk_key", None) != key:
+            try:
+                raw = script.dialog_speakers(self.scene, self.bank)
+            except Exception:  # noqa: BLE001 - a display aid only
+                raw = {}
+            mc = script.portrait_speaker_tag(16) or "MC"
+            self._spk = {pc: (mc if nm == "player" else nm) for pc, nm in raw.items()}
+            self._spk_key = key
+        return self._spk
+
+    def speaker_colour(self, name):
+        names = list(getattr(script.meta, "PORTRAIT_SPEAKERS", []))
+        if name in (script.portrait_speaker_tag(16), "MC", "player"):
+            return SPEAKER_COLORS[0]
+        if name in names:
+            return SPEAKER_COLORS[names.index(name) % len(SPEAKER_COLORS)]
+        return "#d8d8d8"                        # name plates (SetSpeakerVoice)
+
+    def nameplate_of(self, st):
+        """(name, blip label) of a SetSpeakerVoice (op 10) statement."""
+        args = self.arg_strs(st)
+        name = blip = None
+        try:
+            name = script.meta.enum_arg_label(10, 0, int(args[0], 0)) if args else None
+        except (ValueError, TypeError):
+            pass
+        try:
+            b = int(args[1], 0) if len(args) > 1 else None
+            blip = script.meta.enum_arg_label(10, 1, min(b, 4)) if b is not None else None
+        except (ValueError, TypeError):
+            pass
+        return name or (args[0] if args else "?"), blip
+
     # ---- the story view ------------------------------------------------------------ #
     def speaker_of(self, st):
         """(name, side, colour) of a SetSpeaker op."""
@@ -166,12 +204,18 @@ class SceneText:
         ind = [("    ", None)]
         if st.mnem == "DIALOG":
             txt = self.dlg(st.dialog_id)
-            who = speaker[0] if speaker else "(narration)"
-            wtag = ("spk", speaker[2]) if speaker else "narr"
+            who = self.line_speakers().get(pc)       # only a CERTAIN speaker is shown
             body = [("“%s”" % txt.replace("\n", " ⏎ "), "dlg")] if txt is not None else \
                    [("#%d  [no text in this locale]" % st.dialog_id, "warn")]
-            rows.append(Row(addr(pc) + ind + [(who + ": ", wtag)] + body, key, st))
+            head = [(who + ": ", ("spk", self.speaker_colour(who)))] if who else []
+            rows.append(Row(addr(pc) + ind + head + body, key, st))
             return speaker
+        if st.op == 10:                                  # SetSpeakerVoice: a name plate
+            name, blip = self.nameplate_of(st)
+            rows.append(Row(addr(pc) + ind + [("🗨 ", "dim"), (name, ("cue", self.speaker_colour(name))),
+                                               ("  · name plate%s" % ((" · " + blip) if blip else ""), "dim")],
+                            key, st))
+            return (name, "plate", self.speaker_colour(name))
         if script.is_portrait_op(st.op):
             name, side, col = self.speaker_of(st)
             mood = self.speaker_mood(st)
@@ -457,6 +501,9 @@ class SceneText:
                 name, side, _c = self.speaker_of(st)
                 key = "%s (%s)" % (name, side)
                 spk[key] = spk.get(key, 0) + 1
+            elif st.op == 10:
+                key = "%s (name plate)" % self.nameplate_of(st)[0]
+                spk[key] = spk.get(key, 0) + 1
         if spk:
             put("Speakers\n", "h")
             for k, n in spk.items():
@@ -465,17 +512,13 @@ class SceneText:
         lines = [(pc, st.dialog_id) for pc, st in stmts if st.mnem == "DIALOG"]
         if lines:
             put("Dialogue (%d lines)\n" % len(lines), "h")
-            cur = None
+            cur = object()
+            who = self.line_speakers()
             for pc, lid in lines:
-                sp = None
-                for p2, st2 in stmts:
-                    if p2 > pc:
-                        break
-                    if script.is_portrait_op(st2.op):
-                        sp = script.portrait_speaker_tag(st2.op)
+                sp = who.get(pc)
                 if sp != cur:
                     cur = sp
-                    put("  %s:\n" % (sp or "(narration)"), "k")
+                    put("  %s:\n" % (sp or "(no speaker set in this scene)"), "k")
                 put("    #%-6d %s\n" % (lid, (self.dlg(lid) or "").replace("\n", " ")[:110]), "dlg")
             put("\n")
         trigs = self.em_triggers()

@@ -975,7 +975,9 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 except Exception:
                     pass
             if pc in speakers:
-                note = ("[%s] %s" % (speakers[pc], note)).rstrip()
+                who = speakers[pc]
+                who = {"player": "MC", "narration": "Narration"}.get(who, who)
+                note = ("%s: %s" % (who, note)).rstrip()
         elif st.op < 0xFFF0:
             name = listing_name(st.op) if friendly else ("op%d" % st.op)
             args = [operand_text(buf, a, st.op, i) for i, a in enumerate(st.args)]
