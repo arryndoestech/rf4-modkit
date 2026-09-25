@@ -404,13 +404,6 @@ def bundle_dir(game_root) -> pathlib.Path:
     return p / "Bundle"
 
 
-def _refuse_steam(root: pathlib.Path) -> None:
-    if any(part.lower() == "steamapps" for part in root.resolve().parts):
-        raise ValueError(f"{root} is inside a Steam library: the toolkit only writes into a copy "
-                         "of the game outside Steam's folders (the GUI's 'Game folder...' can "
-                         "make one)")
-
-
 def install_loose(game_root, filename: str, src_file, *, folder: str = MOD_FOLDER) -> pathlib.Path:
     """
     Install a modded asset as a LOOSE FILE the engine loads instead of the packed
@@ -421,7 +414,6 @@ def install_loose(game_root, filename: str, src_file, *, folder: str = MOD_FOLDE
     original. Restart the game to pick it up; delete the folder to uninstall.
     `game_root` may be the game folder or its Bundle folder. Returns the path written.
     """
-    _refuse_steam(bundle_dir(game_root))
     base = bundle_dir(game_root) / folder
     safe = filename.replace("\\", "/").lstrip("/")
     dest = _safe_join(base, safe)
@@ -493,7 +485,6 @@ def unpack(game_root, manifest: "Manifest", *, voice: str = "none", progress=Non
     (EN) always wins whatever the voice setting says -- so only one should be
     extracted, or leave both packed. Returns {bundle: (written, kept)}."""
     root = bundle_dir(game_root)
-    _refuse_steam(root)
     want_voice = {"none": set(), "both": set(VOICE_BUNDLES.values()),
                   "en": {VOICE_BUNDLES["en"]}, "jp": {VOICE_BUNDLES["jp"]}}[voice]
     done = {}

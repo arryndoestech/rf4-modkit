@@ -9,9 +9,9 @@ that ships in the game's `.mbundle` archives.
 You need your own copy of RF4S (Steam). No game data is included here; the tools
 read the game's own files. Python is installed for you if it is missing (step 2).
 
-The toolkit works on a **copy** of the game, never on the Steam install: mods are
-written into the copy's `Bundle\` folder, and you start the game from the copy's
-`RF4S.exe` to try them. The Steam install is only ever read (to make the copy).
+Mods are written into the game's `Bundle\` folder, so it's best to mod a **copy** of
+the game and keep your Steam install as it is (you then start the game from the
+copy's `RF4S.exe` to try your mods). Any install works, though.
 
 1. **Unzip the toolkit anywhere**, for example into your game copy. If you don't have
    a copy yet, the toolkit makes one for you on first start (step 2). If you unzip it
@@ -43,12 +43,12 @@ written into the copy's `Bundle\` folder, and you start the game from the copy's
    (`py` is the launcher the python.org installer always adds; `python` works too
    if you ticked *Add Python to PATH*.)
 3. **Use the GUI.**
-   If it can't find a game copy, it asks: **Use my game copy…** (the folder with
-   `RF4S.exe` and `Bundle\`), or **Copy the game from Steam…** (pick the Steam install
-   — Steam: right-click the game → *Manage* → *Browse local files* shows it — and a
-   place for the copy; it needs as much free space as the game). A folder inside
-   Steam's `steamapps\` is refused. It then offers to **unpack** the `.mbundle`
-   archives into the copy's `Bundle\` folder, which the map editor and the name /
+   If it can't find the game, it asks: **Choose the game folder…** (the one with
+   `RF4S.exe` and `Bundle\`), or **Make a copy for me…** (pick the game —
+   Steam: right-click the game → *Manage* → *Browse local files* shows it — and a
+   place for the copy; it needs as much free space as the game). It then offers to
+   **unpack** the `.mbundle` archives into the game's `Bundle\` folder, which the map
+   editor and the name /
    texture lookups read; the game runs the same with them. The choice is saved, and
    the toolbar's **Game folder…** button shows or changes it.
 
@@ -171,8 +171,7 @@ The toolkit needs the `Bundle/` directory of your game **copy** (the one contain
    `rf4s-modkit/`, `rf4s-modkit/rf4s-modkit/` inside the copy all work);
 3. the `RF4S_BUNDLE` environment variable.
 
-A folder inside a Steam library (`…\steamapps\…`) is never used, and nothing is ever
-written there. `rf4mod.py game` prints what was found and why a candidate was skipped.
+`rf4mod.py game` prints what was found and why a candidate was skipped.
 The contents can be in any of these layouts:
 
 - **The game's own `Bundle/`** (`Manifest.plist` + `bundle*.mbundle`) — a plain copy

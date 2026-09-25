@@ -1,18 +1,15 @@
 """
 Where the game copy is -- the one lookup every tool uses.
 
-The toolkit works on a COPY of the game (never the Steam install: mods are written into
-the copy's Bundle folder). The Bundle folder -- the one holding Manifest.plist -- is found
-in this order:
+Mods are written into the game's Bundle folder, so working on a copy of the game is
+recommended, but any install works. The Bundle folder -- the one holding Manifest.plist --
+is found in this order:
 
   1. the folder saved in the toolkit's settings (the GUI asks for it once, or
      `rf4mod.py game <folder>` sets it);
   2. the nearest Bundle folder above the toolkit (the toolkit unpacked anywhere inside
      the game copy: <game>\\tools\\modding, <game>\\rf4s-modkit, <game>\\rf4s-modkit\\rf4s-modkit);
   3. the RF4S_BUNDLE environment variable.
-
-A folder inside a Steam library (...\\steamapps\\...) is never used: `problem()` says why
-and the GUI offers to copy the game somewhere else instead.
 """
 from __future__ import annotations
 
@@ -79,17 +76,10 @@ def is_unpacked(bundle_dir) -> bool:
     return (b / "bundleMain").is_dir() or (b / "extracted").is_dir()
 
 
-def in_steam_library(path) -> bool:
-    return any(part.lower() == "steamapps" for part in pathlib.Path(path).resolve().parts)
-
-
 def problem(bundle_dir) -> str | None:
     """Why this Bundle folder can't be used, or None when it is fine."""
     if bundle_dir is None:
         return "no Manifest.plist there -- pick the game folder (the one with RF4S.exe and Bundle)"
-    if in_steam_library(bundle_dir):
-        return ("this is the Steam install. The toolkit writes mods into the game's Bundle "
-                "folder, so it only works on a copy of the game outside Steam's folders")
     if not has_game_files(bundle_dir):
         return "Manifest.plist is there but none of the game's .mbundle archives"
     return None

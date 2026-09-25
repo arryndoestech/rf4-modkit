@@ -3451,8 +3451,7 @@ def build_parser():
                      help="voice bundles to extract (default none: they share every file name, "
                           "and extracted, EN wins whatever the voice setting says)")
     pun.set_defaults(func=cmd_unpack)
-    pga = sub.add_parser("game", help="show or set the game copy every tool uses "
-                         "(a copy outside Steam's folders)")
+    pga = sub.add_parser("game", help="show or set the game folder every tool uses")
     pga.add_argument("folder", nargs="?", help="the game copy (the folder with RF4S.exe and Bundle)")
     pga.add_argument("--forget", action="store_true", help="drop the saved folder")
     pga.set_defaults(func=cmd_game)

@@ -1,10 +1,10 @@
 """
 First-run / "Game folder..." window: pick the game copy every tool uses, or make one.
 
-The toolkit only works on a COPY of the game outside Steam's folders (mods are written into
-the copy's Bundle folder). This window
-  * lets the user pick an existing copy (the folder with RF4S.exe and Bundle),
-  * or copies the Steam install to a new folder (read-only on the Steam side),
+Mods are written into the game's Bundle folder, so a copy of the game is recommended (the
+window says so once) but any install is accepted. This window
+  * lets the user pick an install or copy (the folder with RF4S.exe and Bundle),
+  * or copies an install to a new folder (the original is only read),
   * then offers to unpack the .mbundle archives (the map editor and the cross-file
     lookups read the unpacked files),
 and saves the choice (rf4s_modkit.gamepaths). run() returns True when a folder was saved.
@@ -110,19 +110,17 @@ class _Setup:
         f = ttk.Frame(w, padding=16)
         f.pack(fill="both", expand=True)
         head = ("Game folder in use:\n    %s" % current.parent) if current else \
-               "The toolkit could not find the game."
+               "Couldn't find the game."
         ttk.Label(f, text=head, font=("TkDefaultFont", 10, "bold"), justify="left").pack(anchor="w")
         ttk.Label(f, justify="left", wraplength=520, text=(
-            "\nThe toolkit works on a COPY of Rune Factory 4 Special, never on the Steam "
-            "install: your mods are written into the copy's Bundle folder, and you start the "
-            "game from the copy (RF4S.exe in it) to try them.\n\n"
-            "Pick your copy (the folder with RF4S.exe and Bundle), or let the toolkit make "
-            "one from the Steam install (Steam: right-click the game > Manage > Browse local "
-            "files shows where it is). The Steam install itself is only read.")).pack(anchor="w")
+            "\nModding changes the game's files, so it's best to work on a copy of the game "
+            "and keep your Steam install as it is.\n\n"
+            "Choose the game folder (the one with RF4S.exe in it), or let the toolkit make a "
+            "copy for you.")).pack(anchor="w")
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(16, 0))
-        ttk.Button(b, text="Use my game copy...", command=self.pick).pack(side="left")
-        ttk.Button(b, text="Copy the game from Steam...", command=self.copy).pack(side="left", padx=8)
+        ttk.Button(b, text="Choose the game folder...", command=self.pick).pack(side="left")
+        ttk.Button(b, text="Make a copy for me...", command=self.copy).pack(side="left", padx=8)
         if current and not gamepaths.is_unpacked(current):
             ttk.Button(b, text="Unpack the game files...",
                        command=lambda: self._offer_unpack(current)).pack(side="left")
@@ -130,35 +128,30 @@ class _Setup:
                    command=w.destroy).pack(side="right")
         if not current:
             ttk.Label(f, foreground="#777", wraplength=520, justify="left", text=(
-                "Skip: the toolkit still opens and Open Manifest... works, but the map "
-                "editor and name lookups stay empty until a game folder is set.")
+                "You can also skip this for now and choose the game later with "
+                "Game folder... in the toolbar.")
             ).pack(anchor="w", pady=(10, 0))
         w.update_idletasks()
         w.grab_set()
         w.focus_force()
 
-    # ---- pick an existing copy ------------------------------------------------------ #
+    # ---- pick a game folder --------------------------------------------------------- #
     def pick(self):
-        d = filedialog.askdirectory(parent=self.win, title="Your game copy (the folder with RF4S.exe and Bundle)")
+        d = filedialog.askdirectory(parent=self.win, title="The game folder (the one with RF4S.exe and Bundle)")
         if not d:
             return
         b = gamepaths.as_bundle_dir(d)
-        if b is not None and gamepaths.in_steam_library(b):
-            if messagebox.askyesno("Steam install", "That is the Steam install, which the toolkit "
-                                   "never writes into.\n\nMake a copy of it now?", parent=self.win):
-                self.copy(source=b.parent)
-            return
         why = gamepaths.problem(b)
         if why:
             messagebox.showerror("Game folder", f"Can't use {d}:\n{why}.", parent=self.win)
             return
         self._save(b)
 
-    # ---- copy the Steam install --------------------------------------------------- #
+    # ---- copy an install ------------------------------------------------------------ #
     def copy(self, source=None):
         if source is None:
-            d = filedialog.askdirectory(parent=self.win, title="The Steam install of Rune Factory 4 "
-                                        "Special (the folder with RF4S.exe)")
+            d = filedialog.askdirectory(parent=self.win, title="The game to copy (the folder with "
+                                        "RF4S.exe)")
             if not d:
                 return
             b = gamepaths.as_bundle_dir(d)
@@ -170,13 +163,10 @@ class _Setup:
         source = pathlib.Path(source)
         size, count = _tree_size(source)
         dest_parent = filedialog.askdirectory(parent=self.win, title=f"Where to put the copy "
-                                              f"({_human(size)}) - a folder outside Steam's")
+                                              f"({_human(size)})")
         if not dest_parent:
             return
         dest = pathlib.Path(dest_parent) / COPY_NAME
-        if gamepaths.in_steam_library(dest):
-            messagebox.showerror("Copy the game", "Pick a place outside Steam's folders.", parent=self.win)
-            return
         try:
             dest.resolve().relative_to(source.resolve())
             messagebox.showerror("Copy the game", "Pick a place outside the game folder.", parent=self.win)
