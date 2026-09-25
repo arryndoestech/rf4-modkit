@@ -7680,6 +7680,106 @@ def test_shader_archive():
            at(rip_target(0x27EB4D), 10) == b"%s_v.glsl\x00")
 
 
+def test_sprite_quads_and_flags():
+    """True-size map sprites (spritequad) and flag-gated object visibility (flagstate): the
+    Dragon Lake bridge's crop/quad/world rectangle, every placed map_obj texture yields a
+    placement, the decoration and interactive-object gate rules (incl. the f12 invert), a
+    slot-save flag read, and the map editor drawing / hiding the bridge by those flags."""
+    print("sprite quads + flag-gated objects (spritequad, flagstate, map editor):")
+    import tempfile
+    from rf4s_modkit import flagstate, rf4m, spritequad
+    from rf4s_modkit.save import GAMEFLAGS_OFF, SAVE_SIZE
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("sprite quads", "no extracted bundleMain"); return
+    objs = rf4m.Rf4mMap.load(B / "MAP_CITY_04.rf4m").decode_mobj()
+    bridge, wall = objs[14], objs[15]
+    _check("MAP_CITY_04 #14/#15 = bridge (f13 73) / clear wall (f13 74)",
+           bridge["name"] == "MOBJ_BRIDGE_CITY_04_00" and wall["name"] == "MOBJ_CLEAR_WALL"
+           and bridge["params"][13] == 73 and wall["params"][13] == 74)
+    data = (B / "MOBJ_BRIDGE_CITY_04_00.texture").read_bytes()
+    pl = spritequad.placement(data)
+    _check("bridge: crop (0,0,384,768) of the decoded sheet, quad -192..192 x -384..384",
+           pl == ((0, 0, 384, 768), (-192.0, -384.0, 192.0, 384.0)), str(pl))
+    im, quad = spritequad.sprite_image(data)
+    _check("bridge: world rect = sub-units (312,122)-(440,378) (spans the painted cliff)",
+           spritequad.world_rect(bridge, quad) == (312.0, 122.0, 440.0, 378.0)
+           and im.size == (384, 768), str(spritequad.world_rect(bridge, quad)))
+    # every placed map_obj texture that ships a quad yields a placement
+    names, bad = set(), []
+    maps = sorted(B.glob("MAP_*.rf4m"))
+    for f in (maps[::8] if QUICK else maps):
+        for o in rf4m.Rf4mMap.load(f).decode_mobj():
+            if o.get("name") and (B / (o["name"] + ".texture")).exists():
+                names.add(o["name"])
+    for n in sorted(names):
+        try:
+            if spritequad.placement((B / (n + ".texture")).read_bytes()) is None:
+                bad.append(n)
+        except Exception as e:
+            bad.append("%s (%s)" % (n, e))
+    _check("every placed map_obj texture (%d) has a TextureCoordinator/PolygonVertexes placement"
+           % len(names), names and not bad, ", ".join(bad[:5]))
+    # gate rules
+    def state(*zone2_bits):
+        blob = bytearray(flagstate.BLOB_SIZE)
+        for n in zone2_bits:
+            a = flagstate.ZONE2_BASE + n
+            blob[a >> 3] |= 1 << (a & 7)
+        return flagstate.FlagState(bytes(blob), "test")
+    _check("no flags set: bridge shown, wall shown",
+           not flagstate.hidden(bridge, state()) and not flagstate.hidden(wall, state()))
+    _check("flag 73 hides the bridge (decoration), 74 removes the wall (object)",
+           flagstate.hidden(bridge, state(73)) and not flagstate.hidden(wall, state(73))
+           and flagstate.hidden(wall, state(74)) and not flagstate.hidden(bridge, state(74)))
+    inv = dict(wall, params=list(wall["params"]))
+    inv["params"][12] = 4
+    _check("object f12 bit 2 inverts the gate (shown only once the flag is set)",
+           flagstate.hidden(inv, state()) and not flagstate.hidden(inv, state(74)))
+    _check("ungated records never hide", not any(
+        flagstate.hidden(o, state(*range(1, 2560))) for o in objs if flagstate.gate(o) is None))
+    with tempfile.TemporaryDirectory() as td:
+        sav = bytearray(SAVE_SIZE)
+        a = flagstate.ZONE2_BASE + 73
+        sav[GAMEFLAGS_OFF + (a >> 3)] |= 1 << (a & 7)
+        sav[GAMEFLAGS_OFF] |= 0x01                        # bit 0 = REG_MAIN_SCENARIO MSB -> 256
+        pth = pathlib.Path(td) / "rf4_s99.sav"
+        pth.write_bytes(bytes(sav))
+        fs = flagstate.from_save(pth)
+        _check("from_save: reads the zone-2 bit and the story register from the slot copy",
+               fs.zone2(73) and not fs.zone2(74) and fs.story() == 256, "story %d" % fs.story())
+    # map editor
+    try:
+        import tkinter as tk  # noqa: F401
+    except Exception as e:
+        _skip("sprite quads: map editor", "no tkinter: %s" % e); return
+    from map_editor import data as med, render as mrender
+    _headless_dialogs()
+    root, panel, errs = _headless_panel("MAP_CITY_04", B, med.folder_reader(B))
+    try:
+        st = panel.view.st
+        for k in ("truesize",):
+            panel.viewtab.vars[k].set(True)
+            panel.set_layer(k, True)
+        kinds = lambda: {p.key[1]: p.kind for p in mrender.overlay("ent", st)
+                         if p.key in (("mobj", 14), ("mobj", 15))}
+        st.flags = None
+        k0 = kinds()
+        st.flags = state(73)
+        k1 = kinds()
+        st.flags = state(74)
+        k2 = kinds()
+        _check("editor: bridge + wall drawn true-size; flag 73 turns the bridge into an outline, "
+               "74 the wall", k0 == {14: "tsprite", 15: "tsprite"} and k1 == {14: "rect", 15: "tsprite"}
+               and k2 == {14: "tsprite", 15: "rect"}, "%s %s %s" % (k0, k1, k2))
+        panel.view.flush()
+        img = panel.render_to_image(scale=4)
+        _check("editor: export draws the true-size sprites without errors",
+               img is not None and not errs, str(errs[:1]))
+    finally:
+        root.destroy()
+
+
 def run() -> int:
     import time
     mode = "QUICK (--quick: corpus sweeps skipped/sliced — run without it for the full stamp)" \
@@ -7695,7 +7795,7 @@ def run() -> int:
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
               test_script_authoring, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
-              test_map_editor_undo, test_map_editor_workflows,
+              test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

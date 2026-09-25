@@ -577,11 +577,13 @@ class EncountersTab(ui.ScrollFrame):
 # --------------------------------------------------------------------------- #
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": False, "labels": False,
-                  "mapj": True, "dest": True, "si": True, "gates": True, "spawns": False}
+                  "truesize": False, "mapj": True, "dest": True, "si": True, "gates": True, "spawns": False}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
-                "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
+                "truesize": "ent", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
+FLAGS_NONE = "(all objects)"
+FLAGS_LIVE = "the running game"
 
 
 class ViewTab(ui.ScrollFrame):
@@ -598,6 +600,7 @@ class ViewTab(ui.ScrollFrame):
             w.grid(row=r, column=2 * c + 1, sticky="w", padx=(0, 8))
             if color:
                 tk.Frame(parent, bg=color, width=10, height=10).grid(row=r, column=2 * c, padx=(0, 3))
+            return w
         cb(L, "attr", "ATTR fill", 0, 0)
         cb(L, "edges", "cell edges", 0, 1)
         L.columnconfigure(3, weight=1)
@@ -608,16 +611,43 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "decoration", "decorations", 3, 1, attrs.CAT_COLOR["decoration"])
         cb(L, "sprites", "draw sprites", 4, 0)
         cb(L, "labels", "name labels", 4, 1)
-        ttk.Label(L, text="Other", font=ui.HINT_FONT).grid(row=5, column=0, columnspan=4, sticky="w", pady=(4, 0))
-        cb(L, "mapj", "warps", 6, 0, render.WARP_COLOR)
-        cb(L, "dest", "warp destinations", 6, 1)
-        cb(L, "si", "search spots", 7, 0, render.SI_COLOR)
-        cb(L, "gates", "encounter points", 7, 1, render.GATE_COLOR)
-        cb(L, "spawns", "script NPCs", 8, 0, render.SPAWN_COLOR)
-        cb(L, "grid", "tile grid lines", 8, 1)
+        ui.Tip(cb(L, "truesize", "true-size sprites", 5, 0),
+               "Draw each object's sprite where and as large as the game draws it (the texture's "
+               "own quad and crop, scaled by the record's f6), in the game's depth order. "
+               "Objects without such a sprite keep their marker.")
+        ttk.Label(L, text="Other", font=ui.HINT_FONT).grid(row=6, column=0, columnspan=4, sticky="w", pady=(4, 0))
+        cb(L, "mapj", "warps", 7, 0, render.WARP_COLOR)
+        cb(L, "dest", "warp destinations", 7, 1)
+        cb(L, "si", "search spots", 8, 0, render.SI_COLOR)
+        cb(L, "gates", "encounter points", 8, 1, render.GATE_COLOR)
+        cb(L, "spawns", "script NPCs", 9, 0, render.SPAWN_COLOR)
+        cb(L, "grid", "tile grid lines", 9, 1)
         hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
                 "first time they are shown the script is scanned.", wrap=300).grid(
-            row=9, column=0, columnspan=4, sticky="w", pady=(2, 0))
+            row=10, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        # ---- flag state ----
+        S = section(b, "Show objects as in")
+        self.flagsrc = tk.StringVar(value=FLAGS_NONE)
+        self.flagsrc_cb = ttk.Combobox(S, textvariable=self.flagsrc, width=26, state="readonly",
+                                       postcommand=self.refresh_flag_sources)
+        self.flagsrc_cb.grid(row=0, column=0, sticky="w")
+        self.flagsrc_cb.bind("<<ComboboxSelected>>", lambda _e: ed.set_flag_source(self.flagsrc.get()))
+        ui.Tip(self.flagsrc_cb, "Which game flags decide what is shown. Bridges, walls and other "
+                                "objects gated by a flag appear or vanish as they would in that "
+                                "save or in the game that is running now; hidden ones become a "
+                                "dashed outline.")
+        bb = ttk.Frame(S)
+        bb.grid(row=0, column=1, sticky="w", padx=(4, 0))
+        b_re = ttk.Button(bb, text="Reload", width=7, command=lambda: ed.set_flag_source(self.flagsrc.get()))
+        b_re.pack(side="left")
+        ui.Tip(b_re, "Read the flags again (after saving, or after the game changed map).")
+        b_br = ttk.Button(bb, text="File…", width=6, command=ed.browse_flag_save)
+        b_br.pack(side="left", padx=(4, 0))
+        ui.Tip(b_br, "Pick a slot save (rf4_sNN.sav) from anywhere.")
+        self.flagstatus = ttk.Label(S, font=ui.HINT_FONT, wraplength=300, justify="left")
+        self.flagstatus.grid(row=1, column=0, columnspan=2, sticky="w")
+        hint(S, "The game checks these flags when a map loads, so in game a change shows on the "
+                "next visit.", wrap=300).grid(row=2, column=0, columnspan=2, sticky="w")
         # ---- ground display ----
         G = section(b, "Ground texture")
         ttk.Label(G, text="show").grid(row=0, column=0, sticky="w")
@@ -664,6 +694,13 @@ class ViewTab(ui.ScrollFrame):
 
     def layers(self):
         return {k: v.get() for k, v in self.vars.items()}
+
+    def refresh_flag_sources(self):
+        vals = [FLAGS_NONE, FLAGS_LIVE] + [p.name for p in data.slot_saves()]
+        cur = self.flagsrc.get()
+        if cur not in vals:
+            vals.append(cur)
+        self.flagsrc_cb["values"] = vals
 
     def set_available_layers(self, layers):
         vals = ["off", "all"] + [LAYER_NAMES.get(l, str(l)) for l in layers]

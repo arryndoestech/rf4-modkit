@@ -352,3 +352,18 @@ def script_spawns(name):
                         "name": char_name(cid) or f"char#{cid}",
                         "x": x, "y": y, "entry_pc": sc.entry_pc, "pc": pc})
     return bi, out
+
+
+# ---- slot saves (for the "show objects as in" flag source) -------------------- #
+def save_dir():
+    """The game's save folder: Rune Factory 4 Special under %APPDATA%."""
+    base = os.environ.get("APPDATA") or str(pathlib.Path.home() / "AppData" / "Roaming")
+    return pathlib.Path(base) / "Rune Factory 4 Special"
+
+
+def slot_saves():
+    """rf4_sNN.sav files in the save folder, by slot number."""
+    d = save_dir()
+    if not d.is_dir():
+        return []
+    return sorted((p for p in d.glob("rf4_s[0-9][0-9].sav") if p.is_file()), key=lambda p: p.name)

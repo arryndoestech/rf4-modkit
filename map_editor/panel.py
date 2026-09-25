@@ -18,12 +18,12 @@ from tkinter import filedialog, messagebox, ttk
 
 from guiutil import shortcut_scope
 
-from rf4s_modkit import map_names, mapground, mobj_types, rf4m, search_items
+from rf4s_modkit import flagstate, map_names, mapground, mobj_types, rf4m, search_items
 
 from . import data, dialogs, render, tools, ui
 from .document import MapDocument
 from .inspector import Inspector
-from .tabs import LAYER_GROUPS, EncountersTab, MapTab, ObjectsTab, ProblemsTab, ViewTab
+from .tabs import FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, ObjectsTab, ProblemsTab, ViewTab
 from .view import MapView
 
 TABS = ("Inspect", "Objects", "Map", "Encounters", "View", "Problems")
@@ -64,6 +64,7 @@ class MapEditorPanel:
     # ------------------------------------------------------------------ #
     def _build(self):
         from guiutil import Paned
+        self._flag_paths = {}                   # flag-source name -> save file
         self.frame = ttk.Frame(self.parent)
         self.frame.pack(fill="both", expand=True)
         self._build_toolbar()
@@ -226,6 +227,11 @@ class MapEditorPanel:
                 layers = []
         self.viewtab.set_available_layers(layers)
         self.view.ground_sel = self.viewtab.ground.get()
+        fs = self.view.st.flags
+        if fs is not None:
+            self.viewtab.flagstatus.config(
+                text=f"{fs.source}: story step {fs.story()}; "
+                     f"{self._count_flag_hidden(fs)} object(s) on this map hidden")
         if self.view.st.layers.get("spawns"):
             self._load_spawns()
         self.inspector.show_selection(None)
@@ -760,6 +766,46 @@ class MapEditorPanel:
         self.view.invalidate("bg")
         self.view.request_ground()
 
+    # ---- which flags decide the flag-gated objects ------------------------ #
+    def set_flag_source(self, choice, path=None):
+        """choice = FLAGS_NONE, FLAGS_LIVE or a slot-save file name (path overrides)."""
+        vt = self.viewtab
+        state, err = None, ""
+        try:
+            if choice == FLAGS_LIVE:
+                state = flagstate.from_running_game()
+            elif choice != FLAGS_NONE:
+                src = pathlib.Path(path) if path else self._flag_paths.get(choice, data.save_dir() / choice)
+                self._flag_paths[choice] = src
+                state = flagstate.from_save(src)
+        except Exception as e:                  # not running / unreadable file: show all
+            err = str(e)
+        self.view.st.flags = state
+        if state is not None:
+            n = self._count_flag_hidden(state)
+            vt.flagstatus.config(foreground=ui.GOOD,
+                                 text=f"{state.source}: story step {state.story()}; "
+                                      f"{n} object(s) on this map hidden")
+        else:
+            vt.flagstatus.config(foreground="#c44" if err else ui.GOOD,
+                                 text=err or "every object shown")
+        self.view.invalidate("ent", "sel")
+
+    def browse_flag_save(self):
+        path = filedialog.askopenfilename(
+            parent=self.frame, title="Slot save to take the flags from",
+            initialdir=str(data.save_dir()), filetypes=[("RF4S slot save", "rf4_s*.sav"), ("All files", "*.*")])
+        if not path:
+            return
+        name = pathlib.Path(path).name
+        self._flag_paths[name] = pathlib.Path(path)
+        self.viewtab.flagsrc.set(name)
+        self.set_flag_source(name, path)
+
+    def _count_flag_hidden(self, state):
+        d = self.doc
+        return sum(flagstate.hidden(o, state) for o in d.objs) if d is not None else 0
+
     def set_scenery(self, on):
         self.view.scenery = bool(on)
         self.view.invalidate("bg")
@@ -1075,7 +1121,7 @@ class MapEditorPanel:
                                        edges_on=st.layers.get("edges", True), attr_version=d.attr_version)
         img = bg.copy() if bg is not None else Image.new("RGBA", (W * st.cp, H * st.cp), (0, 0, 0, 0))
         prims = [p for g in render.GROUPS if g != "sel" for p in render.overlay(g, st)]
-        return render.draw_prims(img, prims, st.sprites)
+        return render.draw_prims(img, prims, st.sprites, st.truesprites)
 
     def export_png(self):
         img = self.render_to_image()

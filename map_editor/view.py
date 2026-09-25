@@ -28,6 +28,8 @@ class ViewState:
         self.active_gate = None
         self.spawns = []
         self.sprites = render.Sprites()
+        self.truesprites = render.TrueSprites()
+        self.flags = None                        # flagstate.FlagState the objects are shown for
 
 
 class MapView(ttk.Frame):
@@ -96,6 +98,8 @@ class MapView(ttk.Frame):
             self.ground.reset()
             self.st.sprites.reader = reader
             self.st.sprites.reset()
+            self.st.truesprites.reader = reader
+            self.st.truesprites.reset()
             self._photos.clear()
             self.background.invalidate()
 
@@ -194,10 +198,10 @@ class MapView(ttk.Frame):
                 it = c.create_line(*p.xy, fill=o.get("fill"), tags=tags)
             elif p.kind == "rect":
                 it = c.create_rectangle(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
-                                        width=o.get("width", 1), tags=tags)
+                                        width=o.get("width", 1), dash=o.get("dash", ""), tags=tags)
             elif p.kind == "oval":
                 it = c.create_oval(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
-                                   width=o.get("width", 1), tags=tags)
+                                   width=o.get("width", 1), dash=o.get("dash", ""), tags=tags)
             elif p.kind == "poly":
                 it = c.create_polygon(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
                                       width=o.get("width", 1), tags=tags)
@@ -208,6 +212,11 @@ class MapView(ttk.Frame):
             elif p.kind == "sprite":
                 it = c.create_image(*p.xy, image=self._sprite_photo(o["tid"], o["size"]),
                                     anchor="s", tags=tags)
+            elif p.kind == "tsprite":
+                ph = self._true_photo(o["fn"], o["frame"], p.xy, o["mirror"])
+                if ph is None:
+                    continue
+                it = c.create_image(p.xy[0], p.xy[1], image=ph, anchor="nw", tags=tags)
             else:
                 continue
             if p.key is not None:
@@ -219,6 +228,23 @@ class MapView(ttk.Frame):
         if ph is None:
             from PIL import ImageTk
             ph = self._photos[key] = ImageTk.PhotoImage(self.st.sprites.pil(tid, size))
+            if len(self._photos) > 512:
+                self._photos.pop(next(iter(self._photos)))
+        return ph
+
+    def _true_photo(self, fn, frame, rect, mirror):
+        x0, y0, x1, y1 = rect
+        w, h = x1 - x0, y1 - y0
+        if w * h > MAX_CANVAS_PX * MAX_CANVAS_PX // 4:
+            return None
+        key = ("true", fn, frame, w, h, mirror)
+        ph = self._photos.get(key)
+        if ph is None:
+            im = self.st.truesprites.pil(fn, frame, w, h, mirror)
+            if im is None:
+                return None
+            from PIL import ImageTk
+            ph = self._photos[key] = ImageTk.PhotoImage(im)
             if len(self._photos) > 512:
                 self._photos.pop(next(iter(self._photos)))
         return ph
