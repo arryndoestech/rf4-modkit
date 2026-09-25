@@ -177,7 +177,8 @@ The toolkit needs the `Bundle/` directory of your game **copy** (the one contain
 `Manifest.plist` and the `bundle*.mbundle` archives). Every tool finds it the same way
 (`rf4s_modkit/gamepaths.py`), in this order:
 
-1. the folder saved in the toolkit's settings (`%APPDATA%\RF4S Modding Toolkit\settings.json`),
+1. the folder saved in the toolkit's settings (`settings.json` in the toolkit folder; an older
+   `%APPDATA%\RF4S Modding Toolkit\settings.json` is moved there on the next start),
    set by the GUI's first-start window / **Game folder…** button or by
    `rf4mod.py game <copy>` (`rf4mod.py game --forget` drops it);
 2. the nearest `Bundle/` folder above the toolkit (up to four levels: `tools/modding/`,

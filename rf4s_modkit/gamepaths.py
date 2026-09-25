@@ -27,18 +27,50 @@ NO_GAME_BUNDLE = TOOLKIT.parent.parent / "Bundle"
 
 
 def settings_path() -> pathlib.Path:
+    """The toolkit's settings: settings.json in the toolkit's own folder."""
+    return TOOLKIT / "settings.json"
+
+
+def _old_settings_dir() -> pathlib.Path:
+    """Where the settings used to live (%APPDATA%\\RF4S Modding Toolkit, or
+    ~/.config/rf4s-modkit off Windows)."""
     if sys.platform == "win32":
         base = pathlib.Path(os.environ.get("APPDATA") or pathlib.Path.home() / "AppData" / "Roaming")
-        return base / "RF4S Modding Toolkit" / "settings.json"
+        return base / "RF4S Modding Toolkit"
     base = pathlib.Path(os.environ.get("XDG_CONFIG_HOME") or pathlib.Path.home() / ".config")
-    return base / "rf4s-modkit" / "settings.json"
+    return base / "rf4s-modkit"
+
+
+_moved = False
+
+
+def _move_old_settings() -> None:
+    """Once per run: if the old settings folder exists, copy its settings.json into the
+    toolkit folder (unless the toolkit already has one) and remove the old folder."""
+    global _moved
+    if _moved:
+        return
+    _moved = True
+    import shutil
+    old_dir = _old_settings_dir()
+    old = old_dir / "settings.json"
+    try:
+        if old.is_file() and not settings_path().exists():
+            shutil.copy2(old, settings_path())
+        if old_dir.is_dir():
+            shutil.rmtree(old_dir)
+    except OSError:
+        pass                             # a read-only toolkit folder: keep reading the old one
 
 
 def _load_settings() -> dict:
-    try:
-        return json.loads(settings_path().read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+    _move_old_settings()
+    for p in (settings_path(), _old_settings_dir() / "settings.json"):
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+    return {}
 
 
 def _store_settings(d: dict) -> None:

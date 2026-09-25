@@ -2,6 +2,8 @@
 __pycache__/
 # start.bat's private environment
 .venv/
+# your settings (the game folder in use): personal, never shipped
+settings.json
 *.py[cod]
 
 # ---- regenerated / scratch output ---------------------------------------------
