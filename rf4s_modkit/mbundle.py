@@ -477,14 +477,41 @@ def unpack_dir_name(bundle_name: str) -> str:
     return bundle_name[:-8] if bundle_name.lower().endswith(".mbundle") else bundle_name + ".d"
 
 
-def unpack(game_root, manifest: "Manifest", *, voice: str = "none", progress=None) -> dict:
+def check_archive(path, manifest: "Manifest | None" = None) -> str | None:
+    """Why an .mbundle can't be used -- its table of contents doesn't parse, or an entry
+    (by its own TOC or the manifest's) runs past the end of the file -- or None if it looks
+    whole. Reads only the TOC, so it takes a second or two even for bundleMain."""
+    p = pathlib.Path(path)
+    try:
+        size = p.stat().st_size
+        spans = list(Bundle(p)._toc.values())                    # the embedded TOC
+        if manifest is not None:
+            spans += [(int(m["offset"]), int(m["size"])) for m in manifest.files(p.name).values()]
+    except Exception as e:  # noqa: BLE001 - any parse failure means a damaged archive
+        return f"{p.name}: its table of contents can't be read ({e})"
+    end = max((o + s for o, s in spans), default=0)
+    if end > size:
+        return f"{p.name} is cut short ({size:,} of {end:,} bytes)"
+    return None
+
+
+def unpack(game_root, manifest: "Manifest", *, voice: str = "none", progress=None,
+           dest=None, delete_packed: bool = False) -> dict:
     """Extract every .mbundle the manifest lists into <Bundle>/<bundle name>/ (the
     layout the game also runs from). Files already there with the right size are
     kept, so a second run resumes. `voice` = 'none' (default), 'en', 'jp' or 'both':
     the voice bundles share every file name, and extracted, the one that sorts first
     (EN) always wins whatever the voice setting says -- so only one should be
-    extracted, or leave both packed. Returns {bundle: (written, kept)}."""
+    extracted, or leave both packed. Returns {bundle: (written, kept)}.
+
+    `dest`: the Bundle folder to unpack INTO (default: the game's own) -- e.g. a new copy,
+    so its archives never have to be copied. `delete_packed`: delete each .mbundle as soon
+    as it is fully unpacked (the game then runs from the folders; the manifest's missing
+    archives are skipped), so at most one archive's worth of extra space is used at once.
+    Ignored with `dest`: the source archives are only read."""
     root = bundle_dir(game_root)
+    in_place = dest is None                   # (the loop below reuses the name `dest`)
+    out_root = root if in_place else pathlib.Path(dest)
     want_voice = {"none": set(), "both": set(VOICE_BUNDLES.values()),
                   "en": {VOICE_BUNDLES["en"]}, "jp": {VOICE_BUNDLES["jp"]}}[voice]
     done = {}
@@ -494,7 +521,7 @@ def unpack(game_root, manifest: "Manifest", *, voice: str = "none", progress=Non
         src = root / bn
         if not src.is_file():
             continue
-        dest_dir = root / unpack_dir_name(bn)
+        dest_dir = out_root / unpack_dir_name(bn)
         b = Bundle(src, manifest=manifest)
         wrote = kept = 0
         with open(src, "rb") as f:
@@ -510,4 +537,6 @@ def unpack(game_root, manifest: "Manifest", *, voice: str = "none", progress=Non
                 if progress and (wrote + kept) % 500 == 0:
                     progress(bn, wrote + kept)
         done[bn] = (wrote, kept)
+        if delete_packed and in_place and wrote + kept == len(b._toc):
+            src.unlink()                          # fully unpacked: free its space now
     return done

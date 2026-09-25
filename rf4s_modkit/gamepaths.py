@@ -76,12 +76,38 @@ def is_unpacked(bundle_dir) -> bool:
     return (b / "bundleMain").is_dir() or (b / "extracted").is_dir()
 
 
+def _has_files(d: pathlib.Path) -> bool:
+    try:
+        return d.is_dir() and any(d.iterdir())
+    except OSError:
+        return False
+
+
+def missing(bundle_dir) -> list[str]:
+    """What a complete game folder has that this one lacks: RF4S.exe next to Bundle, and
+    every archive the game's own Manifest.plist lists -- packed (Bundle/<name>.mbundle) or
+    unpacked into its folder (Bundle/<name>/). Empty = complete."""
+    from . import mbundle
+    b = pathlib.Path(bundle_dir)
+    out = [] if (b.parent / "RF4S.exe").is_file() else ["RF4S.exe"]
+    try:
+        names = mbundle.Manifest(b / "Manifest.plist").bundle_names()
+    except Exception:  # noqa: BLE001 - a damaged manifest is itself the finding
+        return out + ["a readable Bundle\\Manifest.plist"]
+    for n in names:
+        if not (b / n).is_file() and not _has_files(b / mbundle.unpack_dir_name(n)):
+            out.append("Bundle\\" + n)
+    return out
+
+
 def problem(bundle_dir) -> str | None:
     """Why this Bundle folder can't be used, or None when it is fine."""
     if bundle_dir is None:
         return "no Manifest.plist there -- pick the game folder (the one with RF4S.exe and Bundle)"
-    if not has_game_files(bundle_dir):
-        return "Manifest.plist is there but none of the game's .mbundle archives"
+    miss = missing(bundle_dir)
+    if miss:
+        return ("missing " + ", ".join(miss[:4]) + (f" and {len(miss) - 4} more" if len(miss) > 4 else "")
+                + " -- is the game fully installed?")
     return None
 
 

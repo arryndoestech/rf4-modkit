@@ -344,7 +344,12 @@ def cmd_unpack(a):
     a.game_root = _game_root(a)
     bdir = mbundle.bundle_dir(a.game_root)
     man = mbundle.Manifest(bdir / "Manifest.plist")
-    res = mbundle.unpack(a.game_root, man, voice=a.voice,
+    bad = [m for m in (mbundle.check_archive(bdir / n, man) for n in man.bundle_names()
+                       if (bdir / n).is_file()) if m]
+    if bad:
+        sys.exit("the game's archives look damaged (verify the game files in Steam):\n  "
+                 + "\n  ".join(bad))
+    res = mbundle.unpack(a.game_root, man, voice=a.voice, delete_packed=a.delete_archives,
                          progress=lambda bn, k: print(f"  {bn}: {k} files", end="\r"))
     print()
     for bn, (w, k) in res.items():
@@ -352,8 +357,12 @@ def cmd_unpack(a):
     if not res:
         print("nothing to unpack: no .mbundle archive found next to Manifest.plist")
     else:
-        print("the game runs from these folders even with the .mbundle files moved away "
-              "(missing archives are skipped); keep one copy of them as your backup")
+        if a.delete_archives:
+            print("each archive was deleted once it was fully unpacked; the game runs from the "
+                  "folders (missing archives are skipped)")
+        else:
+            print("the game runs from these folders even with the .mbundle files moved away "
+                  "(missing archives are skipped); keep one copy of them as your backup")
 
 
 # --------------------------------------------------------------------------- #
@@ -3450,6 +3459,9 @@ def build_parser():
     pun.add_argument("--voice", choices=("none", "en", "jp", "both"), default="none",
                      help="voice bundles to extract (default none: they share every file name, "
                           "and extracted, EN wins whatever the voice setting says)")
+    pun.add_argument("--delete-archives", action="store_true",
+                     help="delete each .mbundle as soon as it is fully unpacked (needs only one "
+                          "archive's worth of free space at a time; keep a backup of the game)")
     pun.set_defaults(func=cmd_unpack)
     pga = sub.add_parser("game", help="show or set the game folder every tool uses")
     pga.add_argument("folder", nargs="?", help="the game copy (the folder with RF4S.exe and Bundle)")

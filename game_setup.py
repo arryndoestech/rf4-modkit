@@ -5,8 +5,8 @@ Mods are written into the game's Bundle folder, so a copy of the game is recomme
 window says so once) but any install is accepted. This window
   * lets the user pick an install or copy (the folder with RF4S.exe and Bundle),
   * or copies an install to a new folder (the original is only read),
-  * then offers to unpack the .mbundle archives (the map editor and the cross-file
-    lookups read the unpacked files),
+  * unpacks the .mbundle archives (the map editor and the cross-file lookups read the
+    unpacked files): straight into a new copy, or in place with delete-as-you-go,
 and saves the choice (rf4s_modkit.gamepaths). run() returns True when a folder was saved.
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from rf4s_modkit import gamepaths, mbundle
 
-COPY_NAME = "Rune Factory 4 Special (modding copy)"
+COPY_NAME = "Rune Factory 4 Special"
 
 
 def _human(n: float) -> str:
@@ -116,7 +116,7 @@ class _Setup:
             "\nModding changes the game's files, so it's best to work on a copy of the game "
             "and keep your Steam install as it is.\n\n"
             "Choose the game folder (the one with RF4S.exe in it), or let the toolkit make a "
-            "copy for you.")).pack(anchor="w")
+            "copy for you. A copy takes about 5 GB of disk space.")).pack(anchor="w")
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(16, 0))
         ttk.Button(b, text="Choose the game folder...", command=self.pick).pack(side="left")
@@ -149,18 +149,25 @@ class _Setup:
 
     # ---- copy an install ------------------------------------------------------------ #
     def copy(self, source=None):
+        """Copy a game folder. The .mbundle archives are not copied: they are unpacked
+        straight from the original into the copy's Bundle folder (the game runs from those
+        folders), so the copy needs no room for both. Voice archives are copied packed."""
         if source is None:
             d = filedialog.askdirectory(parent=self.win, title="The game to copy (the folder with "
                                         "RF4S.exe)")
             if not d:
                 return
-            b = gamepaths.as_bundle_dir(d)
-            if b is None or not gamepaths.has_game_files(b):
-                messagebox.showerror("Copy the game", f"{d} does not hold the game "
-                                     "(no Bundle\\Manifest.plist).", parent=self.win)
-                return
-            source = b.parent
-        source = pathlib.Path(source)
+            source = d
+        sb = gamepaths.as_bundle_dir(source)
+        why = gamepaths.problem(sb)
+        if why:
+            messagebox.showerror("Copy the game", f"Can't copy {source}:\n{why}.", parent=self.win)
+            return
+        source = sb.parent
+        man = mbundle.Manifest(sb / "Manifest.plist")
+        voice = set(mbundle.VOICE_BUNDLES.values())
+        packed = [n for n in man.bundle_names() if (sb / n).is_file()]
+        to_unpack = [n for n in packed if n not in voice]
         size, count = _tree_size(source)
         dest_parent = filedialog.askdirectory(parent=self.win, title=f"Where to put the copy "
                                               f"({_human(size)})")
@@ -185,31 +192,67 @@ class _Setup:
             messagebox.showerror("Copy the game", f"Not enough space: the copy needs {_human(size)}, "
                                  f"{_human(free)} free there.", parent=self.win)
             return
+        if not messagebox.askyesno("Make a copy", f"The copy takes {_human(size)} of disk space "
+                                   f"({_human(free)} free there).\n\nCopy the game to\n{dest}?",
+                                   parent=self.win):
+            return
+        arch_size = {n: (sb / n).stat().st_size for n in to_unpack}
+        skip = {sb / n for n in to_unpack}
 
         def work(report):
-            done = n = 0
+            # 1. the archives are whole (a cut-short download or a damaged file)
+            for k, n in enumerate(packed):
+                report(k / max(len(packed), 1), f"Checking the game's archives: {n}")
+                bad = mbundle.check_archive(sb / n, man)
+                if bad:
+                    raise RuntimeError(f"the game's files look damaged ({bad}). In Steam: "
+                                       "right-click the game > Properties > Installed Files > "
+                                       "Verify integrity of game files, then try again")
+            # 2. every other file, size-checked
+            done = n_files = 0
             for dirpath, _dirs, files in os.walk(source):
                 rel = pathlib.Path(dirpath).relative_to(source)
                 (dest / rel).mkdir(parents=True, exist_ok=True)
                 for fn in files:
                     src = pathlib.Path(dirpath) / fn
-                    shutil.copy2(src, dest / rel / fn)
-                    n += 1
-                    done += src.stat().st_size
-                    if n % 20 == 0 or n == count:
-                        report(done / max(size, 1), f"Copying {n:,} / {count:,} files "
-                                                    f"({_human(done)} of {_human(size)})")
+                    if src in skip:
+                        continue
+                    out = dest / rel / fn
+                    shutil.copy2(src, out)
+                    sz = src.stat().st_size
+                    if out.stat().st_size != sz:
+                        raise RuntimeError(f"{rel / fn} was not copied completely")
+                    n_files += 1
+                    done += sz
+                    if n_files % 20 == 0:
+                        report(done / max(size, 1), f"Copying files ({_human(done)} of {_human(size)})")
+            # 3. the archives, unpacked straight from the original
+            base = done
+            finished = {}
+
+            def prog(bn, k):
+                total = max(len(man.files(bn)), 1)
+                cur = base + sum(arch_size[x] for x in finished) + arch_size.get(bn, 0) * k / total
+                report(cur / max(size, 1), f"Unpacking {bn} into the copy ({k:,} / {total:,} files)")
+            for bn in to_unpack:
+                prog(bn, 0)
+                res = mbundle.unpack(source, _OneBundle(man, bn), progress=prog, dest=dest / "Bundle")
+                w, k = res.get(bn, (0, 0))
+                if w + k != len(man.files(bn)):
+                    raise RuntimeError(f"{bn} was not unpacked completely ({w + k:,} of "
+                                       f"{len(man.files(bn)):,} files)")
+                finished[bn] = True
+            # 4. the result is a complete game folder
+            miss = gamepaths.missing(dest / "Bundle")
+            if miss:
+                raise RuntimeError("the copy is missing " + ", ".join(miss))
 
         ok, err = _run_with_progress(self.win, "Copying the game", work)
         if not ok:
-            messagebox.showerror("Copy the game", f"The copy stopped:\n{err}\n\n{dest} holds what "
+            messagebox.showerror("Copy the game", f"The copy stopped: {err}.\n\n{dest} holds what "
                                  "was copied so far; delete it and try again.", parent=self.win)
             return
-        b = gamepaths.as_bundle_dir(dest)
-        if b is None:
-            messagebox.showerror("Copy the game", "The copy has no Bundle\\Manifest.plist.", parent=self.win)
-            return
-        self._save(b, copied=True)
+        self._save(gamepaths.as_bundle_dir(dest), copied=True)
 
     # ---- save + unpack --------------------------------------------------------------- #
     def _save(self, b, copied=False):
@@ -221,39 +264,80 @@ class _Setup:
         self.saved = True
         if not gamepaths.is_unpacked(b):
             self._offer_unpack(b)
-        msg = f"Using the game copy in\n{b.parent}"
+        msg = f"Using the game in\n{b.parent}"
         if copied:
             msg += "\n\nStart the game from RF4S.exe in that folder to try your mods."
         messagebox.showinfo("Game folder", msg, parent=self.win)
         self.win.destroy()
 
     def _offer_unpack(self, b):
+        """Unpack a folder's archives in place; offer to delete each one as soon as it is
+        unpacked, so at most one archive's worth of extra space is used at a time."""
         try:
             man = mbundle.Manifest(b / "Manifest.plist")
             names = [n for n in man.bundle_names()
                      if n not in mbundle.VOICE_BUNDLES.values() and (b / n).is_file()]
         except Exception:  # noqa: BLE001
             return
-        size = sum((b / n).stat().st_size for n in names)
-        if not names or not messagebox.askyesno("Unpack the game files", (
-                "The map editor and the name lookups read the game's files unpacked.\n\n"
-                f"Unpack them now? That writes about {_human(size)} into the copy's Bundle folder "
-                "(a few minutes). The game runs the same with them. Voice archives stay packed."),
-                parent=self.win):
+        if not names:
             return
-        if shutil.disk_usage(b).free < size * 1.05:
-            messagebox.showerror("Unpack", f"Not enough space: unpacking needs {_human(size)}.", parent=self.win)
+        sizes = {n: (b / n).stat().st_size for n in names}
+        total, largest = sum(sizes.values()), max(sizes.values())
+        ans = messagebox.askyesnocancel("Unpack the game files", (
+            "The map editor and the name lookups read the game's files unpacked "
+            f"(about {_human(total)}, a few minutes). The game runs the same with them.\n\n"
+            "Delete each archive once it is unpacked?\n\n"
+            f"Yes: unpack and delete the archives - needs only about {_human(largest)} free "
+            "while it works, and the folder stays the same size.\n"
+            f"No: unpack and keep the archives - needs {_human(total)} more.\n"
+            "Cancel: don't unpack now.\n\nVoice archives stay packed either way."),
+            parent=self.win)
+        if ans is None:
+            return
+        need = largest if ans else total
+        if shutil.disk_usage(b).free < need * 1.05:
+            messagebox.showerror("Unpack", f"Not enough space: unpacking needs {_human(need)} free.",
+                                 parent=self.win)
+            return
+        bad = [m for m in (mbundle.check_archive(b / n, man) for n in names) if m]
+        if bad:
+            messagebox.showerror("Unpack", "The game's files look damaged:\n" + "\n".join(bad),
+                                 parent=self.win)
             return
 
         def work(report):
-            report(None, "Unpacking...")
-            mbundle.unpack(b, man, voice="none",
-                           progress=lambda bn, k: report(None, f"Unpacking {bn}: {k:,} files"))
+            finished = {}
+
+            def prog(bn, k):
+                total_files = max(len(man.files(bn)), 1)
+                cur = sum(sizes[x] for x in finished) + sizes.get(bn, 0) * k / total_files
+                report(cur / max(total, 1), f"Unpacking {bn} ({k:,} / {total_files:,} files)")
+            for bn in names:
+                prog(bn, 0)
+                res = mbundle.unpack(b, _OneBundle(man, bn), progress=prog, delete_packed=bool(ans))
+                w, k = res.get(bn, (0, 0))
+                if w + k != len(man.files(bn)):
+                    raise RuntimeError(f"{bn} was not unpacked completely")
+                finished[bn] = True
 
         ok, err = _run_with_progress(self.win, "Unpacking the game files", work)
         if not ok:
             messagebox.showerror("Unpack", f"Unpacking stopped:\n{err}\n\nRun it again later from "
                                  "Game folder... (it resumes).", parent=self.win)
+
+
+class _OneBundle:
+    """A Manifest view that lists just one bundle, so unpack() handles one archive per call
+    (per-archive progress, and delete-as-you-go)."""
+
+    def __init__(self, man, name):
+        self._man, self._name = man, name
+
+    def bundle_names(self):
+        return [self._name]
+
+    def __getattr__(self, attr):
+        return getattr(self._man, attr)
 
 
 def run(parent, current=None) -> bool:

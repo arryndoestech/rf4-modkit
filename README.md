@@ -20,7 +20,7 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    All…* adds that second folder) or `<copy>\tools\modding\`:
 
    ```
-   Rune Factory 4 Special (modding copy)\
+   Rune Factory 4 Special\
    ├── Bundle\            ← the game's (Manifest.plist, bundleMain.mbundle, …)
    ├── RF4S.exe
    └── rf4s-modkit\       ← this folder (start.bat, rf4mod_gui.py, README.md, …)
@@ -46,11 +46,22 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    If it can't find the game, it asks: **Choose the game folder…** (the one with
    `RF4S.exe` and `Bundle\`), or **Make a copy for me…** (pick the game —
    Steam: right-click the game → *Manage* → *Browse local files* shows it — and a
-   place for the copy; it needs as much free space as the game). It then offers to
-   **unpack** the `.mbundle` archives into the game's `Bundle\` folder, which the map
-   editor and the name /
-   texture lookups read; the game runs the same with them. The choice is saved, and
-   the toolbar's **Game folder…** button shows or changes it.
+   place for the copy; about 5 GB of disk space).
+
+   Either way it first checks the folder is complete: `RF4S.exe` plus every archive
+   the game's `Manifest.plist` lists (packed, or already unpacked), and it names
+   anything missing. The map editor and the name / texture lookups read the game's
+   files **unpacked**, and the game runs the same from unpacked folders (a missing
+   `.mbundle` is simply skipped), so:
+   - *Make a copy* checks the archives aren't damaged, then unpacks them straight
+     from the original into the copy instead of copying them. The copy never needs
+     room for both, and each file's size is checked as it's written. Voice archives
+     are copied packed.
+   - For a folder you choose, it offers to unpack in place, and to delete each
+     archive as soon as it is unpacked, which needs only the largest archive's
+     worth of free space at a time. Or keep the archives.
+
+   The choice is saved, and the toolbar's **Game folder…** button shows or changes it.
 
    Then it opens the game's bundles. Pick a map for the **map editor**, or use the
    **Cutscenes** button for the **cutscene editor**. The command-line tool is
@@ -579,7 +590,11 @@ looked at. So:
 
 **Unpacking everything.** `python rf4mod.py unpack "C:/Games/RF4S"` extracts every
 bundle into `Bundle\<bundle>\` (about 5 GB; a second run resumes). The game and the
-toolkit both work from that layout, and you can then edit files in place. The voice
+toolkit both work from that layout, and you can then edit files in place. It checks
+the archives aren't damaged first. With `--delete-archives` each `.mbundle` is deleted
+as soon as it's fully unpacked, so it needs only one archive's worth of free space
+at a time (keep a backup of the game if you do). The folder argument can be left out
+to use the saved game folder. The voice
 bundles are left packed by default (`--voice en|jp|both` to include them): EN and JP
 share every file name, so extracted, the English clips always win whatever the
 voice setting says.
