@@ -6436,7 +6436,7 @@ def test_cutscene_editor_workflows():
             _w.destroy()
         _fpk.set_slot(4)
         _fpk.set_value(10)
-        _fset = _fset and "Newlywed" in _fpk.note.cget("text")   # Forte: the Newlywed note
+        _fset = _fset and not hasattr(_fpk, "note")               # no Newlywed hint under the picker
         _n0 = len(cx.scene.stmts)
         _nid = cx.insert_dialogue_after(dpc, (3, 1), "Face test", 3)
         _cue = next((t for t in cx.scene.stmts.values()
@@ -6468,6 +6468,72 @@ def test_cutscene_editor_workflows():
                _bok and _boxed and _tail and doc.container.build() == orig
                and script.opcode_describe(95).startswith("Dialogue box style 1"),
                f"picker/switch={_bok} op95={_boxed} op93-4={_tail}")
+        # Add before + adding at a label (= before the labelled statement, so jumps run it too)
+        import cutscene_editor.dialogs as dialogs_mod
+        def _first_new(pc):
+            _j = cx.stmt(pc)
+            return cx.stmt(_j.code_targets[0]) if (_j is not None and _j.mnem == "JMP" and _j.code_targets) else None
+        _nb = cx.insert_dialogue_before(dpc, None, "Before test")
+        _fb = _first_new(dpc)
+        _before_ok = _nb is not None and _fb is not None and _fb.mnem == "DIALOG" and _fb.dialog_id == _nb
+        cx.undo()
+        _home = (cx.bank_pos, cx.scene.entry_pc)
+        _lpc = None
+        for _sc in script.disassemble_bank(cx.bank):            # a scene of this bank with a label
+            _cand = [q for q in sorted(script.scene_labels(_sc))
+                     if q in _sc.stmts and _sc.stmts[q].size >= 4]
+            if _cand:
+                cx.open_scene(cx.bank_pos, _sc.entry_pc)
+                _lpc = _cand[0]
+                break
+        _lab_ok = False
+        if _lpc is not None:
+            _lop = cx.stmt(_lpc).op
+            _lrow = any(r.key == (_lpc, cx.LABEL) for r in cx.view.rows)
+            cx.select((_lpc, cx.LABEL))
+            _btns = (cx.inspector.after_mb.winfo_manager() == "pack"
+                     and cx.inspector.before_mb.winfo_manager() == ""
+                     and cx.inspector.del_btn.winfo_manager() == "")
+            _no_del = cx.delete_selected() is False
+            _old_ask = dialogs_mod.ask_dialogue
+            dialogs_mod.ask_dialogue = lambda *a, **k: {"speaker": None, "text": "Label test"}
+            try:
+                _nl = cx.ask_insert_dialogue()           # "Add after" on a label
+            finally:
+                dialogs_mod.ask_dialogue = _old_ask
+            _fl = _first_new(_lpc)
+            _lab_ok = (_lrow and _btns and _no_del and _nl is not None and _fl is not None
+                       and _fl.mnem == "DIALOG" and _fl.dialog_id == _nl)
+            cx.undo()
+            _lab_ok = _lab_ok and cx.stmt(_lpc).op == _lop
+            cx.open_scene(*_home)
+            cx.select((dpc, None))
+            _lab_ok = _lab_ok and cx.inspector.before_mb.winfo_manager() == "pack"
+        _check("Add before, and Add after on a selected label (story view), insert ahead of the "
+               "statement; labels can't be deleted; undo is exact",
+               _before_ok and _lab_ok and doc.container.build() == orig,
+               f"before={_before_ok} label={_lab_ok} lpc={_lpc}")
+        # search: the first hit stays highlighted in the results and opens at the matching line
+        _br = cx.browser
+        _br.mode.set("dialogue")
+        _br.q.set("morning")
+        _br.search()
+        root.update()
+        _srow = _br._rows.get("r:0")
+        _sel = cx.stmt(cx.sel[0]) if cx.sel else None
+        _s_ok = (_srow is not None and _br.tree.selection() == ("r:0",)
+                 and (cx.bank_pos, cx.scene.entry_pc) == _srow[1:3]
+                 and _sel is not None and _sel.mnem == "DIALOG"
+                 and "morning" in (doc.text(_sel.dialog_id) or "").lower())
+        if _br._rows.get("r:1"):                          # clicking another result: same behaviour
+            _br.tree.selection_set("r:1")
+            root.update()
+            _r1 = _br._rows["r:1"]
+            _s_ok = _s_ok and _br.tree.selection() == ("r:1",) and \
+                (cx.bank_pos, cx.scene.entry_pc) == _r1[1:3] and cx.sel == (_r1[3], None)
+        cx.open_scene(*_home)
+        _check("search highlights the result (no jump into the bank tree) and opens the scene at the match",
+               _s_ok, f"row={_srow} sel={cx.sel}")
         # Save writes straight over the game folder's own files -- here a throwaway copy
         from rf4s_modkit import gamepaths as _gp
         import shutil as _sh

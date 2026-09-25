@@ -41,21 +41,25 @@ class Inspector(ScrollFrame):
         # actions for any selected statement
         self.actions = ttk.Frame(b)
         self.actions.pack(fill="x", padx=6, pady=(8, 2))
-        mb = ttk.Menubutton(self.actions, text="Add after")
-        m = tk.Menu(mb, tearoff=False)
-        m.add_command(label="Dialogue line…", command=lambda: app.ask_insert_dialogue())
-        m.add_command(label="Statements (listing)…", command=lambda: app.ask_insert_listing())
-        mb["menu"] = m
-        mb.pack(side="left")
-        Tip(mb, "Insert new beats right after the selected statement. Nothing existing moves: "
-                "the statement becomes a jump to the new code, which jumps back.")
+        def add_menu(text, before):
+            mb = ttk.Menubutton(self.actions, text=text)
+            m = tk.Menu(mb, tearoff=False)
+            m.add_command(label="Dialogue line…", command=lambda: app.ask_insert_dialogue(before))
+            m.add_command(label="Statements (listing)…", command=lambda: app.ask_insert_listing(before))
+            mb["menu"] = m
+            return mb
+        self.before_mb = add_menu("Add before", True)
+        Tip(self.before_mb, "Insert new beats just before the selected statement: every path that "
+                            "reaches it -- the line above, and every jump to it -- runs them first. "
+                            "Nothing existing moves: the statement becomes a jump to the new code.")
+        self.after_mb = add_menu("Add after", False)
+        self.after_tip = Tip(self.after_mb, "")
         self.del_btn = ttk.Button(self.actions, text="Delete", width=7, command=app.delete_selected)
-        self.del_btn.pack(side="left", padx=4)
         Tip(self.del_btn, "Skip this statement (the scene jumps over it; byte-safe). Del key.")
-        cb = ttk.Button(self.actions, text="Callers…", width=9, command=app.show_callers)
-        cb.pack(side="left")
-        Tip(cb, "Every CALL / jump / branch / choice in this bank that leads to the selected "
-                "statement (or to the scene when nothing is selected).")
+        self.callers_btn = ttk.Button(self.actions, text="Callers…", width=9, command=app.show_callers)
+        Tip(self.callers_btn, "Every CALL / jump / branch / choice in this bank that leads to the "
+                              "selected statement or label (or to the scene when nothing is selected).")
+        self._pack_actions(label=False)
         self.explain_box = section(b, "What it does")
         self.explain = tk.Text(self.explain_box, height=12, wrap="word", font=("Consolas", 8),
                                relief="flat", bg="#f4f4f6")
@@ -63,6 +67,21 @@ class Inspector(ScrollFrame):
         self.explain.configure(state="disabled")
         self.bind_wheel_tree()
         self.show(None)
+
+    AFTER_TIP = ("Insert new beats right after the selected statement. Nothing existing moves: "
+                 "the statement becomes a jump to the new code, which jumps back.")
+    AFTER_LABEL_TIP = ("Insert new beats at this label: they run first on every path that reaches "
+                       "it -- each jump to the label and the line above falling through.")
+
+    def _pack_actions(self, label):
+        """Add before / Add after / Delete / Callers…; a label gets Add after + Callers… only."""
+        for w in (self.before_mb, self.after_mb, self.del_btn, self.callers_btn):
+            w.pack_forget()
+        shown = (self.after_mb, self.callers_btn) if label else \
+                (self.before_mb, self.after_mb, self.del_btn, self.callers_btn)
+        for i, w in enumerate(shown):
+            w.pack(side="left", padx=(0 if i == 0 else 4, 0))
+        self.after_tip.text = self.AFTER_LABEL_TIP if label else self.AFTER_TIP
 
     # ---- building the form for a selection ------------------------------------ #
     def _clear(self):
@@ -79,6 +98,12 @@ class Inspector(ScrollFrame):
             return
         txt = SceneText(app.doc, app.bank, app.scene)
         self.actions.pack(fill="x", padx=6, pady=(8, 2), after=self.form)
+        label = key[1] == app.LABEL
+        self._pack_actions(label)
+        if label:
+            self._label_form(st, txt)
+            self.explain_box.pack_forget()
+            return
         if st.mnem == "DIALOG":
             self._dialog_form(st, txt)
         elif script.is_portrait_op(st.op):
@@ -92,6 +117,14 @@ class Inspector(ScrollFrame):
         set_text(self.explain, txt.explain(st))
         self.explain_box.pack(fill="x", padx=4, pady=(4, 2), after=self.actions)
         self.bind_wheel_tree(self.form)
+
+    def _label_form(self, st, txt):
+        name = txt.target(st.pc)
+        self.title.config(text="Label %s" % name)
+        self.sub.config(text="marks @0x%04x -- a place jumps, branches and choices lead to" % st.pc)
+        self.desc.config(text="Add after puts new lines here: they play first on every path that "
+                              "reaches %s. To add after the statement below it instead, select "
+                              "that statement." % name)
 
     def _header(self, title, st, desc):
         self.title.config(text=title)
@@ -239,7 +272,6 @@ class Inspector(ScrollFrame):
                             reader=app.doc.reader)
             fp.frame.pack(side="left", padx=4)
             fp.set_slot(slot)
-            fp.note.pack(anchor="w", padx=8)
             if cur is not None:
                 fp.set_value(cur)
         self._arg_rows(st, txt)

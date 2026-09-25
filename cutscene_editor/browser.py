@@ -73,6 +73,7 @@ class Browser(ttk.Frame):
         self.tree.bind("<<TreeviewOpen>>", self._opened)
         self.tree.bind("<<TreeviewSelect>>", self._picked)
         self._rows = {}                     # iid -> ("bank", pos) | ("scene", pos, entry)
+        #                                          | ("result", pos, entry, pc of the first match)
         self._syncing = False
 
     # ---- building ----------------------------------------------------------- #
@@ -139,6 +140,8 @@ class Browser(ttk.Frame):
             return
         if row[0] == "bank":
             self.app.open_bank(row[1])
+        elif row[0] == "result":
+            self.app.open_scene(row[1], row[2], focus_pc=row[3], reveal=False)
         else:
             self.app.open_scene(row[1], row[2])
 
@@ -197,64 +200,101 @@ class Browser(ttk.Frame):
             t.delete("results")
         rid = t.insert("", 0, iid="results", text=f"Results for “{q}” in {mode}: {len(hits)} scene(s)",
                        open=True, tags=("result",))
+        match = statement_matcher(doc, mode, q)
         for n, (pos, sc) in enumerate(hits):
             iid = f"r:{n}"
             bank = doc.container.banks[pos]
             t.insert(rid, "end", iid=iid, text=f"{catalog.bank_title(bank)} · {scene_label(doc, sc)}",
                      tags=("result",))
-            self._rows[iid] = ("scene", pos, sc.entry_pc)
-        t.see(rid)
+            self._rows[iid] = ("result", pos, sc.entry_pc, first_match_pc(bank, sc, match))
+        t.yview_moveto(0)
+        if hits:
+            # highlight the first hit and open it at the matching line
+            self._syncing = True
+            try:
+                t.selection_set("r:0")
+                t.focus("r:0")
+            finally:
+                later(self, lambda: setattr(self, "_syncing", False))
+            _k, pos, entry, pc = self._rows["r:0"]
+            self.app.open_scene(pos, entry, focus_pc=pc, reveal=False)
         self.app.status(f"{len(hits)} scene(s) match {mode} “{q}”")
 
     def _find(self, mode, q):
         return find_scenes(self.app.doc, mode, q)
 
 
-def find_scenes(doc, mode, q):
-    """Scenes matching `q` in one search mode ("dialogue", "speaker", "opcode" by mnemonic,
-    name or number, "event manager entry"), as [(bank_pos, scene)] in bank order.
-    Dialogue search returns [] when the current locale is not loaded."""
-    c = doc.container
-    pos_of = {id(b): i for i, b in enumerate(c.banks)}
-    out, seen = [], set()
-
-    def add(bank, sc):
-        key = (id(bank), sc.entry_pc)
-        if key not in seen:
-            seen.add(key)
-            out.append((pos_of[id(bank)], sc))
+def statement_matcher(doc, mode, q):
+    """fn(bank, statement) -> bool for one search mode ("dialogue", "speaker", "opcode" by
+    mnemonic, name or number, "event manager entry"), or None when the mode can't match
+    (dialogue with the locale not loaded, event manager entry without em.bin)."""
+    ql = q.lower()
     if mode == "dialogue":
         if doc.textarc is None:
-            return []
-        for bk, sc, _ids in script.find_scenes_with_dialog(c, q, doc.text):
-            add(bk, sc)
-        return sorted(out, key=lambda r: (r[0], r[1].entry_pc))
-    ql = q.lower()
-    try:
-        qnum = int(q, 0)
-    except ValueError:
-        qnum = None
-    em = doc.em if mode == "event manager entry" else None
+            return None
+
+        def dialogue(_bk, st):
+            if st.mnem != "DIALOG":
+                return False
+            try:
+                s = doc.text(st.dialog_id)
+            except Exception:  # noqa: BLE001 - a line outside the archive
+                s = None
+            return bool(s) and ql in s.lower()
+        return dialogue
+    if mode == "speaker":
+        return lambda _bk, st: (script.is_portrait_op(st.op)
+                                and ql in (script.portrait_speaker_name(st.op) or "").lower())
+    if mode == "opcode":
+        try:
+            qnum = int(q, 0)
+        except ValueError:
+            qnum = None
+        return lambda _bk, st: st.op < 0xFFF0 and (
+            (qnum is not None and st.op == qnum) or ql in script.opcode_mnemonic(st.op).lower()
+            or ql in script.opcode_name(st.op).lower())
+    if mode == "event manager entry":
+        em = doc.em
+        if em is None:
+            return None
+
+        def entry(bk, st):
+            ai = script.EMF_ENTRY_OPS.get(st.op)
+            if ai is None or ai >= len(st.args):
+                return False
+            try:
+                nm = em.names.entry_name(int(script.arg_repr(bk.data, st.args[ai])))
+            except (ValueError, TypeError):
+                nm = None
+            return bool(nm) and ql in nm.lower()
+        return entry
+    return None
+
+
+def first_match_pc(bank, sc, match):
+    """The first matching statement of a scene in play order (then the other branches)."""
+    if match is None:
+        return None
+    lin = script.linearize(sc)
+    shown = {pc for pc, _ in lin}
+    for pc, st in lin + [(pc, st) for pc, st in sc.stmts.items() if pc not in shown]:
+        if match(bank, st):
+            return pc
+    return None
+
+
+def find_scenes(doc, mode, q):
+    """Scenes matching `q` in one search mode (statement_matcher), as [(bank_pos, scene)] in
+    bank order. Dialogue search returns [] when the current locale is not loaded."""
+    c = doc.container
+    match = statement_matcher(doc, mode, q)
+    if match is None:
+        return []
+    pos_of = {id(b): i for i, b in enumerate(c.banks)}
+    out, seen = [], set()
     for bk, sc in script.iter_scenes(c):
-        for st in sc.stmts.values():
-            if mode == "event manager entry":
-                if st.op in script.EMF_ENTRY_OPS and em is not None:
-                    ai = script.EMF_ENTRY_OPS[st.op]
-                    if ai < len(st.args):
-                        try:
-                            nm = em.names.entry_name(int(script.arg_repr(bk.data, st.args[ai])))
-                        except (ValueError, TypeError):
-                            nm = None
-                        if nm and ql in nm.lower():
-                            add(bk, sc)
-                            break
-            elif mode == "speaker":
-                if script.is_portrait_op(st.op) and ql in (script.portrait_speaker_name(st.op) or "").lower():
-                    add(bk, sc)
-                    break
-            elif mode == "opcode" and st.op < 0xFFF0:
-                if (qnum is not None and st.op == qnum) or \
-                        ql in script.opcode_mnemonic(st.op).lower() or ql in script.opcode_name(st.op).lower():
-                    add(bk, sc)
-                    break
+        key = (id(bk), sc.entry_pc)
+        if key not in seen and any(match(bk, st) for st in sc.stmts.values()):
+            seen.add(key)
+            out.append((pos_of[id(bk)], sc))
     return sorted(out, key=lambda r: (r[0], r[1].entry_pc))

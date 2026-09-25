@@ -194,8 +194,8 @@ class SceneText:
                 rows.append(Row([("", None)]))
                 rows.append(Row([("── other branches / paths ──", "hdr")]))
             for pc, st in seq:
-                if pc in self.labels:
-                    rows.append(Row([("%s:" % self.labels[pc], "lbl")]))
+                if pc in self.labels:                   # selectable: add beats at the label
+                    rows.append(Row([("%s:" % self.labels[pc], "lbl")], (pc, "label"), st))
                 speaker = self._story_stmt(rows, pc, st, addr, speaker)
         return rows
 

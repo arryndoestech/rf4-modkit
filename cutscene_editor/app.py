@@ -558,13 +558,23 @@ class CutsceneExplorer:
         return msg + (" -- did you mean: " + ", ".join("%s (op %d)" % cls._names[h] for h in hits) if hits else "")
 
     def insert_after(self, pc, listing):
+        return self._insert_listing(pc, listing, before=False)
+
+    def insert_before(self, pc, listing):
+        """Insert statements just before `pc`: every path that reaches `pc` (the line above
+        falling through, and every jump / branch to it) runs them first."""
+        return self._insert_listing(pc, listing, before=True)
+
+    def _insert_listing(self, pc, listing, before):
         err = self.assemble_check(listing)[2]
         if err:
             messagebox.showinfo("Insert", err)
             return False
         n = count_statements(listing)
-        ok = self.apply("Insert %d statement%s after @0x%04x" % (n, "" if n == 1 else "s", pc),
-                        lambda: self.doc.container.insert_after(self.bank, pc, listing))
+        ins = self.doc.container.insert_before if before else self.doc.container.insert_after
+        ok = self.apply("Insert %d statement%s %s @0x%04x" % (n, "" if n == 1 else "s",
+                                                             "before" if before else "after", pc),
+                        lambda: ins(self.bank, pc, listing))
         if ok:
             self._select_after(pc)
         return ok
@@ -581,6 +591,13 @@ class CutsceneExplorer:
         """Add a new line (all locales) and insert [SetSpeaker] + DIALOG after `pc`. `face` is
         the SetSpeaker face id (rf4s_modkit.portraits: the N-th face of the speaker); it needs
         a speaker."""
+        return self._insert_dialogue(pc, speaker, text, face, box_style, before=False)
+
+    def insert_dialogue_before(self, pc, speaker, text, face=0, box_style=None):
+        """The same, inserted just before `pc` (so also where a label at `pc` points)."""
+        return self._insert_dialogue(pc, speaker, text, face, box_style, before=True)
+
+    def _insert_dialogue(self, pc, speaker, text, face, box_style, before):
         box = {}
         if not self.check_text(text, "The new line"):
             return None
@@ -596,44 +613,71 @@ class CutsceneExplorer:
             if box_style is not None:                # the message-box style (ops 94-97 / 93)
                 specs.append("op%d" % (94 + box_style) if 0 <= box_style <= 3 else "op93 %d" % box_style)
             specs.append("DIALOG #%d" % nid)
-            self.doc.container.insert_after(self.bank, pc, "\n".join(specs))
-        if self.apply("Add dialogue after @0x%04x" % pc, do):
+            ins = self.doc.container.insert_before if before else self.doc.container.insert_after
+            ins(self.bank, pc, "\n".join(specs))
+        if self.apply("Add dialogue %s @0x%04x" % ("before" if before else "after", pc), do):
             self._edited_lines.add((self.doc.locale, box["id"]))
             self._select_after(pc)
             return box["id"]
         return None
 
     def _select_after(self, pc):
-        """After an insert: select the first new statement (the old one now jumps to it)."""
+        """After an insert: select the start of the new code (the statement at `pc` now jumps
+        to it)."""
         st = self.stmt(pc)
         if st is not None and st.mnem == "JMP" and st.code_targets:
             tgt = st.code_targets[0]
             if self.stmt(tgt) is not None:
                 self.select((tgt, None))
 
-    def ask_insert_listing(self):
-        if self.sel is None:
-            self.status("select a statement first — new beats go after it")
-            return None
-        text = dialogs.ask_listing(self.frame, "Insert after @0x%04x" % self.sel[0], catalog.INSERT_PROMPT,
-                                   lambda t: self.assemble_check(t)[2])
-        return self.insert_after(self.sel[0], text) if text else None
+    # a selected label row is (pc, LABEL): adding "after" a label = before its statement
+    LABEL = "label"
 
-    def ask_insert_dialogue(self):
+    def selected_label(self):
+        return self.sel is not None and self.sel[1] == self.LABEL
+
+    def _insert_where(self, before):
+        """(pc, before) for an insert at the selection, or None (with a status hint)."""
         if self.sel is None:
-            self.status("select a statement first — the new line goes after it")
+            self.status("select a statement or a label first")
             return None
+        return self.sel[0], (before or self.selected_label())
+
+    def _where_text(self, pc, before):
+        if self.selected_label():
+            return "at label %s" % script.scene_labels(self.scene).get(pc, "0x%04x" % pc)
+        return "%s @0x%04x" % ("before" if before else "after", pc)
+
+    def ask_insert_listing(self, before=False):
+        w = self._insert_where(before)
+        if w is None:
+            return None
+        pc, before = w
+        text = dialogs.ask_listing(self.frame, "Insert " + self._where_text(pc, before), catalog.INSERT_PROMPT,
+                                   lambda t: self.assemble_check(t)[2])
+        if not text:
+            return None
+        return self.insert_before(pc, text) if before else self.insert_after(pc, text)
+
+    def ask_insert_dialogue(self, before=False):
+        w = self._insert_where(before)
+        if w is None:
+            return None
+        pc, before = w
         if self.doc.textarc is None:
             self.status("rf3mc.%s is not loaded" % self.doc.locale)
             return None
         spec = dialogs.ask_dialogue(self.frame, reader=self.doc.reader)
         if not spec:
             return None
-        return self.insert_dialogue_after(self.sel[0], spec["speaker"], spec["text"], spec.get("face", 0),
-                                          spec.get("box"))
+        ins = self.insert_dialogue_before if before else self.insert_dialogue_after
+        return ins(pc, spec["speaker"], spec["text"], spec.get("face", 0), spec.get("box"))
 
     def delete_selected(self):
         if self.sel is None:
+            return False
+        if self.selected_label():
+            self.status("a label only marks a jump target -- select a statement to delete it")
             return False
         pc = self.sel[0]
         st = self.stmt(pc)

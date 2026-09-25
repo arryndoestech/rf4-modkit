@@ -140,8 +140,7 @@ def face_thumbnail(reader, file_name, size=64):
 class FacePicker:
     """The portrait face of a speaker cue (rf4s_modkit.portraits): a button with the current
     face's picture; clicking it opens every face of that speaker as pictures to choose from.
-    Story mode shows these classic faces; for the twelve candidates a note says what the
-    same id shows in Newlywed mode. `set_slot` picks the speaker, `value()` is the face id,
+    Story mode shows these classic faces. `set_slot` picks the speaker, `value()` is the face id,
     `set_value(id)` shows an existing one."""
 
     def __init__(self, parent, on_change=None, reader=None):
@@ -155,7 +154,6 @@ class FacePicker:
         self.btn = ttk.Button(self.frame, text="(pick a speaker)", compound="left", command=self.choose)
         self.btn.pack(side="left")
         Tip(self.btn, "The face the portrait shows for the following lines. Click to see them all.")
-        self.note = ttk.Label(parent, text="", foreground="#666", wraplength=420, justify="left")
 
     # -- state -------------------------------------------------------------------------- #
     def set_slot(self, slot):
@@ -163,7 +161,6 @@ class FacePicker:
         if slot is None or not self.pt.has_portrait(slot):
             self.btn.config(state="disabled", text="(no portrait)" if slot is not None else
                             "(pick a speaker)", image="")
-            self.note.config(text="")
             return
         self.btn.config(state="normal")
         self._show()
@@ -186,8 +183,6 @@ class FacePicker:
         img = face_thumbnail(self.reader, f, 40) if f else None
         self.btn.config(text="  %s  (%d)" % (lab, v), image=img or "")
         self.btn._img = img
-        nl = pt.emote_label(self.slot, v) if pt.has_newlywed(self.slot) else None
-        self.note.config(text=("In Newlywed mode (animated portraits) this id shows: %s." % nl) if nl else "")
 
     # -- chooser ------------------------------------------------------------------------ #
     def choose(self):
@@ -354,7 +349,6 @@ def ask_dialogue(parent, default_speaker=None, reader=None):
     ttk.Label(frm, text="Face").grid(row=2, column=0, sticky="w", pady=(4, 0))
     face = FacePicker(frm, reader=reader)
     face.frame.grid(row=2, column=1, sticky="w", padx=4, pady=(4, 0))
-    face.note.grid(row=3, column=1, sticky="w", padx=4)
 
     def speaker_slot():
         choice = spk.var.get().split()
