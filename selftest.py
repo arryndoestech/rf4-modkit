@@ -340,7 +340,7 @@ def test_text():
         _asrc = _atmp / "a.eng"
         textdb.TextArchive([b"one", b"two", b"three"]).save(str(_asrc))
         _aout = _atmp / "a2.eng"
-        _aa = type("A", (), {"file": str(_asrc), "text": "NEW", "enc": "utf-8", "out": str(_aout)})()
+        _aa = type("A", (), {"file": str(_asrc), "text": "NEW", "enc": "utf-8", "out": str(_aout), "force": False})()
         _rft.cmd_text_add(_aa)
         _aarc = textdb.TextArchive.load(str(_aout))
         _check("CLI `text add` appends a new line at id == old length (add-line parity)",
@@ -349,7 +349,7 @@ def test_text():
         # (rf3mc.eng ships 1 line longer than the others). Pad a 3-line archive to 5, then append.
         _apout = _atmp / "ap.eng"
         _apa = type("A", (), {"file": str(_asrc), "text": "PADDED", "enc": "utf-8",
-                              "out": str(_apout), "pad_to": 5})()
+                              "out": str(_apout), "pad_to": 5, "force": False})()
         _rft.cmd_text_add(_apa)
         _aparc = textdb.TextArchive.load(str(_apout))
         _check("CLI `text add --pad-to N` lands the new line at id N (multi-locale align)",
