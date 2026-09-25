@@ -7822,13 +7822,13 @@ End the current quest-reaction beat and wait: signals the scene controller idle 
 Args:
   0. duration (units; 200 = 1 frame)
 
-### `op 4` — ConditionalJump(jump target)
-*handler:* `Script_VMOp_ConditionalJump`
+### `op 4` — WaitPlain(duration)
+*handler:* `Script_VMOp_WaitPlain`
 
-Redirect the VM to a target pc when the scene is in the pending-reaction state (ctx state 4) — a lightweight conditional jump used inside quest-reaction sequences (does not advance any quest state). arg0 = target.
+Wait like op 2 but WITHOUT advancing the quest-reaction state: a non-zero duration sets the wait counter and puts the running VM into the waiting state (Script_VMOp_WaitPlain, RF4S.exe+0x1FABC0 -- the same body as Wait minus the reaction call). Not a jump: the arg is a duration, never a code address. Same units as Wait.
 
 Args:
-  0. jump target
+  0. duration (units; 200 = 1 frame)
 
 ### `op 91` — SetSceneBit(bit index, on)
 *handler:* `Script_VMOp_SetSceneBit404`
@@ -10882,7 +10882,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | op | mnemonic | op | mnemonic | op | mnemonic |
 |---:|:--|---:|:--|---:|:--|
 | 0 | `nop` | 1 | `SetSceneCtxBit3FromArg` | 2 | `Wait` |
-| 3 | `WaitReset` | 4 | `ConditionalJump` | 5 | `ShowNpcBubbleVariant` |
+| 3 | `WaitReset` | 4 | `WaitPlain` | 5 | `ShowNpcBubbleVariant` |
 | 6 | `ShowNpcBubble` | 7 | `ShowNpcBubble` | 8 | `DialogueLine` |
 | 9 | `DialogueLine` | 10 | `SetSpeakerVoice` | 11 | `SetDialogStateBit` |
 | 12 | `BubbleLineV3` | 13 | `BubbleLineV3` | 14 | `BubbleLineV4` |

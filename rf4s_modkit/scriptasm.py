@@ -92,6 +92,7 @@ _TOK_RE = re.compile(r"""\s*(?:
   )""", re.X)
 
 # Leaf-only operand forms (handled by Script_EvalExpressionOrVar without the RPN VM).
+LEAF_TAGS = (3, 4, 5, 0x11, 0x12, 0x13)        # whole-operand leaves: no RPN terminator is read
 _LEAF_WORDS = {"null": b"\x11", "zero": b"\x12", "self": b"\x13",
                # the same leaves spelled as the add / sub / set mode of the ops that read an
                # argument's kind (opcode_meta.MODE_ARG_SLOTS)
@@ -206,21 +207,23 @@ class _Parser:
 
 
 def int_literal_bytes(v):
-    """RPN push of the integer `v` (no terminator): the smallest encoding."""
+    """RPN push of the integer `v` (no terminator), encoded the way the game's own compiler
+    does it (every literal in the shipped rf3.mc): the signed form first -- s8 for -128..127,
+    u8 only for 128..255, s16 for -32768..32767, u16 only for 32768..65535 -- else int32."""
     if v == 0:
         return b"\x14"
     if v == -1:
         return b"\x15"
     if v == 1:
         return b"\x16"
+    if -128 <= v <= 127:
+        return b"\x18" + struct.pack("<b", v)
     if 0 <= v <= 255:
         return bytes([0x17, v])
-    if -128 <= v < 0:
-        return b"\x18" + struct.pack("<b", v)
-    if 0 <= v <= 0xFFFF:
-        return b"\x19" + struct.pack("<H", v)
     if -32768 <= v <= 32767:
         return b"\x1A" + struct.pack("<h", v)
+    if 0 <= v <= 0xFFFF:
+        return b"\x19" + struct.pack("<H", v)
     if -0x80000000 <= v <= 0x7FFFFFFF:
         return b"\x01" + struct.pack("<i", v)
     if 0 <= v <= 0xFFFFFFFF:
@@ -488,9 +491,13 @@ class _Stmt:
 class Assembler:
     """Assemble a listing into a region that will live at in-bank offset `base`."""
 
-    def __init__(self, resolver=None, enum_names=True):
+    def __init__(self, resolver=None, enum_names=True, strict=True):
         self.resolver = resolver
         self.enum_names = enum_names
+        # strict=False accepts what the shipped file contains but a modder should not
+        # write (argument counts the handler misreads, >128 choice options): used when
+        # a whole bank is reassembled from its own listing (bankrelink)
+        self.strict = strict
 
     # -- operands --
     def operand(self, text, op=None, index=None):
@@ -498,6 +505,9 @@ class Assembler:
         s = text.strip()
         if s.startswith("@"):
             return ("abs", _int_in(s[1:], 0, 0xFFFF, None, "@offset"))
+        m = re.fullmatch(r"raw\(\s*([0-9A-Fa-f]+)\s*\)", s)
+        if m and len(m.group(1)) % 2 == 0:       # verbatim operand bytes (terminator included)
+            return ("expr", bytes.fromhex(m.group(1)))
         if s.lstrip("-").isdigit() or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
             return ("expr", int_literal_bytes(_int_in(s, -0x80000000, 0xFFFFFFFF, None, "literal"))
                     + b"\x00")
@@ -505,7 +515,10 @@ class Assembler:
             v = _enum_value(op, index, s)
             if v is not None:
                 return ("expr", int_literal_bytes(v) + b"\x00")
-        return ("expr", asm_expr(s, self.resolver))
+        b = asm_expr(s, self.resolver)
+        if b[0] in LEAF_TAGS:
+            b += b"\x00"                      # the byte the compiler writes after a leaf (never read)
+        return ("expr", b)
 
     # -- statements --
     def parse_line(self, line_no, raw, st):
@@ -635,7 +648,7 @@ class Assembler:
                 raise AsmError("line %d: PROMPT_CHOICE_FORCED has no cancel branch" % line_no)
             if not choices:
                 raise AsmError("line %d: a choice needs at least one option" % line_no)
-            if len(choices) > script.MAX_CHOICE_OPTIONS:
+            if self.strict and len(choices) > script.MAX_CHOICE_OPTIONS:
                 # Dialogue_HandleScriptActionShowLine queues at most 0x80 rows; the rest are
                 # silently dropped (unreachable targets, out-of-range mask reads).
                 raise AsmError("line %d: %d choice options -- the game shows at most %d (the "
@@ -687,10 +700,10 @@ class Assembler:
         if len(args) > 64:
             raise AsmError("line %d: too many arguments (%d)" % (line_no, len(args)))
         lim = meta.arg_limit(op) if hasattr(meta, "arg_limit") else None
-        if lim is not None and len(args) > lim[0]:
+        if self.strict and lim is not None and len(args) > lim[0]:
             raise AsmError("line %d: op %d takes at most %d arguments (%d given): %s"
                            % (line_no, op, lim[0], len(args), lim[1]))
-        bad = meta.arg_count_problem(op, len(args))
+        bad = meta.arg_count_problem(op, len(args)) if self.strict else None
         if bad:
             raise AsmError("line %d: %s" % (line_no, bad))
         st.code += struct.pack("<HH", op, len(args))

@@ -3,7 +3,7 @@
  "1": "Script_VMOp_SetContextBit8FromArg",
  "2": "Script_VMOp_WaitUnitsAndAdvanceReaction",
  "3": "Script_VMOp_EndReactionResetAndWait",
- "4": "Script_VMOp_ConditionalJump",
+ "4": "Script_VMOp_WaitPlain",
  "5": "Script_VMOp_ShowNpcBubbleVariant",
  "6": "Script_VMOp_ShowNpcBubble",
  "7": "Script_VMOp_ShowNpcBubble",

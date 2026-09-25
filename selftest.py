@@ -5146,6 +5146,63 @@ def test_script_authoring():
                f"{_mode!r}")
 
 
+def test_bank_relink():
+    """Whole-bank rebuild (bankrelink): parse -> build and listing -> assemble are byte-exact,
+    and moving the code (a statement inserted at the top) keeps every scene's flow, operands
+    and entry keys intact."""
+    print("bank relink (whole-bank rebuild):")
+    from rf4s_modkit import script, scriptasm, bankrelink as br
+    _check("literals encode like the game's compiler (s8 before u8, s16 before u16)",
+           scriptasm.int_literal_bytes(5) == b"\x18\x05" and scriptasm.int_literal_bytes(200) == b"\x17\xc8"
+           and scriptasm.int_literal_bytes(-5) == b"\x18\xfb" and scriptasm.int_literal_bytes(1000) == b"\x1a\xe8\x03"
+           and scriptasm.int_literal_bytes(40000) == b"\x19\x40\x9c"
+           and scriptasm.Assembler().operand("actor(Forte)") == ("expr", b"\x03\x04\x00\x00\x00\x00"))
+    p = _first("rf3.mc")
+    if not p:
+        _skip("bank relink", "rf3.mc not extracted")
+        return
+    c = script.Container(p.read_bytes())
+    try:
+        from rf4s_modkit.emflags import EmFlagTable
+        emf = EmFlagTable.load()
+        script.install_emflags_var_resolver(c, emf)
+    except Exception:
+        emf = None
+    res = c.install_asm_resolver(emf)
+    banks = c.banks if not QUICK else c.banks[::15]
+    model_bad, text_bad, shift_bad, n_scenes = [], [], [], 0
+    for bk in banks:
+        d = bytes(bk.data)
+        try:
+            if br.relink(bk) != d:
+                model_bad.append(bk.index)
+            txt = br.bank_listing(bk, res)
+            if br.assemble_bank(txt, res) != d:
+                text_bad.append(bk.index)
+        except script.ScriptError as e:
+            text_bad.append((bk.index, str(e)[:80]))
+            continue
+        tt = bk.type_table_full()
+        if not tt:
+            continue
+        ls = txt.splitlines()
+        i = next(k for k, l in enumerate(ls) if not l.startswith((".table", ".slot", ".tword")))
+        ls.insert(i, "    Wait 6000")
+        nb = script.Bank(bk.index, bk.kind, 0, bytearray(br.assemble_bank("\n".join(ls), res)))
+        nb.slots_hint = bk.slots_hint
+        for t in tt:
+            for a, b in zip(bk.entry_records(t), nb.entry_records(t)):
+                n_scenes += 1
+                s1 = [(s.op, s.size) for s in script.disassemble_scene(bk, t, a.event_id).stmts.values()]
+                s2 = [(s.op, s.size) for s in script.disassemble_scene(nb, t, b.event_id).stmts.values()]
+                if a.subs != b.subs or b.event_id != a.event_id + 6 or s1 != s2:
+                    shift_bad.append((bk.index, t))
+    _check("every bank rebuilds byte-exactly from its model (%d banks)" % len(banks), not model_bad, str(model_bad[:5]))
+    _check("every bank rebuilds byte-exactly from its text listing", not text_bad, str(text_bad[:5]))
+    _check("a statement inserted at the top relocates every scene (%d scenes)" % n_scenes,
+           not shift_bad and n_scenes > 0, str(shift_bad[:5]))
+
+
 def test_emflags_extras():
     """Modder-defined game-flag variables (2026-09-20): the emdeb_extra.json sidecar,
     allocation in the free tail of the 4096-bit store, validation, and resolution by the
@@ -7793,7 +7850,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
+              test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_portraits,

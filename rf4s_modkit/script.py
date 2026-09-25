@@ -1640,22 +1640,12 @@ class Container:
     # ---- structural editing (trampoline: append + redirect, no relocation) ------
     @staticmethod
     def _literal_expr_bytes(v):
-        """Bytes of an RPN expression that evaluates to the integer `v` (+terminator)."""
-        if v == 0:
-            return b"\x14\x00"
-        if v == -1:
-            return b"\x15\x00"
-        if v == 1:
-            return b"\x16\x00"
-        if 0 <= v <= 255:
-            return bytes([0x17, v, 0x00])
-        if -128 <= v < 0:
-            return bytes([0x18]) + struct.pack("<b", v) + b"\x00"
-        if 0 <= v <= 0xFFFF:
-            return bytes([0x19]) + struct.pack("<H", v) + b"\x00"
-        if -32768 <= v <= 32767:                     # s16 literal (covers -32768..-129)
-            return bytes([0x1A]) + struct.pack("<h", v) + b"\x00"
-        raise ScriptError("literal %d out of range for a script expression" % v)
+        """Bytes of an RPN expression that evaluates to the integer `v` (+terminator),
+        encoded like the game's compiler (scriptasm.int_literal_bytes)."""
+        if not -32768 <= v <= 0xFFFF:
+            raise ScriptError("literal %d out of range for a script expression" % v)
+        from . import scriptasm
+        return scriptasm.int_literal_bytes(v) + b"\x00"
 
     def _assemble_region(self, base, specs, fallthrough_to):
         """Assemble `specs` into a self-contained region that will live at in-bank

@@ -2408,11 +2408,13 @@ _M.update({
         "Wait variant that also RESETS the quest-reaction state first (op 2's sibling handler; "
         "1 use in the whole opening chain). Same duration units as Wait.",
         ["duration (units; 200 = 1 frame)"]),
-    4: ("ConditionalJump", "flow",
-        "Redirect the VM to a target pc when the scene is in the pending-reaction state "
-        "(ctx state 4) — a lightweight conditional jump used inside quest-reaction sequences "
-        "(does not advance any quest state). arg0 = target.",
-        ["jump target"]),
+    4: ("WaitPlain", "flow",
+        "Wait like op 2 but WITHOUT advancing the quest-reaction state: a non-zero duration "
+        "sets the wait counter and puts the running VM into the waiting state "
+        "(Script_VMOp_WaitPlain, RF4S.exe+0x1FABC0 -- the same body as Wait minus the "
+        "reaction call). Not a jump: the arg is a duration, never a code address. "
+        "Same units as Wait.",
+        ["duration (units; 200 = 1 frame)"]),
     210: ("AttachItemVisual", "item",
           "Make a character visibly HOLD UP / present an item — the 'Vishnal hands you a "
           "sword' / 'Doug presents the trophy' op. arg0 = holder (char id, 0 = player), arg1 "

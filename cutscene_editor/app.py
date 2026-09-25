@@ -16,7 +16,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from guiutil import Paned, Tip, later, shortcut_scope
-from rf4s_modkit import mbundle, script, scriptasm, textlint
+from rf4s_modkit import bankrelink, mbundle, script, scriptasm, textlint
 
 from . import catalog, dialogs
 from .browser import Browser
@@ -555,7 +555,7 @@ class CutsceneExplorer:
                 b.set_action_arg(pc, index, val)
             elif bytes(b.data[off:off + len(val)]) == val:
                 return
-            elif script.disasm_expr(b.data, off)[1] == len(val):
+            elif bankrelink.expr_size(b.data, off) == len(val):
                 b.data[off:off + len(val)] = val
             else:
                 b.set_action_arg(pc, index, self.doc.container.grow_bank(b, val))
