@@ -171,16 +171,31 @@ class Source:
 
     @classmethod
     def from_manifest(cls, manifest_path) -> "Source":
+        """Every file the manifest lists, grouped by archive. An archive unpacked into
+        Bundle/<name>/ is read from that folder (the file the game loads too: loose files
+        come before the archives), so a copy whose archives were unpacked and removed
+        still shows everything; files not unpacked come from the .mbundle."""
+        import os
         man = mbundle.Manifest(manifest_path)
         src = cls(f"Manifest: {pathlib.Path(manifest_path).name}")
         bdir = pathlib.Path(manifest_path).parent
         for bname in man.bundle_names():
             bpath = bdir / bname
-            if not bpath.is_file():
-                continue
-            bundle = mbundle.Bundle(bpath, manifest=man)
-            for name in bundle.names():
-                src.add(name, bname, (lambda b, n: (lambda: b.read(n)))(bundle, name))
+            udir = bdir / mbundle.unpack_dir_name(bname)
+            loose = set()
+            if udir.is_dir():
+                for dirpath, _dirs, files in os.walk(udir):
+                    rel = os.path.relpath(dirpath, udir)
+                    for fn in files:
+                        loose.add(fn if rel == "." else os.path.join(rel, fn).replace(os.sep, "/"))
+            bundle = mbundle.Bundle(bpath, manifest=man) if bpath.is_file() else None
+            for name in man.files(bname):
+                rel = name.replace("\\", "/").lstrip("/")
+                if rel in loose:
+                    fp = udir / rel
+                    src.add(name, bname, (lambda f: (lambda: f.read_bytes()))(fp))
+                elif bundle is not None:
+                    src.add(name, bname, (lambda b, n: (lambda: b.read(n)))(bundle, name))
         return src
 
     @classmethod

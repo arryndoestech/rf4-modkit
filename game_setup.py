@@ -151,7 +151,7 @@ class _Setup:
     def copy(self, source=None):
         """Copy a game folder. The .mbundle archives are not copied: they are unpacked
         straight from the original into the copy's Bundle folder (the game runs from those
-        folders), so the copy needs no room for both. Voice archives are copied packed."""
+        folders), so the copy needs no room for both."""
         if source is None:
             d = filedialog.askdirectory(parent=self.win, title="The game to copy (the folder with "
                                         "RF4S.exe)")
@@ -165,9 +165,8 @@ class _Setup:
             return
         source = sb.parent
         man = mbundle.Manifest(sb / "Manifest.plist")
-        voice = set(mbundle.VOICE_BUNDLES.values())
         packed = [n for n in man.bundle_names() if (sb / n).is_file()]
-        to_unpack = [n for n in packed if n not in voice]
+        to_unpack = packed                              # every archive, voices included
         size, count = _tree_size(source)
         dest_parent = filedialog.askdirectory(parent=self.win, title=f"Where to put the copy "
                                               f"({_human(size)})")
@@ -236,7 +235,8 @@ class _Setup:
                 report(cur / max(size, 1), f"Unpacking {bn} into the copy ({k:,} / {total:,} files)")
             for bn in to_unpack:
                 prog(bn, 0)
-                res = mbundle.unpack(source, _OneBundle(man, bn), progress=prog, dest=dest / "Bundle")
+                res = mbundle.unpack(source, _OneBundle(man, bn), voice="both", progress=prog,
+                                     dest=dest / "Bundle")
                 w, k = res.get(bn, (0, 0))
                 if w + k != len(man.files(bn)):
                     raise RuntimeError(f"{bn} was not unpacked completely ({w + k:,} of "
@@ -275,8 +275,8 @@ class _Setup:
         unpacked, so at most one archive's worth of extra space is used at a time."""
         try:
             man = mbundle.Manifest(b / "Manifest.plist")
-            names = [n for n in man.bundle_names()
-                     if n not in mbundle.VOICE_BUNDLES.values() and (b / n).is_file()]
+            names = [n for n in man.bundle_names() if (b / n).is_file()
+                     and n in gamepaths.still_packed(b)]
         except Exception:  # noqa: BLE001
             return
         if not names:
@@ -290,7 +290,7 @@ class _Setup:
             f"Yes: unpack and delete the archives - needs only about {_human(largest)} free "
             "while it works, and the folder stays the same size.\n"
             f"No: unpack and keep the archives - needs {_human(total)} more.\n"
-            "Cancel: don't unpack now.\n\nVoice archives stay packed either way."),
+            "Cancel: don't unpack now."),
             parent=self.win)
         if ans is None:
             return
@@ -314,7 +314,8 @@ class _Setup:
                 report(cur / max(total, 1), f"Unpacking {bn} ({k:,} / {total_files:,} files)")
             for bn in names:
                 prog(bn, 0)
-                res = mbundle.unpack(b, _OneBundle(man, bn), progress=prog, delete_packed=bool(ans))
+                res = mbundle.unpack(b, _OneBundle(man, bn), voice="both", progress=prog,
+                                     delete_packed=bool(ans))
                 w, k = res.get(bn, (0, 0))
                 if w + k != len(man.files(bn)):
                     raise RuntimeError(f"{bn} was not unpacked completely")

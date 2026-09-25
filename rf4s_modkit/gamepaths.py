@@ -69,11 +69,23 @@ def has_game_files(bundle_dir) -> bool:
         any(b.glob("*.mbundle")) or (b / "bundleMain").is_dir() or (b / "extracted").is_dir())
 
 
-def is_unpacked(bundle_dir) -> bool:
-    """True when the archives are also unpacked into folders (the map editor, cross-file
-    lookups and the cutscene editor's names read those)."""
+def still_packed(bundle_dir) -> list[str]:
+    """The archives the manifest lists that are not unpacked into Bundle/<name>/ yet."""
+    from . import mbundle
     b = pathlib.Path(bundle_dir)
-    return (b / "bundleMain").is_dir() or (b / "extracted").is_dir()
+    if (b / "extracted").is_dir():                       # the older one-folder layout
+        return []
+    try:
+        names = mbundle.Manifest(b / "Manifest.plist").bundle_names()
+    except Exception:  # noqa: BLE001
+        return [] if (b / "bundleMain").is_dir() else ["bundleMain.mbundle"]
+    return [n for n in names if not _has_files(b / mbundle.unpack_dir_name(n))]
+
+
+def is_unpacked(bundle_dir) -> bool:
+    """True when every archive is unpacked into its folder (the map editor, cross-file
+    lookups and the cutscene editor's names read those; modders edit files in place)."""
+    return not still_packed(bundle_dir)
 
 
 def _has_files(d: pathlib.Path) -> bool:

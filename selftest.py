@@ -141,8 +141,10 @@ def test_mbundle():
     # (no packed file), a SELF-CONTAINED synthetic bundle built via the toolkit's own
     # rebuild_from_dir. Either way the packed-bundle read + manifest==embedded-TOC + repack path is
     # tested deterministically (this branch used to _skip when no packed bundle was on disk).
+    # (not a voice bundle: unpack() leaves those packed by default, so the unpack checks
+    # below would find nothing -- a copy made by the toolkit keeps only those packed)
     present = [(b, (BUNDLE_DIR / b).stat().st_size) for b in man.bundle_names()
-              if (BUNDLE_DIR / b).is_file()]
+              if (BUNDLE_DIR / b).is_file() and b not in mbundle.VOICE_BUNDLES.values()]
     if present:
         small = min(present, key=lambda x: x[1])[0]
         bpath, mpath, use_man = BUNDLE_DIR / small, mani_p, man
@@ -244,6 +246,19 @@ def test_mbundle():
         _win = mbundle.loose_index(tmp).get(_nm0.lower(), [""])[0]
         _check("a 00_mods copy wins over the extracted original (earliest sorted path)",
                _win == "00_mods/" + _nm0, _win)
+        # the explorer lists an archive's files from Bundle/<name>/ once unpacked, so a copy
+        # whose archives were unpacked and removed still shows everything
+        (tmp / small).unlink()
+        try:
+            import rf4mod_gui as _gui
+            _src = _gui.Source.from_manifest(tmp / "Manifest.plist")
+            _listed = [n for n, grp, _l in _src.entries if grp == small]
+            _check("explorer lists an unpacked-and-removed archive from its folder",
+                   sorted(_listed) == sorted(_chk.names())
+                   and _src.entries and all(_l() for n, grp, _l in _src.entries if grp == small),
+                   f"{len(_listed)} of {len(_chk.names())}")
+        except ImportError as _e:              # no tkinter
+            _skip("explorer lists an unpacked archive", str(_e))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

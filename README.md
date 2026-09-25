@@ -55,8 +55,10 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    `.mbundle` is simply skipped), so:
    - *Make a copy* checks the archives aren't damaged, then unpacks them straight
      from the original into the copy instead of copying them. The copy never needs
-     room for both, and each file's size is checked as it's written. Voice archives
-     are copied packed.
+     room for both, and each file's size is checked as it's written. Every archive is
+     unpacked, voices included, so voice clips can be replaced in place too. (EN and
+     JP clips share file names; unpacked, the game plays the English ones whichever
+     voice language is set.)
    - For a folder you choose, it offers to unpack in place, and to delete each
      archive as soon as it is unpacked, which needs only the largest archive's
      worth of free space at a time. Or keep the archives.
@@ -594,9 +596,9 @@ toolkit both work from that layout, and you can then edit files in place. It che
 the archives aren't damaged first. With `--delete-archives` each `.mbundle` is deleted
 as soon as it's fully unpacked, so it needs only one archive's worth of free space
 at a time (keep a backup of the game if you do). The folder argument can be left out
-to use the saved game folder. The voice
-bundles are left packed by default (`--voice en|jp|both` to include them): EN and JP
-share every file name, so extracted, the English clips always win whatever the
+to use the saved game folder. On the command line the voice bundles are left packed
+by default (`--voice en|jp|both` to include them; the GUI's setup unpacks both): EN
+and JP share every file name, so extracted, the English clips always win whatever the
 voice setting says.
 
 > **Always back up `Manifest.plist` and any bundle you patch.** Prefer loose files
