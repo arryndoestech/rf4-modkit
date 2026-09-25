@@ -2242,7 +2242,7 @@ def test_script():
                and all(len(r) == 5 and 2 <= r[4] <= r[1] for r in _gpb["stmts"]))
     else:
         _skip("ghidra plan generator", "module not importable")
-    # end-to-end explanation guard: the editor's Ctrl-hover explanation (render.SceneText.explain,
+    # end-to-end explanation guard: the editor's Alt-hover explanation (render.SceneText.explain,
     # also the Inspector's "What it does" box) must render a non-empty string for EVERY op that
     # appears in scenes -- DIALOG, control ops, and action ops (prototype + per-arg + enum/EMF/
     # speaker decode, the FLG_/REG_ legend of a condition). ScriptDocument has no Tk in it, so
@@ -4596,6 +4596,18 @@ def test_script_authoring():
     inserts/rewrites, and minting/removing/re-keying type-table entries (new scenes)."""
     print("script authoring (scriptasm + type-table entries):")
     from rf4s_modkit import script, scriptasm
+    # argument counts: outside the shipped range is refused (op 93 with no argument hides the box)
+    def _refused(t):
+        try:
+            scriptasm.assemble(t, 0x1000)
+            return False
+        except scriptasm.AsmError as e:
+            return "op 93" in str(e) or "op 94" in str(e)
+    _check("assembler refuses argument counts the game never uses (op93 bare, op94 with one) "
+           "and keeps the shipped ones",
+           _refused("SetDialogueBoxStyle") and _refused("op94 1")
+           and scriptasm.assemble("op93 2\nop94", 0x1000) is not None
+           and script.meta.arg_range(93) == (1, 1) and script.meta.arg_range(94) == (0, 0))
     p = _first("rf3.mc")
     if not p:
         _skip("script authoring", "rf3.mc not extracted")
@@ -6513,6 +6525,65 @@ def test_cutscene_editor_workflows():
                "statement; labels can't be deleted; undo is exact",
                _before_ok and _lab_ok and doc.container.build() == orig,
                f"before={_before_ok} label={_lab_ok} lpc={_lpc}")
+        # the message-box tail: a shipped thought line gets one (its cue has a portrait); a
+        # thought box over narration does not, and the Inspector says so
+        _t_ok, _t_pos = False, None
+        for _tp, _tb in enumerate(doc.container.banks):
+            for _tsc in script.disassemble_bank(_tb):
+                _tpc = next((q for q, t in _tsc.stmts.items() if t.op == 96), None)
+                if _tpc is not None:
+                    _t_pos = (_tp, _tsc.entry_pc, _tpc)
+                    break
+            if _t_pos:
+                break
+        if _t_pos:
+            cx.open_scene(_t_pos[0], _t_pos[1])
+            _ok1, _n1 = cx.tail_note(_t_pos[2])
+            cx.select((_t_pos[2], None))
+            _shown = any("tail points at" in str(getattr(w, "cget", lambda k: "")("text"))
+                         for w in cx.inspector.form.winfo_children() if isinstance(w, ttk.Label))
+            _dp = next(q for q, _s in script.linearize(cx.scene) if cx.stmt(q).mnem == "DIALOG")
+            # a name-plate voice (SetSpeakerVoice, no portrait) then a thought box: no tail
+            _nn = cx.insert_before(_dp, "SetSpeakerVoice 738, 0\nop96\nDIALOG #%d" % cx.stmt(_dp).dialog_id)
+            _lin = script.linearize(cx.scene)
+            _bp = next((q for i, (q, t) in enumerate(_lin)
+                        if t.op == 96 and i and _lin[i - 1][1].op == 10), None)
+            _ok2, _n2 = cx.tail_note(_bp) if _bp is not None else (True, "")
+            cx.undo()
+            cx.open_scene(*_home)
+            _t_ok = _ok1 and "portrait" in _n1 and _shown and _nn and not _ok2 and "name plate" in _n2
+        _check("box tail: a shipped thought line points at its speaker's portrait; a thought box after a "
+               "SetSpeakerVoice name plate is flagged 'No tail'", _t_ok,
+               f"at={_t_pos} n1={locals().get('_n1')!r} shown={locals().get('_shown')} bp={locals().get('_bp')} n2={locals().get('_n2')!r}")
+        # shortcuts reach the widgets the Inspector builds per selection (Ctrl+S used to do
+        # nothing while typing in the line's text box); Caps Lock keeps Ctrl+S = save and
+        # Ctrl+Z = undo; the explanation popup is on Alt now
+        cx.select((dpc, None))
+        root.update()
+        _stack, _tb = [cx.inspector.form], None
+        while _stack and _tb is None:
+            _w0 = _stack.pop()
+            _tb = _w0 if isinstance(_w0, tk.Text) else None
+            _stack.extend(_w0.winfo_children())
+        _calls = []
+        _orig_fns = (cx.save_all, cx.undo, cx.redo)
+        cx.save_all = lambda: _calls.append("save")
+        cx.undo = lambda: _calls.append("undo")
+        cx.redo = lambda: _calls.append("redo")
+        try:
+            if _tb is not None:
+                _tb.focus_force()
+                root.update()
+                for _seq, _st in (("<Control-s>", 0x4), ("<Control-S>", 0x4 | 0x2),        # 0x2 = Caps Lock
+                                  ("<Control-Z>", 0x4 | 0x2), ("<Control-Z>", 0x4 | 0x1)):  # 0x1 = Shift
+                    _tb.event_generate(_seq, state=_st, when="now")
+        finally:
+            cx.save_all, cx.undo, cx.redo = _orig_fns
+        _alt_ok = cx.view.ALT_MASK in (0x20000, 0x0008)
+        _check("Ctrl+S / Ctrl+Z reach the Inspector's rebuilt widgets, also with Caps Lock; "
+               "the explanation popup uses Alt",
+               _tb is not None and cx._bindtag in _tb.bindtags()
+               and _calls == ["save", "save", "undo", "redo"] and _alt_ok, f"calls={_calls}")
         # search: the first hit stays highlighted in the results and opens at the matching line
         _br = cx.browser
         _br.mode.set("dialogue")

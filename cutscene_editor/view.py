@@ -1,7 +1,8 @@
 """The Script tab: the open scene as selectable rows, in the readable story form or the
-technical listing, with keyboard navigation and Ctrl-hover explanations."""
+technical listing, with keyboard navigation and Alt-hover explanations."""
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
@@ -63,11 +64,14 @@ class ScriptView(ttk.Frame):
         t.bind("<Delete>", lambda _e: (app.delete_selected(), "break")[1])
         t.bind("<Motion>", self._motion)
         t.bind("<Leave>", lambda _e: self.hide_tip())
+        # Alt shows the explanation (it used to be Ctrl, which Ctrl+S / Ctrl+Z share). The
+        # "break" keeps a bare Alt from reaching Tk's tk::WinMenuKey, which on Windows would
+        # put the window into menu mode and eat the next key.
         top = self.winfo_toplevel()
-        for seq in ("<KeyPress-Control_L>", "<KeyPress-Control_R>"):
-            top.bind(seq, lambda _e: self._ctrl(True), add="+")
-        for seq in ("<KeyRelease-Control_L>", "<KeyRelease-Control_R>"):
-            top.bind(seq, lambda _e: self._ctrl(False), add="+")
+        for seq in ("<KeyPress-Alt_L>", "<KeyPress-Alt_R>"):
+            top.bind(seq, lambda _e: (self._alt(True), "break")[1], add="+")
+        for seq in ("<KeyRelease-Alt_L>", "<KeyRelease-Alt_R>"):
+            top.bind(seq, lambda _e: (self._alt(False), "break")[1], add="+")
 
     # ---- rendering -------------------------------------------------------- #
     def render(self, keep_sel=True):
@@ -192,17 +196,20 @@ class ScriptView(ttk.Frame):
         self.text.clipboard_append(s)
         self.app.status("copied: " + (s if len(s) < 80 else s[:77] + "…"))
 
-    # ---- Ctrl-hover explanation ---------------------------------------------------- #
+    # ---- Alt-hover explanation ----------------------------------------------------- #
+    # Tk's Alt bit: 0x20000 on Windows (Mod1 = 0x0008 is Num Lock there), Mod1 elsewhere
+    ALT_MASK = 0x20000 if sys.platform == "win32" else 0x0008
+
     def _motion(self, e):
         ln = self._line_at(e)
         row = self.rows[ln - 1] if 0 < ln <= len(self.rows) else None
         self._hover_row = (row, e.x_root + 16, e.y_root + 18) if (row and row.st is not None) else None
-        if e.state & 0x0004 and self._hover_row:
+        if e.state & self.ALT_MASK and self._hover_row:
             self._show_hover()
         else:
             self.hide_tip()
 
-    def _ctrl(self, down):
+    def _alt(self, down):
         if down and self._hover_row:
             self._show_hover()
         elif not down:
@@ -214,6 +221,11 @@ class ScriptView(ttk.Frame):
         if self._tip is None:
             self._tip = tk.Toplevel(self)
             self._tip.wm_overrideredirect(True)
+            if sys.platform == "win32":
+                try:                        # a popup that can't be activated can't take focus
+                    self._tip.wm_attributes("-disabled", True)
+                except tk.TclError:
+                    pass
             lbl = tk.Label(self._tip, justify="left", anchor="w", bg="#1b1b22", fg="#e6e6ee",
                            font=("Segoe UI", 9), relief="solid", bd=1, padx=8, pady=6)
             lbl.config(wraplength=tkfont.Font(font=lbl["font"]).measure("m" * 60))
@@ -222,7 +234,10 @@ class ScriptView(ttk.Frame):
         if self._tip_lbl.cget("text") != text:
             self._tip_lbl.config(text=text)
         self._tip.wm_geometry("+%d+%d" % (x, y))
+        had = self.focus_get()
         self._tip.deiconify()
+        if had is not None and self.focus_get() is not had:
+            had.focus_set()                 # showing it must never move the keyboard focus
 
     def hide_tip(self):
         if self._tip is not None:

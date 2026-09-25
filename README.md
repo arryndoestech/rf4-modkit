@@ -476,7 +476,7 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
   **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly; *addresses*
   adds byte offsets. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
-  Delete deletes. **Hold Ctrl over a line** for the full explanation (prototype, every argument
+  Delete deletes. **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
@@ -555,9 +555,17 @@ choose it. The listing names the shared moods (`SetSpeakerVolkanon(right, angry,
 numbers the rest (`face 29`).
 
 **Box style.** `SetBoxNormal`, `SetBoxShout`, `SetBoxThought`, `SetBoxTrembling` (ops 94–97) and
-`SetDialogueBoxStyle` (op 93) set the **message-box style**: 0 normal, 1 shout (jagged box, screen flash), 2 thought (cloud box,
-the line holds about a second), 3 trembling (wavy box), 4 tail only (no box, op 93 only). Their
-Inspector and *Add dialogue line* have a **Box style** picker that shows the game's own box art.
+`SetDialogueBoxStyle` (op 93) set the **message-box style**: 0 normal, 1 shout (jagged box that
+shakes, screen flash), 2 thought (cloud box that floats for about a second), 3 trembling (wavy box
+that shakes sideways), 4 tail only (no box, op 93 only). The style lasts until changed or the box
+closes. Their Inspector and *Add dialogue line* have a **Box style** picker that shows the game's
+own box art.
+
+The box's **tail** points at the side of the last speaker cue (`SetSpeaker…(left, …)` or
+`(right, …)`), and it only shows while a portrait is up on that side for a named character.
+Narration and `SetSpeakerVoice` name plates get no tail. So a thought line needs a speaker cue
+on the side where that character's portrait should be. The game's own thought lines always
+follow one. The Inspector says where the tail will point, or why it won't show.
 
 **Text checks.** Every line you edit or add is checked the way the game reads it
 (`rf4s_modkit/textlint.py`; the grammar is in the RF4S docs, chapter 48, *Text control codes*):

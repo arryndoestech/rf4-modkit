@@ -1,5 +1,5 @@
 """Turning a scene into text: the readable "story" rows, the technical listing lines, the
-Ctrl-hover explanation of a statement, and the Overview breakdown. Pure functions of the
+Alt-hover explanation of a statement, and the Overview breakdown. Pure functions of the
 document + bank + scene (no widgets), so the view, the tests and the tooltips share them."""
 from __future__ import annotations
 
@@ -350,7 +350,7 @@ class SceneText:
             parts.append("does: " + "; ".join(a.pretty(em.names) for a in acts[:4]) + ("; …" if len(acts) > 4 else ""))
         return "\n".join(parts)
 
-    # ---- the Ctrl-hover explanation -------------------------------------------------- #
+    # ---- the Alt-hover explanation -------------------------------------------------- #
     def expr_vars(self, expr_off):
         """[(name, bit offset, width, packed)] for each emdeb variable in an expression."""
         doc = self.doc

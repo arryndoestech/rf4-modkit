@@ -1492,7 +1492,7 @@ _M.update({
 _M.update({
     93: ("SetDialogueBoxStyle", "dialogue",
          "Set the dialogue box style from an argument (the general form of ops 94-97, and the "
-         "only way to get style 4). " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
+         "only way to get style 4). " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).',
          ["box style (0 normal, 1 shout, 2 thought, 3 trembling, 4 tail only)"]),
     98: ("SetDialogueField161", "dialogue",
          "Write a byte to field +161 of the current dialogue task. arg0 = value. Low-level "
@@ -3730,7 +3730,7 @@ def arg_names(op):
 
 # Brief per-argument explanations, keyed by the (lower-cased) argument NAME. Arg names
 # are reused across many opcodes, so one table explains most of them. Used by the
-# Ctrl-hover tooltip in the cutscene editor.
+# Alt-hover tooltip in the cutscene editor.
 ARG_HINTS = {
     "face frame": "portrait face/expression frame (0 = neutral, 4 = open-mouth surprise)",
     "emote/mood": "speech-bubble emote id 186-192 (188 normal, 189 anger, 190 sad/'!', "
@@ -4857,9 +4857,9 @@ ENUM_ARG_VALUES[(416, 0)] = PLAYER_VARS
 # (verified 2026-09-25: it is the message-box style, see op 93's description; the old face
 # names were wrong)
 BOX_STYLES = {0: ("normal box", "The normal message box."),
-              1: ("shout", "Jagged box, with a screen flash."),
-              2: ("thought", "Cloud box with a bubble-trail tail; the line holds about a second."),
-              3: ("trembling", "Wavy box."),
+              1: ("shout", "Jagged box; it shakes and the screen flashes."),
+              2: ("thought", "Cloud box with a bubble-trail tail; it floats for about a second."),
+              3: ("trembling", "Wavy box; it shakes sideways."),
               4: ("tail only", "No box, just the speech tail.")}
 ENUM_ARG_VALUES[(93, 0)] = BOX_STYLES
 
@@ -5062,16 +5062,16 @@ _AUDIT_2026_09_01 = {
         "Alias of op 89 (same handler): set an actor's motion mask byte (motion struct +66) from a SHIFT COUNT, not a raw mask: writes 127>>n for n in 1..254, otherwise 0xFF. arg0 = actor (char id, resolved via a1+96/+88). Exact field semantics uncertain; unused in the shipped corpus.",
         ['actor (char id)', 'shift n (writes 127>>n; 0/255 = 0xFF)']),
     94: ('SetBoxNormal', 'dialogue',
-        "Dialogue box style 0: the normal box. Ops 94-97 = styles 0-3, the style is the opcode (op - 94); op 93 takes it as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
+        "Dialogue box style 0: the normal box. Ops 94-97 = styles 0-3, the style is the opcode (op - 94); op 93 takes it as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).',
         []),
     95: ('SetBoxShout', 'dialogue',
-        "Dialogue box style 1: shout -- a jagged box with a screen flash. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
+        "Dialogue box style 1: shout -- a jagged box that shakes, with a screen flash. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).',
         []),
     96: ('SetBoxThought', 'dialogue',
-        "Dialogue box style 2: thought -- a cloud box with a bubble-trail tail; the line holds about a second. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
+        "Dialogue box style 2: thought -- a cloud box with a bubble-trail tail pointing at the speaker; the box floats for about a second. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).',
         []),
     97: ('SetBoxTrembling', 'dialogue',
-        "Dialogue box style 3: trembling -- a wavy box. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box, screen flash), 2 = thought (cloud box, the line holds ~1 s), 3 = trembling (wavy box), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed.',
+        "Dialogue box style 3: trembling -- a wavy box that shakes sideways. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).',
         []),
     105: ('QueryCalendarEventStub', 'query',
         'Always writes 0 to the VM output — the intended calendar-event lookup is stubbed on the PC port (for arg >= 0x30 the search over g_calendarEventMng runs but its result is discarded). arg0 = event id (consumed by the arg decoder). Treat as returning 0.',
@@ -5459,6 +5459,46 @@ MODE_LEAF_WORDS = {0x11: "add", 0x12: "sub", 0x13: "set"}
 def arg_limit(op):
     """(max_args, reason) for an op whose handler overflows past that many args, else None."""
     return ARG_LIMITS.get(op)
+
+
+# The fewest / most arguments each op passes in the shipped rf3.mc (refdata/
+# script_arg_counts.json, gen_arg_counts.py). Handlers take the count the statement carries
+# and read a missing argument as stack garbage: op 93 with no argument
+# (ScriptVMOp_SetDialogueSpeakerEmoteByArg, RF4S.exe+0x2031D0) passes an uninitialised byte
+# as the box style, and the box disappears.
+_ARG_RANGES = None
+
+
+def arg_range(op):
+    """(fewest, most) arguments the shipped game passes to `op`, or None when the game never
+    uses it (or the table is missing)."""
+    global _ARG_RANGES
+    if _ARG_RANGES is None:
+        import json
+        try:
+            from .refdata import refdata_path
+        except ImportError:                               # imported as a top-level module
+            from rf4s_modkit.refdata import refdata_path
+        try:
+            raw = json.loads(refdata_path("script_arg_counts.json").read_text(encoding="utf-8"))["ops"]
+            _ARG_RANGES = {int(k): (int(v[0]), int(v[1])) for k, v in raw.items()}
+        except (OSError, ValueError, KeyError):
+            _ARG_RANGES = {}
+    return _ARG_RANGES.get(op)
+
+
+def arg_count_problem(op, n):
+    """Why `n` arguments is wrong for `op` (outside what the shipped game passes), or None."""
+    r = arg_range(op)
+    if r is None or r[0] <= n <= r[1]:
+        return None
+    want = ("%d" % r[0]) if r[0] == r[1] else ("%d to %d" % r)
+    names = arg_names(op)
+    what = (" (%s)" % ", ".join(names[:r[1]])) if names and r[1] else ""
+    why = ("the game reads a missing argument as leftover memory" if n < r[0] else
+           "the shipped game never passes more")
+    return ("%s (op %d) takes %s argument%s%s, not %d -- %s"
+            % (mnemonic(op), op, want, "" if r[1] == 1 else "s", what, n, why))
 
 
 # --- sound-id annotations (2026-09-24) ----------------------------------------------------------

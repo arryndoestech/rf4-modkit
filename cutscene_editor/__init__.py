@@ -7,7 +7,7 @@ Modules:
     document    the files, one undo history, byte-exact unsaved tracking
     render      a scene as story rows / listing lines / explanations / overview
     browser     banks grouped with readable names, scenes, search
-    view        the Script tab (selectable rows, keyboard, Ctrl-hover)
+    view        the Script tab (selectable rows, keyboard, Alt-hover)
     inspector   the form for the selected statement
     tabs        Source, Triggers, Overview
     dialogs     prompts (listing, dialogue, line picker, new scene) and the callers list

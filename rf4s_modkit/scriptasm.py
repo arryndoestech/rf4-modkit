@@ -690,6 +690,9 @@ class Assembler:
         if lim is not None and len(args) > lim[0]:
             raise AsmError("line %d: op %d takes at most %d arguments (%d given): %s"
                            % (line_no, op, lim[0], len(args), lim[1]))
+        bad = meta.arg_count_problem(op, len(args))
+        if bad:
+            raise AsmError("line %d: %s" % (line_no, bad))
         st.code += struct.pack("<HH", op, len(args))
         for i, a in enumerate(args):
             self._expr_fixup(st, self.operand(a, op, i))

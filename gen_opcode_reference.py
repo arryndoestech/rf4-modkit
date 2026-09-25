@@ -48,7 +48,7 @@ def build():
         f"(plus {len(placeholder_ops)} reserved/unused slots), the control-flow opcodes, the "
         "expression grammar, and the **em.bin** Event-Manager opcodes scenes bridge to. Do not edit "
         "by hand; re-run the generator to refresh. This is the GUI-free companion to the editor's "
-        "Ctrl-hover tooltips.",
+        "Alt-hover tooltips.",
         "",
         "## Contents",
         "",

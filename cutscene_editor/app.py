@@ -89,19 +89,31 @@ class CutsceneExplorer:
         self.status_lbl = ttk.Label(sbar, anchor="w", padding=(6, 2), font=("Segoe UI", 8))
         self.status_lbl.pack(side="left", fill="x", expand=True)
         tag = "CutEd%d" % id(self)
-        for seq, fn in (("<Control-z>", self.undo), ("<Control-y>", self.redo),
-                        ("<Control-Z>", self.redo), ("<Control-s>", self.save_all),
-                        ("<Control-f>", self.focus_search)):
-            self.frame.bind_class(tag, seq, lambda _e, fn=fn: (fn(), "break")[1])
-
-        def add_tag(w):
-            tags = w.bindtags()
-            if tag not in tags:
-                w.bindtags((tags[0], tag) + tags[1:])
-            for ch in w.winfo_children():
-                add_tag(ch)
-        add_tag(self.frame)
         self._bindtag = tag
+        # Caps Lock turns Ctrl+S into <Control-S>: bind both cases; Z/z tell undo from redo
+        # by the Shift bit, not by the letter's case
+        shift = lambda e: bool(e.state & 0x0001)
+        for seq, fn in (("<Control-z>", lambda e: (self.redo if shift(e) else self.undo)()),
+                        ("<Control-Z>", lambda e: (self.redo if shift(e) else self.undo)()),
+                        ("<Control-y>", lambda e: self.redo()), ("<Control-Y>", lambda e: self.redo()),
+                        ("<Control-s>", lambda e: self.save_all()), ("<Control-S>", lambda e: self.save_all()),
+                        ("<Control-f>", lambda e: self.focus_search()),
+                        ("<Control-F>", lambda e: self.focus_search())):
+            self.frame.bind_class(tag, seq, lambda e, fn=fn: (fn(e), "break")[1])
+        self.retag()
+
+    def retag(self, w=None):
+        """Give `w` (default: the whole editor) and everything under it the editor's shortcut
+        tag (Ctrl+S / Z / Y / F). Panels that rebuild their widgets -- the Inspector on every
+        selection -- call this, or the new widgets would swallow the shortcuts."""
+        tag = self._bindtag
+        stack = [self.frame if w is None else w]
+        while stack:
+            x = stack.pop()
+            tags = x.bindtags()
+            if tag not in tags:
+                x.bindtags((tags[0], tag) + tags[1:])
+            stack.extend(x.winfo_children())
 
     def _build_toolbar(self):
         bar = ttk.Frame(self.frame, padding=(2, 2))
@@ -259,6 +271,7 @@ class CutsceneExplorer:
         self.source.load(force=True)
         self.overview.render()
         self.inspector.show(None)
+        self.retag()
 
     def refresh_scene(self):
         """Re-read the open scene after an edit or undo (bank objects may be new)."""
@@ -310,6 +323,34 @@ class CutsceneExplorer:
             elif st.op == 92:
                 who = None
         return who
+
+    def tail_note(self, pc):
+        """(ok, text): where the message-box tail points for the first line at or after `pc`.
+        The game puts the tail on the side of the last speaker cue (op & 1: 0 left, 1 right)
+        and shows it only while a portrait is up on that side for a named character
+        (DialogueBox_TickStateMachine, RF4S.exe+0x235BF0), so narration and SetSpeakerVoice
+        name plates get none."""
+        from rf4s_modkit import portraits
+        lin = script.linearize(self.scene)
+        idx = next((i for i, (p, _s) in enumerate(lin) if p == pc), None)
+        if idx is None:
+            return True, ""
+        line = next((i for i in range(idx, len(lin)) if lin[i][1].mnem == "DIALOG"), None)
+        if line is None:
+            return True, "No line follows it in this path."
+        for p, st in reversed(lin[:line + 1]):
+            if script.is_portrait_op(st.op):
+                name, side, _c = SceneText(self.doc, self.bank, self.scene).speaker_of(st)
+                slot = (st.op - 16) >> 1
+                if not portraits.has_portrait(slot):
+                    return False, ("No tail: %s has no portrait (cue @0x%04x)." % (name, p))
+                return True, ("The tail points at %s's portrait on the %s (cue @0x%04x)." % (name, side, p))
+            if st.op == 10:
+                return False, ("No tail: the line's speaker is a SetSpeakerVoice name plate "
+                               "(@0x%04x), which has no portrait. Add a SetSpeaker cue before the line." % p)
+            if st.op == 92:
+                break
+        return False, "No tail: no speaker cue before the line (narration). Add a SetSpeaker cue before it."
 
     def focus_editor(self):
         self.inspector.focus_primary()
@@ -403,14 +444,31 @@ class CutsceneExplorer:
                 out.append((loc, lid, x))
         return out
 
+    def arg_count_errors(self):
+        """[(bank pos, pc, message)] for statements in the banks changed since the last save
+        whose argument count is outside what the shipped game passes (a missing argument is
+        read as leftover memory: op 93 without one hides the dialogue box)."""
+        out = []
+        for pos in self.doc.changed_banks():
+            bank = self.doc.container.banks[pos]
+            seen = set()
+            for sc in script.disassemble_bank(bank):
+                for pc, st in sc.stmts.items():
+                    if pc in seen or st.op >= 0xFFF0:
+                        continue
+                    seen.add(pc)
+                    why = script.meta.arg_count_problem(st.op, len(st.args))
+                    if why:
+                        out.append((pos, pc, why))
+        return sorted(out)
+
     def _refuse_broken_text(self, title):
-        bad = self.text_errors()
+        bad = ["• rf3mc.%s line #%d: %s" % (loc, lid, x.message) for loc, lid, x in self.text_errors()]
+        bad += ["• bank %d @0x%04x: %s" % e for e in self.arg_count_errors()]
         if not bad:
             return False
-        lines = ["• rf3mc.%s line #%d: %s" % (loc, lid, x.message) for loc, lid, x in bad[:8]]
-        if len(bad) > 8:
-            lines.append("• … and %d more" % (len(bad) - 8))
-        messagebox.showerror(title, "These lines would break the game; fix them first:\n\n"
+        lines = bad[:8] + (["• … and %d more" % (len(bad) - 8)] if len(bad) > 8 else [])
+        messagebox.showerror(title, "These would break the game; fix them first:\n\n"
                              + "\n".join(lines), parent=self.frame)
         return True
 
@@ -1012,6 +1070,9 @@ class CutsceneExplorer:
 
     def save_script(self):
         if self.doc.container is None:
+            return False
+        self.flush_edits()
+        if self._refuse_broken_text("Save rf3.mc"):
             return False
         f = filedialog.asksaveasfilename(title="Save rf3.mc", defaultextension=".mc", initialfile="rf3.mc")
         if not f:

@@ -9,7 +9,7 @@
     choice     each option's text, line id and target
 
 Fields commit on Enter or when they lose focus, as one undo step, only when the value
-changed. The explanation of the statement (the Ctrl-hover text) is shown at the bottom."""
+changed. The explanation of the statement (the Alt-hover text) is shown at the bottom."""
 from __future__ import annotations
 
 import tkinter as tk
@@ -103,6 +103,7 @@ class Inspector(ScrollFrame):
         if label:
             self._label_form(st, txt)
             self.explain_box.pack_forget()
+            self.app.retag(self.form)
             return
         if st.mnem == "DIALOG":
             self._dialog_form(st, txt)
@@ -117,6 +118,7 @@ class Inspector(ScrollFrame):
         set_text(self.explain, txt.explain(st))
         self.explain_box.pack(fill="x", padx=4, pady=(4, 2), after=self.actions)
         self.bind_wheel_tree(self.form)
+        self.app.retag(self.form)
 
     def _label_form(self, st, txt):
         name = txt.target(st.pc)
@@ -145,7 +147,7 @@ class Inspector(ScrollFrame):
         self.title.config(text="Scene @0x%04x" % sc.entry_pc)
         self.sub.config(text="%d statements" % len(sc.stmts))
         self.desc.config(text="Click a line to edit it. Up/Down move between lines, Enter edits the "
-                              "selected one, Del removes it. Hold Ctrl over a line for everything "
+                              "selected one, Del removes it. Hold Alt over a line for everything "
                               "known about it. The Source tab edits the whole scene as text.")
 
     # ---- dialogue ---------------------------------------------------------------- #
@@ -279,6 +281,11 @@ class Inspector(ScrollFrame):
     # ---- action -------------------------------------------------------------------- #
     def _action_form(self, st, txt):
         self._header(script.opcode_mnemonic(st.op), st, script.opcode_describe(st.op))
+        bad = script.meta.arg_count_problem(st.op, len(st.args))
+        if bad:                  # the game would read a missing argument as leftover memory
+            ttk.Label(self.form, text="⚠ " + bad + ". Save refuses this; delete the statement "
+                      "or add it again with the right arguments.", foreground="#b00020",
+                      wraplength=330, justify="left").pack(anchor="w", padx=8, pady=(4, 0))
         if 93 <= st.op <= 97:                       # the message-box style
             app = self.app
             from .dialogs import BoxStylePicker
@@ -298,6 +305,10 @@ class Inspector(ScrollFrame):
                 hint(self.form, "Tail only (4) needs SetDialogueBoxStyle (op 93).",
                      wrap=330).pack(anchor="w", padx=8)
             bp.frame.pack(side="left", padx=4)
+            ok, note = app.tail_note(st.pc)
+            if note:
+                ttk.Label(self.form, text=("" if ok else "⚠ ") + note, wraplength=330, justify="left",
+                          foreground="#555" if ok else "#b36200").pack(anchor="w", padx=8, pady=(4, 0))
         self._arg_rows(st, txt)
         emf = txt.emf_hint(st)
         if emf:

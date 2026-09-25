@@ -69,6 +69,7 @@ class ScriptDocument:
     def _install(self, container):
         self.container = container
         self._saved_mc = container.build()
+        self._saved_banks = [bytes(b.data) for b in container.banks]
         self.undo_stack.clear()
         self.redo_stack.clear()
         self._install_resolvers()
@@ -310,6 +311,14 @@ class ScriptDocument:
     def script_dirty(self):
         return self.container is not None and self.container.build() != self._saved_mc
 
+    def changed_banks(self):
+        """Positions of the banks whose bytes differ from the last load / save."""
+        if self.container is None:
+            return []
+        old = getattr(self, "_saved_banks", [])
+        return [i for i, b in enumerate(self.container.banks)
+                if i >= len(old) or bytes(b.data) != old[i]]
+
     def dirty_locales(self):
         return sorted(loc for loc, a in self.arcs.items() if list(a.entries) != self._saved_text.get(loc))
 
@@ -326,6 +335,7 @@ class ScriptDocument:
     def mark_saved(self, script_=False, locales=(), em=False):
         if script_ and self.container is not None:
             self._saved_mc = self.container.build()
+            self._saved_banks = [bytes(b.data) for b in self.container.banks]
         for loc in locales:
             if loc in self.arcs:
                 self._saved_text[loc] = list(self.arcs[loc].entries)

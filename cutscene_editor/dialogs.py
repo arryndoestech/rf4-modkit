@@ -277,7 +277,9 @@ class BoxStylePicker:
         self.frame = ttk.Frame(parent)
         self.btn = ttk.Button(self.frame, compound="left", command=self.choose)
         self.btn.pack(side="left")
-        Tip(self.btn, "The style of the message box for the following lines. Click to see them.")
+        Tip(self.btn, "The style of the message box for the following lines. Click to see them. "
+                      "The tail points at the speaker's side and only shows while that side has "
+                      "a portrait, so give a thought line a speaker, not narration.")
         self._show()
 
     def value(self):
