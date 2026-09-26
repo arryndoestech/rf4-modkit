@@ -2167,6 +2167,7 @@ class App:
         """E-mote portrait (.psbData / .emtbytes): the part atlas on a zoomable canvas
         (Export = PNG) with the PSB summary.  Repaint via `rf4mod psb replace-texture`.
         Returns False (caller falls back to the structure view) if it cannot decode."""
+        doc = self._doc
         from rf4s_modkit import psb as _psb
         try:
             ps = _psb.PSB(data)
@@ -2176,20 +2177,20 @@ class App:
             return False
         if img is None:
             return False
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         t = texs[0]
         ttk.Label(bar, text=f"E-mote atlas '{t['source']}'  {t['type']} {t['width']}x{t['height']}"
                             f"  {len(t['icons'])} parts").pack(side="left", padx=6)
         for z, lbl in ((0.25, "¼×"), (0.5, "½×"), (1, "1×"), (2, "2×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
-        info = tk.Text(self.content, height=9, wrap="word", font=("Consolas", 9))
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
+        info = tk.Text(doc.content, height=9, wrap="word", font=("Consolas", 9))
         info.insert("end", _psb.summary(ps, pathlib.PurePosixPath(name).name)); info.config(state="disabled")
         info.pack(fill="x")
-        self._pil = img
-        self._img_canvas = self._make_image_canvas()
-        self._set_zoom(0.5)
-        self._export_kind = "png"
+        doc._pil = img
+        doc._img_canvas = self._make_image_canvas(doc=doc)
+        self._set_zoom(0.5, doc)
+        doc._export_kind = "png"
         self.export_btn.config(state="normal")
         return True
 
