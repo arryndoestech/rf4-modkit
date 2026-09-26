@@ -1468,15 +1468,25 @@ def test_mobj_types():
         _check("mobj emdeb_flag_label names a region-A bit, separately from flag_label",
                mobj_params.emdeb_flag_label(2811) == "FLG_ELISA_NO_75")
     _check("mobj display names replace codenames",
-           mobj_types.mobj_display_name(48) == "BARRIER"
+           mobj_types.mobj_display_name(48) == "barrier (flag-gated)"
            and mobj_types.mobj_display_name(20) == "street light"
-           and mobj_types.mobj_display_name(27) == "critter spawner: birds"
-           and mobj_types.mobj_display_name(199) == "MOBJ_FI_TREE01"
+           and mobj_types.mobj_display_name(27) == "birds (critter spawner)"
+           and mobj_types.mobj_display_name(199) == "tree 1"
            and mobj_types.mobj_display_name(5) == "herb_pool32"
            and mobj_types.mobj_display_name(0) == "ore_rock_spawn"
            and mobj_types.mobj_display_name(12) == "tint_color"      # map parameter record
            and mobj_types.mobj_display_name(14) is None,             # unused parameter id
-           "48 BARRIER, 20 street light, 27 birds; forage + map-parameter records named, unused 14 not")
+           "48 barrier, 20 street light, 27 birds, 199 tree 1; forage + map-parameter records named, unused 14 not")
+    # every sprite type has a readable name (MOBJ_DISPLAY, 2026-09-26): from its sprite, its
+    # maps and, for doors, the warp it stands at -- no codename left in the editors' lists
+    _codes = [t for t, n in mobj_types.MOBJ_NAMES.items() if mobj_types.mobj_display_name(t) in (n, None)]
+    _names = [mobj_types.mobj_display_name(t) for t in mobj_types.MOBJ_NAMES]
+    _check("every map_obj type shows a readable name (airship, doors by their warp, no duplicates)",
+           not _codes and mobj_types.mobj_display_name(51) == "airship"
+           and mobj_types.mobj_display_name(82) == "door: Bell Hotel Lobby"
+           and mobj_types.mobj_display_name(163) == "Obsidian Mansion door (C04 → C05)"
+           and len({x for x in _names if x != "unused slot"}) == sum(1 for x in _names if x != "unused slot"),
+           f"codenames left: {_codes[:5]}")
     # Archive formula = type_id + 17542, and the kind boundaries.
     _check("mobj archive id = type+17542",
            mobj_types.mobj_archive_id(199) == 17741 and mobj_types.MAP_OBJ_ARCHIVE_BASE == 17542,
