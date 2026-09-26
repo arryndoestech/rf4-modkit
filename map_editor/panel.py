@@ -758,6 +758,8 @@ class MapEditorPanel:
         g = LAYER_GROUPS[key]
         if g == "bg":
             self.view.invalidate("bg")
+        elif key == "truesize":                 # sprites under the ATTR fill: its opacity changes
+            self.view.invalidate("bg", g, "sel")
         else:
             self.view.invalidate(g, "sel")
 
@@ -1116,11 +1118,17 @@ class MapEditorPanel:
         st.cp = scale or self.view.cp
         st.sel = None
         W, H, _ = d.grid
-        bg = render.Background().image(d.grid, self.view.colors, st.cp, self.view.ground_image(block=True),
-                                       attr_on=st.layers.get("attr", True), alpha=self.view.attr_alpha,
-                                       edges_on=st.layers.get("edges", True), attr_version=d.attr_version)
-        img = bg.copy() if bg is not None else Image.new("RGBA", (W * st.cp, H * st.cp), (0, 0, 0, 0))
-        prims = [p for g in render.GROUPS if g != "sel" for p in render.overlay(g, st)]
+        ground, top = render.Background().layers(
+            d.grid, self.view.colors, st.cp, self.view.ground_image(block=True),
+            attr_on=st.layers.get("attr", True), alpha=self.view.attr_alpha,
+            edges_on=st.layers.get("edges", True), attr_version=d.attr_version,
+            under=bool(st.layers.get("truesize")))
+        # the canvas stacking: ground, true-size sprites, ATTR, the other overlays
+        img = ground.copy() if ground is not None else Image.new("RGBA", (W * st.cp, H * st.cp), (0, 0, 0, 0))
+        img = render.draw_prims(img, render.overlay("under", st), st.sprites, st.truesprites)
+        if top is not None:
+            img = Image.alpha_composite(img, top)
+        prims = [p for g in render.GROUPS if g not in ("sel", "under") for p in render.overlay(g, st)]
         return render.draw_prims(img, prims, st.sprites, st.truesprites)
 
     def export_png(self):

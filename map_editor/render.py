@@ -21,10 +21,16 @@ except ImportError:           # the editor still runs, with a plain-rectangle AT
     HAS_PIL = False
 
 # Overlay groups, bottom to top.
-GROUPS = ("grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
+GROUPS = ("under", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
+# canvas stacking, bottom to top: the ground texture ("bg"), the true-size sprites ("under",
+# drawn as the game draws them, so they sit on the ground), the ATTR fill + cell edges
+# ("attr"), then every other overlay group
+STACK = ("bg", "under", "attr") + tuple(g for g in GROUPS if g != "under")
 
 SEL_COLOR = "#00e5ff"
 WARP_COLOR = "#ffd040"
+INVISIBLE_COLOR = "#b48cff"     # stand-in for a fully transparent true-size sprite
+BORDER_COLOR = "#ff3030"        # the outline of every true-size sprite ("sprite borders")
 SI_COLOR = "#ffe000"
 GATE_COLOR = "#ff8c1a"
 MPOS_COLOR = "#ff5aa0"
@@ -209,12 +215,18 @@ class Background:
     def invalidate(self):
         self._key = None
 
-    def image(self, grid, colors, cp, ground, *, attr_on, alpha, edges_on, attr_version):
-        """RGBA PIL image, or None when nothing is enabled. Callers must not draw on it."""
+    def layers(self, grid, colors, cp, ground, *, attr_on, alpha, edges_on, attr_version,
+               under=False):
+        """(ground, attr): the scaled ground texture and the ATTR fill + cell edges as a
+        separate RGBA layer (either may be None), so the true-size sprites can be drawn
+        between them. The fill takes the ATTR opacity when anything lies beneath it (the
+        ground, or sprites when `under`); otherwise it is opaque. Callers must not draw on
+        the images."""
         if not HAS_PIL or grid is None:
-            return None
-        key = (attr_version, len(colors), cp, id(ground), attr_on, alpha if ground else 255,
-               edges_on)
+            return None, None
+        below = ground is not None or under
+        key = (attr_version, len(colors), cp, id(ground), attr_on, alpha if below else 255,
+               edges_on, below)
         if key == self._key:
             return self._img
         w, h, cells = grid
@@ -225,17 +237,23 @@ class Background:
                 scaled = ground.resize((w * cp, h * cp), Image.BILINEAR).convert("RGBA")
                 self._scaled = (ground, (w * cp, h * cp), scaled)
             base = scaled
-        idx = None
+        top = None
         if attr_on:
             idx = self._index_image(w, h, cells, colors)
             fill = idx.convert("RGBA")
-            fill.putalpha(max(0, min(255, int(alpha))) if base is not None else 255)
-            fill = fill.resize((w * cp, h * cp), Image.NEAREST)
-            base = fill if base is None else Image.alpha_composite(base, fill)
+            fill.putalpha(max(0, min(255, int(alpha))) if below else 255)
+            top = fill.resize((w * cp, h * cp), Image.NEAREST)
             if edges_on and cp >= 2:
-                base = self._edges(base, idx, w, h, cp, over_texture=ground is not None)
-        self._key, self._img = key, base
-        return base
+                top = self._edges(top, idx, w, h, cp, over_texture=ground is not None)
+        self._key, self._img = key, (base, top)
+        return base, top
+
+    def image(self, grid, colors, cp, ground, **kw):
+        """The two layers composited into one RGBA image, or None when nothing is enabled."""
+        base, top = self.layers(grid, colors, cp, ground, **kw)
+        if base is None or top is None:
+            return base if top is None else top
+        return Image.alpha_composite(base, top)
 
     @staticmethod
     def _index_image(w, h, cells, colors):
@@ -348,7 +366,7 @@ class TrueSprites:
 
     def __init__(self):
         self.reader = None
-        self._src = {}                     # (texture name, frame) -> (RGBA, quad) | None
+        self._src = {}                     # (texture name, frame) -> (RGBA, quad, invisible) | None
         self._scaled = OrderedDict()
 
     def reset(self):
@@ -356,7 +374,9 @@ class TrueSprites:
         self._scaled.clear()
 
     def source(self, o):
-        """(texture name, frame, quad) for a decoded MOBJ entry, or None."""
+        """(texture name, frame, quad, invisible) for a decoded MOBJ entry, or None.
+        invisible = every pixel of the drawn part is fully transparent (the game draws
+        nothing: MOBJ_CLEAR_WALL, MOBJ_LAST_BOSS_WALL_*), so the editor shows a stand-in."""
         r = self.reader
         name = o.get("name")
         if r is None or not name:
@@ -373,11 +393,13 @@ class TrueSprites:
                     if frame >= texture.frame_count(data):
                         frame = 0
                     got = spritequad.sprite_image(data, frame)
+                    if got is not None:
+                        got = got + (got[0].getchannel("A").getextrema()[1] == 0,)
                 except Exception:
                     got = None
             self._src[key] = got
         got = self._src[key]
-        return (fn, key[1], got[1]) if got else None
+        return (fn, key[1], got[1], got[2]) if got else None
 
     def pil(self, fn, frame, w, h, mirror):
         """The sprite resized to w x h canvas pixels (mirrored when asked)."""
@@ -420,6 +442,12 @@ def entity_visible(o, layers):
     return layers.get(key, True) and not (o["pos_x"] == 0 and o["pos_y"] == 0) and cat != "mapparam"
 
 
+def _true_rect(o, src, cp):
+    """Canvas rectangle a true-size sprite covers (src = TrueSprites.source(o))."""
+    x0, y0, x1, y1 = (v * cp / 8 for v in spritequad.world_rect(o, src[2]))
+    return int(x0), int(y0), int(x1), int(y1)
+
+
 def overlay(group, st):
     """Primitives of one overlay group. `st` is the view state: doc, cp, layers (dict of
     bool), sel (selection key or None), active_gate (Entry | None), spawns, sprites."""
@@ -440,6 +468,17 @@ def overlay(group, st):
             for j, rec in enumerate(doc.map.mapj_records()):
                 out.append(Prim("rect", warp_rect_px(rec, cp), key=("warp", j),
                                 outline=WARP_COLOR, width=2))
+    elif group == "under":
+        if L.get("truesize") and HAS_PIL:
+            flags = getattr(st, "flags", None)
+            for i in sorted(range(len(doc.objs)), key=lambda k: spritequad.z_key(doc.objs[k])):
+                o = doc.objs[i]         # the game's depth order: larger z drawn later
+                if not entity_visible(o, L) or flagstate.hidden(o, flags):
+                    continue
+                src = st.truesprites.source(o)
+                if src is not None:
+                    out.append(Prim("tsprite", _true_rect(o, src, cp), key=("mobj", i), fn=src[0],
+                                    frame=src[1], mirror=spritequad.mirrored(o)))
     elif group == "ent":
         r = max(3, cp // 2 + 1)
         sprites_on = L.get("sprites")
@@ -447,30 +486,31 @@ def overlay(group, st):
         labels_on = L.get("labels")
         base = max(12, min(180, int(cp * 3)))
         flags = getattr(st, "flags", None)
-        order = range(len(doc.objs))
-        if true_on:                     # the game's depth order: larger z drawn later
-            order = sorted(order, key=lambda k: spritequad.z_key(doc.objs[k]))
-        for i in order:
-            o = doc.objs[i]
+        for i, o in enumerate(doc.objs):
             if not entity_visible(o, L):
                 continue
             cx, cy = (o["pos_x"] >> 3) * cp, (o["pos_y"] >> 3) * cp
             tid = o["type_id"] & 0xFFFF
             gone = flagstate.hidden(o, flags)
             src = st.truesprites.source(o) if true_on else None
-            if src is not None:
-                x0, y0, x1, y1 = (v * cp / 8 for v in spritequad.world_rect(o, src[2]))
-                rect = (int(x0), int(y0), int(x1), int(y1))
+            if src is not None:             # the sprite itself is in the "under" group
+                rect = _true_rect(o, src, cp)
                 if gone:
                     out.append(Prim("rect", rect, key=("mobj", i), outline="#9a9aa8", width=1,
                                     dash=(4, 3)))
-                else:
-                    out.append(Prim("tsprite", rect, key=("mobj", i), fn=src[0], frame=src[1],
-                                    mirror=spritequad.mirrored(o)))
+                elif L.get("tborders", True) and not src[3]:     # the sprite's extent
+                    out.append(Prim("rect", rect, key=("mobj", i), outline=BORDER_COLOR, width=1))
+                elif src[3]:                # a fully transparent sprite: a stand-in above ATTR
+                    out.append(Prim("rect", rect, key=("mobj", i), outline=INVISIBLE_COLOR, width=2,
+                                    dash=(6, 4)))
+                    out.append(Prim("line", (rect[0], rect[1], rect[2], rect[3]), fill=INVISIBLE_COLOR,
+                                    dash=(6, 4)))
+                    out.append(Prim("line", (rect[0], rect[3], rect[2], rect[1]), fill=INVISIBLE_COLOR,
+                                    dash=(6, 4)))
                 if labels_on:
                     nm = mobj_types.mobj_display_name(tid) or o["category"]
                     out.append(Prim("text", ((rect[0] + rect[2]) // 2, rect[1] - 1),
-                                    text=nm + (" (hidden by flag)" if gone else ""),
+                                    text=nm + (" (hidden by flag)" if gone else " (invisible)" if src[3] else ""),
                                     fill="#ffe000", size=small, anchor="s"))
                 continue
             size = max(8, min(256, int(base * (o.get("scale") or 1.0))))
@@ -550,7 +590,13 @@ def _selection(st):
     out = []
     if kind == "mobj" and k < len(doc.objs):
         o = doc.objs[k]
-        if o["pos_x"] or o["pos_y"]:
+        src = (st.truesprites.source(o) if st.layers.get("truesize") and HAS_PIL
+               and entity_visible(o, st.layers) else None)
+        if src is not None:                 # a frame around the true-size sprite
+            x0, y0, x1, y1 = _true_rect(o, src, cp)
+            out.append(Prim("rect", (x0 - 3, y0 - 3, x1 + 3, y1 + 3), outline="#002b33", width=1))
+            out.append(Prim("rect", (x0 - 1, y0 - 1, x1 + 1, y1 + 1), outline=SEL_COLOR, width=3))
+        elif o["pos_x"] or o["pos_y"]:
             cx, cy = (o["pos_x"] >> 3) * cp, (o["pos_y"] >> 3) * cp
             rr = max(6, cp // 2 + 4)
             out.append(Prim("oval", (cx - rr, cy - rr, cx + rr, cy + rr), outline=SEL_COLOR, width=3))

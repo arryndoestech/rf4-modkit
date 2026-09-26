@@ -7818,8 +7818,23 @@ def test_sprite_quads_and_flags():
         for k in ("truesize",):
             panel.viewtab.vars[k].set(True)
             panel.set_layer(k, True)
-        kinds = lambda: {p.key[1]: p.kind for p in mrender.overlay("ent", st)
-                         if p.key in (("mobj", 14), ("mobj", 15))}
+        kinds = lambda: {p.key[1]: p.kind for g in ("ent", "under") for p in mrender.overlay(g, st)
+                         if p.key in (("mobj", 14), ("mobj", 15)) and p.kind != "text"}
+        st.flags = None
+        stand_in = [p for p in mrender.overlay("ent", st) if p.key == ("mobj", 15)]
+        red = lambda: [p for p in mrender.overlay("ent", st)
+                       if p.key == ("mobj", 14) and p.opt.get("outline") == mrender.BORDER_COLOR]
+        had = bool(red())
+        panel.set_layer("tborders", False)
+        gone_off = not red()
+        panel.set_layer("tborders", True)
+        _check("editor: 'sprite borders' draws a red border around a true-size sprite (and can be "
+               "turned off)", had and gone_off)
+        _check("editor: the fully transparent clear wall gets a visible stand-in above the ATTR fill",
+               any(p.kind == "rect" and p.opt.get("outline") == mrender.INVISIBLE_COLOR for p in stand_in)
+               and not any(p.opt.get("outline") == mrender.INVISIBLE_COLOR
+                           for p in mrender.overlay("ent", st) if p.key == ("mobj", 14)),
+               str([(p.kind, p.opt) for p in stand_in]))
         st.flags = None
         k0 = kinds()
         st.flags = state(73)
@@ -7829,7 +7844,28 @@ def test_sprite_quads_and_flags():
         _check("editor: bridge + wall drawn true-size; flag 73 turns the bridge into an outline, "
                "74 the wall", k0 == {14: "tsprite", 15: "tsprite"} and k1 == {14: "rect", 15: "tsprite"}
                and k2 == {14: "tsprite", 15: "rect"}, "%s %s %s" % (k0, k1, k2))
+        st.flags = None
+        panel.view.invalidate_all()
         panel.view.flush()
+        cv = panel.view.canvas
+        pos = {it: n for n, it in enumerate(cv.find_all())}          # display list, bottom first
+        low = lambda tag: min((pos[i] for i in cv.find_withtag(tag)), default=None)
+        high = lambda tag: max((pos[i] for i in cv.find_withtag(tag)), default=None)
+        _check("editor: true-size sprites sit right above the ground, below the ATTR fill/edges, "
+               "the warps and the markers",
+               None not in (high("under"), low("attr"), low("warp"), low("ent"))
+               and (high("bg") is None or high("bg") < low("under"))
+               and high("under") < low("attr") < low("warp") and high("under") < low("ent"),
+               "bg %s under %s-%s attr %s warp %s ent %s" % (high("bg"), low("under"), high("under"),
+                                                           low("attr"), low("warp"), low("ent")))
+        st.sel = ("mobj", 14)
+        selp = mrender.overlay("sel", st)
+        tr = [p.xy for p in mrender.overlay("under", st) if p.key == ("mobj", 14)]
+        _check("editor: a selected true-size object gets a frame around its sprite, not the circle",
+               tr and selp and all(p.kind == "rect" for p in selp)
+               and any(p.xy == (tr[0][0] - 1, tr[0][1] - 1, tr[0][2] + 1, tr[0][3] + 1) for p in selp),
+               "%s / %s" % ([(p.kind, p.xy) for p in selp], tr))
+        st.sel = None
         img = panel.render_to_image(scale=4)
         _check("editor: export draws the true-size sprites without errors",
                img is not None and not errs, str(errs[:1]))

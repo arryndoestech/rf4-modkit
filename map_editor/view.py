@@ -49,6 +49,7 @@ class MapView(ttk.Frame):
         self._dirty = set()
         self._pending = False
         self._bg_photo = None
+        self._attr_photo = None
         self._photos = {}                        # (type_id, size) -> PhotoImage
         self._tip = None
 
@@ -134,16 +135,21 @@ class MapView(ttk.Frame):
                                             self.scenery)
         return self.ground.get(self.ground_key())
 
-    def background_image(self, block=False):
+    def background_layers(self, block=False):
+        """(ground, attr) images; the true-size sprites are drawn between them."""
         d = self.doc
         L = self.st.layers
-        return self.background.image(
+        return self.background.layers(
             d.grid, self.colors, self.cp, self.ground_image(block), attr_on=L.get("attr", True),
-            alpha=self.attr_alpha, edges_on=L.get("edges", True), attr_version=d.attr_version)
+            alpha=self.attr_alpha, edges_on=L.get("edges", True), attr_version=d.attr_version,
+            under=bool(L.get("truesize")))
 
     # ---- redraw scheduling -------------------------------------------------- #
     def invalidate(self, *groups):
-        self._dirty.update(groups or ("bg",) + render.GROUPS)
+        groups = groups or ("bg",) + render.GROUPS
+        if "ent" in groups:                     # the objects' true-size sprites
+            groups += ("under",)
+        self._dirty.update(groups)
         if not self._pending:
             self._pending = True
             ui.later(self, self.flush)
@@ -168,11 +174,16 @@ class MapView(ttk.Frame):
         W, H, cells = d.grid
         if "bg" in dirty:
             c.delete("bg")
-            img = self.background_image()
-            if img is not None:
+            c.delete("attr")
+            ground, top = self.background_layers()
+            if ground is not None or top is not None:
                 from PIL import ImageTk
-                self._bg_photo = ImageTk.PhotoImage(img)
-                c.create_image(0, 0, anchor="nw", image=self._bg_photo, tags=("bg",))
+                self._bg_photo = ImageTk.PhotoImage(ground) if ground is not None else None
+                self._attr_photo = ImageTk.PhotoImage(top) if top is not None else None
+                if self._bg_photo is not None:
+                    c.create_image(0, 0, anchor="nw", image=self._bg_photo, tags=("bg",))
+                if self._attr_photo is not None:
+                    c.create_image(0, 0, anchor="nw", image=self._attr_photo, tags=("attr",))
             elif not render.HAS_PIL and self.st.layers.get("attr", True):
                 cp = self.cp
                 for y in range(H):
@@ -195,7 +206,8 @@ class MapView(ttk.Frame):
             o = p.opt
             tags = (g,)
             if p.kind == "line":
-                it = c.create_line(*p.xy, fill=o.get("fill"), tags=tags)
+                it = c.create_line(*p.xy, fill=o.get("fill"), width=o.get("width", 1),
+                                   dash=o.get("dash", ""), tags=tags)
             elif p.kind == "rect":
                 it = c.create_rectangle(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
                                         width=o.get("width", 1), dash=o.get("dash", ""), tags=tags)
@@ -251,7 +263,7 @@ class MapView(ttk.Frame):
 
     def _restack(self):
         c = self.canvas
-        for g in ("bg",) + render.GROUPS + ("stroke", "preview"):
+        for g in render.STACK + ("stroke", "preview"):
             c.tag_raise(g)
 
     # ---- previews drawn by tools ------------------------------------------- #
