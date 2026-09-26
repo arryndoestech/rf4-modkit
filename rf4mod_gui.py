@@ -3925,22 +3925,23 @@ class App:
         with per-field entry boxes for every schema field (stats/drops/elements/resists/AI/
         model). Apply writes into the in-memory table; Save… writes a loose-override .bin.
         Editing is byte-surgical — only the touched record changes."""
+        doc = self._doc
         from rf4s_modkit import monster
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         stem = "rf3NpcParam"
         sch = t.schema(stem)
         species = monster.load_species()
         items = _load_item_names()
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Monster / character templates — {t.entry_count} char_ids × "
                             f"{t.record_size} B   (id: <48 human · 48-199 field · 200-253 boss)"
                   ).pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
 
-        body = ttk.Frame(self.content); body.pack(fill="both", expand=True)
+        body = ttk.Frame(doc.content); body.pack(fill="both", expand=True)
         left = ttk.Frame(body); left.pack(side="left", fill="both", expand=True)
         cols = ("id", "name", "hp", "atk", "def", "kind")
         widths = {"id": 50, "name": 150, "hp": 70, "atk": 55, "def": 55, "kind": 155}
@@ -4007,16 +4008,16 @@ class App:
                     t.set(i, off, int(v.get(), 0), typ)
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i)); render_sheet(i)
             self.status.config(text=f"Applied char {i} — Save… to write a loose override")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3NpcParam.bin",
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved rf3NpcParam → {f}")
 
         btns = ttk.Frame(ed); btns.pack(fill="x", padx=4, pady=2)
