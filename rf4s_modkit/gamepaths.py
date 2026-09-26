@@ -3,13 +3,10 @@ Where the game copy is -- the one lookup every tool uses.
 
 Mods are written into the game's Bundle folder, so working on a copy of the game is
 recommended, but any install works. The Bundle folder -- the one holding Manifest.plist --
-is found in this order:
-
-  1. the folder saved in the toolkit's settings (the GUI asks for it once, or
-     `rf4mod.py game <folder>` sets it);
-  2. the nearest Bundle folder above the toolkit (the toolkit unpacked anywhere inside
-     the game copy: <game>\\tools\\modding, <game>\\rf4s-modkit, <game>\\rf4s-modkit\\rf4s-modkit);
-  3. the RF4S_BUNDLE environment variable.
+is only ever the one the user chose: the folder saved in the toolkit's settings (the GUI
+asks for it on the first start, or `rf4mod.py game <folder>` sets it). Nothing is guessed
+from where the toolkit sits or from the environment, so a tool can never pick up a game
+the user did not mean.
 """
 from __future__ import annotations
 
@@ -19,11 +16,10 @@ import pathlib
 import sys
 
 TOOLKIT = pathlib.Path(__file__).resolve().parent.parent      # the folder holding rf4mod.py
-ENV_VAR = "RF4S_BUNDLE"
-SEARCH_UP = 4                                                 # parent levels searched in step 2
-# the placeholder path returned when no game is found (<toolkit>/../../Bundle): callers get
-# a path that simply does not exist
-NO_GAME_BUNDLE = TOOLKIT.parent.parent / "Bundle"
+# the placeholder returned while no game is chosen: '<' and '>' can't be in a Windows file
+# name, so nothing is ever found under it and nothing can be written there (the old
+# <toolkit>/../../Bundle placeholder was a real game folder when the toolkit sat inside one)
+NO_GAME_BUNDLE = TOOLKIT / "<no game folder chosen>" / "Bundle"
 
 
 def settings_path() -> pathlib.Path:
@@ -157,20 +153,9 @@ def problem(bundle_dir) -> str | None:
 
 # ---- lookup ------------------------------------------------------------------------ #
 def candidates() -> list[tuple[str, pathlib.Path]]:
-    """(where it came from, Bundle folder) in lookup order, only ones that exist."""
-    out = []
+    """(where it came from, Bundle folder): the saved choice, when it still exists."""
     saved = as_bundle_dir(_load_settings().get("bundle_dir"))
-    if saved:
-        out.append(("saved setting", saved))
-    for up in list(TOOLKIT.parents)[:SEARCH_UP]:
-        b = as_bundle_dir(up / "Bundle")
-        if b:
-            out.append(("found above the toolkit", b))
-            break
-    env = as_bundle_dir(os.environ.get(ENV_VAR))
-    if env:
-        out.append((ENV_VAR, env))
-    return out
+    return [("saved setting", saved)] if saved else []
 
 
 _cached = False
@@ -178,7 +163,7 @@ _found: pathlib.Path | None = None
 
 
 def find_bundle_dir(refresh: bool = False) -> pathlib.Path | None:
-    """The first usable Bundle folder (see the module docstring), or None."""
+    """The chosen Bundle folder when it is usable (see the module docstring), or None."""
     global _cached, _found
     if refresh or not _cached:
         _found = next((b for _src, b in candidates() if problem(b) is None), None)

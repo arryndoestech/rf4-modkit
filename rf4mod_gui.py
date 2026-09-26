@@ -54,8 +54,8 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".jfif", ".gif", ".bmp", ".tif", ".tiff",
 from rf4s_modkit import assetcat, gamepaths  # noqa: E402
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
-# the game copy's Bundle folder: saved setting, else the nearest Bundle above the toolkit,
-# else $RF4S_BUNDLE (rf4s_modkit.gamepaths); main() asks for it when none is found
+# the game copy's Bundle folder the user chose (rf4s_modkit.gamepaths); main() asks for it
+# when none is chosen yet
 BUNDLE_DIR = gamepaths.bundle_dir()
 # Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
 EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
@@ -620,19 +620,22 @@ class App:
         self.export_btn.pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
-        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Label(bar, text="Filter:").pack(side="left")
+        # the list filters, kept together at the right end of the toolbar
+        flt = ttk.Frame(bar)
+        flt.pack(side="right", padx=(0, 4))
+        ttk.Separator(bar, orient="vertical").pack(side="right", fill="y", padx=6)
+        ttk.Label(flt, text="Filter:").pack(side="left")
         self.filter_var = tk.StringVar()
         # Debounced: re-filtering ~38k names on EVERY keystroke made typing stutter; wait
         # until the user pauses (Enter applies immediately).
         self._filter_after = None
         self.filter_var.trace_add("write", lambda *_: self._schedule_filter())
-        fe = ttk.Entry(bar, textvariable=self.filter_var, width=28)
+        fe = ttk.Entry(flt, textvariable=self.filter_var, width=28)
         fe.pack(side="left", padx=2)
         fe.bind("<Return>", lambda _e: self._apply_filter_now())
-        ttk.Label(bar, text="Show:").pack(side="left", padx=(8, 0))
+        ttk.Label(flt, text="Show:").pack(side="left", padx=(8, 0))
         self.cat_var = tk.StringVar(value=self.ALL_CATS)
-        self.cat_cb = ttk.Combobox(bar, textvariable=self.cat_var, state="readonly", width=26,
+        self.cat_cb = ttk.Combobox(flt, textvariable=self.cat_var, state="readonly", width=26,
                                    values=[self.ALL_CATS])
         self.cat_cb.pack(side="left", padx=2)
         self.cat_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter_now())
@@ -640,13 +643,11 @@ class App:
                          "with the Filter box: Maps + 'city' = every town map.")
         Tip(fe, "Show only files whose name contains this text (Enter applies at once).")
         self.group_maps_var = tk.BooleanVar(value=bool(gamepaths.get_setting(GROUP_MAPS_SETTING, True)))
-        gm = ttk.Checkbutton(bar, text="Group maps by area", variable=self.group_maps_var,
+        gm = ttk.Checkbutton(flt, text="Group maps by area", variable=self.group_maps_var,
                              command=self.cmd_group_maps)
         gm.pack(side="left", padx=(8, 0))
         Tip(gm, "List the .rf4m maps under a header per in-game area (Rune Prana, Selphia: "
                 "Town Square, ...), each one opens and closes. Off: one flat list of files.")
-        self.count_lbl = ttk.Label(bar, text="")
-        self.count_lbl.pack(side="right", padx=8)
 
     def _build_body(self):
         from guiutil import Paned
@@ -681,8 +682,13 @@ class App:
         self.content.pack(fill="both", expand=True)
 
     def _build_status(self):
-        self.status = ttk.Label(self.root, text="", anchor="w", relief="sunken")
-        self.status.pack(fill="x", side="bottom")
+        sb = ttk.Frame(self.root)
+        sb.pack(fill="x", side="bottom")
+        # what the file list holds ("38410 entries in 6 group(s)", "12 matches") at the right
+        self.count_lbl = ttk.Label(sb, text="", anchor="e", relief="sunken", padding=(8, 0))
+        self.count_lbl.pack(side="right")
+        self.status = ttk.Label(sb, text="", anchor="w", relief="sunken")
+        self.status.pack(side="left", fill="x", expand=True)
 
     def cmd_toggle_files(self):
         """Collapse / restore the left file-select pane (the Asset/Size tree), giving

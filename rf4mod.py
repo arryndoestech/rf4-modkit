@@ -40,8 +40,8 @@ ITEM_NAMES = _refdata_path("rf4s_item_names.json")
 
 # Repo root = two levels up from tools/modding/. Bundle dir + extracted dir.
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
-# The game copy's Bundle folder (rf4s_modkit.gamepaths: saved setting, else the nearest
-# Bundle above the toolkit, else $RF4S_BUNDLE); `rf4mod.py game <folder>` sets it.
+# The game copy's Bundle folder the user chose (rf4s_modkit.gamepaths); `rf4mod.py game
+# <folder>` sets it, the GUI asks for it on the first start.
 from rf4s_modkit import gamepaths  # noqa: E402
 BUNDLE_DIR = gamepaths.bundle_dir()
 # Extraction root: support both Bundle/extracted/<bundle>/... and a flat
@@ -206,7 +206,7 @@ def cmd_game(a):
             sys.exit(f"can't use {a.folder}: {e}")
         print(f"saved: {b}  (in {gamepaths.settings_path()})")
     b = gamepaths.find_bundle_dir(refresh=True)
-    print(f"game Bundle folder: {b if b else '(none found)'}")
+    print(f"game Bundle folder: {b if b else '(none chosen: rf4mod.py game <your game copy>)'}")
     for src, c in gamepaths.candidates():
         why = gamepaths.problem(c)
         print(f"  {src:<24} {c}" + (f"   -- not used: {why}" if why else ""))

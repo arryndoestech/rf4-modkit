@@ -43,7 +43,7 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    (`py` is the launcher the python.org installer always adds; `python` works too
    if you ticked *Add Python to PATH*.)
 3. **Use the GUI.**
-   If it can't find the game, it asks: **Choose the game folder…** (the one with
+   On the first start it asks which game to use: **Choose the game folder…** (the one with
    `RF4S.exe` and `Bundle\`), or **Make a copy for me…** (pick the game —
    Steam: right-click the game → *Manage* → *Browse local files* shows it — and a
    place for the copy; about 5 GB of disk space).
@@ -174,18 +174,15 @@ python tools/modding/rf4mod.py selftest
 ### Bundle layout
 
 The toolkit needs the `Bundle/` directory of your game **copy** (the one containing
-`Manifest.plist` and the `bundle*.mbundle` archives). Every tool finds it the same way
-(`rf4s_modkit/gamepaths.py`), in this order:
+`Manifest.plist` and the `bundle*.mbundle` archives). Every tool uses the one you chose
+(`rf4s_modkit/gamepaths.py`): the folder saved in the toolkit's settings (`settings.json` in
+the toolkit folder; an older `%APPDATA%\RF4S Modding Toolkit\settings.json` is moved there
+on the next start), set by the GUI's first-start window / **Game folder…** button or by
+`rf4mod.py game <copy>` (`rf4mod.py game --forget` drops it). Nothing is guessed from where
+the toolkit sits or from environment variables, so no tool picks up a game you didn't mean,
+not even the one the toolkit is unpacked inside.
 
-1. the folder saved in the toolkit's settings (`settings.json` in the toolkit folder; an older
-   `%APPDATA%\RF4S Modding Toolkit\settings.json` is moved there on the next start),
-   set by the GUI's first-start window / **Game folder…** button or by
-   `rf4mod.py game <copy>` (`rf4mod.py game --forget` drops it);
-2. the nearest `Bundle/` folder above the toolkit (up to four levels: `tools/modding/`,
-   `rf4s-modkit/`, `rf4s-modkit/rf4s-modkit/` inside the copy all work);
-3. the `RF4S_BUNDLE` environment variable.
-
-`rf4mod.py game` prints what was found and why a candidate was skipped.
+`rf4mod.py game` prints the chosen folder, or why it can't be used.
 The contents can be in any of these layouts:
 
 - **The game's own `Bundle/`** (`Manifest.plist` + `bundle*.mbundle`) — a plain copy

@@ -110,7 +110,7 @@ class _Setup:
         f = ttk.Frame(w, padding=16)
         f.pack(fill="both", expand=True)
         head = ("Game folder in use:\n    %s" % current.parent) if current else \
-               "Couldn't find the game."
+               "Which game should the toolkit use?"
         ttk.Label(f, text=head, font=("TkDefaultFont", 10, "bold"), justify="left").pack(anchor="w")
         ttk.Label(f, justify="left", wraplength=520, text=(
             "\nEvery tool in the toolkit reads and writes this game folder. You can switch to "
