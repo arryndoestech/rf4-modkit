@@ -2012,13 +2012,14 @@ class App:
 
     # plain TEXT routed above; this handles `text` fmt files that are NOT TEXT magic
     def _view_text(self, name, data):
+        doc = self._doc
         if data[:4] == b"TEXT":
             return self._view_textdb(name, data)
         try:
             s = data.decode("utf-8")
         except UnicodeDecodeError:
             s = data.decode("latin1")
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         txt.insert("end", s)
         txt.config(state="disabled")
 

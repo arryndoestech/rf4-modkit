@@ -5792,7 +5792,7 @@ _TAB_VIEWERS = {
 }
 # viewers moved onto their tab's _Doc (the tabs migration): their own Save buttons clear the
 # tab's unsaved mark; the rest still reach their tab through App's shim
-_TAB_MIGRATED = {"hex"}
+_TAB_MIGRATED = {"hex", "text"}
 _TAB_SAVE_LABELS = ("Save table…", "Save…", "Save graph…")   # buttons that write the working copy
 
 
