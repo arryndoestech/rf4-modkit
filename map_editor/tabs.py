@@ -672,10 +672,11 @@ class EncountersTab(ui.ScrollFrame):
 # --------------------------------------------------------------------------- #
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": True, "labels": False,
-                  "sprite_borders": True, "mapj": True, "dest": True, "si": True, "gates": True, "spawns": False}
+                  "sprite_borders": True, "gate_art": True, "mapj": True, "dest": True, "si": True,
+                  "gates": True, "spawns": False}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
-                "sprite_borders": "ent", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
+                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
 VIEW_SETTING = "map_view"      # settings.json key: the View tab's choices, kept across maps and runs
 FLAGS_NONE = "(all objects)"
@@ -715,6 +716,9 @@ class ViewTab(ui.ScrollFrame):
         ui.Tip(cb(L, "sprite_borders", "sprite borders", 5, 0),
                "A red border around every drawn sprite, above the ATTR fill, so each object's "
                "full extent shows even where its art is faint, invisible or covered.")
+        ui.Tip(cb(L, "gate_art", "draw gates", 5, 1),
+               "Draw each visible monster gate as the game shows it (the swirling orb). "
+               "Untick for the orange G at every gate position.")
         ttk.Label(L, text="Other", font=ui.HINT_FONT).grid(row=6, column=0, columnspan=4, sticky="w", pady=(4, 0))
         cb(L, "mapj", "warps", 7, 0, render.WARP_COLOR)
         cb(L, "dest", "warp destinations", 7, 1)

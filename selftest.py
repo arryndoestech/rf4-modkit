@@ -7437,6 +7437,12 @@ def test_map_editor_undo():
             off = sum(1 for p in _mr.overlay("under", panel.view.st) if p.key and p.key[0] == "gpos")
             panel.set_layer("gates", True)
             _check("the drawn gates follow the 'monster gates' layer", on >= 1 and off == 0, (on, off))
+            panel.set_layer("gate_art", False)
+            art_off = sum(1 for p in _mr.overlay("under", panel.view.st) if p.key and p.key[0] == "gpos")
+            g_marks = sum(1 for p in _mr.overlay("gate", panel.view.st) if p.kind == "text")
+            panel.set_layer("gate_art", True)
+            _check("'draw gates' off: every gate position is the orange G again",
+                   art_off == 0 and g_marks >= on, (art_off, g_marks))
             _check("the Gates tab's 'visible gate' box flips the gate header flag's low byte "
                    "(high byte kept), the list marks hidden gates, and it undoes",
                    (f0 & 0xFF == 0) == (f1 & 0xFF != 0) and f1 & 0xFF00 == f0 & 0xFF00

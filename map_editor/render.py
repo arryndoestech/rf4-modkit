@@ -658,8 +658,10 @@ def gate_visible(doc, users):
 
 def gate_sprite_shown(st, doc, x, y, users):
     """Whether a gate position is drawn as the Gate actor (else as the orange "G"): a
-    visible gate, on the map, with the sprites layer on and the gate model at hand."""
-    return (bool(st.layers.get("sprites")) and HAS_PIL and gate_on_map(doc, x, y)
+    visible gate, on the map, with the sprites and "draw gates" layers on and the gate model
+    at hand."""
+    return (bool(st.layers.get("sprites")) and st.layers.get("gate_art", True) and HAS_PIL
+            and gate_on_map(doc, x, y)
             and gate_visible(doc, users)
             and getattr(st, "sprites", None) is not None and st.sprites.gate_source() is not None)
 

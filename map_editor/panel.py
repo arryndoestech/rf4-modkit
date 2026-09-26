@@ -999,7 +999,7 @@ class MapEditorPanel:
             self.view.invalidate("bg")
         elif key == "sprites":                  # sprites under the ATTR fill: its opacity changes
             self.view.invalidate("bg", g, "sel")
-        elif key == "gates":                    # the gates drawn as sprites go with their markers
+        elif key in ("gates", "gate_art"):      # the gates drawn as sprites go with their markers
             self.view.invalidate(g, "under", "sel")
         else:
             self.view.invalidate(g, "sel")
