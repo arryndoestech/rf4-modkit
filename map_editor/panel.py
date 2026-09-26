@@ -37,6 +37,16 @@ _KIND_NAME = {"mobj": "entity", "warp": "warp", "si": "search spot", "gpos": "ga
               "mpos": "monster spawn point"}
 
 
+def reload_hint(new_file):
+    """What to do in the game to see a saved map. Overwriting a file the game already knows
+    takes effect the next time the map loads; a NEW loose file (a Bundle/00_mods copy of a
+    file the game only had packed) is only found once the game re-indexes its loose files,
+    i.e. after a restart (docs 15 section 1.5)."""
+    if new_file:
+        return "restart the game to see it (a new file: the game looks for new files when it starts)"
+    return "leave the map and enter it again to see it"
+
+
 class MapEditorPanel:
     def __init__(self, parent, mapobj=None, name="", status_fn=None, on_change=None,
                  tex_reader=None, on_navigate=None, on_open_scene=None):
@@ -99,6 +109,7 @@ class MapEditorPanel:
         self.view.on_zoom = self._update_chrome
         self.view.st.layers = self.viewtab.layers()
         self.view.attr_alpha = self.viewtab.alpha.get()
+        self.view.ground_dim = self.viewtab.dim.get()
         self.view.scenery = self.viewtab.scenery.get()
         self._bind_canvas()
         self._bind_shortcuts()
@@ -1033,6 +1044,13 @@ class MapEditorPanel:
         self.viewtab.remember()
         self.view.invalidate("bg")
 
+    def set_ground_dim(self, pct):
+        """Darken the ground texture by `pct` % so the objects on it stand out."""
+        self.view.ground_dim = int(pct)
+        self.viewtab.dim.set(int(pct))
+        self.viewtab.remember()
+        self.view.invalidate("bg")
+
     # ---- ground art export / import --------------------------------------- #
     def ground_layer_choice(self):
         """(layer, note) for the export/import picker, or (None, reason)."""
@@ -1387,13 +1405,14 @@ class MapEditorPanel:
         targets = gamepaths.game_targets([names[p] for p in parts if names[p]])
         if targets is None:
             return self.save_all()
-        written, backed = [], []
+        written, backed, new = [], [], False
         for p in parts:
             name = names[p]
             if not name:
                 messagebox.showerror("Save", f"No file name for this map's {d.PART_LABELS[p]}: "
                                              "use Save … as… in the Save menu.")
                 return False
+            new = new or not targets[name].exists()
             try:
                 if gamepaths.write_game_file(targets[name], d._bytes(p)) is not None:
                     backed.append(name)
@@ -1414,7 +1433,7 @@ class MapEditorPanel:
                  for t in written]
         self.status("Saved " + ", ".join(shown)
                     + (f" (originals kept in {gamepaths.BACKUP_DIR})" if backed else "")
-                    + " -- restart the game to see it")
+                    + " -- " + reload_hint(new))
         others = {n: v for n, v in targets[None].items()}
         if others:
             messagebox.showwarning(
@@ -1518,8 +1537,9 @@ class MapEditorPanel:
                       "the old map until you reopen it."]
         if not messagebox.askyesno(title, "\n".join(lines)):
             return False
-        written = []
+        written, new = [], False
         for season, f, t, m, _rep in todo:
+            new = new or not t.exists()
             try:
                 gamepaths.write_game_file(t, m.build())
             except OSError as e:
@@ -1528,7 +1548,7 @@ class MapEditorPanel:
                 return bool(written)
             written.append(f"{f} ({season})")
         data._EXTRACTED_INDEX = None
-        self.status("Copied the changes to " + ", ".join(written) + " -- restart the game to see them")
+        self.status("Copied the changes to " + ", ".join(written) + " -- " + reload_hint(new))
         return True
 
     def save_all(self):
@@ -1559,7 +1579,7 @@ class MapEditorPanel:
             d.grid, self.view.colors, st.cp, self.view.ground_image(block=True),
             attr_on=st.layers.get("attr", True), alpha=self.view.attr_alpha,
             edges_on=st.layers.get("edges", True), attr_version=d.attr_version,
-            under=bool(st.layers.get("sprites")))
+            under=bool(st.layers.get("sprites")), dim=self.view.ground_dim)
         # the canvas stacking: ground, sprites, ATTR, the other overlays
         img = ground.copy() if ground is not None else Image.new("RGBA", (W * st.cp, H * st.cp), (0, 0, 0, 0))
         img = render.draw_prims(img, render.overlay("under", st), st.sprites)

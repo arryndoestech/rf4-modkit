@@ -158,7 +158,10 @@ class EntityForm(Form):
         name = mobj_types.mobj_name(tid)
         lab = mobj_types.mobj_label(tid)
         tex = mobj_types.mobj_texture(list(rec)) if tid >= 20 else None
-        if tex and tex == name:
+        mdl = mobj_types.mobj_model(list(rec)) if tid >= 20 else None
+        if mdl:
+            lab += f"\n3D model {mdl[0]}.model"
+        elif tex and tex == name:
             lab += f"\nsprite map_obj/{name}.bntx (archive {mobj_types.mobj_archive_id(tid)})"
         elif tex:
             lab += f"\ntexture {tex}"

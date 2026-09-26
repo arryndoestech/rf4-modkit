@@ -591,12 +591,17 @@ def _affine_dst_to_src(dst, src, ox, oy):
     return tuple(out)
 
 
+_FIELD_COS, _FIELD_SIN = math.cos(math.radians(25)), math.sin(math.radians(25))
 VIEWS = {
     # screen x, screen y (down), depth (larger = nearer the viewer)
     "front": lambda p: (p[0], -p[1], p[2]),
     "back": lambda p: (-p[0], -p[1], -p[2]),
     "side": lambda p: (p[2], -p[1], -p[0]),
     "top": lambda p: (p[0], p[2], p[1]),
+    # the field camera: the front, looked down on at about 25 degrees (fitted to an in-game
+    # screenshot of a treasure chest -- the lid / body seam sits at the same height)
+    "field": lambda p: (p[0], -p[1] * _FIELD_COS + p[2] * _FIELD_SIN,
+                        p[2] * _FIELD_COS + p[1] * _FIELD_SIN),
 }
 
 

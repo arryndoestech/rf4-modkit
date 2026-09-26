@@ -1448,7 +1448,8 @@ def test_mobj_types():
            and tex(rec(53)) == "MOBJ_BOX" and tex(rec(53, 1)) == "MOBJ_FIELD_METAL02"
            and tex(rec(55)) == "MOBJ_FI_ERUPT_LAVA" and tex(rec(55, 0, 1)) == "MOBJ_FI_ERUPT"
            and tex(rec(45, 3)) == "switch_03" and tex(rec(43, 2)) == "propeller_ship_01"
-           and all(tex(rec(t)) is None for t in (42, 44, 52, 58, 60, 71))
+           and all(tex(rec(t)) is None for t in (44, 58, 60))
+           and tex(rec(42)) == tex(rec(52)) == "efcimg_04" and tex(rec(71, 3)) == "waterA"
            and tex(rec(20)) == "efc_liteC" and tex(rec(37)) == "efc_liteC" and tex(rec(68)) == "smoke_ring"
            and mobj_types.mobj_tint(20) == (22 / 31, 21 / 31, 8 / 31) and mobj_types.mobj_tint(68) is None
            and tex(rec(70)) == "RE_VLIGHT2" and tex(rec(72)) == "F_ROOM00" and tex(rec(72, 1)) == "F_ROOM00_WINTER"
@@ -1511,6 +1512,94 @@ def test_mobj_types():
         _check("mesh textures: v counts from the bottom row (the room overlay is upright)",
                flat.getpixel((15, 2))[:3] == (0, 0, 255) and flat.getpixel((15, 27))[:3] == (255, 0, 0),
                (flat.getpixel((15, 2)), flat.getpixel((15, 27))))
+        wv, wi = _mm.mesh_for([71, 0, 0, 0, 0, 0, 0, 0, 3])[1:]
+        _check("type 71 water: 22 shapes read from the exe (kind 3 = MAP_CITY_05's moat strip); "
+               "outside 1..21 = shape 0; mirror-wrapped UVs",
+               sorted(_mm.WATER) == list(range(22)) and len(wv) == 40 and len(wi) == 72
+               and _mm.mesh_for([71, 0, 0, 0, 0, 0, 0, 0, 99])[1] is _mm.WATER[0]["v"]
+               and all(max(m["i"]) < len(m["v"]) for m in _mm.WATER.values())
+               and _mm.rasterize(two, sq, (0, 1, 2, 1, 3, 2), mirror=True) is not None)
+        from map_editor import render as _render
+        # objects the game draws as a 3D model: rendered from the .model, 3 units per sub-unit
+        _check("3D-model objects: treasure chest M26_0 (the field camera), ponds by f8 (top view)",
+               mobj_types.mobj_model([44]) == ("M26_0", "field")
+               and mobj_types.mobj_model([60, 0, 0, 0, 0, 0, 0, 0, 1]) == ("mobj_pond_lava", "top")
+               and mobj_types.mobj_model([60]) == ("mobj_pond", "top") and mobj_types.mobj_model([53]) is None)
+        _bm = {p.name: p for p in pathlib.Path(BUNDLE_DIR).rglob("*.model")
+               if p.stem in ("M26_0", "mobj_pond")}
+        if len(_bm) == 2:
+            _sp = _render.Sprites()
+            _sp.reader = lambda fn: _bm[fn].read_bytes() if fn in _bm else None
+            chest = _sp.source({"type_id": 44, "params": [44]})
+            pond = _sp.source({"type_id": 60, "params": [60]})
+            # quads in sprite px (3 per sub-unit), models at 2 units per sub-unit: x1.5
+            _check("the chest and pond models render at 2 model units per sub-unit: the chest "
+                   "(68 units, 34 sub-units) stands on its spot, the pond (256 units) lies centred",
+                   chest and pond and 0 <= chest[2][3] < 30 and 95 < chest[2][2] - chest[2][0] < 112
+                   and 380 < pond[2][2] - pond[2][0] < 392 and abs(pond[2][0] + pond[2][2]) < 6
+                   and _sp.pil(chest[0], 0, 40, 36, False) is not None,
+                   (chest and chest[2], pond and pond[2]))
+        # fishing spots show the fish Fishing_SpawnFishActor swims there: blue on water (ATTR
+        # 0x8 / 0x4000), the orange sand fish anywhere else
+        _check("fishing spots draw their fish: 'fish' on water, 'fish_sand' elsewhere, at half size",
+               mobj_types.fish_texture(0x8) == mobj_types.fish_texture(0x4000) == "fish"
+               and mobj_types.fish_texture(0x1) == "fish_sand"
+               and mobj_types.mobj_draw_scale(24) == mobj_types.mobj_draw_scale(25) == 0.5)
+        _ft = {p.name: p for p in pathlib.Path(BUNDLE_DIR).rglob("fish*.texture")}
+        if {"fish.texture", "fish_sand.texture"} <= set(_ft):
+            _sf = _render.Sprites()
+            _sf.reader = lambda fn: _ft[fn].read_bytes() if fn in _ft else None
+            spot = {"type_id": 24, "params": [24] + [0] * 13 + [16, 16]}
+            _sf.cell = lambda x, y: 0x8
+            on_water = _sf.source(spot)
+            _sf.cell = lambda x, y: 0x1
+            on_sand = _sf.source(spot)
+            _check("a fishing spot on water shows the blue fish, on sand the sand fish",
+                   on_water and on_sand and on_water[0].startswith("fish.texture")
+                   and on_sand[0].startswith("fish_sand.texture"), (on_water, on_sand))
+        # forage spawns grow the crop_NNN sprite of their gatherable: an ore spawn its
+        # MapOre_Rate config's rock (not when f11 rolls one each day), 1 / 2 fixed kinds
+        _ob = {p.name: p for p in pathlib.Path(BUNDLE_DIR).rglob("*")
+               if p.name == "MapOre_Rate.bin" or p.name.startswith("crop_0")}
+        if "MapOre_Rate.bin" in _ob:
+            _fs = _render.Sprites()
+            _fs.reader = lambda fn: _ob[fn].read_bytes() if fn in _ob else None
+            from map_editor import data as _md
+            from rf4s_modkit import mobj_params as _mpo
+            k0 = _md.ore_configs(_fs.reader)[0][0]
+            ore = _fs._forage_sprite([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+            _check("ore spawns show their ore config's rock (MapOre_Rate row f10 -> kind -> "
+                   "crop sprite); a daily-rolled config, a random pool keep the marker",
+                   26 <= k0 <= 37 and ore == _mpo.gather_kind_sprite(k0)
+                   and _fs._forage_sprite([0] * 11 + [1]) is None
+                   and _fs._forage_sprite([1]) == "crop_023" and _fs._forage_sprite([2]) == "crop_024"
+                   and _fs._forage_sprite([5]) is None
+                   and _fs.source({"type_id": 0, "pos_x": 8, "pos_y": 8, "params": [0] * 16}) is not None,
+                   (k0, ore))
+        glow = _Im.new("RGBA", (2, 1), (0, 0, 0, 255))
+        glow.putpixel((1, 0), (255, 128, 0, 255))
+        add = _render._as_additive(glow)
+        _check("additive sprites (glows, warp sparkles, water, light shafts): black vanishes, "
+               "bright parts stay",
+               add.getpixel((0, 0))[3] == 0 and add.getpixel((1, 0)) == (255, 128, 0, 255)
+               and mobj_types.MOBJ_ADDITIVE >= {20, 42, 70, 71} and 72 not in mobj_types.MOBJ_ADDITIVE,
+               (add.getpixel((0, 0)), add.getpixel((1, 0))))
+        # rendered mesh images are kept on disk: the second call is a PNG load, not a rasterize
+        import tempfile as _tf
+        texpath = next(pathlib.Path(BUNDLE_DIR).rglob("RE_VLIGHT2.texture"), None)
+        if texpath is not None:
+            cdir = pathlib.Path(_tf.mkdtemp(prefix="rf4s_meshcache_"))
+            lv0, li0 = _mm.light_mesh(0)
+            first = _mm.rasterize_cached(texpath.read_bytes(), lv0, li0, cache_dir=cdir)
+            real_r, calls = _mm.rasterize, []
+            _mm.rasterize = lambda *a, **k: calls.append(1) or real_r(*a, **k)
+            try:
+                second = _mm.rasterize_cached(texpath.read_bytes(), lv0, li0, cache_dir=cdir)
+            finally:
+                _mm.rasterize = real_r
+            _check("mesh images are cached on disk: the second draw loads the PNG, same pixels",
+                   first and second and not calls and len(list(cdir.glob("*.png"))) == 1
+                   and first[0].tobytes() == second[0].tobytes() and first[1] == second[1])
         holes = img.getchannel("A").histogram()[0]
         _check("the room mesh fills its box around the object (a solid texture: over 95 % "
                "drawn, the rest is the mesh's own outline)",
@@ -6273,7 +6362,7 @@ def test_map_editor_save_to_game():
     import tkinter.filedialog as _fd
     from rf4s_modkit import gamepaths as _gp, map_names as _mn
     me = _map_editor()
-    from map_editor import data as med
+    from map_editor import data as med, panel as med_panel
     box = _headless_dialogs()
     asked = []
     _ask = _fd.asksaveasfilename
@@ -6314,7 +6403,14 @@ def test_map_editor_save_to_game():
                len(season) == 1 and "MAP_CITY_00_AUTUMN" in season[0] and "spring" in season[0])
         p.maptab.msea.set("0 spring"); p.maptab._commit_msea()
         del box["msgs"][:]
+        said = []
+        real_status, p.status = p.status, said.append
         ok2 = p.save_to_game()
+        p.status = real_status
+        _check("after saving over a file the game knows, the hint says to re-enter the map "
+               "(a new 00_mods file: restart)",
+               said and said[-1].endswith("leave the map and enter it again to see it")
+               and "restart the game" in med_panel.reload_hint(True), said[-1:])
         _check("a second save keeps the first backup (the true original) and doesn't repeat the season note",
                ok2 and (bk / "MAP_CITY_00.rf4m").read_bytes() == orig_map
                and not [1 for t, _m in box["msgs"] if t.startswith("Saved: a seasonal map")])
@@ -6505,6 +6601,20 @@ def test_map_editor_labels():
                and not any(isinstance(w, ttk.Label) and w.cget("foreground") == ui.GOOD
                            for w in form.pframe.winfo_children()),
                (shown, form._meanings.get(8)))
+        # "darken" (Ground texture box): the ground drops by that % so the objects stand out
+        from PIL import Image as _Im2
+        g = _Im2.new("RGBA", (2, 2), (200, 100, 40, 255))
+        base0, _t = mrender.Background().layers((2, 2, [0] * 4), v.colors, 1, g, attr_on=False,
+                                                 alpha=0, edges_on=False, attr_version=0)
+        base40, _t = mrender.Background().layers((2, 2, [0] * 4), v.colors, 1, g, attr_on=False,
+                                                 alpha=0, edges_on=False, attr_version=0, dim=40)
+        p.set_ground_dim(40)
+        _check("the ground can be darkened (View tab slider, 25 % by default, remembered)",
+               base0.getpixel((0, 0)) == (200, 100, 40, 255)
+               and base40.getpixel((0, 0)) == (120, 60, 24, 255)
+               and v.ground_dim == 40 and p.viewtab.saved.get("ground_dim") == 40
+               and p.viewtab.dim.get() == 40, (base40.getpixel((0, 0)),))
+        p.set_ground_dim(25)
         # a tooltip near a monitor edge wraps and stays on that monitor
         import guiutil as _gu
         left, top, right, bottom = _gu.monitor_rect(root, 10, 10)

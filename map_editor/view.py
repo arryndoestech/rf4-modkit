@@ -63,6 +63,7 @@ class MapView(ttk.Frame):
         self.ground_sel = "all"                  # display: off / all / '<n> <name>'
         self.scenery = True                      # draw the over-model scenery on the ground
         self.attr_alpha = 180
+        self.ground_dim = 25                 # % the ground is darkened (the View tab's slider)
         self.on_hover_tile = on_hover_tile       # fn(tile | None)
         self.on_zoom = None                      # fn() after the zoom changed
         self._items = {}                         # canvas item -> selection key
@@ -171,7 +172,7 @@ class MapView(ttk.Frame):
         return self.background.layers(
             d.grid, self.colors, self.cp, self.ground_image(block), attr_on=L.get("attr", True),
             alpha=self.attr_alpha, edges_on=L.get("edges", True), attr_version=d.attr_version,
-            under=bool(L.get("sprites")))
+            under=bool(L.get("sprites")), dim=self.ground_dim)
 
     # ---- redraw scheduling -------------------------------------------------- #
     def invalidate(self, *groups):

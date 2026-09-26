@@ -277,7 +277,7 @@ MOBJ_NOTES: dict[str, str] = {
     "fe123": "chimney smoke",   # USER 2026-06-24 + type 68 MapObj_Init/TickChimneySmoke
     "fe124":   "area particle emitter (type 69, MapObj_Init/TickAreaParticleEmitter)",
     "fe125":   "light shafts: sunlight fan mesh with texture RE_VLIGHT2, shape by word 8 (15 kinds, 1 = 0 mirrored); daytime in clear weather only (type 70, Effect_SpawnWorldSpriteByType)",
-    "fe126":   "procedural mesh effect (type 71, MapObj_SpawnProceduralMeshEffect)",
+    "fe126":   "water surface: a flowing waterA mesh, shape by word 8 (22 kinds) (type 71, MapObj_SpawnProceduralMeshEffect)",
     "fe127":   "room overlay mesh: the palace hall drawn over the room with texture F_ROOM00 (word 8 = 1: F_ROOM00_WINTER) (type 72, MapObj_SpawnRotatedMeshEffect)",
     "fe128":   "inert — no init handler (type 73)",
     # types 74..77 (MOBJ_FI_ICE0x_dummy): no handler — inert placeholders.
@@ -349,7 +349,7 @@ MOBJ_DISPLAY: dict[int, str] = {
     68: "chimney smoke",  # fe123
     69: "particle emitter",  # fe124
     70: "light shafts",  # fe125
-    71: "mesh effect",  # fe126
+    71: "water surface",  # fe126
     72: "room overlay mesh",  # fe127
     73: "unused slot",  # fe128
     74: "ice patch 1 (placeholder)",  # MOBJ_FI_ICE01_dummy
@@ -709,12 +709,16 @@ def mobj_name(type_id: int) -> str | None:
 # sounds and zones nothing drawable. Checked handler by handler 2026-09-26. The street light
 # (20) and red glow (37) are the efc_liteC glow in the handler's tint (MOBJ_TINT; the street
 # light only shows 16:00-05:59), the chimney smoke (68) its smoke_ring (08:00-21:59), and
-# 70 / 72 are textured meshes (rf4s_modkit.mobj_meshes). Not drawn here: water effect 71,
-# 3D models (44 chest M26_0, 58 the
+# 70..72 are textured meshes (rf4s_modkit.mobj_meshes). Not drawn here: 3D models (44 chest M26_0, 58 the
 # travelling NPC, 60 the ponds), types 38..41 (their handler loads archive = type id, an AI
 # file: unused), and every sound / zone / emitter type.
 MOBJ_TEXTURE: dict[int, str] = {
     20: "efc_liteC",                        # MapObj_InitStreetLight
+    # fishing spots: the fish Fishing_SpawnFishActor swims there (see fish_texture)
+    24: "fish", 25: "fish",
+    # warp point / knockback zone: MapObj_TickWarpEffectEmitter sends action 164 particles,
+    # efc_senkou / efcimg_04 / efc_whirl2 at random -- shown as the white star (efcimg_04)
+    42: "efcimg_04", 52: "efcimg_04",
     37: "efc_liteC",                        # MapObj_InitRedLightGlow
     26: "OBJ_KAMITSUKI",
     27: "OBJ_BIRD_BLUE",                    # one of BLUE / BROWN / GREEN / PINK at random
@@ -727,6 +731,44 @@ MOBJ_TEXTURE: dict[int, str] = {
 # Tints a handler multiplies its texture by (Sprite_SetTintFromPacked555: R bits 14..10,
 # G 9..5, B 4..0, each /31).
 MOBJ_TINT: dict[int, int] = {20: 0x5AA8, 37: 0x7DE2}
+# Types whose sprite the handler draws with blend state 2 (sprite byte +930; the game's
+# 0 opaque / 1 alpha / 2 add / 3 subtract / 4 multiply order): light glows, the warp
+# particles, the light shafts and the water. The editor approximates the addition.
+MOBJ_ADDITIVE = frozenset({20, 37, 38, 42, 52, 70, 71})
+# Types whose handler loads a 3D model instead of a texture: (model name, view). The editor
+# renders the .model (rf4s_modkit.model.render) at 2 model units per sub-unit (see
+# map_editor.render.MODEL_UNITS_PER_SUBUNIT for the evidence), anchored at its base.
+# "field" is the game's camera (the front, looked down on at about 25 degrees; model.VIEWS);
+# the flat ponds are seen from the top.
+# The chest: Actor_InitFlagGatedTreasure attaches archive 13867 = mons/M26_0 itself (not
+# char 143's template model). The M26 models are the game's chests -- rf3NpcParam's model
+# column (archive - 12584) gives M26_0 to "Pretty Chest" (char 141) AND to the "Monster Box"
+# mimic (104), M26_1 to chest 142 and the "Gobble Box" mimic (105): the mimics borrow them.
+MOBJ_MODEL = {44: ("M26_0", "field"), 58: ("NPC_TRAVELER_M", "field")}
+
+
+def mobj_model(params):
+    """(model name, view) a record draws as a 3D model, or None."""
+    tid = params[0] & 0xFFFF
+    if tid == 60:                           # Actor_InitFlagGatedRandomRotDecoration: f8 = lava
+        return ("mobj_pond_lava" if len(params) > 8 and params[8] else "mobj_pond"), "top"
+    return MOBJ_MODEL.get(tid)
+
+
+def fish_texture(attr: int) -> str:
+    """The fish a fishing spot shows on a tile with ATTR `attr`: Fishing_SpawnFishActor
+    (RF4S.exe) draws "fish" (blue) on water (ATTR 0x8, or 0x4000) and "fish_sand" (orange,
+    a fish in sand) anywhere else (Map_IsNonWaterTileAt)."""
+    return "fish" if attr & 0x4008 else "fish_sand"
+
+
+# Drawn smaller than the texture's own quad: particles spawned at a random 0.25..0.75 size;
+# fish at half (Fishing_SpawnFishActor scales each by its length, 0.2 .. 1.0)
+MOBJ_DRAW_SCALE = {42: 0.5, 52: 0.5, 24: 0.5, 25: 0.5}
+
+
+def mobj_draw_scale(type_id: int) -> float:
+    return MOBJ_DRAW_SCALE.get(type_id & 0xFFFF, 1.0)
 
 
 # Types 20..195 whose handler reads f6 (scale); the rest of that band ignores it -- the road
@@ -788,7 +830,7 @@ def mobj_texture(params) -> str | None:
         return "MOBJ_FIELD_METAL02" if w(8) else "MOBJ_BOX"
     if tid in (54, 55):                     # MapObj_InitEruptionHazard: word 10 = stone crater
         return "MOBJ_FI_ERUPT" if w(10) else "MOBJ_FI_ERUPT_LAVA"
-    if tid in (70, 72):                     # textured meshes: mobj_meshes.mesh_for()
+    if tid in (70, 71, 72):                 # textured meshes: mobj_meshes.mesh_for()
         from . import mobj_meshes
         return mobj_meshes.mesh_for(params)[0]
     if tid == 59:                           # word 8 set: an invisible proximity trap

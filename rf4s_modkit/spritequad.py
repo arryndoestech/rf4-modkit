@@ -107,8 +107,9 @@ def sprite_image(data: bytes, frame: int = 0):
 def world_rect(obj: dict, quad) -> tuple:
     """Sub-unit rectangle (x0, y0, x1, y1) a placed MOBJ's sprite covers on the map.
     obj is an Rf4mMap.decode_mobj() entry (pos_x/pos_y sub-units, params[6] = f6 scale)."""
+    from .mobj_types import mobj_draw_scale
     f6 = _scale_word(obj)
-    s = abs(f6 or SCALE_ONE) / SCALE_ONE / PX_PER_SUBUNIT
+    s = abs(f6 or SCALE_ONE) / SCALE_ONE / PX_PER_SUBUNIT * mobj_draw_scale(obj.get("type_id", 0))
     x0, y0, x1, y1 = quad
     return (obj["pos_x"] + x0 * s, obj["pos_y"] + y0 * s,
             obj["pos_x"] + x1 * s, obj["pos_y"] + y1 * s)
@@ -133,3 +134,20 @@ def z_key(obj: dict) -> int:
     p = obj.get("params", ())
     f8 = p[8] if len(p) > 8 else 0
     return 2 * (f8 + obj["pos_y"]) + 4096
+
+
+def glow_mirrored(img):
+    """What Sprite_ApplyEffect_Glow (RF4S.exe+0x1b8e30) makes of a texture: both wrap modes
+    mirror and the UVs and size are doubled, so the stored image is the top-left quarter of
+    a picture mirrored into all four (PIL RGBA in, twice the width and height out). The
+    map editor draws the street light, glows and windmills this way; the texture viewer
+    shows the stored quarter."""
+    from PIL import Image
+    img = img.convert("RGBA")
+    w, h = img.size
+    whole = Image.new("RGBA", (w * 2, h * 2))
+    whole.paste(img, (0, 0))
+    whole.paste(img.transpose(Image.FLIP_LEFT_RIGHT), (w, 0))
+    whole.paste(img.transpose(Image.FLIP_TOP_BOTTOM), (0, h))
+    whole.paste(img.transpose(Image.ROTATE_180), (w, h))
+    return whole

@@ -672,6 +672,14 @@ class ViewTab(ui.ScrollFrame):
         sc = ttk.Scale(G, from_=0, to=255, orient="horizontal", length=150, variable=self.alpha)
         sc.grid(row=1, column=1, sticky="w")
         sc.bind("<ButtonRelease-1>", lambda _e: ed.set_attr_alpha(self.alpha.get()))
+        ttk.Label(G, text="darken").grid(row=4, column=0, sticky="w")
+        self.dim = tk.IntVar(value=int(self.saved.get("ground_dim", 25)))
+        dm = ttk.Scale(G, from_=0, to=80, orient="horizontal", length=150, variable=self.dim,
+                       command=lambda _v: self.dim.set(int(float(_v))))
+        dm.grid(row=4, column=1, sticky="w")
+        dm.bind("<ButtonRelease-1>", lambda _e: ed.set_ground_dim(self.dim.get()))
+        ui.Tip(dm, lambda: f"Darken the ground texture by {self.dim.get()} % so the objects on it "
+                           "stand out (0 = as the game draws it).")
         hint(G, "Opacity applies while the texture is shown. Static '_UV' dungeon backdrops are "
                 "stretched over the map and do not line up with the tiles.", wrap=300).grid(
             row=2, column=0, columnspan=2, sticky="w")
@@ -709,7 +717,8 @@ class ViewTab(ui.ScrollFrame):
         """Store the layer toggles and ground display in settings.json, so the next map and
         the next start open the same way."""
         self.saved.update(layers=self.layers(), scenery=self.scenery.get(),
-                          attr_alpha=self.alpha.get(), ground=self.ground.get())
+                          attr_alpha=self.alpha.get(), ground=self.ground.get(),
+                          ground_dim=self.dim.get())
         try:
             gamepaths.set_setting(VIEW_SETTING, self.saved)
         except OSError:

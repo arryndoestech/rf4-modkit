@@ -217,17 +217,18 @@ class Background:
         self._key = None
 
     def layers(self, grid, colors, cp, ground, *, attr_on, alpha, edges_on, attr_version,
-               under=False):
+               under=False, dim=0):
         """(ground, attr): the scaled ground texture and the ATTR fill + cell edges as a
         separate RGBA layer (either may be None), so the sprites can be drawn
         between them. The fill takes the ATTR opacity when anything lies beneath it (the
-        ground, or sprites when `under`); otherwise it is opaque. Callers must not draw on
-        the images."""
+        ground, or sprites when `under`); otherwise it is opaque. `dim` (0..100 %) darkens
+        the ground so the objects on it stand out. Callers must not draw on the images."""
         if not HAS_PIL or grid is None:
             return None, None
         below = ground is not None or under
+        dim = max(0, min(100, int(dim)))
         key = (attr_version, len(colors), cp, id(ground), attr_on, alpha if below else 255,
-               edges_on, below)
+               edges_on, below, dim)
         if key == self._key:
             return self._img
         w, h, cells = grid
@@ -238,6 +239,10 @@ class Background:
                 scaled = ground.resize((w * cp, h * cp), Image.BILINEAR).convert("RGBA")
                 self._scaled = (ground, (w * cp, h * cp), scaled)
             base = scaled
+            if dim:                         # darker ground: every channel x (1 - dim)
+                f = (100 - dim) / 100
+                r, g, b, a = base.split()
+                base = Image.merge("RGBA", [ch.point(lambda v: int(v * f)) for ch in (r, g, b)] + [a])
         top = None
         if attr_on:
             idx = self._index_image(w, h, cells, colors)
@@ -306,13 +311,26 @@ class Background:
 def _glow_mirror(img, quad):
     """Sprite_ApplyEffect_Glow: the texture is one corner of the picture; the game mirrors
     it into all four around the object and doubles the sprite's size."""
-    w, h = img.size
-    whole = Image.new("RGBA", (w * 2, h * 2))
-    whole.paste(img, (0, 0))
-    whole.paste(img.transpose(Image.FLIP_LEFT_RIGHT), (w, 0))
-    whole.paste(img.transpose(Image.FLIP_TOP_BOTTOM), (0, h))
-    whole.paste(img.transpose(Image.ROTATE_180), (w, h))
-    return whole, tuple(v * 2 for v in quad)
+    return spritequad.glow_mirrored(img), tuple(v * 2 for v in quad)
+
+
+def _as_additive(img):
+    """An additively blended sprite (blend state 2: dst + src * a) as an ordinary alpha
+    sprite the canvas can draw: each pixel's brightness becomes its opacity, its colour is
+    brightened to match -- dark parts vanish, bright parts light the ground up, as in the game."""
+    r, g, b, a = img.split()
+    peak = ImageChops.lighter(ImageChops.lighter(r, g), b)
+    alpha = ImageChops.multiply(peak, a)
+    try:
+        import numpy as np
+        rgb = np.asarray(img.convert("RGB"), dtype=np.float32)
+        pk = np.maximum(rgb.max(axis=2, keepdims=True), 1.0)
+        rgb = (rgb * (255.0 / pk)).clip(0, 255).astype(np.uint8)
+        out = Image.fromarray(rgb, "RGB").convert("RGBA")
+    except ImportError:                     # without numpy: keep the colours as they are
+        out = img.convert("RGBA")
+    out.putalpha(alpha)
+    return out
 
 
 def _whole_frame(data, frame):
@@ -325,24 +343,42 @@ def _whole_frame(data, frame):
     return img.convert("RGBA"), (-w / 2, -h / 2, w / 2, h / 2)
 
 
+# Model units per map sub-unit for objects drawn from a .model: the four fishing spots round
+# MAP_DUNG_J03's pond (34..48 sub-units out, fish scattered 16 further) stay on its water only
+# at 2 (the pond's rim then sits 64 sub-units out), and an in-game screenshot shows the chest
+# a bit wider than the 32-sub-unit crate beside it (68 units / 2 = 34).
+MODEL_UNITS_PER_SUBUNIT = 2.0
+
+
 class Sprites:
     """A placed object's sprite as the game draws it: the texture's TextureCoordinator
     crop, sized and offset by its PolygonVertexes quad (rf4s_modkit.spritequad)."""
 
     def __init__(self):
         self.reader = None
+        self.cell = None                   # (tile x, tile y) -> ATTR of the map drawn (overlay)
+        self._ore_cfg = None               # MapOre_Rate rows, read once per reader
         self._src = {}                     # (texture name, frame) -> (RGBA, quad) | None
         self._scaled = OrderedDict()
 
     def reset(self):
         self._src.clear()
         self._scaled.clear()
+        self._ore_cfg = None
 
     def source(self, o):
         """(texture name, frame, quad) for a decoded MOBJ entry, or None."""
         r = self.reader
         p = o.get("params", ())
+        mdl = mobj_types.mobj_model(p) if p else None
+        if mdl and r is not None:
+            return self._model_source(*mdl)
         name = mobj_types.mobj_texture(p) if p else o.get("name")
+        if p and (p[0] & 0xFFFF) < 9:          # forage: the gatherable it grows, when fixed
+            name = self._forage_sprite(p)
+        if name == "fish" and len(p) > 15:     # the fish differs on water and on sand
+            attr = self.cell(p[14] >> 3, p[15] >> 3) if self.cell else None
+            name = mobj_types.fish_texture(0x8 if attr is None else attr)
         if r is None or not name:
             return None
         fn = name + ".texture"
@@ -350,8 +386,9 @@ class Sprites:
         tid = p[0] & 0xFFFF if p else 0
         tint = mobj_types.mobj_tint(tid) if p else None
         glow = bool(p) and mobj_types.mobj_glow(p)
-        mesh = mobj_meshes.mesh_for(p) if tid in (70, 72) else None
-        if tint or glow:
+        additive = tid in mobj_types.MOBJ_ADDITIVE
+        mesh = mobj_meshes.mesh_for(p) if tid in (70, 71, 72) else None
+        if tint or glow or additive:
             fn += "@fx"                      # its own cache entry
         if mesh:                             # one entry per mesh (kind), not per texture
             fn += f"@mesh{tid}.{p[8] if len(p) > 8 else 0}"
@@ -363,8 +400,8 @@ class Sprites:
             if data is not None:
                 try:
                     if mesh:
-                        got = mobj_meshes.rasterize(texture.decode_to_image(data, rotate=False),
-                                                    mesh[1], mesh[2])
+                        got = mobj_meshes.rasterize_cached(data, mesh[1], mesh[2],
+                                                           mirror=tid == 71)
                     else:
                         if frame >= texture.frame_count(data):
                             frame = 0
@@ -375,18 +412,74 @@ class Sprites:
                         got = (Image.merge("RGBA", (*rgb, a)), got[1])
                     if got and glow:
                         got = _glow_mirror(*got)
+                    if got and additive:
+                        got = (_as_additive(got[0]), got[1])
                 except Exception:
                     got = None
             self._src[key] = got
         got = self._src[key]
         return (fn, key[1], got[1]) if got else None
 
+    def _forage_sprite(self, p):
+        """The crop_NNN sprite a forage spawn grows (MapEntity_ResolveSpriteArchiveId: archive
+        1366 + gatherable kind), when the record fixes it: an ore spawn (type 0) its
+        MapOre_Rate config's rock (f10; not when f11 rolls a config each day), the rune
+        flower (1, kind 23), the rune crystal (2, kind 24), type 8 the kind in f10. The
+        random pools (3..7) grow a different thing each day: None, the marker stays."""
+        from rf4s_modkit import mobj_params
+        tid = p[0] & 0xFFFF
+        w = lambda k: p[k] if len(p) > k else 0
+        kind = None
+        if tid == 0 and not w(11):
+            if self._ore_cfg is None:
+                from . import data
+                self._ore_cfg = data.ore_configs(self.reader) if self.reader else []
+            cfg = self._ore_cfg
+            if 0 <= (w(10) & 0xFF) < len(cfg):
+                kind = cfg[w(10) & 0xFF][0]
+        elif tid in (1, 2):
+            kind = 22 + tid
+        elif tid == 8:
+            kind = w(10) & 0x7F
+        return mobj_params.gather_kind_sprite(kind) if kind is not None else None
+
+    def _model_source(self, name, view, px_per_unit=2.0):
+        """(key, 0, quad) for an object the game draws as a 3D model: the .model rendered
+        once from `view`, its quad in sprite pixels around the object, which stands at the
+        model's origin. MODEL_UNITS_PER_SUBUNIT model units make one map sub-unit."""
+        fn = f"{name}.model@{view}"
+        key = (fn, 0)
+        if key not in self._src:
+            got = None
+            data = self.reader(name + ".model")
+            if data is not None:
+                try:
+                    m = model.parse(data)
+                    tris = model._triangles(m, model.VIEWS[view])
+                    pts = [q for t in tris for q in t[1]]
+                    if pts:
+                        x0, y0 = min(q[0] for q in pts), min(q[1] for q in pts)
+                        x1, y1 = max(q[0] for q in pts), max(q[1] for q in pts)
+                        span = max(x1 - x0, y1 - y0, 1e-6)
+                        size = int(span * px_per_unit) + 4
+                        img = model.render(m, view, size)
+                        k = (size - 4) / span        # render()'s own fit, 2 px margin
+                        q = spritequad.PX_PER_SUBUNIT / MODEL_UNITS_PER_SUBUNIT
+                        got = (img, (q * (x0 - 2 / k), q * (y0 - 2 / k),
+                                     q * (x0 + (img.width - 2) / k), q * (y0 + (img.height - 2) / k)))
+                except Exception:
+                    got = None
+            self._src[key] = got
+        got = self._src[key]
+        return (fn, 0, got[1]) if got else None
+
     @staticmethod
     def z_key(o):
-        """Draw order: the room mesh (72) under everything, the light shafts (70) over it,
-        then the sprites in the game's depth order."""
+        """Draw order: the room mesh (72) under everything, then the water (71), the ponds
+        (60) and the light shafts (70), then the sprites in the game's depth order (the fish
+        swim on top of the ponds)."""
         tid = o["type_id"] & 0xFFFF
-        return (0 if tid == 72 else 1 if tid == 70 else 2, spritequad.z_key(o))
+        return ({72: 0, 71: 1, 60: 1, 70: 1}.get(tid, 2), spritequad.z_key(o))
 
     def pil(self, fn, frame, w, h, mirror):
         """The sprite resized to w x h canvas pixels (mirrored when asked)."""
@@ -464,6 +557,8 @@ def overlay(group, st):
     if doc is None or doc.grid is None:
         return []
     W, H, _ = doc.grid
+    if getattr(st, "sprites", None) is not None:
+        st.sprites.cell = doc.cell         # sprites that depend on the ground (the fish)
     out = []
     small = max(7, cp // 3)                # text inside a marker (spot number, gate "G")
     lsize = label_size(cp)                 # name labels above objects / NPCs
