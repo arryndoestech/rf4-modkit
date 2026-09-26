@@ -12,8 +12,8 @@ ROOM, the vertices turned -90 deg about X by Math_BuildRotationMatrixFromAxisAng
 (x, y, z) -> (x, z, 101 - y); the depth is dropped here, so ROOM already holds (x, z).
 
 Each vertex is (x, y, u, v, a): position in map sub-units relative to the object (y down),
-texture coordinates (into the texture as stored, not the toolkit's rotated view), and the
-per-vertex intensity the game fades the light shafts with. `i` lists the triangles (three
+texture coordinates (into the texture as stored, not the toolkit's rotated view; v counts
+from its bottom row), and the per-vertex intensity the game fades the light shafts with. `i` lists the triangles (three
 vertex indices each). Sub-units were checked against MAP_F_ROOM_00's ground: the room mesh then
 covers the room from its top-left corner and its archway meets the ground's garden view.
 Vertex / index tables (RVA): 0 0x4c8760/0x4bf998, 2 0x4c0e40/0x4bbd70, 3 0x4cd890/0x4cc330, 4 0x4bc220/0x4ccf20, 5 0x4c8460/0x4c6320, 6 0x4c5950/0x4c73c0, 7 0x4c49f0/0x4c0d60, 8 0x4c0ff0/0x4c6580, 9 0x4c6ae0/0x4c4880, 10 0x4bddf0/0x4cb690, 12 0x4cc780/0x4c5c50, 13 0x4c9570/0x4c5c50, 14 0x4cc3c0/0x4ca200, 15 0x4bbdd0/0x4cc250, room 0x4c03c0/0x4bd070.
@@ -726,7 +726,9 @@ def rasterize(tex, verts, tris, px_per_unit: float = 3.0):
         u = (l0 * tri[0][2] + l1 * tri[1][2] + l2 * tri[2][2]) % 1.0
         w = (l0 * tri[0][3] + l1 * tri[1][3] + l2 * tri[2][3]) % 1.0
         k = (l0 * tri[0][4] + l1 * tri[1][4] + l2 * tri[2][4]).clip(0, 1)
-        px = T[(w * th).astype(int).clip(0, th - 1), (u * tw).astype(int).clip(0, tw - 1)]
+        # v counts from the BOTTOM row of the stored image (the GL convention; spritequad's
+        # TextureCoordinator crop works the same way) -- from the top drew the hall upside down
+        px = T[((1.0 - w) * th).astype(int).clip(0, th - 1), (u * tw).astype(int).clip(0, tw - 1)]
         alpha = px[..., 3] * k * inside
         reg = out[by0:by1 + 1, bx0:bx1 + 1]
         sa = alpha[..., None] / 255.0

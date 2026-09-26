@@ -1502,6 +1502,15 @@ def test_mobj_types():
     else:
         tex8 = _Im.new("RGBA", (8, 8), (255, 0, 0, 255))
         img, quad = _mm.rasterize(tex8, _mm.ROOM["v"], _mm.ROOM["i"])
+        # v counts from the stored image's bottom row: v = 0 at the mesh's top edge shows the
+        # texture's LAST row (blue here), v = 1 at the bottom edge its first row (red)
+        two = _Im.new("RGBA", (4, 2), (255, 0, 0, 255))
+        two.paste((0, 0, 255, 255), (0, 1, 4, 2))
+        sq = ((0, 0, 0, 0, 1), (10, 0, 1, 0, 1), (0, 10, 0, 1, 1), (10, 10, 1, 1, 1))
+        flat, _q = _mm.rasterize(two, sq, (0, 1, 2, 1, 3, 2))
+        _check("mesh textures: v counts from the bottom row (the room overlay is upright)",
+               flat.getpixel((15, 2))[:3] == (0, 0, 255) and flat.getpixel((15, 27))[:3] == (255, 0, 0),
+               (flat.getpixel((15, 2)), flat.getpixel((15, 27))))
         holes = img.getchannel("A").histogram()[0]
         _check("the room mesh fills its box around the object (a solid texture: over 95 % "
                "drawn, the rest is the mesh's own outline)",
