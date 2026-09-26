@@ -153,10 +153,10 @@ GIMMICKS = {
                   "on-step handler (MapObj_InitWarpPoint).",
              params=[(7, 2, "warp destination param (actor+576 block)"), (8, 2, "destination param"),
                      (9, 2, "destination param"), (10, 2, "destination param"), _DIS2]),
-    43: dict(name="fe100", role="Effect sprite by mode; modes 2/3 are the Norad Express AIRSHIP "
-                  "PROPELLERS (3-frame flipbooks), other modes glow/audio effects "
+    43: dict(name="fe100", role="Windmill blades / airship propeller by mode: 0 gmk18_windmill (+ sfx), 1 "
+                  "gmk19_windmill, 2 / 3 the Norad Express propellers (3-frame flipbooks) "
                   "(MapObj_InitEffectSpriteByMode).",
-             params=[(8, 4, "mode (1/2/3; 2-3 = propellers)")]),
+             params=[(8, 4, "mode: 0 / 1 windmills, 2 / 3 propellers")]),
     44: dict(name="fe101", role="TREASURE chest, flag-gated (char 143; gate flag SET = already looted). "
                   "Contents = 4 item slots from the loot table at RF4S.exe+0x9EFA60, row = f8 "
                   "(u16 per slot: low 11 bits item id, high 5 bits count). "
@@ -165,9 +165,9 @@ GIMMICKS = {
              params=[(6, 4, "scale"), (8, 4, "loot-table row index"),
                      (9, 4, "'opened' flag offset (flag = f13 + f9; 0 = no sparkle tick)"),
                      (10, 2, "sub-id (stored at actor+322)"), _DIS2]),
-    45: dict(name="fe102", role="Flag-gated object with 8 model variants "
-                  "(res 15289 + (f8 & 7); Actor_InitFlagGatedRes15289Object).",
-             params=[(8, 4, "model variant (res 15289 + (f8 & 7))"),
+    45: dict(name="fe102", role="Colour switch: a pillar with a crystal, 8 colours "
+                  "(switch_00..07 = res 15289 + (f8 & 7); Actor_InitFlagGatedRes15289Object).",
+             params=[(8, 4, "colour (switch_00..07, f8 & 7)"),
                      (9, 4, "nonzero -> state byte actor+576 = 1"),
                      (10, 4, "state byte actor+577"),
                      (11, 4, "nonzero + secondary flag (gate+1) CLEAR -> hidden/alt tick"), _DIS2]),
@@ -194,33 +194,32 @@ GIMMICKS = {
                      (8, 4, "zone half-width"), (9, 4, "zone half-height"), _DIS2]),
     49: dict(name="fe104", role="Static effect (no params)", params=[]),
     50: dict(name="fe105", role="Static effect (no params)", params=[]),
-    51: dict(name="MOBJ_SHIP", role="Flag-gated large multi-cell sprite effect (res 17593 - flowing "
-                  "water / weather-overlay style; the ship band name is its sprite sheet). "
-                  "Actor_InitFlagGatedMCSpriteEffect.",
+    51: dict(name="MOBJ_SHIP", role="The airship sprite (res 17593 = MOBJ_SHIP), shown per its flag "
+                  "(Actor_InitFlagGatedMCSpriteEffect).",
              params=[(8, 1, "mode (0 = animated via delta)"), _DIS4]),
-    52: dict(name="MOBJ_FI_ERUPT_LAVA", role="CONVEYOR / forced-slide zone: reuses the warp-swirl visual, but "
-                  "its on-step handler (Object_OnStepForceAutoWalk) forces an auto-walk PUSH, not a "
-                  "teleport. IDA name MapObj_InitWarpPointVariantB is historical; the lava band name "
-                  "is coincidental (corrected 2026-08-31 twice: not lava, and not a warp).",
+    52: dict(name="MOBJ_FI_ERUPT_LAVA", role="Vent knockback zone (no sprite; puffs smoke): stepping on it staggers the "
+                  "player, drops what they carry and walks them off it -- no HP damage "
+                  "(Object_OnStepForceAutoWalk). IDA name MapObj_InitWarpPointVariantB is historical.",
              params=[(8, 2, "slide param (actor+576)"), (9, 2, "slide param (actor+578)"), _DIS2]),
-    53: dict(name="MOBJ_BOX", role="Breakable box (char 143 'Treasure' actor internally, but in-game it "
+    53: dict(name="MOBJ_BOX", role="Breakable crate: wooden (MOBJ_BOX), metal (MOBJ_FIELD_METAL02) when f8 is set "
+                  "(char 143 'Treasure' actor internally, but in-game it "
                   "is the smashable crate, not a chest): loot rolled from the current zone's treasure "
                   "pool at room load (MapEntity_SpawnTreasure). Grass-wrapped variants need a cutting "
                   "tool (playtest-corrected 2026-09-01).",
-             params=[(8, 4, "drop / contents param"), (9, 4, "param (untraced)"),
+             params=[(8, 4, "nonzero = metal crate (res 17599)"), (9, 4, "param (untraced)"),
                      (10, 4, "param (untraced)"),
                      (13, 2, "'collected/broken' flag (region-B; -1 = none/respawns) — the map data "
                              "allocates a globally UNIQUE bit per box (705..968 across all maps; "
                              "-1 only in the random-dungeon J rooms). Read via the custom-named "
                              "'descriptor' arg — the 2026-09-01 f13 sweep missed it (false negative, "
                              "corrected)")]),
-    54: dict(name="MOBJ_FI_ERUPT", role="Eruption hazard (geyser/lava/spike burst) - periodic Effect kind 0x44 "
+    54: dict(name="MOBJ_FI_ERUPT", role="Eruption vent (lava vent, or stone crater with f10) - erupts periodically, Effect kind 0x44 "
                   "(MapObj_Init/TickEruptionHazard).",
              params=[(8, 4, "eruption period (default 120)"),
                      (9, 4, "damage/scale -> the four attack stat fields"),
-                     (10, 4, "sprite variant: 0 = res 17594, else res 17596"),
+                     (10, 4, "sprite: 0 = lava vent (17594), else stone crater (17596)"),
                      (11, 4, "initial delay (default: random)"), _DIS4]),
-    55: dict(name="fe106", role="Eruption hazard - shares type-54's init and tick.",
+    55: dict(name="fe106", role="Eruption vent - shares type-54's init and tick.",
              params=[(8, 4, "eruption period (default 120)"),
                      (9, 4, "damage/scale -> the four attack stat fields"),
                      (10, 4, "sprite variant: 0 = res 17594, else res 17596"),
@@ -229,17 +228,18 @@ GIMMICKS = {
                   "attack hitbox - MapObj_InitDamagingHazardSprite).",
              params=[(8, 1, "mode byte (actor+577)"),
                      (9, 4, "attack effect id, biased +210 (-> attack+324)")]),
-    57: dict(name="MOBJ_FIELD_METAL02", role="Decorative large multi-cell animated effect (res 2225 - "
-                  "fountain/waterfall/plume style; no attack). MapObj_InitMCSpriteEffectRes2225.",
-             params=[(8, 1, "mode byte (actor+576)")]),
+    57: dict(name="MOBJ_FIELD_METAL02", role="Portrait (res 2225 = portrait): with f8 set its eyes follow the player "
+                  "(frames 0 / 1 / 2 by the player's x). MapObj_InitMCSpriteEffectRes2225.",
+             params=[(8, 1, "nonzero = eyes follow the player")]),
     58: dict(name="MOBJ_BOX_WINTER", role="TRAVELER NPC spawn, flag-gated (actor category 27, res 1253; "
                   "spawns while the flag is CLEAR). Does NOT load the winter-box sprite — the band "
                   "name is a coincidence of archive position. f8 selects the tick mode "
                   "(0/1 story-progress tracking, 2 timed, 3 anim-archive). "
                   "Npc_InitFlagGatedTraveler +0x1500F0 (2026-08-31; was 'Winter box').",
              params=[(8, 4, "tick mode 0..3"), _DIS2]),
-    59: dict(name="fe114", role="Proximity trap or effect, two modes (MapObj_InitProximityTrapOrEffect).",
-             params=[(8, 4, "mode: nonzero = proximity DAMAGE trap, 0 = effect only"),
+    59: dict(name="fe114", role="Wooly doll (res 1120 = FURNITURE_21), or with f8 an invisible proximity "
+                  "damage trap (MapObj_InitProximityTrapOrEffect).",
+             params=[(8, 4, "mode: nonzero = invisible proximity DAMAGE trap, 0 = the doll"),
                      (9, 4, "attack damage (all four attack stat fields)")]),
     60: dict(name="fe115", role="Flag-gated decoration with RANDOM 3D rotation "
                   "(Actor_InitFlagGatedRandomRotDecoration).",
@@ -255,11 +255,12 @@ GIMMICKS = {
                      (9, 1, "state byte actor+576"), (10, 1, "state byte actor+577"),
                      (11, 4, "touch hitbox half-width (default 24)"),
                      (12, 4, "touch hitbox half-height (default 24)"), _DIS2]),
-    64: dict(name="fe119", role="Flag-gated treasure spot (MapEntity_InitFlagGatedTreasure; gate flag SET = looted).",
+    64: dict(name="fe119", role="Theatre table, small (FURNITURE_01); removed once its gate flag is set "
+                  "(MapEntity_InitFlagGatedTreasure).",
              params=[(6, 4, "scale"), _DIS2]),
-    65: dict(name="fe120", role="Flag-gated treasure spot (shares type-64 handler).",
+    65: dict(name="fe120", role="Theatre table, large (FURNITURE_02; shares type-64 handler).",
              params=[(6, 4, "scale"), _DIS2]),
-    66: dict(name="fe121", role="Flag-gated treasure spot (shares type-64 handler).",
+    66: dict(name="fe121", role="Theatre chair (FURNITURE_11; shares type-64 handler).",
              params=[(6, 4, "scale"), _DIS2]),
     67: dict(name="fe122", role="Periodic flag-gated effect emitter (MapObj_InitPeriodicEffectEmitter / "
                   "Actor_TickPeriodicEffectEmitterGatedByFlag).",

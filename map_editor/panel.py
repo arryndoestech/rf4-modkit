@@ -561,8 +561,10 @@ class MapEditorPanel:
         self._update_chrome()
 
     def view_open(self):
-        """A map just loaded: the opening zoom (view.OPEN_ZOOM), centred."""
-        self.view.open_view()
+        """A map just loaded: the opening zoom (view.OPEN_ZOOM), centred -- or, reached
+        through a warp, the zoom the warp was followed at, centred on its arrival point."""
+        warp, self._warp_view = self.__dict__.get("_warp_view"), None
+        self.view.open_view(*(warp or ()))
         self._update_chrome()
 
     # ------------------------------------------------------------------ #
@@ -904,12 +906,16 @@ class MapEditorPanel:
         if not self.confirm_discard(f"open {name}"):
             return
         self.status(f"→ {name}")
+        # the destination opens at this map's zoom, centred where the warp arrives
+        ax, ay = recs[j][6], recs[j][7]
+        self._warp_view = (self.view.cp, (ax / 8, ay / 8) if ax or ay else None)
         nav = self.on_navigate or self._navigate_local
 
         def go():
             try:
                 nav(name)
             except Exception as ex:  # noqa: BLE001 - surface it instead of a silent trace
+                self._warp_view = None
                 self.status(f"opening {name} failed: {ex}")
         # the host may rebuild this panel: never do that inside our own click handler
         ui.later(self.frame, go)

@@ -1437,6 +1437,21 @@ def test_mobj_types():
            mobj_types.mobj_name(5) is None and mobj_types.mobj_name(9) is None
            and 0 not in mobj_types.MOBJ_NAMES,
            "type 5 (forage) / 9 (map parameter) -> None")
+    # types 20..77 draw what their handler loads (often another archive, picked by a word)
+    rec = lambda t, w8=0, w10=0: [t, 0, 0, 0, 0, 0, 0, 0, w8, 0, w10]
+    tex = mobj_types.mobj_texture
+    _check("mobj textures follow the handlers (theatre furniture, switches, crates, vents, ...)",
+           [tex(rec(t)) for t in (64, 65, 66, 46, 51, 57, 59, 26, 43)]
+           == ["FURNITURE_01", "FURNITURE_02", "FURNITURE_11", "floor_switch", "MOBJ_SHIP",
+               "portrait", "FURNITURE_21", "OBJ_KAMITSUKI", "gmk18_windmill"]
+           and tex(rec(46, 1)) is None and tex(rec(59, 1)) is None
+           and tex(rec(53)) == "MOBJ_BOX" and tex(rec(53, 1)) == "MOBJ_FIELD_METAL02"
+           and tex(rec(55)) == "MOBJ_FI_ERUPT_LAVA" and tex(rec(55, 0, 1)) == "MOBJ_FI_ERUPT"
+           and tex(rec(45, 3)) == "switch_03" and tex(rec(43, 2)) == "propeller_ship_01"
+           and all(tex(rec(t)) is None for t in (37, 42, 44, 52, 58, 60, 70))
+           and tex(rec(20)) == "efc_liteC" and tex(rec(68)) == "smoke_ring"
+           and mobj_types.mobj_tint(20) == (22 / 31, 21 / 31, 8 / 31) and mobj_types.mobj_tint(68) is None
+           and tex(rec(82)) == mobj_types.mobj_name(82) and tex(rec(250)) == mobj_types.mobj_name(250))
     # Human notes for opaque effect sprites. 2026-08-31: the whole actor band
     # 20..81 is identified from g_mapObjTypeInitTable (+0x4CF530), so every
     # fe*/gmk* type has a note now; plain scenery sprites (>= 82) still don't.
@@ -6356,6 +6371,40 @@ def test_map_editor_labels():
             for it in yellow)
         _check("every label is outlined: 8 black copies, one pixel off, drawn under it",
                len(black) == 8 * len(yellow) and outlined, f"{len(black)} outline items for {len(yellow)} labels")
+        # the hover tooltip names an object by its readable name, like its label
+        tips = [v.describe_key(("mobj", i)) for i in range(len(d.objs))]
+        want = [mobj_types.mobj_display_name(o["type_id"] & 0xFFFF) for o in d.objs]
+        _check("hover tooltips show each object's readable name",
+               tips and all(w and t.split("\n")[0].split("  ", 1)[1] == w for t, w in zip(tips, want)),
+               tips[:2])
+        # following a warp opens its destination at this zoom, centred on the arrival point
+        from rf4s_modkit import rf4m as _rf4m
+        from map_editor import data as _mdata
+        recs = d.map.mapj_records()
+        j = next(k for k, r in enumerate(recs) if _mdata.rooms_by_id().get(r[5])
+                 and (B / (_mdata.rooms_by_id()[r[5]] + ".rf4m")).exists() and (r[6] or r[7]))
+        dest = _mdata.rooms_by_id()[recs[j][5]]
+        opened = []
+        real_open = v.open_view
+        v.open_view = lambda *a: opened.append(a)
+        p.on_navigate = lambda n: p.set_map(_rf4m.Rf4mMap.load(B / (n + ".rf4m")), n)
+        v.set_zoom(12)
+        p.goto_warp(j)
+        for _ in range(5):
+            root.update()
+        v.open_view = real_open
+        _check("a warp opens its destination at the current zoom, centred where it arrives",
+               p.doc.name == dest and opened and opened[-1] == (12, (recs[j][6] / 8, recs[j][7] / 8))
+               and p.__dict__.get("_warp_view") is None, (dest, p.doc.name, opened))
+        p.set_map(_rf4m.Rf4mMap.load(B / "MAP_CITY_00.rf4m"), "MAP_CITY_00")
+        for _ in range(3):
+            root.update()
+        v.open_view = lambda *a: opened.append(a)
+        p.view_open()
+        v.open_view = real_open
+        _check("a map opened any other way still opens at the default zoom",
+               opened[-1] == (), opened[-1])
+        d = p.doc
         # label size follows the zoom: small when zoomed out, readable from ~6 px, 10 pt at 16 px
         sizes = {cp: mrender.label_size(cp) for cp in (2, 4, 6, 8, 12, 16, 24)}
         v.set_zoom(16)

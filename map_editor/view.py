@@ -552,17 +552,19 @@ class MapView(ttk.Frame):
             self._fit_bind = self.canvas.bind("<Configure>", later, add="+")
         return False
 
-    def open_view(self):
+    def open_view(self, zoom=None, at=None):
         """How a map opens: OPEN_ZOOM px per tile (less when the map is too big for that),
-        centred on the map."""
+        centred on the map. A warp followed from another map passes the zoom it was viewed
+        at and the arrival tile to centre on instead."""
         d = self.doc
-        if d is None or d.grid is None or not self._after_layout(self.open_view):
+        if d is None or d.grid is None or not self._after_layout(lambda: self.open_view(zoom, at)):
             return
-        self.set_zoom(min(OPEN_ZOOM, self.max_zoom()))
+        self.set_zoom(min(zoom or OPEN_ZOOM, self.max_zoom()))
         if self.on_zoom:
             self.on_zoom()
         W, H, _ = d.grid
-        self.center_on(W / 2, H / 2)
+        tx, ty = at if at and 0 <= at[0] < W and 0 <= at[1] < H else (W / 2, H / 2)
+        self.center_on(tx, ty)
 
     def fit(self):
         """Largest zoom at which the whole map is visible. Before the canvas has been laid
@@ -633,7 +635,7 @@ class MapView(ttk.Frame):
         if kind == "mobj" and i < len(d.objs):
             o = d.objs[i]
             tid = o["type_id"] & 0xFFFF
-            head = mobj_types.mobj_note(tid) or mobj_types.mobj_display_name(tid) or f"type {tid}"
+            head = mobj_types.mobj_display_name(tid) or f"type {tid}"
             return f"#{i}  {head}\n{o['category']}  tile ({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
         if kind == "si" and d.si is not None and i < len(d.si.spots):
             sp = d.si.spots[i]

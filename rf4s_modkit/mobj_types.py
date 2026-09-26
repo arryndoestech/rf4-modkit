@@ -246,30 +246,33 @@ MOBJ_NOTES: dict[str, str] = {
     "gmk15_magiclight":"glowing decoration (type 40, MapObj_InitGlowingDecoration)",
     "gmk16_waterlight":"pulsing glow decoration (type 41, MapObj_InitPulsingGlowDecoration)",
     "gmk17_warp_effect":"WARP POINT (type 42, MapObj_InitWarpPoint)",
-    "fe100":   "effect sprite by mode; modes 2/3 = the Norad Express airship propellers (type 43)",
+    "fe100":   "windmill blades / airship propeller by word 8: 0 gmk18_windmill, 1 gmk19_windmill, 2 / 3 the airship's propeller_ship_01 / 02 (type 43)",
     "fe101":   "flag-gated treasure (type 44, Actor_InitFlagGatedTreasure)",
-    "fe102":   "flag-gated object, res 15289 (type 45, Actor_InitFlagGatedRes15289Object)",
-    "fe102_2": "flag-gated interactive object (type 46, Actor_InitFlagGatedInteractiveObject)",
+    "fe102":   "colour switch: pillar with a crystal, colour = word 8 & 7 (switch_00..07), frame follows its flag (type 45, Actor_InitFlagGatedRes15289Object)",
+    "fe102_2": "floor switch: interacting sets / clears its game flag, texture floor_switch "
+               "(frame 1 once the flag is set) (type 46, Actor_InitFlagGatedInteractiveObject)",
     "fe103":   "MONSTER GATE / seal door — barrier closed while the room's monsters live, opens + sets its flag when cleared (type 47)",
     "fe107":   "BARRIER — flag-gated barrier zone, blocks passage until its flag (type 48, MapObj_InitFlagGatedBarrierZone)",
     "fe104":   "ambient particle effect A (type 49)",
     "fe105":   "ambient particle effect B (type 50)",
-    "MOBJ_SHIP":           "flag-gated large sprite effect, flowing-water/overlay style (type 51; the ship name is its sheet)",
-    "MOBJ_FI_ERUPT_LAVA":  "CONVEYOR / forced-slide zone with the warp-swirl visual (type 52; the handler pushes, it does not teleport)",
-    "MOBJ_BOX":            "breakable box — smashable crate dropping zone-pool loot (type 53; char 143 'Treasure' internally)",
-    "MOBJ_FI_ERUPT":       "eruption hazard (type 54, MapObj_Init/TickEruptionHazard)",
-    "fe106":   "eruption hazard (type 55, same handler as type 54)",
+    "MOBJ_SHIP":           "the airship, shown while its flag allows (type 51, Actor_InitFlagGatedMCSpriteEffect, texture MOBJ_SHIP)",
+    "MOBJ_FI_ERUPT_LAVA":  "vent knockback zone (no sprite of its own; placed at the eruption vents): stepping on it staggers the player (hit sound + hit reaction, drops what they "
+                           "carry) and walks them off it; no HP damage; puffs smoke (type 52)",
+    "MOBJ_BOX":            "breakable crate dropping zone-pool loot: wooden (MOBJ_BOX), or metal (MOBJ_FIELD_METAL02) when word 8 is set (type 53, MapEntity_SpawnTreasure)",
+    "MOBJ_FI_ERUPT":       "eruption vent: erupts periodically and damages (word 9 = attack); lava vent MOBJ_FI_ERUPT_LAVA, or stone crater MOBJ_FI_ERUPT when word 10 is set (type 54, MapObj_Init/TickEruptionHazard)",
+    "fe106":   "eruption vent (type 55, same handler as type 54)",
     "MOBJ_CHANDELIER":     "damaging hazard sprite — falling chandelier (type 56, MapObj_InitDamagingHazardSprite)",
-    "MOBJ_FIELD_METAL02":  "MC sprite effect, res 2225 (type 57, MapObj_InitMCSpriteEffectRes2225)",
+    "MOBJ_FIELD_METAL02":  "portrait (texture portrait): with word 8 set its eyes follow the player left / right (type 57, MapObj_InitMCSpriteEffectRes2225; the MOBJ_FIELD_METAL02 name is only its archive slot)",
     "MOBJ_BOX_WINTER":     "flag-gated TRAVELING NPC spawn (type 58, Npc_InitFlagGatedTraveler)",
-    "fe114":   "proximity trap / effect (type 59, MapObj_InitProximityTrapOrEffect)",
+    "fe114":   "Wooly doll (texture FURNITURE_21); with word 8 set an invisible proximity trap instead (type 59, MapObj_InitProximityTrapOrEffect)",
     "fe115":   "flag-gated decoration, random rotation (type 60, Actor_InitFlagGatedRandomRotDecoration)",
     "fe116":   "map-wide ambient particles (type 61, MapObj_InitMapWideAmbientParticles)",
     "fe117":   "sakura petal effect (type 62, MapObj_InitSakuraPetalEffect)",
     "fe118":   "flag-gated toggle switch (type 63, Actor_InitFlagGatedToggleSwitch)",
-    "fe119":   "flag-gated treasure (type 64, MapEntity_InitFlagGatedTreasure)",
-    "fe120":   "flag-gated treasure (type 65, same handler)",
-    "fe121":   "flag-gated treasure (type 66, same handler)",
+    "fe119":   "theatre furniture: small table, texture FURNITURE_01 (type 64, "
+               "MapEntity_InitFlagGatedTreasure; static, removed once its gate flag is set)",
+    "fe120":   "theatre furniture: large table, texture FURNITURE_02 (type 65, same handler)",
+    "fe121":   "theatre furniture: chair, texture FURNITURE_11 (type 66, same handler)",
     "fe122":   "periodic effect emitter (type 67, MapObj_InitPeriodicEffectEmitter)",
     "fe123": "chimney smoke",   # USER 2026-06-24 + type 68 MapObj_Init/TickChimneySmoke
     "fe124":   "area particle emitter (type 69, MapObj_Init/TickAreaParticleEmitter)",
@@ -318,30 +321,30 @@ MOBJ_DISPLAY: dict[int, str] = {
     40: "magic glow (unused)",  # gmk15_magiclight
     41: "water glow (unused)",  # gmk16_waterlight
     42: "warp point",  # gmk17_warp_effect
-    43: "airship propellers",  # fe100
+    43: "windmill blades / airship propeller",  # fe100
     44: "treasure (flag-gated)",  # fe101
-    45: "flag-gated object",  # fe102
-    46: "flag-gated interactive object",  # fe102_2
+    45: "colour switch (flag-gated)",  # fe102
+    46: "floor switch",  # fe102_2
     47: "seal door (opens when the room is cleared)",  # fe103
     48: "barrier (flag-gated)",  # fe107
     49: "ambient particles A",  # fe104
     50: "ambient particles B",  # fe105
     51: "airship",  # MOBJ_SHIP
-    52: "lava vent (pushes the player)",  # MOBJ_FI_ERUPT_LAVA
-    53: "wooden crate (breakable)",  # MOBJ_BOX
-    54: "stone crater (eruption, unused)",  # MOBJ_FI_ERUPT
-    55: "eruption hazard",  # fe106
+    52: "vent knockback zone (no damage)",  # MOBJ_FI_ERUPT_LAVA
+    53: "crate (breakable; wooden, or metal)",  # MOBJ_BOX
+    54: "eruption vent (unused)",  # MOBJ_FI_ERUPT
+    55: "eruption vent (lava or stone; damages)",  # fe106
     56: "chandelier (falls)",  # MOBJ_CHANDELIER
-    57: "metal crate",  # MOBJ_FIELD_METAL02
-    58: "snow-covered crate (travelling NPC, unused)",  # MOBJ_BOX_WINTER
-    59: "proximity trap",  # fe114
+    57: "portrait (eyes follow the player)",  # MOBJ_FIELD_METAL02
+    58: "travelling NPC (flag-gated, unused)",  # MOBJ_BOX_WINTER
+    59: "Wooly doll / hidden proximity trap",  # fe114
     60: "decoration (flag-gated, random rotation)",  # fe115
     61: "ambient particles (whole map)",  # fe116
     62: "sakura petals",  # fe117
-    63: "switch (flag-gated)",  # fe118
-    64: "treasure (theatre) 1",  # fe119
-    65: "treasure (theatre) 2",  # fe120
-    66: "treasure (theatre) 3",  # fe121
+    63: "floor switch (toggle)",  # fe118
+    64: "theatre table (small)",  # fe119
+    65: "theatre table (large)",  # fe120
+    66: "theatre chair",  # fe121
     67: "effect emitter (periodic)",  # fe122
     68: "chimney smoke",  # fe123
     69: "particle emitter (area)",  # fe124
@@ -697,6 +700,65 @@ def mobj_name(type_id: int) -> str | None:
     """Return the map_obj sprite name for a type_id, or None when the record does not
     load a map_obj sprite (type_id < 20: forage directive / map parameter record)."""
     return MOBJ_NAMES.get(type_id & 0xFFFF)
+
+
+# The texture each type's handler draws (RF4S.exe MapObj_SetupActorByTypeId +0x147240):
+# types 82..196 and the road edges 78..81 load their own map_obj sprite (archive type + 17542),
+# like the sprite band above them; types 20..77 get ONLY what their g_mapObjTypeInitTable
+# handler loads -- often another archive, sometimes chosen by a record word, and for effects,
+# sounds and zones nothing drawable. Checked handler by handler 2026-09-26. The street light
+# (20) is its glow blob in the handler's amber tint (MOBJ_TINT; it only shows 16:00-05:59) and
+# the chimney smoke (68) its smoke_ring (08:00-21:59). Not drawn here: the other light /
+# water effects (37, 70..72), 3D models (44 chest M26_0, 58 the
+# travelling NPC, 60 the ponds), types 38..41 (their handler loads archive = type id, an AI
+# file: unused), and every sound / zone / emitter type.
+MOBJ_TEXTURE: dict[int, str] = {
+    20: "efc_liteC",                        # MapObj_InitStreetLight
+    26: "OBJ_KAMITSUKI",
+    27: "OBJ_BIRD_BLUE",                    # one of BLUE / BROWN / GREEN / PINK at random
+    28: "OBJ_BUTTERFLY_BLUE",               # one of BLUE / LIGHTB / PINK / YELLOW at random
+    46: "floor_switch", 51: "MOBJ_SHIP", 56: "MOBJ_CHANDELIER", 57: "portrait",
+    63: "floor_switch",                     # its handler wraps type 46's
+    64: "FURNITURE_01", 65: "FURNITURE_02", 66: "FURNITURE_11",
+    68: "smoke_ring",                       # MapObj_InitChimneySmoke
+}
+# Tints a handler multiplies its texture by (Sprite_SetTintFromPacked555: R bits 14..10,
+# G 9..5, B 4..0, each /31).
+MOBJ_TINT: dict[int, int] = {20: 0x5AA8}
+# Textures that hold one quarter of a round glow (bright in the corner that is the centre),
+# drawn mirrored into all four quarters.
+MOBJ_QUARTER_GLOW: frozenset[int] = frozenset({20})
+
+
+def mobj_tint(type_id: int) -> tuple[float, float, float] | None:
+    """(r, g, b) factors 0..1 the game multiplies a type's texture by, or None."""
+    v = MOBJ_TINT.get(type_id & 0xFFFF)
+    return None if v is None else ((v >> 10 & 31) / 31, (v >> 5 & 31) / 31, (v & 31) / 31)
+_WINDMILL = {1: "gmk19_windmill", 2: "propeller_ship_01", 3: "propeller_ship_02"}
+
+
+def mobj_texture(params) -> str | None:
+    """Texture name (without .texture) the game draws for a MOBJ record (its dwords), or
+    None when it draws no texture of its own (see MOBJ_TEXTURE)."""
+    tid = params[0] & 0xFFFF
+    w = lambda k: params[k] if len(params) > k else 0
+    if tid >= 78:
+        return mobj_name(tid)
+    if tid == 36:                           # the NPC-event collection object (+ an event step)
+        return f"COLLECTION_{w(8):02d}"
+    if tid == 43:                           # MapObj_InitEffectSpriteByMode, by word 8
+        return _WINDMILL.get(w(8), "gmk18_windmill")
+    if tid == 45:                           # Actor_InitFlagGatedRes15289Object: 8 colours
+        return f"switch_{w(8) & 7:02d}"
+    if tid in (46, 63) and w(8):
+        return None                         # the switch's model is suppressed
+    if tid == 53:                           # MapEntity_SpawnTreasure: word 8 = metal crate
+        return "MOBJ_FIELD_METAL02" if w(8) else "MOBJ_BOX"
+    if tid in (54, 55):                     # MapObj_InitEruptionHazard: word 10 = stone crater
+        return "MOBJ_FI_ERUPT" if w(10) else "MOBJ_FI_ERUPT_LAVA"
+    if tid == 59:                           # word 8 set: an invisible proximity trap
+        return None if w(8) else "FURNITURE_21"
+    return MOBJ_TEXTURE.get(tid)
 
 
 def mobj_filename(type_id: int) -> str | None:
