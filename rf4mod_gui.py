@@ -767,10 +767,6 @@ class App:
         self.header = ttk.Label(hb, text="Select an asset", anchor="w",
                                 font=("Segoe UI", 10, "bold"))
         self.header.pack(side="left", fill="x", expand=True)
-        self._close_tab_btn = ttk.Button(hb, text="Close tab", command=self.cmd_close_tab)
-        from guiutil import Tip
-        Tip(self._close_tab_btn, "Close this file's tab (Ctrl+W; a tab's × or a middle click "
-                                 "closes that one). Every file you click opens in its own tab.")
         # the open files' tabs (scrolls: ◀ ▶ / the wheel; ▼ lists them all) over the shown page
         from guiutil import TabBar
         self.tabbar = TabBar(self.right, on_select=self._select_doc, on_close=self.cmd_close_tab,
@@ -1224,7 +1220,6 @@ class App:
             self._blank.frame.pack_forget()
             self.tabbar.pack(fill="x", padx=2)
             self.tab_area.pack(fill="both", expand=True)
-            self._close_tab_btn.pack(side="right")
         return doc
 
     def _select_doc(self, doc):
@@ -1318,7 +1313,6 @@ class App:
         if not self._docs:                      # back to the blank view
             self.tabbar.pack_forget()
             self.tab_area.pack_forget()
-            self._close_tab_btn.pack_forget()
             self._blank.frame.pack(fill="both", expand=True)
         else:
             self._select_doc(self._doc)         # the neighbour activated above: show its page
