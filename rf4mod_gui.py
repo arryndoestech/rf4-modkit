@@ -1501,19 +1501,20 @@ class App:
 
     # ---- per-type views -------------------------------------------------- #
     def _view_texture(self, name, data):
+        doc = self._doc
         if not HAS_PIL:
             self._view_hex(name, data, error="Pillow not installed (pip install Pillow)")
             return
         info = texture.parse(data)
         nframes = info.get("frames", 1)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         head = f"{info['fmt_name']}  {info['width']}x{info['height']}  (code 0x{info['fmt_code']:X})"
         if nframes > 1:
             head += f"   flipbook: {nframes} frames"
         ttk.Label(bar, text=head).pack(side="left", padx=6)
         for z, lbl in ((0.5, "½×"), (1, "1×"), (2, "2×"), (4, "4×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
         ttk.Button(bar, text="Replace from PNG…",
                    command=lambda: self._replace_texture_png(name)).pack(side="left", padx=(10, 0))
         try:
@@ -1526,67 +1527,68 @@ class App:
             self._view_hex(name, data, error=str(e)); return
         if not frames:
             self._view_hex(name, data, error="unsupported texture format"); return
-        self._pil = frames[0]
-        self._img_canvas = self._make_image_canvas()
-        self._set_zoom(2.0 if max(frames[0].size) <= 64 else 1.0)  # tiny flipbook cells: zoom in
-        self._export_kind = "png"
+        doc._pil = frames[0]
+        doc._img_canvas = self._make_image_canvas(doc=doc)
+        self._set_zoom(2.0 if max(frames[0].size) <= 64 else 1.0, doc)  # tiny flipbook cells: zoom in
+        doc._export_kind = "png"
         self.export_btn.config(state="normal")
         if len(frames) > 1:
             # Flipbook controls: prev/next, play/stop (~8 fps default; in-game
             # speed is per-MOBJ-record f9, unknown here), and GIF export.
-            self._tex_frames = frames
-            self._tex_fi = 0
+            doc._tex_frames = frames
+            doc._tex_fi = 0
             fl = ttk.Label(bar, text=f"frame 1/{len(frames)}")
 
             def show(i):
-                self._tex_fi = i % len(self._tex_frames)
-                self._pil = self._tex_frames[self._tex_fi]
-                fl.config(text=f"frame {self._tex_fi + 1}/{len(self._tex_frames)}")
-                self._set_zoom(self.zoom)
+                doc._tex_fi = i % len(doc._tex_frames)
+                doc._pil = doc._tex_frames[doc._tex_fi]
+                fl.config(text=f"frame {doc._tex_fi + 1}/{len(doc._tex_frames)}")
+                self._set_zoom(doc.zoom, doc)
 
             def tick():
-                self._anim_after = None
-                if getattr(self, "_tex_playing", False):
-                    show(self._tex_fi + 1)
-                    self._anim_after = self._doc_after(120, tick)
+                doc._anim_after = None
+                if getattr(doc, "_tex_playing", False):
+                    show(doc._tex_fi + 1)
+                    doc._anim_after = self._doc_after(120, tick)
 
             def toggle():
-                self._tex_playing = not getattr(self, "_tex_playing", False)
-                pb.config(text="Stop" if self._tex_playing else "Play")
-                if self._tex_playing and self._anim_after is None:
+                doc._tex_playing = not getattr(doc, "_tex_playing", False)
+                pb.config(text="Stop" if doc._tex_playing else "Play")
+                if doc._tex_playing and doc._anim_after is None:
                     tick()
 
-            ttk.Button(bar, text="◀", width=3, command=lambda: show(self._tex_fi - 1)).pack(side="left", padx=(10, 0))
+            ttk.Button(bar, text="◀", width=3, command=lambda: show(doc._tex_fi - 1)).pack(side="left", padx=(10, 0))
             fl.pack(side="left", padx=4)
-            ttk.Button(bar, text="▶", width=3, command=lambda: show(self._tex_fi + 1)).pack(side="left")
+            ttk.Button(bar, text="▶", width=3, command=lambda: show(doc._tex_fi + 1)).pack(side="left")
             pb = ttk.Button(bar, text="Play", width=5, command=toggle)
             pb.pack(side="left", padx=4)
             ttk.Button(bar, text="GIF…", width=5,
                        command=lambda: self._export_texture_gif(name)).pack(side="left")
-            self._tex_playing = False
-            self._anim_after = None
+            doc._tex_playing = False
+            doc._anim_after = None
 
     def _replace_texture_png(self, name):
         """Re-skin the shown .texture from a PNG of the same size, re-encoded in the
         template frame's own format (BC7/BC3/BC1 at the same size, raw kept -- see
         texture.encode_into). For a flipbook only the frame being shown is replaced.
         Updates the working copy (cur_data) like the other editors; Extract writes it."""
-        if self.cur_data is None:
+        doc = self._doc
+        if doc.cur_data is None:
             return
         f = filedialog.askopenfilename(title="Replace texture pixels from PNG…",
                                        filetypes=[("PNG image", "*.png"), ("All images", "*.*")])
         if not f:
             return
-        frames = getattr(self, "_tex_frames", None)
-        frame = getattr(self, "_tex_fi", 0) if frames and len(frames) > 1 else None
-        before = len(self.cur_data)
+        frames = getattr(doc, "_tex_frames", None)
+        frame = getattr(doc, "_tex_fi", 0) if frames and len(frames) > 1 else None
+        before = len(doc.cur_data)
         try:
-            blob = texture.encode_into(self.cur_data, f, frame=frame)
+            blob = texture.encode_into(doc.cur_data, f, frame=frame)
         except Exception as e:
             messagebox.showerror("Replace failed", str(e))
             return
-        self.cur_data = blob
-        self._show(name, blob)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
         which = f"frame {frame + 1} " if frame is not None else ""
         size = "same size, bundle patch-able" if len(blob) == before else f"was {before:,}"
         self.status.config(text=f"Replaced {which}pixels from {pathlib.Path(f).name} -> "
@@ -1594,7 +1596,8 @@ class App:
 
     def _export_texture_gif(self, name):
         """Save the current flipbook as an animated GIF (120 ms/frame, looped)."""
-        frames = getattr(self, "_tex_frames", None)
+        doc = self._doc
+        frames = getattr(doc, "_tex_frames", None)
         if not frames:
             return
         stem = pathlib.Path(name).stem
