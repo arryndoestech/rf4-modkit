@@ -7392,6 +7392,25 @@ def test_map_editor_undo():
             panel.set_active_gate((0, 0))
             gt._show_gate()
             ent = d.gen.patterns[0][0]
+            # the gate's positions as numbers in the Gates tab, editable (also off the map)
+            rows = [gt.gpos.item(r, "values") for r in gt.gpos.get_children()]
+            want = [(str(x), str(y)) for x, y in ent.gate_pos.points]
+            off0 = int(gt.gpos.get_children()[0])
+            gt.gpos.selection_set(str(off0))
+            gt._gpos_picked()
+            gt.gx.set(str((d.grid[0] + 4) * 8))
+            gt._commit_gpos()
+            gt._show_gate()
+            moved = gt.gpos.item(str(off0), "values")
+            panel.undo()
+            gt._show_gate()
+            back = gt.gpos.item(str(off0), "values")
+            _check("the Gates tab lists the gate's positions as numbers; typing moves one (also "
+                   "off the map, marked), and it undoes",
+                   [r[:2] for r in rows] == want and "off the map" in moved[2]
+                   and back[:2] == rows[0][:2] and panel.sel == ("gpos", off0),
+                   (rows, moved, back))
+            ent = d.gen.patterns[0][0]              # the undo rebuilt the table
             f0 = ent.hdr.flag
             gt.visible.set(not gt.visible.get())
             gt._commit_gate()
@@ -8599,7 +8618,8 @@ def test_asset_explorer_gui():
                 _ok_btn = (app._doc.cur_name.endswith("MAP_DUNG_E89.rf4m") and _p is not None
                            and _p.nb.tab(_p.nb.select(), "text") == "Gates")
             _check("Gen view: 'Open in map editor' lands on that map's Gates tab", _ok_btn)
-        _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
+        _check("asset explorer raised no callback errors", not errs,
+               f"{len(errs)}: " + ("; ".join(f"{e[0].__name__}: {e[1]}" for e in errs[:2]) if errs else ""))
     finally:
         root.destroy()
 

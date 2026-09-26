@@ -378,6 +378,26 @@ class EncountersTab(ui.ScrollFrame):
         b2 = ttk.Button(pf, text="+ spawn", width=7, command=lambda: ed.start_add("mpos"))
         b2.pack(side="right", padx=2)
         ui.Tip(b2, "Click the map to add a monster spawn point to the selected gate.")
+        # the selected gate's positions as numbers -- also the ones off the map / off screen
+        self.gpos = ttk.Treeview(g, columns=("x", "y", "tile"), show="headings", height=3,
+                                 selectmode="browse")
+        for c, t, w in (("x", "x", 60), ("y", "y", 60), ("tile", "tile", 150)):
+            self.gpos.heading(c, text=t)
+            self.gpos.column(c, width=w, anchor="e" if c != "tile" else "w", stretch=(c == "tile"))
+        self.gpos.pack(fill="x", pady=(4, 0))
+        self.gpos.bind("<<TreeviewSelect>>", self._gpos_picked)
+        ui.Tip(self.gpos, "The selected gate's positions in sub-units (8 per tile); the spawner "
+                          "picks one at random. Pick one to select it (Center shows it on the map), "
+                          "or type new numbers below -- also for one off the map.")
+        xf = ttk.Frame(g)
+        xf.pack(fill="x", pady=(2, 0))
+        self.gx, self.gy = tk.StringVar(), tk.StringVar()
+        for lab, var in (("x", self.gx), ("y", self.gy)):
+            ttk.Label(xf, text=lab).pack(side="left")
+            commit_entry(xf, var, self._commit_gpos, width=7).pack(side="left", padx=(2, 8))
+        if hasattr(ed, "center_on"):            # the map editor (not the Gen file viewer)
+            ttk.Button(xf, text="Center", width=7,
+                       command=lambda: self._gpos_key() and ed.center_on(self._gpos_key())).pack(side="left")
         r = section(b, "Roster of the selected gate")
         self.roster = ttk.Treeview(r, columns=("mon", "lv", "w"), show="headings", height=6, selectmode="browse")
         for c, t, w in (("mon", "monster", 170), ("lv", "pick wt", 52), ("w", "weights", 80)):
@@ -448,6 +468,7 @@ class EncountersTab(ui.ScrollFrame):
             self.kind.var.set("")
             self.share_lbl.config(text="Select a gate.")
             self.pts_lbl.config(text="")
+            self._show_gpos(None)
             return
         self.kind.var.set(f"{e.gate_kind}  {data.actor_name(e.gate_kind)}".strip())
         self.v["weight"].set(str(e.weight))
@@ -469,6 +490,65 @@ class EncountersTab(ui.ScrollFrame):
         self.share_lbl.config(text=("Shares its " + ", ".join(shared) + " with other gates.") if shared else "")
         self.pts_lbl.config(text=f"{len(e.gate_pos.points)} gate position(s), "
                                  f"{len(e.mon_pos.points)} monster point(s)")
+        self._show_gpos(e)
+
+    def _show_gpos(self, e):
+        """The gate's positions as numbers, the one picked before kept picked."""
+        t = self.gpos
+        keep = t.selection()
+        t.delete(*t.get_children())
+        doc = self.ed.doc
+        if e is None or doc is None or doc.gen is None:
+            self.gx.set("")
+            self.gy.set("")
+            return
+        grid = getattr(doc, "grid", None)       # None: a Gen file open without its map
+        for off, x, y in doc.gen.gate_positions_off(e):
+            tx, ty = x >> 3, y >> 3
+            off_map = grid is not None and not (0 <= tx < grid[0] and 0 <= ty < grid[1])
+            where = f"({tx}, {ty})" + ("  off the map" if off_map else "")
+            t.insert("", "end", iid=str(off), values=(x, y, where))
+        rows = t.get_children()
+        sel = getattr(self.ed, "sel", None)     # a gate position picked on the map wins
+        if sel and sel[0] == "gpos" and t.exists(str(sel[1])):
+            keep = (str(sel[1]),)
+        pick = keep[0] if keep and t.exists(keep[0]) else (rows[0] if rows else None)
+        if pick is not None:
+            t.selection_set(pick)
+            x, y = t.item(pick, "values")[:2]
+            self.gx.set(str(x))
+            self.gy.set(str(y))
+        else:
+            self.gx.set("")
+            self.gy.set("")
+
+    def _gpos_key(self):
+        s = self.gpos.selection()
+        return ("gpos", int(s[0])) if s else None
+
+    def _gpos_picked(self, _e=None):
+        k = self._gpos_key()
+        if k is None:
+            return
+        x, y = self.gpos.item(str(k[1]), "values")[:2]
+        self.gx.set(str(x))
+        self.gy.set(str(y))
+        if hasattr(self.ed, "select") and getattr(self.ed, "sel", None) != k:
+            self.ed.select(k)
+
+    def _commit_gpos(self):
+        k = self._gpos_key()
+        x, y = ui.to_int(self.gx.get()), ui.to_int(self.gy.get())
+        if k is None or x is None or y is None or not (0 <= x <= 0xFFFF and 0 <= y <= 0xFFFF):
+            return                              # stored as u16
+        cur = tuple(int(v) for v in self.gpos.item(str(k[1]), "values")[:2])
+        if (x, y) == cur:
+            return
+        if hasattr(self.ed, "set_position_edit"):
+            self.ed.set_position_edit(k, (x, y))
+        else:                                   # the Gen file viewer: the same edit, by hand
+            g = self.ed.doc.gen
+            self.ed.apply("Move gate position", "gen", lambda: g.set_position(k[1], x, y))
 
     def _gate_picked(self, _e=None):
         s = self.gates.selection()

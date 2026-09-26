@@ -595,6 +595,8 @@ class MapEditorPanel:
         self.view.st.sel = self.sel
         self.view.invalidate("sel")
         self._update_gate_focus()
+        if self.sel and self.sel[0] == "gpos":  # the Gates tab's positions list follows
+            self.encounters._show_gpos(self.active_gate)
         self.inspector.show_selection(self.sel)
         self.objects.reveal(self.sel)
         if self.sel is not None:
