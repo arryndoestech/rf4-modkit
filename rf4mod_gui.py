@@ -3192,11 +3192,12 @@ class App:
         IDA-verified semantics: max 2 spawns/map/day (deterministic per day, sleep
         rerolls); positions in sub-units (tile = >>3); item id = low 11 bits;
         weight = low byte, summed in a u8 (totals > 255 wrap and skew odds)."""
+        doc = self._doc
         try:
             f = search_items.SearchItemFile.parse(data)
         except Exception as e:
             self._view_hex(name, data, error=str(e)); return
-        self._si = f
+        doc._si = f
         item_names = _load_item_names()
 
         # first-class pool list (ordered by first appearance in spots).
@@ -3215,13 +3216,13 @@ class App:
         except Exception:
             footer_txt = "footer: anomalous (harmless, engine ignores it)"
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Search-item spots — engine rolls daily: 1-in-N chance per "
                             f"spot, max 2 spawns/map/day, sleep rerolls.",
                   wraplength=720).pack(side="left", padx=6)
         ttk.Label(bar, text=footer_txt, foreground="#888").pack(side="right", padx=6)
 
-        paned = ttk.PanedWindow(self.content, orient="horizontal")
+        paned = ttk.PanedWindow(doc.content, orient="horizontal")
         paned.pack(fill="both", expand=True, padx=4, pady=4)
 
         # ------------------------- left: SPOTS ----------------------------- #
@@ -3292,7 +3293,7 @@ class App:
 
         def commit(refill=True):
             # Drop nothing from the editor state, but warn about unsaved pools.
-            self.cur_data = f.build()
+            doc.cur_data = f.build()
             orphans = [k for k, p in enumerate(pools) if not used_by(p)]
             note = (f"  (pool(s) {', '.join('#%d' % k for k in orphans)} unassigned — "
                     f"NOT saved until assigned to a spot)" if orphans else "")
@@ -3468,7 +3469,7 @@ class App:
         ttk.Button(enb, text="− pool", command=pool_del).pack(side="left", padx=2)
 
         def save_tbl():
-            blob = f.build(); self.cur_data = blob
+            blob = f.build(); doc.cur_data = blob
             orphans = [k for k, p in enumerate(pools) if not used_by(p)]
             if orphans:
                 if not messagebox.askokcancel(
@@ -3477,10 +3478,10 @@ class App:
                         f"to any spot and will NOT be in the saved file. Save anyway?"):
                     return
             fpath = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("SI table", "*.bin"), ("All", "*.*")])
             if fpath:
-                pathlib.Path(fpath).write_bytes(blob)
+                pathlib.Path(fpath).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved search-item table → {fpath}")
         ttk.Button(enb, text="Save table…", command=save_tbl).pack(side="right", padx=4)
 
