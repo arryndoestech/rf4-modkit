@@ -622,7 +622,7 @@ class App:
         "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
         "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
         "_events_new_scene"})
-    MAP_TABS_ASK = 5        # more open map tabs than this asks first (each keeps an editor)
+    MAP_TABS_ASK = 10       # more open map tabs than this asks first (each keeps an editor)
 
     def __getattr__(self, name):
         # only reached when normal lookup fails: VIEW_STATE never sits in the instance dict

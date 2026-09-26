@@ -5743,14 +5743,22 @@ def test_explorer_tabs():
 
         def is_open(nm):
             return any(d.key and d.key[1].endswith(nm) for d in app._docs)
-        for nm in ("MAP_CITY_00.rf4m", "MAP_CITY_01.rf4m", "MAP_CITY_02.rf4m", "MAP_CITY_03.rf4m"):
-            open_(nm)
-        declined = len(asked) == 1 and not is_open("MAP_CITY_03.rf4m") and is_open("MAP_CITY_02.rf4m")
-        open_("MAP_CITY_03.rf4m")
+        def open_maps():
+            return sum(1 for d in app._docs if d.map_panel() is not None)
+        lim = app.MAP_TABS_ASK
+        more = [n for n in sorted(ents) if n.startswith("MAP_CITY_") and n.endswith(".rf4m")
+                and "_SUMMER" not in n and not is_open(n)]
+        while open_maps() < lim:                # up to the limit: no question
+            open_(more.pop(0))
+        quiet = not asked and open_maps() == lim
+        extra = more.pop(0)
+        open_(extra)                            # one past it: asks; Cancel + the box ticked
+        declined = len(asked) == 1 and not is_open(extra)
+        open_(extra)                            # asked no more this session
         guiutil.ask_yes_no_optout = _ask
-        _check("the 6th map tab asks first; Cancel keeps it closed, and after 'Don't warn me again "
-               "this session' the next map opens without asking",
-               declined and len(asked) == 1 and is_open("MAP_CITY_03.rf4m"), f"asked {len(asked)}x")
+        _check(f"up to {lim} map tabs open without asking; the next one asks, Cancel keeps it "
+               "closed, and after 'Don't warn me again this session' it opens without asking",
+               quiet and declined and len(asked) == 1 and is_open(extra), f"asked {len(asked)}x")
         box["yesnocancel"] = False
         for d in list(app._docs):
             app.cmd_close_tab(d)
