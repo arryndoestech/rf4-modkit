@@ -2142,21 +2142,22 @@ class App:
         # scenery atlases, named MOBJ_<map>_NN). Offer a texture browser alongside the
         # raw container structure. BNTX here is LINEAR BC (no Tegra swizzle), so every
         # texture decodes directly. (Falls back to structure-only without Pillow.)
+        doc = self._doc
         if data[:4] == b"PSB\x00" and HAS_PIL and self._view_psb(name, data):
             return
         from rf4s_modkit import model as _model
         is_mesh = _model.is_mesh(data)
         if HAS_PIL and (is_mesh or (data.find(b"BNTX") >= 0 and texture.bntx_list(data))):
-            nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
+            nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
             if is_mesh:
                 self._build_model_tab(nb, name, data)
             if data.find(b"BNTX") >= 0 and texture.bntx_list(data):
                 self._build_bntx_browser(nb, name, data)
-            stxt = self._make_text_tab(nb, "Structure", mono=True)
+            stxt = self._make_text_tab(nb, "Structure", mono=True, doc=doc)
             stxt.insert("end", res_container.summary(data)); stxt.config(state="disabled")
             nb.select(0)
             return
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         txt.insert("end", res_container.summary(data))
         if data[:4] == b"RES\x00" and not is_mesh:
             txt.insert("end", "\n\n(a UI screen layout: .model files for menus carry no mesh)")
@@ -2195,6 +2196,7 @@ class App:
     def _build_model_tab(self, nb, name, data):
         """'Model' tab: a textured preview of the meshes (front / back / side / top), the
         shape / material summary, and Export OBJ (geometry + MTL + texture PNGs)."""
+        doc = self._doc
         from rf4s_modkit import model as _model
         try:
             m = _model.parse(data)
@@ -2244,21 +2246,21 @@ class App:
             fl.pack(side="left", padx=4)
             ttk.Button(bar, text="GIF…", width=5, command=lambda: self._export_model_gif(m, anim, view.get(), stem)
                        ).pack(side="left")
-            self._model_playing = False
+            doc._model_playing = False
             tick_ms = 50
 
             def tick():
-                self._anim_after = None
-                if not self._model_playing or not cv.winfo_exists():
+                doc._anim_after = None
+                if not doc._model_playing or not cv.winfo_exists():
                     return
                 state["frame"] = (state["frame"] + 60 * tick_ms / 1000.0) % max(1, anim.frame_count)
                 draw()
-                self._anim_after = self._doc_after(tick_ms, tick)
+                doc._anim_after = self._doc_after(tick_ms, tick)
 
             def toggle():
-                self._model_playing = not self._model_playing
-                pb.config(text="Stop" if self._model_playing else "Play")
-                if self._model_playing and getattr(self, "_anim_after", None) is None:
+                doc._model_playing = not doc._model_playing
+                pb.config(text="Stop" if doc._model_playing else "Play")
+                if doc._model_playing and getattr(doc, "_anim_after", None) is None:
                     tick()
             pb.config(command=toggle)
         else:
@@ -2292,8 +2294,8 @@ class App:
             state["photo"] = ImageTk.PhotoImage(im)
             cv.delete("all")
             cv.create_image(4, 4, anchor="nw", image=state["photo"])
-            self._pil = im
-            self._export_kind = "png"
+            doc._pil = im
+            doc._export_kind = "png"
             self.export_btn.config(state="normal")
             if fl is not None:
                 fl.config(text=f"frame {int(state['frame']):3}/{anim.frame_count}")
@@ -2306,6 +2308,7 @@ class App:
         """A 'motion' row under the Model tab listing the .bfskl skeletal animations that
         drive this model (skelanim.anim_candidates) with Play / GIF…. Returns a callback that
         refreshes the frame label after each draw, or None when the model has none."""
+        doc = self._doc
         from rf4s_modkit import skelanim as _sk
         src = getattr(self, "source", None)
         if src is None or not m.bones:
@@ -2340,7 +2343,7 @@ class App:
             redraw()
 
         def tick(last):
-            self._skel_after = None
+            doc._skel_after = None
             if not state["splaying"] or not row.winfo_exists() or state["skel"] is None:
                 return
             now = _time.monotonic()
@@ -2349,12 +2352,12 @@ class App:
             if not a.loops and state["sframe"] >= a.frame_count:
                 state["sframe"] = 0.0
             redraw()
-            self._skel_after = self._doc_after(15, lambda: tick(now))
+            doc._skel_after = self._doc_after(15, lambda: tick(now))
 
         def toggle():
             state["splaying"] = not state["splaying"] and state["skel"] is not None
             pb.config(text="Stop" if state["splaying"] else "Play")
-            if state["splaying"] and getattr(self, "_skel_after", None) is None:
+            if state["splaying"] and getattr(doc, "_skel_after", None) is None:
                 tick(_time.monotonic())
         pb.config(command=toggle)
 
@@ -2441,6 +2444,7 @@ class App:
     def _build_bntx_browser(self, nb, name, data):
         """A 'Textures' tab: list every embedded BNTX texture; click to preview
         (zoom), Export the selected one (toolbar Export), or Export all to a folder."""
+        doc = self._doc
         frame = ttk.Frame(nb); nb.add(frame, text="Textures")
         lst = texture.bntx_list(data)
         left = ttk.Frame(frame); left.pack(side="left", fill="y")
@@ -2456,17 +2460,17 @@ class App:
                       values=(f"{t['w']}×{t['h']}", t["fmt_name"]))
         right = ttk.Frame(frame); right.pack(side="left", fill="both", expand=True)
         bar = ttk.Frame(right); bar.pack(fill="x")
-        self._bntx_lbl = ttk.Label(bar, text=f"{len(lst)} textures — select one")
-        self._bntx_lbl.pack(side="left", padx=6)
+        doc._bntx_lbl = ttk.Label(bar, text=f"{len(lst)} textures — select one")
+        doc._bntx_lbl.pack(side="left", padx=6)
         for z, lbl in ((0.5, "½×"), (1, "1×"), (2, "2×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
         ttk.Button(bar, text="Export all…", width=11,
                    command=lambda: self._export_all_bntx(name, data, lst)).pack(side="right", padx=4)
         ttk.Button(bar, text="Replace texture…", width=17,
                    command=lambda: self._replace_bntx_png(name, tv)).pack(side="right", padx=4)
         cvframe = ttk.Frame(right); cvframe.pack(fill="both", expand=True)
-        self._img_canvas = self._make_image_canvas(cvframe)
+        doc._img_canvas = self._make_image_canvas(cvframe, doc=doc)
 
         def on_sel(_evt=None):
             s = tv.selection()
@@ -2476,14 +2480,14 @@ class App:
             try:
                 im = texture.decode_bntx(data, idx)
             except texture.TextureError as e:
-                self._bntx_lbl.config(text=str(e)); return
+                doc._bntx_lbl.config(text=str(e)); return
             if im is None:
-                self._bntx_lbl.config(text="unsupported format (needs texture2ddecoder)"); return
-            self._pil = im.convert("RGBA")
+                doc._bntx_lbl.config(text="unsupported format (needs texture2ddecoder)"); return
+            doc._pil = im.convert("RGBA")
             t = lst[idx]
-            self._bntx_lbl.config(text=f"{t['name']}   {t['w']}×{t['h']}   {t['fmt_name']}")
-            self._set_zoom(1.0)
-            self._export_kind = "png"
+            doc._bntx_lbl.config(text=f"{t['name']}   {t['w']}×{t['h']}   {t['fmt_name']}")
+            self._set_zoom(1.0, doc)
+            doc._export_kind = "png"
             self.export_btn.config(state="normal")
 
         tv.bind("<<TreeviewSelect>>", on_sel)
@@ -2494,8 +2498,9 @@ class App:
         """Replace the selected embedded texture of a .model from a PNG of the same size,
         re-encoded IN PLACE in its own block format (texture.bntx_replace: the file size and
         every container field stay as they are). Updates cur_data; Extract writes it."""
+        doc = self._doc
         sel = tv.selection()
-        if not sel or self.cur_data is None:
+        if not sel or doc.cur_data is None:
             return
         idx = int(sel[0])
         f = filedialog.askopenfilename(title="Replace embedded texture from PNG…",
@@ -2503,12 +2508,12 @@ class App:
         if not f:
             return
         try:
-            blob = texture.bntx_replace(self.cur_data, idx, f)
+            blob = texture.bntx_replace(doc.cur_data, idx, f)
         except Exception as e:  # noqa: BLE001 - surface any encode/size problem to the user
             messagebox.showerror("Replace failed", str(e))
             return
-        self.cur_data = blob
-        self._show(name, blob)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
         self.status.config(text=f"Replaced texture {idx} from {pathlib.Path(f).name} in place -> "
                                 f"{len(blob):,} bytes, size unchanged (Extract to save the working copy)")
 
