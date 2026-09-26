@@ -64,10 +64,10 @@ class MapView(ttk.Frame):
         vbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
         c = self.canvas
-        c.bind("<MouseWheel>", self._wheel)
+        c.bind("<MouseWheel>", self._wheel)                 # zoom at the pointer
         c.bind("<Configure>", lambda _e: self._update_scrollregion(), add="+")
         c.bind("<Shift-MouseWheel>", lambda e: c.xview_scroll(-(e.delta // 120) * 3, "units"))
-        c.bind("<Control-MouseWheel>", self._ctrl_wheel)
+        c.bind("<Control-MouseWheel>", self._ctrl_wheel)    # scroll up / down
         c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
         c.bind("<B2-Motion>", lambda e: c.scan_dragto(e.x, e.y, gain=1))
         c.bind("<Motion>", self._motion, add="+")
@@ -465,10 +465,11 @@ class MapView(ttk.Frame):
         c.yview_moveto(max(0.0, (ty * self.cp - ch / 2) / rh))
 
     def _wheel(self, e):
-        self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
+        self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
+        return "break"
 
     def _ctrl_wheel(self, e):
-        self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
+        self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
         return "break"
 
     # ---- hover -------------------------------------------------------------- #

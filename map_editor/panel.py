@@ -28,6 +28,10 @@ from .view import MapView
 
 TABS = ("View", "Inspect", "Objects", "Map", "Encounters", "Problems")
 _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos": "gen"}
+# The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
+# switching maps (the host may rebuild this panel) and pastes into another toolkit window.
+CLIP_TAG = "RF4S map object "
+_CLIP_KINDS = ("mobj", "warp", "si")
 _KIND_NAME = {"mobj": "entity", "warp": "warp", "si": "search spot", "gpos": "gate position",
               "mpos": "monster spawn point"}
 
@@ -65,6 +69,7 @@ class MapEditorPanel:
     def _build(self):
         from guiutil import Paned
         self._flag_paths = {}                   # flag-source name -> save file
+        self._pointer = None                    # last pointer position (sub-units): Ctrl+V target
         self.frame = ttk.Frame(self.parent)
         self.frame.pack(fill="both", expand=True)
         self._build_toolbar()
@@ -133,7 +138,7 @@ class MapEditorPanel:
         ttk.Button(bar, text="+", width=2, command=lambda: self.view.zoom_step(1)).pack(side="left")
         fit = ttk.Button(bar, text="Fit", width=4, command=self.view_fit)
         fit.pack(side="left", padx=(2, 0))
-        ui.Tip(fit, "Fit the map in the window (0). Ctrl+wheel zooms at the pointer, middle-drag pans.")
+        ui.Tip(fit, "Fit the map in the window (0). The wheel zooms at the pointer, Ctrl+wheel scrolls up / down, Shift+wheel sideways, middle-drag pans.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(bar, text="Validate", command=self.run_validation).pack(side="left")
         self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=ui.HINT_FONT)
@@ -156,6 +161,14 @@ class MapEditorPanel:
         for k in ("Delete", "BackSpace"):
             c.bind(f"<{k}>", lambda _e: self.delete(self.sel))
         c.bind("<Escape>", lambda _e: self.escape())
+        # copy / cut / paste objects (canvas only: text fields keep their own Ctrl+C/V)
+        for k in ("c", "C"):
+            c.bind(f"<Control-{k}>", lambda _e: self.copy_object(self.sel) or "break")
+        for k in ("x", "X"):
+            c.bind(f"<Control-{k}>", lambda _e: self.copy_object(self.sel, cut=True) or "break")
+        for k in ("v", "V"):
+            c.bind(f"<Control-{k}>", lambda _e: self.paste_object(self._pointer) or "break")
+        c.bind("<Leave>", lambda _e: setattr(self, "_pointer", None), add="+")
         for k, d in (("Left", (-1, 0)), ("Right", (1, 0)), ("Up", (0, -1)), ("Down", (0, 1))):
             c.bind(f"<{k}>", lambda _e, d=d: self.nudge(d[0] * 8, d[1] * 8))
             c.bind(f"<Shift-{k}>", lambda _e, d=d: self.nudge(*d))
@@ -481,6 +494,7 @@ class MapEditorPanel:
 
     def _motion(self, e):
         if self.doc is not None and self.doc.grid:
+            self._pointer = self.view.subunit_at(e)     # where Ctrl+V pastes
             self.tool.motion(e)
 
     def _hover(self, t):
@@ -501,14 +515,29 @@ class MapEditorPanel:
             m.add_command(label="Open destination map", command=lambda: self.goto_warp(key[1]))
             m.add_separator()
         m.add_command(label="Center view here", command=lambda: self.center_on(key))
-        if key[0] in ("mobj", "warp", "si"):
+        if key[0] in _CLIP_KINDS:
             m.add_command(label="Duplicate", command=lambda: self.duplicate(key))
+            m.add_command(label="Copy  (Ctrl+C)", command=lambda: self.copy_object(key))
+            m.add_command(label="Cut  (Ctrl+X)", command=lambda: self.copy_object(key, cut=True))
         if key[0] in ("gpos", "mpos"):
             users = next((u for pk, off, _x, _y, u in self.doc.gate_points() if (pk, off) == key), [])
             if users:
                 m.add_command(label="Show its gate", command=lambda: self.show_gate(users[0]))
         m.add_separator()
         m.add_command(label="Delete", command=lambda: self.delete(key))
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+
+    def context_menu_empty(self, e):
+        """Right-click on empty map: paste what the clipboard holds, right there."""
+        clip = self.clipboard_object()
+        if clip is None or self.doc is None:
+            return
+        m = tk.Menu(self.frame, tearoff=False)
+        m.add_command(label=f"Paste {_KIND_NAME[clip['kind']]} here  (Ctrl+V)",
+                      command=lambda at=self.view.subunit_at(e): self.paste_object(at))
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:
@@ -661,11 +690,29 @@ class MapEditorPanel:
         if self.apply(label, self.aspect_of(key), do):
             self.status(label)
 
+    def room_for(self, kind):
+        """None when one more `kind` fits this map, else why not. Each new entity / warp is
+        one chunk, and the engine holds only 40 MOBJ / 10 MAPJ chunk pointers per map
+        (rf4m.ENGINE_MAX_CHUNKS; more overwrite the next array)."""
+        tag = {"mobj": b"MOBJ", "warp": b"MAPJ"}.get(kind)
+        if tag is None or self.doc is None:
+            return None
+        cap = rf4m.ENGINE_MAX_CHUNKS[tag]
+        n = sum(1 for ch in self.doc.map.chunks if ch.tag == tag)
+        if n >= cap:
+            return (f"this map already has {n} {tag.decode()} chunks -- the game holds {cap}; "
+                    f"delete one first")
+        return None
+
     def duplicate(self, key):
         if key is None or self.doc is None:
             return
         d = self.doc
         kind, k = key
+        why = self.room_for(kind)
+        if why:
+            self.status(f"Can't duplicate: {why}")
+            return
         out = {}
 
         def do():
@@ -690,6 +737,102 @@ class MapEditorPanel:
         if kind in ("mobj", "warp", "si") and self.apply(f"Duplicate {_KIND_NAME[kind]} #{k}",
                                                          self.aspect_of(key), do):
             self.select(out.get("k"))
+
+    # ---- clipboard (across maps) ---------------------------------------- #
+    def copy_object(self, key, cut=False):
+        """Put the entity / warp / search spot `key` on the clipboard (and delete it: cut)."""
+        if key is None or self.doc is None:
+            return
+        kind, k = key
+        if kind not in _CLIP_KINDS:
+            self.status(f"A {_KIND_NAME[kind]} belongs to its encounter gate and can't be copied")
+            return
+        d = self.doc
+        clip = {"kind": kind, "from": d.base}
+        if kind == "mobj":
+            clip["record"] = [int(v) for v in d.map.mobj_records()[k]]
+        elif kind == "warp":
+            clip["record"] = [int(v) for v in d.map.mapj_records()[k]]
+        else:
+            sp = d.si.spots[k]
+            clip["x"], clip["y"] = sp.x, sp.y
+            clip["drops"] = [[e.effective_item_id, e.effective_weight] for e in sp.pool.entries]
+        import json
+        self.frame.clipboard_clear()
+        self.frame.clipboard_append(CLIP_TAG + json.dumps(clip))
+        what = f"{_KIND_NAME[kind]} #{k}"
+        if cut:
+            self.delete(key)
+            self.status(f"Cut {what} -- Ctrl+V pastes it on any map")
+        else:
+            self.status(f"Copied {what} -- Ctrl+V pastes it on any map (at the pointer)")
+
+    def clipboard_object(self):
+        """The map object on the clipboard, or None."""
+        import json
+        try:
+            text = self.frame.clipboard_get()
+        except tk.TclError:
+            return None
+        if not text.startswith(CLIP_TAG):
+            return None
+        try:
+            clip = json.loads(text[len(CLIP_TAG):])
+        except ValueError:
+            return None
+        return clip if isinstance(clip, dict) and clip.get("kind") in _CLIP_KINDS else None
+
+    def paste_object(self, at=None):
+        """Add the clipboard's object to this map, centred on `at` (sub-units: the pointer)
+        or, without one, where it was on its own map (clamped into this one). Selects it."""
+        if self.doc is None or not self.doc.grid:
+            return
+        clip = self.clipboard_object()
+        if clip is None:
+            self.status("The clipboard holds no map object (select one and press Ctrl+C)")
+            return
+        kind = clip["kind"]
+        why = self.room_for(kind)
+        if why:
+            self.status(f"Can't paste: {why}")
+            return
+        d = self.doc
+        W, H, _ = d.grid
+        out = {}
+
+        def clamp(x, y, w=0, h=0):
+            return (max(0, min(W * 8 - max(1, w), x)), max(0, min(H * 8 - max(1, h), y)))
+
+        def place(x, y, w=0, h=0):
+            """Top-left for an object of size w x h (sub-units): centred on `at`, keeping
+            the object's own sub-tile offset; else its old spot, clamped."""
+            if at is not None:
+                x = (at[0] - w // 2) // 8 * 8 + (x & 7)
+                y = (at[1] - h // 2) // 8 * 8 + (y & 7)
+            return clamp(x, y, w, h)
+
+        def do():
+            if kind == "mobj":
+                r = list(clip["record"])
+                if r[14] or r[15]:                  # positionless map parameters stay 0, 0
+                    r[14], r[15] = place(r[14], r[15])
+                out["k"] = ("mobj", d.map.add_mobj_record(r))
+            elif kind == "warp":
+                r = list(clip["record"])
+                r[1], r[2] = place(r[1], r[2], r[3], r[4])
+                out["k"] = ("warp", d.map.add_mapj_record(r))
+            else:
+                x, y = place(clip["x"], clip["y"])
+                pool = search_items.DropPool(entries=[search_items.DropEntry(item_id=i, weight=w)
+                                                      for i, w in clip["drops"]])
+                si = d.ensure_si()
+                si.spots.append(search_items.SearchSpot(x=x, y=y, pool=pool))
+                out["k"] = ("si", len(si.spots) - 1)
+        src = clip.get("from")
+        label = f"Paste {_KIND_NAME[kind]}" + (f" from {src}" if src and src != d.base else "")
+        if self.apply(label, _MOVE_ASPECT[kind], do):
+            self.select(out.get("k"))
+            self.status(label)
 
     # ---- navigation ------------------------------------------------------- #
     def this_map_id(self):

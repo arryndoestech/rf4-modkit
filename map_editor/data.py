@@ -299,7 +299,10 @@ def ore_configs(reader):
     return out
 
 
-# ---- script-spawned actors (EventSpawnNpc in the map's event bank) --------- #
+# ---- script-spawned actors (EventSpawnNpc* in the map's event bank) -------- #
+# ops 153 EventSpawnNpc, 154 EventSpawnNpcVariant, 155 EventSpawnNpcEx: all start with
+# (char id, event key, x, y)
+SPAWN_OPS = ("EventSpawnNpc", "EventSpawnNpcVariant", "EventSpawnNpcEx")
 _RF3MC = {"c": False}          # False = not tried yet; None = tried and missing
 
 
@@ -322,7 +325,8 @@ def rf3mc_container():
 
 def script_spawns(name):
     """(bank index | None, [spawn dict]) for the actors this map's EVENT SCRIPT places with
-    EventSpawnNpc: NPCs and interactibles such as char 269 'Search'. They are not in the
+    EventSpawnNpc / EventSpawnNpcVariant / EventSpawnNpcEx: NPCs, monsters such as the Silver
+    Wolf in Sechs Territory (MAP_DUNG_L13), and interactibles such as char 269 'Search'. They are not in the
     .rf4m. Coordinates are sub-units (8 per tile), like MOBJ positions."""
     mid = map_id(name)
     cont = rf3mc_container() if mid is not None else None
@@ -339,7 +343,7 @@ def script_spawns(name):
     out = []
     for sc in scenes:
         for pc, st in sc.stmts.items():
-            if st.op >= 0xFFF0 or script.opcode_mnemonic(st.op) != "EventSpawnNpc":
+            if st.op >= 0xFFF0 or script.opcode_mnemonic(st.op) not in SPAWN_OPS:
                 continue
             try:
                 v = [int(script.arg_repr(bank.data, a), 0) for a in st.args[:4]]

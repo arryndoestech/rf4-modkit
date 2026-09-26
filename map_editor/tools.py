@@ -214,6 +214,8 @@ class SelectTool(Tool):
         if key is not None:
             self.ed.select(key)
             self.ed.context_menu(e, key)
+        else:
+            self.ed.context_menu_empty(e)
 
     def double(self, e):
         """Tk sends a fast second click here instead of to press(). It opens a warp's

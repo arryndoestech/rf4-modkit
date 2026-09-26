@@ -332,7 +332,7 @@ class Inspector(ScrollFrame):
             row = ttk.Frame(box)
             row.pack(fill="x", pady=(3, 0))
             ttk.Label(row, text=nm, width=16, anchor="w", wraplength=112, justify="left").pack(side="left")
-            var = tk.StringVar(value=scriptasm.operand_text(buf, off, st.op, i))
+            var = tk.StringVar(value=scriptasm.call_arg(scriptasm.operand_text(buf, off, st.op, i)))
             e = commit_entry(row, var, lambda i=i, var=var: app.set_arg(st.pc, i, var.get()), width=14)
             e.pack(side="left", fill="x", expand=True)
             Tip(e, "Listing syntax: a number, actor(Forte), map(MAP_CITY_00), (FLG_X + 1), a "

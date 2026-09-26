@@ -297,7 +297,7 @@ def bank_listing(bank, resolver=None):
         op = st.op
         if op < 0xFFF0:
             args = [_operand_text(asm, d, o, w, op, i) for i, (o, w) in enumerate(ex)]
-            line = scriptasm.listing_name(op) + ((" " + ", ".join(args)) if args else "")
+            line = scriptasm.action_text(scriptasm.listing_name(op), args)
         elif op == 0xFFFF:
             line = "END"
         elif op == 0xFFF1:
@@ -319,12 +319,12 @@ def bank_listing(bank, resolver=None):
             line = "JMP_IND %s" % ", ".join(tg)
         elif op == 0xFFF2:
             ws = [_paren(_operand_text(asm, d, o, w)) for o, w in ex]
-            line = "RAND_BR " + ", ".join("%s->%s" % (w, t) for w, t in zip(ws, tg))
+            line = "RAND_BR " + ", ".join("%s -> %s" % (w, t) for w, t in zip(ws, tg))
         elif op == 0xFFF4:
-            line = "PROMPT_CHOICE CANCEL->%s" % tg[0] + "".join(
-                ", #%d->%s" % (it, t) for it, t in zip(st.items, tg[1:]))
+            line = "PROMPT_CHOICE CANCEL -> %s" % tg[0] + "".join(
+                ", #%d -> %s" % (it, t) for it, t in zip(st.items, tg[1:]))
         elif op == 0xFFF5:
-            line = "PROMPT_CHOICE_FORCED " + ", ".join("#%d->%s" % (it, t) for it, t in zip(st.items, tg))
+            line = "PROMPT_CHOICE_FORCED " + ", ".join("#%d -> %s" % (it, t) for it, t in zip(st.items, tg))
         else:
             raise RelinkError("no listing form for 0x%04x" % op)
         out.append("    " + line)

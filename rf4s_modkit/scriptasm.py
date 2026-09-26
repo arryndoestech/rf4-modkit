@@ -43,17 +43,23 @@ The listing language (one statement per line, `;` comments, labels `name:`):
 
     L0:                                  ; label on its own line or before a statement
         FRAME 2
-        SetSpeakerNancy 3, 0             ; action: mnemonic | technical name | opN | number
+        SetSpeakerNancy(3, 0)            ; action: name(args) -- mnemonic | technical name | opN
         DIALOG #8709
         BR_Z (REG_WIFE_ID == 11) -> L1   ; condition in parentheses, target label or 0xPC
         STORE (FLG_EV_DONE = 1)          ; write a game flag
-        GiveItem 258, (reg0 + 1), 0      ; args: int, (expr), name, regN, arr[N], @0xOFF
+        GivePlayerItem(258, reg0 + 1, 0) ; args: int, expression, name, regN, arr[N], @0xOFF
         CALL 0x1234                      ; absolute targets address existing code in the bank
-        PROMPT_CHOICE CANCEL->L2, #123->L3, #124->L4
-        RAND_BR (3)->L1, (1)->L2
+        PROMPT_CHOICE CANCEL -> L2, #123 -> L3, #124 -> L4
+        RAND_BR (3) -> L1, (1) -> L2
         SWITCH_EQ (reg1) -> L1, L2, L3
+        JMP_IND L1, L2, L3
     L1:
         END
+
+Actions are always written `Name(arg, ...)` (`Name()` without arguments); control
+statements are keywords, with the condition or value in parentheses and targets after `->`
+(the plain `JMP`, `CALL` and `JMP_IND` list theirs directly). The assembler also reads an
+action written without the call brackets (`Name 1, 2`).
 
 Addresses printed by the disassembler (`0123:` after the label) are ignored, so a
 listing can be pasted back verbatim. `.raw <hex>` emits bytes verbatim (used for the
@@ -613,12 +619,12 @@ class Assembler:
             for it in items:
                 inner, tail = _take_paren(it)
                 if not tail.startswith("->"):
-                    raise AsmError("line %d: RAND_BR items look like '(weight)->target'" % line_no)
+                    raise AsmError("line %d: RAND_BR items look like '(weight) -> target'" % line_no)
                 pairs.append((inner, tail[2:].strip()))
             if not pairs:
                 # Script_Opcode_FFF2_ExecPrim always jumps to the word at pc+4+2*pick; with
                 # no cases that is past the statement.
-                raise AsmError("line %d: RAND_BR needs at least one (weight)->target" % line_no)
+                raise AsmError("line %d: RAND_BR needs at least one (weight) -> target" % line_no)
             st.code += struct.pack("<H", len(pairs))
             for _, t in pairs:
                 self._target_fixup(st, t)
@@ -633,7 +639,7 @@ class Assembler:
                 left = left.strip()
                 tgt = tgt.strip()
                 if not tgt:
-                    raise AsmError("line %d: choice items look like '#id->target'" % line_no)
+                    raise AsmError("line %d: choice items look like '#id -> target'" % line_no)
                 if left.upper() == "CANCEL":
                     cancel = tgt
                 else:
@@ -642,7 +648,7 @@ class Assembler:
                                        % (line_no, left))
                     choices.append((_int_in(left[1:], 0, 0xFFFFFFFF, line_no, "choice string id"), tgt))
             if op == 0xFFF4 and cancel is None:
-                raise AsmError("line %d: PROMPT_CHOICE needs a CANCEL->target item "
+                raise AsmError("line %d: PROMPT_CHOICE needs a CANCEL -> target item "
                                "(use PROMPT_CHOICE_FORCED for no cancel branch)" % line_no)
             if op == 0xFFF5 and cancel is not None:
                 raise AsmError("line %d: PROMPT_CHOICE_FORCED has no cancel branch" % line_no)
@@ -920,6 +926,19 @@ def operand_text(buf, off, op=None, ai=None):
     return "(%s)" % txt
 
 
+def call_arg(text):
+    """An operand as it appears inside an action's call brackets: an expression loses its
+    own outer brackets there (`Give(258, reg0 + 1)`), since the commas already separate
+    the arguments."""
+    t = text.strip()
+    return t[1:-1].strip() if _outer_parens(t) else t
+
+
+def action_text(name, args):
+    """The one listing form of an action: `Name(arg, arg)`, `Name()` without arguments."""
+    return "%s(%s)" % (name, ", ".join(call_arg(a) for a in args))
+
+
 def _single_literal(buf, off):
     t = buf[off]
     size = {0x14: 1, 0x15: 1, 0x16: 1, 0x17: 2, 0x18: 2, 0x19: 3, 0x1A: 3, 0x01: 5}.get(t)
@@ -984,7 +1003,7 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
         elif st.op < 0xFFF0:
             name = listing_name(st.op) if friendly else ("op%d" % st.op)
             args = [operand_text(buf, a, st.op, i) for i, a in enumerate(st.args)]
-            body = "%s %s" % (name, ", ".join(args)) if args else name
+            body = action_text(name, args)
             if comments:
                 pretty = None
                 try:
@@ -993,8 +1012,8 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 except Exception:
                     pretty = None
                 bits = []
-                if pretty:
-                    bits.append(pretty)
+                if pretty and pretty.replace(" ", "") != body.replace(" ", ""):
+                    bits.append(pretty)             # only when it says more than the statement
                 if st.op in script.EMF_ENTRY_OPS:
                     ai = script.EMF_ENTRY_OPS[st.op]
                     if ai < len(st.args):
@@ -1022,22 +1041,22 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 body = "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
                                         ", ".join(tgt(t) for t in st.code_targets))
             elif mn == "JMP_IND":
-                body = "JMP_IND -> %s" % ", ".join(tgt(t) for t in st.code_targets)
+                body = "JMP_IND %s" % ", ".join(tgt(t) for t in st.code_targets)
             elif mn == "RAND_BR":
-                body = "RAND_BR " + ", ".join("%s->%s" % (_cond_text(buf, e), tgt(t))
+                body = "RAND_BR " + ", ".join("%s -> %s" % (_cond_text(buf, e), tgt(t))
                                               for t, e in zip(st.code_targets, st.expr_refs))
             elif mn == "PROMPT_CHOICE":
-                parts = ["CANCEL->%s" % tgt(st.code_targets[0] if st.code_targets else None)]
+                parts = ["CANCEL -> %s" % tgt(st.code_targets[0] if st.code_targets else None)]
                 for k, item in enumerate(st.items):
                     t = st.code_targets[k + 1] if k + 1 < len(st.code_targets) else None
-                    parts.append("#%d->%s" % (item, tgt(t)))
+                    parts.append("#%d -> %s" % (item, tgt(t)))
                 body = "PROMPT_CHOICE " + ", ".join(parts)
                 note = _choice_note(st.items, dialog) if comments else ""
             elif mn == "PROMPT_CHOICE_FORCED":
                 parts = []
                 for k, item in enumerate(st.items):
                     t = st.code_targets[k] if k < len(st.code_targets) else None
-                    parts.append("#%d->%s" % (item, tgt(t)))
+                    parts.append("#%d -> %s" % (item, tgt(t)))
                 body = "PROMPT_CHOICE_FORCED " + ", ".join(parts)
                 note = _choice_note(st.items, dialog) if comments else ""
             else:

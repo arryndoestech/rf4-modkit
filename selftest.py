@@ -5201,6 +5201,28 @@ def test_bank_relink():
                 s2 = [(s.op, s.size) for s in script.disassemble_scene(nb, t, b.event_id).stmts.values()]
                 if a.subs != b.subs or b.event_id != a.event_id + 6 or s1 != s2:
                     shift_bad.append((bk.index, t))
+    # one listing syntax: actions are Name(args); control keywords keep ( cond ) and spaced ->
+    _ctrl = ("END", "FRAME", "DIALOG", "CALL", "JMP", "JMP_IND", "STORE", "BR_RET", "BR_Z", "BR_NZ",
+             "SWITCH_EQ", "SWITCH_GE", "RAND_BR", "PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")
+    _odd = []
+    _sample = [bk for bk in banks if bk.type_table_full()][:6]
+    for bk in _sample:
+        _lines = br.bank_listing(bk, res).splitlines()
+        for sc in script.disassemble_bank(bk)[:20]:
+            _lines += scriptasm.scene_listing(sc, bk, show_addr=False).splitlines()
+        for _l in _lines:
+            _b = _l.split(";")[0].strip()
+            if not _b or _b.endswith(":") or _b.startswith("."):
+                continue
+            _head = re.match(r"[A-Za-z_]\w*", _b)
+            _head = _head.group(0) if _head else ""
+            if _head in _ctrl:
+                if "->" in _b.replace(" -> ", "") or _b.startswith("JMP_IND ->"):
+                    _odd.append(_b)
+            elif not re.fullmatch(r"[A-Za-z_]\w*\(.*\)", _b):
+                _odd.append(_b)
+    _check("listings write every action as Name(args) and every control arrow as ' -> '",
+           not _odd, str(_odd[:4]))
     _check("every bank rebuilds byte-exactly from its model (%d banks)" % len(banks), not model_bad, str(model_bad[:5]))
     _check("every bank rebuilds byte-exactly from its text listing", not text_bad, str(text_bad[:5]))
     _check("a statement inserted at the top relocates every scene (%d scenes)" % n_scenes,
@@ -5550,6 +5572,108 @@ def _map_editor():
     """Import the map_editor package (the modding folder is already on sys.path)."""
     import map_editor
     return map_editor
+
+
+def test_map_editor_script_spawns():
+    """The script-NPC layer finds actors spawned by all three spawn ops (153/154/155), e.g.
+    the Silver Wolf that MAP_DUNG_L13's event script places with EventSpawnNpcVariant."""
+    print("map editor script NPCs (EventSpawnNpc / Variant / Ex):")
+    from map_editor import data as med
+    bi, sp = med.script_spawns("MAP_DUNG_L13")
+    if bi is None:
+        _skip("script NPCs", "rf3.mc not found"); return
+    wolf = [s for s in sp if s["char_id"] == 79]
+    _check("MAP_DUNG_L13 shows the Silver Wolf its script spawns (EventSpawnNpcVariant, "
+           "sub-units 240, 290)",
+           wolf and (wolf[0]["x"], wolf[0]["y"], wolf[0]["instance"]) == (240, 290, 100), str(sp))
+
+
+def test_map_editor_clipboard():
+    """Map editor clipboard: an entity, a warp and a search spot copied on one map paste into
+    another (records equal but for the position, at the pointer), cut removes the source,
+    paste is one undo step, and a map at the engine's chunk cap refuses a paste."""
+    print("map editor clipboard (copy / cut / paste across maps):")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor clipboard", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists() or not (B / "MAP_FIELD_01.rf4m").exists():
+        _skip("map editor clipboard", "no extracted bundleMain"); return
+    me = _map_editor()
+    from map_editor import panel as mpanel
+    from rf4s_modkit import rf4m as _rf4m
+    root, src, errs = _headless_panel("MAP_CITY_04", B)
+    try:
+        try:
+            saved_clip = root.clipboard_get()
+        except tk.TclError:
+            saved_clip = None
+        dst = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m"), "MAP_FIELD_01")
+        root.update_idletasks()
+        d0, d1 = src.doc, dst.doc
+        ok = []
+        # entity: same 16 fields, placed at the pointer (whole tile, own sub-tile offset kept)
+        k = next(i for i, r in enumerate(d0.map.mobj_records()) if r[14] or r[15])
+        rec = list(d0.map.mobj_records()[k])
+        src.copy_object(("mobj", k))
+        clip = dst.clipboard_object()
+        n1 = len(d1.map.mobj_records())
+        dst.paste_object((40, 48))
+        new = list(d1.map.mobj_records()[-1])
+        ok.append(("entity", clip and clip["kind"] == "mobj" and len(d1.map.mobj_records()) == n1 + 1
+                   and new[:14] == rec[:14] and new[16:] == rec[16:]
+                   and new[14] == 40 + (rec[14] & 7) and new[15] == 48 + (rec[15] & 7)
+                   and dst.sel == ("mobj", n1)))
+        # undo takes the paste back in one step
+        dst.undo()
+        ok.append(("undo", len(d1.map.mobj_records()) == n1))
+        # warp: same record, zone centred on the pointer, inside the grid
+        wrec = list(d0.map.mapj_records()[0])
+        src.copy_object(("warp", 0))
+        dst.paste_object((64, 64))
+        wnew = list(d1.map.mapj_records()[-1])
+        ok.append(("warp", wnew[3:] == wrec[3:] and wnew[0] == wrec[0]
+                   and 0 <= wnew[1] and 0 <= wnew[2]))
+        # search spot into a map without an SI file: the file is created, drops copied
+        sp = d0.si.spots[0]
+        drops = [(e.effective_item_id, e.effective_weight) for e in sp.pool.entries]
+        src.copy_object(("si", 0))
+        had_si = d1.si is not None
+        dst.paste_object(None)
+        got = d1.si.spots[-1] if d1.si else None
+        ok.append(("search spot", not had_si and got is not None
+                   and [(e.effective_item_id, e.effective_weight) for e in got.pool.entries] == drops
+                   and (got.x, got.y) == (sp.x, sp.y)))
+        # cut removes the source (one undo step on the source map)
+        n0 = len(d0.map.mobj_records())
+        src.copy_object(("mobj", k), cut=True)
+        ok.append(("cut", len(d0.map.mobj_records()) == n0 - 1 and dst.clipboard_object() is not None))
+        src.undo()
+        # the engine's 40-MOBJ-chunk cap: a full map refuses the paste, the map is unchanged
+        while sum(1 for ch in d1.map.chunks if ch.tag == b"MOBJ") < 40:
+            d1.map.add_mobj_record([0] * 16)
+        n40 = len(d1.map.mobj_records())
+        src.copy_object(("mobj", k))
+        dst.paste_object((40, 48))
+        ok.append(("cap", len(d1.map.mobj_records()) == n40 and dst.room_for("mobj")))
+        # not text: a plain-text clipboard pastes nothing
+        root.clipboard_clear(); root.clipboard_append("hello")
+        ok.append(("plain text", dst.clipboard_object() is None))
+        _check("clipboard: entity / warp / search spot copy across maps, cut, undo, chunk cap",
+               all(v for _n, v in ok) and not errs, str([n for n, v in ok if not v]) + str(errs[:1]))
+        _check("clipboard: Ctrl+C / X / V bound on the map canvas (text fields keep their own)",
+               all(src.view.canvas.bind(f"<Control-{c}>") for c in "cxvCXV")
+               and mpanel.CLIP_TAG.startswith("RF4S"))
+    finally:
+        try:
+            root.clipboard_clear()
+            if saved_clip is not None:
+                root.clipboard_append(saved_clip)
+            root.update()
+        except Exception:
+            pass
+        root.destroy()
 
 
 def _headless_panel(name, B, reader=None):
@@ -7822,6 +7946,30 @@ def test_sprite_quads_and_flags():
         _check("editor: View is the first sidebar tab and the one open when the editor loads",
                panel.nb.tab(panel.nb.tabs()[0], "text") == "View"
                and panel.nb.tab(panel.nb.select(), "text") == "View")
+        # the wheel zooms at the pointer; Ctrl+wheel scrolls (up/down) without zooming
+        _cv = panel.view.canvas
+        _cv.update()
+        # (generated wheel events are not delivered reliably to a hidden window: check the
+        # bindings, then drive the handlers with a stand-in event)
+        _wb, _cb = _cv.bind("<MouseWheel>"), _cv.bind("<Control-MouseWheel>")
+
+        class _W:
+            delta, x, y = -120, 40, 40
+        _z0 = panel.view.cp
+        _scrolled = []
+        _cv.yview_scroll = lambda n, what: _scrolled.append((n, what))   # (unlaid-out canvas)
+        try:
+            panel.view._ctrl_wheel(_W())
+        finally:
+            del _cv.yview_scroll
+        _z1 = panel.view.cp
+        panel.view._wheel(_W())
+        _check("editor: the mouse wheel zooms, Ctrl+wheel scrolls",
+               "_wheel" in _wb and "_ctrl_wheel" not in _wb and "_ctrl_wheel" in _cb
+               and _z1 == _z0 and _scrolled == [(3, "units")] and panel.view.cp < _z0,
+               "ctrl-wheel: zoom %s -> %s, scrolled %s; wheel: zoom -> %s"
+               % (_z0, _z1, _scrolled, panel.view.cp))
+        panel.view.fit()
         for k in ("sprites",):
             panel.viewtab.vars[k].set(True)
             panel.set_layer(k, True)
@@ -8001,6 +8149,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
+              test_map_editor_clipboard, test_map_editor_script_spawns,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

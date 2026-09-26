@@ -349,8 +349,10 @@ picked), presets, a raw hex entry, or a click in the list of values the map alre
 Hover any flag for what the game does with it (and whether that is known at all).
 
 **Keys:** Ctrl+Z / Ctrl+Y undo / redo · Ctrl+S saves every changed file · Delete removes
-the selection · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
-/ `0` zoom / fit · Ctrl+wheel zooms at the pointer · middle-drag pans · Ctrl+hover a tile
+the selection · Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste an entity, warp or search spot
+-- also onto another map (it pastes at the pointer; right-click empty map for *Paste here*;
+a map already holding the game's 40 entity / 10 warp chunks refuses) · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
+/ `0` zoom / fit · the wheel zooms at the pointer · Ctrl+wheel / Shift+wheel scroll · middle-drag pans · Ctrl+hover a tile
 shows its ATTR decode.
 
 **Editing rules.** Every field commits on Enter or when it loses focus, as one undo step,
@@ -371,8 +373,9 @@ grid** (below) -- the same checks as `rf4mod map validate` -- plus the encounter
 (weights vs. spawn points, empty tables, ids outside the gate / monster ranges) and the
 search spots (empty pools, one-byte weight wrap, spots off the grid).
 
-**Script NPCs:** actors the map's *event script* places (`EventSpawnNpc` in the map's
-`rf3.mc` bank -- NPCs and interactibles such as char 269 "Search") are not in the `.rf4m`;
+**Script NPCs:** actors the map's *event script* places (`EventSpawnNpc`, `EventSpawnNpcVariant` or
+`EventSpawnNpcEx` in the map's `rf3.mc` bank -- NPCs, monsters such as the hungry Silver Wolf
+in Sechs Territory (MAP_DUNG_L13), and interactibles such as char 269 "Search") are not in the `.rf4m`;
 the *script NPCs* layer shows them, and clicking one opens its script line in the
 Cutscene editor.
 
@@ -493,7 +496,7 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
   *As new line* (a fresh id in every locale) and *Show other locales*; a **speaker** picker with
   the portrait side; each **action argument** in listing syntax (`actor(Forte)`,
-  `map(MAP_CITY_00)`, `(FLG_X + 1)`, `@0xNNNN` for an existing expression) with a named-value
+  `map(MAP_CITY_00)`, `FLG_X + 1`, `@0xNNNN` for an existing expression) with a named-value
   picker where the argument has one; the **numbers in a condition or STORE** (branch targets and
   every other offset are untouched); each **choice option**'s text, line id and destination.
   *Add after* inserts a spoken line (speaker + text) or any statements in listing syntax,
@@ -501,8 +504,9 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   on it, and *What it does* repeats the explanation.
 
 The **Source** tab shows the scene as a re-assemblable listing — labels,
-`BR_Z (REG_WIFE_ID == 11) -> L1`, `STORE (FLG_X = 1)`, `PROMPT_CHOICE CANCEL->L2, #123->L3`,
-actions by name with expression arguments; *Check* reports the failing line inline and *Apply to
+actions as calls (`GivePlayerItem(258, reg0 + 1, 0)`, `EndDialogue()`), control statements as
+keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `STORE (FLG_X = 1)`,
+`PROMPT_CHOICE CANCEL -> L2, #123 -> L3`, `JMP L1`); *Check* reports the failing line inline and *Apply to
 scene* re-assembles it (the scene's entry jumps to the new body, so nothing else moves). The
 **Triggers** tab lists the bank's type table (every registration with its decoded keys) and mints
 **new scenes**: pick when it plays (the trigger catalogue supplies a recipe per type: which bank,

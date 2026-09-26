@@ -529,7 +529,7 @@ class CutsceneExplorer:
             return False
         buf = self.bank.data
         text = text.strip()
-        if text == scriptasm.operand_text(buf, st.args[index], st.op, index):
+        if scriptasm.call_arg(text) == scriptasm.call_arg(scriptasm.operand_text(buf, st.args[index], st.op, index)):
             return False
         try:
             num = int(text, 0)
