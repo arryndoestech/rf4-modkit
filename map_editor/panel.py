@@ -24,11 +24,11 @@ from . import data, dialogs, render, tools, ui
 from . import view as view_mod
 from .document import MapDocument
 from .inspector import Inspector
-from .tabs import (FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, MinimapTab, ObjectsTab,
+from .tabs import (FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, MinimapPanel, ObjectsTab,
                    ProblemsTab, ViewTab)
 from .view import MapView
 
-TABS = ("View", "Inspect", "Objects", "Properties", "Minimap", "Gates", "Problems")
+TABS = ("View", "Inspect", "Objects", "Properties", "Gates", "Problems")
 _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos": "gen"}
 # The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
 # switching maps (the host may rebuild this panel) and pastes into another toolkit window.
@@ -103,11 +103,13 @@ class MapEditorPanel:
         self.inspector = Inspector(self.nb, self)
         self.objects = ObjectsTab(self.nb, self)
         self.maptab = MapTab(self.nb, self)
-        self.minimaptab = MinimapTab(self.nb, self)
+        # the minimap: docked under the tabs, whatever tab is open
+        self.minimap_panel = MinimapPanel(side, self)
+        self.minimap_panel.pack(side="bottom", fill="x", before=self.nb)
         self.encounters = EncountersTab(self.nb, self)
         self.viewtab = ViewTab(self.nb, self)
         self.problems = ProblemsTab(self.nb, self)
-        for w, t in zip((self.viewtab, self.inspector, self.objects, self.maptab, self.minimaptab,
+        for w, t in zip((self.viewtab, self.inspector, self.objects, self.maptab,
                          self.encounters, self.problems), TABS):
             self.nb.add(w, text=t)
         self.show_tab("View")                   # the editor opens on the View tab
@@ -289,7 +291,7 @@ class MapEditorPanel:
         self.inspector.refresh(frozenset({"attr"}))
         self.objects.rebuild()
         self.maptab.refresh()
-        self.minimaptab.refresh()
+        self.minimap_panel.refresh()
         self.encounters.refresh()
         self.problems.tree.delete(*self.problems.tree.get_children())
         self.problems.summary.config(text="")
@@ -389,7 +391,7 @@ class MapEditorPanel:
             self.objects.rebuild()
         if "maptab" in names:
             self.maptab.refresh()
-            self.minimaptab.refresh()
+            self.minimap_panel.refresh()
         if "encounters" in names:
             self.encounters.refresh()
 
@@ -484,7 +486,7 @@ class MapEditorPanel:
         if focus:
             self.view.canvas.focus_set()      # so the tool keys work right away
         self.inspector.show_tool(t)
-        if name != "select" and self.nb.select() and self.nb.tab(self.nb.select(), "text") in ("Properties", "Minimap", "View"):
+        if name != "select" and self.nb.select() and self.nb.tab(self.nb.select(), "text") in ("Properties", "View"):
             self.show_tab("Inspect")
 
     def start_add(self, kind):
@@ -631,7 +633,7 @@ class MapEditorPanel:
         self.objects.reveal(self.sel)
         if self.sel is not None:
             cur = self.nb.tab(self.nb.select(), "text") if self.nb.select() else ""
-            if cur in ("Properties", "Minimap", "View"):
+            if cur in ("Properties", "View"):
                 self.show_tab("Inspect")
             if center:
                 self.center_on(self.sel)
@@ -1065,12 +1067,18 @@ class MapEditorPanel:
         if not name:
             self.status(f"warp → map id {dest}: no known .rf4m for it")
             return
+        # the destination opens at this map's zoom, centred where the warp arrives
+        ax, ay = recs[j][6], recs[j][7]
+        self.open_map(name, (ax / 8, ay / 8) if ax or ay else None)
+
+    def open_map(self, name, at=None):
+        """Open another map in this editor (after asking about unsaved changes), at the current
+        zoom, centred on `at` (tiles) or the map's middle. The host (the asset explorer) may
+        swap in its own navigation."""
         if not self.confirm_discard(f"open {name}"):
             return
         self.status(f"→ {name}")
-        # the destination opens at this map's zoom, centred where the warp arrives
-        ax, ay = recs[j][6], recs[j][7]
-        self._warp_view = (self.view.cp, (ax / 8, ay / 8) if ax or ay else None)
+        self._warp_view = (self.view.cp, at)
         nav = self.on_navigate or self._navigate_local
 
         def go():

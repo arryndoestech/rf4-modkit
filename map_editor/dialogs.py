@@ -21,10 +21,16 @@ def _toplevel(ed, title, geometry=None):
 
 # --------------------------------------------------------------------------- #
 class ResizeDialog:
-    """Resize the ATTR grid. Preview is a dry run of Rf4mMap.resize_attr_grid listing
-    everything the resize invalidates (ground atlas re-layout, tiles to author, objects
-    falling off the grid, seasonal siblings) before anything changes; Resize applies it
-    as one undo step."""
+    """Resize the ATTR grid (the map's size in tiles). Preview is a dry run of
+    Rf4mMap.resize_attr_grid listing everything the resize invalidates (ground atlas re-layout,
+    tiles to author, objects falling off the grid, seasonal siblings) before anything changes;
+    Resize applies it as one undo step -- with the map's objects and warps, and (they live in
+    the map's SI / Gen files) its search spots, gate positions and monster spawn points moved
+    along when the content shifts."""
+
+    # the value new tiles get: (label, ATTR value); typing any other number works too
+    FILLS = (("0x2  wall (blocked)", 0x2), ("0x0  empty (nothing)", 0x0),
+             ("0x1  walkable (path)", 0x1))
 
     def __init__(self, ed):
         self.ed = ed
@@ -33,46 +39,124 @@ class ResizeDialog:
         frm = ttk.Frame(win, padding=8)
         frm.pack(fill="x")
         self.v = {}
-        for col, (key, label, val) in enumerate((("w", "width", W), ("h", "height", H),
-                                                 ("ox", "origin x", 0), ("oy", "origin y", 0),
-                                                 ("fill", "new cells", "0x2"))):
-            ttk.Label(frm, text=label).grid(row=0, column=col, padx=3)
+        fields = (
+            ("w", "Width (tiles)", W,
+             f"The new width of the map in tiles (now {W}). The collision grid (ATTR) is what the "
+             f"game sizes the map by: its world size, camera limits and the ground-texture tile "
+             f"grid all follow from it."),
+            ("h", "Height (tiles)", H, f"The new height of the map in tiles (now {H})."),
+            ("ox", "Shift right", 0,
+             "Moves the existing map this many tiles to the right inside the new grid, so "
+             "new space appears on the LEFT. Negative = cut that many columns off the left. "
+             "(Technically: where the old top-left tile lands.)"),
+            ("oy", "Shift down", 0,
+             "Moves the existing map this many tiles down inside the new grid, so new space "
+             "appears at the TOP. Negative = cut that many rows off the top."),
+        )
+        for col, (key, label, val, tip) in enumerate(fields):
+            lab = ttk.Label(frm, text=label)
+            lab.grid(row=0, column=col, padx=3, sticky="w")
             self.v[key] = tk.StringVar(value=str(val))
-            e = ttk.Entry(frm, textvariable=self.v[key], width=8)
-            e.grid(row=1, column=col, padx=3)
+            e = ttk.Entry(frm, textvariable=self.v[key], width=9)
+            e.grid(row=1, column=col, padx=3, sticky="w")
             e.bind("<Return>", lambda _e: self.preview())
+            for w in (lab, e):
+                ui.Tip(w, tip)
+        lab = ttk.Label(frm, text="New tiles are")
+        lab.grid(row=0, column=4, padx=3, sticky="w")
+        self.v["fill"] = tk.StringVar(value=self.FILLS[0][0])
+        cb = ttk.Combobox(frm, textvariable=self.v["fill"], values=[f[0] for f in self.FILLS], width=20)
+        cb.grid(row=1, column=4, padx=3, sticky="w")
+        cb.bind("<<ComboboxSelected>>", lambda _e: self.preview())
+        cb.bind("<Return>", lambda _e: self.preview())
+        fill_tip = ("The collision (ATTR) value every tile the resize ADDS gets -- the new space "
+                    "created by a larger width / height or a shift. 0x2 = blocked (solid wall, "
+                    "the safe default: nobody walks into unpainted space), 0x0 = empty (no "
+                    "collision flags at all), 0x1 = walkable path. Or type any ATTR value "
+                    "(hex like 0x2001 or decimal). Paint the real collision afterwards.")
+        for w in (lab, cb):
+            ui.Tip(w, fill_tip)
         self.shift = tk.BooleanVar(value=True)
-        ttk.Checkbutton(frm, text="move entities and warps with the terrain",
-                        variable=self.shift).grid(row=2, column=0, columnspan=5, sticky="w", pady=(4, 0))
-        ui.hint(win, f"Current grid {W}x{H} tiles. Origin = where the old (0,0) lands (pads left / "
-                     f"top). New cells get the fill value (0x2 = solid wall).", wrap=520).pack(fill="x", padx=8)
-        self.out = tk.Text(win, height=16, width=86, font=ui.MONO, wrap="word")
+        sc = ttk.Checkbutton(frm, text="move objects, warps, search spots and gate positions with the map",
+                             variable=self.shift)
+        sc.grid(row=2, column=0, columnspan=5, sticky="w", pady=(6, 0))
+        ui.Tip(sc, "With a shift, keep everything placed on the map on the same terrain: object "
+                   "and warp-zone positions, the search spots (SI file) and the gate positions and "
+                   "monster spawn points (Gen file) move by the shift. Warp ARRIVAL points are "
+                   "positions in the destination map and stay; warps from other maps into this "
+                   "one, and event scripts that place NPCs by tile, are not changed.")
+        self.summary = ui.hint(win, "", wrap=560)
+        self.summary.pack(fill="x", padx=8)
+        self.out = tk.Text(win, height=16, width=90, font=ui.MONO, wrap="word")
         self.out.pack(fill="both", expand=True, padx=8, pady=4)
         b = ttk.Frame(win)
         b.pack(fill="x", padx=8, pady=(0, 8))
-        ttk.Button(b, text="Preview", command=self.preview).pack(side="left")
-        ttk.Button(b, text="Resize", command=self.apply).pack(side="left", padx=4)
+        pv = ttk.Button(b, text="Preview", command=self.preview)
+        pv.pack(side="left")
+        ui.Tip(pv, "List what the resize would change and what has to be fixed afterwards "
+                   "(ground textures, objects off the map, seasonal copies ...). Changes nothing.")
+        rb = ttk.Button(b, text="Resize", command=self.apply)
+        rb.pack(side="left", padx=4)
+        ui.Tip(rb, "Resize now (one undo step: Ctrl+Z puts everything back).")
         ttk.Button(b, text="Close", command=win.destroy).pack(side="right")
         self.preview()
+
+    def _fill(self):
+        text = self.v["fill"].get().strip()
+        for label, val in self.FILLS:
+            if text == label:
+                return val
+        return int(text.split()[0], 0)
 
     def _args(self):
         v = self.v
         return (int(v["w"].get(), 0), int(v["h"].get(), 0),
-                dict(fill=int(v["fill"].get(), 0), origin=(int(v["ox"].get(), 0), int(v["oy"].get(), 0)),
+                dict(fill=self._fill(), origin=(int(v["ox"].get(), 0), int(v["oy"].get(), 0)),
                      shift_entities=self.shift.get(), ground_reader=self.ed.tex_reader,
                      map_name=self.ed.doc.base or None))
 
-    def _show(self, rep):
+    def _sidecar_moves(self, w, h, ox, oy):
+        """The search spots / gate positions / monster points of this map at their shifted
+        places: [(kind, key, x, y, off_map)] (sub-units). Stored as u16, so a position the
+        shift would push below 0 is clamped to 0 (and reported)."""
+        d = self.ed.doc
+        sx, sy = ox * 8, oy * 8
+        out = []
+        if not (sx or sy):
+            return out
+        if d.si is not None:
+            for k, sp in enumerate(d.si.spots):
+                x, y = sp.x + sx, sp.y + sy
+                out.append(("search spot", k, x, y))
+        if d.gen is not None:
+            for pk, off, x, y, _u in d.gate_points():
+                out.append(("gate position" if pk == "gpos" else "monster spawn point", off, x + sx, y + sy))
+        return [(kind, key, max(0, x), max(0, y),
+                 not (0 <= x >> 3 < w and 0 <= y >> 3 < h)) for kind, key, x, y in out]
+
+    def _show(self, rep, side=()):
         o = self.out
         o.delete("1.0", "end")
         a = rep["atlas"]
-        o.insert("end", f"ATTR {rep['old_size'][0]}x{rep['old_size'][1]} -> {rep['new_size'][0]}x"
-                        f"{rep['new_size'][1]}   ground tiles {a['old_grid'][0]}x{a['old_grid'][1]} -> "
+        c = rep["cells"]
+        (w0, h0), (w1, h1) = rep["old_size"], rep["new_size"]
+        self.summary.config(
+            text=f"{w0} x {h0} → {w1} x {h1} tiles: {c['kept']} kept, {c['added']} new "
+                 f"(filled with 0x{c['fill']:X}), {c['dropped']} cut off"
+                 + (f" ({c['dropped_nonzero']} of them had collision)" if c["dropped_nonzero"] else ""))
+        o.insert("end", f"ATTR {w0}x{h0} -> {w1}x{h1}   ground tiles {a['old_grid'][0]}x{a['old_grid'][1]} -> "
                         f"{a['new_grid'][0]}x{a['new_grid'][1]}"
                         + ("   (column count changes)" if a["reindexed"] else "") + "\n\n")
         o.insert("end", "Derived artefacts to fix:\n" if rep["todo"] else "Nothing derived needs fixing.\n")
         for t in rep["todo"]:
             o.insert("end", f"  • {t}\n")
+        if side:
+            moved = len(side)
+            off = [s for s in side if s[4]]
+            o.insert("end", f"  • {moved} search spot(s) / gate position(s) / monster spawn point(s) "
+                            f"move with the map" + (f"; {len(off)} end up off the grid: "
+                                                    + ", ".join(f"{k} {key}" for k, key, *_r in off[:6])
+                                                    if off else "") + "\n")
         if rep["findings"]:
             o.insert("end", "\nValidation at the new size:\n")
             for f in rep["findings"]:
@@ -81,25 +165,40 @@ class ResizeDialog:
     def preview(self):
         try:
             w, h, kw = self._args()
-            self._show(self.ed.doc.map.resize_attr_grid(w, h, dry_run=True, **kw))
-        except (ValueError, rf4m.Rf4mError) as e:
+            rep = self.ed.doc.map.resize_attr_grid(w, h, dry_run=True, **kw)
+            side = self._sidecar_moves(w, h, *kw["origin"]) if kw["shift_entities"] else []
+            self._show(rep, side)
+        except (ValueError, IndexError, rf4m.Rf4mError) as e:
             self.out.delete("1.0", "end")
             self.out.insert("end", f"error: {e}")
 
     def apply(self):
         try:
             w, h, kw = self._args()
-        except ValueError as e:
+        except (ValueError, IndexError) as e:
             messagebox.showerror("Resize grid", str(e), parent=self.win)
             return
+        d = self.ed.doc
+        side = self._sidecar_moves(w, h, *kw["origin"]) if kw["shift_entities"] else []
         rep = {}
 
         def do():
-            rep.update(self.ed.doc.map.resize_attr_grid(w, h, **kw))
-        if self.ed.apply(f"Resize grid to {w}x{h}", {"attr", "mobj", "mapj", "chunks"}, do):
+            rep.update(d.map.resize_attr_grid(w, h, **kw))
+            for kind, key, x, y, _off in side:      # the SI / Gen positions, same undo step
+                if kind == "search spot":
+                    sp = d.si.spots[key]
+                    sp.x, sp.y = x & 0xFFFF, y & 0xFFFF
+                else:
+                    d.gen.set_position(key, x, y)
+        aspects = {"attr", "mobj", "mapj", "chunks"}
+        if any(k == "search spot" for k, *_r in side):
+            aspects.add("si")
+        if any(k != "search spot" for k, *_r in side):
+            aspects.add("gen")
+        if self.ed.apply(f"Resize grid to {w}x{h}", aspects, do):
             self.ed.select(None)
             self.ed.view.background.invalidate()
-            self._show(rep)
+            self._show(rep, side)
             self.ed.status(f"Resized grid to {w}x{h} — {len(rep['todo'])} derived item(s) listed")
 
 

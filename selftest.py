@@ -33,7 +33,7 @@ def _private_settings():
     read back from it (a user's saved choices would change what the tests see)."""
     import json as _json
     d = _gamepaths._load_settings()
-    for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel"):
+    for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden"):
         d.pop(k, None)
     p = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_selftest_")) / "settings.json"
     p.write_text(_json.dumps(d), encoding="utf-8")
@@ -6446,8 +6446,10 @@ def test_map_editor_attr_tip():
                "ATTR =" in at_rest and "ATTR =" not in released,
                f"at_rest={at_rest!r} released={released!r}")
     finally:
-        for a in root.tk.splitlist(root.tk.call("after", "info")):
-            root.after_cancel(a)                # (a pending refocus would run on a dead root)
+        try:                                    # (let pending timers run / drop with their widgets)
+            root.update()
+        except tk.TclError:
+            pass
         root.destroy()
 
 
@@ -6871,7 +6873,7 @@ def test_map_editor_extra_warnings():
     recs = [list(r) for r in m.mobj_records()]
     k = next(i for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44)
     dup = list(recs[k]); recs.append(dup)                         # a duplicated chest
-    other = next((stem, ch) for stem, (_g, ch) in _md.map_summaries().items()
+    other = next((stem, ch) for stem, (_g, ch, _wh) in _md.map_summaries().items()
                  if ch and not stem.upper().startswith("MAP_DUNG_A03"))
     foreign = list(recs[k]); foreign[13] = other[1][0][1]; recs.append(foreign)
     noflag = list(recs[k]); noflag[13] = -1; noflag[8] = 400; recs.append(noflag)
@@ -6890,7 +6892,8 @@ def test_map_editor_extra_warnings():
 
 
 def test_map_editor_minimap_tab():
-    """The sidebar's Properties (was Map) and Minimap tabs: the Minimap tab shows the picture
+    """The sidebar's Properties tab (was Map) and the minimap docked under the tabs (whatever tab
+    is open; Hide / Show minimap, remembered; its details in Properties): it shows the picture
     the HUD draws for the open map's id (rf4s_modkit.minimap), the map's footprint and its
     fog-of-war reveal on it (both in the drawn half-scale px of rf3MapMiniPos), the part the
     editor shows, and a click centres the editor on that spot (the inverse placement); blank
@@ -6918,18 +6921,31 @@ def test_map_editor_minimap_tab():
         for _ in range(30):
             root.update()
         tabs = [ed.nb.tab(t, "text") for t in ed.nb.tabs()]
-        _check("the sidebar tabs: Map is now Properties, Minimap follows it",
-               tabs[:5] == ["View", "Inspect", "Objects", "Properties", "Minimap"], tabs)
-        ed.show_tab("Minimap")
+        mt = ed.minimap_panel
+        _check("the sidebar tabs: Map is now Properties; the minimap is no tab but docked under "
+               "them, shown whatever tab is open",
+               tabs == ["View", "Inspect", "Objects", "Properties", "Gates", "Problems"]
+               and mt.pic.winfo_ismapped(), tabs)
+        ed.show_tab("Gates")
         root.update()
-        mt = ed.minimaptab
+        shown_on_gates = mt.pic.winfo_ismapped()
+        mt.toggle()
+        root.update()
+        hidden = (not mt.pic.winfo_ismapped() and mt.toggle_btn.cget("text") == "Show minimap"
+                  and _gamepaths.get_setting("map_minimap_hidden") is True)
+        mt.toggle()
+        root.update()
+        _check("Hide minimap hides the picture (remembered), Show brings it back",
+               shown_on_gates and hidden and mt.pic.winfo_ismapped()
+               and _gamepaths.get_setting("map_minimap_hidden") is False)
         mid = _md.map_id("MAP_FIELD_01")
         rects = [mt.pic.coords(i) for i in mt.pic.find_all() if mt.pic.type(i) == "rectangle"]
-        foot = rects[0] if rects else None
+        foot = next((mt.pic.coords(i) for i in mt.pic.find_withtag("foot")), None)
         rev = _mm.record(mid)["reveal"]
         k = 2 * mt._scale
         _check("MAP_FIELD_01: its picture, footprint and fog reveal (same half-scale units)",
-               mt.title.cget("text") == "Minimap · mini_map_70_field" and mt._photo is not None
+               mt._shown and mt._shown[1] == "mini_map_70_field" and mt._photo is not None
+               and "mini_map_70_field" in ed.maptab.minimap_info.cget("text")
                and len(rects) >= 2 and foot is not None
                and abs(foot[0] - rev[0] * k) < 2 and abs(foot[1] - rev[1] * k) < 2,
                (foot, rev, mt._scale))
@@ -6966,11 +6982,43 @@ def test_map_editor_minimap_tab():
         _check("dragging on the minimap moves the editor's view along (about half the map "
                "for a drag across half the footprint)",
                abs(moved_tiles - W / 2) <= 3, (round(moved_tiles, 1), W))
+        # the other rooms of the picture: named on hover, opened by a click (not by a drag)
+        ed.set_map(_rf4m.Rf4mMap.load(B / "MAP_CITY_00.rf4m"), "MAP_CITY_00")
+        for _ in range(5):
+            root.update()
+        rooms = [n for n, _r in mt._rooms]
+        r = dict(mt._rooms).get("MAP_CITY_01")
+        _check("the Selphia picture lists the other streets as rooms (not the open map)",
+               r is not None and "MAP_CITY_00" not in rooms and len(rooms) >= 5, rooms)
+        if r is not None:
+            cx, cy = int((r[0] + r[2]) / 2), int((r[1] + r[3]) / 2)
+            mt.pic.event_generate("<Motion>", x=cx, y=cy)
+            root.update()
+            hover = mt.hover_lbl.cget("text")
+            mt.pic.event_generate("<ButtonPress-1>", x=cx, y=cy)
+            root.update()
+            for k in range(1, 4):
+                mt.pic.event_generate("<Motion>", x=cx + 10 * k, y=cy, state=0x100)
+                root.update()
+            mt.pic.event_generate("<ButtonRelease-1>", x=cx + 30, y=cy)
+            for _ in range(5):
+                root.update()
+            after_drag = ed.doc.base
+            mt.pic.event_generate("<ButtonPress-1>", x=cx, y=cy)
+            root.update()
+            mt.pic.event_generate("<ButtonRelease-1>", x=cx, y=cy)
+            for _ in range(10):
+                root.update()
+            _check("hovering a room names it, a drag from it only moves the view, a click opens it",
+                   hover.startswith("Click to open MAP_CITY_01") and after_drag == "MAP_CITY_00"
+                   and ed.doc.base == "MAP_CITY_01" and "MAP_CITY_00" in [n for n, _r in mt._rooms],
+                   (hover, after_drag, ed.doc.base))
         ed.set_map(_rf4m.Rf4mMap.load(B / "MAP_DUNG_F01.rf4m"), "MAP_DUNG_F01")
         root.update()
         _check("a Sharance Maze floor: the blank picture, no footprint, the maze note",
-               not [i for i in mt.pic.find_all() if mt.pic.type(i) == "rectangle"]
-               and "Sharance Maze" in mt.info.cget("text"), mt.info.cget("text"))
+               not mt.pic.find_withtag("foot") and not mt._rooms
+               and "Sharance Maze" in ed.maptab.minimap_info.cget("text"),
+               ed.maptab.minimap_info.cget("text"))
         _check("minimap tab raised no callback errors", not errs, errs[:1])
     finally:
         try:
@@ -6978,6 +7026,92 @@ def test_map_editor_minimap_tab():
         except tk.TclError:
             pass
         root.destroy()
+
+
+def test_map_editor_resize_dialog():
+    """Resize grid dialog: plain labels with tooltips (Width / Height / Shift right / Shift down /
+    New tiles are ...), the fill as a named choice or any typed value; Preview changes nothing;
+    Resize grows the grid, fills the new tiles, moves the objects, warps, search spots (SI) and
+    gate / monster positions (Gen) with the content -- one undo step puts all of it back. The
+    Properties tab has no Raw chunks button any more and its raw MGRP field is read only."""
+    print("map editor Resize grid dialog:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("resize dialog", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_B06.rf4m").exists():
+        _skip("resize dialog", "no extracted bundleMain"); return
+    import guiutil as _gu
+    root, ed, errs = _headless_panel("MAP_DUNG_B06", B)
+    try:
+        d = ed.doc
+        texts = []
+        stack = [ed.maptab]
+        while stack:
+            w = stack.pop()
+            stack.extend(w.winfo_children())
+            try:
+                texts.append(w.cget("text"))
+            except tk.TclError:
+                pass
+        mg_state = str(next(w for w in _walk(ed.maptab) if isinstance(w, tk.ttk.Entry)
+                            and str(w.cget("textvariable")) == str(ed.maptab.mgrp)).cget("state"))
+        _check("Properties: no Raw chunks button, the raw MGRP field is read only",
+               "Raw chunks…" not in texts and mg_state == "readonly", (mg_state,))
+        W, H, _ = d.grid
+        obj = next(i for i, o in enumerate(d.objs) if o["pos_x"] or o["pos_y"])
+        o0 = (d.objs[obj]["pos_x"], d.objs[obj]["pos_y"])
+        sp0 = (d.si.spots[0].x, d.si.spots[0].y)
+        gp0 = {(pk, off): (x, y) for pk, off, x, y, _u in d.gate_points()}
+        orig = d.map.build()
+        dlg = ed.open_resize()
+        labels = [w.cget("text") for w in _walk(dlg.win) if isinstance(w, tk.ttk.Label)]
+        _check("the dialog's fields say what they are: Width / Height (tiles), Shift right / down, "
+               "New tiles are",
+               all(t in labels for t in ("Width (tiles)", "Height (tiles)", "Shift right",
+                                         "Shift down", "New tiles are")), labels)
+        dlg.v["w"].set(str(W + 3)); dlg.v["h"].set(str(H + 2))
+        dlg.v["ox"].set("3"); dlg.v["oy"].set("2")
+        dlg.v["fill"].set("0x0  empty (nothing)")
+        dlg.preview()
+        report = dlg.out.get("1.0", "end")
+        _check("Preview lists the change (search spots / gates moving along) and changes nothing",
+               d.map.build() == orig and "move with the map" in report
+               and "3 new" not in dlg.summary.cget("text") and "new (filled with 0x0)" in dlg.summary.cget("text"),
+               dlg.summary.cget("text"))
+        n_undo = len(d.undo_stack)
+        dlg.apply()
+        W2, H2, cells = d.grid
+        gp1 = {(pk, off): (x, y) for pk, off, x, y, _u in d.gate_points()}
+        _check("Resize: bigger grid, new tiles filled with the chosen value, everything on the map "
+               "moved with it (object, search spot, gate / monster points) -- one undo step",
+               (W2, H2) == (W + 3, H + 2) and cells[0] == 0 and cells[(H2 - 1) * W2 + 0] == 0
+               and (d.objs[obj]["pos_x"], d.objs[obj]["pos_y"]) == (o0[0] + 24, o0[1] + 16)
+               and (d.si.spots[0].x, d.si.spots[0].y) == (sp0[0] + 24, sp0[1] + 16)
+               and all(gp1.get(k) == (x + 24, y + 16) for k, (x, y) in gp0.items())
+               and len(d.undo_stack) == n_undo + 1,
+               ((W2, H2), cells[0], (d.objs[obj]["pos_x"], d.objs[obj]["pos_y"]), o0))
+        ed.undo()
+        _check("one undo puts the grid, the objects, the search spots and the gate positions back",
+               d.grid[:2] == (W, H) and (d.si.spots[0].x, d.si.spots[0].y) == sp0
+               and {(pk, off): (x, y) for pk, off, x, y, _u in d.gate_points()} == gp0
+               and d.map.build() == orig)
+        dlg.v["fill"].set("0x2001")
+        _check("a typed fill value works too", dlg._fill() == 0x2001)
+        _check("resize dialog raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def _walk(w):
+    """Every widget under w (w included)."""
+    out, stack = [], [w]
+    while stack:
+        x = stack.pop()
+        out.append(x)
+        stack.extend(x.winfo_children())
+    return out
 
 
 def test_map_editor_save_to_game():
@@ -8151,7 +8285,7 @@ def test_map_editor_workflows():
         for j in range(len(d.map.mapj_records())):
             panel.select(("warp", j)); wf._commit()
         mt = panel.maptab
-        mt._commit_msea(); mt._commit_mgrp_hex(); mt._commit_mgrp_controls()
+        mt._commit_msea(); mt._commit_mgrp_controls()
         for i in range(3):
             mt._commit_tint_text(i)
         _check("committing every form unchanged changes nothing and records no undo",
@@ -10004,7 +10138,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_minimap_tab, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

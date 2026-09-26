@@ -130,11 +130,29 @@ def shortcut_scope(frame, tag, bindings, home=None):
             except tk.TclError:
                 pass
 
+    pending = {"id": None}
+
+    def run_refocus():
+        pending["id"] = None
+        refocus()
+
     def on_destroy(e):
         if e.widget is focused["w"]:
             focused["w"] = None
-            frame.after_idle(refocus)
+            if pending["id"] is None:
+                pending["id"] = frame.after_idle(run_refocus)
     frame.bind_class(tag, "<Destroy>", on_destroy, add="+")
+
+    def on_frame_gone(e):
+        # the whole scope is going (a window closing): its children went first and may have
+        # queued a refocus -- drop it, or Tk runs it after the frame's command is gone
+        if e.widget is frame and pending["id"] is not None:
+            try:
+                frame.after_cancel(pending["id"])
+            except tk.TclError:
+                pass
+            pending["id"] = None
+    frame.bind("<Destroy>", on_frame_gone, add="+")
 
     def retag(w=None):
         stack = [frame if w is None else w]

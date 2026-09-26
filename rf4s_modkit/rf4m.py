@@ -83,6 +83,7 @@ and rebuilds a byte-valid container (fixing the MAPD size word).
 from __future__ import annotations
 
 import pathlib
+import re
 import struct
 from collections import Counter
 
@@ -245,6 +246,9 @@ def mgrp_explain(value) -> list[str]:
     if v >> 26:
         out.append(f"bits 26-31 (0x{v & 0xFC000000:X}): no reader found")
     return out
+
+
+_SEASON_RE = re.compile(r"_(SPRING|SUMMER|AUTUMN|FALL|WINTER)$", re.I)   # a seasonal copy's suffix
 
 
 class Rf4mError(Exception):
@@ -655,14 +659,35 @@ class Rf4mMap:
         if dropped_set:
             todo.append(f"{dropped_set} non-zero ATTR cell(s) were cropped away (authored "
                         f"collision/FX lost -- re-check the new edges)")
-        if (new_w, new_h) != (w, h):
-            todo.append("minimap: rf3MapMiniPos.bin holds this map's origin/scale/reveal "
-                        "rectangle in WORLD units (record fields 1-8), so the HUD minimap and "
-                        "its fog-of-war box no longer match the new extent -- rescale that "
-                        "record too (see rf4s_modkit.minimap)")
+        # the HUD minimap (rf3MapMiniPos): origin = picture px of the world origin, scale =
+        # picture px per sub-unit (Q12), reveal = a picture-px rectangle. A grown map keeps its
+        # placement but the picture paints only the old area; shifted content needs the
+        # origin moved back by scale * shift so the painting stays on it.
+        mm = None
+        if map_name:
+            try:
+                from . import map_names as _mn, minimap as _mm
+                mid = _mn.map_id_for_file(_SEASON_RE.sub("", map_name)) if map_name else None
+                mm = _mm.raw_record(mid) if mid is not None else None
+            except Exception:
+                mm = None
+        if (sx or sy) and mm is not None and (mm[7] or mm[8]):
+            dx, dy = (mm[7] * sx) >> 12, (mm[8] * sy) >> 12
+            todo.append(f"minimap: the content moved by ({sx}, {sy}) sub-units, so this map's "
+                        f"rf3MapMiniPos origin must move by ({-dx}, {-dy}) drawn px -- from "
+                        f"({mm[1]}, {mm[2]}) to ({mm[1] - dx}, {mm[2] - dy}) -- or the minimap "
+                        f"picture and the player's marker drift apart (see rf4s_modkit.minimap)")
+        elif sx or sy:
+            todo.append("minimap: the content moved, so this map's rf3MapMiniPos origin must move "
+                        "back by scale x shift (see rf4s_modkit.minimap)")
+        if (new_w > w or new_h > h) and (mm is None or mm[7] or mm[8]):
+            todo.append("minimap: the picture only paints the old area -- the new space shows as "
+                        "unpainted on the HUD minimap until the picture is redrawn")
+        if sx or sy:
             todo.append("other maps that warp INTO this one carry the arrival position in their "
-                        "own MAPJ records (fields 6/7); those are not visible from this file and "
-                        "need checking by hand if the content moved")
+                        "own MAPJ records (fields 6/7), and event scripts place NPCs / the player "
+                        "by tile: neither is in this file -- check them by hand, the content moved "
+                        f"by ({ox}, {oy}) tiles")
             if map_name:
                 fam = mapground._SEASON_SUFFIX.sub("", map_name)
                 sibs = [n for n in mapground._texmap()

@@ -283,7 +283,8 @@ _MAP_SUMMARY = {}
 
 
 def map_summaries():
-    """{MAP_* name: (mgrp, [(entity index, collected flag f13, loot row f8) per chest])} for
+    """{MAP_* name: (mgrp, [(entity index, collected flag f13, loot row f8) per chest],
+    (grid width, height) or None)} for
     every map in the game folder (the copy the game loads), read once per file change -- all
     872 maps take well under a second."""
     from rf4s_modkit import rf4m
@@ -303,9 +304,10 @@ def map_summaries():
                 m = rf4m.Rf4mMap.load(p)
                 chests = [(i, r[13], r[8]) for i, r in enumerate(m.mobj_records())
                           if (r[0] & 0xFFFF) == 44]
-                hit = (key, (m.mgrp(), chests))
+                g = m.attr_grid()
+                hit = (key, (m.mgrp(), chests, (g[0], g[1]) if g else None))
             except Exception:  # noqa: BLE001 - a damaged map: left out
-                hit = (key, (None, []))
+                hit = (key, (None, [], None))
             _MAP_SUMMARY[str(p)] = hit
         out[p.stem] = hit[1]
     return out
@@ -321,7 +323,7 @@ def sibling_zones(name):
     c = Counter()
     if fam is None:
         return c
-    for stem, (mgrp, _ch) in map_summaries().items():
+    for stem, (mgrp, _ch, _wh) in map_summaries().items():
         if stem.upper() != me and mgrp is not None and areagroup.family_of(stem) == fam:
             c[areagroup.zone_of_mgrp(mgrp)] += 1
     return c
@@ -338,7 +340,7 @@ def chest_problems(name, recs):
         return out
     base = SEASON_RE.sub("", map_base(name)).upper() if name else None
     others = {}
-    for stem, (_mg, chests) in map_summaries().items():
+    for stem, (_mg, chests, _wh) in map_summaries().items():
         if base is not None and SEASON_RE.sub("", stem).upper() == base:
             continue
         for j, flag, _row in chests:

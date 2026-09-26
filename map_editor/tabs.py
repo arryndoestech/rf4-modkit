@@ -181,13 +181,21 @@ class MapTab(ui.ScrollFrame):
                    "game loads (see the lines below).")
         ttk.Label(p, text="MGRP (raw)").grid(row=4, column=0, sticky="w")
         self.mgrp = tk.StringVar()
-        e = commit_entry(p, self.mgrp, self._commit_mgrp_hex, width=12)
+        e = ttk.Entry(p, textvariable=self.mgrp, width=12, state="readonly")   # (set it above)
         e.grid(row=4, column=1, sticky="w", pady=1)
-        ui.Tip(e, "The whole u32 as stored. Required: a map without an MGRP chunk crashes the game.")
+        ui.Tip(e, "The whole value as stored (read only: Season, Weather and Area above set it). "
+                  "Required: a map without an MGRP chunk crashes the game.")
         self.mgrp_note = ttk.Label(p, font=ui.HINT_FONT, foreground=ui.GOOD, wraplength=300, justify="left")
         self.mgrp_note.grid(row=5, column=0, columnspan=2, sticky="w")
         self.mgrp_warn = ttk.Label(p, font=ui.HINT_FONT, foreground="#b70", wraplength=300, justify="left")
         self.mgrp_warn.grid(row=6, column=0, columnspan=2, sticky="w")
+        # ---- the HUD minimap: what the docked picture shows, in words ----
+        mm = section(b, "Minimap")
+        self.minimap_info = ttk.Label(mm, font=ui.HINT_FONT, wraplength=300, justify="left")
+        self.minimap_info.pack(anchor="w")
+        self.minimap_note = ttk.Label(mm, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=300,
+                                      justify="left")
+        self.minimap_note.pack(anchor="w", pady=(2, 0))
         # ---- tints ----
         t = section(b, "Tile tints (MLIG)")
         self.tints = []
@@ -217,9 +225,6 @@ class MapTab(ui.ScrollFrame):
         self.grid_lbl = ttk.Label(g)
         self.grid_lbl.grid(row=2, column=0, sticky="w", pady=(6, 0))
         ttk.Button(g, text="Resize grid…", command=ed.open_resize).grid(row=2, column=1, sticky="e", pady=(6, 0))
-        ttk.Button(g, text="Raw chunks…", command=ed.open_chunks).grid(row=3, column=1, sticky="e", pady=(4, 0))
-        hint(g, "Raw chunks: a hex editor for anything the other panels do not cover.", wrap=180).grid(
-            row=3, column=0, sticky="w", pady=(4, 0))
         g.columnconfigure(0, weight=1)
         # ---- summary ----
         s = section(b, "Summary")
@@ -239,6 +244,9 @@ class MapTab(ui.ScrollFrame):
         g = m.mgrp()
         self.mgrp.set("" if g is None else f"0x{g:X}")
         self._show_mgrp(g)
+        info, note = minimap_details(doc)
+        self.minimap_info.config(text=info)
+        self.minimap_note.config(text=note)
         cols = m.mlig_colors()
         for i, (dv, tv, sw, en) in enumerate(self.tints):
             c = cols[i]
@@ -275,11 +283,6 @@ class MapTab(ui.ScrollFrame):
         if v == self.ed.doc.map.mgrp():
             return
         self.ed.apply("Set MGRP", "props", lambda: self.ed.doc.map.set_ints("MGRP", [v & 0xFFFFFFFF], signed=False))
-
-    def _commit_mgrp_hex(self):
-        v = ui.to_int(self.mgrp.get())
-        if v is not None:
-            self._set_mgrp(v)
 
     def _show_mgrp(self, g):
         """Season / weather / area controls, what the game makes of the value, and conflicts."""
@@ -380,34 +383,108 @@ class MapTab(ui.ScrollFrame):
 
 
 # --------------------------------------------------------------------------- #
-class MinimapTab(ui.ScrollFrame):
-    """The HUD minimap of the open map (rf4s_modkit.minimap): the picture the game draws for
-    its map id, where this map sits on it (its footprint), the fog-of-war rectangle a visit
-    reveals, and the part of the map the editor shows now. A click centres the editor there."""
+MINIMAP_HIDDEN_SETTING = "map_minimap_hidden"     # settings.json: the minimap was hidden
 
-    WIDTH = 340                                 # the picture is shown this wide (512 px texture)
+
+def minimap_details(doc):
+    """(details, note) text about the open map's HUD minimap for the Properties tab: the sheet,
+    blank / maze pictures, fog of war, where an interior's NPC icons go, the other maps on the
+    picture, and the save-state picture swaps."""
+    mid = data.map_id(doc.base) if doc is not None and doc.base else None
+    rec = minimap.record(mid) if mid is not None else None
+    if rec is None:
+        return "No minimap record for this map (not one of the game's map ids).", ""
+    tex = minimap.texture(mid)
+    blank = minimap.is_blank(mid) or minimap.is_composed(mid)
+    others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid))
+                               if m != mid]
+    names = [map_names.map_file(m) or str(m) for m in others]
+    lines = [f"Sheet {rec['sheet']} (resource {minimap.archive_id(mid)}); drawn: {tex}"]
+    if minimap.is_blank(mid):
+        lines.append("The HUD shows a blank picture for this map.")
+    if minimap.is_composed(mid):
+        lines.append("A Sharance Maze floor: the picture is put together at run time from "
+                     "the mini_map_rnd_* tiles.")
+    lines.append("Fog of war: " + ("a visit uncovers x %d, y %d, %d x %d" % rec["reveal"]
+                                   if rec["reveal"] else "none (always fully shown)"))
+    if rec["parent_sheet"] is not None:
+        lines.append(f"NPCs inside are drawn on sheet {rec['parent_sheet']} "
+                     f"({minimap.texture_for_sheet(rec['parent_sheet'])}) at "
+                     f"{rec['icon'][0]}, {rec['icon'][1]} (slot {rec['icon_slot']})")
+    if names:
+        lines.append(f"{len(names)} other map(s) on this picture: " + ", ".join(names[:8])
+                     + (" …" if len(names) > 8 else ""))
+    var = minimap.variants(mid)
+    note = ("Pictures by save state: " + "; ".join(f"{v['texture']} ({v['when']})" for v in var)) if var else ""
+    return "\n".join(lines), note
+
+
+class MinimapPanel(ttk.Frame):
+    """The HUD minimap of the open map, docked under the sidebar tabs (shown whatever tab is
+    open; Hide / Show minimap, remembered): the picture the game draws for its map id
+    (rf4s_modkit.minimap), this map's footprint, the fog-of-war rectangle a visit reveals, the
+    part the editor shows now, and the other rooms of the picture. A press or drag moves the
+    editor's view there; a click on another room opens that map. The details are in the
+    Properties tab."""
+
+    WIDTH = 300                                 # the picture is shown this wide (512 px texture)
 
     def __init__(self, parent, ed):
         super().__init__(parent)
         self.ed = ed
-        b = self.body
-        self.title = ttk.Label(b, font=("Segoe UI", 10, "bold"))
-        self.title.pack(anchor="w", padx=4, pady=(4, 0))
+        head = ttk.Frame(self)
+        head.pack(fill="x", padx=4, pady=(4, 0))
+        self.toggle_btn = ttk.Button(head, width=13, command=self.toggle)
+        self.toggle_btn.pack(side="right")          # (packed first: the title never pushes it off)
+        self.title = ttk.Label(head, font=("Segoe UI", 9, "bold"))
+        self.title.pack(side="left")
+        b = self.body = ttk.Frame(self)
         self.pic = tk.Canvas(b, width=self.WIDTH, height=self.WIDTH, highlightthickness=0,
-                                bg="#1b1b22", cursor="crosshair")
-        self.pic.pack(anchor="w", padx=4, pady=4)
-        self.pic.bind("<ButtonPress-1>", self._click)
-        self.pic.bind("<B1-Motion>", self._click)      # drag: the editor follows the pointer
-        self.info = ttk.Label(b, font=ui.HINT_FONT, wraplength=330, justify="left")
-        self.info.pack(anchor="w", padx=4)
-        self.note = ttk.Label(b, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=330, justify="left")
-        self.note.pack(anchor="w", padx=4, pady=(4, 0))
+                             bg="#1b1b22", cursor="crosshair")
+        self.pic.pack(anchor="center", padx=4, pady=(2, 0))
+        self.pic.bind("<ButtonPress-1>", self._press)
+        self.pic.bind("<B1-Motion>", self._drag)       # drag: the editor follows the pointer
+        self.pic.bind("<ButtonRelease-1>", self._release)
+        self.pic.bind("<Motion>", self._hover)
+        self.pic.bind("<Leave>", lambda _e: self._hover(None))
+        self.hover_lbl = ttk.Label(b, font=ui.HINT_FONT, foreground=ui.GOOD)
+        self.hover_lbl.pack(anchor="w", padx=4, pady=(0, 2))
+        self._rooms = []                        # [(map name, canvas rect)] of the other rooms
+        self._press_xy = self._press_room = None
+        self._dragged = False
         self._photo = None
         self._shown = None                      # (map id, texture) the picture was built for
         self._scale = self.WIDTH / 512.0        # canvas px per texture px
         self._view_rect = None
         self._tick_on = False
-        self.bind("<Map>", lambda _e: self._start_tick(), add="+")
+        self._tick_id = None
+        self.pic.bind("<Map>", lambda _e: self._start_tick(), add="+")
+        self.bind("<Destroy>", self._stop_tick, add="+")
+        try:
+            self.hidden = bool(gamepaths.get_setting(MINIMAP_HIDDEN_SETTING, False))
+        except Exception:  # noqa: BLE001 - no settings: shown
+            self.hidden = False
+        self._apply_hidden()
+
+    def _apply_hidden(self):
+        if self.hidden:
+            self._stop_tick()
+            self.body.pack_forget()
+            self.toggle_btn.config(text="Show minimap")
+        else:
+            self.body.pack(fill="x")
+            self.toggle_btn.config(text="Hide minimap")
+
+    def toggle(self):
+        """Hide / show the picture (the header stays); remembered in settings.json."""
+        self.hidden = not self.hidden
+        try:
+            gamepaths.set_setting(MINIMAP_HIDDEN_SETTING, self.hidden)
+        except OSError:
+            pass                                # a read-only toolkit folder: just not kept
+        self._apply_hidden()
+        if not self.hidden:
+            self.refresh()
 
     # ---- data --------------------------------------------------------------------------- #
     def _map_id(self):
@@ -427,12 +504,13 @@ class MinimapTab(ui.ScrollFrame):
         if rec is None:
             c.delete("all")
             self._photo = self._shown = None
-            self.title.config(text="Minimap")
-            self.info.config(text="No minimap record for this map (not one of the game's map ids).")
-            self.note.config(text="")
+            self._rooms = []
+            self.title.config(text="Minimap (none)")
             return
         tex = minimap.texture(mid)
-        self.title.config(text=f"Minimap · {tex}")
+        self.title.config(text="Minimap")        # (the picture's name: Properties)
+        if self.hidden:
+            return                              # (built when shown again)
         if self._shown != (mid, tex):
             self._shown = (mid, tex)
             c.delete("all")
@@ -443,30 +521,6 @@ class MinimapTab(ui.ScrollFrame):
                 c.create_text(self.WIDTH // 2, self.WIDTH // 2, fill="#888",
                               text=f"{tex}.texture not found\n(game folder / Pillow)")
         self._draw_overlay(mid, rec)
-        # the text
-        blank = minimap.is_blank(mid) or minimap.is_composed(mid)
-        others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid))
-                                   if m != mid]
-        names = [map_names.map_file(m) or str(m) for m in others]
-        lines = [f"Sheet {rec['sheet']} (resource {minimap.archive_id(mid)}); drawn: {tex}"]
-        if minimap.is_blank(mid):
-            lines.append("The HUD shows a blank picture for this map.")
-        if minimap.is_composed(mid):
-            lines.append("A Sharance Maze floor: the picture is put together at run time from "
-                         "the mini_map_rnd_* tiles.")
-        lines.append("Fog of war: " + ("a visit uncovers x %d, y %d, %d x %d" % rec["reveal"]
-                                       if rec["reveal"] else "none (always fully shown)"))
-        if rec["parent_sheet"] is not None:
-            lines.append(f"NPCs inside are drawn on sheet {rec['parent_sheet']} "
-                         f"({minimap.texture_for_sheet(rec['parent_sheet'])}) at "
-                         f"{rec['icon'][0]}, {rec['icon'][1]} (slot {rec['icon_slot']})")
-        if names:
-            lines.append(f"{len(names)} other map(s) on this picture: " + ", ".join(names[:8])
-                         + (" …" if len(names) > 8 else ""))
-        self.info.config(text="\n".join(lines))
-        var = minimap.variants(mid)
-        self.note.config(text=("Pictures by save state: " + "; ".join(
-            f"{v['texture']} ({v['when']})" for v in var)) if var else "")
 
     def _picture(self, tex):
         reader = self.ed.tex_reader
@@ -495,14 +549,94 @@ class MinimapTab(ui.ScrollFrame):
         W, H, _ = d.grid
         a, b = self._to_canvas(mid, 0, 0), self._to_canvas(mid, W * 8, H * 8)
         if a and b and (b[0] - a[0]) > 1 and (b[1] - a[1]) > 1:   # (blank / maze: no placement)
-            c.create_rectangle(a[0], a[1], b[0], b[1], outline="#e02828", width=2, tags=("ov",))
+            c.create_rectangle(a[0], a[1], b[0], b[1], outline="#e02828", width=2, tags=("ov", "foot"))
         if rec["reveal"]:
             x, y, w, h = rec["reveal"]
             k = 2 * self._scale                 # drawn (half-scale) px, like the origin
             c.create_rectangle(x * k, y * k, (x + w) * k, (y + h) * k, outline="#c020c0",
                                width=2, dash=(4, 3), tags=("ov",))
+        self._rooms = self._other_rooms(mid)
+        for name, (x0, y0, x1, y1) in self._rooms:
+            c.create_rectangle(x0, y0, x1, y1, outline="#8a7650", dash=(2, 3), tags=("ov", "room"))
+        c.tag_lower("room")
+        c.tag_raise("room", "pic") if c.find_withtag("pic") else None
         self._view_rect = None
         self._draw_view()
+
+    def _other_rooms(self, mid):
+        """[(MAP_* name, canvas rect)] of the other maps drawn on this picture (one per
+        placement; a seasonal family shows as the copy of the open map's season)."""
+        if minimap.is_blank(mid) or minimap.is_composed(mid):
+            return []
+        me_base = data.SEASON_RE.sub("", data.map_base(self.ed.doc.base)).upper()
+        suffix = data.SEASON_RE.search(data.map_base(self.ed.doc.base))
+        suffix = suffix.group(0).upper() if suffix else ""
+        sums = data.map_summaries()
+        by_place = {}
+        for m in minimap.maps_on_sheet(minimap.effective_sheet(mid)):
+            r = minimap.raw_record(m)
+            name = map_names.map_file(m)
+            if not r or not r[7] or not r[8] or not name:
+                continue
+            if data.SEASON_RE.sub("", name).upper() == me_base:
+                continue                        # the open map (any season)
+            by_place.setdefault(tuple(r[1:9]), []).append((m, name))
+        out = []
+        for group in by_place.values():
+            pick = next(((m, n) for m, n in group if n.upper().endswith(suffix) and suffix), None) \
+                or next(((m, n) for m, n in group if not data.SEASON_RE.search(n)), group[0])
+            m, name = pick
+            wh = (sums.get(name) or (None, None, None))[2]
+            if not wh:
+                continue
+            a, b = self._to_canvas(m, 0, 0), self._to_canvas(m, wh[0] * 8, wh[1] * 8)
+            if a and b and b[0] - a[0] > 2 and b[1] - a[1] > 2:
+                out.append((name, (a[0], a[1], b[0], b[1])))
+        return out
+
+    def room_at(self, x, y):
+        """The other room under canvas point (x, y) (the smallest one when they nest), or None."""
+        hits = [(r[2] - r[0]) * (r[3] - r[1]) for _n, r in self._rooms]
+        best = None
+        for (name, r), area in zip(self._rooms, hits):
+            if r[0] <= x <= r[2] and r[1] <= y <= r[3] and (best is None or area < best[1]):
+                best = (name, area)
+        return best[0] if best else None
+
+    def _hover(self, e):
+        c = self.pic
+        c.delete("hover")
+        name = self.room_at(e.x, e.y) if e is not None else None
+        if name is None:
+            self.hover_lbl.config(text="")
+            c.config(cursor="crosshair")
+            return
+        r = dict(self._rooms)[name]
+        c.create_rectangle(*r, outline="#ffcc33", width=2, tags=("hover", "ov"))
+        mid = map_names.map_id_for_file(name)
+        place = map_names.map_name(mid) if mid is not None else None
+        self.hover_lbl.config(text=f"Click to open {name}" + (f" ({place})" if place else ""))
+        c.config(cursor="hand2")
+
+    def _press(self, e):
+        self._press_xy, self._dragged = (e.x, e.y), False
+        self._press_room = self.room_at(e.x, e.y)
+        if self._press_room is None:            # on this map / empty space: move the view there
+            self._click(e)
+
+    def _drag(self, e):
+        if self._press_xy is None:
+            return
+        if not self._dragged and abs(e.x - self._press_xy[0]) < 4 and abs(e.y - self._press_xy[1]) < 4:
+            return                              # still a click
+        self._dragged = True
+        self._click(e)
+
+    def _release(self, _e):
+        name = self._press_room if not self._dragged else None
+        self._press_xy = self._press_room = None
+        if name:                                # a click on another room: open it
+            self.ed.open_map(name)
 
     def _draw_view(self):
         """The part of the map the editor shows now (cyan)."""
@@ -533,15 +667,29 @@ class MinimapTab(ui.ScrollFrame):
             self._tick()
 
     def _tick(self):
-        """Follow the editor's scrolling / zoom while the tab is shown."""
-        if not self.winfo_ismapped():
+        """Follow the editor's scrolling / zoom while the picture is shown."""
+        self._tick_id = None
+        if not self.pic.winfo_ismapped():
             self._tick_on = False
             return
         try:
             self._draw_view()
         except tk.TclError:
             pass
-        self.after(250, self._tick)
+        self._tick_id = self.after(250, self._tick)
+
+    def _stop_tick(self, e=None):
+        """Cancel the pending tick (the panel is going away): a timer left pending when the
+        window closes makes Tk drop its command before tkinter deletes it."""
+        if e is not None and e.widget is not self:
+            return
+        tid, self._tick_id = getattr(self, "_tick_id", None), None
+        self._tick_on = False
+        if tid is not None:
+            try:
+                self.after_cancel(tid)
+            except tk.TclError:
+                pass
 
     def _click(self, e):
         """Centre the editor on the minimap point under the pointer (the inverse of

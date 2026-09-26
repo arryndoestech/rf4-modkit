@@ -41,3 +41,6 @@ emdeb_extra.json
 .idea/
 Thumbs.db
 .DS_Store
+
+# design drafts and their prototypes / images: local notes, not shipped
+drafts/
