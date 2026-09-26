@@ -280,10 +280,12 @@ the dungeon); untick it for the plain file list. The choice is
 kept in `settings.json` and shared with the standalone map editor's map list (`rf4mod.py map`),
 which groups its maps the same way.
 
-**Tabs.** Clicking a file opens it in its own tab (a file that is already open just
-shows its tab); Up / Down in the list show the next file in the same tab instead. Each tab
-keeps its own copy of its file, view and map editor, so edits in one tab are never lost by
-opening another: a tab with unsaved changes is marked **•**, and closing it (its **×**, a
+**Tabs.** Clicking a file shows it in the current tab; **double-clicking opens it in a new
+tab**; Up / Down in the list show the next file in the tab you are browsing. A file that is
+already open just shows its tab, and a tab with unsaved changes is never replaced: a click
+from it opens a new tab instead. Each tab keeps its own copy of its file, view and map editor,
+so edits in one tab are never lost by opening another: a tab with unsaved changes is marked
+**•**, and closing it (its **×**, a
 middle click, Ctrl+W, or the tab's right-click menu) or the toolkit asks first. With many
 tabs open, **◀ ▶** or the mouse wheel scroll the tab row and **▼** lists every tab;
 Ctrl+Tab / Ctrl+Shift+Tab switch tabs. Each map tab keeps its own map editor, so more than

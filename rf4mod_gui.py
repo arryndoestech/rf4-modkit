@@ -748,8 +748,10 @@ class App:
 
         self.tree.configure(selectmode="browse")
         # a click opens the file in a new tab; Up / Down (any key) browse in the current tab
+        # a click shows the file in this tab, a double click opens a new one; Up / Down browse
         self.tree.bind("<ButtonPress-1>", lambda _e: setattr(self, "_select_by_key", False), add="+")
         self.tree.bind("<KeyPress>", lambda _e: setattr(self, "_select_by_key", True), add="+")
+        self.tree.bind("<Double-Button-1>", self._on_tree_double)
 
         self.right = ttk.Frame(paned)
         paned.add(self.right, weight=3, minsize=300)
@@ -761,7 +763,7 @@ class App:
         self.header.pack(side="left", fill="x", expand=True)
         # the open files' tabs (scrolls: ◀ ▶ / the wheel; ▼ lists them all) over the shown page
         from guiutil import TabBar
-        self.tabbar = TabBar(self.right, on_select=self._select_doc, on_close=self.cmd_close_tab,
+        self.tabbar = TabBar(self.right, on_select=self._pick_tab, on_close=self.cmd_close_tab,
                              on_menu=self._on_tab_menu)
         self.tab_area = ttk.Frame(self.right)
         self._tab_menu = tk.Menu(self.tabbar, tearoff=False)
@@ -1085,12 +1087,45 @@ class App:
         self._cur_iid = iid
         by_key = self.__dict__.get("_select_by_key", False)
         self._select_by_key = False
-        self._open_iid(iid, browse=by_key)
+        self._open_iid(iid, "key" if by_key else "click")
+
+    def _on_tree_double(self, e):
+        """A double click opens the file in a new tab. Its first click already showed the file
+        in the current tab, so that tab gets back what it showed before."""
+        iid = self.tree.identify_row(e.y)
+        if iid not in self._index:
+            return None                         # a group: let it open / close
+        self._double_open(iid)
+        return "break"
+
+    def _double_open(self, iid):
+        name, _group, loader = self.source.entries[self._index[iid]]
+        key = self._entry_key(name)
+        last = self.__dict__.get("_last_replace")
+        self._last_replace = None
+        if last and last["key"] == key and last["doc"] in self._docs and last["doc"].key == key:
+            doc, prev = last["doc"], last["prev"]
+            self._show(prev["name"], prev["data"], doc)           # the tab's own file again
+            doc.key, doc.saved = prev["key"], prev["data"]
+            self._retitle(doc)
+            try:
+                data = loader()
+            except Exception as ex:
+                messagebox.showerror("Read failed", str(ex))
+                return
+            self._open_in_tab(key, name, data, "new")
+        elif not any(d.key == key for d in self._docs):
+            self._open_iid(iid, "new")
+
+    def _pick_tab(self, doc):
+        """A tab chosen in the tab bar: shown, and the one clicks and Up / Down fill from now."""
+        self._select_doc(doc)
+        self._browse_doc = doc
 
     def _entry_key(self, name):
         return (self.source.label if self.source else "", name)
 
-    def _open_iid(self, iid, browse=False):
+    def _open_iid(self, iid, mode="new"):
         name, _group, loader = self.source.entries[self._index[iid]]
         key = self._entry_key(name)
         data = None
@@ -1101,28 +1136,36 @@ class App:
                 messagebox.showerror("Read failed", str(e))
                 return
             self.tree.set(iid, "size", human(len(data)))
-        self._open_in_tab(key, name, data, browse)
+        self._open_in_tab(key, name, data, mode)
 
-    def _open_in_tab(self, key, name, data, browse=False):
-        """Show a file: in the tab that already has it, else in a new tab (a click). With
-        browse (Up / Down in the file list) it replaces the file in the tab being browsed
-        with -- the last tab a click or a browse step filled -- unless that tab has unsaved
-        changes (then a new tab: nothing is thrown away). The tab (_Doc), or None when the
-        user declined."""
+    def _open_in_tab(self, key, name, data, mode="new"):
+        """Show a file: in the tab that already has it; else, by `mode` --
+          "click" (a click in the file list): in the tab shown now,
+          "key"   (Up / Down): in the tab being browsed (the last one a click, a browse step or
+                  a tab-bar pick filled), so stepping onto an open file doesn't take its tab,
+          "new"   (a double click, or opened from code): in a new tab --
+        where a tab with unsaved changes is never replaced (a new tab instead: nothing is
+        thrown away). The tab (_Doc), or None when the user declined."""
         doc = next((d for d in self._docs if d.key == key), None)
         if doc is not None:
             self._select_doc(doc)
-            if not browse:                      # a click on an open file: browse from there
+            if mode != "key":                   # clicked / opened: browse from that tab now
                 self._browse_doc = doc
             return doc
         target = None
-        if browse:
-            b = self.__dict__.get("_browse_doc")
+        if mode in ("click", "key"):
+            b = self.__dict__.get("_browse_doc") if mode == "key" else self._doc
+            if b not in self._docs and mode == "key":
+                b = self._doc
             if b in self._docs and not b.is_dirty():
                 target = b
         new_map_editor = target is None or target.map_panel() is None
         if name.lower().endswith(".rf4m") and new_map_editor and not self._ok_to_open_map_tab():
             return None
+        # remember what a click replaced: a double click (which starts with that click) puts it back
+        self._last_replace = ({"doc": target, "key": key, "prev": {
+            "key": target.key, "name": target.cur_name, "data": target.cur_data}}
+            if target is not None and mode == "click" else None)
         doc = target or self._new_doc()
         self._browse_doc = doc
         self._select_doc(doc)

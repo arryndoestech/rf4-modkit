@@ -5644,6 +5644,13 @@ def test_explorer_tabs():
             root.update_idletasks()
             return app._doc
 
+        def dclick(nm):
+            # a double click: its first click, then the double click itself
+            open_(nm)
+            app._double_open(app.tree.selection()[0])
+            root.update_idletasks()
+            return app._doc
+
         def title(d):
             return app.tabbar.text(d)
         # 1) edits survive: a click with unsaved changes opens a new tab
@@ -5654,18 +5661,25 @@ def test_explorer_tabs():
         _check("an edit marks its tab • at once (no wait for the 1 s refresh)", title(a).endswith("•"),
                title(a))
         b = open_("rf3NpcParam.bin")
-        _check("a click opens a new tab (the edited one stays, marked •)",
+        _check("a click on a tab with unsaved changes opens a new tab (the edited one stays, marked •)",
                len(app._docs) == 2 and a is not b and title(a).endswith("•")
                and a.cur_data != orig and app._doc is b, [title(d) for d in app._docs])
         c = open_("rf3CropParam.bin")
-        _check("a click on a clean tab still opens a new tab (clicks never replace a tab)",
-               c is not b and len(app._docs) == 3 and b.cur_name.endswith("rf3NpcParam.bin"))
+        _check("a click on a clean tab shows the file in that same tab",
+               c is b and len(app._docs) == 2 and b.cur_name.endswith("rf3CropParam.bin"))
+        dnm = next(n for n in sorted(ents) if n.startswith("rf3Item") and n.endswith(".bin"))
+        d = dclick(dnm)
+        _check("a double click opens the file in a new tab, and the tab its first click used gets "
+               "its own file back",
+               d is not b and len(app._docs) == 3 and d.key[1].endswith(dnm)
+               and b.key[1].endswith("rf3CropParam.bin") and b.cur_name.endswith("rf3CropParam.bin"),
+               [title(x) for x in app._docs])
         app._select_doc(a)
         _check("switching tabs restores that tab's working copy, header and Extract",
                app._doc.cur_data == a.cur_data and "rf3Schedule" in app.header.cget("text")
                and str(app.extract_btn.cget("state")) == "normal")
         again = open_("rf3Schedule.bin")
-        _check("opening a file that is already open selects its tab", again is a and len(app._docs) == 3)
+        _check("clicking a file that is already open selects its tab", again is a and len(app._docs) == 3)
         box["yesnocancel"] = None
         kept = app.cmd_close_tab(a) is False and a in app._docs
         box["yesnocancel"] = False
@@ -5677,7 +5691,7 @@ def test_explorer_tabs():
             return open_(nm)
         spare = [n for n in sorted(ents) if n.startswith("rf3") and n.endswith(".bin")
                  and not any(d.key and d.key[1].endswith(n) for d in app._docs)][:4]
-        base = open_(spare[0])                  # a click: a new tab, browsing starts there
+        base = dclick(spare[0])                 # a new tab; browsing starts there
         n0 = len(app._docs)
         k1 = key_(spare[1])
         replaced = k1 is base and len(app._docs) == n0 and base.key[1].endswith(spare[1])
@@ -5729,9 +5743,9 @@ def test_explorer_tabs():
                and not mdoc.key[1].endswith("MAP_CITY_05.rf4m"),
                f"focus kept={kept} now={mdoc.key[1] if mdoc.key else None}")
         # 2) map tabs: their own editors; copy in one, paste in the other with Ctrl+C / Ctrl+V
-        m1 = open_("MAP_CITY_04.rf4m")
+        m1 = dclick("MAP_CITY_04.rf4m")
         p1 = app._doc._map_panel
-        m2 = open_("MAP_FIELD_01.rf4m")
+        m2 = dclick("MAP_FIELD_01.rf4m")
         p2 = app._doc._map_panel
         _check("each map tab has its own map editor", p1 is not None and p2 is not None and p1 is not p2
                and m1.map_panel() is p1 and m2.map_panel() is p2)
@@ -5787,12 +5801,12 @@ def test_explorer_tabs():
         more = [n for n in sorted(ents) if n.startswith("MAP_CITY_") and n.endswith(".rf4m")
                 and "_SUMMER" not in n and not is_open(n)]
         while open_maps() < lim:                # up to the limit: no question
-            open_(more.pop(0))
+            dclick(more.pop(0))
         quiet = not asked and open_maps() == lim
         extra = more.pop(0)
-        open_(extra)                            # one past it: asks; Cancel + the box ticked
+        dclick(extra)                           # one past it: asks; Cancel + the box ticked
         declined = len(asked) == 1 and not is_open(extra)
-        open_(extra)                            # asked no more this session
+        dclick(extra)                           # asked no more this session
         guiutil.ask_yes_no_optout = _ask
         _check(f"up to {lim} map tabs open without asking; the next one asks, Cancel keeps it "
                "closed, and after 'Don't warn me again this session' it opens without asking",
