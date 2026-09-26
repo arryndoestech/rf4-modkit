@@ -1609,6 +1609,7 @@ class App:
     def _view_image(self, name, data):
         """Standard raster image (PNG/JPEG/GIF/BMP/TIFF/WebP/TGA/DDS/ICO) via Pillow,
         shown in the same zoom/pan canvas the texture viewer uses. Export View -> PNG."""
+        doc = self._doc
         if not HAS_PIL:
             self._view_hex(name, data, error="Pillow not installed (pip install Pillow)")
             return
@@ -1620,20 +1621,20 @@ class App:
             self._view_hex(name, data, error=f"image decode failed: {e}")
             return
         n_frames = getattr(img, "n_frames", 1)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         info = f"{img.format or '?'}   {img.width}x{img.height}   {img.mode}"
         if n_frames > 1:
             info += f"   ({n_frames} frames -- showing #1)"
         ttk.Label(bar, text=info).pack(side="left", padx=6)
         for z, lbl in ((0.25, "¼×"), (0.5, "½×"), (1, "1×"), (2, "2×"), (4, "4×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
         # RGBA so alpha shows over the dark canvas and PNG export keeps transparency.
-        self._pil = img.convert("RGBA")
-        self._img_canvas = self._make_image_canvas()
+        doc._pil = img.convert("RGBA")
+        doc._img_canvas = self._make_image_canvas(doc=doc)
         # fit large images to the viewport on open; small ones show 1:1.
-        self._set_zoom(self._fit_zoom(img.width, img.height))
-        self._export_kind = "png"
+        self._set_zoom(self._fit_zoom(img.width, img.height, doc), doc)
+        doc._export_kind = "png"
         self.export_btn.config(state="normal")
 
     def _fit_zoom(self, w, h, doc=None):
