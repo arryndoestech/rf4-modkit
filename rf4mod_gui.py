@@ -2029,14 +2029,15 @@ class App:
         txt.config(state="disabled")
 
     def _view_bplist(self, name, data):
+        doc = self._doc
         root_obj = bplist.loads(data, lazy_data=True)
-        tv = ttk.Treeview(self.content, columns=("val",), show="tree headings")
+        tv = ttk.Treeview(doc.content, columns=("val",), show="tree headings")
         tv.heading("#0", text="Key / Index"); tv.heading("val", text="Value")
         tv.column("val", width=700)
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        self._export_kind = "plistjson"; self._export_data = data
+        doc._export_kind = "plistjson"; doc._export_data = data
         self.export_btn.config(state="normal")
 
         # Manifest.plist: render each bundle directly by name with its files listed
@@ -2044,14 +2045,14 @@ class App:
         bundles = root_obj.get("bundles") if isinstance(root_obj, dict) else None
         if isinstance(bundles, list) and bundles and all(
                 isinstance(b, dict) and "bundleName" in b for b in bundles):
-            self._bplist_files = {}
+            doc._bplist_files = {}
             for b in bundles:
                 files = b.get("files", {})
                 nfiles = len(files) if isinstance(files, dict) else 0
                 node = tv.insert("", "end", text=str(b.get("bundleName")),
                                  values=(f"{nfiles} files",), open=False)
                 if nfiles:
-                    self._bplist_files[node] = files
+                    doc._bplist_files[node] = files
                     tv.insert(node, "end", text="…")     # placeholder -> expand arrow
             tv.bind("<<TreeviewOpen>>", lambda _e: self._bplist_expand_bundle(tv))
             return
@@ -2075,8 +2076,9 @@ class App:
             tv.item(c, open=True)
 
     def _bplist_expand_bundle(self, tv):
+        doc = self._doc
         nid = tv.focus()
-        files = self._bplist_files.pop(nid, None)
+        files = doc._bplist_files.pop(nid, None)
         if files is None:
             return
         tv.delete(*tv.get_children(nid))     # drop placeholder
