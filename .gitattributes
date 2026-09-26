@@ -1,2 +1,5 @@
+# text files are stored with LF; every git (Git for Windows, MSYS2/devkitPro) then compares
+# them the same way whatever line endings the working copy has
+* text=auto
 # batch files must keep CRLF (cmd.exe mis-parses labels in LF files)
 *.bat text eol=crlf
