@@ -628,24 +628,9 @@ class _Doc:
 
 
 class App:
-    # Migration shim (goes once every viewer uses its tab's _Doc directly): self.<view state>
-    # (self.cur_data, self._pil, self.content ...) reads and writes the active tab's _Doc.
-    VIEW_STATE = frozenset(_Doc.VIEW + ("zoom", "content"))
+    # Each open file is a tab (_Doc) that owns its view state: viewers build into
+    # `doc = self._doc` (the shown tab) and keep everything on it, never on the App.
     MAP_TABS_ASK = 10       # more open map tabs than this asks first (each keeps an editor)
-
-    def __getattr__(self, name):
-        # only reached when normal lookup fails: VIEW_STATE never sits in the instance dict
-        if name in App.VIEW_STATE:
-            doc = self.__dict__.get("_doc")
-            if doc is not None:
-                return getattr(doc, name)
-        raise AttributeError(name)
-
-    def __setattr__(self, name, value):
-        if name in App.VIEW_STATE:
-            setattr(self.__dict__["_doc"], name, value)
-        else:
-            object.__setattr__(self, name, value)
 
     def __init__(self, root: tk.Tk, initial=None):
         self.root = root
@@ -1332,7 +1317,7 @@ class App:
 
     def _mark_later(self):
         """A working copy changed: update the tabs' unsaved marks once the change is done."""
-        if not self.__dict__.get("_mark_pending", True) and "tabs" in self.__dict__:
+        if not self.__dict__.get("_mark_pending", True) and "tabbar" in self.__dict__:
             self._mark_pending = True
             self.root.after_idle(self._refresh_marks)
 
