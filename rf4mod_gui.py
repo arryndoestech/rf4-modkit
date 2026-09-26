@@ -556,15 +556,97 @@ class _GenHost:
                    lambda: g.set_position(off, x, y))
 
 
+class _Doc:
+    """One open file = one tab: its working copy, the bytes last loaded or saved (so the tab
+    knows it has unsaved changes), its own content frame, and every piece of view state the
+    viewers keep on the App (App routes the VIEW_STATE attributes to the active tab's _Doc,
+    so a hidden tab keeps its images, map editor, zoom ... untouched)."""
+    DEFAULTS = {"cur_name": None, "cur_data": None, "cur_image": None, "zoom": 1.0, "_pil": None}
+
+    def __init__(self, frame):
+        self.frame = frame
+        self.key = None                 # (source label, entry name): the same file opens here
+        self.saved = None               # the bytes as loaded or last written to a file
+        self.header = "Select an asset"
+        self.state = dict(self.DEFAULTS, content=frame)
+        self.parked = []                # timers that came due while the tab was hidden
+
+    def map_panel(self):
+        """This tab's map editor (built the first time it shows a map), or None."""
+        mv = self.state.get("_map_view")
+        return mv.get("panel") if mv else None
+
+    def is_dirty(self):
+        panel = self.state.get("_map_panel")        # set while the tab shows a map
+        if panel is not None:
+            try:
+                return panel.is_dirty()
+            except tk.TclError:
+                return False
+        data = self.state.get("cur_data")
+        return data is not None and self.saved is not None and data is not self.saved \
+            and data != self.saved
+
+    def title(self):
+        name = (self.state.get("cur_name") or "…").replace("\\", "/").rsplit("/", 1)[-1]
+        return name + ("  •" if self.is_dirty() else "")
+
+    def on_hide(self):
+        panel = self.map_panel()
+        if panel is not None:
+            try:
+                panel.suspend()                 # stop its background ground decodes
+            except tk.TclError:
+                pass
+
+    def on_show(self):
+        panel = self.map_panel()
+        if panel is not None:
+            try:
+                panel.view.request_ground()     # re-queue whatever the suspend dropped
+            except tk.TclError:
+                pass
+        parked, self.parked = self.parked, []
+        for fn in parked:
+            fn()
+
+
 class App:
+    # View state the viewers keep on the App (self.cur_data, self._pil, self.content ...):
+    # each lives on the active tab's _Doc (see __getattr__ / __setattr__), so every viewer
+    # works per tab without being rewritten.
+    VIEW_STATE = frozenset({
+        "cur_name", "cur_data", "cur_image", "zoom", "_pil", "_img_canvas", "content",
+        "_export_kind", "_export_text", "_export_data", "_export_arc",
+        "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
+        "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
+        "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
+        "_events_new_scene"})
+    MAP_TABS_ASK = 10       # more open map tabs than this asks first (each keeps an editor)
+
+    def __getattr__(self, name):
+        # only reached when normal lookup fails: VIEW_STATE never sits in the instance dict
+        if name in App.VIEW_STATE:
+            doc = self.__dict__.get("_doc")
+            if doc is not None and name in doc.state:
+                return doc.state[name]
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        if name in App.VIEW_STATE:
+            self.__dict__["_doc"].state[name] = value
+            if name == "cur_data":
+                self._mark_later()
+        else:
+            object.__setattr__(self, name, value)
+
     def __init__(self, root: tk.Tk, initial=None):
         self.root = root
+        self._blank = _Doc(None)        # the empty view while no tab is open
+        self._doc = self._blank         # the tab the viewers work on
+        self._docs: list[_Doc] = []     # open tabs, in tab order
+        self._mark_pending = False
         self.source: Source | None = None
-        self.cur_name: str | None = None
-        self.cur_data: bytes | None = None
-        self.cur_image = None          # keep PhotoImage ref alive
-        self.zoom = 1.0
-        self._pil = None
 
         root.title("RF4S Modding Toolkit — Asset Explorer")
         root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -672,14 +754,41 @@ class App:
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         self.tree.bind("<<TreeviewOpen>>", self._on_group_open)
 
+        self.tree.configure(selectmode="browse")
+        # a click opens the file in a new tab; Up / Down (any key) browse in the current tab
+        self.tree.bind("<ButtonPress-1>", lambda _e: setattr(self, "_select_by_key", False), add="+")
+        self.tree.bind("<KeyPress>", lambda _e: setattr(self, "_select_by_key", True), add="+")
+
         self.right = ttk.Frame(paned)
         paned.add(self.right, weight=3, minsize=300)
-        # Persistent header + a swappable content frame.
-        self.header = ttk.Label(self.right, text="Select an asset", anchor="w",
+        # the active tab's header, then one tab per open file (the blank view while none is)
+        hb = ttk.Frame(self.right)
+        hb.pack(fill="x", padx=6, pady=(6, 2))
+        self.header = ttk.Label(hb, text="Select an asset", anchor="w",
                                 font=("Segoe UI", 10, "bold"))
-        self.header.pack(fill="x", padx=6, pady=(6, 2))
-        self.content = ttk.Frame(self.right)
+        self.header.pack(side="left", fill="x", expand=True)
+        # the open files' tabs (scrolls: ◀ ▶ / the wheel; ▼ lists them all) over the shown page
+        from guiutil import TabBar
+        self.tabbar = TabBar(self.right, on_select=self._select_doc, on_close=self.cmd_close_tab,
+                             on_menu=self._on_tab_menu)
+        self.tab_area = ttk.Frame(self.right)
+        self._tab_menu = tk.Menu(self.tabbar, tearoff=False)
+        self._tab_menu.add_command(label="Close", command=lambda: self.cmd_close_tab(self._tab_menu_doc))
+        self._tab_menu.add_command(label="Close the other tabs",
+                                   command=lambda: self.cmd_close_others(self._tab_menu_doc))
+        self.root.bind("<Control-w>", lambda _e: self.cmd_close_tab())
+        self.root.bind("<Control-Tab>", lambda _e: self._cycle_tab(1) or "break")
+        self.root.bind("<Control-Shift-Tab>", lambda _e: self._cycle_tab(-1) or "break")
+        try:
+            self.root.bind("<Control-ISO_Left_Tab>", lambda _e: self._cycle_tab(-1) or "break")
+        except tk.TclError:                     # no such keysym here
+            pass
+        self.content = ttk.Frame(self.right)   # the blank view's frame (App routes to _Doc)
         self.content.pack(fill="both", expand=True)
+        self._blank.frame = self.content
+        self._poll_id = self.root.after(1000, self._poll_marks)
+        # stop the poll with the window (a destroyed Tk must not run it)
+        self.tabbar.bind("<Destroy>", lambda e: e.widget is self.tabbar and self._stop_poll(), add="+")
 
     def _build_status(self):
         sb = ttk.Frame(self.root)
@@ -708,9 +817,8 @@ class App:
 
     # ---- source loading -------------------------------------------------- #
     def load_source(self, factory, game=False):
-        """List a new set of files; game=True for the game copy itself (hides Back to the game)."""
-        if not self._guard_map_edits("open something else"):
-            return
+        """List a new set of files; game=True for the game copy itself (hides Back to the game).
+        Open tabs stay open: each holds its own copy of its file."""
         try:
             self.source = factory()
         except Exception as e:
@@ -721,12 +829,7 @@ class App:
             self._back_btn.pack_forget()
         else:
             self._back_btn.pack(side="left", padx=2, after=self._open_btn)
-        self._drop_map_view()
-        # the shown file belonged to the old list: nothing is open (Extract / Export off)
-        self._clear_content()
-        self.cur_name = self.cur_data = self._cur_iid = None
-        self.header.config(text="Select an asset")
-        self.extract_btn.config(state="disabled")
+        self._cur_iid = None
         self._refresh_tree()
 
     def _post_open_menu(self):
@@ -1029,20 +1132,12 @@ class App:
         if len(idxs) > self.GROUP_CAP:
             self.tree.insert(gid, "end", text=f"… (+{len(idxs) - self.GROUP_CAP} more — use Filter)")
 
-    def _guard_map_edits(self, action):
-        """Ask before discarding unsaved edits in the embedded map editor (the map itself
-        or its search-item / encounter sidecars). True = OK to proceed."""
-        panel = getattr(self, "_map_panel", None)
-        if panel is None:
-            return True
-        try:
-            return panel.confirm_discard(action)
-        except tk.TclError:          # panel widgets already gone -- nothing to protect
-            return True
-
+    # ---- tabs ------------------------------------------------------------ #
     def _on_close(self):
-        if self._guard_map_edits("close the toolkit"):
-            self.root.destroy()
+        for doc in list(self._docs):
+            if not self._confirm_close(doc, "close the toolkit"):
+                return
+        self.root.destroy()
 
     def _on_select(self, _evt):
         if getattr(self, "_suppress_select", False):
@@ -1053,28 +1148,231 @@ class App:
         iid = sel[0]
         if iid not in self._index:
             return  # a group node
-        if iid != getattr(self, "_cur_iid", None) and not self._guard_map_edits("open another file"):
-            # stay on the edited map: put the tree highlight back without re-loading it
-            prev = getattr(self, "_cur_iid", None)
-            self._suppress_select = True
-            try:
-                if prev is not None and self.tree.exists(prev):
-                    self.tree.selection_set(prev); self.tree.see(prev)
-                else:
-                    self.tree.selection_remove(iid)
-            finally:
-                self.root.after_idle(lambda: setattr(self, "_suppress_select", False))
-            return
         self._cur_iid = iid
-        name, group, loader = self.source.entries[self._index[iid]]
-        try:
-            data = loader()
-        except Exception as e:
-            messagebox.showerror("Read failed", str(e))
-            return
-        self.cur_name, self.cur_data = name, data
-        self.tree.set(iid, "size", human(len(data)))
+        by_key = self.__dict__.get("_select_by_key", False)
+        self._select_by_key = False
+        self._open_iid(iid, browse=by_key)
+
+    def _entry_key(self, name):
+        return (self.source.label if self.source else "", name)
+
+    def _open_iid(self, iid, browse=False):
+        name, _group, loader = self.source.entries[self._index[iid]]
+        key = self._entry_key(name)
+        data = None
+        if not any(d.key == key for d in self._docs):      # an open tab needn't re-read it
+            try:
+                data = loader()
+            except Exception as e:
+                messagebox.showerror("Read failed", str(e))
+                return
+            self.tree.set(iid, "size", human(len(data)))
+        self._open_in_tab(key, name, data, browse)
+
+    def _open_in_tab(self, key, name, data, browse=False):
+        """Show a file: in the tab that already has it, else in a new tab (a click). With
+        browse (Up / Down in the file list) it replaces the file in the tab being browsed
+        with -- the last tab a click or a browse step filled -- unless that tab has unsaved
+        changes (then a new tab: nothing is thrown away). The tab (_Doc), or None when the
+        user declined."""
+        doc = next((d for d in self._docs if d.key == key), None)
+        if doc is not None:
+            self._select_doc(doc)
+            if not browse:                      # a click on an open file: browse from there
+                self._browse_doc = doc
+            return doc
+        target = None
+        if browse:
+            b = self.__dict__.get("_browse_doc")
+            if b in self._docs and not b.is_dirty():
+                target = b
+        new_map_editor = target is None or target.map_panel() is None
+        if name.lower().endswith(".rf4m") and new_map_editor and not self._ok_to_open_map_tab():
+            return None
+        doc = target or self._new_doc()
+        self._browse_doc = doc
+        self._select_doc(doc)
+        doc.key, doc.saved = key, data
         self._show(name, data)
+        self._retitle(doc)
+        return doc
+
+    def _ok_to_open_map_tab(self):
+        n = sum(1 for d in self._docs if d.map_panel() is not None)
+        if n < self.MAP_TABS_ASK or self.__dict__.get("_map_tabs_no_ask"):
+            return True
+        import guiutil
+        ok, stop = guiutil.ask_yes_no_optout(
+            self.root, "Open another map",
+            f"{n} maps are open in tabs, and each keeps its own map editor (memory and texture "
+            "decoding). Open another one anyway?\n\nClosing map tabs you are done with keeps "
+            "the toolkit quick.", yes="Open it", optout="Don't warn me again this session")
+        if stop:
+            self._map_tabs_no_ask = True        # until the toolkit is closed (not saved)
+        return ok
+
+    def _new_doc(self):
+        frame = ttk.Frame(self.tab_area)
+        doc = _Doc(frame)
+        self._docs.append(doc)
+        self.tabbar.add(doc, "…")
+        if len(self._docs) == 1:                # the first tab replaces the blank view
+            self._blank.frame.pack_forget()
+            self.tabbar.pack(fill="x", padx=2)
+            self.tab_area.pack(fill="both", expand=True)
+        return doc
+
+    def _select_doc(self, doc):
+        """Show `doc`'s page and tab, and make it the one the viewers work on."""
+        if doc is not self._blank:
+            if doc.frame.winfo_manager() != "pack":
+                for d in self._docs:
+                    if d is not doc and d.frame.winfo_manager():
+                        d.frame.pack_forget()
+                doc.frame.pack(fill="both", expand=True)
+            self.tabbar.select(doc)
+        self._activate(doc)
+
+    def _cycle_tab(self, step):
+        """Ctrl+Tab / Ctrl+Shift+Tab: the next / previous tab (wraps around)."""
+        if len(self._docs) > 1 and self._doc in self._docs:
+            i = self._docs.index(self._doc)
+            self._select_doc(self._docs[(i + step) % len(self._docs)])
+
+    def _activate(self, doc):
+        """Make `doc` the tab the viewers work on (_select_doc shows its page)."""
+        old = self._doc
+        if doc is old:
+            return
+        old.header = self.header.cget("text")
+        old.on_hide()
+        self._doc = doc
+        self.header.config(text=doc.header)
+        self.extract_btn.config(state="normal" if doc.state.get("cur_data") is not None else "disabled")
+        self.export_btn.config(state="normal" if doc.state.get("_export_kind") else "disabled")
+        doc.on_show()
+
+    def _on_tab_menu(self, doc, e):
+        self._tab_menu_doc = doc
+        self._tab_menu.tk_popup(e.x_root, e.y_root)
+
+    def cmd_close_tab(self, doc=None):
+        """Close a tab (the current one by default); asks first when it has unsaved changes."""
+        doc = doc or self._doc
+        if doc is self._blank or doc not in self._docs:
+            return False
+        if not self._confirm_close(doc, "close this tab"):
+            return False
+        self._drop_doc(doc)
+        return True
+
+    def cmd_close_others(self, keep):
+        for doc in [d for d in self._docs if d is not keep]:
+            if not self.cmd_close_tab(doc):
+                break
+        if keep in self._docs:
+            self._select_doc(keep)
+
+    def _confirm_close(self, doc, action):
+        """True when `doc` may go: nothing unsaved, or the user saved or discarded it."""
+        if not doc.is_dirty():
+            return True
+        self._select_doc(doc)                   # show what the question is about
+        panel = doc.state.get("_map_panel")
+        if panel is not None:
+            try:
+                return panel.confirm_discard(action)
+            except tk.TclError:
+                return True
+        ans = messagebox.askyesnocancel(
+            "Unsaved changes", f"{doc.title().rstrip(' •')} has changes that are not saved to a "
+            f"file.\n\nSave it before you {action}?\n(Yes = save with Extract…, No = discard, "
+            "Cancel = stay here)", parent=self.root)
+        if ans is None:
+            return False
+        return bool(self.cmd_extract()) if ans else True
+
+    def _drop_doc(self, doc):
+        for k in ("_anim_after", "_skel_after"):
+            t = doc.state.get(k)
+            if t:
+                try:
+                    self.root.after_cancel(t)
+                except tk.TclError:
+                    pass
+        doc.parked = []
+        i = self._docs.index(doc)
+        self._docs.remove(doc)
+        if doc is self._doc:
+            nxt = self._docs[min(i, len(self._docs) - 1)] if self._docs else self._blank
+            self._activate(nxt)
+        else:
+            doc.on_hide()
+        self.tabbar.remove(doc)
+        doc.frame.destroy()
+        if not self._docs:                      # back to the blank view
+            self.tabbar.pack_forget()
+            self.tab_area.pack_forget()
+            self._blank.frame.pack(fill="both", expand=True)
+        else:
+            self._select_doc(self._doc)         # the neighbour activated above: show its page
+
+    def _retitle(self, doc):
+        if doc in self._docs:
+            try:
+                self.tabbar.set_text(doc, doc.title())
+            except tk.TclError:
+                pass
+
+    def _mark_later(self):
+        """A working copy changed: update the tabs' unsaved marks once the change is done."""
+        if not self.__dict__.get("_mark_pending", True) and "tabs" in self.__dict__:
+            self._mark_pending = True
+            self.root.after_idle(self._refresh_marks)
+
+    def _refresh_marks(self):
+        self._mark_pending = False
+        for d in self._docs:
+            self._retitle(d)
+
+    def _poll_marks(self):
+        # saves that don't change the working copy (the map editor's Save) clear the mark here
+        self._poll_id = None
+        try:
+            self._refresh_marks()
+            self._poll_id = self.root.after(1000, self._poll_marks)
+        except tk.TclError:
+            pass
+
+    def _stop_poll(self):
+        if self.__dict__.get("_poll_id"):
+            try:
+                self.root.after_cancel(self._poll_id)
+            except tk.TclError:
+                pass
+            self._poll_id = None
+
+    def _doc_after(self, ms, fn):
+        """root.after for a view's timer (animations): it runs only while its tab is shown;
+        one that comes due in a hidden tab waits and runs when that tab is shown again."""
+        doc = self._doc
+
+        def run():
+            if doc is self._doc:
+                fn()
+            elif doc in self._docs:
+                doc.parked.append(fn)
+        return self.root.after(ms, run)
+
+    def _set_doc_data(self, doc, data):
+        """A tab-bound editor (the map editor) changed its tab's working copy."""
+        doc.state["cur_data"] = data
+        self._mark_later()
+
+    def _mark_saved(self):
+        """The shown working copy was just written to a file: the tab has no unsaved changes."""
+        self._doc.saved = self.cur_data
+        self._retitle(self._doc)
 
     # ---- viewer dispatch ------------------------------------------------- #
     def _clear_content(self):
@@ -1237,7 +1535,7 @@ class App:
                 self._anim_after = None
                 if getattr(self, "_tex_playing", False):
                     show(self._tex_fi + 1)
-                    self._anim_after = self.root.after(120, tick)
+                    self._anim_after = self._doc_after(120, tick)
 
             def toggle():
                 self._tex_playing = not getattr(self, "_tex_playing", False)
@@ -1351,7 +1649,9 @@ class App:
                 except Exception as e:  # noqa: BLE001
                     self.status.config(text=f"navigate failed: {e}"); return
                 self.cur_name, self.cur_data = name, data
+                self._doc.key, self._doc.saved = self._entry_key(name), data
                 self._show(name, data)
+                self._retitle(self._doc)
                 return
         self.status.config(text=f"{map_name}.rf4m not found in this source")
 
@@ -1366,16 +1666,6 @@ class App:
             win, reader=(self.source.read_named if self.source else None),
             status_fn=lambda s: self.status.config(text=s),
             focus_bank=bank_index, focus_entry=entry_pc, focus_pc=pc)
-
-    def _drop_map_view(self):
-        mv = getattr(self, "_map_view", None)
-        self._map_view = None
-        if mv is not None:
-            try:
-                mv["panel"].suspend()
-                mv["nb"].destroy()
-            except tk.TclError:
-                pass
 
     def _map_notebook(self, m, name):
         """The map notebook with its 'Map (edit)' tab. Built ONCE and reused for every map:
@@ -1419,7 +1709,7 @@ class App:
             panel = map_editor.MapEditorPanel(
                 mapframe, m, name,
                 status_fn=lambda s_: self.status.config(text=s_),
-                on_change=lambda b: setattr(self, "cur_data", b),
+                on_change=lambda b, doc=self._doc: self._set_doc_data(doc, b),
                 tex_reader=self.source.read_named if self.source else None,
                 on_navigate=self._navigate_to_map,   # Ctrl+click a warp -> open that map
                 on_open_scene=self._open_scene_editor)  # click NPC-spawn marker -> its script line
@@ -1938,7 +2228,7 @@ class App:
                     return
                 state["frame"] = (state["frame"] + 60 * tick_ms / 1000.0) % max(1, anim.frame_count)
                 draw()
-                self._anim_after = self.root.after(tick_ms, tick)
+                self._anim_after = self._doc_after(tick_ms, tick)
 
             def toggle():
                 self._model_playing = not self._model_playing
@@ -2034,7 +2324,7 @@ class App:
             if not a.loops and state["sframe"] >= a.frame_count:
                 state["sframe"] = 0.0
             redraw()
-            self._skel_after = self.root.after(15, lambda: tick(now))
+            self._skel_after = self._doc_after(15, lambda: tick(now))
 
         def toggle():
             state["splaying"] = not state["splaying"] and state["skel"] is not None
@@ -2269,7 +2559,8 @@ class App:
             return
         name, _g, loader = self.source.entries[i]
         self._reveal_entry(i)
-        self._show(name, loader())
+        if self._open_in_tab(self._entry_key(name), name, loader()) is None:
+            return
         panel = getattr(self, "_map_panel", None)
         if panel is not None:
             try:
@@ -3751,13 +4042,17 @@ class App:
         cutscene_editor.CutsceneExplorer(win, reader=reader).open_event_manager()
 
     def cmd_extract(self):
+        """Save the shown file's working copy; True when it was written."""
         if self.cur_data is None:
-            return
+            return False
         default = pathlib.Path(self.cur_name).name
         f = filedialog.asksaveasfilename(title="Extract raw bytes", initialfile=default)
-        if f:
-            pathlib.Path(f).write_bytes(self.cur_data)
-            self.status.config(text=f"Extracted {len(self.cur_data):,} bytes -> {f}")
+        if not f:
+            return False
+        pathlib.Path(f).write_bytes(self.cur_data)
+        self.status.config(text=f"Extracted {len(self.cur_data):,} bytes -> {f}")
+        self._mark_saved()
+        return True
 
     def cmd_export(self):
         kind = getattr(self, "_export_kind", None)

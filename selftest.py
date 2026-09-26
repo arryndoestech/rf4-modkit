@@ -5581,7 +5581,199 @@ def _headless_dialogs():
     filedialog.asksaveasfilename = lambda *a, **k: box["save"]
     filedialog.askopenfilename = lambda *a, **k: ""
     simpledialog.askstring = lambda *a, **k: box.get("askstring")
+    import guiutil
+    guiutil.ask_yes_no_optout = lambda *a, **k: (box["yesno"], box.get("optout", False))
     return box
+
+
+def test_explorer_tabs():
+    """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
+    state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
+    switching tabs restores each one's data; reopening an open file selects its tab; closing
+    a tab with unsaved changes asks; map tabs keep their own editor, and an object copied in
+    one map tab pastes into another with the keyboard; a hidden tab's animation waits."""
+    print("asset explorer tabs (one per open file):")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("explorer tabs", "no tkinter: %s" % e); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists() or not (B / "MAP_FIELD_01.rf4m").exists():
+        _skip("explorer tabs", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_tabs", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        saved_clip = root.clipboard_get()
+    except tk.TclError:
+        saved_clip = None
+    try:
+        app = gui.App(root, initial=str(B))
+        ents = {e[0].rsplit("/", 1)[-1]: e for e in app.source.entries}
+
+        def open_(nm):
+            # a click in the file list, the way a user opens a file
+            n, _g, _l = ents[nm]
+            i = next(k for k, e in enumerate(app.source.entries) if e[0] == n)
+            app._reveal_entry(i)
+            app._suppress_select = False
+            app._on_select(None)
+            root.update_idletasks()
+            return app._doc
+
+        def title(d):
+            return app.tabbar.text(d)
+        # 1) edits survive: a click with unsaved changes opens a new tab
+        a = open_("rf3Schedule.bin")
+        orig = app.cur_data
+        app.cur_data = orig[:-1] + bytes([orig[-1] ^ 1])       # what an editor's Apply does
+        app._refresh_marks()
+        b = open_("rf3NpcParam.bin")
+        _check("a click opens a new tab (the edited one stays, marked •)",
+               len(app._docs) == 2 and a is not b and title(a).endswith("•")
+               and a.state["cur_data"] != orig and app._doc is b, [title(d) for d in app._docs])
+        c = open_("rf3CropParam.bin")
+        _check("a click on a clean tab still opens a new tab (clicks never replace a tab)",
+               c is not b and len(app._docs) == 3 and b.state["cur_name"].endswith("rf3NpcParam.bin"))
+        app._select_doc(a)
+        _check("switching tabs restores that tab's working copy, header and Extract",
+               app.cur_data == a.state["cur_data"] and "rf3Schedule" in app.header.cget("text")
+               and str(app.extract_btn.cget("state")) == "normal")
+        again = open_("rf3Schedule.bin")
+        _check("opening a file that is already open selects its tab", again is a and len(app._docs) == 3)
+        box["yesnocancel"] = None
+        kept = app.cmd_close_tab(a) is False and a in app._docs
+        box["yesnocancel"] = False
+        gone = app.cmd_close_tab(a) is True and a not in app._docs and app._doc in (b, c)
+        _check("closing a tab with unsaved changes asks: Cancel keeps it, No closes it", kept and gone)
+        # 1b) Up / Down in the list browse in one tab; only a click opens a new tab
+        def key_(nm):
+            app._select_by_key = True           # what the list's <KeyPress> binding records
+            return open_(nm)
+        spare = [n for n in sorted(ents) if n.startswith("rf3") and n.endswith(".bin")
+                 and not any(d.key and d.key[1].endswith(n) for d in app._docs)][:4]
+        base = open_(spare[0])                  # a click: a new tab, browsing starts there
+        n0 = len(app._docs)
+        k1 = key_(spare[1])
+        replaced = k1 is base and len(app._docs) == n0 and base.key[1].endswith(spare[1])
+        k2 = key_("rf3CropParam.bin")           # already open in tab c: go there, keep it
+        onto_open = k2 is c and len(app._docs) == n0 and c.key[1].endswith("rf3CropParam.bin")
+        k3 = key_(spare[2])                     # browsing goes on in the browsed tab, not in c
+        on_in_base = (k3 is base and base.key[1].endswith(spare[2]) and len(app._docs) == n0
+                      and c.key[1].endswith("rf3CropParam.bin"))
+        _check("Up / Down show the next file in the browsed tab (no new tab); an already-open "
+               "file's tab is shown, and browsing goes on in the browsed tab",
+               replaced and onto_open and on_in_base, f"{replaced} {onto_open} {on_in_base}")
+        base.state["cur_data"] = base.state["cur_data"][:-1] + bytes([base.state["cur_data"][-1] ^ 1])
+        k4 = key_(spare[3])
+        _check("a browse step from a tab with unsaved changes opens a new tab (the edits stay)",
+               k4 is not base and len(app._docs) == n0 + 1 and base.key[1].endswith(spare[2])
+               and base.is_dirty())
+        box["yesnocancel"] = False
+        app.cmd_close_tab(base)
+        # a real Down key in the list (keys need a window that can take the focus)
+        root.deiconify(); root.geometry("900x600+20+20"); root.lift(); root.update()
+        i0 = next(k for k, e in enumerate(app.source.entries) if e[0].endswith(spare[0]))
+        app._reveal_entry(i0); root.update()
+        app._select_by_key = False
+        app._on_select(None); root.update()     # clicked: its own tab
+        n1 = len(app._docs)
+        clicked = app._doc
+        app.tree.focus(app.tree.selection()[0])
+        app.tree.focus_force(); root.update()
+        app.tree.event_generate("<KeyPress-Down>"); root.update()
+        root.withdraw()
+        _check("the Down key in the file list shows the next file in the same tab",
+               len(app._docs) == n1 and app._doc is clicked
+               and not clicked.key[1].endswith(spare[0]), f"{n1} -> {len(app._docs)}")
+        # 2) map tabs: their own editors; copy in one, paste in the other with Ctrl+C / Ctrl+V
+        m1 = open_("MAP_CITY_04.rf4m")
+        p1 = app._map_panel
+        m2 = open_("MAP_FIELD_01.rf4m")
+        p2 = app._map_panel
+        _check("each map tab has its own map editor", p1 is not None and p2 is not None and p1 is not p2
+               and m1.map_panel() is p1 and m2.map_panel() is p2)
+        # keys only reach a window that can take the focus: show it for the keyboard part
+        root.deiconify(); root.geometry("900x600+20+20"); root.lift(); root.update()
+        app._select_doc(m1); root.update()
+        d1, d2 = p1.doc, p2.doc
+        k = next(i for i, r in enumerate(d1.map.mobj_records()) if r[14] or r[15])
+        rec = list(d1.map.mobj_records()[k])
+        n1, n2 = len(d1.map.mobj_records()), len(d2.map.mobj_records())
+        p1.select(("mobj", k))
+        p1.view.canvas.focus_force(); root.update()
+        p1.view.canvas.event_generate("<Control-c>")
+        root.update()
+        app._select_doc(m2); root.update()
+        p2._pointer = (40, 48)
+        p2.view.canvas.focus_force(); root.update()
+        p2.view.canvas.event_generate("<Control-v>")
+        root.update()
+        root.withdraw()
+        new = list(d2.map.mobj_records()[-1]) if len(d2.map.mobj_records()) == n2 + 1 else None
+        _check("an object copied in one map tab (Ctrl+C) pastes into another map tab (Ctrl+V)",
+               new is not None and new[:14] == rec[:14] and new[16:] == rec[16:]
+               and len(d1.map.mobj_records()) == n1, f"{n2} -> {len(d2.map.mobj_records())}")
+        app._refresh_marks()
+        _check("the pasted-into map tab is marked unsaved, the copied-from one is not",
+               title(m2).endswith("•") and not title(m1).endswith("•"),
+               f"{title(m1)} | {title(m2)}")
+        _check("a hidden map tab's editor is suspended (no background decodes)",
+               m1.map_panel().view.ground.generation >= 1)
+        # 3) a hidden tab's timer waits for its tab
+        ran = []
+        app._select_doc(m1)
+        app._doc_after(1, lambda: ran.append(app._doc))
+        app._select_doc(m2)
+        root.after(30, lambda: None); root.update(); root.after(40, root.quit); root.mainloop()
+        parked = len(m1.parked) == 1 and not ran
+        app._select_doc(m1)
+        _check("a timer that comes due in a hidden tab waits and runs when the tab is shown again",
+               parked and ran == [m1] and not m1.parked)
+        # past MAP_TABS_ASK open maps a new map asks; "Don't warn me again this session" (ticked
+        # even on Cancel) stops the asking until the toolkit closes
+        import guiutil
+        asked = []
+        _ask = guiutil.ask_yes_no_optout
+        guiutil.ask_yes_no_optout = lambda *a, **k: (asked.append(1), (False, True))[1]
+
+        def is_open(nm):
+            return any(d.key and d.key[1].endswith(nm) for d in app._docs)
+        def open_maps():
+            return sum(1 for d in app._docs if d.map_panel() is not None)
+        lim = app.MAP_TABS_ASK
+        more = [n for n in sorted(ents) if n.startswith("MAP_CITY_") and n.endswith(".rf4m")
+                and "_SUMMER" not in n and not is_open(n)]
+        while open_maps() < lim:                # up to the limit: no question
+            open_(more.pop(0))
+        quiet = not asked and open_maps() == lim
+        extra = more.pop(0)
+        open_(extra)                            # one past it: asks; Cancel + the box ticked
+        declined = len(asked) == 1 and not is_open(extra)
+        open_(extra)                            # asked no more this session
+        guiutil.ask_yes_no_optout = _ask
+        _check(f"up to {lim} map tabs open without asking; the next one asks, Cancel keeps it "
+               "closed, and after 'Don't warn me again this session' it opens without asking",
+               quiet and declined and len(asked) == 1 and is_open(extra), f"asked {len(asked)}x")
+        box["yesnocancel"] = False
+        for d in list(app._docs):
+            app.cmd_close_tab(d)
+        _check("closing every tab returns to the blank view",
+               not app._docs and app._doc is app._blank and app._blank.frame.winfo_manager() == "pack")
+        _check("explorer tabs raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        try:
+            root.clipboard_clear()
+            if saved_clip is not None:
+                root.clipboard_append(saved_clip)
+            root.update()
+        except tk.TclError:
+            pass
+        root.destroy()
 
 
 def _map_editor():
@@ -7380,7 +7572,7 @@ def test_asset_explorer_gui():
         p1.maptab.msea.set("3 winter"); p1.maptab._commit_msea()
         box["yesnocancel"] = None
         _check("unsaved-edits guard still covers the reused map editor",
-               app._guard_map_edits("open another file") is False)
+               app._confirm_close(app._doc, "open another file") is False)
         box["yesnocancel"] = False
         # 2) the Cutscene editor opens without a full-corpus disassembly
         import cutscene_editor
@@ -8299,7 +8491,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
         try:
