@@ -576,7 +576,7 @@ class EncountersTab(ui.ScrollFrame):
 
 # --------------------------------------------------------------------------- #
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
-                  "object": True, "decoration": True, "sprites": False, "labels": False,
+                  "object": True, "decoration": True, "sprites": True, "labels": False,
                   "sprite_borders": True, "mapj": True, "dest": True, "si": True, "gates": True, "spawns": False}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",

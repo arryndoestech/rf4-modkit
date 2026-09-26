@@ -155,7 +155,9 @@ class MapView(ttk.Frame):
     def invalidate(self, *groups):
         groups = groups or ("bg",) + render.GROUPS
         if "ent" in groups:                     # the objects' sprites
-            groups += ("under",)
+            groups += ("under", "lift")
+        if "sel" in groups:                     # the selected sprite above the ATTR fill
+            groups += ("lift",)
         self._dirty.update(groups)
         if not self._pending:
             self._pending = True
@@ -209,7 +211,7 @@ class MapView(ttk.Frame):
         for it in c.find_withtag(g):
             self._items.pop(it, None)
         c.delete(g)
-        if g == "under" and self.ground_pending():
+        if g in ("under", "lift") and self.ground_pending():
             return                              # drawn when the ground arrives (_ground_ready)
         for p in render.overlay(g, self.st):
             o = p.opt

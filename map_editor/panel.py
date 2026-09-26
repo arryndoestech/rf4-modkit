@@ -1129,7 +1129,7 @@ class MapEditorPanel:
         img = render.draw_prims(img, render.overlay("under", st), st.sprites)
         if top is not None:
             img = Image.alpha_composite(img, top)
-        prims = [p for g in render.GROUPS if g not in ("sel", "under") for p in render.overlay(g, st)]
+        prims = [p for g in render.GROUPS if g not in ("sel", "under", "lift") for p in render.overlay(g, st)]
         return render.draw_prims(img, prims, st.sprites)
 
     def export_png(self):

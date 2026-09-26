@@ -7955,6 +7955,24 @@ def test_sprite_quads_and_flags():
                tr and selp and all(p.kind == "rect" for p in selp)
                and any(p.xy == (tr[0][0] - 1, tr[0][1] - 1, tr[0][2] + 1, tr[0][3] + 1) for p in selp),
                "%s / %s" % ([(p.kind, p.xy) for p in selp], tr))
+        panel.select(("mobj", 14))
+        panel.view.flush()
+        cv = panel.view.canvas
+        pos = {it: n for n, it in enumerate(cv.find_all())}
+        lift = [pos[i] for i in cv.find_withtag("lift")]
+        attr_top = max((pos[i] for i in cv.find_withtag("attr")), default=None)
+        warp_low = min((pos[i] for i in cv.find_withtag("warp")), default=None)
+        lp = mrender.overlay("lift", st)
+        _check("editor: the selected sprite shines through the ATTR fill (drawn again right above "
+               "it, below the warps; not a hit target)",
+               len(lp) == 1 and lp[0].kind == "sprite" and lp[0].key is None and lp[0].xy == tr[0]
+               and lift and attr_top is not None and warp_low is not None
+               and attr_top < min(lift) and max(lift) < warp_low,
+               "lift %s attr %s warp %s" % (lift, attr_top, warp_low))
+        panel.select(None)
+        panel.view.flush()
+        _check("editor: nothing is lifted once the selection is cleared",
+               not cv.find_withtag("lift"))
         st.sel = None
         img = panel.render_to_image(scale=4)
         _check("editor: export draws the full-size sprites without errors",

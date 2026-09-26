@@ -21,11 +21,12 @@ except ImportError:           # the editor still runs, with a plain-rectangle AT
     HAS_PIL = False
 
 # Overlay groups, bottom to top.
-GROUPS = ("under", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
+GROUPS = ("under", "lift", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
 # canvas stacking, bottom to top: the ground texture ("bg"), the sprites ("under",
 # drawn as the game draws them, so they sit on the ground), the ATTR fill + cell edges
-# ("attr"), then every other overlay group
-STACK = ("bg", "under", "attr") + tuple(g for g in GROUPS if g != "under")
+# ("attr"), the selected object's sprite again ("lift", so it shines through the fill), then
+# every other overlay group
+STACK = ("bg", "under", "attr", "lift") + tuple(g for g in GROUPS if g not in ("under", "lift"))
 
 SEL_COLOR = "#00e5ff"
 WARP_COLOR = "#ffd040"
@@ -416,6 +417,18 @@ def overlay(group, st):
                 if src is not None:
                     out.append(Prim("sprite", _sprite_rect(o, src, cp), key=("mobj", i), fn=src[0],
                                     frame=src[1], mirror=spritequad.mirrored(o)))
+    elif group == "lift":
+        # the selected object's sprite once more, above the ATTR fill (no key: the copy in
+        # "under" stays the hit, so the pick order does not change)
+        sel = st.sel
+        if (sel is not None and sel[0] == "mobj" and sel[1] < len(doc.objs) and L.get("sprites")
+                and HAS_PIL):
+            o = doc.objs[sel[1]]
+            if entity_visible(o, L) and not flagstate.hidden(o, getattr(st, "flags", None)):
+                src = st.sprites.source(o)
+                if src is not None:
+                    out.append(Prim("sprite", _sprite_rect(o, src, cp), fn=src[0], frame=src[1],
+                                    mirror=spritequad.mirrored(o)))
     elif group == "ent":
         r = max(3, cp // 2 + 1)
         sprites_on = L.get("sprites") and HAS_PIL
