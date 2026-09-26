@@ -3155,9 +3155,10 @@ class App:
 
     def _view_route_result(self, name, data):
         """rf3RouteResult.bin — the derived next-hop matrix; regenerate it from rf3route.bin."""
+        doc = self._doc
         from rf4s_modkit import route
         gb = _find_extracted("rf3route.bin")
-        ttk.Label(self.content, wraplength=900, justify="left",
+        ttk.Label(doc.content, wraplength=900, justify="left",
                   text="Next-hop matrix hop[dst][src] (nibbles) derived from rf3route.bin; the game walks "
                        "it hop by hop (Nav_BuildPathFromAToB). It is not edited directly: change the graph "
                        "and regenerate this file.").pack(fill="x", padx=6, pady=4)
@@ -3165,7 +3166,7 @@ class App:
             g = route.RouteGraph.parse(gb)
             rr = route.RouteResult.parse(data, len(g.nodes))
             same = rr.build() == route.RouteResult.compute(g, rr.rows).build()
-            ttk.Label(self.content, text=f"{rr.rows} rows x {rr.stride} B; graph has {len(g.nodes)} nodes; "
+            ttk.Label(doc.content, text=f"{rr.rows} rows x {rr.stride} B; graph has {len(g.nodes)} nodes; "
                                          f"{'identical to' if same else 'equivalent to'} the matrix "
                                          f"recomputed from rf3route.bin"
                                          f"{'' if same else ' (differences are tie-breaks between equal-cost routes)'}"
@@ -3173,11 +3174,11 @@ class App:
 
             def _rebuild():
                 blob = route.RouteResult.compute(g, rr.rows).build()
-                self.cur_data = blob
+                doc.cur_data = blob
                 self.status.config(text="matrix recomputed from rf3route.bin — Extract… to write")
-            ttk.Button(self.content, text="Recompute from rf3route.bin", command=_rebuild).pack(padx=6, pady=4)
+            ttk.Button(doc.content, text="Recompute from rf3route.bin", command=_rebuild).pack(padx=6, pady=4)
         else:
-            ttk.Label(self.content, text="rf3route.bin is not extracted, so the matrix cannot be checked").pack(padx=6)
+            ttk.Label(doc.content, text="rf3route.bin is not extracted, so the matrix cannot be checked").pack(padx=6)
 
     def _view_search_items(self, name, data):
         """SI_*.bin editor — daily ground-pickup spots (see docs/16).
