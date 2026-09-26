@@ -5629,19 +5629,21 @@ def test_explorer_tabs():
             return app.tabbar.text(d)
         # 1) edits survive: a click with unsaved changes opens a new tab
         a = open_("rf3Schedule.bin")
-        orig = app.cur_data
-        app.cur_data = orig[:-1] + bytes([orig[-1] ^ 1])       # what an editor's Apply does
-        app._refresh_marks()
+        orig = app._doc.cur_data
+        app._doc.cur_data = orig[:-1] + bytes([orig[-1] ^ 1])       # what an editor's Apply does
+        root.update_idletasks()
+        _check("an edit marks its tab • at once (no wait for the 1 s refresh)", title(a).endswith("•"),
+               title(a))
         b = open_("rf3NpcParam.bin")
         _check("a click opens a new tab (the edited one stays, marked •)",
                len(app._docs) == 2 and a is not b and title(a).endswith("•")
-               and a.state["cur_data"] != orig and app._doc is b, [title(d) for d in app._docs])
+               and a.cur_data != orig and app._doc is b, [title(d) for d in app._docs])
         c = open_("rf3CropParam.bin")
         _check("a click on a clean tab still opens a new tab (clicks never replace a tab)",
-               c is not b and len(app._docs) == 3 and b.state["cur_name"].endswith("rf3NpcParam.bin"))
+               c is not b and len(app._docs) == 3 and b.cur_name.endswith("rf3NpcParam.bin"))
         app._select_doc(a)
         _check("switching tabs restores that tab's working copy, header and Extract",
-               app.cur_data == a.state["cur_data"] and "rf3Schedule" in app.header.cget("text")
+               app._doc.cur_data == a.cur_data and "rf3Schedule" in app.header.cget("text")
                and str(app.extract_btn.cget("state")) == "normal")
         again = open_("rf3Schedule.bin")
         _check("opening a file that is already open selects its tab", again is a and len(app._docs) == 3)
@@ -5668,7 +5670,7 @@ def test_explorer_tabs():
         _check("Up / Down show the next file in the browsed tab (no new tab); an already-open "
                "file's tab is shown, and browsing goes on in the browsed tab",
                replaced and onto_open and on_in_base, f"{replaced} {onto_open} {on_in_base}")
-        base.state["cur_data"] = base.state["cur_data"][:-1] + bytes([base.state["cur_data"][-1] ^ 1])
+        base.cur_data = base.cur_data[:-1] + bytes([base.cur_data[-1] ^ 1])
         k4 = key_(spare[3])
         _check("a browse step from a tab with unsaved changes opens a new tab (the edits stay)",
                k4 is not base and len(app._docs) == n0 + 1 and base.key[1].endswith(spare[2])
@@ -5692,9 +5694,9 @@ def test_explorer_tabs():
                and not clicked.key[1].endswith(spare[0]), f"{n1} -> {len(app._docs)}")
         # 2) map tabs: their own editors; copy in one, paste in the other with Ctrl+C / Ctrl+V
         m1 = open_("MAP_CITY_04.rf4m")
-        p1 = app._map_panel
+        p1 = app._doc._map_panel
         m2 = open_("MAP_FIELD_01.rf4m")
-        p2 = app._map_panel
+        p2 = app._doc._map_panel
         _check("each map tab has its own map editor", p1 is not None and p2 is not None and p1 is not p2
                and m1.map_panel() is p1 and m2.map_panel() is p2)
         # keys only reach a window that can take the focus: show it for the keyboard part
@@ -5774,6 +5776,110 @@ def test_explorer_tabs():
         except tk.TclError:
             pass
         root.destroy()
+
+
+# every rf4mod_gui viewer and a game file it shows (basename; "" = a made-up text file)
+_TAB_VIEWERS = {
+    "aibn": "AI_m00.bin", "asatk": "as_atk_axe_00.bin", "bplist": "AppConfig.plist",
+    "crop": "rf3CropParam.bin", "emf": "em.bin", "gen": "GenA01.bin",
+    "gift_categories": "rf3PresentCategory.bin", "gifts": "rf3PresentNpc01.bin",
+    "hex": "01_M_VIZNAR.ogg", "image": "PetMe64-8.png", "monster": "rf3NpcParam.bin",
+    "montame": "rf3MonsterPresent.bin", "param": "Fishing_rate_fish_Spring.bin",
+    "psb": "00_PLAYER_M.psbData", "quest": "rf3TxtQuest_split3_1.bin",
+    "res": "ANIM_DUNG_A02.model", "rf4m": "MAP_CITY_00.rf4m", "route": "rf3route.bin",
+    "route_result": "rf3RouteResult.bin", "schedule": "rf3Schedule.bin",
+    "search_items": "SI_CITY_00.bin", "skillcurve": "rf3ParamSkillExp.bin",
+    "strengthening": "rf3ItemStrengthening.bin", "strings": "Localization-de.strings",
+    "text": "", "textdb": "rf3mc.eng", "texture": "confetti.texture",
+}
+_TAB_SAVE_LABELS = ("Save table…", "Save…", "Save graph…")   # buttons that write the working copy
+
+
+def test_viewer_tabs():
+    """Every rf4mod_gui viewer in a tab: it opens without an error note, keeps its own data,
+    widgets and header across a switch to another tab and back, and its Save button (the
+    ones that write the working copy) clears the tab's unsaved mark."""
+    print("asset explorer viewers, one per tab:")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("viewer tabs", "no tkinter: %s" % e); return
+    if not (pathlib.Path(BUNDLE_DIR) / "bundleMain" / "rf3Schedule.bin").exists():
+        _skip("viewer tabs", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_vt", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_vt_"))
+    notes = []
+    _orig_hex = gui.App._view_hex
+    gui.App._view_hex = lambda self, name, data, error=None: (
+        notes.append((name, error)) if error else None, _orig_hex(self, name, data, error))[1]
+
+    def widgets(w):
+        n = 0
+        for c in w.winfo_children():
+            n += 1 + widgets(c)
+        return n
+
+    def find_buttons(w):
+        out = []
+        for c in w.winfo_children():
+            if c.winfo_class() == "TButton" and str(c.cget("text")) in _TAB_SAVE_LABELS:
+                out.append(c)
+            out += find_buttons(c)
+        return out
+    try:
+        app = gui.App(root, initial=str(BUNDLE_DIR))
+        byname = {}
+        for e in app.source.entries:
+            byname.setdefault(e[0].rsplit("/", 1)[-1], e)
+        for viewer, fname in _TAB_VIEWERS.items():
+            if fname:
+                if fname not in byname:
+                    _skip(f"{viewer} viewer in a tab", f"{fname} not in this game copy"); continue
+                n, _g, loader = byname[fname]
+                key, data = app._entry_key(n), loader()
+            else:
+                n, key, data = "notes.xyz", ("test", "notes.xyz"), b"a made-up text file\nline 2\n"
+            del notes[:]
+            d1 = app._open_in_tab(key, n, data)
+            root.update_idletasks()
+            data1, header1, w1 = d1.cur_data, app.header.cget("text"), widgets(d1.frame)
+            other = "rf3Schedule.bin" if fname != "rf3Schedule.bin" else "rf3NpcParam.bin"
+            on, _g, ol = byname[other]
+            d2 = app._open_in_tab(app._entry_key(on), on, ol())
+            root.update_idletasks()
+            app._select_doc(d1)
+            root.update_idletasks()
+            kept = (d2 is not d1 and app._doc is d1 and d1.cur_data is data1 and w1 > 0
+                    and widgets(d1.frame) == w1 and app.header.cget("text") == header1)
+            what = "opens, keeps its data, widgets and header across a tab switch"
+            ok = not notes and kept
+            saves = find_buttons(d1.frame)
+            if saves:
+                d1.cur_data = d1.cur_data[:-1] + bytes([d1.cur_data[-1] ^ 1])   # an edit
+                dirty = d1.is_dirty()
+                out = tmp / f"{viewer}.bin"
+                box["save"] = str(out)
+                saves[0].invoke()
+                root.update_idletasks()
+                box["save"] = ""
+                what += f"; '{saves[0].cget('text')}' clears the tab's unsaved mark"
+                ok = ok and dirty and out.is_file() and not d1.is_dirty()
+            _check(f"{viewer} viewer in a tab: {what}", ok,
+                   f"notes={notes[:1]} kept={kept} {fname or n}")
+            box["yesnocancel"] = False
+            for d in list(app._docs):
+                app.cmd_close_tab(d)
+        _check("viewer tabs raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        gui.App._view_hex = _orig_hex
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _map_editor():
@@ -7541,12 +7647,12 @@ def test_asset_explorer_gui():
             n, _g, loader = ents[nm]
             app._show(n, loader()); root.update_idletasks()
         show("MAP_FIELD_01.rf4m")
-        p1 = app._map_panel
+        p1 = app._doc._map_panel
         show("MAP_CITY_00.rf4m")
-        p2 = app._map_panel
+        p2 = app._doc._map_panel
         _check("map clicks reuse ONE map editor (set_map, no rebuild)",
                p1 is not None and p1 is p2 and p2.map_base == "MAP_CITY_00")
-        nb = app._map_view["nb"]
+        nb = app._doc._map_view["nb"]
         _outer = [nb.tab(t, "text") for t in nb.tabs()]
         _side = [p2.nb.tab(t, "text") for t in p2.nb.tabs()]
         _check("the map's Events tab sits in the editor's sidebar (once, just before Problems, "
@@ -7565,10 +7671,10 @@ def test_asset_explorer_gui():
         gen0 = p2.view.ground.generation
         show("MAP_FIELD_01_0000.texture")
         _check("a non-map view hides the editor (kept alive) and suspends its decode",
-               app._map_panel is None and nb.winfo_exists() and nb.winfo_manager() == ""
+               app._doc._map_panel is None and nb.winfo_exists() and nb.winfo_manager() == ""
                and p2.view.ground.generation > gen0)
         show("MAP_FIELD_01.rf4m")
-        _check("back to a map: the same editor is shown again", app._map_panel is p1 and nb.winfo_manager() == "pack")
+        _check("back to a map: the same editor is shown again", app._doc._map_panel is p1 and nb.winfo_manager() == "pack")
         p1.maptab.msea.set("3 winter"); p1.maptab._commit_msea()
         box["yesnocancel"] = None
         _check("unsaved-edits guard still covers the reused map editor",
@@ -7588,8 +7694,8 @@ def test_asset_explorer_gui():
             for c in w.winfo_children():
                 yield c
                 yield from widgets(c)
-        btns = [w for w in widgets(app.content) if w.winfo_class() == "TButton" and str(w.cget("text")) == "Play"]
-        labels = [w for w in widgets(app.content) if w.winfo_class() == "TLabel"
+        btns = [w for w in widgets(app._doc.content) if w.winfo_class() == "TButton" and str(w.cget("text")) == "Play"]
+        labels = [w for w in widgets(app._doc.content) if w.winfo_class() == "TLabel"
                   and str(w.cget("text")).startswith("frame ")]
         before = str(labels[0].cget("text")) if labels else None
         if btns:
@@ -7600,7 +7706,7 @@ def test_asset_explorer_gui():
             btns[0].invoke()
         after = str(labels[0].cget("text")) if labels else None
         _check("the Model tab plays an effect model's .bfmat (Play advances the frame)",
-               bool(btns) and before != after and not app._model_playing, f"{before!r} -> {after!r}")
+               bool(btns) and before != after and not app._doc._model_playing, f"{before!r} -> {after!r}")
         # categories, sizes and sorting (a first-time user's "what kind of file is this?")
         from rf4s_modkit import assetcat
         samples = {"01_M_VIZNAR.ogg": "audio", "00_PLAYER_M_body_00.texture": "texture",
@@ -7704,7 +7810,7 @@ def test_asset_explorer_gui():
             n, _g, loader = byname["GenE89.bin"]
             app._show(n, loader())
             root.update()
-            h = app._gen_host
+            h = app._doc._gen_host
             _view_ok = (h.map is not None and h.map.endswith("MAP_DUNG_E89.rf4m") and h._picture() is not None
                         and type(h.pane).__name__ == "EncountersTab" and h.gate_index == (0, 0)
                         and len(h.pane.roster.get_children()) > 0)
@@ -7715,14 +7821,14 @@ def test_asset_explorer_gui():
             _ev = type("E", (), {})()
             _ev.x, _ev.y = _x0 / 8 * _ppt, _y0 / 8 * _ppt
             h._press(_ev); _ev.x += 16; h._motion(_ev); h._release(_ev)
-            _t = gen.GenTable(app.cur_data)
+            _t = gen.GenTable(app._doc.cur_data)
             _moved = _t.gate_positions_off(_t.patterns[0][0])[0][1] != _x0
             _n0 = len(h.doc.gen.monster_positions_off(h.active_gate))
             h.start_add("mpos"); _ev.x, _ev.y = 60, 80; h._press(_ev)
             _added = len(h.doc.gen.monster_positions_off(h.active_gate)) == _n0 + 1
             _sp = h.active_gate.spawns[0]
             h.apply("Edit roster monster", "gen", lambda: h.doc.gen.set_spawn_pick_weight(_sp, 7))
-            _edited = gen.GenTable(app.cur_data).patterns[0][0].spawns[0].pick_weight == 7
+            _edited = gen.GenTable(app._doc.cur_data).patterns[0][0].spawns[0].pick_weight == 7
             _fld = _med.maps_for_gen("GenField01.bin", ["MAP_FIELD_01_SUMMER.rf4m", "MAP_FIELD_01.rf4m",
                                                         "MAP_FIELD_02.rf4m", "MAP_DUNG_E89.rf4m"])
             _check("Gen view: its map's picture + the Encounters pane (first gate selected); drag a gate, "
@@ -7730,13 +7836,13 @@ def test_asset_explorer_gui():
                    _view_ok and _moved and _added and _edited
                    and _fld == ["MAP_FIELD_01.rf4m", "MAP_FIELD_01_SUMMER.rf4m"],
                    f"view={_view_ok} moved={_moved} added={_added} edited={_edited} field={_fld}")
-            _ob = next((x for x in _find(app.content, "TButton") if x.cget("text") == "Open in map editor"), None)
+            _ob = next((x for x in _find(app._doc.content, "TButton") if x.cget("text") == "Open in map editor"), None)
             _ok_btn = False
             if _ob is not None:
                 _ob.invoke()
                 root.update()
-                _p = app._map_panel
-                _ok_btn = (app.cur_name.endswith("MAP_DUNG_E89.rf4m") and _p is not None
+                _p = app._doc._map_panel
+                _ok_btn = (app._doc.cur_name.endswith("MAP_DUNG_E89.rf4m") and _p is not None
                            and _p.nb.tab(_p.nb.select(), "text") == "Encounters")
             _check("Gen view: 'Open in map editor' lands on that map's Encounters tab", _ok_btn)
         _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
@@ -7914,12 +8020,12 @@ def test_skeletal_anims():
             for c in w.winfo_children():
                 yield c
                 yield from widgets(c)
-        cbs = [w for w in widgets(app.content) if w.winfo_class() == "TCombobox"
+        cbs = [w for w in widgets(app._doc.content) if w.winfo_class() == "TCombobox"
                and any(str(v).endswith(".bfskl") for v in w.cget("values"))]
         ok = False
         if cbs:
             cbs[0].set("M03_0_02.bfskl"); cbs[0].event_generate("<<ComboboxSelected>>"); root.update()
-            lab = [w for w in widgets(app.content) if w.winfo_class() == "TLabel"
+            lab = [w for w in widgets(app._doc.content) if w.winfo_class() == "TLabel"
                    and str(w.cget("text")).startswith("frame ") and "/48" in str(w.cget("text"))]
             play = [w for w in cbs[0].master.winfo_children() if w.winfo_class() == "TButton"
                     and str(w.cget("text")) == "Play"]
@@ -8053,7 +8159,7 @@ def test_portraits():
             ent = next(x for x in app.source.entries if x[0].rsplit("/", 1)[-1] == a_p.name)
             app._show(ent[0], ent[2]()); root.update_idletasks()
             _check("psb: asset explorer shows the portrait atlas for a .psbData",
-                   app._pil is not None and app._pil.size == im.size and app._export_kind == "png" and not errs)
+                   app._doc._pil is not None and app._doc._pil.size == im.size and app._doc._export_kind == "png" and not errs)
         finally:
             root.destroy()
     except Exception as ex:  # noqa: BLE001
@@ -8491,7 +8597,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
         try:

@@ -285,9 +285,10 @@ class _GenHost:
     PICTURE_PX = 440
     PICTURE_PAD = 12                     # the picture column's padx (6 + 6)
 
-    def __init__(self, app, name, g):
+    def __init__(self, app, name, g, tab):
         import types
         self.app, self.name = app, name
+        self.tab = tab                   # the explorer tab (_Doc) this Gen file is open in
         self.doc = types.SimpleNamespace(gen=g, gen_path=pathlib.Path(name))
         self.gate_index = None
         self.pane = None
@@ -338,7 +339,7 @@ class _GenHost:
                                                                     else "monster spawn point"))
 
     def _changed(self, label):
-        self.app.cur_data = self.doc.gen.build()
+        self.tab.cur_data = self.doc.gen.build()
         if self.pane is not None:
             self.pane.refresh()
         self.redraw()
@@ -350,7 +351,7 @@ class _GenHost:
         from map_editor import data as med
         from rf4s_modkit import map_names as mn
         app = self.app
-        row = ttk.Frame(app.content)
+        row = ttk.Frame(self.tab.content)
         row.pack(fill="x", padx=6, pady=(2, 4))
         self.map = maps[0][0] if maps else None
         if not maps:
@@ -385,11 +386,12 @@ class _GenHost:
 
     def save(self):
         blob = self.doc.gen.build()
-        self.app.cur_data = blob
+        self.tab.cur_data = blob
         f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile=pathlib.Path(self.name).name,
                                          filetypes=[("Gen table", "*.bin"), ("All", "*.*")])
         if f:
             pathlib.Path(f).write_bytes(blob)
+            self.app._mark_saved(self.tab)
             self.status(f"Saved the monster spawns → {f}")
 
     # ---- the flat map picture ------------------------------------------------------- #
@@ -557,38 +559,52 @@ class _GenHost:
 
 
 class _Doc:
-    """One open file = one tab: its working copy, the bytes last loaded or saved (so the tab
-    knows it has unsaved changes), its own content frame, and every piece of view state the
-    viewers keep on the App (App routes the VIEW_STATE attributes to the active tab's _Doc,
-    so a hidden tab keeps its images, map editor, zoom ... untouched)."""
-    DEFAULTS = {"cur_name": None, "cur_data": None, "cur_image": None, "zoom": 1.0, "_pil": None}
+    """One open file = one tab: its working copy (cur_data), the bytes last loaded or saved
+    (so the tab knows it has unsaved changes), its own content frame, and the view state its
+    viewer keeps (image, zoom, map editor, animation timers ...), so a hidden tab keeps all
+    of it untouched. Viewers take `doc = self._doc` when they build and use doc.<name>."""
+    VIEW = ("cur_name", "cur_data", "cur_image", "_pil", "_img_canvas",
+            "_export_kind", "_export_text", "_export_data", "_export_arc",
+            "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
+            "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
+            "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
+            "_events_new_scene")
 
-    def __init__(self, frame):
+    def __init__(self, frame, on_data=None):
+        for name in self.VIEW:
+            object.__setattr__(self, name, None)
+        self.zoom = 1.0
+        self.content = frame            # what the viewers build into
         self.frame = frame
         self.key = None                 # (source label, entry name): the same file opens here
         self.saved = None               # the bytes as loaded or last written to a file
         self.header = "Select an asset"
-        self.state = dict(self.DEFAULTS, content=frame)
         self.parked = []                # timers that came due while the tab was hidden
+        self.on_data = on_data          # called after cur_data changes (the tab's • mark)
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name == "cur_data" and self.on_data is not None:
+            self.on_data()
 
     def map_panel(self):
         """This tab's map editor (built the first time it shows a map), or None."""
-        mv = self.state.get("_map_view")
+        mv = self._map_view
         return mv.get("panel") if mv else None
 
     def is_dirty(self):
-        panel = self.state.get("_map_panel")        # set while the tab shows a map
+        panel = self._map_panel                     # set while the tab shows a map
         if panel is not None:
             try:
                 return panel.is_dirty()
             except tk.TclError:
                 return False
-        data = self.state.get("cur_data")
+        data = self.cur_data
         return data is not None and self.saved is not None and data is not self.saved \
             and data != self.saved
 
     def title(self):
-        name = (self.state.get("cur_name") or "…").replace("\\", "/").rsplit("/", 1)[-1]
+        name = (self.cur_name or "…").replace("\\", "/").rsplit("/", 1)[-1]
         return name + ("  •" if self.is_dirty() else "")
 
     def on_hide(self):
@@ -612,37 +628,13 @@ class _Doc:
 
 
 class App:
-    # View state the viewers keep on the App (self.cur_data, self._pil, self.content ...):
-    # each lives on the active tab's _Doc (see __getattr__ / __setattr__), so every viewer
-    # works per tab without being rewritten.
-    VIEW_STATE = frozenset({
-        "cur_name", "cur_data", "cur_image", "zoom", "_pil", "_img_canvas", "content",
-        "_export_kind", "_export_text", "_export_data", "_export_arc",
-        "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
-        "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
-        "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
-        "_events_new_scene"})
+    # Each open file is a tab (_Doc) that owns its view state: viewers build into
+    # `doc = self._doc` (the shown tab) and keep everything on it, never on the App.
     MAP_TABS_ASK = 10       # more open map tabs than this asks first (each keeps an editor)
-
-    def __getattr__(self, name):
-        # only reached when normal lookup fails: VIEW_STATE never sits in the instance dict
-        if name in App.VIEW_STATE:
-            doc = self.__dict__.get("_doc")
-            if doc is not None and name in doc.state:
-                return doc.state[name]
-        raise AttributeError(name)
-
-    def __setattr__(self, name, value):
-        if name in App.VIEW_STATE:
-            self.__dict__["_doc"].state[name] = value
-            if name == "cur_data":
-                self._mark_later()
-        else:
-            object.__setattr__(self, name, value)
 
     def __init__(self, root: tk.Tk, initial=None):
         self.root = root
-        self._blank = _Doc(None)        # the empty view while no tab is open
+        self._blank = _Doc(None, on_data=self._mark_later)   # the empty view while no tab is open
         self._doc = self._blank         # the tab the viewers work on
         self._docs: list[_Doc] = []     # open tabs, in tab order
         self._mark_pending = False
@@ -783,9 +775,8 @@ class App:
             self.root.bind("<Control-ISO_Left_Tab>", lambda _e: self._cycle_tab(-1) or "break")
         except tk.TclError:                     # no such keysym here
             pass
-        self.content = ttk.Frame(self.right)   # the blank view's frame (App routes to _Doc)
-        self.content.pack(fill="both", expand=True)
-        self._blank.frame = self.content
+        self._blank.content = self._blank.frame = ttk.Frame(self.right)   # the blank view
+        self._blank.frame.pack(fill="both", expand=True)
         self._poll_id = self.root.after(1000, self._poll_marks)
         # stop the poll with the window (a destroyed Tk must not run it)
         self.tabbar.bind("<Destroy>", lambda e: e.widget is self.tabbar and self._stop_poll(), add="+")
@@ -1213,7 +1204,7 @@ class App:
 
     def _new_doc(self):
         frame = ttk.Frame(self.tab_area)
-        doc = _Doc(frame)
+        doc = _Doc(frame, on_data=self._mark_later)
         self._docs.append(doc)
         self.tabbar.add(doc, "…")
         if len(self._docs) == 1:                # the first tab replaces the blank view
@@ -1248,8 +1239,8 @@ class App:
         old.on_hide()
         self._doc = doc
         self.header.config(text=doc.header)
-        self.extract_btn.config(state="normal" if doc.state.get("cur_data") is not None else "disabled")
-        self.export_btn.config(state="normal" if doc.state.get("_export_kind") else "disabled")
+        self.extract_btn.config(state="normal" if doc.cur_data is not None else "disabled")
+        self.export_btn.config(state="normal" if doc._export_kind else "disabled")
         doc.on_show()
 
     def _on_tab_menu(self, doc, e):
@@ -1278,7 +1269,7 @@ class App:
         if not doc.is_dirty():
             return True
         self._select_doc(doc)                   # show what the question is about
-        panel = doc.state.get("_map_panel")
+        panel = doc._map_panel
         if panel is not None:
             try:
                 return panel.confirm_discard(action)
@@ -1294,7 +1285,7 @@ class App:
 
     def _drop_doc(self, doc):
         for k in ("_anim_after", "_skel_after"):
-            t = doc.state.get(k)
+            t = getattr(doc, k)
             if t:
                 try:
                     self.root.after_cancel(t)
@@ -1326,7 +1317,7 @@ class App:
 
     def _mark_later(self):
         """A working copy changed: update the tabs' unsaved marks once the change is done."""
-        if not self.__dict__.get("_mark_pending", True) and "tabs" in self.__dict__:
+        if not self.__dict__.get("_mark_pending", True) and "tabbar" in self.__dict__:
             self._mark_pending = True
             self.root.after_idle(self._refresh_marks)
 
@@ -1366,44 +1357,52 @@ class App:
 
     def _set_doc_data(self, doc, data):
         """A tab-bound editor (the map editor) changed its tab's working copy."""
-        doc.state["cur_data"] = data
-        self._mark_later()
+        doc.cur_data = data                     # (the doc's on_data updates the • mark)
 
-    def _mark_saved(self):
-        """The shown working copy was just written to a file: the tab has no unsaved changes."""
-        self._doc.saved = self.cur_data
-        self._retitle(self._doc)
+    def _mark_saved(self, doc=None):
+        """A tab's working copy (the shown one by default) was just written to a file: the tab
+        has no unsaved changes."""
+        doc = doc or self._doc
+        doc.saved = doc.cur_data
+        self._retitle(doc)
 
     # ---- viewer dispatch ------------------------------------------------- #
-    def _clear_content(self):
-        if getattr(self, "_anim_after", None):     # stop a running flipbook animation
-            self.root.after_cancel(self._anim_after)
-        self._anim_after = None
-        self._tex_playing = False
-        self._model_playing = False
-        self._tex_frames = None
-        mv = getattr(self, "_map_view", None)
-        for w in self.content.winfo_children():
+    def _clear_content(self, doc=None):
+        doc = doc or self._doc
+        if getattr(doc, "_anim_after", None):     # stop a running flipbook animation
+            self.root.after_cancel(doc._anim_after)
+        doc._anim_after = None
+        doc._tex_playing = False
+        doc._model_playing = False
+        doc._tex_frames = None
+        mv = getattr(doc, "_map_view", None)
+        for w in doc.content.winfo_children():
             if mv is not None and w is mv["nb"]:
                 # Kept for the next map (see _view_rf4m) and deliberately left MAPPED here:
                 # un-mapping and re-mapping it re-paints every themed widget of the editor
                 # (~0.1-0.9 s on Windows) on each map-to-map click. _show hides it once it
                 # knows the new view is not a map.
-                self._map_view_hide = True
+                doc._map_view_hide = True
                 continue
             w.destroy()
-        self._map_panel = None      # not shown: never guard/export a hidden panel
-        self.cur_image = None
-        self._pil = None
-        self.export_btn.config(state="disabled")
-        self._export_kind = None
+        doc._map_panel = None      # not shown: never guard/export a hidden panel
+        doc.cur_image = None
+        doc._pil = None
+        if doc is self._doc:
+            self.export_btn.config(state="disabled")
+        doc._export_kind = None
 
-    def _show(self, name: str, data: bytes):
-        self._clear_content()
+    def _show(self, name: str, data: bytes, doc=None):
+        """Build the viewer for (name, data) in a tab (the shown one by default; another tab
+        is brought to the front first: viewers build into the tab being shown)."""
+        doc = doc or self._doc
+        if doc is not self._doc:
+            self._select_doc(doc)
+        self._clear_content(doc)
         # The shown bytes ARE the working copy: every editing panel reads/writes
-        # self.cur_data, so keep it in sync whatever path called us (file browser,
+        # doc.cur_data, so keep it in sync whatever path called us (file browser,
         # a panel re-rendering after an edit, or a programmatic open).
-        self.cur_name, self.cur_data = name, data
+        doc.cur_name, doc.cur_data = name, data
         self.extract_btn.config(state="normal")
         ft = ident.identify(data[:0x4000], filename=name)
         self.header.config(text=f"{name}    —    {ft.fmt}: {ft.desc}    ({human(len(data))})")
@@ -1468,18 +1467,19 @@ class App:
                 handler(name, data)
             else:
                 self._view_hex(name, data)
-            self._hide_map_view_if_unused()
+            self._hide_map_view_if_unused(doc)
         except Exception as e:
-            self._clear_content()   # drop any partial widgets the failed handler packed
+            self._clear_content(doc)   # drop any partial widgets the failed handler packed
             self._view_hex(name, data, error=str(e))
-            self._hide_map_view_if_unused()
+            self._hide_map_view_if_unused(doc)
 
-    def _hide_map_view_if_unused(self):
+    def _hide_map_view_if_unused(self, doc=None):
         """After a view is built: hide the kept map editor unless that view used it."""
-        mv = getattr(self, "_map_view", None)
-        if mv is None or not getattr(self, "_map_view_hide", False):
+        doc = doc or self._doc
+        mv = getattr(doc, "_map_view", None)
+        if mv is None or not getattr(doc, "_map_view_hide", False):
             return
-        self._map_view_hide = False
+        doc._map_view_hide = False
         try:
             mv["nb"].pack_forget()
             mv["panel"].suspend()           # stop its background texture decode
@@ -1488,19 +1488,20 @@ class App:
 
     # ---- per-type views -------------------------------------------------- #
     def _view_texture(self, name, data):
+        doc = self._doc
         if not HAS_PIL:
             self._view_hex(name, data, error="Pillow not installed (pip install Pillow)")
             return
         info = texture.parse(data)
         nframes = info.get("frames", 1)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         head = f"{info['fmt_name']}  {info['width']}x{info['height']}  (code 0x{info['fmt_code']:X})"
         if nframes > 1:
             head += f"   flipbook: {nframes} frames"
         ttk.Label(bar, text=head).pack(side="left", padx=6)
         for z, lbl in ((0.5, "½×"), (1, "1×"), (2, "2×"), (4, "4×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
         ttk.Button(bar, text="Replace from PNG…",
                    command=lambda: self._replace_texture_png(name)).pack(side="left", padx=(10, 0))
         try:
@@ -1513,67 +1514,68 @@ class App:
             self._view_hex(name, data, error=str(e)); return
         if not frames:
             self._view_hex(name, data, error="unsupported texture format"); return
-        self._pil = frames[0]
-        self._img_canvas = self._make_image_canvas()
-        self._set_zoom(2.0 if max(frames[0].size) <= 64 else 1.0)  # tiny flipbook cells: zoom in
-        self._export_kind = "png"
+        doc._pil = frames[0]
+        doc._img_canvas = self._make_image_canvas(doc=doc)
+        self._set_zoom(2.0 if max(frames[0].size) <= 64 else 1.0, doc)  # tiny flipbook cells: zoom in
+        doc._export_kind = "png"
         self.export_btn.config(state="normal")
         if len(frames) > 1:
             # Flipbook controls: prev/next, play/stop (~8 fps default; in-game
             # speed is per-MOBJ-record f9, unknown here), and GIF export.
-            self._tex_frames = frames
-            self._tex_fi = 0
+            doc._tex_frames = frames
+            doc._tex_fi = 0
             fl = ttk.Label(bar, text=f"frame 1/{len(frames)}")
 
             def show(i):
-                self._tex_fi = i % len(self._tex_frames)
-                self._pil = self._tex_frames[self._tex_fi]
-                fl.config(text=f"frame {self._tex_fi + 1}/{len(self._tex_frames)}")
-                self._set_zoom(self.zoom)
+                doc._tex_fi = i % len(doc._tex_frames)
+                doc._pil = doc._tex_frames[doc._tex_fi]
+                fl.config(text=f"frame {doc._tex_fi + 1}/{len(doc._tex_frames)}")
+                self._set_zoom(doc.zoom, doc)
 
             def tick():
-                self._anim_after = None
-                if getattr(self, "_tex_playing", False):
-                    show(self._tex_fi + 1)
-                    self._anim_after = self._doc_after(120, tick)
+                doc._anim_after = None
+                if getattr(doc, "_tex_playing", False):
+                    show(doc._tex_fi + 1)
+                    doc._anim_after = self._doc_after(120, tick)
 
             def toggle():
-                self._tex_playing = not getattr(self, "_tex_playing", False)
-                pb.config(text="Stop" if self._tex_playing else "Play")
-                if self._tex_playing and self._anim_after is None:
+                doc._tex_playing = not getattr(doc, "_tex_playing", False)
+                pb.config(text="Stop" if doc._tex_playing else "Play")
+                if doc._tex_playing and doc._anim_after is None:
                     tick()
 
-            ttk.Button(bar, text="◀", width=3, command=lambda: show(self._tex_fi - 1)).pack(side="left", padx=(10, 0))
+            ttk.Button(bar, text="◀", width=3, command=lambda: show(doc._tex_fi - 1)).pack(side="left", padx=(10, 0))
             fl.pack(side="left", padx=4)
-            ttk.Button(bar, text="▶", width=3, command=lambda: show(self._tex_fi + 1)).pack(side="left")
+            ttk.Button(bar, text="▶", width=3, command=lambda: show(doc._tex_fi + 1)).pack(side="left")
             pb = ttk.Button(bar, text="Play", width=5, command=toggle)
             pb.pack(side="left", padx=4)
             ttk.Button(bar, text="GIF…", width=5,
                        command=lambda: self._export_texture_gif(name)).pack(side="left")
-            self._tex_playing = False
-            self._anim_after = None
+            doc._tex_playing = False
+            doc._anim_after = None
 
     def _replace_texture_png(self, name):
         """Re-skin the shown .texture from a PNG of the same size, re-encoded in the
         template frame's own format (BC7/BC3/BC1 at the same size, raw kept -- see
         texture.encode_into). For a flipbook only the frame being shown is replaced.
         Updates the working copy (cur_data) like the other editors; Extract writes it."""
-        if self.cur_data is None:
+        doc = self._doc
+        if doc.cur_data is None:
             return
         f = filedialog.askopenfilename(title="Replace texture pixels from PNG…",
                                        filetypes=[("PNG image", "*.png"), ("All images", "*.*")])
         if not f:
             return
-        frames = getattr(self, "_tex_frames", None)
-        frame = getattr(self, "_tex_fi", 0) if frames and len(frames) > 1 else None
-        before = len(self.cur_data)
+        frames = getattr(doc, "_tex_frames", None)
+        frame = getattr(doc, "_tex_fi", 0) if frames and len(frames) > 1 else None
+        before = len(doc.cur_data)
         try:
-            blob = texture.encode_into(self.cur_data, f, frame=frame)
+            blob = texture.encode_into(doc.cur_data, f, frame=frame)
         except Exception as e:
             messagebox.showerror("Replace failed", str(e))
             return
-        self.cur_data = blob
-        self._show(name, blob)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
         which = f"frame {frame + 1} " if frame is not None else ""
         size = "same size, bundle patch-able" if len(blob) == before else f"was {before:,}"
         self.status.config(text=f"Replaced {which}pixels from {pathlib.Path(f).name} -> "
@@ -1581,7 +1583,8 @@ class App:
 
     def _export_texture_gif(self, name):
         """Save the current flipbook as an animated GIF (120 ms/frame, looped)."""
-        frames = getattr(self, "_tex_frames", None)
+        doc = self._doc
+        frames = getattr(doc, "_tex_frames", None)
         if not frames:
             return
         stem = pathlib.Path(name).stem
@@ -1596,6 +1599,7 @@ class App:
     def _view_image(self, name, data):
         """Standard raster image (PNG/JPEG/GIF/BMP/TIFF/WebP/TGA/DDS/ICO) via Pillow,
         shown in the same zoom/pan canvas the texture viewer uses. Export View -> PNG."""
+        doc = self._doc
         if not HAS_PIL:
             self._view_hex(name, data, error="Pillow not installed (pip install Pillow)")
             return
@@ -1607,37 +1611,39 @@ class App:
             self._view_hex(name, data, error=f"image decode failed: {e}")
             return
         n_frames = getattr(img, "n_frames", 1)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         info = f"{img.format or '?'}   {img.width}x{img.height}   {img.mode}"
         if n_frames > 1:
             info += f"   ({n_frames} frames -- showing #1)"
         ttk.Label(bar, text=info).pack(side="left", padx=6)
         for z, lbl in ((0.25, "¼×"), (0.5, "½×"), (1, "1×"), (2, "2×"), (4, "4×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
         # RGBA so alpha shows over the dark canvas and PNG export keeps transparency.
-        self._pil = img.convert("RGBA")
-        self._img_canvas = self._make_image_canvas()
+        doc._pil = img.convert("RGBA")
+        doc._img_canvas = self._make_image_canvas(doc=doc)
         # fit large images to the viewport on open; small ones show 1:1.
-        self._set_zoom(self._fit_zoom(img.width, img.height))
-        self._export_kind = "png"
+        self._set_zoom(self._fit_zoom(img.width, img.height, doc), doc)
+        doc._export_kind = "png"
         self.export_btn.config(state="normal")
 
-    def _fit_zoom(self, w, h):
+    def _fit_zoom(self, w, h, doc=None):
         """Pick an initial zoom so a large image fits the content pane (never upscales)."""
+        doc = doc or self._doc
         try:
-            self.content.update_idletasks()
-            cw = max(64, self.content.winfo_width() - 24)
-            ch = max(64, self.content.winfo_height() - 48)
+            doc.content.update_idletasks()
+            cw = max(64, doc.content.winfo_width() - 24)
+            ch = max(64, doc.content.winfo_height() - 48)
         except Exception:  # noqa: BLE001
             return 1.0
         if w <= cw and h <= ch:
             return 1.0
         return max(0.05, min(cw / w, ch / h))
 
-    def _navigate_to_map(self, map_name):
+    def _navigate_to_map(self, map_name, doc=None):
         """Ctrl+click-a-warp handler from the embedded map editor: find {map_name}.rf4m in the
         current source, load it, and re-render (keeping cur_name/cur_data in sync)."""
+        doc = doc or self._doc
         if not self.source:
             return
         target = f"{map_name}.rf4m".lower()
@@ -1648,10 +1654,10 @@ class App:
                     data = loader()
                 except Exception as e:  # noqa: BLE001
                     self.status.config(text=f"navigate failed: {e}"); return
-                self.cur_name, self.cur_data = name, data
-                self._doc.key, self._doc.saved = self._entry_key(name), data
-                self._show(name, data)
-                self._retitle(self._doc)
+                doc.cur_name, doc.cur_data = name, data
+                doc.key, doc.saved = self._entry_key(name), data
+                self._show(name, data, doc)
+                self._retitle(doc)
                 return
         self.status.config(text=f"{map_name}.rf4m not found in this source")
 
@@ -1673,14 +1679,15 @@ class App:
         previous panel's texture-decode thread running and threw its texture cache away.
         Now switching maps is set_map() on the same panel (stale decodes are cancelled, and
         revisiting a map reuses its decoded ground). Returns (notebook, panel | None)."""
-        mv = getattr(self, "_map_view", None)
+        doc = self._doc
+        mv = getattr(doc, "_map_view", None)
         if mv is not None:
             try:
                 alive = bool(mv["nb"].winfo_exists())
             except tk.TclError:
                 alive = False
             if not alive:
-                self._map_view = mv = None
+                doc._map_view = mv = None
         if mv is not None:
             nb, panel = mv["nb"], mv["panel"]
             for f in mv["extra"]:
@@ -1695,35 +1702,36 @@ class App:
                     ev.destroy()
                 except tk.TclError:
                     pass
-            self._map_view_hide = False
+            doc._map_view_hide = False
             panel.tex_reader = self.source.read_named if self.source else None
             panel.set_map(m, name)
             if not nb.winfo_ismapped() or nb.winfo_manager() != "pack":
                 nb.pack(fill="both", expand=True)
             nb.select(mv["mapframe"])
             return nb, panel
-        nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
+        nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
         try:
             import map_editor
             mapframe = ttk.Frame(nb); nb.add(mapframe, text="Map (edit)")
             panel = map_editor.MapEditorPanel(
                 mapframe, m, name,
                 status_fn=lambda s_: self.status.config(text=s_),
-                on_change=lambda b, doc=self._doc: self._set_doc_data(doc, b),
+                on_change=lambda b: self._set_doc_data(doc, b),   # this tab's working copy
                 tex_reader=self.source.read_named if self.source else None,
-                on_navigate=self._navigate_to_map,   # Ctrl+click a warp -> open that map
+                on_navigate=lambda n: self._navigate_to_map(n, doc),   # Ctrl+click a warp -> that map, here
                 on_open_scene=self._open_scene_editor)  # click NPC-spawn marker -> its script line
             nb.select(mapframe)              # open the map editor first
         except Exception as e:
             self.status.config(text=f"map editor unavailable: {e}")
             return nb, None                  # not cached: the next map retries the build
-        self._map_view = {"nb": nb, "panel": panel, "mapframe": mapframe, "extra": []}
-        nb.bind("<<NotebookTabChanged>>", self._on_map_tab_changed, add="+")
+        doc._map_view = {"nb": nb, "panel": panel, "mapframe": mapframe, "extra": []}
+        nb.bind("<<NotebookTabChanged>>", lambda e: self._on_map_tab_changed(e, doc), add="+")
         return nb, panel
 
-    def _on_map_tab_changed(self, _e=None):
+    def _on_map_tab_changed(self, _e=None, doc=None):
         """Fill a lazily-built tab (the Hex dump) the first time it is shown."""
-        mv = getattr(self, "_map_view", None)
+        doc = doc or self._doc
+        mv = getattr(doc, "_map_view", None)
         if mv is None:
             return
         try:
@@ -1735,12 +1743,13 @@ class App:
             fill()
 
     def _view_rf4m(self, name, data):
+        doc = self._doc
         m = rf4m.Rf4mMap.parse(data)
-        self._rf4m = m                       # editable map state (Map tab + MOBJ tab edit this)
-        self._map_panel = None               # reset: a failed embed must not export a stale panel
+        doc._rf4m = m                       # editable map state (Map tab + MOBJ tab edit this)
+        doc._map_panel = None               # reset: a failed embed must not export a stale panel
         nb, panel = self._map_notebook(m, name)
-        self._map_panel = panel
-        mv = getattr(self, "_map_view", None)
+        doc._map_panel = panel
+        mv = getattr(doc, "_map_view", None)
         before = set(nb.tabs())
         # cutscene/event tab: this map's scenes from rf3.mc tail[mapId], in the map editor's
         # sidebar next to Encounters / Problems (the outer notebook keeps Map / Chunks / Hex)
@@ -1749,7 +1758,7 @@ class App:
         except Exception as e:
             self.status.config(text=f"events tab unavailable: {e}")
         # summary tab
-        txt = self._make_text_tab(nb, "Chunks")
+        txt = self._make_text_tab(nb, "Chunks", doc=doc)
         txt.insert("end", f"{m.summary()}\n\n")
         for c in m.chunks:
             txt.insert("end", f"  {c.tag.decode('latin1'):5} {len(c.payload):>8} B   "
@@ -1764,7 +1773,7 @@ class App:
         # read-only hex tab (a peer of Chunks); monospace so the offset / hex / ASCII columns
         # line up. Filled only when first opened: dumping a whole map into a Text widget cost
         # ~0.2 s on every map click for a tab most people never look at.
-        hx = self._make_text_tab(nb, "Hex", mono=True)
+        hx = self._make_text_tab(nb, "Hex", mono=True, doc=doc)
 
         def fill_hex(hx=hx, data=data):
             hx.config(state="normal")
@@ -1779,8 +1788,8 @@ class App:
         # Export = WYSIWYG map view (current zoom + enabled overlays) when the
         # embedded editor is up; the ATTR-heatmap PNG (set above) stays as the
         # fallback when it isn't.
-        if self._map_panel is not None:
-            self._export_kind = "map_png"
+        if doc._map_panel is not None:
+            doc._export_kind = "map_png"
             self.export_btn.config(state="normal")
 
     @staticmethod
@@ -1799,25 +1808,27 @@ class App:
 
     def _events_textarc(self):
         """Lazily load + cache the rf3mc.<locale> dialogue archive for scene previews."""
-        if getattr(self, "_ev_textarc_done", False):
-            return self._ev_textarc
-        self._ev_textarc_done = True
-        self._ev_textarc = None
+        doc = self._doc
+        if getattr(doc, "_ev_textarc_done", False):
+            return doc._ev_textarc
+        doc._ev_textarc_done = True
+        doc._ev_textarc = None
         data = self.source.read_named("rf3mc.eng") if self.source else None
         if data:
             try:
-                self._ev_textarc = textdb.TextArchive.parse(data)
+                doc._ev_textarc = textdb.TextArchive.parse(data)
             except Exception:
-                self._ev_textarc = None
-        return self._ev_textarc
+                doc._ev_textarc = None
+        return doc._ev_textarc
 
     def _build_events_tab(self, nb, name):
         """'Events' tab: the cutscene/event scenes tied to THIS map. rf3.mc's 872 tail
         banks are 1:1 with the 872 rooms, so a map's events live in tail[mapId]. Lists
         those scenes with dialogue previews; opens them in the full Cutscene Editor."""
+        doc = self._doc
         import map_editor
         frame = ttk.Frame(nb)
-        mv = getattr(self, "_map_view", None)
+        mv = getattr(doc, "_map_view", None)
         if mv is not None and nb is not mv["nb"]:
             nb.insert(mv["panel"].problems, frame, text="Events")    # Problems stays last
             mv["events_tab"] = frame                # replaced when the next map opens
@@ -1962,19 +1973,20 @@ class App:
         ttk.Frame(frame, height=4).pack()
         if not entries:
             b.config(state="disabled")
-        self._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
+        doc._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
 
     def _view_textdb(self, name, data):
+        doc = self._doc
         arc = textdb.TextArchive.parse(data)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"{len(arc):,} strings").pack(side="left", padx=6)
         ttk.Label(bar, text="Search:").pack(side="left")
         sv = tk.StringVar()
         ttk.Entry(bar, textvariable=sv, width=30).pack(side="left", padx=2)
-        tv = ttk.Treeview(self.content, columns=("idx", "text"), show="headings")
+        tv = ttk.Treeview(doc.content, columns=("idx", "text"), show="headings")
         tv.heading("idx", text="#"); tv.column("idx", width=70, anchor="e", stretch=False)
         tv.heading("text", text="String"); tv.column("text", width=900)
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         texts = arc.texts()
@@ -1993,30 +2005,32 @@ class App:
                     break
         sv.trace_add("write", repop)
         repop()
-        self._export_kind = "textjson"; self._export_arc = arc
+        doc._export_kind = "textjson"; doc._export_arc = arc
         self.export_btn.config(state="normal")
 
     # plain TEXT routed above; this handles `text` fmt files that are NOT TEXT magic
     def _view_text(self, name, data):
+        doc = self._doc
         if data[:4] == b"TEXT":
             return self._view_textdb(name, data)
         try:
             s = data.decode("utf-8")
         except UnicodeDecodeError:
             s = data.decode("latin1")
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         txt.insert("end", s)
         txt.config(state="disabled")
 
     def _view_bplist(self, name, data):
+        doc = self._doc
         root_obj = bplist.loads(data, lazy_data=True)
-        tv = ttk.Treeview(self.content, columns=("val",), show="tree headings")
+        tv = ttk.Treeview(doc.content, columns=("val",), show="tree headings")
         tv.heading("#0", text="Key / Index"); tv.heading("val", text="Value")
         tv.column("val", width=700)
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        self._export_kind = "plistjson"; self._export_data = data
+        doc._export_kind = "plistjson"; doc._export_data = data
         self.export_btn.config(state="normal")
 
         # Manifest.plist: render each bundle directly by name with its files listed
@@ -2024,14 +2038,14 @@ class App:
         bundles = root_obj.get("bundles") if isinstance(root_obj, dict) else None
         if isinstance(bundles, list) and bundles and all(
                 isinstance(b, dict) and "bundleName" in b for b in bundles):
-            self._bplist_files = {}
+            doc._bplist_files = {}
             for b in bundles:
                 files = b.get("files", {})
                 nfiles = len(files) if isinstance(files, dict) else 0
                 node = tv.insert("", "end", text=str(b.get("bundleName")),
                                  values=(f"{nfiles} files",), open=False)
                 if nfiles:
-                    self._bplist_files[node] = files
+                    doc._bplist_files[node] = files
                     tv.insert(node, "end", text="…")     # placeholder -> expand arrow
             tv.bind("<<TreeviewOpen>>", lambda _e: self._bplist_expand_bundle(tv))
             return
@@ -2055,8 +2069,9 @@ class App:
             tv.item(c, open=True)
 
     def _bplist_expand_bundle(self, tv):
+        doc = self._doc
         nid = tv.focus()
-        files = self._bplist_files.pop(nid, None)
+        files = doc._bplist_files.pop(nid, None)
         if files is None:
             return
         tv.delete(*tv.get_children(nid))     # drop placeholder
@@ -2068,16 +2083,17 @@ class App:
                 tv.insert(nid, "end", text=str(fk), values=(repr(fv)[:200],))
 
     def _view_aibn(self, name, data):
+        doc = self._doc
         toks = aibn.load_tokens(data)
         dis = aibn.disassemble(toks, annotate=True)
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         c = aibn.stats(toks)
         txt.insert("end", f"# {name}: {len(toks)} tokens, {sum(c.values())} statements"
                           f"  (sub N: / N: labels, if (...) {{ }} blocks, Action(args); trailing # = verified operand meanings;"
                           f" rf4mod ai ops <op> for details; `rf4mod ai asm` rebuilds the file from this text)\n\n")
         txt.insert("end", dis)
         txt.config(state="disabled")
-        self._export_kind = "disasm"; self._export_text = dis
+        doc._export_kind = "disasm"; doc._export_text = dis
         self.export_btn.config(state="normal")
 
     def _view_emf(self, name, data):
@@ -2089,7 +2105,8 @@ class App:
         entry, and byte-safe in-place edits -- so this panel opens that rather than
         duplicating it, and shows the raw container underneath.
         """
-        bar = ttk.Frame(self.content); bar.pack(fill="x", pady=3)
+        doc = self._doc
+        bar = ttk.Frame(doc.content); bar.pack(fill="x", pady=3)
         ttk.Button(bar, text="Open Event Manager\u2026", command=self.cmd_event_manager
                    ).pack(side="left", padx=6)
         ttk.Label(bar, text="272 trigger entries: decoded conditions + actions, "
@@ -2099,14 +2116,15 @@ class App:
         self._view_hex(name, data)
 
     def _view_strings(self, name, data):
+        doc = self._doc
         try:
             d = strings_file.parse(data.decode("utf-8"))
         except Exception as e:
             self._view_hex(name, data, error=str(e)); return
-        tv = ttk.Treeview(self.content, columns=("key", "val"), show="headings")
+        tv = ttk.Treeview(doc.content, columns=("key", "val"), show="headings")
         tv.heading("key", text="Key"); tv.column("key", width=260)
         tv.heading("val", text="Value"); tv.column("val", width=720)
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         for k, v in d.items():
@@ -2117,21 +2135,22 @@ class App:
         # scenery atlases, named MOBJ_<map>_NN). Offer a texture browser alongside the
         # raw container structure. BNTX here is LINEAR BC (no Tegra swizzle), so every
         # texture decodes directly. (Falls back to structure-only without Pillow.)
+        doc = self._doc
         if data[:4] == b"PSB\x00" and HAS_PIL and self._view_psb(name, data):
             return
         from rf4s_modkit import model as _model
         is_mesh = _model.is_mesh(data)
         if HAS_PIL and (is_mesh or (data.find(b"BNTX") >= 0 and texture.bntx_list(data))):
-            nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
+            nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
             if is_mesh:
                 self._build_model_tab(nb, name, data)
             if data.find(b"BNTX") >= 0 and texture.bntx_list(data):
                 self._build_bntx_browser(nb, name, data)
-            stxt = self._make_text_tab(nb, "Structure", mono=True)
+            stxt = self._make_text_tab(nb, "Structure", mono=True, doc=doc)
             stxt.insert("end", res_container.summary(data)); stxt.config(state="disabled")
             nb.select(0)
             return
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         txt.insert("end", res_container.summary(data))
         if data[:4] == b"RES\x00" and not is_mesh:
             txt.insert("end", "\n\n(a UI screen layout: .model files for menus carry no mesh)")
@@ -2141,6 +2160,7 @@ class App:
         """E-mote portrait (.psbData / .emtbytes): the part atlas on a zoomable canvas
         (Export = PNG) with the PSB summary.  Repaint via `rf4mod psb replace-texture`.
         Returns False (caller falls back to the structure view) if it cannot decode."""
+        doc = self._doc
         from rf4s_modkit import psb as _psb
         try:
             ps = _psb.PSB(data)
@@ -2150,26 +2170,27 @@ class App:
             return False
         if img is None:
             return False
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         t = texs[0]
         ttk.Label(bar, text=f"E-mote atlas '{t['source']}'  {t['type']} {t['width']}x{t['height']}"
                             f"  {len(t['icons'])} parts").pack(side="left", padx=6)
         for z, lbl in ((0.25, "¼×"), (0.5, "½×"), (1, "1×"), (2, "2×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
-        info = tk.Text(self.content, height=9, wrap="word", font=("Consolas", 9))
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
+        info = tk.Text(doc.content, height=9, wrap="word", font=("Consolas", 9))
         info.insert("end", _psb.summary(ps, pathlib.PurePosixPath(name).name)); info.config(state="disabled")
         info.pack(fill="x")
-        self._pil = img
-        self._img_canvas = self._make_image_canvas()
-        self._set_zoom(0.5)
-        self._export_kind = "png"
+        doc._pil = img
+        doc._img_canvas = self._make_image_canvas(doc=doc)
+        self._set_zoom(0.5, doc)
+        doc._export_kind = "png"
         self.export_btn.config(state="normal")
         return True
 
     def _build_model_tab(self, nb, name, data):
         """'Model' tab: a textured preview of the meshes (front / back / side / top), the
         shape / material summary, and Export OBJ (geometry + MTL + texture PNGs)."""
+        doc = self._doc
         from rf4s_modkit import model as _model
         try:
             m = _model.parse(data)
@@ -2219,21 +2240,21 @@ class App:
             fl.pack(side="left", padx=4)
             ttk.Button(bar, text="GIF…", width=5, command=lambda: self._export_model_gif(m, anim, view.get(), stem)
                        ).pack(side="left")
-            self._model_playing = False
+            doc._model_playing = False
             tick_ms = 50
 
             def tick():
-                self._anim_after = None
-                if not self._model_playing or not cv.winfo_exists():
+                doc._anim_after = None
+                if not doc._model_playing or not cv.winfo_exists():
                     return
                 state["frame"] = (state["frame"] + 60 * tick_ms / 1000.0) % max(1, anim.frame_count)
                 draw()
-                self._anim_after = self._doc_after(tick_ms, tick)
+                doc._anim_after = self._doc_after(tick_ms, tick)
 
             def toggle():
-                self._model_playing = not self._model_playing
-                pb.config(text="Stop" if self._model_playing else "Play")
-                if self._model_playing and getattr(self, "_anim_after", None) is None:
+                doc._model_playing = not doc._model_playing
+                pb.config(text="Stop" if doc._model_playing else "Play")
+                if doc._model_playing and getattr(doc, "_anim_after", None) is None:
                     tick()
             pb.config(command=toggle)
         else:
@@ -2267,8 +2288,8 @@ class App:
             state["photo"] = ImageTk.PhotoImage(im)
             cv.delete("all")
             cv.create_image(4, 4, anchor="nw", image=state["photo"])
-            self._pil = im
-            self._export_kind = "png"
+            doc._pil = im
+            doc._export_kind = "png"
             self.export_btn.config(state="normal")
             if fl is not None:
                 fl.config(text=f"frame {int(state['frame']):3}/{anim.frame_count}")
@@ -2281,6 +2302,7 @@ class App:
         """A 'motion' row under the Model tab listing the .bfskl skeletal animations that
         drive this model (skelanim.anim_candidates) with Play / GIF…. Returns a callback that
         refreshes the frame label after each draw, or None when the model has none."""
+        doc = self._doc
         from rf4s_modkit import skelanim as _sk
         src = getattr(self, "source", None)
         if src is None or not m.bones:
@@ -2315,7 +2337,7 @@ class App:
             redraw()
 
         def tick(last):
-            self._skel_after = None
+            doc._skel_after = None
             if not state["splaying"] or not row.winfo_exists() or state["skel"] is None:
                 return
             now = _time.monotonic()
@@ -2324,12 +2346,12 @@ class App:
             if not a.loops and state["sframe"] >= a.frame_count:
                 state["sframe"] = 0.0
             redraw()
-            self._skel_after = self._doc_after(15, lambda: tick(now))
+            doc._skel_after = self._doc_after(15, lambda: tick(now))
 
         def toggle():
             state["splaying"] = not state["splaying"] and state["skel"] is not None
             pb.config(text="Stop" if state["splaying"] else "Play")
-            if state["splaying"] and getattr(self, "_skel_after", None) is None:
+            if state["splaying"] and getattr(doc, "_skel_after", None) is None:
                 tick(_time.monotonic())
         pb.config(command=toggle)
 
@@ -2416,6 +2438,7 @@ class App:
     def _build_bntx_browser(self, nb, name, data):
         """A 'Textures' tab: list every embedded BNTX texture; click to preview
         (zoom), Export the selected one (toolbar Export), or Export all to a folder."""
+        doc = self._doc
         frame = ttk.Frame(nb); nb.add(frame, text="Textures")
         lst = texture.bntx_list(data)
         left = ttk.Frame(frame); left.pack(side="left", fill="y")
@@ -2431,17 +2454,17 @@ class App:
                       values=(f"{t['w']}×{t['h']}", t["fmt_name"]))
         right = ttk.Frame(frame); right.pack(side="left", fill="both", expand=True)
         bar = ttk.Frame(right); bar.pack(fill="x")
-        self._bntx_lbl = ttk.Label(bar, text=f"{len(lst)} textures — select one")
-        self._bntx_lbl.pack(side="left", padx=6)
+        doc._bntx_lbl = ttk.Label(bar, text=f"{len(lst)} textures — select one")
+        doc._bntx_lbl.pack(side="left", padx=6)
         for z, lbl in ((0.5, "½×"), (1, "1×"), (2, "2×")):
             ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z)).pack(side="left")
+                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
         ttk.Button(bar, text="Export all…", width=11,
                    command=lambda: self._export_all_bntx(name, data, lst)).pack(side="right", padx=4)
         ttk.Button(bar, text="Replace texture…", width=17,
                    command=lambda: self._replace_bntx_png(name, tv)).pack(side="right", padx=4)
         cvframe = ttk.Frame(right); cvframe.pack(fill="both", expand=True)
-        self._img_canvas = self._make_image_canvas(cvframe)
+        doc._img_canvas = self._make_image_canvas(cvframe, doc=doc)
 
         def on_sel(_evt=None):
             s = tv.selection()
@@ -2451,14 +2474,14 @@ class App:
             try:
                 im = texture.decode_bntx(data, idx)
             except texture.TextureError as e:
-                self._bntx_lbl.config(text=str(e)); return
+                doc._bntx_lbl.config(text=str(e)); return
             if im is None:
-                self._bntx_lbl.config(text="unsupported format (needs texture2ddecoder)"); return
-            self._pil = im.convert("RGBA")
+                doc._bntx_lbl.config(text="unsupported format (needs texture2ddecoder)"); return
+            doc._pil = im.convert("RGBA")
             t = lst[idx]
-            self._bntx_lbl.config(text=f"{t['name']}   {t['w']}×{t['h']}   {t['fmt_name']}")
-            self._set_zoom(1.0)
-            self._export_kind = "png"
+            doc._bntx_lbl.config(text=f"{t['name']}   {t['w']}×{t['h']}   {t['fmt_name']}")
+            self._set_zoom(1.0, doc)
+            doc._export_kind = "png"
             self.export_btn.config(state="normal")
 
         tv.bind("<<TreeviewSelect>>", on_sel)
@@ -2469,8 +2492,9 @@ class App:
         """Replace the selected embedded texture of a .model from a PNG of the same size,
         re-encoded IN PLACE in its own block format (texture.bntx_replace: the file size and
         every container field stay as they are). Updates cur_data; Extract writes it."""
+        doc = self._doc
         sel = tv.selection()
-        if not sel or self.cur_data is None:
+        if not sel or doc.cur_data is None:
             return
         idx = int(sel[0])
         f = filedialog.askopenfilename(title="Replace embedded texture from PNG…",
@@ -2478,12 +2502,12 @@ class App:
         if not f:
             return
         try:
-            blob = texture.bntx_replace(self.cur_data, idx, f)
+            blob = texture.bntx_replace(doc.cur_data, idx, f)
         except Exception as e:  # noqa: BLE001 - surface any encode/size problem to the user
             messagebox.showerror("Replace failed", str(e))
             return
-        self.cur_data = blob
-        self._show(name, blob)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
         self.status.config(text=f"Replaced texture {idx} from {pathlib.Path(f).name} in place -> "
                                 f"{len(blob):,} bytes, size unchanged (Extract to save the working copy)")
 
@@ -2507,24 +2531,25 @@ class App:
         them; '+ gate' / '+ spawn' then click the picture) beside the map editor's own
         Encounters pane (gates, weights, counts, rosters). 'Open in map editor' switches to the
         full editor; 'Save table…' writes the file."""
+        doc = self._doc
         from map_editor import tabs as me_tabs
         g = gen.GenTable(data)
-        self._gen = g
+        doc._gen = g
         maps = self._maps_for_gen(name)
-        host = _GenHost(self, name, g)
-        self._gen_host = host
+        host = _GenHost(self, name, g, doc)
+        doc._gen_host = host
         nmfn = _load_actor_names()
         rtxt = ", ".join(f"{nmfn(i) or i}×{c}" for i, c in g.roster().most_common()) or "(none)"
-        ttk.Label(self.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
+        ttk.Label(doc.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
                   wraplength=940).pack(anchor="w", padx=6)
         host.build_map_row(maps)
         # Lay the view out ONCE: the picture's size comes from the map's ATTR grid (no image
         # needed) and the pane gets the rest of the width up front. Otherwise the Encounters
         # pane was drawn at its natural width and re-laid-out ~25 ms later when its scroll area
         # learned the real one -- a visible redraw on every Gen file.
-        total_w = self.content.winfo_width()
+        total_w = doc.content.winfo_width()
         pic = host.picture_size()
-        body = ttk.Frame(self.content)       # built unpacked, shown when complete
+        body = ttk.Frame(doc.content)       # built unpacked, shown when complete
         host.build_picture(body, pic)
         pane = me_tabs.EncountersTab(body, host)
         pane.pack(side="left", fill="both", expand=True)
@@ -2551,7 +2576,7 @@ class App:
 
     def _open_map_encounters(self, map_name):
         """Show a map in the embedded map editor on its Encounters tab (and select it in the
-        file list)."""
+        file list), in the map's own tab."""
         if not map_name or not self.source:
             return
         i = next((k for k, e in enumerate(self.source.entries) if e[0] == map_name), None)
@@ -2559,9 +2584,10 @@ class App:
             return
         name, _g, loader = self.source.entries[i]
         self._reveal_entry(i)
-        if self._open_in_tab(self._entry_key(name), name, loader()) is None:
+        doc = self._open_in_tab(self._entry_key(name), name, loader())
+        if doc is None:
             return
-        panel = getattr(self, "_map_panel", None)
+        panel = doc._map_panel
         if panel is not None:
             try:
                 panel.nb.select(panel.encounters)
@@ -2597,15 +2623,16 @@ class App:
     def _view_asatk(self, name, data):
         """as_atk_*.bin attack-move timeline: rendered view + an editable listing that
         assembles back into the working copy (2026-09-19)."""
+        doc = self._doc
         s = asatk.summary(data)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         hw = ", ".join(f"{o}-{c}" for o, c in s["hit_windows"]) or "(none)"
         ttk.Label(bar, text=f"Attack timeline — {s['pairs']} events, "
                             f"frames {s['first_frame']}..{s['last_frame']}, "
                             f"hit-window {hw}, effects {', '.join(str(e) for e in s['effects']) or '(none)'}",
                   wraplength=700).pack(side="left", padx=6)
-        nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
-        txt = self._make_text_tab(nb, "Timeline", mono=True)
+        nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
+        txt = self._make_text_tab(nb, "Timeline", mono=True, doc=doc)
         txt.insert("end", asatk.render(data))
         txt.insert("end", "\n\n" + "-" * 60 + "\nOpcode legend (V=IDA-verified, D=data-inferred):\n")
         for op in sorted(asatk.OPCODES):
@@ -2630,19 +2657,20 @@ class App:
             except asatk.AsatkError as ex:
                 messagebox.showerror("Assemble failed", str(ex)); return
             warns = asatk.validate(asatk.parse(blob, stop_at_end=False))
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text="Timeline assembled (" + (f"{len(warns)} warning(s): {warns[0]}"
                                                                if warns else "no warnings") +
                                     ") — use Extract… / Save to write")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
         ttk.Button(eb, text="Assemble & apply", command=apply_listing).pack(side="right", padx=6)
-        self._export_kind = "disasm"; self._export_text = asatk.render(data)
+        doc._export_kind = "disasm"; doc._export_text = asatk.render(data)
         self.export_btn.config(state="normal")
 
     def _view_skillcurve(self, name, data):
         """rf3ParamSkillExp*.bin skill XP-per-level curve (read-only decode)."""
+        doc = self._doc
         xp = skillcurve.parse(data)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         arc = next((a for a, f in skillcurve.ARCHIVE_FILE.items()
                     if pathlib.Path(name).stem.lower() == f.lower()), None)
         who = ""
@@ -2652,7 +2680,7 @@ class App:
         ttk.Label(bar, text=f"Skill XP curve — 100 levels, total {sum(xp)}, "
                             f"cap-bracket table[99]={xp[-1] if xp else 0}   {who}",
                   wraplength=940).pack(side="left", padx=6)
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         txt.insert("end", skillcurve.render(data, upto=100))
         txt.config(state="disabled")
 
@@ -2660,11 +2688,12 @@ class App:
         """rf3ItemStrengthening.bin — forge material rows / dish ingredient bonuses / the craft
         status word (GUI twin of `rf4mod str`). Grid of the fields that matter most, a filter
         for the NON-FOOD marker, and the full decoded row for the selection."""
+        doc = self._doc
         from rf4s_modkit import strengthening
         t = strengthening.StrengtheningTable(data)
         items = _load_item_names()
         names = {int(k): v for k, v in items.items()}
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"rf3ItemStrengthening: {len(t)} rows x 296 B  (74 s32 per item; "
                             "rows 1108..1149 = level/quality tier rows)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
@@ -2688,7 +2717,7 @@ class App:
         show = ["difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "reach_scale",
                 "heal_hp", "heal_rp", "status_word"]
         cols = ["#", "name"] + show + ["procs", "resists", "flags"]
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=14)
         widths = {"#": 44, "name": 170, "procs": 120, "resists": 120, "flags": 260, "status_word": 70}
         for c in cols:
@@ -2720,7 +2749,7 @@ class App:
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
 
-        detail = tk.Text(self.content, height=12, wrap="word")
+        detail = tk.Text(doc.content, height=12, wrap="word")
         detail.pack(fill="x", padx=6, pady=4)
 
         def on_select(*_):
@@ -2736,19 +2765,20 @@ class App:
 
     def _view_gifts(self, name, data):
         """rf3PresentNpc*.bin NPC gift-preference table (read-only decode, item names)."""
+        doc = self._doc
         items = _load_item_names()
         chars = _load_char_names()
         num = int(pathlib.Path(name).stem[13:15]) if pathlib.Path(name).stem[13:15].isdigit() else 0
         name_fn = lambda i: items.get(i, "")
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         who = chars.get(num, "?")
         ttk.Label(bar, text=f"Gift preferences — char {num} {who}  (archive {14850 + num})",
                   ).pack(side="left", padx=6)
-        tv = ttk.Treeview(self.content, columns=("aff", "item", "fp"), show="headings", height=20)
+        tv = ttk.Treeview(doc.content, columns=("aff", "item", "fp"), show="headings", height=20)
         for c, w in (("aff", 130), ("item", 320), ("fp", 90)):
             tv.heading(c, text={"aff": "affinity", "item": "item / target", "fp": "FP / note"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         catbytes = _find_extracted("rf3PresentCategory.bin")
@@ -2773,7 +2803,7 @@ class App:
                                          else "")
                     tv.insert("", "end", values=(aff, tgt, note))
         # ---- edit controls (2026-09-19): tier / FP of an item, signature dislike, remove ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_item, v_tier, v_fp = tk.StringVar(), tk.StringVar(value="loved"), tk.StringVar()
         ttk.Label(ctl, text="item id").pack(side="left")
         ttk.Entry(ctl, textvariable=v_item, width=7).pack(side="left", padx=2)
@@ -2803,7 +2833,7 @@ class App:
                 fp = int(v_fp.get(), 0) if v_fp.get().strip() else None
             except ValueError:
                 messagebox.showerror("Bad value", "item id (and FP) must be integers"); return
-            t = gifts.GiftTable.parse(self.cur_data)
+            t = gifts.GiftTable.parse(doc.cur_data)
             try:
                 if action == "set":
                     t.set_item(iid, v_tier.get(), fp)
@@ -2814,16 +2844,16 @@ class App:
                 blob = t.build()
             except Exception as ex:  # noqa: BLE001 - surface the module's own message
                 messagebox.showerror("Edit failed", str(ex)); return
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text=f"gift table edited ({action} item {iid}) — Save table… / Extract… to write")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(self.cur_name).name,
+                                             initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("gift table", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, act in (("Set tier", "set"), ("Signature dislike", "signature"), ("Remove item", "remove")):
             ttk.Button(ctl, text=lbl, command=lambda a=act: _edit(a)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
@@ -2831,13 +2861,14 @@ class App:
     def _view_schedule(self, name, data):
         """rf3Schedule — NPC daily-routine itineraries: one per (NPC, state), time -> spot kind
         -> room (spots resolved through the sibling rf3ScheduleID.bin when it is extracted)."""
+        doc = self._doc
         sc = schedule.Schedule.parse(data)
         cells = sc.ordered_cells()
         scheds = [lst for _k, lst in cells]
         sidbytes = _find_extracted("rf3ScheduleID.bin")
         spots = schedule.load_spots(sidbytes) if sidbytes else None
         chars = _load_char_names()
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"NPC daily schedules — {len(scheds)} (NPC, state) routines, "
                             f"{sum(len(s) for s in scheds)} stops. Pick a schedule:"
                   ).pack(side="left", padx=6)
@@ -2845,11 +2876,11 @@ class App:
         sp = ttk.Spinbox(bar, from_=0, to=max(0, len(scheds) - 1), width=6, textvariable=sv)
         sp.pack(side="left", padx=4)
         who = ttk.Label(bar, text=""); who.pack(side="left", padx=8)
-        tv = ttk.Treeview(self.content, columns=("time", "room", "name"), show="headings", height=20)
+        tv = ttk.Treeview(doc.content, columns=("time", "room", "name"), show="headings", height=20)
         for c, w in (("time", 80), ("room", 80), ("name", 360)):
             tv.heading(c, text={"time": "time", "room": "spot kind", "name": "location (rf3ScheduleID)"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
 
@@ -2870,7 +2901,7 @@ class App:
                                              + ("  [random depart]" if wp.flags & 1 else "")))
         sv.trace_add("write", fill); fill()
         # ---- edit controls (2026-09-19): change / add / remove a stop of the shown schedule ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_time, v_spot, v_rand = tk.StringVar(), tk.StringVar(), tk.BooleanVar()
         ttk.Label(ctl, text="time (HH:MM)").pack(side="left")
         ttk.Entry(ctl, textvariable=v_time, width=7).pack(side="left", padx=2)
@@ -2917,27 +2948,28 @@ class App:
                 blob = sc.build()
             except Exception as ex:  # noqa: BLE001 - the module explains what is wrong
                 messagebox.showerror("Edit failed", str(ex)); return
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text=f"schedule edited ({action}, npc {npc} state {state}) — Save… / Extract… to write")
             fill()
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(self.cur_name).name,
+                                             initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("schedule", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, act in (("Apply stop", "apply"), ("Add stop", "add"), ("Remove stop", "remove")):
             ttk.Button(ctl, text=lbl, command=lambda a=act: _edit(a)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Save…", command=_save).pack(side="right", padx=2)
 
     def _view_gift_categories(self, name, data):
         """rf3PresentCategory — the 21 shared gift categories referenced by NPC cross-refs."""
+        doc = self._doc
         items = _load_item_names()
         cats = gifts.load_categories(data)
-        ttk.Label(self.content, text=f"{len(cats)} shared gift categories (referenced by "
+        ttk.Label(doc.content, text=f"{len(cats)} shared gift categories (referenced by "
                                      f"NPC gift tables via cross-ref)").pack(fill="x", padx=6, pady=2)
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         for idx, _grp in enumerate(cats):
             ids = gifts.category_items(idx, cats)
             names = ", ".join(items.get(i, str(i)) for i in ids)
@@ -2946,17 +2978,18 @@ class App:
 
     def _view_montame(self, name, data):
         """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849)."""
+        doc = self._doc
         from rf4s_modkit import montame
         items = _load_item_names()
         chars = _load_char_names()
-        ttk.Label(self.content, text=f"Monster taming-food preferences — {montame.species_count(data)} "
+        ttk.Label(doc.content, text=f"Monster taming-food preferences — {montame.species_count(data)} "
                                      f"species (id 48+), each with up to 4 favored items + tame bonus"
                   ).pack(fill="x", padx=6, pady=2)
-        tv = ttk.Treeview(self.content, columns=("sp", "who", "items"), show="headings", height=22)
+        tv = ttk.Treeview(doc.content, columns=("sp", "who", "items"), show="headings", height=22)
         for c, w in (("sp", 70), ("who", 150), ("items", 640)):
             tv.heading(c, text={"sp": "species", "who": "name", "items": "tame items (+bonus)"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         for sid in range(montame.FIRST_SPECIES, montame.FIRST_SPECIES + montame.species_count(data)):
@@ -2966,7 +2999,7 @@ class App:
             txt = ", ".join(f"{items.get(i, i)} (+{b})" for i, b in pr)
             tv.insert("", "end", values=(sid, chars.get(sid, ""), txt))
         # ---- edit controls (2026-09-19): set / remove one of a species' four tame items ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_sp, v_item, v_bonus = tk.StringVar(), tk.StringVar(), tk.StringVar(value="15")
         for lbl, var, w in (("species", v_sp, 6), ("item id", v_item, 7), ("bonus", v_bonus, 5)):
             ttk.Label(ctl, text=lbl).pack(side="left", padx=(6, 2))
@@ -2983,7 +3016,7 @@ class App:
                 bonus = int(v_bonus.get(), 0)
             except ValueError:
                 messagebox.showerror("Bad value", "species, item id and bonus must be integers"); return
-            buf = bytearray(self.cur_data)
+            buf = bytearray(doc.cur_data)
             try:
                 if remove:
                     if not montame.remove_item(buf, sp, iid):
@@ -2993,16 +3026,16 @@ class App:
             except Exception as ex:  # noqa: BLE001
                 messagebox.showerror("Edit failed", str(ex)); return
             blob = bytes(buf)
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text=f"taming foods edited (species {sp}, item {iid}) — Save table… / Extract… to write")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(self.cur_name).name,
+                                             initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("taming table", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         ttk.Button(ctl, text="Set item", command=lambda: _edit(False)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Remove item", command=lambda: _edit(True)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
@@ -3011,19 +3044,20 @@ class App:
         """rf3route.bin — the NPC town-navigation graph (rooms -> nodes -> edges): tree view,
         path queries through rf3RouteResult.bin, JSON export / import (edits land in the
         working copy) and next-hop matrix regeneration (2026-09-19)."""
+        doc = self._doc
         from rf4s_modkit import route
         import json as _json
         g = route.RouteGraph.parse(data)
         rooms = [(rid, r) for rid, r in enumerate(g.rooms()) if r.node_count]
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Navigation graph (TRCS) — {len(g.nodes)} nodes, {len(g.edges)} edges "
                             f"in {len(rooms)} rooms; positions are tiles, edge cost = walk cost",
                   wraplength=700).pack(side="left", padx=6)
-        tv = ttk.Treeview(self.content, columns=("kind", "id", "detail"), show="tree headings", height=18)
+        tv = ttk.Treeview(doc.content, columns=("kind", "id", "detail"), show="tree headings", height=18)
         tv.heading("#0", text="room / node / edge"); tv.column("#0", width=230)
         for c, w in (("kind", 60), ("id", 60), ("detail", 520)):
             tv.heading(c, text=c); tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         for rid, r in rooms:
@@ -3040,14 +3074,14 @@ class App:
                               values=("edge", tgt, f"room {e.dest_room} node {e.dest_node}  "
                                                    f"cost {e.cost}{'  (room transition)' if e.cost == 0 else ''}"))
         # ---- path query against the next-hop matrix ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_src, v_dst = tk.StringVar(), tk.StringVar()
         ttk.Label(ctl, text="path from").pack(side="left")
         ttk.Entry(ctl, textvariable=v_src, width=10).pack(side="left", padx=2)
         ttk.Label(ctl, text="to").pack(side="left")
         ttk.Entry(ctl, textvariable=v_dst, width=10).pack(side="left", padx=2)
         ttk.Label(ctl, text="(node id or room:N[:k])", font=("Segoe UI", 8), foreground="#666").pack(side="left")
-        out = ttk.Label(self.content, text="", wraplength=900, justify="left"); out.pack(fill="x", padx=6)
+        out = ttk.Label(doc.content, text="", wraplength=900, justify="left"); out.pack(fill="x", padx=6)
 
         def _node(text):
             s = text.strip()
@@ -3084,9 +3118,9 @@ class App:
                 blob = route.RouteGraph.from_json(_json.loads(pathlib.Path(f).read_text(encoding="utf-8"))).build()
             except Exception as ex:  # noqa: BLE001
                 messagebox.showerror("Import failed", str(ex)); return
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text="graph imported — also rebuild the next-hop matrix (button) and save both")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
 
         def _rebuild():
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3RouteResult.bin",
@@ -3099,16 +3133,17 @@ class App:
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3route.bin",
                                              filetypes=[("route graph", "*.bin")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, cmd in (("Export JSON…", _export), ("Import JSON…", _import),
                          ("Rebuild next-hop matrix…", _rebuild), ("Save graph…", _save)):
             ttk.Button(ctl, text=lbl, command=cmd).pack(side="right", padx=2)
 
     def _view_route_result(self, name, data):
         """rf3RouteResult.bin — the derived next-hop matrix; regenerate it from rf3route.bin."""
+        doc = self._doc
         from rf4s_modkit import route
         gb = _find_extracted("rf3route.bin")
-        ttk.Label(self.content, wraplength=900, justify="left",
+        ttk.Label(doc.content, wraplength=900, justify="left",
                   text="Next-hop matrix hop[dst][src] (nibbles) derived from rf3route.bin; the game walks "
                        "it hop by hop (Nav_BuildPathFromAToB). It is not edited directly: change the graph "
                        "and regenerate this file.").pack(fill="x", padx=6, pady=4)
@@ -3116,7 +3151,7 @@ class App:
             g = route.RouteGraph.parse(gb)
             rr = route.RouteResult.parse(data, len(g.nodes))
             same = rr.build() == route.RouteResult.compute(g, rr.rows).build()
-            ttk.Label(self.content, text=f"{rr.rows} rows x {rr.stride} B; graph has {len(g.nodes)} nodes; "
+            ttk.Label(doc.content, text=f"{rr.rows} rows x {rr.stride} B; graph has {len(g.nodes)} nodes; "
                                          f"{'identical to' if same else 'equivalent to'} the matrix "
                                          f"recomputed from rf3route.bin"
                                          f"{'' if same else ' (differences are tie-breaks between equal-cost routes)'}"
@@ -3124,11 +3159,11 @@ class App:
 
             def _rebuild():
                 blob = route.RouteResult.compute(g, rr.rows).build()
-                self.cur_data = blob
+                doc.cur_data = blob
                 self.status.config(text="matrix recomputed from rf3route.bin — Extract… to write")
-            ttk.Button(self.content, text="Recompute from rf3route.bin", command=_rebuild).pack(padx=6, pady=4)
+            ttk.Button(doc.content, text="Recompute from rf3route.bin", command=_rebuild).pack(padx=6, pady=4)
         else:
-            ttk.Label(self.content, text="rf3route.bin is not extracted, so the matrix cannot be checked").pack(padx=6)
+            ttk.Label(doc.content, text="rf3route.bin is not extracted, so the matrix cannot be checked").pack(padx=6)
 
     def _view_search_items(self, name, data):
         """SI_*.bin editor — daily ground-pickup spots (see docs/16).
@@ -3142,11 +3177,12 @@ class App:
         IDA-verified semantics: max 2 spawns/map/day (deterministic per day, sleep
         rerolls); positions in sub-units (tile = >>3); item id = low 11 bits;
         weight = low byte, summed in a u8 (totals > 255 wrap and skew odds)."""
+        doc = self._doc
         try:
             f = search_items.SearchItemFile.parse(data)
         except Exception as e:
             self._view_hex(name, data, error=str(e)); return
-        self._si = f
+        doc._si = f
         item_names = _load_item_names()
 
         # first-class pool list (ordered by first appearance in spots).
@@ -3165,13 +3201,13 @@ class App:
         except Exception:
             footer_txt = "footer: anomalous (harmless, engine ignores it)"
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Search-item spots — engine rolls daily: 1-in-N chance per "
                             f"spot, max 2 spawns/map/day, sleep rerolls.",
                   wraplength=720).pack(side="left", padx=6)
         ttk.Label(bar, text=footer_txt, foreground="#888").pack(side="right", padx=6)
 
-        paned = ttk.PanedWindow(self.content, orient="horizontal")
+        paned = ttk.PanedWindow(doc.content, orient="horizontal")
         paned.pack(fill="both", expand=True, padx=4, pady=4)
 
         # ------------------------- left: SPOTS ----------------------------- #
@@ -3242,7 +3278,7 @@ class App:
 
         def commit(refill=True):
             # Drop nothing from the editor state, but warn about unsaved pools.
-            self.cur_data = f.build()
+            doc.cur_data = f.build()
             orphans = [k for k, p in enumerate(pools) if not used_by(p)]
             note = (f"  (pool(s) {', '.join('#%d' % k for k in orphans)} unassigned — "
                     f"NOT saved until assigned to a spot)" if orphans else "")
@@ -3418,7 +3454,7 @@ class App:
         ttk.Button(enb, text="− pool", command=pool_del).pack(side="left", padx=2)
 
         def save_tbl():
-            blob = f.build(); self.cur_data = blob
+            blob = f.build(); doc.cur_data = blob
             orphans = [k for k, p in enumerate(pools) if not used_by(p)]
             if orphans:
                 if not messagebox.askokcancel(
@@ -3427,10 +3463,10 @@ class App:
                         f"to any spot and will NOT be in the saved file. Save anyway?"):
                     return
             fpath = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("SI table", "*.bin"), ("All", "*.*")])
             if fpath:
-                pathlib.Path(fpath).write_bytes(blob)
+                pathlib.Path(fpath).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved search-item table → {fpath}")
         ttk.Button(enb, text="Save table…", command=save_tbl).pack(side="right", padx=4)
 
@@ -3447,8 +3483,9 @@ class App:
         authored. Localized text lives in rf3TxtQuest_split3_2/_3.<locale>. (Story/named
         quests are script-driven in rf3.mc — a different subsystem, not edited here.)
         """
+        doc = self._doc
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         chars = _load_char_names()
 
         # category (byte1) = the objective-template selector Quest_LoadDetailStrings switches on.
@@ -3497,7 +3534,7 @@ class App:
                 return "(placeholder / none)"
             return chars.get(cid, "")
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Quest / Request database (archive 16342) — {t.entry_count} requests."
                             "  Each = posting NPC (client) + category template; the objective,"
                             " count and reward are rolled at runtime.").pack(side="left", padx=6)
@@ -3505,7 +3542,7 @@ class App:
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=14).pack(side="left", padx=2)
 
         cols = ("#", "client_id", "client", "category", "type")
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=18)
         for c, w in (("#", 45), ("client_id", 65), ("client", 140), ("category", 60), ("type", 340)):
             tv.heading(c, text=c); tv.column(c, width=w, anchor="w")
@@ -3525,7 +3562,7 @@ class App:
                 tv.insert("", "end", iid=str(i), values=(i, cid, nm, cat, lbl))
         sv.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected quest  (client_id + category; save writes the table)")
+        ed = ttk.LabelFrame(doc.content, text="Edit selected quest  (client_id + category; save writes the table)")
         ed.pack(fill="x", padx=6, pady=4)
         row = ttk.Frame(ed); row.pack(fill="x", padx=4, pady=4)
         ttk.Label(row, text="client_id:").pack(side="left")
@@ -3567,25 +3604,26 @@ class App:
                 t.set(i, 1, int(cat_v.get(), 0), "u8")
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied quest {i} — Save table… or Extract… to write")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved quest DB → {f}")
         ttk.Button(row, text="Save table…", command=save_tbl).pack(side="right", padx=4)
         ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
 
     def _view_param(self, name, data):
+        doc = self._doc
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         stem = pathlib.Path(name).stem
         sch = t.schema(stem)
         # row-name fn (item names) if the schema asks for it
@@ -3595,7 +3633,7 @@ class App:
             tbl = _json.loads((ACTOR_NAMES_PATH.parent / "rf4s_item_names.json").read_text(encoding="utf-8"))
             namefn = lambda i: tbl.get(str(i), "")
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"NLCL {stem}: {t.entry_count} records × {t.record_size} B"
                           + ("  (named fields)" if sch else "  (raw — edit by offset)"),
                   ).pack(side="left", padx=6)
@@ -3605,7 +3643,7 @@ class App:
         fields = sch["fields"] if sch else [(f"dw{k}", k * 4, "s32")
                                             for k in range(min(8, t.record_size // 4))]
         cols = ["#"] + [f[0] for f in fields] + (["name"] if sch and sch.get("names") else [])
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=70 if c != "name" else 160, anchor="w")
@@ -3634,7 +3672,7 @@ class App:
                     break
         sv.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected record")
+        ed = ttk.LabelFrame(doc.content, text="Edit selected record")
         ed.pack(fill="x", padx=6, pady=4)
         grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=4)
         evars = []
@@ -3674,24 +3712,24 @@ class App:
                     t.set(i, int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied record {i} — Save table… or Extract… to write")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved param table → {f}")
 
         def export_csv():
             """The table view (every record, schema columns + name column) as CSV."""
             f = filedialog.asksaveasfilename(defaultextension=".csv",
-                initialfile=pathlib.Path(self.cur_name).stem + ".csv",
+                initialfile=pathlib.Path(doc.cur_name).stem + ".csv",
                 filetypes=[("CSV", "*.csv"), ("All", "*.*")])
             if f:
                 pathlib.Path(f).write_text(t.to_csv(stem, namefn), encoding="utf-8")
@@ -3712,7 +3750,7 @@ class App:
                 idx = t.append_record(t.record(src) if src is not None else None)
             except nlcl.NlclError as e:
                 messagebox.showerror("Add row failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill(); tv.selection_set(str(idx)); tv.see(str(idx)); on_sel()
             self.status.config(text=f"Added record {idx} ({'copy of ' + str(src) if src is not None else 'zero row'}); "
                                     f"{t.entry_count} records — Save table… to write")
@@ -3729,7 +3767,7 @@ class App:
             except nlcl.NlclError as e:
                 messagebox.showerror("Delete row failed", str(e)); return
             sel["i"] = None
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill()
             self.status.config(text=f"Deleted record {i}; {t.entry_count} records — Save table… to write")
         ttk.Button(gen_row, text="Delete row", command=del_row).pack(side="right", padx=4)
@@ -3741,8 +3779,9 @@ class App:
         you pick which season(s) a crop grows in via checkboxes (writes the +104
         boost/penalty bits) alongside per-field editing (water, growth-rate mults, stages).
         Byte-surgical; Apply updates the in-memory table, Save…/Extract… writes it out."""
+        doc = self._doc
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         stem = "rf3CropParam"
         namefn = (lambda i: "")
         itemjson = ACTOR_NAMES_PATH.parent / "rf4s_item_names.json"
@@ -3751,7 +3790,7 @@ class App:
             tbl = _json.loads(itemjson.read_text(encoding="utf-8"))
             namefn = lambda i: tbl.get(str(i), "")
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"rf3CropParam: {t.entry_count} crops × {t.record_size} B  "
                             "(season affinity + growth tuning)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
@@ -3762,7 +3801,7 @@ class App:
         show_cols = ["stage1", "stage2", "stage3", "regrow", "water", "grow_cap",
                      "gmul_size", "gmul_1", "gmul_2", "gmul_3", "harvest", "seed"]
         cols = ["#"] + show_cols + ["grows", "name"]
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=15)
         widths = {"#": 40, "grows": 150, "name": 150}
         for c in cols:
@@ -3792,7 +3831,7 @@ class App:
                     break
         sv.trace_add("write", fill); only_crops.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected crop")
+        ed = ttk.LabelFrame(doc.content, text="Edit selected crop")
         ed.pack(fill="x", padx=6, pady=4)
         grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=2)
         ftyp = {n: (o, ty) for n, o, ty in t.schema(stem)["fields"]}
@@ -3847,17 +3886,17 @@ class App:
                     t.set(i, 104, old & ~nlcl._CROP_SEASON_MASK, "u32")   # grow everywhere
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied crop {i} — Save…/Extract… to write a loose override")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved crop table → {f}")
         btns = ttk.Frame(ed); btns.pack(fill="x", padx=4, pady=(0, 3))
         ttk.Button(btns, text="Save table…", command=save_tbl).pack(side="right", padx=4)
@@ -3871,22 +3910,23 @@ class App:
         with per-field entry boxes for every schema field (stats/drops/elements/resists/AI/
         model). Apply writes into the in-memory table; Save… writes a loose-override .bin.
         Editing is byte-surgical — only the touched record changes."""
+        doc = self._doc
         from rf4s_modkit import monster
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         stem = "rf3NpcParam"
         sch = t.schema(stem)
         species = monster.load_species()
         items = _load_item_names()
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Monster / character templates — {t.entry_count} char_ids × "
                             f"{t.record_size} B   (id: <48 human · 48-199 field · 200-253 boss)"
                   ).pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
 
-        body = ttk.Frame(self.content); body.pack(fill="both", expand=True)
+        body = ttk.Frame(doc.content); body.pack(fill="both", expand=True)
         left = ttk.Frame(body); left.pack(side="left", fill="both", expand=True)
         cols = ("id", "name", "hp", "atk", "def", "kind")
         widths = {"id": 50, "name": 150, "hp": 70, "atk": 55, "def": 55, "kind": 155}
@@ -3953,16 +3993,16 @@ class App:
                     t.set(i, off, int(v.get(), 0), typ)
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i)); render_sheet(i)
             self.status.config(text=f"Applied char {i} — Save… to write a loose override")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3NpcParam.bin",
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved rf3NpcParam → {f}")
 
         btns = ttk.Frame(ed); btns.pack(fill="x", padx=4, pady=2)
@@ -3970,15 +4010,17 @@ class App:
         ttk.Button(btns, text="Apply", command=apply_edit).pack(side="right", padx=3)
 
     def _view_hex(self, name, data, error: str | None = None):
-        txt = self._make_text_tab(None, None, mono=True)
+        doc = self._doc
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         if error:
             txt.insert("end", f"[viewer note] {error}\n\n")
         txt.insert("end", hexdump(data))
         txt.config(state="disabled")
 
     # ---- view helpers ---------------------------------------------------- #
-    def _make_text_tab(self, nb, title, mono=False):
-        parent = self.content if nb is None else ttk.Frame(nb)
+    def _make_text_tab(self, nb, title, mono=False, doc=None):
+        doc = doc or self._doc
+        parent = doc.content if nb is None else ttk.Frame(nb)
         if nb is not None:
             nb.add(parent, text=title)
         frame = ttk.Frame(parent); frame.pack(fill="both", expand=True)
@@ -3990,8 +4032,9 @@ class App:
         txt.pack(side="left", fill="both", expand=True)
         return txt
 
-    def _make_image_canvas(self, parent=None):
-        parent = parent or self.content
+    def _make_image_canvas(self, parent=None, doc=None):
+        doc = doc or self._doc
+        parent = parent or doc.content
         frame = ttk.Frame(parent); frame.pack(fill="both", expand=True)
         hb = ttk.Scrollbar(frame, orient="horizontal")
         vb = ttk.Scrollbar(frame, orient="vertical")
@@ -4001,19 +4044,20 @@ class App:
         canvas.pack(side="left", fill="both", expand=True)
         return canvas
 
-    def _set_zoom(self, z):
-        if self._pil is None:
+    def _set_zoom(self, z, doc=None):
+        doc = doc or self._doc
+        if doc._pil is None:
             return
-        self.zoom = z
-        w, h = self._pil.size
+        doc.zoom = z
+        w, h = doc._pil.size
         # crisp nearest-neighbour when magnifying (see the pixels); smooth LANCZOS
         # when shrinking so downscaled photos/atlases don't alias to noise.
         resample = Image.NEAREST if z >= 1 else Image.LANCZOS
-        disp = self._pil.resize((max(1, int(w * z)), max(1, int(h * z))), resample)
-        self.cur_image = ImageTk.PhotoImage(disp)
-        self._img_canvas.delete("all")
-        self._img_canvas.create_image(0, 0, anchor="nw", image=self.cur_image)
-        self._img_canvas.config(scrollregion=(0, 0, disp.width, disp.height))
+        disp = doc._pil.resize((max(1, int(w * z)), max(1, int(h * z))), resample)
+        doc.cur_image = ImageTk.PhotoImage(disp)
+        doc._img_canvas.delete("all")
+        doc._img_canvas.create_image(0, 0, anchor="nw", image=doc.cur_image)
+        doc._img_canvas.config(scrollregion=(0, 0, disp.width, disp.height))
 
     # ---- extract / export ------------------------------------------------ #
     def cmd_cutscene_editor(self):
@@ -4043,26 +4087,28 @@ class App:
 
     def cmd_extract(self):
         """Save the shown file's working copy; True when it was written."""
-        if self.cur_data is None:
+        doc = self._doc
+        if doc.cur_data is None:
             return False
-        default = pathlib.Path(self.cur_name).name
+        default = pathlib.Path(doc.cur_name).name
         f = filedialog.asksaveasfilename(title="Extract raw bytes", initialfile=default)
         if not f:
             return False
-        pathlib.Path(f).write_bytes(self.cur_data)
-        self.status.config(text=f"Extracted {len(self.cur_data):,} bytes -> {f}")
-        self._mark_saved()
+        pathlib.Path(f).write_bytes(doc.cur_data)
+        self.status.config(text=f"Extracted {len(doc.cur_data):,} bytes -> {f}")
+        self._mark_saved(doc)
         return True
 
     def cmd_export(self):
-        kind = getattr(self, "_export_kind", None)
+        doc = self._doc
+        kind = getattr(doc, "_export_kind", None)
         if not kind:
             return
-        stem = pathlib.Path(self.cur_name).stem
+        stem = pathlib.Path(doc.cur_name).stem
         if kind == "map_png":
             # .rf4m: WYSIWYG snapshot of the embedded map editor -- current zoom
             # level + exactly the overlay layers that are toggled on.
-            panel = getattr(self, "_map_panel", None)
+            panel = getattr(doc, "_map_panel", None)
             img = panel.render_to_image() if panel is not None else None
             if img is None:
                 self.status.config(text="Map export needs Pillow + an ATTR grid.")
@@ -4079,22 +4125,22 @@ class App:
         elif kind == "png":
             f = filedialog.asksaveasfilename(defaultextension=".png", initialfile=stem + ".png",
                                              filetypes=[("PNG", "*.png")])
-            if f and self._pil:
-                self._pil.save(f); self.status.config(text=f"Exported PNG -> {f}")
+            if f and doc._pil:
+                doc._pil.save(f); self.status.config(text=f"Exported PNG -> {f}")
         elif kind == "textjson":
             import json
             f = filedialog.asksaveasfilename(defaultextension=".json", initialfile=stem + ".json",
                                              filetypes=[("JSON", "*.json")])
             if f:
                 pathlib.Path(f).write_text(
-                    json.dumps(self._export_arc.texts(), ensure_ascii=False, indent=1), encoding="utf-8")
-                self.status.config(text=f"Exported {len(self._export_arc)} strings -> {f}")
+                    json.dumps(doc._export_arc.texts(), ensure_ascii=False, indent=1), encoding="utf-8")
+                self.status.config(text=f"Exported {len(doc._export_arc)} strings -> {f}")
         elif kind == "plistjson":
             import json
             f = filedialog.asksaveasfilename(defaultextension=".json", initialfile=stem + ".json",
                                              filetypes=[("JSON", "*.json")])
             if f:
-                obj = bplist.loads(self._export_data)
+                obj = bplist.loads(doc._export_data)
                 pathlib.Path(f).write_text(
                     json.dumps(bplist.to_jsonable(obj), ensure_ascii=False, indent=1), encoding="utf-8")
                 self.status.config(text=f"Exported plist JSON -> {f}")
@@ -4102,7 +4148,7 @@ class App:
             f = filedialog.asksaveasfilename(defaultextension=".txt", initialfile=stem + ".txt",
                                              filetypes=[("Text", "*.txt")])
             if f:
-                pathlib.Path(f).write_text(self._export_text, encoding="utf-8")
+                pathlib.Path(f).write_text(doc._export_text, encoding="utf-8")
                 self.status.config(text=f"Exported disassembly -> {f}")
 
 
