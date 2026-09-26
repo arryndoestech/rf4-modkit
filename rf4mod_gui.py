@@ -2993,17 +2993,18 @@ class App:
 
     def _view_montame(self, name, data):
         """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849)."""
+        doc = self._doc
         from rf4s_modkit import montame
         items = _load_item_names()
         chars = _load_char_names()
-        ttk.Label(self.content, text=f"Monster taming-food preferences — {montame.species_count(data)} "
+        ttk.Label(doc.content, text=f"Monster taming-food preferences — {montame.species_count(data)} "
                                      f"species (id 48+), each with up to 4 favored items + tame bonus"
                   ).pack(fill="x", padx=6, pady=2)
-        tv = ttk.Treeview(self.content, columns=("sp", "who", "items"), show="headings", height=22)
+        tv = ttk.Treeview(doc.content, columns=("sp", "who", "items"), show="headings", height=22)
         for c, w in (("sp", 70), ("who", 150), ("items", 640)):
             tv.heading(c, text={"sp": "species", "who": "name", "items": "tame items (+bonus)"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         for sid in range(montame.FIRST_SPECIES, montame.FIRST_SPECIES + montame.species_count(data)):
@@ -3013,7 +3014,7 @@ class App:
             txt = ", ".join(f"{items.get(i, i)} (+{b})" for i, b in pr)
             tv.insert("", "end", values=(sid, chars.get(sid, ""), txt))
         # ---- edit controls (2026-09-19): set / remove one of a species' four tame items ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_sp, v_item, v_bonus = tk.StringVar(), tk.StringVar(), tk.StringVar(value="15")
         for lbl, var, w in (("species", v_sp, 6), ("item id", v_item, 7), ("bonus", v_bonus, 5)):
             ttk.Label(ctl, text=lbl).pack(side="left", padx=(6, 2))
@@ -3030,7 +3031,7 @@ class App:
                 bonus = int(v_bonus.get(), 0)
             except ValueError:
                 messagebox.showerror("Bad value", "species, item id and bonus must be integers"); return
-            buf = bytearray(self.cur_data)
+            buf = bytearray(doc.cur_data)
             try:
                 if remove:
                     if not montame.remove_item(buf, sp, iid):
@@ -3040,16 +3041,16 @@ class App:
             except Exception as ex:  # noqa: BLE001
                 messagebox.showerror("Edit failed", str(ex)); return
             blob = bytes(buf)
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text=f"taming foods edited (species {sp}, item {iid}) — Save table… / Extract… to write")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(self.cur_name).name,
+                                             initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("taming table", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         ttk.Button(ctl, text="Set item", command=lambda: _edit(False)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Remove item", command=lambda: _edit(True)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
