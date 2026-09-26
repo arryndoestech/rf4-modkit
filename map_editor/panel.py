@@ -31,7 +31,7 @@ _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos
 # The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
 # switching maps (the host may rebuild this panel) and pastes into another toolkit window.
 CLIP_TAG = "RF4S map object "
-_CLIP_KINDS = ("mobj", "warp", "si")
+_CLIP_KINDS = ("mobj", "warp", "si", "gpos", "mpos")
 _KIND_NAME = {"mobj": "entity", "warp": "warp", "si": "search spot", "gpos": "gate position",
               "mpos": "monster spawn point"}
 
@@ -515,8 +515,9 @@ class MapEditorPanel:
             m.add_command(label="Open destination map", command=lambda: self.goto_warp(key[1]))
             m.add_separator()
         m.add_command(label="Center view here", command=lambda: self.center_on(key))
-        if key[0] in _CLIP_KINDS:
+        if key[0] in ("mobj", "warp", "si"):
             m.add_command(label="Duplicate", command=lambda: self.duplicate(key))
+        if key[0] in _CLIP_KINDS:
             m.add_command(label="Copy  (Ctrl+C)", command=lambda: self.copy_object(key))
             m.add_command(label="Cut  (Ctrl+X)", command=lambda: self.copy_object(key, cut=True))
         if key[0] in ("gpos", "mpos"):
@@ -745,11 +746,18 @@ class MapEditorPanel:
             return
         kind, k = key
         if kind not in _CLIP_KINDS:
-            self.status(f"A {_KIND_NAME[kind]} belongs to its encounter gate and can't be copied")
             return
         d = self.doc
         clip = {"kind": kind, "from": d.base}
-        if kind == "mobj":
+        if kind in ("gpos", "mpos"):
+            e, i = d.locate_point(kind, k)
+            if e is None:
+                return
+            pt = (e.gate_pos if kind == "gpos" else e.mon_pos).points[i]
+            clip["x"], clip["y"] = pt[0], pt[1]
+            if kind == "mpos":
+                clip["extra"] = pt[2]
+        elif kind == "mobj":
             clip["record"] = [int(v) for v in d.map.mobj_records()[k]]
         elif kind == "warp":
             clip["record"] = [int(v) for v in d.map.mapj_records()[k]]
@@ -760,7 +768,7 @@ class MapEditorPanel:
         import json
         self.frame.clipboard_clear()
         self.frame.clipboard_append(CLIP_TAG + json.dumps(clip))
-        what = f"{_KIND_NAME[kind]} #{k}"
+        what = _KIND_NAME[kind] + (f" #{k}" if kind in ("mobj", "warp", "si") else "")
         if cut:
             self.delete(key)
             self.status(f"Cut {what} -- Ctrl+V pastes it on any map")
@@ -797,6 +805,20 @@ class MapEditorPanel:
             self.status(f"Can't paste: {why}")
             return
         d = self.doc
+        gate = None
+        if kind in ("gpos", "mpos"):
+            # a point belongs to a gate: the one chosen in the Encounters tab, or the only one
+            if d.gen is None:
+                self.status("Can't paste: this map has no encounter table (Gen file)")
+                return
+            gate = self.active_gate
+            if gate is None:
+                gates = [e for _pi, _ei, e in d.gen.all_entries()]
+                gate = gates[0] if len(gates) == 1 else None
+            if gate is None:
+                self.status(f"Choose the gate to paste the {_KIND_NAME[kind]} into "
+                            f"(Encounters tab), then paste again")
+                return
         W, H, _ = d.grid
         out = {}
 
@@ -812,7 +834,16 @@ class MapEditorPanel:
             return clamp(x, y, w, h)
 
         def do():
-            if kind == "mobj":
+            if kind in ("gpos", "mpos"):
+                x, y = place(clip["x"], clip["y"])
+                if kind == "gpos":
+                    d.gen.add_gate_position(gate, x, y)
+                    pts = d.gen.gate_positions_off(gate)
+                else:
+                    d.gen.add_monster_position(gate, x, y, clip.get("extra", 0))
+                    pts = d.gen.monster_positions_off(gate)
+                out["k"] = (kind, pts[-1][0])
+            elif kind == "mobj":
                 r = list(clip["record"])
                 if r[14] or r[15]:                  # positionless map parameters stay 0, 0
                     r[14], r[15] = place(r[14], r[15])
@@ -877,6 +908,9 @@ class MapEditorPanel:
         self._spawns_for = self.doc
         self._spawn_bank = bank
         self.view.st.spawns = spawns
+        # redraw the markers now: the update_idletasks above may already have run the redraw
+        # set_map scheduled, while the spawn list was still empty
+        self.view.invalidate("spawn")
         self.status(f"{len(spawns)} script-placed NPC(s) on this map" if bank is not None
                     else "No event script found for this map")
         self._schedule("objects")

@@ -349,8 +349,9 @@ picked), presets, a raw hex entry, or a click in the list of values the map alre
 Hover any flag for what the game does with it (and whether that is known at all).
 
 **Keys:** Ctrl+Z / Ctrl+Y undo / redo · Ctrl+S saves every changed file · Delete removes
-the selection · Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste an entity, warp or search spot
--- also onto another map (it pastes at the pointer; right-click empty map for *Paste here*;
+the selection · Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste an entity, warp, search spot, gate position or
+monster spawn point -- also onto another map (it pastes at the pointer; a gate point goes
+into the gate chosen in the Encounters tab, or the map's only gate; right-click empty map for *Paste here*;
 a map already holding the game's 40 entity / 10 warp chunks refuses) · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
 / `0` zoom / fit · the wheel zooms at the pointer · Ctrl+wheel / Shift+wheel scroll · middle-drag pans · Ctrl+hover a tile
 shows its ATTR decode.

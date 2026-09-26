@@ -5586,10 +5586,31 @@ def test_map_editor_script_spawns():
     _check("MAP_DUNG_L13 shows the Silver Wolf its script spawns (EventSpawnNpcVariant, "
            "sub-units 240, 290)",
            wolf and (wolf[0]["x"], wolf[0]["y"], wolf[0]["instance"]) == (240, 290, 100), str(sp))
+    # with the layer on, leaving the map and coming back draws the markers again
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_L12.rf4m").exists():
+        _skip("script NPCs after a map switch", "no extracted bundleMain"); return
+    from rf4s_modkit import rf4m as _rf4m
+    root, panel, errs = _headless_panel("MAP_DUNG_L13", B)
+    try:
+        panel.viewtab.vars["spawns"].set(True)
+        panel.set_layer("spawns", True)
+        panel.view.flush()
+        n = lambda: len(panel.view.canvas.find_withtag("spawn"))
+        before = n()
+        for nm in ("MAP_DUNG_L12", "MAP_DUNG_L13"):
+            panel.set_map(_rf4m.Rf4mMap.load(B / (nm + ".rf4m")), nm)
+            root.update()
+            panel.view.flush()
+        _check("script NPCs stay drawn after switching to another map and back",
+               before > 0 and n() == before and not errs, "%d -> %d" % (before, n()))
+    finally:
+        root.destroy()
 
 
 def test_map_editor_clipboard():
-    """Map editor clipboard: an entity, a warp and a search spot copied on one map paste into
+    """Map editor clipboard: an entity, a warp, a search spot, a gate position and a monster
+    spawn point copied on one map paste into
     another (records equal but for the position, at the pointer), cut removes the source,
     paste is one undo step, and a map at the engine's chunk cap refuses a paste."""
     print("map editor clipboard (copy / cut / paste across maps):")
@@ -5657,10 +5678,48 @@ def test_map_editor_clipboard():
         src.copy_object(("mobj", k))
         dst.paste_object((40, 48))
         ok.append(("cap", len(d1.map.mobj_records()) == n40 and dst.room_for("mobj")))
+        # gate positions / monster spawn points: pasted into a gate on another map
+        ga = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_DUNG_A04.rf4m"), "MAP_DUNG_A04")
+        gb = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_DUNG_L13.rf4m"), "MAP_DUNG_L13")
+        root.update_idletasks()
+        pa = ga.doc.gate_points()
+        mp = next(p for p in pa if p[0] == "mpos")
+        gp = next(p for p in pa if p[0] == "gpos")
+        e_a, i_a = ga.doc.locate_point("mpos", mp[1])
+        extra = e_a.mon_pos.points[i_a][2]
+        gate_b = next(e for _pi, _ei, e in gb.doc.gen.all_entries())
+        nm0, ng0 = len(gate_b.mon_pos.points), len(gate_b.gate_pos.points)
+        w0 = [len(s.weights) for s in gate_b.roster.spawns]
+        ga.copy_object(("mpos", mp[1]))
+        gb.paste_object((100, 120))                  # the map's only gate takes it
+        pt = gate_b.mon_pos.points[-1]
+        ok.append(("spawn point", len(gate_b.mon_pos.points) == nm0 + 1
+                   and pt[0] == 96 + (mp[2] & 7) and pt[1] == 120 + (mp[3] & 7) and pt[2] == extra
+                   and [len(s.weights) for s in gate_b.roster.spawns] == [w + 1 for w in w0]
+                   and gb.sel and gb.sel[0] == "mpos"))
+        ga.copy_object(("gpos", gp[1]))
+        gb.paste_object(None)
+        ok.append(("gate position", len(gate_b.gate_pos.points) == ng0 + 1))
+        gb.undo()                                    # (undo reinstalls the Gen table)
+        gate_b = next(e for _pi, _ei, e in gb.doc.gen.all_entries())
+        ok.append(("undo point", len(gate_b.gate_pos.points) == ng0))
+        # two gates and none chosen: refused until one is chosen in the Encounters tab
+        gb.doc.gen.add_entry(0, 0, 10, clone=gate_b, share=False)
+        gb.set_active_gate(None)
+        n2 = len(gb.doc.gate_points())
+        gb.paste_object((100, 120))
+        refused = len(gb.doc.gate_points()) == n2
+        gb.set_active_gate((0, 1))
+        gb.paste_object((100, 120))
+        ok.append(("choose gate", refused and len(gb.active_gate.gate_pos.points) == ng0 + 1))
+        # cut removes the point from its gate
+        na = len(ga.doc.gate_points())
+        ga.copy_object(("mpos", mp[1]), cut=True)
+        ok.append(("cut point", len(ga.doc.gate_points()) == na - 1))
         # not text: a plain-text clipboard pastes nothing
         root.clipboard_clear(); root.clipboard_append("hello")
         ok.append(("plain text", dst.clipboard_object() is None))
-        _check("clipboard: entity / warp / search spot copy across maps, cut, undo, chunk cap",
+        _check("clipboard: entity / warp / search spot / gate point copy across maps, cut, undo, chunk cap",
                all(v for _n, v in ok) and not errs, str([n for n, v in ok if not v]) + str(errs[:1]))
         _check("clipboard: Ctrl+C / X / V bound on the map canvas (text fields keep their own)",
                all(src.view.canvas.bind(f"<Control-{c}>") for c in "cxvCXV")
