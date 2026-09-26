@@ -13,7 +13,8 @@ from rf4s_modkit import mobj_types
 
 from . import attrs, render, ui
 
-ZOOMS = (1, 2, 3, 4, 6, 8, 12, 16, 24)
+ZOOMS = (2, 3, 4, 6, 8, 12, 16, 24)      # px per tile; 1 px showed nothing useful
+OPEN_ZOOM = 6                              # px per tile a map opens at (Fit / 0 shows it all)
 MAX_CANVAS_PX = 8192          # PhotoImage conversion above this gets slow
 
 
@@ -534,22 +535,40 @@ class MapView(ttk.Frame):
             nxt = next((z for z in reversed(zs) if z < self.cp), zs[0])
         self.set_zoom(nxt, anchor)
 
+    def _after_layout(self, fn):
+        """False (and `fn` runs once the canvas has a size, on its first <Configure>) while the
+        canvas has not been laid out yet; True when it has."""
+        if self.canvas.winfo_width() >= 50 and self.canvas.winfo_height() >= 50:
+            return True
+        self._layout_wait = fn                  # the latest request wins
+        if not getattr(self, "_fit_pending", False):
+            self._fit_pending = True
+
+            def later(_e=None):
+                if self.canvas.winfo_width() >= 50:
+                    self._fit_pending = False
+                    self.canvas.unbind("<Configure>", self._fit_bind)
+                    self._layout_wait()
+            self._fit_bind = self.canvas.bind("<Configure>", later, add="+")
+        return False
+
+    def open_view(self):
+        """How a map opens: OPEN_ZOOM px per tile (less when the map is too big for that),
+        centred on the map."""
+        d = self.doc
+        if d is None or d.grid is None or not self._after_layout(self.open_view):
+            return
+        self.set_zoom(min(OPEN_ZOOM, self.max_zoom()))
+        if self.on_zoom:
+            self.on_zoom()
+        W, H, _ = d.grid
+        self.center_on(W / 2, H / 2)
+
     def fit(self):
         """Largest zoom at which the whole map is visible. Before the canvas has been laid
         out it has no size yet, so the fit waits for its first <Configure>."""
         d = self.doc
-        if d is None or d.grid is None:
-            return
-        if self.canvas.winfo_width() < 50 or self.canvas.winfo_height() < 50:
-            if not getattr(self, "_fit_pending", False):
-                self._fit_pending = True
-
-                def later(_e=None):
-                    if self.canvas.winfo_width() >= 50:
-                        self._fit_pending = False
-                        self.canvas.unbind("<Configure>", self._fit_bind)
-                        self.fit()
-                self._fit_bind = self.canvas.bind("<Configure>", later, add="+")
+        if d is None or d.grid is None or not self._after_layout(self.fit):
             return
         W, H, _ = d.grid
         cw = self.canvas.winfo_width()

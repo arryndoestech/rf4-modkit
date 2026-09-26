@@ -389,6 +389,17 @@ def _sprite_rect(o, src, cp):
 LABEL_HALO = "#000"     # the outline drawn around every name label's letters
 
 
+def label_size(cp):
+    """Name-label font size (pt) for a zoom of `cp` px per tile: 7 pt while zoomed out (up to
+    about 6 px, where small text is fine), growing steadily to 10 pt at 16 px so labels are
+    readable there, then more slowly, up to 13 pt."""
+    if cp <= 6:
+        return 7
+    if cp <= 16:
+        return round(7 + (cp - 6) * 0.3)
+    return min(13, round(10 + (cp - 16) / 4))
+
+
 def label(x, y, below, text, fill, size, key=None):
     """A name label centred above (x, y): outlined in LABEL_HALO so it reads on any ground,
     and moved to `below` (the point under its object) by the renderer when there is no room
@@ -405,7 +416,8 @@ def overlay(group, st):
         return []
     W, H, _ = doc.grid
     out = []
-    small = max(7, cp // 3)
+    small = max(7, cp // 3)                # text inside a marker (spot number, gate "G")
+    lsize = label_size(cp)                 # name labels above objects / NPCs
     if group == "grid":
         if L.get("grid") and cp >= 4:
             for x in range(W + 1):
@@ -463,7 +475,7 @@ def overlay(group, st):
                     nm = mobj_types.mobj_display_name(tid) or o["category"]
                     mx = (rect[0] + rect[2]) // 2
                     out.append(label(mx, rect[1] - 1, (mx, rect[3] + 1),
-                                     nm + (" (hidden by flag)" if gone else ""), "#ffe000", small))
+                                     nm + (" (hidden by flag)" if gone else ""), "#ffe000", lsize))
                 continue
             if gone:
                 out.append(Prim("oval", (cx - r, cy - r, cx + r, cy + r), key=("mobj", i),
@@ -473,7 +485,7 @@ def overlay(group, st):
                                 fill=attrs.CAT_COLOR.get(o["category"], "#fff"), outline="#000"))
             if labels_on:
                 nm = mobj_types.mobj_display_name(tid) or o["category"]
-                out.append(label(cx, cy - r - 1, (cx, cy + r + 1), nm, "#ffe000", small))
+                out.append(label(cx, cy - r - 1, (cx, cy + r + 1), nm, "#ffe000", lsize))
     elif group == "si":
         if L.get("si") and doc.si is not None:
             sr = max(5, cp // 2 + 3)
@@ -514,7 +526,7 @@ def overlay(group, st):
                 cx, cy = (sp["x"] >> 3) * cp + cp // 2, (sp["y"] >> 3) * cp + cp // 2
                 out.append(Prim("oval", (cx - sr, cy - sr, cx + sr, cy + sr), key=("spawn", i),
                                 fill=SPAWN_COLOR, outline="#2a0640"))
-                out.append(label(cx, cy - sr - 1, (cx, cy + sr + 1), sp["name"], "#e6b3ff", small,
+                out.append(label(cx, cy - sr - 1, (cx, cy + sr + 1), sp["name"], "#e6b3ff", lsize,
                                  key=("spawn", i)))
     elif group == "dest":
         if L.get("dest"):
@@ -524,7 +536,7 @@ def overlay(group, st):
                     continue
                 x0, y0, x1, y1 = warp_rect_px(rec, cp)
                 out.append(label((x0 + x1) // 2, y0 - 2, ((x0 + x1) // 2, y1 + 2), name, WARP_COLOR,
-                                 max(7, cp // 2)))
+                                 label_size(cp) + 1))
     elif group == "sel":
         out += _selection(st)
     return out

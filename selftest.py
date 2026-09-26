@@ -5735,6 +5735,11 @@ def test_explorer_tabs():
         app._select_by_key = False
         app._on_select(None); root.update()     # a click on a map: its own tab + map editor
         mdoc, kept = app._doc, root.focus_get() is app.tree
+        for _ in range(5):
+            root.update()
+        _check("a map opens at 6 px per tile (Fit / 0 shows it all)",
+               mdoc.map_panel() is not None and mdoc.map_panel().view.cp == 6,
+               str(mdoc.map_panel().view.cp if mdoc.map_panel() else None))
         app.tree.event_generate("<KeyPress-Down>"); root.update()
         root.withdraw()
         _check("opening a map keeps the keyboard on the file list (Down right away shows the next "
@@ -6314,7 +6319,7 @@ def test_map_editor_labels():
     B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
     if not (B / "MAP_CITY_00.rf4m").exists():
         _skip("map editor labels", "no extracted bundleMain"); return
-    from map_editor import render as mrender
+    from map_editor import render as mrender, view as mview
     root = None
     try:
         root, p, errs = _headless_panel("MAP_CITY_00", B)
@@ -6341,6 +6346,18 @@ def test_map_editor_labels():
             for it in yellow)
         _check("every label is outlined: 8 black copies, one pixel off, drawn under it",
                len(black) == 8 * len(yellow) and outlined, f"{len(black)} outline items for {len(yellow)} labels")
+        # label size follows the zoom: small when zoomed out, readable from ~6 px, 10 pt at 16 px
+        sizes = {cp: mrender.label_size(cp) for cp in (2, 4, 6, 8, 12, 16, 24)}
+        v.set_zoom(16)
+        v._draw_group("ent")
+        fonts = {c.itemcget(it, "font") for it in c.find_withtag("ent")
+                 if c.type(it) == "text" and c.itemcget(it, "fill") == "#ffe000"}
+        v.set_zoom(1)
+        _check("name labels grow with the zoom (7 pt up to 6 px, 10 pt at 16 px, more above) and "
+               "the zoom stops at 2 px",
+               sizes[2] == sizes[6] == 7 and sizes[8] > 7 and sizes[16] == 10 and sizes[24] > 10
+               and fonts == {"{Segoe UI} 10"} and v.cp == 2 and 1 not in mview.ZOOMS,
+               f"{sizes} fonts={fonts} min zoom={v.cp}")
         # labels don't overlap each other (MAP_CITY_02 had "street street light" before)
         from rf4s_modkit import rf4m as _rf4m
         for nm in ("MAP_CITY_02", "MAP_FIELD_01"):

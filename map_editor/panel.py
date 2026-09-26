@@ -268,7 +268,7 @@ class MapEditorPanel:
         self.problems.summary.config(text="")
         self._update_chrome()
         self.view.request_ground()
-        ui.later(self.frame, self.view_fit)
+        ui.later(self.frame, self.view_open)
 
     def suspend(self):
         """The host is hiding the editor: stop background ground decodes."""
@@ -558,6 +558,11 @@ class MapEditorPanel:
 
     def view_fit(self):
         self.view.fit()
+        self._update_chrome()
+
+    def view_open(self):
+        """A map just loaded: the opening zoom (view.OPEN_ZOOM), centred."""
+        self.view.open_view()
         self._update_chrome()
 
     # ------------------------------------------------------------------ #
