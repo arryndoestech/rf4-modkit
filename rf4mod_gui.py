@@ -2876,13 +2876,14 @@ class App:
     def _view_schedule(self, name, data):
         """rf3Schedule — NPC daily-routine itineraries: one per (NPC, state), time -> spot kind
         -> room (spots resolved through the sibling rf3ScheduleID.bin when it is extracted)."""
+        doc = self._doc
         sc = schedule.Schedule.parse(data)
         cells = sc.ordered_cells()
         scheds = [lst for _k, lst in cells]
         sidbytes = _find_extracted("rf3ScheduleID.bin")
         spots = schedule.load_spots(sidbytes) if sidbytes else None
         chars = _load_char_names()
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"NPC daily schedules — {len(scheds)} (NPC, state) routines, "
                             f"{sum(len(s) for s in scheds)} stops. Pick a schedule:"
                   ).pack(side="left", padx=6)
@@ -2890,11 +2891,11 @@ class App:
         sp = ttk.Spinbox(bar, from_=0, to=max(0, len(scheds) - 1), width=6, textvariable=sv)
         sp.pack(side="left", padx=4)
         who = ttk.Label(bar, text=""); who.pack(side="left", padx=8)
-        tv = ttk.Treeview(self.content, columns=("time", "room", "name"), show="headings", height=20)
+        tv = ttk.Treeview(doc.content, columns=("time", "room", "name"), show="headings", height=20)
         for c, w in (("time", 80), ("room", 80), ("name", 360)):
             tv.heading(c, text={"time": "time", "room": "spot kind", "name": "location (rf3ScheduleID)"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
 
@@ -2915,7 +2916,7 @@ class App:
                                              + ("  [random depart]" if wp.flags & 1 else "")))
         sv.trace_add("write", fill); fill()
         # ---- edit controls (2026-09-19): change / add / remove a stop of the shown schedule ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_time, v_spot, v_rand = tk.StringVar(), tk.StringVar(), tk.BooleanVar()
         ttk.Label(ctl, text="time (HH:MM)").pack(side="left")
         ttk.Entry(ctl, textvariable=v_time, width=7).pack(side="left", padx=2)
@@ -2962,16 +2963,16 @@ class App:
                 blob = sc.build()
             except Exception as ex:  # noqa: BLE001 - the module explains what is wrong
                 messagebox.showerror("Edit failed", str(ex)); return
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text=f"schedule edited ({action}, npc {npc} state {state}) — Save… / Extract… to write")
             fill()
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(self.cur_name).name,
+                                             initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("schedule", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, act in (("Apply stop", "apply"), ("Add stop", "add"), ("Remove stop", "remove")):
             ttk.Button(ctl, text=lbl, command=lambda a=act: _edit(a)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Save…", command=_save).pack(side="right", padx=2)
