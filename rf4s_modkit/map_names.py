@@ -97,6 +97,21 @@ def map_file(map_id):
     return files[mid] if 0 <= mid < len(files) else None
 
 
+SEASONAL_MAP_IDS = range(4, 64)    # Map_LoadById: ids < 64 get the calendar season (0..3) added
+SEASONS = ("spring", "summer", "autumn", "winter")
+
+
+def season_family(map_id):
+    """[(season, MAP_* file)] of the four maps the game picks between by season for a
+    seasonal map id (Map_LoadById adds the calendar season 0..3 to a requested id below 64:
+    farm, fields, Selphia's streets and the farmhouse come as spring / _SUMMER / _AUTUMN /
+    _WINTER), or [] for a map that looks the same all year."""
+    if map_id is None or int(map_id) not in SEASONAL_MAP_IDS:
+        return []
+    first = int(map_id) - int(map_id) % 4
+    return [(SEASONS[k], map_file(first + k)) for k in range(4)]
+
+
 def map_id_for_file(name):
     """Map id of a `.rf4m` file name / path / base name (case-insensitive; seasonal
     variants such as MAP_CITY_01_SUMMER are their own ids), or None."""

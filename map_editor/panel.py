@@ -26,7 +26,7 @@ from .inspector import Inspector
 from .tabs import FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, ObjectsTab, ProblemsTab, ViewTab
 from .view import MapView
 
-TABS = ("View", "Inspect", "Objects", "Map", "Encounters", "Problems")
+TABS = ("View", "Inspect", "Objects", "Map", "Gates", "Problems")
 _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos": "gen"}
 # The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
 # switching maps (the host may rebuild this panel) and pastes into another toolkit window.
@@ -59,7 +59,7 @@ class MapEditorPanel:
         self._dialogs = []
         self._build()
         self.tex_reader = tex_reader
-        self.set_tool("select")
+        self.set_tool("select", focus=False)    # the host keeps its focus (e.g. the file list)
         if mapobj is not None:
             self.set_map(mapobj, name)
 
@@ -107,15 +107,22 @@ class MapEditorPanel:
         bar.pack(fill="x")
         mb = ttk.Menubutton(bar, text="Save")
         menu = tk.Menu(mb, tearoff=False)
-        menu.add_command(label="Save all changed files…", accelerator="Ctrl+S", command=self.save_all)
+        menu.add_command(label="Save (overwrite the game's files)", accelerator="Ctrl+S",
+                         command=self.save_to_game)
         menu.add_separator()
-        menu.add_command(label="Save map (.rf4m)…", command=self.save_map)
-        menu.add_command(label="Save search items (SI_*.bin)…", command=self.save_si)
-        menu.add_command(label="Save encounters (Gen*.bin)…", command=self.save_gen)
+        menu.add_command(label="Save map (.rf4m) as…", command=self.save_map)
+        menu.add_command(label="Save search items (SI_*.bin) as…", command=self.save_si)
+        menu.add_command(label="Save monster gates (Gen*.bin) as…", command=self.save_gen)
         menu.add_separator()
         menu.add_command(label="Export map view as PNG…", command=self.export_png)
         mb["menu"] = menu
         mb.pack(side="left")
+        ui.Tip(mb, "Save (Ctrl+S) writes this map's changed files -- the map, its search spots, "
+                   "its monster gates -- straight over the ones the game loads from your game folder, "
+                   "without asking; the first time, the originals are copied to ModdingBackup in "
+                   "the game folder. 'Save … as…' writes a copy elsewhere instead.\n"
+                   "Farm, field and Selphia maps come in four seasons (…_SUMMER, _AUTUMN, "
+                   "_WINTER): the game loads the one for the current season.")
         self.undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo)
         self.undo_btn.pack(side="left", padx=(6, 0))
         ui.Tip(self.undo_btn, lambda: self._undo_tip("undo"))
@@ -187,7 +194,7 @@ class MapEditorPanel:
         self.retag = shortcut_scope(self.frame, self._tag, [
             ("z", lambda e: self.redo() if e.state & 0x0001 else self.undo()),
             ("y", lambda e: self.redo()),
-            ("s", lambda e: self.save_all())],
+            ("s", lambda e: self.save_to_game())],
             home=lambda: getattr(getattr(self, "view", None), "canvas", None))  # the map
 
     # ------------------------------------------------------------------ #
@@ -283,7 +290,7 @@ class MapEditorPanel:
             f"Save before you {action}?\n(Yes = save, No = discard, Cancel = stay here)")
         if ans is None:
             return False
-        return self.save_all() if ans else True
+        return self.save_to_game() if ans else True
 
     # ------------------------------------------------------------------ #
     # document changes
@@ -424,7 +431,7 @@ class MapEditorPanel:
     def tool(self):
         return self.tools[self.tool_var.get()]
 
-    def set_tool(self, name):
+    def set_tool(self, name, focus=True):
         self.flush_edits()
         old = self.tools.get(getattr(self, "_tool_name", None))
         if old is not None:
@@ -436,7 +443,8 @@ class MapEditorPanel:
         t = self.tools[name]
         t.activate()
         self.view.canvas.config(cursor=t.cursor)
-        self.view.canvas.focus_set()          # so the tool keys work right away
+        if focus:
+            self.view.canvas.focus_set()      # so the tool keys work right away
         self.inspector.show_tool(t)
         if name != "select" and self.nb.select() and self.nb.tab(self.nb.select(), "text") in ("Map", "View"):
             self.show_tab("Inspect")
@@ -597,7 +605,7 @@ class MapEditorPanel:
 
     def show_gate(self, idx):
         self.set_active_gate(idx)
-        self.show_tab("Encounters")
+        self.show_tab("Gates")
 
     # ---- positions (shared by dragging, nudging and the forms) ---------- #
     def aspect_of(self, key):
@@ -811,7 +819,7 @@ class MapEditorPanel:
         d = self.doc
         gate = None
         if kind in ("gpos", "mpos"):
-            # a point belongs to a gate: the one chosen in the Encounters tab, or the only one
+            # a point belongs to a gate: the one chosen in the Gates tab, or the only one
             if d.gen is None:
                 self.status("Can't paste: this map has no encounter table (Gen file)")
                 return
@@ -821,7 +829,7 @@ class MapEditorPanel:
                 gate = gates[0] if len(gates) == 1 else None
             if gate is None:
                 self.status(f"Choose the gate to paste the {_KIND_NAME[kind]} into "
-                            f"(Encounters tab), then paste again")
+                            f"(Gates tab), then paste again")
                 return
         W, H, _ = d.grid
         out = {}
@@ -1141,7 +1149,7 @@ class MapEditorPanel:
         if d.gen is not None:
             for s in d.gen.validate():
                 sev, _, msg = s.partition(": ")
-                out.append(("ERROR", "encounters", msg) if sev == "ERROR" else ("WARN", "encounters", s))
+                out.append(("ERROR", "monster gates", msg) if sev == "ERROR" else ("WARN", "monster gates", s))
         if d.gen is not None and d.grid:
             out += self._gate_point_issues()
         if d.si is not None and d.grid:
@@ -1178,7 +1186,7 @@ class MapEditorPanel:
             ref = "(Gen record @0x%x)" % off
             if kind == "gpos":
                 if not (0 <= tx < W and 0 <= ty < H):
-                    out.append(("WARN", "encounters", f"gate position {ref} at tile ({tx}, {ty}) is "
+                    out.append(("WARN", "monster gates", f"gate position {ref} at tile ({tx}, {ty}) is "
                                 f"outside the {W}x{H} map -- the gate can never be reached"))
                 continue
             e, i = d.locate_point(kind, off)
@@ -1191,7 +1199,7 @@ class MapEditorPanel:
                         if (min(max(x, cx * 8), cx * 8 + 7) - x) ** 2
                         + (min(max(y, cy * 8), cy * 8 + 7) - y) ** 2 <= r * r)
             if not reach:
-                out.append(("WARN", "encounters",
+                out.append(("WARN", "monster gates",
                             f"monster spawn point {ref} at tile ({tx}, {ty}): no walkable tile within "
                             f"its radius ({r} sub-units) -- every monster appears on the point "
                             f"itself, inside a blocked tile (walkable = ATTR bit 0x01 or 0x20); move "
@@ -1235,7 +1243,7 @@ class MapEditorPanel:
             L += ["", "Placed types:"] + [f"  {c:>3} × {n}" for n, c in named.most_common()]
         if d.gen is not None:
             roster = ", ".join(f"{data.actor_name(i) or i}" for i, _n in d.gen.roster().most_common())
-            L += ["", f"Encounters ({d.gen_path.name if d.gen_path else 'Gen'}):", "  " + (roster or "(none)")]
+            L += ["", f"Monster gates ({d.gen_path.name if d.gen_path else 'Gen'}):", "  " + (roster or "(none)")]
         if d.si is not None:
             L += ["", f"Search spots ({d.si_path.name if d.si_path else 'new'}): {len(d.si.spots)}"]
             for i, sp in enumerate(d.si.spots[:12]):
@@ -1304,15 +1312,15 @@ class MapEditorPanel:
         self.flush_edits()
         d = self.doc
         if d is None or d.gen is None:
-            messagebox.showinfo("Save encounters", "This map has no encounter table.")
+            messagebox.showinfo("Save monster gates", "This map has no monster gates table (Gen*.bin).")
             return False
-        fatal = [m for s, where, m in self.validate() if s == "ERROR" and where == "encounters"]
+        fatal = [m for s, where, m in self.validate() if s == "ERROR" and where == "monster gates"]
         if fatal and not messagebox.askyesno(
-                "Encounters have fatal problems", "The game would crash or hang on this table:\n\n"
+                "Monster gates have fatal problems", "The game would crash or hang on this table:\n\n"
                 + "\n".join("• " + x for x in fatal[:6]) + ("\n…" if len(fatal) > 6 else "")
                 + "\n\nSave anyway?"):
             return False
-        p = self._ask_path("Save encounters", d.gen_path.name if d.gen_path else "Gen.bin", ".bin", "Gen table")
+        p = self._ask_path("Save monster gates", d.gen_path.name if d.gen_path else "Gen.bin", ".bin", "Gen table")
         if not p:
             return False
         try:
@@ -1325,6 +1333,104 @@ class MapEditorPanel:
         self._update_chrome()
         return True
 
+    def _fatal_ok(self, where, title, what):
+        """True unless validation finds errors that break the game in `where` and the user
+        declines to save anyway."""
+        fatal = [m for s, w, m in self.validate() if s == "ERROR" and w == where]
+        return not fatal or messagebox.askyesno(
+            title, what + ":\n\n" + "\n".join("• " + x for x in fatal[:6])
+            + ("\n…" if len(fatal) > 6 else "") + "\n\nSave anyway?")
+
+    def save_to_game(self):
+        """Save (Ctrl+S): overwrite this map's changed files -- the .rf4m, its search spots, its
+        encounters -- where the game loads them from the game folder, without asking; the
+        first time, the originals are copied to ModdingBackup. A file the game only has
+        inside a packed .mbundle goes to Bundle\\00_mods. Without a game folder it falls back
+        to the Save … as… dialogs. True when everything changed was written."""
+        from rf4s_modkit import gamepaths
+        self.flush_edits()
+        d = self.doc
+        if d is None:
+            return False
+        parts = [p for p in ("map", "si", "gen") if d.dirty(p)]
+        if not parts:
+            self.status("Nothing to save: no unsaved changes")
+            return True
+        if "map" in parts and not self._fatal_ok("map", "Map has fatal problems",
+                                                 "The game's loader would choke on this map"):
+            return False
+        if "gen" in parts and not self._fatal_ok("monster gates", "Monster gates have fatal problems",
+                                                 "The game would crash or hang on this table"):
+            return False
+        names = {"map": f"{d.base}.rf4m",
+                 "si": d.si_path.name if d.si_path else data.si_name_for_map(d.base),
+                 "gen": d.gen_path.name if d.gen_path else data.gen_name_for_map(d.base)}
+        targets = gamepaths.game_targets([names[p] for p in parts if names[p]])
+        if targets is None:
+            return self.save_all()
+        written, backed = [], []
+        for p in parts:
+            name = names[p]
+            if not name:
+                messagebox.showerror("Save", f"No file name for this map's {d.PART_LABELS[p]}: "
+                                             "use Save … as… in the Save menu.")
+                return False
+            try:
+                if gamepaths.write_game_file(targets[name], d._bytes(p)) is not None:
+                    backed.append(name)
+            except OSError as e:
+                messagebox.showerror("Save", f"Could not write {targets[name]}:\n{e}\n\n"
+                                             "(Is the game running with the file open?)")
+                return False
+            d.mark_saved(p)
+            if p == "si":
+                d.si_path = targets[name]
+            elif p == "gen":
+                d.gen_path = targets[name]
+            written.append(targets[name])
+        data._EXTRACTED_INDEX = None            # a new Bundle\00_mods file is findable at once
+        self._update_chrome()
+        bdir = gamepaths.find_bundle_dir()
+        shown = [str(t.relative_to(bdir.parent)) if bdir and bdir.parent in t.parents else str(t)
+                 for t in written]
+        self.status("Saved " + ", ".join(shown)
+                    + (f" (originals kept in {gamepaths.BACKUP_DIR})" if backed else "")
+                    + " -- restart the game to see it")
+        others = {n: v for n, v in targets[None].items()}
+        if others:
+            messagebox.showwarning(
+                "Other copies", "Saved, but the game folder has other files with the same names. "
+                "The game loads only one file of each name, and an extra copy can hide your "
+                "change:\n\n"
+                + "\n".join(f"{n}:\n  " + "\n  ".join(str(o) for o in v) for n, v in others.items())
+                + "\n\nDelete the extra copies (left over from earlier saves or mods).")
+        if "map" in parts:
+            self._season_note()
+        return True
+
+    SEASON_NOTE_SETTING = "season_note_shown"  # settings.json: the seasonal-map note was shown
+
+    def _season_note(self):
+        """Once, ever (remembered in settings.json): a seasonal map (farm, fields, Selphia's
+        streets, farmhouse) is four files, and the game loads the one for the current season.
+        The Save menu's tooltip keeps saying so afterwards."""
+        from rf4s_modkit import gamepaths
+        base = (self.doc.base or "").upper()
+        fam = map_names.season_family(map_names.map_id_for_file(base))
+        if not fam or gamepaths.get_setting(self.SEASON_NOTE_SETTING):
+            return
+        try:
+            gamepaths.set_setting(self.SEASON_NOTE_SETTING, True)
+        except OSError:
+            pass                                # a read-only toolkit folder: shown again next run
+        mine = next((s for s, f in fam if f.upper() == base), "?")
+        rest = [f"{f} ({s})" for s, f in fam if f.upper() != base]
+        messagebox.showinfo(
+            "Saved: a seasonal map",
+            f"{base} is this place in {mine}. The game loads a different file in each season:\n\n"
+            + "\n".join(rest) + f"\n\nSo the change only shows in {mine}. To see it in another "
+            "season, make the same edit in that season's map (or play a save in that season).")
+
     def save_all(self):
         """Save every changed file, each through its own dialog. False if one was cancelled."""
         self.flush_edits()
@@ -1332,7 +1438,7 @@ class MapEditorPanel:
         if not parts:
             self.status("Nothing to save: no unsaved changes")
             return True
-        for label, fn in (("map", self.save_map), ("search items", self.save_si), ("encounters", self.save_gen)):
+        for label, fn in (("map", self.save_map), ("search items", self.save_si), ("monster gates", self.save_gen)):
             if label in parts and not fn():
                 return False
         return True

@@ -788,7 +788,7 @@ class AddOptions(ttk.Frame):
             g = self.ed.active_gate
             self.note.config(text=(f"Adds to gate {g.gate_kind} {data.actor_name(g.gate_kind)}"
                                    if g is not None else
-                                   "Select a gate in the Encounters tab first: the point is added "
+                                   "Select a gate in the Gates tab first: the point is added "
                                    "to that gate."))
             self.note.pack(anchor="w", pady=(4, 0))
         else:

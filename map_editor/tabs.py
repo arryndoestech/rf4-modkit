@@ -1,4 +1,4 @@
-"""The sidebar tabs besides the Inspector: Objects, Map, Encounters, View, Problems."""
+"""The sidebar tabs besides the Inspector: Objects, Map, Gates (EncountersTab), View, Problems."""
 from __future__ import annotations
 
 import re
@@ -790,7 +790,7 @@ class ProblemsTab(ttk.Frame):
         ui.set_text(self.detail, f"{sev} ({where}): {msg}")
         for kind, rx in _REF:
             m = rx.search(msg)
-            if m and where in ("map", "search items", "encounters"):
+            if m and where in ("map", "search items", "monster gates"):
                 self.ed.select((kind, int(m.group(1), 16 if kind in ("gpos", "mpos") else 10)),
                                center=True)
                 return

@@ -423,15 +423,20 @@ def install_loose(game_root, filename: str, src_file, *, folder: str = MOD_FOLDE
 
 
 def loose_index(game_root) -> dict:
-    """{lower-case file name: [paths under Bundle/, the winning one first]} the way the
-    game's `Bundle/**` index resolves them: a sorted pre-order walk, earliest path wins
-    (see the module notes). Paths are relative to the Bundle folder, '/'-separated."""
+    """{file name, exact case: [paths under Bundle/, the winning one first]} the way the
+    game's `Bundle/**` index resolves them (IDB-verified, see the docs' modding-toolkit
+    chapter §1.5): each folder listing is sorted by raw bytes (case-sensitive: digits <
+    upper case < '_' < lower case), sub-folders are walked where they sort, names starting
+    with '.' are skipped, and the EARLIEST path of a name wins. Names are keys by their
+    exact bytes -- `map_x.rf4m` and `MAP_X.rf4m` are different files to the game, and it
+    asks for the exact name, so a copy in another case never overrides anything. Paths are
+    relative to the Bundle folder, '/'-separated."""
     root = bundle_dir(game_root)
     out = {}
 
     def walk(d, rel):
         try:
-            names = sorted(os.listdir(d))
+            names = sorted(os.listdir(d), key=lambda n: n.encode("utf-8", "surrogateescape"))
         except OSError:
             return
         for n in names:
@@ -442,29 +447,44 @@ def loose_index(game_root) -> dict:
             if os.path.isdir(p):
                 walk(p, r)
             else:
-                out.setdefault(n.lower(), []).append(r)
+                out.setdefault(n, []).append(r)
     walk(str(root), "")
     return out
 
 
+def case_variants(idx, name) -> list:
+    """Loose paths whose file name matches `name` except in upper / lower case: files the
+    game never loads in place of `name` (its index is case-sensitive)."""
+    low = name.lower()
+    return [p for n, paths in idx.items() if n != name and n.lower() == low for p in paths]
+
+
 def overrides(game_root, manifest: "Manifest | None" = None) -> list:
     """Loose files under Bundle/ that replace a packed game file, plus name clashes
-    between loose files: [(name, winning path, [other loose paths], bundle or None)].
-    With `manifest`, only names the manifest knows are listed and the owning bundle is
-    given; the shipped Manifest.plist itself is skipped."""
+    between loose files: [(name, winning path, [other loose paths], bundle or None,
+    game name or None)]. With `manifest`, only names the manifest knows are listed and the
+    owning bundle is given; the shipped Manifest.plist itself is skipped. A loose file
+    whose name matches a game file only when upper / lower case is ignored is listed with
+    that game file's exact name as `game name` (the game ignores it: names are
+    case-sensitive); otherwise `game name` is None."""
     idx = loose_index(game_root)
-    known = {}
+    known, known_low = {}, {}
     if manifest is not None:
         for bn in manifest.bundle_names():
             for f in manifest.files(bn):
-                known.setdefault(f.split("/")[-1].lower(), bn)
+                base = f.split("/")[-1]
+                known.setdefault(base, bn)
+                known_low.setdefault(base.lower(), base)
     rows = []
-    for name, paths in sorted(idx.items()):
-        if name == "manifest.plist":
+    for name, paths in sorted(idx.items(), key=lambda kv: kv[0].lower()):
+        if name == "Manifest.plist":
             continue
         if manifest is not None and name not in known:
+            game = known_low.get(name.lower())
+            if game is not None:                  # right name, wrong case: never loaded
+                rows.append((name, paths[0], paths[1:], known[game], game))
             continue
-        rows.append((paths[0].split("/")[-1], paths[0], paths[1:], known.get(name)))
+        rows.append((name, paths[0], paths[1:], known.get(name), None))
     return rows
 
 

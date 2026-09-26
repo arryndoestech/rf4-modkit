@@ -300,7 +300,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON** |
 | `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*; its sidebar gains an **Events** tab: the map's cutscene scenes, opened in the Cutscene editor) · Chunks · read-only Hex |
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
-| `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Encounters** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |
+| `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Gates** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
 | `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. See `docs/16`. |
 | `rf3*.bin` (NLCL) | param-table grid editor (named fields where decoded); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown above the editor |
@@ -334,6 +334,15 @@ It edits a map **together with its two sidecar files** -- the search-item spots
 (`SI_*.bin`) and the area's encounter table (`Gen*.bin`) -- with **one undo history**
 across all three.
 
+**Saving.** *Save* (Ctrl+S) writes the map's changed files -- the `.rf4m`, its search spots
+(`SI_*.bin`) and its encounters (`Gen*.bin`) -- straight over the ones the game loads from your
+game folder, without asking (into `Bundle\00_mods` for a file the game only has packed). The
+first time, the originals are copied to `ModdingBackup` in the game folder. *Save … as…*
+writes a copy elsewhere. Restart the game to see a change. The farm, the fields, Selphia's
+streets and the farmhouse come in four seasons (`MAP_CITY_00`, `…_SUMMER`, `…_AUTUMN`,
+`…_WINTER`) and the game loads the one for the current season, so an edit to one only shows
+in that season; the first time you save one, the editor says so (once, ever).
+
 **Layout.** A toolbar (Save menu, Undo / Redo, tools, zoom, Validate) above the map canvas
 and a sidebar with six tabs (it opens on View):
 
@@ -343,7 +352,7 @@ and a sidebar with six tabs (it opens on View):
 | **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
 | **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, monster gates, script NPCs) and filterable; picking a row selects it and scrolls it into view |
 | **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
-| **Encounters** | the `Gen*.bin`: gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
+| **Gates** | the `Gen*.bin` (monster gates): gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
 | **Events** | (in the asset explorer) the map's cutscene scenes from its event bank in `rf3.mc`, biggest first with a dialogue preview; double-click or *Open in Cutscene Editor*; *New scene on this map…* |
 | **Problems** | validation of all three files -- including monster spawn points with no walkable ground (ATTR bit 0x01 / 0x20) within their radius, where the game then spawns every monster on the point itself, and gate positions outside the map; selecting an issue selects its object |
 
@@ -364,10 +373,10 @@ for the surface field (the loader keeps at most one of those per tile, so two ca
 picked), presets, a raw hex entry, or a click in the list of values the map already uses.
 Hover any flag for what the game does with it (and whether that is known at all).
 
-**Keys:** Ctrl+Z / Ctrl+Y undo / redo · Ctrl+S saves every changed file · Delete removes
+**Keys:** Ctrl+Z / Ctrl+Y undo / redo · Ctrl+S saves (see below) · Delete removes
 the selection · Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste an entity, warp, search spot, gate position or
 monster spawn point -- also onto another map (it pastes at the pointer; a gate point goes
-into the gate chosen in the Encounters tab, or the map's only gate; right-click empty map for *Paste here*;
+into the gate chosen in the Gates tab, or the map's only gate; right-click empty map for *Paste here*;
 a map already holding the game's 40 entity / 10 warp chunks refuses) · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
 / `0` zoom / fit · the wheel zooms at the pointer · Ctrl+wheel / Shift+wheel scroll · middle-drag pans · Ctrl+hover a tile
 shows its ATTR decode.
@@ -676,8 +685,12 @@ looked at. So:
    This copies it to `Bundle\00_mods\rf3mc.eng`. **Restart the game** to load it.
    `00_mods` sorts before the `bundle…` folders, so it also wins over an extracted
    original (when a name exists twice under `Bundle\`, the path that sorts first wins).
+   **File names are case-sensitive to the game**, even though Windows isn't: the override
+   must have exactly the game's name (`rf3mc.eng`, not `RF3MC.ENG`; `MAP_CITY_00.rf4m`,
+   not `map_city_00.rf4m`), or the game never loads it. Sorting is by raw characters too:
+   digits, then upper case, then `_`, then lower case.
    `python rf4mod.py mods "C:/Games/RF4S"` lists everything that currently overrides
-   the game.
+   the game, and flags any file in the wrong case as ignored.
 2. **In-place patch (same or smaller size).** Overwrites bytes inside a bundle and
    updates `Manifest.plist`.
    ```bash

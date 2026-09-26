@@ -232,6 +232,8 @@ class MapView(ttk.Frame):
                 font = ("Segoe UI", o.get("size", 8)) + (("bold",) if o.get("bold") else ())
                 it = c.create_text(*p.xy, text=o["text"], fill=o.get("fill"), font=font,
                                    anchor=o.get("anchor", "center"), tags=tags)
+                if o.get("below") or o.get("halo"):
+                    self._place_label(it, p, font, tags)
             elif p.kind == "sprite":
                 ph = self._sprite_photo(o["fn"], o["frame"], p.xy, o["mirror"])
                 if ph is None:
@@ -241,6 +243,36 @@ class MapView(ttk.Frame):
                 continue
             if p.key is not None:
                 self._items[it] = p.key
+
+    # the outline: the label drawn again in the halo colour, one pixel off in every direction,
+    # under the coloured text (a Tk canvas has no text outline of its own)
+    HALO_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
+
+    def _place_label(self, it, p, font, tags):
+        """A name label: under its object when it would stick out above the map's top edge,
+        shifted in from the left / right edges, then outlined."""
+        c, o = self.canvas, p.opt
+        d = self.st.doc
+        mw = d.grid[0] * self.cp if d is not None and d.grid else None
+        box = c.bbox(it)
+        if box and box[1] < 0 and o.get("below"):
+            c.coords(it, *o["below"])
+            c.itemconfigure(it, anchor={"s": "n"}.get(o.get("anchor"), o.get("anchor")))
+            box = c.bbox(it)
+        if box and mw:
+            dx = -box[0] if box[0] < 0 else (mw - box[2] if box[2] > mw else 0)
+            if dx and box[2] - box[0] <= mw:
+                c.move(it, dx, 0)
+        halo = o.get("halo")
+        if halo:
+            x, y = c.coords(it)
+            anchor = c.itemcget(it, "anchor")
+            for ox, oy in self.HALO_OFFSETS:
+                h = c.create_text(x + ox, y + oy, text=o["text"], fill=halo, font=font,
+                                  anchor=anchor, tags=tags)
+                c.tag_lower(h, it)
+                if p.key is not None:
+                    self._items[h] = p.key
 
     def _sprite_photo(self, fn, frame, rect, mirror):
         x0, y0, x1, y1 = rect

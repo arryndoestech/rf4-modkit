@@ -386,6 +386,17 @@ def _sprite_rect(o, src, cp):
     return int(x0), int(y0), int(x1), int(y1)
 
 
+LABEL_HALO = "#000"     # the outline drawn around every name label's letters
+
+
+def label(x, y, below, text, fill, size, key=None):
+    """A name label centred above (x, y): outlined in LABEL_HALO so it reads on any ground,
+    and moved to `below` (the point under its object) by the renderer when there is no room
+    above the map's top edge."""
+    return Prim("text", (x, y), key=key, text=text, fill=fill, size=size, anchor="s",
+                halo=LABEL_HALO, below=below)
+
+
 def overlay(group, st):
     """Primitives of one overlay group. `st` is the view state: doc, cp, layers (dict of
     bool), sel (selection key or None), active_gate (Entry | None), spawns, sprites."""
@@ -450,9 +461,9 @@ def overlay(group, st):
                     out.append(Prim("rect", rect, key=("mobj", i), outline=BORDER_COLOR, width=1))
                 if labels_on:
                     nm = mobj_types.mobj_display_name(tid) or o["category"]
-                    out.append(Prim("text", ((rect[0] + rect[2]) // 2, rect[1] - 1),
-                                    text=nm + (" (hidden by flag)" if gone else ""),
-                                    fill="#ffe000", size=small, anchor="s"))
+                    mx = (rect[0] + rect[2]) // 2
+                    out.append(label(mx, rect[1] - 1, (mx, rect[3] + 1),
+                                     nm + (" (hidden by flag)" if gone else ""), "#ffe000", small))
                 continue
             if gone:
                 out.append(Prim("oval", (cx - r, cy - r, cx + r, cy + r), key=("mobj", i),
@@ -462,8 +473,7 @@ def overlay(group, st):
                                 fill=attrs.CAT_COLOR.get(o["category"], "#fff"), outline="#000"))
             if labels_on:
                 nm = mobj_types.mobj_display_name(tid) or o["category"]
-                out.append(Prim("text", (cx, cy - r - 1), text=nm, fill="#ffe000", size=small,
-                                anchor="s"))
+                out.append(label(cx, cy - r - 1, (cx, cy + r + 1), nm, "#ffe000", small))
     elif group == "si":
         if L.get("si") and doc.si is not None:
             sr = max(5, cp // 2 + 3)
@@ -504,17 +514,17 @@ def overlay(group, st):
                 cx, cy = (sp["x"] >> 3) * cp + cp // 2, (sp["y"] >> 3) * cp + cp // 2
                 out.append(Prim("oval", (cx - sr, cy - sr, cx + sr, cy + sr), key=("spawn", i),
                                 fill=SPAWN_COLOR, outline="#2a0640"))
-                out.append(Prim("text", (cx, cy - sr - 1), key=("spawn", i), text=sp["name"],
-                                fill="#e6b3ff", size=small, anchor="s"))
+                out.append(label(cx, cy - sr - 1, (cx, cy + sr + 1), sp["name"], "#e6b3ff", small,
+                                 key=("spawn", i)))
     elif group == "dest":
         if L.get("dest"):
             for rec in doc.map.mapj_records():
                 name, _bld = map_names.describe_destination(rec[5])
                 if not name:
                     continue
-                x0, y0, x1, _y1 = warp_rect_px(rec, cp)
-                out.append(Prim("text", ((x0 + x1) // 2, y0 - 2), text=name, fill=WARP_COLOR,
-                                size=max(7, cp // 2), anchor="s"))
+                x0, y0, x1, y1 = warp_rect_px(rec, cp)
+                out.append(label((x0 + x1) // 2, y0 - 2, ((x0 + x1) // 2, y1 + 2), name, WARP_COLOR,
+                                 max(7, cp // 2)))
     elif group == "sel":
         out += _selection(st)
     return out
@@ -596,6 +606,20 @@ def _rgb(spec):
 _PIL_ANCHOR = {"center": "mm", "s": "ms", "n": "mt", "w": "lm", "e": "rm"}
 
 
+def _place_label(dr, xy, o, font, anchor, size, stroke):
+    """((x, y), anchor) for a label in a W x H image: under its object (o['below']) when it
+    would stick out above the top edge, and shifted in from the left / right edges."""
+    sw = stroke.get("stroke_width", 0)               # textbbox takes the width, not the colour
+    x0, y0, x1, _y1 = dr.textbbox(xy, o["text"], font=font, anchor=anchor, stroke_width=sw)
+    if y0 < 0 and o.get("below"):
+        xy, anchor = o["below"], {"ms": "mt"}.get(anchor, anchor)
+        x0, y0, x1, _y1 = dr.textbbox(xy, o["text"], font=font, anchor=anchor, stroke_width=sw)
+    dx = -x0 if x0 < 0 else (size[0] - x1 if x1 > size[0] else 0)
+    if dx and x1 - x0 <= size[0]:
+        xy = (xy[0] + dx, xy[1])
+    return xy, anchor
+
+
 def draw_prims(img, prims, sprites=None):
     """Draw overlay primitives onto a PIL RGBA image (the export twin of the canvas)."""
     dr = ImageDraw.Draw(img)
@@ -616,9 +640,12 @@ def draw_prims(img, prims, sprites=None):
         elif p.kind == "text":
             font = _font(int(o.get("size", 8) * 4 / 3), o.get("bold", False))
             anchor = _PIL_ANCHOR.get(o.get("anchor", "center"), "mm")
+            halo = o.get("halo")
+            stroke = {"stroke_width": 1, "stroke_fill": _rgb(halo)} if halo else {}
             try:
-                dr.text(p.xy, o["text"], fill=fill, font=font, anchor=anchor)
-            except (TypeError, ValueError):       # bitmap font: no anchor support
+                xy, anchor = _place_label(dr, p.xy, o, font, anchor, img.size, stroke)
+                dr.text(xy, o["text"], fill=fill, font=font, anchor=anchor, **stroke)
+            except (TypeError, ValueError):       # bitmap font: no anchor / stroke support
                 dr.text(p.xy, o["text"], fill=fill, font=font)
         elif p.kind == "sprite" and sprites is not None:
             x0, y0, x1, y1 = p.xy

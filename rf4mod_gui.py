@@ -279,7 +279,7 @@ class Source:
 class _GenHost:
     """Everything map_editor.tabs.EncountersTab asks of an editor (doc.gen, the selected gate,
     apply, status, start_add), for a Gen file shown on its own: the explorer's Gen view uses
-    the map editor's Encounters pane with a flat picture of the map instead of the editor.
+    the map editor's Gates pane with a flat picture of the map instead of the editor.
     Edits change the working copy at once (Save table… writes it)."""
 
     PICTURE_PX = 440
@@ -298,7 +298,7 @@ class _GenHost:
         self._drag = None
         self._lbl = None
 
-    # ---- what the Encounters pane calls -------------------------------------------- #
+    # ---- what the Gates pane calls -------------------------------------------- #
     @property
     def active_gate(self):
         g = self.doc.gen
@@ -379,7 +379,7 @@ class _GenHost:
                 ttk.Label(row, text=place(maps[0][0]), font=("Segoe UI", 9, "bold")).pack(side="left", padx=4)
             ob = ttk.Button(row, text="Open in map editor", command=lambda: app._open_map_encounters(self.map))
             ob.pack(side="left", padx=8)
-            Tip(ob, "Open this map in the full map editor, on its Encounters tab.")
+            Tip(ob, "Open this map in the full map editor, on its Gates tab.")
         sb = ttk.Button(row, text="Save table…", command=self.save)
         sb.pack(side="right")
         Tip(sb, "Write this Gen file (with your edits) to disk.")
@@ -421,7 +421,7 @@ class _GenHost:
         return max(1, round(self.PICTURE_PX * W / H)), self.PICTURE_PX
 
     def presize_pane(self, width):
-        """Give the Encounters pane's scroll area its final width before it is shown, so it is
+        """Give the Gates pane's scroll area its final width before it is shown, so it is
         laid out once (guiutil.ScrollFrame would otherwise size it on its first <Configure>)."""
         pane = self.pane
         sb = next((c for c in pane.winfo_children() if isinstance(c, ttk.Scrollbar)), None)
@@ -1752,7 +1752,7 @@ class App:
         mv = getattr(doc, "_map_view", None)
         before = set(nb.tabs())
         # cutscene/event tab: this map's scenes from rf3.mc tail[mapId], in the map editor's
-        # sidebar next to Encounters / Problems (the outer notebook keeps Map / Chunks / Hex)
+        # sidebar next to Gates / Problems (the outer notebook keeps Map / Chunks / Hex)
         try:
             self._build_events_tab(panel.nb if panel is not None else nb, name)
         except Exception as e:
@@ -2529,7 +2529,7 @@ class App:
     def _view_gen(self, name, data):
         """A monster generator: the flat picture of its map (gates ◆, monster points ●, drag
         them; '+ gate' / '+ spawn' then click the picture) beside the map editor's own
-        Encounters pane (gates, weights, counts, rosters). 'Open in map editor' switches to the
+        Gates pane (gates, weights, counts, rosters). 'Open in map editor' switches to the
         full editor; 'Save table…' writes the file."""
         doc = self._doc
         from map_editor import tabs as me_tabs
@@ -2544,7 +2544,7 @@ class App:
                   wraplength=940).pack(anchor="w", padx=6)
         host.build_map_row(maps)
         # Lay the view out ONCE: the picture's size comes from the map's ATTR grid (no image
-        # needed) and the pane gets the rest of the width up front. Otherwise the Encounters
+        # needed) and the pane gets the rest of the width up front. Otherwise the Gates
         # pane was drawn at its natural width and re-laid-out ~25 ms later when its scroll area
         # learned the real one -- a visible redraw on every Gen file.
         total_w = doc.content.winfo_width()
@@ -2575,7 +2575,7 @@ class App:
         return [(n, idx[n]) for n in med.maps_for_gen(pathlib.Path(gen_name).name, list(idx))]
 
     def _open_map_encounters(self, map_name):
-        """Show a map in the embedded map editor on its Encounters tab (and select it in the
+        """Show a map in the embedded map editor on its Gates tab (and select it in the
         file list), in the map's own tab."""
         if not map_name or not self.source:
             return
@@ -2593,7 +2593,7 @@ class App:
                 panel.nb.select(panel.encounters)
             except tk.TclError:
                 pass
-        self.status.config(text=f"{pathlib.Path(name).name}: Encounters tab (its monster generator)")
+        self.status.config(text=f"{pathlib.Path(name).name}: Gates tab (its monster generator)")
 
     def _reveal_entry(self, i):
         """Select entry `i` in the file list without re-opening it (clears a filter that

@@ -12,7 +12,7 @@ Modules:
     view       the map canvas (layers, hit-testing, zoom, pan, hover)
     tools      canvas tools (select, paint, fill, rectangle, pick, add, warp)
     inspector  the selection-driven Inspector tab
-    tabs       Objects / Map / Encounters / View / Problems tabs
+    tabs       Objects / Map / Gates / View / Problems tabs
     dialogs    resize grid, raw chunks, flag reference
     panel      MapEditorPanel: the embeddable editor
     app        MapExplorer: the standalone window

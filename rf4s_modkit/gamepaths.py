@@ -201,6 +201,67 @@ def save(path) -> pathlib.Path:
     return b
 
 
+# ---- writing game files in place ---------------------------------------------------- #
+BACKUP_DIR = "ModdingBackup"        # <game>/ModdingBackup/<same path>: originals, kept once
+
+
+def game_targets(names) -> dict | None:
+    """{file name: path} where each (changed) game file must go for the game to load it:
+    over the copy the game loads now (the Bundle/** winner: a Bundle/00_mods override, else
+    the unpacked original), or Bundle/00_mods/<name> when the game only has it packed. Also
+    {name: [other copies]} under the key None: files the game ignores -- same-named ones
+    that sort later, and ones whose name differs only in upper / lower case (the game
+    matches names exactly). `names` must be the game's exact names. None without a game
+    folder."""
+    from . import mbundle
+    b = find_bundle_dir()
+    if b is None:
+        return None
+    idx = mbundle.loose_index(b)
+    out, others = {}, {}
+    for n in names:
+        hits = idx.get(n) or []                  # exact case: the game's index is case-sensitive
+        out[n] = (b / hits[0]) if hits else (b / mbundle.MOD_FOLDER / n)
+        extra = hits[1:] + mbundle.case_variants(idx, n)
+        if extra:
+            others[n] = [b / h for h in extra]
+    out[None] = others
+    return out
+
+
+def backup_once(target) -> pathlib.Path | None:
+    """Copy a game-folder file that is about to be overwritten to
+    <game>/ModdingBackup/<same path>, the first time only (later saves keep that original).
+    The backup's path, or None when nothing was copied."""
+    import shutil
+    b = find_bundle_dir()
+    target = pathlib.Path(target)
+    if b is None or not target.is_file():
+        return None
+    try:
+        rel = target.resolve().relative_to(b.parent.resolve())
+    except ValueError:
+        return None                                # a file outside the game folder
+    dest = b.parent / BACKUP_DIR / rel
+    if dest.exists():
+        return None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(target, dest)
+    return dest
+
+
+def write_game_file(target, blob) -> pathlib.Path | None:
+    """Overwrite `target` with `blob` (through a temporary file, so a failed write never
+    leaves half a file), backing the original up once first. The backup path, or None."""
+    target = pathlib.Path(target)
+    backup = backup_once(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".saving")
+    tmp.write_bytes(blob)
+    tmp.replace(target)
+    return backup
+
+
 def get_setting(key, default=None):
     return _load_settings().get(key, default)
 

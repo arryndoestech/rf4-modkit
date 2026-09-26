@@ -329,15 +329,21 @@ def cmd_mods(a):
     man = mbundle.Manifest(mani) if mani.is_file() else None
     packed = {bn for bn in (man.bundle_names() if man else []) if (bdir / bn).is_file()}
     rows = mbundle.overrides(a.game_root, man)
+    wrong_case = [r for r in rows if r[4]]
+    rows = [r for r in rows if not r[4]]
     shadow = [r for r in rows if r[3] in packed]
     clash = [r for r in rows if r[2]]
     if not a.all:
         rows = [r for r in rows if r[3] in packed or r[2] or r[3] is None]
-    for name, win, others, bn in rows[: a.limit]:
+    for name, win, others, bn, _game in rows[: a.limit]:
         what = f"replaces {bn}" if bn in packed else ("loose (extracted)" if bn else "not a game file")
         print(f"  {win:<60} {what}" + (f"  -- wins over {', '.join(others[:3])}" if others else ""))
+    for name, win, others, bn, game in wrong_case[: a.limit]:
+        print(f"  {win:<60} IGNORED by the game: it loads {game} (names are case-sensitive)")
     print(f"{len(shadow)} loose file(s) replace packed ones; {len(clash)} name(s) exist more than once "
-          f"under {bdir} (the path that sorts first wins); packed bundles present: {len(packed)}")
+          f"under {bdir} (the path that sorts first, byte by byte, wins); packed bundles present: "
+          f"{len(packed)}" + (f"; {len(wrong_case)} file(s) in the wrong case are ignored -- rename "
+                              f"them to the game's exact name" if wrong_case else ""))
 
 
 def cmd_unpack(a):

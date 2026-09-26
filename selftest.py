@@ -33,7 +33,7 @@ def _private_settings():
     read back from it (a user's saved choices would change what the tests see)."""
     import json as _json
     d = _gamepaths._load_settings()
-    for k in ("map_view", "group_maps_by_area"):
+    for k in ("map_view", "group_maps_by_area", "season_note_shown"):
         d.pop(k, None)
     p = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_selftest_")) / "settings.json"
     p.write_text(_json.dumps(d), encoding="utf-8")
@@ -259,9 +259,28 @@ def test_mbundle():
                and _r2.get(small) == (0, len(_chk.names())), f"{_r1} then {_r2}")
         _nm0 = _chk.names()[0].split("/")[-1]
         (tmp / "00_mods" / _nm0).write_bytes(b"mod")
-        _win = mbundle.loose_index(tmp).get(_nm0.lower(), [""])[0]
+        _win = mbundle.loose_index(tmp).get(_nm0, [""])[0]
         _check("a 00_mods copy wins over the extracted original (earliest sorted path)",
                _win == "00_mods/" + _nm0, _win)
+        # the game's index is case-sensitive (exact-byte hash + compare) and sorts by raw
+        # bytes: a copy in another case is a different file that never overrides the game's
+        _var = _nm0.swapcase()
+        (tmp / "01_case").mkdir()
+        (tmp / "01_case" / _var).write_bytes(b"wrong case")
+        for _d in ("B_upper", "a_lower"):
+            (tmp / _d).mkdir()
+            (tmp / _d / "zz_sorttest.bin").write_bytes(b"x")
+        _idx = mbundle.loose_index(tmp)
+        _rows = {r[1]: r for r in mbundle.overrides(tmp, _mu)}
+        _check("loose files match by exact case: a copy named in another case is its own entry, "
+               "never the winner, and is reported as ignored",
+               _idx.get(_nm0, [""])[0] == "00_mods/" + _nm0 and _idx.get(_var) == ["01_case/" + _var]
+               and mbundle.case_variants(_idx, _nm0) == ["01_case/" + _var]
+               and _rows.get("01_case/" + _var, (None,) * 5)[4] == _nm0,
+               f"{_idx.get(_var)} {mbundle.case_variants(_idx, _nm0)}")
+        _check("folders sort by raw bytes like the game (upper case before lower: B_upper beats a_lower)",
+               _idx.get("zz_sorttest.bin", [""])[0] == "B_upper/zz_sorttest.bin",
+               str(_idx.get("zz_sorttest.bin")))
         # the explorer lists an archive's files from Bundle/<name>/ once unpacked, so a copy
         # whose archives were unpacked and removed still shows everything
         (tmp / small).unlink()
@@ -5692,6 +5711,23 @@ def test_explorer_tabs():
         _check("the Down key in the file list shows the next file in the same tab",
                len(app._docs) == n1 and app._doc is clicked
                and not clicked.key[1].endswith(spare[0]), f"{n1} -> {len(app._docs)}")
+        # opening a map (its tab builds a map editor) leaves the keyboard on the file list, so
+        # Down works straight away, without clicking the list again
+        root.deiconify(); root.lift(); root.update()
+        im = next(k for k, e in enumerate(app.source.entries) if e[0].endswith("MAP_CITY_05.rf4m"))
+        app._reveal_entry(im); root.update()
+        app.tree.focus(app.tree.selection()[0])
+        app.tree.focus_force(); root.update()
+        app._select_by_key = False
+        app._on_select(None); root.update()     # a click on a map: its own tab + map editor
+        mdoc, kept = app._doc, root.focus_get() is app.tree
+        app.tree.event_generate("<KeyPress-Down>"); root.update()
+        root.withdraw()
+        _check("opening a map keeps the keyboard on the file list (Down right away shows the next "
+               "file in the map's tab)",
+               kept and mdoc.map_panel() is not None and app._doc is mdoc
+               and not mdoc.key[1].endswith("MAP_CITY_05.rf4m"),
+               f"focus kept={kept} now={mdoc.key[1] if mdoc.key else None}")
         # 2) map tabs: their own editors; copy in one, paste in the other with Ctrl+C / Ctrl+V
         m1 = open_("MAP_CITY_04.rf4m")
         p1 = app._doc._map_panel
@@ -6060,7 +6096,7 @@ def test_map_editor_clipboard():
         gb.undo()                                    # (undo reinstalls the Gen table)
         gate_b = next(e for _pi, _ei, e in gb.doc.gen.all_entries())
         ok.append(("undo point", len(gate_b.gate_pos.points) == ng0))
-        # two gates and none chosen: refused until one is chosen in the Encounters tab
+        # two gates and none chosen: refused until one is chosen in the Gates tab
         gb.doc.gen.add_entry(0, 0, 10, clone=gate_b, share=False)
         gb.set_active_gate(None)
         n2 = len(gb.doc.gate_points())
@@ -6090,6 +6126,149 @@ def test_map_editor_clipboard():
         except Exception:
             pass
         root.destroy()
+
+
+def test_map_editor_save_to_game():
+    """Map editor Save (Ctrl+S) writes in place, like the cutscene editor: the changed map and
+    search spots go over the files the game loads from the game folder, with no dialog; the
+    originals are backed up to ModdingBackup once (a second save keeps them); a file the game
+    only has packed goes to Bundle\\00_mods; same-named extra copies are warned about; a
+    seasonal map says once that the other seasons are separate files."""
+    print("map editor Save (Ctrl+S) overwrites the game's files:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor save to game", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_00.rf4m").exists() or not (B / "SI_CITY_00.bin").exists():
+        _skip("map editor save to game", "no extracted bundleMain"); return
+    import tkinter.filedialog as _fd
+    from rf4s_modkit import gamepaths as _gp, map_names as _mn
+    me = _map_editor()
+    from map_editor import data as med
+    box = _headless_dialogs()
+    asked = []
+    _ask = _fd.asksaveasfilename
+    _fd.asksaveasfilename = lambda *a, **k: asked.append(k.get("title")) or ""
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_save_"))
+    game = tmp / "game" / "Bundle"
+    (game / "bundleMain").mkdir(parents=True)
+    (game / "bundlePatch2").mkdir()
+    (game / "Manifest.plist").write_bytes(b"")          # what marks a Bundle folder
+    for n in ("MAP_CITY_00.rf4m", "SI_CITY_00.bin"):
+        shutil.copy2(B / n, game / "bundleMain" / n)
+    shutil.copy2(B / "SI_CITY_00.bin", game / "bundlePatch2" / "SI_CITY_00.bin")   # a stray copy
+    orig_map = (game / "bundleMain" / "MAP_CITY_00.rf4m").read_bytes()
+    old = (_gp.find_bundle_dir, med.EXTRACTED, med._EXTRACTED_INDEX)
+    _gp.find_bundle_dir = lambda refresh=False: game
+    med.EXTRACTED, med._EXTRACTED_INDEX = game, None
+    root = None
+    try:
+        root, p, errs = _headless_panel("MAP_CITY_00", game / "bundleMain")
+        d = p.doc
+        p.maptab.msea.set("3 winter"); p.maptab._commit_msea()
+        d.si.spots[0].x += 8
+        before = set(d.dirty_parts())
+        ok1 = p.save_to_game()
+        m_now = (game / "bundleMain" / "MAP_CITY_00.rf4m").read_bytes()
+        s_now = (game / "bundleMain" / "SI_CITY_00.bin").read_bytes()
+        bk = tmp / "game" / _gp.BACKUP_DIR / "Bundle" / "bundleMain"
+        _check("Save writes the changed map and search spots over the game's own files, no dialog",
+               ok1 and not asked and before == {"map", "search items"} and not d.dirty_parts()
+               and m_now == d._bytes("map") and m_now != orig_map and s_now == d._bytes("si"),
+               f"asked={asked} dirty_before={sorted(before)}")
+        _check("the first save backs the originals up to ModdingBackup",
+               (bk / "MAP_CITY_00.rf4m").read_bytes() == orig_map and (bk / "SI_CITY_00.bin").is_file())
+        warns = [t for t, _m in box["msgs"] if t == "Other copies"]
+        season = [m for t, m in box["msgs"] if t.startswith("Saved: a seasonal map")]
+        _check("a same-named extra copy (bundlePatch2\\SI_CITY_00.bin) is warned about", len(warns) == 1)
+        _check("a seasonal map says the other seasons are separate files (…_SUMMER / _AUTUMN / _WINTER)",
+               len(season) == 1 and "MAP_CITY_00_AUTUMN" in season[0] and "spring" in season[0])
+        p.maptab.msea.set("0 spring"); p.maptab._commit_msea()
+        del box["msgs"][:]
+        ok2 = p.save_to_game()
+        _check("a second save keeps the first backup (the true original) and doesn't repeat the season note",
+               ok2 and (bk / "MAP_CITY_00.rf4m").read_bytes() == orig_map
+               and not [1 for t, _m in box["msgs"] if t.startswith("Saved: a seasonal map")])
+        _check("the season note is remembered in settings.json: never shown again, on any map or run",
+               _gp.get_setting("season_note_shown") is True)
+        tg = _gp.game_targets(["MAP_CITY_00.rf4m", "GenNOPE99.bin"])
+        _check("a file the game only has packed goes to Bundle\\00_mods",
+               tg["GenNOPE99.bin"] == game / "00_mods" / "GenNOPE99.bin"
+               and tg["MAP_CITY_00.rf4m"] == game / "bundleMain" / "MAP_CITY_00.rf4m")
+        fam = _mn.season_family(_mn.map_id_for_file("MAP_CITY_00_AUTUMN"))
+        _check("season_family: Map_LoadById's ids 4..63 come in spring/summer/autumn/winter fours",
+               [f for _s, f in fam] == ["MAP_CITY_00", "MAP_CITY_00_SUMMER", "MAP_CITY_00_AUTUMN",
+                                        "MAP_CITY_00_WINTER"]
+               and _mn.season_family(_mn.map_id_for_file("MAP_DUNG_M01")) == [])
+        _check("map editor save raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        _gp.find_bundle_dir = old[0]
+        med.EXTRACTED, med._EXTRACTED_INDEX = old[1], old[2]
+        _fd.asksaveasfilename = _ask
+        if root is not None:
+            root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_map_editor_labels():
+    """Name labels (objects, script NPCs, warp destinations) stay on the map: one that would
+    stick out above the top edge goes under its object, one past a side edge is shifted in;
+    each is outlined (the text drawn again in black one pixel off in every direction, under
+    it) and the PNG export draws a real stroke outline and places labels the same way."""
+    print("map editor name labels (placement + outline):")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor labels", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_00.rf4m").exists():
+        _skip("map editor labels", "no extracted bundleMain"); return
+    from map_editor import render as mrender
+    root = None
+    try:
+        root, p, errs = _headless_panel("MAP_CITY_00", B)
+        v, d = p.view, p.doc
+        v.st.layers.update(labels=True, sprites=False)
+        k = next(i for i, o in enumerate(d.objs) if mrender.entity_visible(o, v.st.layers))
+        d.objs[k]["pos_y"] = 0                     # the object on the map's top row
+        v._draw_group("ent")
+        c = v.canvas
+        mw, mh = d.grid[0] * v.cp, d.grid[1] * v.cp
+        texts = [it for it in c.find_withtag("ent") if c.type(it) == "text"]
+        yellow = [it for it in texts if c.itemcget(it, "fill") == "#ffe000"]
+        black = [it for it in texts if c.itemcget(it, "fill") == mrender.LABEL_HALO]
+        boxes = [c.bbox(it) for it in yellow]
+        inside = all(b[1] >= 0 and b[0] >= 0 and b[2] <= mw for b in boxes)
+        under = [it for it in yellow if c.itemcget(it, "anchor") == "n"]   # flipped below
+        _check("labels stay on the map: one on the top row goes under its object, none past an edge",
+               yellow and inside and under, f"{len(yellow)} labels, {len(under)} moved under")
+        order = {it: n for n, it in enumerate(c.find_all())}
+        outlined = all(
+            sum(1 for h in black if c.itemcget(h, "text") == c.itemcget(it, "text")
+                and abs(c.coords(h)[0] - c.coords(it)[0]) <= 1 and abs(c.coords(h)[1] - c.coords(it)[1]) <= 1
+                and order[h] < order[it]) >= 8
+            for it in yellow)
+        _check("every label is outlined: 8 black copies, one pixel off, drawn under it",
+               len(black) == 8 * len(yellow) and outlined, f"{len(black)} outline items for {len(yellow)} labels")
+        from PIL import Image, ImageDraw
+        im = Image.new("RGBA", (200, 100))
+        dr = ImageDraw.Draw(im)
+        font = mrender._font(12)
+        stroke = {"stroke_width": 1, "stroke_fill": (0, 0, 0)}
+        xy, an = mrender._place_label(dr, (100, 2), {"text": "Up top", "below": (100, 30)}, font,
+                                      "ms", im.size, stroke)
+        xy2, _an2 = mrender._place_label(dr, (2, 60), {"text": "A long label", "below": (2, 80)},
+                                         font, "ms", im.size, stroke)
+        bx = dr.textbbox(xy2, "A long label", font=font, anchor="ms", stroke_width=1)
+        img = p.render_to_image(scale=8)
+        _check("the PNG export flips a label under its object and shifts one in from the edge, "
+               "and renders the outlined labels",
+               (xy, an) == ((100, 30), "mt") and bx[0] >= 0 and img is not None)
+        _check("map editor labels raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        if root is not None:
+            root.destroy()
 
 
 def _headless_panel(name, B, reader=None):
@@ -6635,7 +6814,7 @@ def test_ground_texture_replacement():
 def test_map_editor_undo():
     """Undo/redo covers the map AND its sidecars as one history, moves the DISPLAYED grid
     (the renderer draws from a cache), and an undone edit is not 'unsaved'."""
-    print("map editor: one undo history across map / search items / encounters:")
+    print("map editor: one undo history across map / search items / monster gates:")
     try:
         import tkinter as tk  # noqa: F401
     except Exception as e:
@@ -6675,7 +6854,7 @@ def test_map_editor_undo():
         with d.edit("add monster", "gen"):
             d.gen.add_spawn(next(d.gen.all_entries())[2], 60, 5)
         _check("map, SI and Gen edits all count as unsaved",
-               panel.dirty_parts() == ["map", "search items", "encounters"], panel.dirty_parts())
+               panel.dirty_parts() == ["map", "search items", "monster gates"], panel.dirty_parts())
         while d.undo_stack:
             panel.undo()
         _check("undoing everything restores all three files byte-exact",
@@ -6888,8 +7067,8 @@ def test_map_editor_workflows():
         _late.focus_force()                                # key events go to the focus widget
         root.update()
         _calls = []
-        _fns = (panel.save_all, panel.undo, panel.redo)
-        panel.save_all = lambda: _calls.append("save")
+        _fns = (panel.save_to_game, panel.undo, panel.redo)
+        panel.save_to_game = lambda: _calls.append("save")
         panel.undo = lambda: _calls.append("undo")
         panel.redo = lambda: _calls.append("redo")
         try:
@@ -6897,7 +7076,7 @@ def test_map_editor_workflows():
                               ("<Control-Z>", 0x6), ("<Control-Z>", 0x5), ("<Control-y>", 0x4)):
                 _late.event_generate(_seq, state=_st, when="now")
         finally:
-            panel.save_all, panel.undo, panel.redo = _fns
+            panel.save_to_game, panel.undo, panel.redo = _fns
             _late.destroy()
             root.withdraw()
         _check("map editor: Ctrl+S / Z / Y reach a widget built later (tagged on focus), also "
@@ -7831,7 +8010,7 @@ def test_asset_explorer_gui():
             _edited = gen.GenTable(app._doc.cur_data).patterns[0][0].spawns[0].pick_weight == 7
             _fld = _med.maps_for_gen("GenField01.bin", ["MAP_FIELD_01_SUMMER.rf4m", "MAP_FIELD_01.rf4m",
                                                         "MAP_FIELD_02.rf4m", "MAP_DUNG_E89.rf4m"])
-            _check("Gen view: its map's picture + the Encounters pane (first gate selected); drag a gate, "
+            _check("Gen view: its map's picture + the Gates pane (first gate selected); drag a gate, "
                    "'+ spawn' + click, a roster edit all reach the file; seasonal maps share the table",
                    _view_ok and _moved and _added and _edited
                    and _fld == ["MAP_FIELD_01.rf4m", "MAP_FIELD_01_SUMMER.rf4m"],
@@ -7843,8 +8022,8 @@ def test_asset_explorer_gui():
                 root.update()
                 _p = app._doc._map_panel
                 _ok_btn = (app._doc.cur_name.endswith("MAP_DUNG_E89.rf4m") and _p is not None
-                           and _p.nb.tab(_p.nb.select(), "text") == "Encounters")
-            _check("Gen view: 'Open in map editor' lands on that map's Encounters tab", _ok_btn)
+                           and _p.nb.tab(_p.nb.select(), "text") == "Gates")
+            _check("Gen view: 'Open in map editor' lands on that map's Gates tab", _ok_btn)
         _check("asset explorer raised no callback errors", not errs, f"{len(errs)}")
     finally:
         root.destroy()
@@ -8596,7 +8775,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground,
+              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

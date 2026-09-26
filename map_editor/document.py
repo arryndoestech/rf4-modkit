@@ -196,11 +196,11 @@ class MapDocument:
         return step
 
     # ---- dirty tracking ---------------------------------------------------- #
-    PART_LABELS = {"map": "map", "si": "search items", "gen": "encounters"}
+    PART_LABELS = {"map": "map", "si": "search items", "gen": "monster gates"}
 
     def dirty_parts(self):
         """Which files differ from their last load / save, as labels: a subset of
-        ['map', 'search items', 'encounters']. Byte comparison, so an undone edit
+        ['map', 'search items', 'monster gates']. Byte comparison, so an undone edit
         does not count."""
         return [self.PART_LABELS[p] for p in ("map", "si", "gen")
                 if self._bytes(p) != self._saved[p]]

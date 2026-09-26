@@ -1006,7 +1006,7 @@ class CutsceneExplorer:
         return True
 
     # ---- saving straight into the game folder ----------------------------------------- #
-    BACKUP_DIR = "ModdingBackup"
+    from rf4s_modkit.gamepaths import BACKUP_DIR
 
     def save_targets(self):
         """{file name: path to overwrite} for everything that can change, or None when there
@@ -1032,27 +1032,14 @@ class CutsceneExplorer:
         for n in names:
             if n in out:
                 continue
-            hits = idx.get(n.lower())
+            hits = idx.get(n)                      # exact case, like the game's index
             out[n] = (bdir / hits[0]) if hits else (bdir / mbundle.MOD_FOLDER / n)
         return out
 
     def _backup_once(self, target):
         """Copy the file about to be overwritten to <game>/ModdingBackup/<same path>, once."""
         from rf4s_modkit import gamepaths
-        import shutil
-        bdir = gamepaths.find_bundle_dir()
-        if bdir is None or not target.is_file():
-            return None
-        try:
-            rel = target.resolve().relative_to(bdir.parent.resolve())
-        except ValueError:
-            return None                                # a file outside the game folder
-        dest = bdir.parent / self.BACKUP_DIR / rel
-        if not dest.exists():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(target, dest)
-            return dest
-        return None
+        return gamepaths.backup_once(target)
 
     def save_to_game(self):
         """Overwrite the changed files where they came from, without asking."""

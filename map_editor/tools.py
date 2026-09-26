@@ -421,7 +421,7 @@ class AddTool(Tool):
         elif what in ("gpos", "mpos"):
             g = ed.active_gate
             if g is None:
-                ed.status("Select a gate in the Encounters tab first.")
+                ed.status("Select a gate in the Gates tab first.")
                 return
             with doc.edit("Add " + ("gate position" if what == "gpos" else "monster spawn point"), "gen"):
                 if what == "gpos":
