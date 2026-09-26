@@ -3984,7 +3984,8 @@ class App:
         ttk.Button(btns, text="Apply", command=apply_edit).pack(side="right", padx=3)
 
     def _view_hex(self, name, data, error: str | None = None):
-        txt = self._make_text_tab(None, None, mono=True)
+        doc = self._doc
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         if error:
             txt.insert("end", f"[viewer note] {error}\n\n")
         txt.insert("end", hexdump(data))
