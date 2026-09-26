@@ -3636,8 +3636,9 @@ class App:
         ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
 
     def _view_param(self, name, data):
+        doc = self._doc
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         stem = pathlib.Path(name).stem
         sch = t.schema(stem)
         # row-name fn (item names) if the schema asks for it
@@ -3647,7 +3648,7 @@ class App:
             tbl = _json.loads((ACTOR_NAMES_PATH.parent / "rf4s_item_names.json").read_text(encoding="utf-8"))
             namefn = lambda i: tbl.get(str(i), "")
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"NLCL {stem}: {t.entry_count} records × {t.record_size} B"
                           + ("  (named fields)" if sch else "  (raw — edit by offset)"),
                   ).pack(side="left", padx=6)
@@ -3657,7 +3658,7 @@ class App:
         fields = sch["fields"] if sch else [(f"dw{k}", k * 4, "s32")
                                             for k in range(min(8, t.record_size // 4))]
         cols = ["#"] + [f[0] for f in fields] + (["name"] if sch and sch.get("names") else [])
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=70 if c != "name" else 160, anchor="w")
@@ -3686,7 +3687,7 @@ class App:
                     break
         sv.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected record")
+        ed = ttk.LabelFrame(doc.content, text="Edit selected record")
         ed.pack(fill="x", padx=6, pady=4)
         grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=4)
         evars = []
@@ -3726,24 +3727,24 @@ class App:
                     t.set(i, int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied record {i} — Save table… or Extract… to write")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved param table → {f}")
 
         def export_csv():
             """The table view (every record, schema columns + name column) as CSV."""
             f = filedialog.asksaveasfilename(defaultextension=".csv",
-                initialfile=pathlib.Path(self.cur_name).stem + ".csv",
+                initialfile=pathlib.Path(doc.cur_name).stem + ".csv",
                 filetypes=[("CSV", "*.csv"), ("All", "*.*")])
             if f:
                 pathlib.Path(f).write_text(t.to_csv(stem, namefn), encoding="utf-8")
@@ -3764,7 +3765,7 @@ class App:
                 idx = t.append_record(t.record(src) if src is not None else None)
             except nlcl.NlclError as e:
                 messagebox.showerror("Add row failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill(); tv.selection_set(str(idx)); tv.see(str(idx)); on_sel()
             self.status.config(text=f"Added record {idx} ({'copy of ' + str(src) if src is not None else 'zero row'}); "
                                     f"{t.entry_count} records — Save table… to write")
@@ -3781,7 +3782,7 @@ class App:
             except nlcl.NlclError as e:
                 messagebox.showerror("Delete row failed", str(e)); return
             sel["i"] = None
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill()
             self.status.config(text=f"Deleted record {i}; {t.entry_count} records — Save table… to write")
         ttk.Button(gen_row, text="Delete row", command=del_row).pack(side="right", padx=4)
