@@ -111,15 +111,17 @@ GIMMICKS = {
                      (10, 4, "species item id (0 = use f8+985)"), _DIS4]),
     26: dict(name="gmk00_eater", role="Animated 'eater' gimmick (frame-cycling + sfx)",
              params=[(8, 4, "animation length / frame count")]),
-    27: dict(name="gmk01_bird", role="Ambient bird (day/night + random)", params=[(8, 4, "spawn / behaviour param")]),
-    28: dict(name="gmk02_butterfly", role="Ambient butterfly (day/night + random)", params=[(8, 4, "spawn / behaviour param")]),
+    27: dict(name="gmk01_bird", role="Ambient bird (day/night + random)", params=[(8, 4, "spawn chance in % (0 = always); halved in rain / storm, halved again in winter")]),
+    28: dict(name="gmk02_butterfly", role="Ambient butterfly (day/night + random)", params=[(8, 4, "spawn chance in % (0 = always); halved in rain / storm, quartered in winter")]),
     29: dict(name="gmk04_storm", role="Storm hazard — emits particle-attack (Action 0x2B). ALSO read at map "
                   "load (Map_LoadById case 29): f7 = wind angle, f8 << 8 = wind strength -> "
                   "work[+72..+80] map wind vector, which Weather_DayRollAndPick turns into a forced "
                   "windy-weather roll (verified 2026-09-19)",
-             params=[(7, 2, "emit angle"), (8, 4, "emit period"),
-                     (10, 2, "storm config, packed bits 10..19 of actor+584"),
-                     (11, 4, "storm config, packed bits 0..9 of actor+584"), _DIS2]),
+             params=[(7, 2, "wind direction (65536 = full turn)"),
+                     (8, 4, "strength: push speed (f8 + 1) x 512; -1 = random 1..8"),
+                     (10, 2, "frames it blows (max 1023; if f10 or f11 is 0 it blows nonstop)"),
+                     (11, 4, "frames it pauses between gusts (max 1023; it starts paused)"),
+                     (13, 2, "disable game-flag id (0 = always on)")]),
     30: dict(name="gmk05_storm", role="Wind / current zone — pushes actors, emits petals (Action 0x2C)",
              params=[(7, 2, "push angle"), (8, 4, "force magnitude"), (9, 4, "zone half-width (sub-units)"),
                      (10, 4, "zone half-height"), (11, 4, "Z flag"), _DIS2]),
@@ -128,31 +130,37 @@ GIMMICKS = {
                      (9, 2, "scatter radius (Q12)"), (10, 4, "damage / attack power"),
                      (11, 2, "initial countdown / phase"), _DIS2]),
     32: dict(name="gmk07_dummy", role="Periodic quake — screen jitter + sfx 0x100225E",
-             params=[(8, 2, "period"), (9, 2, "jitter kind / param")]),
+             params=[(8, 2, "frames between quakes"), (9, 2, "shake strength kind (0-based)")]),
     33: dict(name="gmk08_roll", role="Rolling boulder (damages on contact)",
              params=[(7, 2, "roll direction"), (8, 2, "roll period"), (9, 2, "roll distance / radius"),
                      (10, 4, "damage")]),
     34: dict(name="gmk09_water", role="Water hazard — emits water Effect (kind 8) periodically",
-             params=[(7, 2, "facing"), (8, 2, "period"), (9, 4, "effect param / damage")]),
+             params=[(7, 2, "facing"), (8, 2, "frames between water bursts"),
+                     (9, 4, "attack power of each burst")]),
     35: dict(name="gmk10_mushroom", role="One-time item pickup (herb/mushroom): rolls a spawn chance, drops "
                   "the item sprite, then SETS its flag so it never respawns "
                   "(Actor_SpawnOneTimeItemAndSetFlag).",
              params=[(8, 4, "spawn chance / 255 (MMIX roll)"),
                      (9, 4, "item kind: 0 = item 48, 1 = 48+rand(0..3), 2 = 48+rand(0..5), 3 = preset"),
                      _DIS4]),
-    36: dict(name="gmk11_collection", role="Collection gimmick (npc-linked)", params=[(8, 4, "behaviour param")]),
+    36: dict(name="gmk11_collection", role="Collection gimmick (npc-linked)", params=[(8, 4, "NPC-event id: exists only once that event is reached; picture COLLECTION_nn "
+                           "(a later picture at later event steps)")]),
     37: dict(name="gmk12_redlight", role="Red light — always-on pulsing glow", params=[(6, 4, "light size (scale)")]),
     38: dict(name="gmk13_bluelight", role="Blue light — pulsing glow, ON at night", params=[(6, 4, "light size (scale)")]),
     39: dict(name="gmk14_sunlight", role="Sunlight beam — swaying, day/night gated",
-             params=[(6, 4, "beam size (scale)"), (8, 4, "sway param"), (9, 4, "sway param"), (10, 4, "sway param")]),
+             params=[(6, 4, "scale"), (8, 4, "sprite frame 0..3"), (9, 4, "nonzero = mirrored left-right"),
+                     (10, 4, "nonzero = flipped upside down")]),
     40: dict(name="gmk15_magiclight", role="Magic light — pulsing glow", params=[(6, 4, "light size (scale)")]),
     41: dict(name="gmk16_waterlight", role="Water light — pulsing glow",
-             params=[(6, 4, "light size (scale)"), (8, 1, "pulse param")]),
+             params=[(6, 4, "light size (scale)"), (8, 1, "pulse phase offset (frames)")]),
     42: dict(name="gmk17_warp_effect", role="WARP POINT: on-step teleport trigger + warp-swirl particles "
                   "(Action 0xA4). Destination params f7/f8/f9/f10 -> actor+576..582, consumed by the "
                   "on-step handler (MapObj_InitWarpPoint).",
-             params=[(7, 2, "warp destination param (actor+576 block)"), (8, 2, "destination param"),
-                     (9, 2, "destination param"), (10, 2, "destination param"), _DIS2]),
+             params=[(7, 2, "fall direction (65536 = full turn)"),
+                     (8, 2, "landing X in the destination map (sub-units)"),
+                     (9, 2, "landing Y (sub-units)"),
+                     (10, 2, "destination map = this map's id + f10 (e.g. +7 / -7 between floors)"),
+                     (13, 2, "works only while this flag is set (-1 = always)")]),
     43: dict(name="fe100", role="Windmill blades / airship propeller by mode: 0 gmk18_windmill (+ sfx), 1 "
                   "gmk19_windmill, 2 / 3 the Norad Express propellers (3-frame flipbooks) "
                   "(MapObj_InitEffectSpriteByMode).",
@@ -164,19 +172,26 @@ GIMMICKS = {
                   "'emits attacks' role was a misread.",
              params=[(6, 4, "scale"), (8, 4, "loot-table row index"),
                      (9, 4, "'opened' flag offset (flag = f13 + f9; 0 = no sparkle tick)"),
-                     (10, 2, "sub-id (stored at actor+322)"), _DIS2]),
+                     (10, 2, "sub-id kept with the chest (0..3 shipped; the chest's own code "
+                             "doesn't read it)"),
+                     (13, 2, "collected flag: SET = the chest is gone")]),
     45: dict(name="fe102", role="Colour switch: a pillar with a crystal, 8 colours "
                   "(switch_00..07 = res 15289 + (f8 & 7); Actor_InitFlagGatedRes15289Object).",
              params=[(8, 4, "colour (switch_00..07, f8 & 7)"),
-                     (9, 4, "nonzero -> state byte actor+576 = 1"),
-                     (10, 4, "state byte actor+577"),
-                     (11, 4, "nonzero + secondary flag (gate+1) CLEAR -> hidden/alt tick"), _DIS2]),
+                     (9, 4, "nonzero: once the flag is set, the interact cursor no longer shows "
+                            "over it (WorldCursor_SpawnOrUpdateOverInteractable)"),
+                     (10, 4, "kept on the object (actor+577); its own code doesn't read it"),
+                     (11, 4, "nonzero: sparkles until flag f13 + 1 is set, then an open burst"),
+                     (13, 2, "the flag its frame follows (frame 1 while set)")]),
     46: dict(name="fe102_2", role="Flag-gated interactive object (res 15218): touch it to SET its flag; "
                   "sprite frame 1 = activated look (Actor_InitFlagGatedInteractiveObject).",
-             params=[(8, 4, "nonzero = suppress model + interaction kind 264 (else 1296)"),
-                     (9, 1, "state byte actor+576"), (10, 1, "state byte actor+577"),
+             params=[(8, 4, "nonzero = invisible (no sprite; interaction kind 264, else 1296)"),
+                     (9, 1, "0 = pressure plate: the flag goes back when nothing stands on it; "
+                            "nonzero = stays switched"),
+                     (10, 1, "script event: nonzero fires event 1024 + f10 once when touched"),
                      (11, 4, "touch hitbox half-width (default 24)"),
-                     (12, 4, "touch hitbox half-height (default 24)"), _DIS2]),
+                     (12, 4, "touch hitbox half-height (default 24)"),
+                     (13, 2, "the flag this switch drives")]),
     47: dict(name="fe103", role="MONSTER GATE / seal door: a barrier zone that stamps its rect's ATTR "
                   "cells BLOCKED while the room's encounter has live monsters (skipping the frame if "
                   "the player stands inside, so you can't be sealed in the doorway), then reopens and "
@@ -200,15 +215,17 @@ GIMMICKS = {
     52: dict(name="MOBJ_FI_ERUPT_LAVA", role="Vent knockback zone (no sprite; puffs smoke): stepping on it staggers the "
                   "player, drops what they carry and walks them off it -- no HP damage "
                   "(Object_OnStepForceAutoWalk). IDA name MapObj_InitWarpPointVariantB is historical.",
-             params=[(8, 2, "slide param (actor+576)"), (9, 2, "slide param (actor+578)"), _DIS2]),
+             params=[(8, 2, "X of the spot the player is walked to (sub-units)"),
+                     (9, 2, "Y of that spot (sub-units)"),
+                     (13, 2, "works only while this flag is set (-1 = always)")]),
     53: dict(name="MOBJ_BOX", role="Breakable crate: wooden (MOBJ_BOX), metal (MOBJ_FIELD_METAL02) when f8 is set "
                   "(char 143 'Treasure' actor internally, but in-game it "
                   "is the smashable crate, not a chest): loot rolled from the current zone's treasure "
                   "pool at room load (MapEntity_SpawnTreasure). Grass-wrapped variants need a cutting "
                   "tool (playtest-corrected 2026-09-01).",
-             params=[(8, 4, "nonzero = metal crate (res 17599)"), (9, 4, "param (untraced)"),
-                     (10, 4, "param (untraced)"),
-                     (13, 2, "'collected/broken' flag (region-B; -1 = none/respawns) — the map data "
+             params=[(8, 4, "nonzero = metal crate (res 17599)"), (9, 4, "nonzero = floating crate: lands with a splash and floats (Actor_OnLanded)"),
+                     (10, 4, "1 = empty crate (no loot)"),
+                     (13, 4, "'collected/broken' flag (region-B; -1 = none/respawns) — the map data "
                              "allocates a globally UNIQUE bit per box (705..968 across all maps; "
                              "-1 only in the random-dungeon J rooms). Read via the custom-named "
                              "'descriptor' arg — the 2026-09-01 f13 sweep missed it (false negative, "
@@ -222,11 +239,13 @@ GIMMICKS = {
     55: dict(name="fe106", role="Eruption vent - shares type-54's init and tick.",
              params=[(8, 4, "eruption period (default 120)"),
                      (9, 4, "damage/scale -> the four attack stat fields"),
-                     (10, 4, "sprite variant: 0 = res 17594, else res 17596"),
+                     (10, 4, "sprite: 0 = lava vent (17594), else stone crater (17596)"),
                      (11, 4, "initial delay (default: random)"), _DIS4]),
-    56: dict(name="MOBJ_CHANDELIER", role="Damaging hazard sprite (falling chandelier; res 17598 with an "
-                  "attack hitbox - MapObj_InitDamagingHazardSprite).",
-             params=[(8, 1, "mode byte (actor+577)"),
+    56: dict(name="MOBJ_CHANDELIER", role="Chandelier (res 17598): always sways. With f8 set it falls when the player "
+                  "or a party member moves within 26 sub-units left / right of it (up / down "
+                  "doesn't count), switching its hitbox on; with f8 = 0 it only sways and "
+                  "never hurts (MapObj_InitDamagingHazardSprite + _Tick).",
+             params=[(8, 1, "1 = falls when approached, 0 = only sways"),
                      (9, 4, "attack effect id, biased +210 (-> attack+324)")]),
     57: dict(name="MOBJ_FIELD_METAL02", role="Portrait (res 2225 = portrait): with f8 set its eyes follow the player "
                   "(frames 0 / 1 / 2 by the player's x). MapObj_InitMCSpriteEffectRes2225.",
@@ -251,33 +270,39 @@ GIMMICKS = {
     63: dict(name="fe118", role="Flag-gated TOGGLE SWITCH: activation CLEARS the flag (vs type 46's "
                   "one-shot SET); sprite frame 0/1 follows the flag "
                   "(Actor_InitFlagGatedToggleSwitch, wraps type 46).",
-             params=[(8, 4, "nonzero = suppress model + interaction kind 264 (else 1296)"),
-                     (9, 1, "state byte actor+576"), (10, 1, "state byte actor+577"),
+             params=[(8, 4, "nonzero = invisible (no sprite; interaction kind 264, else 1296)"),
+                     (9, 1, "0 = pressure plate: the flag goes back when nothing stands on it; "
+                            "nonzero = stays switched"),
+                     (10, 1, "script event: nonzero fires event 1024 + f10 once when touched"),
                      (11, 4, "touch hitbox half-width (default 24)"),
-                     (12, 4, "touch hitbox half-height (default 24)"), _DIS2]),
+                     (12, 4, "touch hitbox half-height (default 24)"),
+                     (13, 2, "the flag this switch drives (inverted: stepping on it clears the flag)")]),
     64: dict(name="fe119", role="Theatre table, small (FURNITURE_01); removed once its gate flag is set "
                   "(MapEntity_InitFlagGatedTreasure).",
-             params=[(6, 4, "scale"), _DIS2]),
+             params=[(6, 4, "scale"), (13, 4, "flag: SET = removed")]),
     65: dict(name="fe120", role="Theatre table, large (FURNITURE_02; shares type-64 handler).",
-             params=[(6, 4, "scale"), _DIS2]),
+             params=[(6, 4, "scale"), (13, 4, "flag: SET = removed")]),
     66: dict(name="fe121", role="Theatre chair (FURNITURE_11; shares type-64 handler).",
-             params=[(6, 4, "scale"), _DIS2]),
+             params=[(6, 4, "scale"), (13, 4, "flag: SET = removed")]),
     67: dict(name="fe122", role="Periodic flag-gated effect emitter (MapObj_InitPeriodicEffectEmitter / "
                   "Actor_TickPeriodicEffectEmitterGatedByFlag).",
-             params=[(7, 2, "rotation (actor+156/158)"),
-                     (8, 4, "attack power/scale (all four attack stat fields)"),
-                     (9, 2, "mode (actor+576)"), (10, 4, "period (default 30000)"), _DIS4]),
+             params=[(7, 2, "direction of the effect (65536 = full turn)"),
+                     (8, 4, "attack power"),
+                     (9, 2, "mode 0..8 = interval / effect: 0 120 f / 300, 1-2 120 / 302, "
+                            "3 120 / 299, 4 30 / 18, 5 120 / 8, 6 60 / 8, 7 300 / 35, 8 90 / 45"),
+                     (10, 4, "starting timer (0 = 30000: the first burst comes at once)"),
+                     (13, 4, "emits while this flag is clear (0 = always)")]),
     68: dict(name="fe123", role="Chimney smoke — day/night gated, random puffs (no record params)", params=[]),
     69: dict(name="fe124", role="Area particle emitter - particle-attack (Action 0xD5) over a rect "
                   "(MapObj_Init/TickAreaParticleEmitter).",
              params=[(8, 2, "emission rect half-width"), (9, 2, "emission rect half-height"),
                      (10, 4, "z-mode")]),
-    70: dict(name="fe125", role="One-shot deferred effect spawn (Effect_SpawnWorldSpriteByType, then self-destroys).",
-             params=[(8, 4, "effect type id")]),
+    70: dict(name="fe125", role="Light shafts: a sunlight fan mesh (texture RE_VLIGHT2) shown 06:00-17:59 in clear weather (Effect_SpawnWorldSpriteByType, then self-destroys).",
+             params=[(8, 4, "shape 0..15 (1 = shape 0 mirrored)")]),
     71: dict(name="fe126", role="Fire-and-forget procedural mesh effect (MapEffect_SpawnProceduralMeshByKind).",
-             params=[(8, 4, "mesh effect kind")]),
-    72: dict(name="fe127", role="Fire-and-forget ROTATED procedural mesh effect (MapEffect_SpawnRotatedProceduralMesh).",
-             params=[(8, 4, "mesh effect kind")]),
+             params=[(8, 4, "mesh kind")]),
+    72: dict(name="fe127", role="Room overlay mesh: the palace hall drawn over the room, texture F_ROOM00 (MapEffect_SpawnRotatedProceduralMesh).",
+             params=[(8, 4, "1 = winter texture F_ROOM00_WINTER")]),
     73: dict(name="fe128", role="No init (position only)", params=[]),
     74: dict(name="MOBJ_FI_ICE01_dummy", role="No init (position only)", params=[]),
     75: dict(name="MOBJ_FI_ICE02_dummy", role="No init (position only)", params=[]),
@@ -430,8 +455,118 @@ MAP_PARAMS = {
 }
 
 
+# ---- type 263: the interactive band's one special case ------------------------------
+# Map_SpawnInteractiveObject hands 263 to Map_SpawnDiscoverableHerbOrSpawner_Type263, which
+# reads only f8 / f9 / f13 (hexrays read sweep 2026-09-26).
+SPECIAL = {
+    263: dict(name="MOBJ_SW_WALL_00", role="Inscribed stone, a discoverable spot: dim until you or a party member "
+                   "comes within 48 sub-units left / right (-16..+72 up / down), then it animates; "
+                   "until then its footprint hints on the map (Map_SpawnDiscoverableHerbOrSpawner_"
+                   "Type263).",
+              params=[(8, 4, "picture variant 0..7 (archive 15297 + f8 & 7)"),
+                      (9, 4, "nonzero = inverted flag (discovered while f13 is CLEAR)"),
+                      (13, 2, "discovered flag (SET = already found)")]),
+}
+
+
+# ---- short parameter names (the map editor's field labels) ------------------------
+# The meanings above are the explanations (the editor shows them as tooltips); these are
+# the few-word names shown next to each field. Keyed by type id, or by a lane's (lo, hi).
+_DISABLE = "disable flag"
+PARAM_NAMES = {
+    (0, 8): {8: "spawn chance", 9: "scatter radius"},
+    (82, 195): {8: "collision X offset", 9: "collision Y offset", 10: "collision stamp",
+                11: "draw mode", 13: "toggle flag"},
+    (196, 335): {6: "scale", 7: "frame", 8: "depth bias", 9: "collision half-width",
+                 10: "collision half-height", 11: "solid", 12: "sprite flags", 13: "hide flag"},
+    (336, 9999): {6: "scale", 7: "frame", 8: "depth bias", 9: "frame duration", 10: "glow",
+                  13: "hide flag"},
+    0: {10: "ore config", 11: "random ore config"},
+    8: {10: "gatherable kind"},
+    9: {8: "depth"},
+    10: {8: "backdrop width", 9: "backdrop height"},
+    11: {8: "scroll speed X", 9: "scroll speed Y"},
+    12: {8: "time slot", 9: "red", 10: "green", 11: "blue", 12: "target"},
+    13: {8: "yaw base"},
+    20: {6: "light size"},
+    21: {8: "sound id", 9: "volume", 10: "range"},
+    22: {8: "sound id", 9: "volume", 10: "range"},
+    23: {8: "sound id", 9: "volume", 10: "range"},
+    24: {8: "max fish", 9: "scatter radius", 10: "fast fish", 11: "fish table", 13: _DISABLE},
+    25: {8: "species", 9: "scatter radius", 10: "species item", 13: _DISABLE},
+    26: {8: "animation length"},
+    27: {8: "spawn chance"},
+    28: {8: "spawn chance"},
+    29: {7: "wind direction", 8: "strength", 10: "blow time", 11: "pause time", 13: _DISABLE},
+    30: {7: "push direction", 8: "force", 9: "zone half-width", 10: "zone half-height",
+         11: "Z flag", 13: _DISABLE},
+    31: {7: "facing", 8: "drop interval", 9: "scatter radius", 10: "attack power",
+         11: "first drop delay", 13: _DISABLE},
+    32: {8: "interval", 9: "shake strength"},
+    33: {7: "roll direction", 8: "roll interval", 9: "roll distance", 10: "attack power"},
+    34: {7: "facing", 8: "interval", 9: "attack power"},
+    35: {8: "spawn chance", 9: "item kind", 13: "collected flag"},
+    36: {8: "NPC event"},
+    37: {6: "light size"},
+    38: {6: "light size"},
+    39: {6: "scale", 8: "frame", 9: "mirror", 10: "flip"},
+    40: {6: "light size"},
+    41: {6: "light size", 8: "pulse phase"},
+    42: {7: "fall direction", 8: "landing X", 9: "landing Y", 10: "map offset", 13: "active flag"},
+    43: {8: "mode"},
+    44: {6: "scale", 8: "loot row", 9: "opened flag offset", 10: "sub-id", 13: "collected flag"},
+    45: {8: "colour", 9: "no cursor when set", 10: "unused value", 11: "sparkle", 13: "flag"},
+    46: {8: "invisible", 9: "stays pressed", 10: "script event", 11: "hitbox half-width",
+         12: "hitbox half-height", 13: "flag"},
+    47: {6: "scale", 7: "angle", 8: "seal width", 9: "seal height", 10: "starts hidden",
+         13: "cleared flag"},
+    48: {6: "strength", 7: "rotation", 8: "zone half-width", 9: "zone half-height", 13: "flag"},
+    51: {8: "mode", 13: "flag"},
+    52: {8: "target X", 9: "target Y", 13: "active flag"},
+    53: {8: "metal", 9: "floats", 10: "empty", 13: "broken flag"},
+    54: {8: "eruption interval", 9: "attack power", 10: "stone crater", 11: "first delay",
+         13: _DISABLE},
+    55: {8: "eruption interval", 9: "attack power", 10: "stone crater", 11: "first delay",
+         13: _DISABLE},
+    56: {8: "falls", 9: "attack"},
+    57: {8: "eyes follow"},
+    58: {8: "mode", 13: "flag"},
+    59: {8: "trap mode", 9: "attack power"},
+    60: {6: "size", 8: "lava pond", 13: "flag"},
+    62: {8: "mode"},
+    63: {8: "invisible", 9: "stays pressed", 10: "script event", 11: "hitbox half-width",
+         12: "hitbox half-height", 13: "flag"},
+    64: {6: "scale", 13: "removed flag"},
+    65: {6: "scale", 13: "removed flag"},
+    66: {6: "scale", 13: "removed flag"},
+    67: {7: "direction", 8: "attack power", 9: "mode", 10: "start timer", 13: "stop flag"},
+    69: {8: "area half-width", 9: "area half-height", 10: "z mode"},
+    70: {8: "shape"},
+    71: {8: "mesh kind"},
+    72: {8: "winter"},
+    78: {13: "flag"}, 79: {13: "flag"}, 80: {13: "flag"}, 81: {13: "flag"},
+    263: {8: "variant", 9: "invert flag", 13: "found flag"},
+}
+_CONV_NAMES = {0: "type", 6: "scale", 7: "angle", 13: "flag", 14: "X", 15: "Y"}
+
+
+def param_name(type_id, field):
+    """Few-word name of a field for this type ("spawn chance", "landing X"), else
+    "word N" for a field nothing names."""
+    tid = type_id & 0xFFFF
+    n = PARAM_NAMES.get(tid, {}).get(field)
+    if n:
+        return n
+    for key, names in PARAM_NAMES.items():
+        if isinstance(key, tuple) and key[0] <= tid <= key[1] and field in names:
+            return names[field]
+    if any(f == field for f, _s, _m in params_for(tid)) and field in _CONV_NAMES:
+        return _CONV_NAMES[field]
+    return f"word {field}"
+
+
 def _per_type(tid):
-    return GIMMICKS.get(tid) or FORAGE.get(tid) or MAP_PARAMS.get(tid)
+    return GIMMICKS.get(tid) or FORAGE.get(tid) or MAP_PARAMS.get(tid) or SPECIAL.get(tid)
 
 
 def lane_for(type_id):

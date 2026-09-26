@@ -680,6 +680,7 @@ class App:
         om.add_command(label="Folder…", command=self.cmd_open_folder)
         self._open_btn.pack(side="left", padx=2, pady=3)
         ttk.Button(bar, text="Game folder…", command=self.cmd_game_folder).pack(side="left", padx=2)
+        ttk.Button(bar, text="Options…", command=self.cmd_options).pack(side="left", padx=2)
         # shown only while something other than the game is listed (see load_source)
         self._back_btn = ttk.Button(bar, text="Back to the game", command=self.cmd_back_to_game)
         from guiutil import Tip
@@ -851,6 +852,40 @@ class App:
             self.load_source(lambda: Source.from_bundle(p))
         else:
             self.load_source(lambda: Source.from_file(p))
+
+    def cmd_options(self):
+        """The Options window: toolkit settings, applied as soon as they are ticked and kept
+        in settings.json. One window at a time (a second click brings it forward)."""
+        win = self.__dict__.get("_options_win")
+        if win is not None and win.winfo_exists():
+            win.deiconify()
+            win.lift()
+            win.focus_set()
+            return win
+        from map_editor import view as map_view
+        win = self._options_win = tk.Toplevel(self.root)
+        win.title("Options")
+        win.transient(self.root)
+        win.resizable(False, False)
+        body = ttk.Frame(win, padding=12)
+        body.pack(fill="both", expand=True)
+        ttk.Label(body, text="Map editor", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self._wheel_zooms = tk.BooleanVar(value=map_view.wheel_mode() == "zoom")
+
+        def wheel_changed():
+            map_view.set_wheel_mode("zoom" if self._wheel_zooms.get() else "scroll")
+        ttk.Checkbutton(body, text="Mouse wheel zooms the map", variable=self._wheel_zooms,
+                        command=wheel_changed).pack(anchor="w", pady=(4, 0))
+        ttk.Label(body, text="Unticked, the wheel scrolls the map instead. Ctrl+wheel always does "
+                             "the other one; Shift+wheel scrolls sideways.",
+                  foreground="#666", wraplength=320, justify="left").pack(anchor="w", padx=(20, 0))
+        ttk.Button(body, text="Close", command=win.destroy).pack(anchor="e", pady=(12, 0))
+        win.bind("<Escape>", lambda _e: win.destroy())
+        win.update_idletasks()
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
+        y = self.root.winfo_rooty() + 80
+        win.geometry(f"+{max(0, x)}+{max(0, y)}")
+        return win
 
     def cmd_game_folder(self):
         """Show / change the game copy every tool uses (takes effect on the next start)."""

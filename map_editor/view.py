@@ -9,6 +9,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
+import guiutil
 from rf4s_modkit import mobj_types
 
 from . import attrs, render, ui
@@ -16,6 +17,25 @@ from . import attrs, render, ui
 ZOOMS = (2, 3, 4, 6, 8, 12, 16, 24)      # px per tile; 1 px showed nothing useful
 OPEN_ZOOM = 6                              # px per tile a map opens at (Fit / 0 shows it all)
 MAX_CANVAS_PX = 8192          # PhotoImage conversion above this gets slow
+WHEEL_SETTING = "map_wheel"   # settings.json: "zoom" (default) or "scroll" -- the Options… window
+_wheel_mode = None
+
+
+def wheel_mode() -> str:
+    """What the plain mouse wheel does on the map: "zoom" or "scroll" (Ctrl+wheel the other)."""
+    global _wheel_mode
+    if _wheel_mode is None:
+        from rf4s_modkit import gamepaths
+        _wheel_mode = "scroll" if gamepaths.get_setting(WHEEL_SETTING) == "scroll" else "zoom"
+    return _wheel_mode
+
+
+def set_wheel_mode(mode: str) -> None:
+    """Choose what the wheel does, for every open map, and remember it in settings.json."""
+    global _wheel_mode
+    from rf4s_modkit import gamepaths
+    _wheel_mode = "scroll" if mode == "scroll" else "zoom"
+    gamepaths.set_setting(WHEEL_SETTING, _wheel_mode)
 
 
 class ViewState:
@@ -66,10 +86,10 @@ class MapView(ttk.Frame):
         vbar.pack(side="right", fill="y")
         self.canvas.pack(side="left", fill="both", expand=True)
         c = self.canvas
-        c.bind("<MouseWheel>", self._wheel)                 # zoom at the pointer
+        c.bind("<MouseWheel>", self._wheel)                 # zoom at the pointer (or scroll)
         c.bind("<Configure>", lambda _e: self._update_scrollregion(), add="+")
         c.bind("<Shift-MouseWheel>", lambda e: c.xview_scroll(-(e.delta // 120) * 3, "units"))
-        c.bind("<Control-MouseWheel>", self._ctrl_wheel)    # scroll up / down
+        c.bind("<Control-MouseWheel>", self._ctrl_wheel)    # the other one
         c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
         c.bind("<B2-Motion>", lambda e: c.scan_dragto(e.x, e.y, gain=1))
         c.bind("<Motion>", self._motion, add="+")
@@ -593,11 +613,18 @@ class MapView(ttk.Frame):
         c.yview_moveto(max(0.0, (ty * self.cp - ch / 2) / rh))
 
     def _wheel(self, e):
-        self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
+        if wheel_mode() == "scroll":
+            self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
+        else:
+            self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
         return "break"
 
     def _ctrl_wheel(self, e):
-        self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
+        """Ctrl+wheel does what the plain wheel doesn't (the Options… window)."""
+        if wheel_mode() == "scroll":
+            self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
+        else:
+            self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
         return "break"
 
     # ---- hover -------------------------------------------------------------- #
@@ -652,15 +679,27 @@ class MapView(ttk.Frame):
         return None
 
     def show_tip(self, e, text):
+        """The hover tooltip beside the pointer: wrapped to the monitor, and flipped to the
+        pointer's left / above it where it would run off the monitor (never under it)."""
         if self._tip is None:
             self._tip = tk.Toplevel(self.canvas)
             self._tip.wm_overrideredirect(True)
             self._tip_label = tk.Label(self._tip, justify="left", bg="#222", fg="#eee",
-                                       font=("Consolas", 8), bd=1, relief="solid", padx=4, pady=2)
+                                       font=("Consolas", 8), bd=1, relief="solid", padx=4, pady=2,
+                                       wraplength=guiutil.tip_wraplength(self.canvas, e.x_root,
+                                                                         e.y_root, 480))
             self._tip_label.pack()
         if self._tip_label.cget("text") != text:
             self._tip_label.config(text=text)
-        self._tip.wm_geometry(f"+{e.x_root + 14}+{e.y_root + 14}")
+            self._tip.update_idletasks()
+        w, h = self._tip.winfo_reqwidth(), self._tip.winfo_reqheight()
+        left, top, right, bottom = guiutil.monitor_rect(self.canvas, e.x_root, e.y_root)
+        x, y = e.x_root + 14, e.y_root + 14
+        if x + w > right - 4:
+            x = e.x_root - 14 - w
+        if y + h > bottom - 4:
+            y = e.y_root - 14 - h
+        self._tip.wm_geometry(f"+{max(left + 4, x)}+{max(top + 4, y)}")
 
     def hide_tip(self):
         if self._tip is not None:

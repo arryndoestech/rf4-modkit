@@ -98,10 +98,18 @@ class EntityForm(Form):
         self.st = ttk.Frame(g)
         self.st.grid(row=1, column=0, sticky="w")
         self.vscale, self.vrot = tk.StringVar(), tk.StringVar()
+        self._f7 = "angle"                      # what f7 is for the shown type (mobj_f7_kind)
+        self._tid = None
         self.row(self.st, "Scale", self.vscale, lambda: self._commit_field(6, self.vscale), 0, 0, 7,
-                 tip="f6 as a factor (1.0 = 4096).")
+                 tip=lambda: "f6 as a factor (1.0 = 4096); negative mirrors." + (
+                     "" if self._tid is None or mobj_types.mobj_reads_scale(self._tid) else
+                     "\nThis type ignores it in the game."))
         self.row(self.st, "Rotation °", self.vrot, lambda: self._commit_field(7, self.vrot), 0, 2, 7,
-                 tip="f7 in degrees (stored as 65536 per turn).")
+                 tip=lambda: {"angle": "f7 in degrees (stored as 65536 per turn).",
+                              "frame": "f7: which frame of the sprite is shown."}.get(
+                     self._f7, "f7: this type ignores it in the game."))
+        self.scale_lbl = self.st.grid_slaves(row=0, column=0)[0]
+        self.rot_lbl = self.st.grid_slaves(row=0, column=2)[0]
 
         self.pframe = ttk.Frame(self)
         self.pframe.pack(fill="x", pady=(4, 0))
@@ -109,13 +117,13 @@ class EntityForm(Form):
         self.rows = []
         self._meanings = {}
         for fi in range(16):
+            # the parameter's name; its explanation (and what the value means) is the tooltip
             var = tk.StringVar()
             lab = ttk.Label(self.pframe, font=ui.HINT_FONT)
             ent = commit_entry(self.pframe, var, lambda fi=fi: self._commit_param(fi), width=9)
-            ui.Tip(ent, lambda fi=fi: self._meanings.get(fi, ""))
-            note = ttk.Label(self.pframe, font=ui.SMALL_FONT, foreground=ui.GOOD, wraplength=170,
-                             justify="left")
-            self.rows.append((lab, ent, note, var))
+            for w in (lab, ent):
+                ui.Tip(w, lambda fi=fi: self._meanings.get(fi, ""))
+            self.rows.append((lab, ent, var))
         self.raw = tk.BooleanVar(value=False)
         ttk.Checkbutton(self, text="show all 16 raw fields", variable=self.raw,
                         command=self.refresh).pack(anchor="w", pady=(2, 0))
@@ -149,8 +157,13 @@ class EntityForm(Form):
         self.type_combo.var.set(mobj_choice(tid) if mobj_types.mobj_display_name(tid) else str(tid))
         name = mobj_types.mobj_name(tid)
         lab = mobj_types.mobj_label(tid)
-        if name:
+        tex = mobj_types.mobj_texture(list(rec)) if tid >= 20 else None
+        if tex and tex == name:
             lab += f"\nsprite map_obj/{name}.bntx (archive {mobj_types.mobj_archive_id(tid)})"
+        elif tex:
+            lab += f"\ntexture {tex}"
+        elif name:
+            lab += "\nno sprite of its own"
         self.type_label.config(text=lab)
         raw = self.raw.get()
         if mapparam or raw:
@@ -162,6 +175,9 @@ class EntityForm(Form):
             self.vx.set(str(rec[14]))
             self.vy.set(str(rec[15]))
             self.tile_lbl.config(text=f"tile ({rec[14] >> 3}, {rec[15] >> 3})")
+            self._tid, self._f7 = tid, mobj_types.mobj_f7_kind(tid)
+            self.scale_lbl.config(text="Scale" if mobj_types.mobj_reads_scale(tid) else "Scale (unused)")
+            self.rot_lbl.config(text={"angle": "Rotation °", "frame": "Frame"}.get(self._f7, "f7 (unused)"))
             self.vscale.set(self._fmt(6, rec[6]))
             self.vrot.set(self._fmt(7, rec[7]))
         try:
@@ -174,22 +190,21 @@ class EntityForm(Form):
         else:
             shown = [fi for fi, _sz, _m in described if fi not in (0, 14, 15)
                      and not (fi in (6, 7) and not mapparam)]
-        for fi, (lab_w, ent, note, var) in enumerate(self.rows):
+        for fi, (lab_w, ent, var) in enumerate(self.rows):
             if fi not in shown:
                 lab_w.grid_remove()
                 ent.grid_remove()
-                note.grid_remove()
                 continue
             r = shown.index(fi)
             sz, m = meaning.get(fi, (4, ""))
-            lab_w.config(text=f"f{fi}" + (f" [{mobj_params.SIZE_NAME[sz]}]" if sz != 4 else ""))
-            lab_w.grid(row=r, column=0, sticky="nw", padx=(0, 3))
-            ent.grid(row=r, column=1, sticky="nw", pady=1)
+            lab_w.config(text=mobj_params.param_name(tid, fi))
+            lab_w.grid(row=r, column=0, sticky="w", padx=(0, 6))
+            ent.grid(row=r, column=1, sticky="w", pady=1)
             eff = rec[fi] & ((1 << (8 * sz)) - 1)
             var.set(str(eff if sz < 4 else rec[fi]))
-            note.config(text=self._note(tid, fi, sz, m, eff, rec))
-            note.grid(row=r, column=2, sticky="w", padx=(4, 0))
-            self._meanings[fi] = m
+            head = f"word {fi}" + (f", read as {mobj_params.SIZE_NAME[sz]}" if sz != 4 else "")
+            note = self._note(tid, fi, sz, m, eff, rec)
+            self._meanings[fi] = head + ("\n" + note if note else "\n(the game doesn't read it)")
         only = "" if shown else "(position and type only -- this type reads no other fields)"
         try:
             inter = mobj_params.interaction_summary(tid, rec[13])
@@ -228,11 +243,10 @@ class EntityForm(Form):
             parts.append(f"(raw 0x{rec[fi] & 0xFFFFFFFF:X}, low {mobj_params.SIZE_NAME[sz]} used)")
         return "\n".join(parts)
 
-    @staticmethod
-    def _fmt(fi, raw):
+    def _fmt(self, fi, raw):
         if fi == 6:
             return f"{raw / 4096:g}"
-        if fi == 7:
+        if fi == 7 and self._f7 == "angle":
             return f"{(raw % 65536) * 360 / 65536:g}"
         return str(raw)
 
@@ -256,14 +270,20 @@ class EntityForm(Form):
             v = float(var.get())
         except ValueError:
             return
-        rec[fi] = int(round(v * 4096)) if fi == 6 else int(round(v * 65536 / 360)) % 65536
-        self._set(rec, f"Set entity #{self.key[1]} {'scale' if fi == 6 else 'rotation'}")
+        if fi == 6:
+            rec[fi] = int(round(v * 4096))
+        elif self._f7 == "angle":
+            rec[fi] = int(round(v * 65536 / 360)) % 65536
+        else:
+            rec[fi] = int(round(v))
+        what = "scale" if fi == 6 else {"angle": "rotation", "frame": "frame"}.get(self._f7, "f7")
+        self._set(rec, f"Set entity #{self.key[1]} {what}")
 
     def _commit_param(self, fi):
         rec = self._rec()
         if rec is None:
             return
-        v = ui.to_int(self.rows[fi][3].get())
+        v = ui.to_int(self.rows[fi][2].get())
         if v is None:
             return
         tid = rec[0] & 0xFFFF

@@ -386,7 +386,7 @@ the selection · Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste an entity, warp, s
 monster spawn point -- also onto another map (it pastes at the pointer; a gate point goes
 into the gate chosen in the Gates tab, or the map's only gate; right-click empty map for *Paste here*;
 a map already holding the game's 40 entity / 10 warp chunks refuses) · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
-/ `0` zoom / fit (a map opens at 6 px per tile; zoom runs 2–24 px, and name labels grow with it) · the wheel zooms at the pointer · Ctrl+wheel / Shift+wheel scroll · middle-drag pans · Ctrl+hover a tile
+/ `0` zoom / fit (a map opens at 6 px per tile; zoom runs 2–24 px, and name labels grow with it) · the wheel zooms at the pointer and Ctrl+wheel scrolls (untick *Mouse wheel zooms the map* in **Options…**, next to **Game folder…**, to swap them; remembered in `settings.json`) · Shift+wheel scrolls sideways · middle-drag pans · Ctrl+hover a tile
 shows its ATTR decode.
 
 **Editing rules.** Every field commits on Enter or when it loses focus, as one undo step,

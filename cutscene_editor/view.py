@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
 
+import guiutil
+
 from rf4s_modkit import script
 
 from .render import Row, SceneText
@@ -228,12 +230,13 @@ class ScriptView(ttk.Frame):
                     pass
             lbl = tk.Label(self._tip, justify="left", anchor="w", bg="#1b1b22", fg="#e6e6ee",
                            font=("Segoe UI", 9), relief="solid", bd=1, padx=8, pady=6)
-            lbl.config(wraplength=tkfont.Font(font=lbl["font"]).measure("m" * 60))
+            lbl.config(wraplength=min(tkfont.Font(font=lbl["font"]).measure("m" * 60),
+                                           guiutil.tip_wraplength(lbl, x, y, 10 ** 6)))
             lbl.pack()
             self._tip_lbl = lbl
         if self._tip_lbl.cget("text") != text:
             self._tip_lbl.config(text=text)
-        self._tip.wm_geometry("+%d+%d" % (x, y))
+        guiutil.place_popup(self._tip, x, y)   # kept on the monitor
         had = self.focus_get()
         self._tip.deiconify()
         if had is not None and self.focus_get() is not had:

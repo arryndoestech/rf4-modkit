@@ -261,7 +261,7 @@ MOBJ_NOTES: dict[str, str] = {
     "MOBJ_BOX":            "breakable crate dropping zone-pool loot: wooden (MOBJ_BOX), or metal (MOBJ_FIELD_METAL02) when word 8 is set (type 53, MapEntity_SpawnTreasure)",
     "MOBJ_FI_ERUPT":       "eruption vent: erupts periodically and damages (word 9 = attack); lava vent MOBJ_FI_ERUPT_LAVA, or stone crater MOBJ_FI_ERUPT when word 10 is set (type 54, MapObj_Init/TickEruptionHazard)",
     "fe106":   "eruption vent (type 55, same handler as type 54)",
-    "MOBJ_CHANDELIER":     "damaging hazard sprite — falling chandelier (type 56, MapObj_InitDamagingHazardSprite)",
+    "MOBJ_CHANDELIER":     "chandelier: always sways; with word 8 set it falls once the player or a party member moves within 26 sub-units left / right of it, and hurts (attack 210 + word 9); with word 8 = 0 it never falls and its hitbox stays off (type 56, MapObj_InitDamagingHazardSprite)",
     "MOBJ_FIELD_METAL02":  "portrait (texture portrait): with word 8 set its eyes follow the player left / right (type 57, MapObj_InitMCSpriteEffectRes2225; the MOBJ_FIELD_METAL02 name is only its archive slot)",
     "MOBJ_BOX_WINTER":     "flag-gated TRAVELING NPC spawn (type 58, Npc_InitFlagGatedTraveler)",
     "fe114":   "Wooly doll (texture FURNITURE_21); with word 8 set an invisible proximity trap instead (type 59, MapObj_InitProximityTrapOrEffect)",
@@ -276,9 +276,9 @@ MOBJ_NOTES: dict[str, str] = {
     "fe122":   "periodic effect emitter (type 67, MapObj_InitPeriodicEffectEmitter)",
     "fe123": "chimney smoke",   # USER 2026-06-24 + type 68 MapObj_Init/TickChimneySmoke
     "fe124":   "area particle emitter (type 69, MapObj_Init/TickAreaParticleEmitter)",
-    "fe125":   "deferred effect spawn request (type 70, Effect_DeferredSpawnRequest_Tick)",
+    "fe125":   "light shafts: sunlight fan mesh with texture RE_VLIGHT2, shape by word 8 (15 kinds, 1 = 0 mirrored); daytime in clear weather only (type 70, Effect_SpawnWorldSpriteByType)",
     "fe126":   "procedural mesh effect (type 71, MapObj_SpawnProceduralMeshEffect)",
-    "fe127":   "rotated mesh effect (type 72, MapObj_SpawnRotatedMeshEffect)",
+    "fe127":   "room overlay mesh: the palace hall drawn over the room with texture F_ROOM00 (word 8 = 1: F_ROOM00_WINTER) (type 72, MapObj_SpawnRotatedMeshEffect)",
     "fe128":   "inert — no init handler (type 73)",
     # types 74..77 (MOBJ_FI_ICE0x_dummy): no handler — inert placeholders.
     "MOBJ_ROAD_E_UP":    "decoration spawn trigger, road edge up (type 78, Decoration_OnSpawnTrigger)",
@@ -300,20 +300,20 @@ MOBJ_NOTES: dict[str, str] = {
 MOBJ_DISPLAY: dict[int, str] = {
     20: "street light",  # fe032
     21: "ambient sound",  # fe033
-    22: "ambient sound (variant A)",  # fe034
-    23: "ambient sound (variant B)",  # fe035
+    22: "ambient sound A",  # fe034
+    23: "ambient sound B",  # fe035
     24: "fishing spot",  # fe036
-    25: "fishing spot (variant 1, unused)",  # fe037
-    26: "eater gimmick (animated)",  # gmk00_eater
-    27: "birds (critter spawner)",  # gmk01_bird
-    28: "butterflies (critter spawner)",  # gmk02_butterfly
+    25: "fishing spot 2 (unused)",  # fe037
+    26: "eater plant",  # gmk00_eater
+    27: "birds",  # gmk01_bird
+    28: "butterflies",  # gmk02_butterfly
     29: "storm hazard",  # gmk04_storm
-    30: "wind current (pushes the player)",  # gmk05_storm
+    30: "wind current",  # gmk05_storm
     31: "falling-rock trap",  # gmk06_rock
     32: "quake shake (unused)",  # gmk07_dummy
     33: "rolling boulder (unused)",  # gmk08_roll
     34: "water hazard (unused)",  # gmk09_water
-    35: "mushroom / herb pickup (one-time)",  # gmk10_mushroom
+    35: "herb pickup",  # gmk10_mushroom
     36: "NPC-event object (unused)",  # gmk11_collection
     37: "red glow",  # gmk12_redlight
     38: "blue glow (unused)",  # gmk13_bluelight
@@ -321,37 +321,37 @@ MOBJ_DISPLAY: dict[int, str] = {
     40: "magic glow (unused)",  # gmk15_magiclight
     41: "water glow (unused)",  # gmk16_waterlight
     42: "warp point",  # gmk17_warp_effect
-    43: "windmill blades / airship propeller",  # fe100
-    44: "treasure (flag-gated)",  # fe101
-    45: "colour switch (flag-gated)",  # fe102
+    43: "windmill / propeller",  # fe100
+    44: "treasure chest",  # fe101
+    45: "colour switch",  # fe102
     46: "floor switch",  # fe102_2
-    47: "seal door (opens when the room is cleared)",  # fe103
-    48: "barrier (flag-gated)",  # fe107
+    47: "seal door",  # fe103
+    48: "barrier",  # fe107
     49: "ambient particles A",  # fe104
     50: "ambient particles B",  # fe105
     51: "airship",  # MOBJ_SHIP
-    52: "vent knockback zone (no damage)",  # MOBJ_FI_ERUPT_LAVA
-    53: "crate (breakable; wooden, or metal)",  # MOBJ_BOX
+    52: "knockback zone",  # MOBJ_FI_ERUPT_LAVA
+    53: "crate",  # MOBJ_BOX
     54: "eruption vent (unused)",  # MOBJ_FI_ERUPT
-    55: "eruption vent (lava or stone; damages)",  # fe106
-    56: "chandelier (falls)",  # MOBJ_CHANDELIER
-    57: "portrait (eyes follow the player)",  # MOBJ_FIELD_METAL02
-    58: "travelling NPC (flag-gated, unused)",  # MOBJ_BOX_WINTER
-    59: "Wooly doll / hidden proximity trap",  # fe114
-    60: "decoration (flag-gated, random rotation)",  # fe115
-    61: "ambient particles (whole map)",  # fe116
+    55: "eruption vent",  # fe106
+    56: "chandelier",  # MOBJ_CHANDELIER
+    57: "portrait",  # MOBJ_FIELD_METAL02
+    58: "travelling NPC (unused)",  # MOBJ_BOX_WINTER
+    59: "Wooly doll",  # fe114
+    60: "pond",  # fe115
+    61: "map-wide particles",  # fe116
     62: "sakura petals",  # fe117
-    63: "floor switch (toggle)",  # fe118
-    64: "theatre table (small)",  # fe119
-    65: "theatre table (large)",  # fe120
+    63: "toggle floor switch",  # fe118
+    64: "small theatre table",  # fe119
+    65: "large theatre table",  # fe120
     66: "theatre chair",  # fe121
-    67: "effect emitter (periodic)",  # fe122
+    67: "effect emitter",  # fe122
     68: "chimney smoke",  # fe123
-    69: "particle emitter (area)",  # fe124
-    70: "effect (deferred spawn)",  # fe125
+    69: "particle emitter",  # fe124
+    70: "light shafts",  # fe125
     71: "mesh effect",  # fe126
-    72: "mesh effect (rotated)",  # fe127
-    73: "unused (no handler)",  # fe128
+    72: "room overlay mesh",  # fe127
+    73: "unused slot",  # fe128
     74: "ice patch 1 (placeholder)",  # MOBJ_FI_ICE01_dummy
     75: "ice patch 2 (placeholder)",  # MOBJ_FI_ICE02_dummy
     76: "ice patch 3 (placeholder)",  # MOBJ_FI_ICE03_dummy
@@ -707,13 +707,15 @@ def mobj_name(type_id: int) -> str | None:
 # like the sprite band above them; types 20..77 get ONLY what their g_mapObjTypeInitTable
 # handler loads -- often another archive, sometimes chosen by a record word, and for effects,
 # sounds and zones nothing drawable. Checked handler by handler 2026-09-26. The street light
-# (20) is its glow blob in the handler's amber tint (MOBJ_TINT; it only shows 16:00-05:59) and
-# the chimney smoke (68) its smoke_ring (08:00-21:59). Not drawn here: the other light /
-# water effects (37, 70..72), 3D models (44 chest M26_0, 58 the
+# (20) and red glow (37) are the efc_liteC glow in the handler's tint (MOBJ_TINT; the street
+# light only shows 16:00-05:59), the chimney smoke (68) its smoke_ring (08:00-21:59), and
+# 70 / 72 are textured meshes (rf4s_modkit.mobj_meshes). Not drawn here: water effect 71,
+# 3D models (44 chest M26_0, 58 the
 # travelling NPC, 60 the ponds), types 38..41 (their handler loads archive = type id, an AI
 # file: unused), and every sound / zone / emitter type.
 MOBJ_TEXTURE: dict[int, str] = {
     20: "efc_liteC",                        # MapObj_InitStreetLight
+    37: "efc_liteC",                        # MapObj_InitRedLightGlow
     26: "OBJ_KAMITSUKI",
     27: "OBJ_BIRD_BLUE",                    # one of BLUE / BROWN / GREEN / PINK at random
     28: "OBJ_BUTTERFLY_BLUE",               # one of BLUE / LIGHTB / PINK / YELLOW at random
@@ -724,10 +726,40 @@ MOBJ_TEXTURE: dict[int, str] = {
 }
 # Tints a handler multiplies its texture by (Sprite_SetTintFromPacked555: R bits 14..10,
 # G 9..5, B 4..0, each /31).
-MOBJ_TINT: dict[int, int] = {20: 0x5AA8}
-# Textures that hold one quarter of a round glow (bright in the corner that is the centre),
-# drawn mirrored into all four quarters.
-MOBJ_QUARTER_GLOW: frozenset[int] = frozenset({20})
+MOBJ_TINT: dict[int, int] = {20: 0x5AA8, 37: 0x7DE2}
+
+
+# Types 20..195 whose handler reads f6 (scale); the rest of that band ignores it -- the road
+# edges 78..81 and the door band 82..195 included (hexrays read sweep of every handler,
+# 2026-09-26). Types 196+ (interactive objects, decorations) all read it.
+MOBJ_SCALE_READERS = frozenset({20, 37, 38, 39, 40, 41, 44, 47, 48, 60, 64, 65, 66})
+
+
+def mobj_reads_scale(type_id: int) -> bool:
+    """True when the game sizes (and, negative, mirrors) this type by f6."""
+    tid = type_id & 0xFFFF
+    return tid >= 196 or tid in MOBJ_SCALE_READERS
+
+
+# f7: an angle for these gimmicks (same sweep); the sprite frame from 196 up; unread otherwise.
+MOBJ_ANGLE_READERS = frozenset({29, 30, 31, 33, 34, 42, 47, 48, 67})
+
+
+def mobj_f7_kind(type_id: int) -> str | None:
+    """What f7 is for this type: "angle", "frame", or None when the game ignores it."""
+    tid = type_id & 0xFFFF
+    if tid >= 196:
+        return "frame"
+    return "angle" if tid in MOBJ_ANGLE_READERS else None
+
+
+def mobj_glow(params) -> bool:
+    """True when the handler runs Sprite_ApplyEffect_Glow (RF4S.exe+0x1b8e30) on the sprite:
+    both wrap modes mirror, UVs and size doubled -- the texture is one corner of the picture,
+    drawn mirrored into all four around the object (street light, red glow, and the
+    windmills: type 43 modes other than 2 / 3)."""
+    tid = params[0] & 0xFFFF
+    return tid in (20, 37) or (tid == 43 and (params[8] if len(params) > 8 else 0) not in (2, 3))
 
 
 def mobj_tint(type_id: int) -> tuple[float, float, float] | None:
@@ -756,6 +788,9 @@ def mobj_texture(params) -> str | None:
         return "MOBJ_FIELD_METAL02" if w(8) else "MOBJ_BOX"
     if tid in (54, 55):                     # MapObj_InitEruptionHazard: word 10 = stone crater
         return "MOBJ_FI_ERUPT" if w(10) else "MOBJ_FI_ERUPT_LAVA"
+    if tid in (70, 72):                     # textured meshes: mobj_meshes.mesh_for()
+        from . import mobj_meshes
+        return mobj_meshes.mesh_for(params)[0]
     if tid == 59:                           # word 8 set: an invisible proximity trap
         return None if w(8) else "FURNITURE_21"
     return MOBJ_TEXTURE.get(tid)

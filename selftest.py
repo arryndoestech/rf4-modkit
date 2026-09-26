@@ -33,7 +33,7 @@ def _private_settings():
     read back from it (a user's saved choices would change what the tests see)."""
     import json as _json
     d = _gamepaths._load_settings()
-    for k in ("map_view", "group_maps_by_area", "season_note_shown"):
+    for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel"):
         d.pop(k, None)
     p = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_selftest_")) / "settings.json"
     p.write_text(_json.dumps(d), encoding="utf-8")
@@ -1448,10 +1448,66 @@ def test_mobj_types():
            and tex(rec(53)) == "MOBJ_BOX" and tex(rec(53, 1)) == "MOBJ_FIELD_METAL02"
            and tex(rec(55)) == "MOBJ_FI_ERUPT_LAVA" and tex(rec(55, 0, 1)) == "MOBJ_FI_ERUPT"
            and tex(rec(45, 3)) == "switch_03" and tex(rec(43, 2)) == "propeller_ship_01"
-           and all(tex(rec(t)) is None for t in (37, 42, 44, 52, 58, 60, 70))
-           and tex(rec(20)) == "efc_liteC" and tex(rec(68)) == "smoke_ring"
+           and all(tex(rec(t)) is None for t in (42, 44, 52, 58, 60, 71))
+           and tex(rec(20)) == "efc_liteC" and tex(rec(37)) == "efc_liteC" and tex(rec(68)) == "smoke_ring"
            and mobj_types.mobj_tint(20) == (22 / 31, 21 / 31, 8 / 31) and mobj_types.mobj_tint(68) is None
+           and tex(rec(70)) == "RE_VLIGHT2" and tex(rec(72)) == "F_ROOM00" and tex(rec(72, 1)) == "F_ROOM00_WINTER"
            and tex(rec(82)) == mobj_types.mobj_name(82) and tex(rec(250)) == mobj_types.mobj_name(250))
+    # which types the game sizes by f6 / what f7 is (hexrays read sweep of every handler)
+    from rf4s_modkit import spritequad as _sq
+    ship = {"type_id": 51, "pos_x": 0, "pos_y": 0, "params": [51, 0, 0, 0, 0, 0, 8192, 0]}
+    room = {"type_id": 250, "pos_x": 0, "pos_y": 0, "params": [250, 0, 0, 0, 0, 0, -8192, 0]}
+    q = (-30, -30, 30, 30)
+    _check("f6 scales only the types that read it (doors, the airship ... ignore it); f7 is an "
+           "angle for 9 gimmicks, the frame from 196 up, unread otherwise",
+           _sq.world_rect(ship, q) == (-10, -10, 10, 10) and not _sq.mirrored(ship)
+           and _sq.world_rect(room, q) == (-20, -20, 20, 20) and _sq.mirrored(room)
+           and mobj_types.mobj_reads_scale(44) and not mobj_types.mobj_reads_scale(120)
+           and mobj_types.mobj_f7_kind(29) == "angle" and mobj_types.mobj_f7_kind(300) == "frame"
+           and mobj_types.mobj_f7_kind(51) is None)
+    from rf4s_modkit import mobj_params as _mp
+    _check("MOBJ parameters traced through the ticks (chandelier, storm, fall-through hole, "
+           "pressure plate, inscribed stone 263 ...)",
+           "falls when approached" in _mp.field_meaning(56, 8)
+           and "blows" in _mp.field_meaning(29, 10) and "pauses" in _mp.field_meaning(29, 11)
+           and "destination map" in _mp.field_meaning(42, 10)
+           and "pressure plate" in _mp.field_meaning(46, 9)
+           and "empty crate" in _mp.field_meaning(53, 10)
+           and [f for f, _s, _m in _mp.params_for(263)] == [8, 9, 13]
+           and not any("untraced)" == m[-9:] or "state byte" in m or "behaviour param" in m
+                       for t in _mp.GIMMICKS for _f, _s, m in _mp.params_for(t)))
+    _check("MOBJ names say what an object is, not what it does",
+           [mobj_types.mobj_display_name(t) for t in (56, 53, 44, 52)]
+           == ["chandelier", "crate", "treasure chest", "knockback zone"])
+    # Sprite_ApplyEffect_Glow: glows and windmills are one corner, mirrored into four
+    glow = mobj_types.mobj_glow
+    _check("glow-effect sprites: street light, red glow, windmills (not the propellers)",
+           glow(rec(20)) and glow(rec(37)) and glow(rec(43)) and glow(rec(43, 1))
+           and not glow(rec(43, 2)) and not glow(rec(43, 3)) and not glow(rec(68)))
+    # types 70 / 72 draw textured meshes read from the exe
+    from rf4s_modkit import mobj_meshes as _mm
+    lv, li = _mm.light_mesh(1)
+    ok_idx = all(max(m["i"]) < len(m["v"]) and len(m["i"]) % 3 == 0
+                 for m in list(_mm.LIGHT.values()) + [_mm.ROOM])
+    _check("light-shaft / room meshes: 15 kinds + the room, triangles index real vertices, "
+           "kind 1 mirrors kind 0",
+           ok_idx and sorted(_mm.LIGHT) == [0] + list(range(2, 16)) and len(_mm.ROOM["v"]) == 101 and len(_mm.ROOM["i"]) == 528
+           and lv[3][0] == -_mm.LIGHT[0]["v"][3][0] and li == _mm.LIGHT[0]["i"]
+           and _mm.light_mesh(99) == (_mm.LIGHT[0]["v"], _mm.LIGHT[0]["i"]))
+    try:
+        from PIL import Image as _Im
+        import numpy  # noqa: F401
+    except ImportError:
+        _skip("mesh rasterizer", "no Pillow / numpy")
+    else:
+        tex8 = _Im.new("RGBA", (8, 8), (255, 0, 0, 255))
+        img, quad = _mm.rasterize(tex8, _mm.ROOM["v"], _mm.ROOM["i"])
+        holes = img.getchannel("A").histogram()[0]
+        _check("the room mesh fills its box around the object (a solid texture: over 95 % "
+               "drawn, the rest is the mesh's own outline)",
+               all(abs(q - w) < 1e-6 for q, w in zip(quad, (-686.025, -768.252, 686.025, 768.252)))
+               and holes < img.width * img.height // 20,
+               f"{img.size} {quad} {holes} empty px")
     # Human notes for opaque effect sprites. 2026-08-31: the whole actor band
     # 20..81 is identified from g_mapObjTypeInitTable (+0x4CF530), so every
     # fe*/gmk* type has a note now; plain scenery sprites (>= 82) still don't.
@@ -1483,9 +1539,9 @@ def test_mobj_types():
         _check("mobj emdeb_flag_label names a region-A bit, separately from flag_label",
                mobj_params.emdeb_flag_label(2811) == "FLG_ELISA_NO_75")
     _check("mobj display names replace codenames",
-           mobj_types.mobj_display_name(48) == "barrier (flag-gated)"
+           mobj_types.mobj_display_name(48) == "barrier"
            and mobj_types.mobj_display_name(20) == "street light"
-           and mobj_types.mobj_display_name(27) == "birds (critter spawner)"
+           and mobj_types.mobj_display_name(27) == "birds"
            and mobj_types.mobj_display_name(199) == "tree 1"
            and mobj_types.mobj_display_name(5) == "herb_pool32"
            and mobj_types.mobj_display_name(0) == "ore_rock_spawn"
@@ -5846,6 +5902,25 @@ def test_explorer_tabs():
             app.cmd_close_tab(d)
         _check("closing every tab returns to the blank view",
                not app._docs and app._doc is app._blank and app._blank.frame.winfo_manager() == "pack")
+        # Options… (right of Game folder…) opens one window; its tick box sets the mouse wheel
+        from map_editor import view as _mview
+        bar_texts = [w.cget("text") for w in app._open_btn.master.winfo_children()
+                     if isinstance(w, gui.ttk.Button)]
+        win = app.cmd_options()
+        again = app.cmd_options()
+        boxes = [w for w in win.winfo_children()[0].winfo_children() if isinstance(w, gui.ttk.Checkbutton)]
+        ticked_before = app._wheel_zooms.get()
+        boxes[0].invoke()                       # untick: the wheel scrolls
+        after_untick = (_mview.wheel_mode(), _gamepaths.get_setting(_mview.WHEEL_SETTING))
+        boxes[0].invoke()                       # tick again: back to zooming
+        after_tick = _mview.wheel_mode()
+        win.destroy()
+        _check("Options… sits right of Game folder…, opens one window, and its tick box switches "
+               "the mouse wheel between zoom and scroll (saved in settings.json)",
+               bar_texts.index("Options…") == bar_texts.index("Game folder…") + 1
+               and again is win and len(boxes) == 1 and ticked_before
+               and after_untick == ("scroll", "scroll") and after_tick == "zoom",
+               (bar_texts, ticked_before, after_untick, after_tick))
         _check("explorer tabs raised no callback errors", not errs, str(errs[:1]))
     finally:
         try:
@@ -6404,6 +6479,63 @@ def test_map_editor_labels():
         v.open_view = real_open
         _check("a map opened any other way still opens at the default zoom",
                opened[-1] == (), opened[-1])
+        # inspector: each parameter by its name, the explanation as the tooltip (no green notes)
+        from rf4s_modkit import mobj_params as _mp
+        from tkinter import ttk
+        from map_editor import ui
+        ship = next(i for i, o in enumerate(p.doc.objs) if o["type_id"] & 0xFFFF == 51)
+        p.select(("mobj", ship))
+        root.update_idletasks()
+        form = p.inspector.forms["mobj"]
+        shown = [(fi, lab.cget("text")) for fi, (lab, _e, _v) in enumerate(form.rows)
+                 if lab.winfo_manager()]
+        _check("the inspector labels each parameter by name and explains it in a tooltip",
+               shown == [(8, "mode"), (13, "flag")]
+               and form._meanings[8].startswith("word 8, read as u8\n")
+               and _mp.field_meaning(51, 8) in form._meanings[8]
+               and not any(isinstance(w, ttk.Label) and w.cget("foreground") == ui.GOOD
+                           for w in form.pframe.winfo_children()),
+               (shown, form._meanings.get(8)))
+        # a tooltip near a monitor edge wraps and stays on that monitor
+        import guiutil as _gu
+        left, top, right, bottom = _gu.monitor_rect(root, 10, 10)
+        tip = tk.Toplevel(root)
+        tip.wm_overrideredirect(True)
+        tk.Label(tip, text="a long explanation " * 60, wraplength=_gu.tip_wraplength(root, right - 5, 10)).pack()
+        _gu.place_popup(tip, right - 5, bottom - 5, above=bottom - 40)
+        tip.update_idletasks()
+        gx, gy = tip.winfo_x(), tip.winfo_y()
+        gw, gh = tip.winfo_reqwidth(), tip.winfo_reqheight()
+        tip.destroy()
+        _check("tooltips wrap and stay on the monitor (moved left / above at its edges)",
+               left <= gx and gx + gw <= right and top <= gy and gy + gh <= bottom
+               and gw <= right - left, ((gx, gy, gw, gh), (left, top, right, bottom)))
+        # Options… window: the wheel zooms (default) or scrolls, Ctrl+wheel the other; remembered
+        class _Wheel:
+            delta, x, y = -120, 50, 50
+        did = []
+        real_step = v.zoom_step
+        v.zoom_step = lambda *a, **k: did.append("zoom")
+        real_scroll = v.canvas.yview_scroll
+        v.canvas.yview_scroll = lambda *a: did.append("scroll")
+        try:
+            default = mview.wheel_mode()
+            v._wheel(_Wheel()); v._ctrl_wheel(_Wheel())
+            as_zoom, did[:] = tuple(did), []
+            mview.set_wheel_mode("scroll")
+            v._wheel(_Wheel()); v._ctrl_wheel(_Wheel())
+            as_scroll = tuple(did)
+            stored = _gamepaths.get_setting(mview.WHEEL_SETTING)
+            mview._wheel_mode = None                 # a new run reads it back
+            reread = mview.wheel_mode()
+        finally:
+            v.zoom_step, v.canvas.yview_scroll = real_step, real_scroll
+            mview.set_wheel_mode("zoom")
+        _check("mouse wheel option: the wheel zooms (Ctrl scrolls) or scrolls (Ctrl zooms), "
+               "remembered in settings.json",
+               default == "zoom" and as_zoom == ("zoom", "scroll") and as_scroll == ("scroll", "zoom")
+               and stored == "scroll" and reread == "scroll",
+               (default, as_zoom, as_scroll, stored, reread))
         d = p.doc
         # label size follows the zoom: small when zoomed out, readable from ~6 px, 10 pt at 16 px
         sizes = {cp: mrender.label_size(cp) for cp in (2, 4, 6, 8, 12, 16, 24)}

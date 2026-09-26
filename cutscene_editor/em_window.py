@@ -24,6 +24,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import messagebox, simpledialog, ttk
 
+import guiutil
 from guiutil import FilterCombo, Paned, ScrollFrame, Tip, hint, shortcut_scope
 from rf4s_modkit import emscript, emtext, script
 
@@ -699,11 +700,12 @@ class EventManagerWindow:
                     pass
             lbl = tk.Label(self._tip, justify="left", anchor="w", bg="#1b1b22", fg="#e6e6ee",
                            font=("Segoe UI", 9), relief="solid", bd=1, padx=8, pady=6)
-            lbl.config(wraplength=tkfont.Font(font=lbl["font"]).measure("m" * 55))
+            lbl.config(wraplength=min(tkfont.Font(font=lbl["font"]).measure("m" * 55),
+                                           guiutil.tip_wraplength(lbl, x, y, 10 ** 6)))
             lbl.pack()
             self._tip_lbl = lbl
         self._tip_lbl.config(text=text)
-        self._tip.wm_geometry("+%d+%d" % (x, y))
+        guiutil.place_popup(self._tip, x, y)   # kept on the monitor
         had = self.win.focus_get()
         self._tip.deiconify()
         if had is not None and self.win.focus_get() is not had:

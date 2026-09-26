@@ -10,7 +10,8 @@ import queue
 import threading
 from collections import OrderedDict
 
-from rf4s_modkit import flagstate, map_names, mapground, mobj_types, model, spritequad, texture
+from rf4s_modkit import (flagstate, map_names, mapground, mobj_meshes, mobj_types, model,
+                         spritequad, texture)
 
 from . import attrs, ui
 
@@ -302,6 +303,28 @@ class Background:
 # --------------------------------------------------------------------------- #
 # object sprites
 # --------------------------------------------------------------------------- #
+def _glow_mirror(img, quad):
+    """Sprite_ApplyEffect_Glow: the texture is one corner of the picture; the game mirrors
+    it into all four around the object and doubles the sprite's size."""
+    w, h = img.size
+    whole = Image.new("RGBA", (w * 2, h * 2))
+    whole.paste(img, (0, 0))
+    whole.paste(img.transpose(Image.FLIP_LEFT_RIGHT), (w, 0))
+    whole.paste(img.transpose(Image.FLIP_TOP_BOTTOM), (0, h))
+    whole.paste(img.transpose(Image.ROTATE_180), (w, h))
+    return whole, tuple(v * 2 for v in quad)
+
+
+def _whole_frame(data, frame):
+    """A texture without sprite placement data (propeller_ship_02): the whole frame,
+    centred on the object at its own size."""
+    img = texture.decode_to_image(data, frame=frame)
+    if img is None:
+        return None
+    w, h = img.size
+    return img.convert("RGBA"), (-w / 2, -h / 2, w / 2, h / 2)
+
+
 class Sprites:
     """A placed object's sprite as the game draws it: the texture's TextureCoordinator
     crop, sized and offset by its PolygonVertexes quad (rf4s_modkit.spritequad)."""
@@ -324,37 +347,46 @@ class Sprites:
             return None
         fn = name + ".texture"
         frame = p[7] if len(p) > 7 and p[7] > 0 else 0
-        tint = mobj_types.mobj_tint(p[0]) if p else None
-        quarter = bool(p) and (p[0] & 0xFFFF) in mobj_types.MOBJ_QUARTER_GLOW
-        if tint or quarter:
-            fn += "@tint"                    # its own cache entry
+        tid = p[0] & 0xFFFF if p else 0
+        tint = mobj_types.mobj_tint(tid) if p else None
+        glow = bool(p) and mobj_types.mobj_glow(p)
+        mesh = mobj_meshes.mesh_for(p) if tid in (70, 72) else None
+        if tint or glow:
+            fn += "@fx"                      # its own cache entry
+        if mesh:                             # one entry per mesh (kind), not per texture
+            fn += f"@mesh{tid}.{p[8] if len(p) > 8 else 0}"
+            frame = 0
         key = (fn, frame)
         if key not in self._src:
             got = None
-            data = r(fn.removesuffix("@tint"))
+            data = r(fn.split("@", 1)[0])
             if data is not None:
                 try:
-                    if frame >= texture.frame_count(data):
-                        frame = 0
-                    got = spritequad.sprite_image(data, frame)
+                    if mesh:
+                        got = mobj_meshes.rasterize(texture.decode_to_image(data, rotate=False),
+                                                    mesh[1], mesh[2])
+                    else:
+                        if frame >= texture.frame_count(data):
+                            frame = 0
+                        got = spritequad.sprite_image(data, frame) or _whole_frame(data, frame)
                     if got and tint:
                         *rgb, a = got[0].split()
                         rgb = [ch.point(lambda v, f=f: int(v * f)) for ch, f in zip(rgb, tint)]
                         got = (Image.merge("RGBA", (*rgb, a)), got[1])
-                    if got and quarter:           # the quarter mirrored into a whole glow
-                        q = got[0]
-                        w, h = q.size
-                        whole = Image.new("RGBA", (w * 2, h * 2))
-                        whole.paste(q, (0, 0))
-                        whole.paste(q.transpose(Image.FLIP_LEFT_RIGHT), (w, 0))
-                        whole.paste(q.transpose(Image.FLIP_TOP_BOTTOM), (0, h))
-                        whole.paste(q.transpose(Image.ROTATE_180), (w, h))
-                        got = (whole, got[1])
+                    if got and glow:
+                        got = _glow_mirror(*got)
                 except Exception:
                     got = None
             self._src[key] = got
         got = self._src[key]
         return (fn, key[1], got[1]) if got else None
+
+    @staticmethod
+    def z_key(o):
+        """Draw order: the room mesh (72) under everything, the light shafts (70) over it,
+        then the sprites in the game's depth order."""
+        tid = o["type_id"] & 0xFFFF
+        return (0 if tid == 72 else 1 if tid == 70 else 2, spritequad.z_key(o))
 
     def pil(self, fn, frame, w, h, mirror):
         """The sprite resized to w x h canvas pixels (mirrored when asked)."""
@@ -449,7 +481,7 @@ def overlay(group, st):
     elif group == "under":
         if L.get("sprites") and HAS_PIL:
             flags = getattr(st, "flags", None)
-            for i in sorted(range(len(doc.objs)), key=lambda k: spritequad.z_key(doc.objs[k])):
+            for i in sorted(range(len(doc.objs)), key=lambda k: Sprites.z_key(doc.objs[k])):
                 o = doc.objs[i]         # the game's depth order: larger z drawn later
                 if not entity_visible(o, L) or flagstate.hidden(o, flags):
                     continue

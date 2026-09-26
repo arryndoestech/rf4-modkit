@@ -21,6 +21,7 @@ from guiutil import shortcut_scope
 from rf4s_modkit import flagstate, map_names, mapground, mobj_types, rf4m, search_items
 
 from . import data, dialogs, render, tools, ui
+from . import view as view_mod
 from .document import MapDocument
 from .inspector import Inspector
 from .tabs import FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, ObjectsTab, ProblemsTab, ViewTab
@@ -149,7 +150,11 @@ class MapEditorPanel:
         ttk.Button(bar, text="+", width=2, command=lambda: self.view.zoom_step(1)).pack(side="left")
         fit = ttk.Button(bar, text="Fit", width=4, command=self.view_fit)
         fit.pack(side="left", padx=(2, 0))
-        ui.Tip(fit, "Fit the map in the window (0). The wheel zooms at the pointer, Ctrl+wheel scrolls up / down, Shift+wheel sideways, middle-drag pans.")
+        ui.Tip(fit, lambda: "Fit the map in the window (0). " + (
+            "The wheel scrolls up / down, Ctrl+wheel zooms at the pointer"
+            if view_mod.wheel_mode() == "scroll" else
+            "The wheel zooms at the pointer, Ctrl+wheel scrolls up / down")
+            + ", Shift+wheel sideways, middle-drag pans (Options… ▸ Mouse wheel zooms the map).")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(bar, text="Validate", command=self.run_validation).pack(side="left")
         self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=ui.HINT_FONT)

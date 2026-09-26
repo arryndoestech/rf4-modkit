@@ -408,8 +408,56 @@ class TabBar(ttk.Frame):
             m.grab_release()
 
 
+def monitor_rect(widget, x, y):
+    """(left, top, right, bottom) of the work area of the monitor holding screen point
+    (x, y): the Windows API when available (so a second monitor counts), else the screen."""
+    try:
+        import sys
+        if sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            class MONITORINFO(ctypes.Structure):
+                _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                            ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+            user32 = ctypes.windll.user32
+            user32.MonitorFromPoint.restype = wintypes.HMONITOR
+            user32.MonitorFromPoint.argtypes = [wintypes.POINT, wintypes.DWORD]
+            mon = user32.MonitorFromPoint(wintypes.POINT(int(x), int(y)), 2)   # NEAREST
+            info = MONITORINFO()
+            info.cbSize = ctypes.sizeof(MONITORINFO)
+            if mon and user32.GetMonitorInfoW(mon, ctypes.byref(info)):
+                r = info.rcWork
+                return r.left, r.top, r.right, r.bottom
+    except Exception:
+        pass
+    return 0, 0, widget.winfo_screenwidth(), widget.winfo_screenheight()
+
+
+def tip_wraplength(widget, x, y, want=520):
+    """A tooltip's wrap width: `want` pixels, less on a monitor narrower than that."""
+    left, _t, right, _b = monitor_rect(widget, x, y)
+    return max(120, min(want, right - left - 24))
+
+
+def place_popup(top, x, y, above=None, gap=4):
+    """Show a borderless popup with its top-left at (x, y), kept on the monitor: moved left
+    when it would cross the right edge, and above `above` (a y the popup's bottom may sit
+    at, e.g. the top of the hovered widget) -- or just up -- when it would cross the bottom."""
+    top.update_idletasks()
+    w, h = top.winfo_reqwidth(), top.winfo_reqheight()
+    left, top_edge, right, bottom = monitor_rect(top, x, y)
+    if x + w > right - gap:
+        x = right - gap - w
+    if y + h > bottom - gap:
+        y = (above - h - gap) if above is not None else bottom - gap - h
+    x = max(left + gap, x)
+    y = max(top_edge + gap, y)
+    top.wm_geometry(f"+{int(x)}+{int(y)}")
+
+
 class Tip:
-    """Hover help for a widget (shown after a short delay)."""
+    """Hover help for a widget (shown after a short delay; wrapped and kept on screen)."""
 
     def __init__(self, widget, text, delay=500):
         self.w, self.text, self.delay = widget, text, delay
@@ -428,11 +476,14 @@ class Tip:
             return
         self._top = tk.Toplevel(self.w)
         self._top.wm_overrideredirect(True)
+        self._top.withdraw()                    # placed once its size is known
         x = self.w.winfo_rootx() + 8
         y = self.w.winfo_rooty() + self.w.winfo_height() + 4
-        self._top.wm_geometry(f"+{x}+{y}")
         tk.Label(self._top, text=text, justify="left", bg="#222", fg="#eee", font=("Consolas", 8),
-                 bd=1, relief="solid", padx=4, pady=2, wraplength=520).pack()
+                 bd=1, relief="solid", padx=4, pady=2,
+                 wraplength=tip_wraplength(self.w, x, y)).pack()
+        place_popup(self._top, x, y, above=self.w.winfo_rooty())
+        self._top.deiconify()
 
     def _hide(self, _e=None):
         if self._after:

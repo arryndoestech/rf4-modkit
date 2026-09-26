@@ -107,17 +107,25 @@ def sprite_image(data: bytes, frame: int = 0):
 def world_rect(obj: dict, quad) -> tuple:
     """Sub-unit rectangle (x0, y0, x1, y1) a placed MOBJ's sprite covers on the map.
     obj is an Rf4mMap.decode_mobj() entry (pos_x/pos_y sub-units, params[6] = f6 scale)."""
-    f6 = obj["params"][6] if len(obj.get("params", ())) > 6 else SCALE_ONE
+    f6 = _scale_word(obj)
     s = abs(f6 or SCALE_ONE) / SCALE_ONE / PX_PER_SUBUNIT
     x0, y0, x1, y1 = quad
     return (obj["pos_x"] + x0 * s, obj["pos_y"] + y0 * s,
             obj["pos_x"] + x1 * s, obj["pos_y"] + y1 * s)
 
 
-def mirrored(obj: dict) -> bool:
-    """Negative f6 mirrors the sprite horizontally."""
+def _scale_word(obj: dict) -> int:
+    """f6 as the game uses it: SCALE_ONE for the types whose handler never reads f6."""
+    from .mobj_types import mobj_reads_scale
     p = obj.get("params", ())
-    return len(p) > 6 and p[6] < 0
+    if len(p) <= 6 or not mobj_reads_scale(p[0]):
+        return SCALE_ONE
+    return p[6]
+
+
+def mirrored(obj: dict) -> bool:
+    """Negative f6 mirrors the sprite horizontally (types that read f6)."""
+    return _scale_word(obj) < 0
 
 
 def z_key(obj: dict) -> int:
