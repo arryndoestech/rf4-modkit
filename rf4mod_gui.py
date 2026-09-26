@@ -3498,8 +3498,9 @@ class App:
         authored. Localized text lives in rf3TxtQuest_split3_2/_3.<locale>. (Story/named
         quests are script-driven in rf3.mc — a different subsystem, not edited here.)
         """
+        doc = self._doc
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         chars = _load_char_names()
 
         # category (byte1) = the objective-template selector Quest_LoadDetailStrings switches on.
@@ -3548,7 +3549,7 @@ class App:
                 return "(placeholder / none)"
             return chars.get(cid, "")
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Quest / Request database (archive 16342) — {t.entry_count} requests."
                             "  Each = posting NPC (client) + category template; the objective,"
                             " count and reward are rolled at runtime.").pack(side="left", padx=6)
@@ -3556,7 +3557,7 @@ class App:
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=14).pack(side="left", padx=2)
 
         cols = ("#", "client_id", "client", "category", "type")
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=18)
         for c, w in (("#", 45), ("client_id", 65), ("client", 140), ("category", 60), ("type", 340)):
             tv.heading(c, text=c); tv.column(c, width=w, anchor="w")
@@ -3576,7 +3577,7 @@ class App:
                 tv.insert("", "end", iid=str(i), values=(i, cid, nm, cat, lbl))
         sv.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected quest  (client_id + category; save writes the table)")
+        ed = ttk.LabelFrame(doc.content, text="Edit selected quest  (client_id + category; save writes the table)")
         ed.pack(fill="x", padx=6, pady=4)
         row = ttk.Frame(ed); row.pack(fill="x", padx=4, pady=4)
         ttk.Label(row, text="client_id:").pack(side="left")
@@ -3618,18 +3619,18 @@ class App:
                 t.set(i, 1, int(cat_v.get(), 0), "u8")
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied quest {i} — Save table… or Extract… to write")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved quest DB → {f}")
         ttk.Button(row, text="Save table…", command=save_tbl).pack(side="right", padx=4)
         ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
