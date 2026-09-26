@@ -2976,11 +2976,12 @@ class App:
 
     def _view_gift_categories(self, name, data):
         """rf3PresentCategory — the 21 shared gift categories referenced by NPC cross-refs."""
+        doc = self._doc
         items = _load_item_names()
         cats = gifts.load_categories(data)
-        ttk.Label(self.content, text=f"{len(cats)} shared gift categories (referenced by "
+        ttk.Label(doc.content, text=f"{len(cats)} shared gift categories (referenced by "
                                      f"NPC gift tables via cross-ref)").pack(fill="x", padx=6, pady=2)
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         for idx, _grp in enumerate(cats):
             ids = gifts.category_items(idx, cats)
             names = ", ".join(items.get(i, str(i)) for i in ids)
