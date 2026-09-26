@@ -2123,14 +2123,15 @@ class App:
         self._view_hex(name, data)
 
     def _view_strings(self, name, data):
+        doc = self._doc
         try:
             d = strings_file.parse(data.decode("utf-8"))
         except Exception as e:
             self._view_hex(name, data, error=str(e)); return
-        tv = ttk.Treeview(self.content, columns=("key", "val"), show="headings")
+        tv = ttk.Treeview(doc.content, columns=("key", "val"), show="headings")
         tv.heading("key", text="Key"); tv.column("key", width=260)
         tv.heading("val", text="Value"); tv.column("val", width=720)
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         for k, v in d.items():
