@@ -5,7 +5,7 @@ import re
 import tkinter as tk
 from tkinter import colorchooser, ttk
 
-from rf4s_modkit import gamepaths, gen, map_names, mapground, mobj_types, rf4m, texture
+from rf4s_modkit import areagroup, gamepaths, gen, map_names, mapground, minimap, mobj_types, rf4m, texture
 
 from . import attrs, data, render, ui
 from .ui import commit_entry, hint, section
@@ -133,6 +133,10 @@ class ObjectsTab(ttk.Frame):
 SEASON_TAGS = ("0 spring / none", "1 summer", "2 autumn", "3 winter", "4 house / barn / system")
 
 
+MGRP_SEASON_CHOICES = ("follows the calendar", "always spring", "always summer",
+                       "always autumn", "always winter")
+
+
 class MapTab(ui.ScrollFrame):
     def __init__(self, parent, ed):
         super().__init__(parent)
@@ -148,29 +152,42 @@ class MapTab(ui.ScrollFrame):
         cb.bind("<Return>", lambda _e: self._commit_msea())
         cb._commit = self._commit_msea
         ui.Tip(cb, "Stored in every shipped map, but nothing in the game reads it.")
-        ttk.Label(p, text="Group bits (MGRP)").grid(row=1, column=0, sticky="w")
-        self.mgrp = tk.StringVar()
-        e = commit_entry(p, self.mgrp, self._commit_mgrp_hex, width=12)
-        e.grid(row=1, column=1, sticky="w", pady=1)
-        ui.Tip(e, "Required. Bits 0-3 fix the ambience season, bit 4 = no weather, one of bits "
-                  "5-25 = the area group (BGM, minimap).")
-        sf = ttk.Frame(p)
-        sf.grid(row=2, column=0, columnspan=2, sticky="w")
-        self.mgrp_bits = {}
-        for i, (m, nm) in enumerate(list(rf4m.MGRP_SEASON_BITS.items()) + [(rf4m.MGRP_NO_WEATHER, "no weather")]):
-            v = tk.BooleanVar()
-            self.mgrp_bits[m] = v
-            ttk.Checkbutton(sf, text=nm, variable=v, command=self._commit_mgrp_controls).grid(
-                row=0, column=i, sticky="w", padx=(0, 4))
-        ttk.Label(p, text="Area group").grid(row=3, column=0, sticky="w")
+        # ---- the MGRP value, as the three things it sets (areagroup) ----
+        ttk.Label(p, text="Season").grid(row=1, column=0, sticky="w")
+        self.season = tk.StringVar()
+        sc = ttk.Combobox(p, textvariable=self.season, values=MGRP_SEASON_CHOICES,
+                          state="readonly", width=22)
+        sc.grid(row=1, column=1, sticky="w", pady=1)
+        sc.bind("<<ComboboxSelected>>", lambda _e: self._commit_mgrp_controls())
+        ui.Tip(sc, "MGRP bits 0-3. 'Always …' plays that season's ambience and music whatever the "
+                   "calendar says (the lowest bit wins if several are set). A seasonal copy of "
+                   "a map (_SUMMER …) is loaded by the calendar either way.")
+        self.weather = tk.BooleanVar()
+        wc = ttk.Checkbutton(p, text="Rain and snow", variable=self.weather,
+                             command=self._commit_mgrp_controls)
+        wc.grid(row=2, column=1, sticky="w")
+        ttk.Label(p, text="Weather").grid(row=2, column=0, sticky="w")
+        ui.Tip(wc, "MGRP bit 4 (set = no weather): unticked, the map shows no rain or snow and "
+                   "the sound counts it as indoors -- dungeons and rooms.")
+        ttk.Label(p, text="Area").grid(row=3, column=0, sticky="w")
         self.group = tk.StringVar()
-        self.group_choices = ["(none)"] + [f"bit {b}  {rf4m.MGRP_GROUP_NAMES.get(b, 'unnamed')}"
-                                           for b in range(5, 26)]
-        gc = ttk.Combobox(p, textvariable=self.group, values=self.group_choices, state="readonly", width=26)
+        self.group_choices = ["(none) -- zone 0"] + [
+            f"bit {b} · {areagroup.GROUP_LABELS.get(b, 'unnamed')} (zone {b - 5})" for b in range(5, 26)]
+        gc = ttk.Combobox(p, textvariable=self.group, values=self.group_choices, state="readonly", width=34)
         gc.grid(row=3, column=1, sticky="w", pady=1)
         gc.bind("<<ComboboxSelected>>", lambda _e: self._commit_mgrp_controls())
+        ui.Tip(gc, "MGRP bits 5-25, the area group: the lowest set bit is the zone, which picks "
+                   "the music, the crate loot, the minimap group and the monster-gate table the "
+                   "game loads (see the lines below).")
+        ttk.Label(p, text="MGRP (raw)").grid(row=4, column=0, sticky="w")
+        self.mgrp = tk.StringVar()
+        e = commit_entry(p, self.mgrp, self._commit_mgrp_hex, width=12)
+        e.grid(row=4, column=1, sticky="w", pady=1)
+        ui.Tip(e, "The whole u32 as stored. Required: a map without an MGRP chunk crashes the game.")
         self.mgrp_note = ttk.Label(p, font=ui.HINT_FONT, foreground=ui.GOOD, wraplength=300, justify="left")
-        self.mgrp_note.grid(row=4, column=0, columnspan=2, sticky="w")
+        self.mgrp_note.grid(row=5, column=0, columnspan=2, sticky="w")
+        self.mgrp_warn = ttk.Label(p, font=ui.HINT_FONT, foreground="#b70", wraplength=300, justify="left")
+        self.mgrp_warn.grid(row=6, column=0, columnspan=2, sticky="w")
         # ---- tints ----
         t = section(b, "Tile tints (MLIG)")
         self.tints = []
@@ -221,13 +238,7 @@ class MapTab(ui.ScrollFrame):
         self.msea.set(SEASON_TAGS[ms[0]] if ms and 0 <= ms[0] < len(SEASON_TAGS) else (str(ms[0]) if ms else ""))
         g = m.mgrp()
         self.mgrp.set("" if g is None else f"0x{g:X}")
-        g = g or 0
-        for mask, v in self.mgrp_bits.items():
-            v.set(bool(g & mask))
-        bits = [b for b in range(5, 26) if g >> b & 1]
-        self.group.set(self.group_choices[bits[0] - 4] if bits else "(none)")
-        self.mgrp_note.config(text="\n".join(rf4m.mgrp_explain(g)) if m.mgrp() is not None
-                              else "⚠ no MGRP chunk: the game crashes on load")
+        self._show_mgrp(g)
         cols = m.mlig_colors()
         for i, (dv, tv, sw, en) in enumerate(self.tints):
             c = cols[i]
@@ -270,12 +281,46 @@ class MapTab(ui.ScrollFrame):
         if v is not None:
             self._set_mgrp(v)
 
+    def _show_mgrp(self, g):
+        """Season / weather / area controls, what the game makes of the value, and conflicts."""
+        if g is None:
+            self.season.set("")
+            self.group.set("")
+            self.mgrp_note.config(text="")
+            self.mgrp_warn.config(text="⚠ no MGRP chunk: the game crashes on load")
+            return
+        seasons = [areagroup.SEASONS[i] for i in range(4) if g >> i & 1]
+        self.season.set(MGRP_SEASON_CHOICES[0] if not seasons else
+                        f"always {seasons[0]}" + (" (+ " + ", ".join(seasons[1:]) + ")" if seasons[1:] else ""))
+        self.weather.set(not g & areagroup.NO_WEATHER)
+        bits = areagroup.group_bits(g)
+        self.group.set(self.group_choices[bits[0] - 4] + (f" + bits {', '.join(map(str, bits[1:]))}"
+                                                          if bits[1:] else "") if bits else self.group_choices[0])
+        doc = self.ed.doc
+        eff = areagroup.effects(g, doc.base + ".rf4m" if doc.base else None, data.gen_name_for_id)
+        self.mgrp_note.config(text="\n".join(f"{k}: {v}" for k, v in eff))
+        probs = areagroup.problems(g, doc.base + ".rf4m" if doc.base else None,
+                                   gen_entries=data.gen_entry_count(doc.gen),
+                                   gen_name_for=data.gen_name_for_id, gen_entries_for=data.gen_entries,
+                                   sibling_zones=data.sibling_zones(doc.base) if doc.base else None)
+        self.mgrp_warn.config(text="\n".join(("ⓘ " if sev == "INFO" else "⚠ ") + msg
+                                             for sev, msg in probs))
+
     def _commit_mgrp_controls(self):
+        """Apply the Season / Weather / Area controls, each touching only its own bits: an
+        unchanged control leaves its bits exactly as stored (several season bits, the
+        castle's extra group bits 22 / 23)."""
         v = self.ed.doc.map.mgrp() or 0
-        for mask, bv in self.mgrp_bits.items():
-            v = (v | mask) if bv.get() else (v & ~mask)
+        cur = areagroup.season_of(v)
+        sel = self.season.get()
+        want = next((s for s in areagroup.SEASONS if sel.startswith(f"always {s}")), None)
+        if sel in MGRP_SEASON_CHOICES and want != cur or (sel == MGRP_SEASON_CHOICES[0] and v & 0xF):
+            v &= ~0xF
+            if want is not None:
+                v |= 1 << areagroup.SEASONS.index(want)
+        v = (v & ~areagroup.NO_WEATHER) if self.weather.get() else (v | areagroup.NO_WEATHER)
         # the area group is the LOWEST set bit of 5..25: swap only that one, so extra group
-        # bits (MAP_F_ROOM_00's 22 / 23 next to 6) survive a season / weather tick
+        # bits (MAP_F_ROOM_00's 22 / 23 next to 6) survive
         old = next((b for b in range(5, 26) if v >> b & 1), None)
         g = self.group.get()
         new = int(g.split()[1]) if g.startswith("bit ") else None
@@ -321,12 +366,201 @@ class MapTab(ui.ScrollFrame):
     def _mtxn(self, delta):
         m = self.ed.doc.map
         idxs = [i for i, c in enumerate(m.chunks) if c.tag == b"MTXN"]
+        if delta > 0 and len(idxs) >= 2:
+            # the game draws layer 0 (ground) and 1 (overlay) only; past 6 chunks the loader
+            # overwrites the next pointer array (no bounds check)
+            self.ed.status("Two display layers is the most the game uses (ground + overlay)")
+            return
         if delta > 0:
             src = m.chunks[idxs[-1]].payload if idxs else b"\0\0\0\0"
             self.ed.apply("Add display layer", "chunks",
                           lambda: m.add_chunk("MTXN", src, at=(idxs[-1] + 1) if idxs else 0))
         elif idxs:
             self.ed.apply("Remove display layer", "chunks", lambda: m.delete_chunk(idxs[-1]))
+
+
+# --------------------------------------------------------------------------- #
+class MinimapTab(ui.ScrollFrame):
+    """The HUD minimap of the open map (rf4s_modkit.minimap): the picture the game draws for
+    its map id, where this map sits on it (its footprint), the fog-of-war rectangle a visit
+    reveals, and the part of the map the editor shows now. A click centres the editor there."""
+
+    WIDTH = 340                                 # the picture is shown this wide (512 px texture)
+
+    def __init__(self, parent, ed):
+        super().__init__(parent)
+        self.ed = ed
+        b = self.body
+        self.title = ttk.Label(b, font=("Segoe UI", 10, "bold"))
+        self.title.pack(anchor="w", padx=4, pady=(4, 0))
+        self.pic = tk.Canvas(b, width=self.WIDTH, height=self.WIDTH, highlightthickness=0,
+                                bg="#1b1b22", cursor="crosshair")
+        self.pic.pack(anchor="w", padx=4, pady=4)
+        self.pic.bind("<ButtonPress-1>", self._click)
+        self.pic.bind("<B1-Motion>", self._click)      # drag: the editor follows the pointer
+        self.info = ttk.Label(b, font=ui.HINT_FONT, wraplength=330, justify="left")
+        self.info.pack(anchor="w", padx=4)
+        self.note = ttk.Label(b, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=330, justify="left")
+        self.note.pack(anchor="w", padx=4, pady=(4, 0))
+        self._photo = None
+        self._shown = None                      # (map id, texture) the picture was built for
+        self._scale = self.WIDTH / 512.0        # canvas px per texture px
+        self._view_rect = None
+        self._tick_on = False
+        self.bind("<Map>", lambda _e: self._start_tick(), add="+")
+
+    # ---- data --------------------------------------------------------------------------- #
+    def _map_id(self):
+        d = self.ed.doc
+        return data.map_id(d.base) if d is not None and d.base else None
+
+    def _to_canvas(self, mid, x, y):
+        """Canvas px of a map position in sub-units (minimap.pos_to_sheet: drawn half-scale
+        px, x2 = texture px)."""
+        p = minimap.pos_to_sheet(mid, x, y)
+        return None if p is None else (p[0] * 2 * self._scale, p[1] * 2 * self._scale)
+
+    def refresh(self):
+        c = self.pic
+        mid = self._map_id()
+        rec = minimap.record(mid) if mid is not None else None
+        if rec is None:
+            c.delete("all")
+            self._photo = self._shown = None
+            self.title.config(text="Minimap")
+            self.info.config(text="No minimap record for this map (not one of the game's map ids).")
+            self.note.config(text="")
+            return
+        tex = minimap.texture(mid)
+        self.title.config(text=f"Minimap · {tex}")
+        if self._shown != (mid, tex):
+            self._shown = (mid, tex)
+            c.delete("all")
+            self._photo = self._picture(tex)
+            if self._photo is not None:
+                c.create_image(0, 0, image=self._photo, anchor="nw", tags=("pic",))
+            else:
+                c.create_text(self.WIDTH // 2, self.WIDTH // 2, fill="#888",
+                              text=f"{tex}.texture not found\n(game folder / Pillow)")
+        self._draw_overlay(mid, rec)
+        # the text
+        blank = minimap.is_blank(mid) or minimap.is_composed(mid)
+        others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid))
+                                   if m != mid]
+        names = [map_names.map_file(m) or str(m) for m in others]
+        lines = [f"Sheet {rec['sheet']} (resource {minimap.archive_id(mid)}); drawn: {tex}"]
+        if minimap.is_blank(mid):
+            lines.append("The HUD shows a blank picture for this map.")
+        if minimap.is_composed(mid):
+            lines.append("A Sharance Maze floor: the picture is put together at run time from "
+                         "the mini_map_rnd_* tiles.")
+        lines.append("Fog of war: " + ("a visit uncovers x %d, y %d, %d x %d" % rec["reveal"]
+                                       if rec["reveal"] else "none (always fully shown)"))
+        if rec["parent_sheet"] is not None:
+            lines.append(f"NPCs inside are drawn on sheet {rec['parent_sheet']} "
+                         f"({minimap.texture_for_sheet(rec['parent_sheet'])}) at "
+                         f"{rec['icon'][0]}, {rec['icon'][1]} (slot {rec['icon_slot']})")
+        if names:
+            lines.append(f"{len(names)} other map(s) on this picture: " + ", ".join(names[:8])
+                         + (" …" if len(names) > 8 else ""))
+        self.info.config(text="\n".join(lines))
+        var = minimap.variants(mid)
+        self.note.config(text=("Pictures by save state: " + "; ".join(
+            f"{v['texture']} ({v['when']})" for v in var)) if var else "")
+
+    def _picture(self, tex):
+        reader = self.ed.tex_reader
+        if not render.HAS_PIL or reader is None or not tex:
+            return None
+        try:
+            blob = reader(tex + ".texture")
+            img = texture.decode_to_image(blob) if blob else None
+        except Exception:  # noqa: BLE001 - no picture, the overlay still shows
+            img = None
+        if img is None:
+            return None
+        from PIL import ImageTk
+        img = img.convert("RGBA")
+        self._scale = self.WIDTH / float(img.width)
+        img = img.resize((self.WIDTH, max(1, round(img.height * self._scale))))
+        self.pic.config(height=img.height)
+        return ImageTk.PhotoImage(img)
+
+    def _draw_overlay(self, mid, rec):
+        c = self.pic
+        c.delete("ov")
+        d = self.ed.doc
+        if d is None or not d.grid:
+            return
+        W, H, _ = d.grid
+        a, b = self._to_canvas(mid, 0, 0), self._to_canvas(mid, W * 8, H * 8)
+        if a and b and (b[0] - a[0]) > 1 and (b[1] - a[1]) > 1:   # (blank / maze: no placement)
+            c.create_rectangle(a[0], a[1], b[0], b[1], outline="#e02828", width=2, tags=("ov",))
+        if rec["reveal"]:
+            x, y, w, h = rec["reveal"]
+            k = 2 * self._scale                 # drawn (half-scale) px, like the origin
+            c.create_rectangle(x * k, y * k, (x + w) * k, (y + h) * k, outline="#c020c0",
+                               width=2, dash=(4, 3), tags=("ov",))
+        self._view_rect = None
+        self._draw_view()
+
+    def _draw_view(self):
+        """The part of the map the editor shows now (cyan)."""
+        mid = self._map_id()
+        d = self.ed.doc
+        if mid is None or d is None or not d.grid or minimap.record(mid) is None:
+            return
+        v = self.ed.view
+        cv = v.canvas
+        cp = v.cp
+        x0, y0 = cv.canvasx(0) / cp, cv.canvasy(0) / cp
+        x1, y1 = x0 + cv.winfo_width() / cp, y0 + cv.winfo_height() / cp
+        W, H, _ = d.grid
+        rect = (max(0, x0), max(0, y0), min(W, x1), min(H, y1))
+        if rect == self._view_rect:
+            return
+        self._view_rect = rect
+        a = self._to_canvas(mid, rect[0] * 8, rect[1] * 8)
+        b = self._to_canvas(mid, rect[2] * 8, rect[3] * 8)
+        self.pic.delete("view")
+        if a and b and (b[0] - a[0]) > 1 and (b[1] - a[1]) > 1:
+            self.pic.create_rectangle(a[0], a[1], b[0], b[1], outline="#1060ff", width=2, dash=(3, 3),
+                                         tags=("view", "ov"))
+
+    def _start_tick(self):
+        if not self._tick_on:
+            self._tick_on = True
+            self._tick()
+
+    def _tick(self):
+        """Follow the editor's scrolling / zoom while the tab is shown."""
+        if not self.winfo_ismapped():
+            self._tick_on = False
+            return
+        try:
+            self._draw_view()
+        except tk.TclError:
+            pass
+        self.after(250, self._tick)
+
+    def _click(self, e):
+        """Centre the editor on the minimap point under the pointer (the inverse of
+        pos_to_sheet); a press and every drag step of button 1 come here."""
+        mid = self._map_id()
+        r = minimap.raw_record(mid) if mid is not None else None
+        d = self.ed.doc
+        if r is None or d is None or not d.grid or not r[7] or not r[8]:
+            return
+        drawn_x = e.x / self._scale / 2.0
+        drawn_y = e.y / self._scale / 2.0
+        sx = (drawn_x - r[1]) * 4096.0 / r[7]
+        sy = (drawn_y - r[2]) * 4096.0 / r[8]
+        W, H, _ = d.grid
+        tx = max(0.0, min(W - 1.0, sx / 8.0))           # (fractional tiles: a smooth drag)
+        ty = max(0.0, min(H - 1.0, sy / 8.0))
+        self.ed.view.center_on(tx, ty)
+        self._view_rect = None
+        self._draw_view()
 
 
 # --------------------------------------------------------------------------- #
@@ -859,7 +1093,8 @@ class ViewTab(ui.ScrollFrame):
 
 
 # --------------------------------------------------------------------------- #
-_REF = (("mobj", re.compile(r"MOBJ #(\d+)")), ("warp", re.compile(r"warp #(\d+)")),
+_REF = (("mobj", re.compile(r"MOBJ #(\d+)")), ("mobj", re.compile(r"^chest #(\d+)")),
+        ("warp", re.compile(r"warp #(\d+)")),
         ("si", re.compile(r"search spot #(\d+)")),
         ("gpos", re.compile(r"gate position \(Gen record @0x([0-9a-f]+)\)")),
         ("mpos", re.compile(r"monster spawn point \(Gen record @0x([0-9a-f]+)\)")))
@@ -882,13 +1117,15 @@ class ProblemsTab(ttk.Frame):
         self.tree.pack(fill="both", expand=True, padx=4)
         self.tree.tag_configure("ERROR", foreground="#c22")
         self.tree.tag_configure("WARN", foreground="#b70")
+        self.tree.tag_configure("INFO", foreground="#667")
         self.tree.bind("<<TreeviewSelect>>", self._picked)
         self.detail = tk.Text(self, height=7, wrap="word", font=ui.HINT_FONT, relief="flat")
         self.detail.pack(fill="x", padx=4, pady=4)
         self.detail.configure(state="disabled")
         self.issues = []
         hint(self, "ERROR = the game crashes, drops data or draws nothing. WARN = it loads, but "
-                   "probably not the way you expect. Select an issue to jump to its object.").pack(
+                   "probably not the way you expect. INFO = worth knowing, may well be intended. "
+                   "Select an issue to jump to its object.").pack(
             anchor="w", padx=4, pady=(0, 4))
 
     def run(self):
@@ -898,9 +1135,13 @@ class ProblemsTab(ttk.Frame):
         for k, (sev, where, msg) in enumerate(self.issues):
             t.insert("", "end", iid=str(k), text=f"{sev} {where}", values=(msg,), tags=(sev,))
         n_err = sum(1 for s, _w, _m in self.issues if s == "ERROR")
-        self.summary.config(text=("No problems found." if not self.issues else
-                                  f"{len(self.issues)} issue(s), {n_err} fatal"),
-                            foreground="#c22" if n_err else (ui.GOOD if not self.issues else "#b70"))
+        n_info = sum(1 for s, _w, _m in self.issues if s == "INFO")
+        n_iss = len(self.issues) - n_info
+        text = ("No problems found." if not n_iss else f"{n_iss} issue(s), {n_err} fatal")
+        if n_info:
+            text += f" · {n_info} note(s)"
+        self.summary.config(text=text,
+                            foreground="#c22" if n_err else (ui.GOOD if not n_iss else "#b70"))
         ui.set_text(self.detail, self.ed.stats_line())
         return self.issues
 

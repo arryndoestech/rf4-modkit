@@ -10,6 +10,9 @@ the exe at run time:
                item's odds, 0 = the crate gives nothing; DUNG_E rolls its rare pool 20 % of the
                time. 'default' covers every other zone.
   area_bgm     g_baseMapBgmByFlagBit RF4S.exe+0x4D5710: the base BGM sound id per zone (21)
+  encounter_zones  g_encounterArchiveTable RF4S.exe+0x4DB1E0: per zone [first map id, first Gen
+               archive id] (24 rows; [0, 0] = no monster gates in that zone). The gate spawner
+               loads archive = map id - first map id + first archive (see rf4s_modkit.areagroup)
 
 Every table records its RVA; the file records the exe it came from (size + SHA-256).
 Run:  python gen_exe_tables_json.py [--exe PATH] [--out PATH]
@@ -44,6 +47,7 @@ CRATE_POOLS = [
     ("default", "default", 0x4CF270, 22, 1.0),
 ]
 BGM_RVA, BGM_ENTRIES = 0x4D5710, 21
+ENC_RVA, ENC_ROWS = 0x4DB1E0, 24
 
 ABOUT = ("Tables that exist only in RF4S.exe, extracted by gen_exe_tables_json.py so the "
          "toolkit never reads the exe at run time. chest_loot: treasure chests (MOBJ 44, "
@@ -53,7 +57,10 @@ ABOUT = ("Tables that exist only in RF4S.exe, extracted by gen_exe_tables_json.p
          "roll ONE item per room load from their area group's pool (zone = the lowest MGRP "
          "group bit - 5, Minimap_BuildForMap RF4S.exe+0x13B3F0); item ids, duplicates raise the "
          "odds, 0 = nothing; share = the part of the rolls a pool gets (DUNG_E: roll 0..99 < 20 "
-         "-> rare). area_bgm: base BGM sound id per zone (Scene_ApplyContextualBGM).")
+         "-> rare). area_bgm: base BGM sound id per zone (Scene_ApplyContextualBGM). "
+         "encounter_zones: per zone [first map id, first Gen archive id] "
+         "(Encounter_TickMonsterSpawnSlots RF4S.exe+0x1E6240 loads archive = map id - first map "
+         "+ first archive; [0, 0] = the zone spawns no monster gates).")
 
 
 def build(exe):
@@ -72,6 +79,9 @@ def build(exe):
         "crate_pools": pools,
         "area_bgm": {"rva": f"0x{BGM_RVA:X}",
                      "sound_ids": list(exetables.read("I", BGM_RVA, BGM_ENTRIES, exe))},
+        "encounter_zones": {"rva": f"0x{ENC_RVA:X}",
+                            "rows": [list(exetables.read("H", ENC_RVA + 4 * z, 2, exe))
+                                     for z in range(ENC_ROWS)]},
     }
 
 
@@ -87,7 +97,8 @@ def dumps(obj):
     out.append(' "crate_pools": [')
     out.append(",\n".join("  " + json.dumps(p) for p in obj["crate_pools"]))
     out.append(" ],")
-    out.append(f' "area_bgm": {json.dumps(obj["area_bgm"])}')
+    out.append(f' "area_bgm": {json.dumps(obj["area_bgm"])},')
+    out.append(f' "encounter_zones": {json.dumps(obj["encounter_zones"])}')
     out.append("}")
     return "\n".join(out) + "\n"
 
@@ -102,7 +113,8 @@ def main(argv=None):
     json.loads(text)                            # the hand-laid-out JSON must parse
     pathlib.Path(a.out).write_text(text, encoding="utf-8")
     print(f"wrote {a.out}: {len(obj['chest_loot']['rows'])} chest rows, "
-          f"{len(obj['crate_pools'])} crate pools, {len(obj['area_bgm']['sound_ids'])} BGM ids "
+          f"{len(obj['crate_pools'])} crate pools, {len(obj['area_bgm']['sound_ids'])} BGM ids, "
+          f"{len(obj['encounter_zones']['rows'])} encounter zones "
           f"(RF4S.exe sha256 {obj['source']['sha256'][:12]}...)")
 
 

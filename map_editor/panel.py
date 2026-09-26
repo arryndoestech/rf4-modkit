@@ -18,16 +18,17 @@ from tkinter import filedialog, messagebox, ttk
 
 from guiutil import shortcut_scope
 
-from rf4s_modkit import flagstate, map_names, mapground, mobj_types, rf4m, search_items
+from rf4s_modkit import areagroup, flagstate, map_names, mapground, mobj_types, rf4m, search_items
 
 from . import data, dialogs, render, tools, ui
 from . import view as view_mod
 from .document import MapDocument
 from .inspector import Inspector
-from .tabs import FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, ObjectsTab, ProblemsTab, ViewTab
+from .tabs import (FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, MinimapTab, ObjectsTab,
+                   ProblemsTab, ViewTab)
 from .view import MapView
 
-TABS = ("View", "Inspect", "Objects", "Map", "Gates", "Problems")
+TABS = ("View", "Inspect", "Objects", "Properties", "Minimap", "Gates", "Problems")
 _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos": "gen"}
 # The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
 # switching maps (the host may rebuild this panel) and pastes into another toolkit window.
@@ -102,11 +103,12 @@ class MapEditorPanel:
         self.inspector = Inspector(self.nb, self)
         self.objects = ObjectsTab(self.nb, self)
         self.maptab = MapTab(self.nb, self)
+        self.minimaptab = MinimapTab(self.nb, self)
         self.encounters = EncountersTab(self.nb, self)
         self.viewtab = ViewTab(self.nb, self)
         self.problems = ProblemsTab(self.nb, self)
-        for w, t in zip((self.viewtab, self.inspector, self.objects, self.maptab, self.encounters,
-                         self.problems), TABS):
+        for w, t in zip((self.viewtab, self.inspector, self.objects, self.maptab, self.minimaptab,
+                         self.encounters, self.problems), TABS):
             self.nb.add(w, text=t)
         self.show_tab("View")                   # the editor opens on the View tab
         self.nb.bind("<<NotebookTabChanged>>", lambda _e: self._tab_changed())
@@ -287,6 +289,7 @@ class MapEditorPanel:
         self.inspector.refresh(frozenset({"attr"}))
         self.objects.rebuild()
         self.maptab.refresh()
+        self.minimaptab.refresh()
         self.encounters.refresh()
         self.problems.tree.delete(*self.problems.tree.get_children())
         self.problems.summary.config(text="")
@@ -364,8 +367,8 @@ class MapEditorPanel:
         self.inspector.refresh(aspects)
         if not live:
             self._schedule("objects", "maptab")
-            if "gen" in aspects:
-                self._schedule("encounters")
+            if "gen" in aspects:                # (the Map tab's MGRP checks count the gates)
+                self._schedule("encounters", "maptab")
             if aspects & {"attr", "mobj", "mapj", "props", "chunks"} and self.on_change:
                 try:
                     self.on_change(self.doc.map.build())
@@ -386,6 +389,7 @@ class MapEditorPanel:
             self.objects.rebuild()
         if "maptab" in names:
             self.maptab.refresh()
+            self.minimaptab.refresh()
         if "encounters" in names:
             self.encounters.refresh()
 
@@ -480,7 +484,7 @@ class MapEditorPanel:
         if focus:
             self.view.canvas.focus_set()      # so the tool keys work right away
         self.inspector.show_tool(t)
-        if name != "select" and self.nb.select() and self.nb.tab(self.nb.select(), "text") in ("Map", "View"):
+        if name != "select" and self.nb.select() and self.nb.tab(self.nb.select(), "text") in ("Properties", "Minimap", "View"):
             self.show_tab("Inspect")
 
     def start_add(self, kind):
@@ -627,7 +631,7 @@ class MapEditorPanel:
         self.objects.reveal(self.sel)
         if self.sel is not None:
             cur = self.nb.tab(self.nb.select(), "text") if self.nb.select() else ""
-            if cur in ("Map", "View"):
+            if cur in ("Properties", "Minimap", "View"):
                 self.show_tab("Inspect")
             if center:
                 self.center_on(self.sel)
@@ -1327,6 +1331,20 @@ class MapEditorPanel:
         for s in issues:
             sev, _, msg = s.partition(": ")
             out.append((sev, "map", msg))
+        try:                                    # the MGRP value: season / area-group conflicts
+            for sev, msg in areagroup.problems(
+                    d.map.mgrp(), d.base + ".rf4m" if d.base else None,
+                    gen_entries=data.gen_entry_count(d.gen), gen_name_for=data.gen_name_for_id,
+                    gen_entries_for=data.gen_entries,
+                    sibling_zones=data.sibling_zones(d.base) if d.base else None):
+                out.append((sev, "map", "MGRP: " + msg))
+        except Exception as e:  # noqa: BLE001
+            out.append(("WARN", "map", f"MGRP check failed: {e}"))
+        try:                                    # treasure chests: flags, loot rows
+            for sev, _i, msg in data.chest_problems(d.base, d.map.mobj_records()):
+                out.append((sev, "map", msg))
+        except Exception as e:  # noqa: BLE001
+            out.append(("WARN", "map", f"chest check failed: {e}"))
         if d.gen is not None:
             for s in d.gen.validate():
                 sev, _, msg = s.partition(": ")

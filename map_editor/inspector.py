@@ -172,6 +172,10 @@ class EntityForm(Form):
         for extra in (loot, crate):
             if extra:
                 lab += "\n" + extra
+        if loot:                                # this chest's flag / row problems
+            for sev, j, msg in data.chest_problems(self.doc.base, self.doc.map.mobj_records()):
+                if j == i:
+                    lab += "\n" + ("ⓘ " if sev == "INFO" else "⚠ ") + msg
         self.type_label.config(text=lab)
         raw = self.raw.get()
         if mapparam or raw:

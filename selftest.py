@@ -6735,13 +6735,248 @@ def test_crate_loot_and_mgrp():
         ed.set_map(_rf4m.Rf4mMap.load(B / "MAP_F_ROOM_00.rf4m"), "MAP_F_ROOM_00")
         mt = ed.maptab
         mt.refresh()
-        mt.mgrp_bits[0x2].set(True)
-        mt.mgrp_bits[0x1].set(False)
+        mt.season.set("always summer")
         mt._commit_mgrp_controls()
-        _check("ticking a season on the Map tab keeps MAP_F_ROOM_00's extra group bits 22 / 23",
+        _check("choosing a season on the Map tab keeps MAP_F_ROOM_00's extra group bits 22 / 23",
                ed.doc.map.mgrp() == 0x00C00052, hex(ed.doc.map.mgrp()))
         _check("crate loot / MGRP raised no callback errors", not errs, errs[:1])
     finally:
+        root.destroy()
+
+
+def test_map_editor_mtxn_cap():
+    """Map tab display layers (MTXN chunk count): Map_LoadById spawns one display layer per
+    MTXN chunk (0 ground, 1 overlay) and never reads the stored value; '+' stops at the two
+    layers the game draws (past 6 chunks the loader would overwrite the next pointer array),
+    '-' removes one."""
+    print("map editor display layers (MTXN count):")
+    try:
+        import tkinter as tk  # noqa: F401
+    except Exception:
+        _skip("MTXN cap", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("MTXN cap", "no extracted bundleMain"); return
+    root, ed, errs = _headless_panel("MAP_CITY_04", B)
+    try:
+        m = ed.doc.map
+        mt = ed.maptab
+        n0 = len(m.find(b"MTXN"))
+        mt._mtxn(-1)
+        n1 = len(m.find(b"MTXN"))
+        for _ in range(3):
+            mt._mtxn(+1)
+        n2 = len(m.find(b"MTXN"))
+        _check("'-' removes a display layer, '+' adds one but never past 2 (ground + overlay)",
+               n1 == n0 - 1 and n2 == 2, (n0, n1, n2))
+        _check("MTXN cap raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_mgrp_panel_and_conflicts():
+    """MGRP in the map editor (rf4s_modkit.areagroup): the Map tab shows it as Season /
+    Weather / Area with what the game makes of it -- music, crate pool, the Gen table the gate
+    spawner loads (map id - zone's first map + zone's first archive, refdata
+    encounter_zones), minimap group -- and flags conflicts, also in the Problems tab. No
+    shipped map is flagged; moving a dungeon room to the town group, a town map into a
+    dungeon group, a wrong fixed season on a seasonal copy and a second group bit are."""
+    print("MGRP panel + area-group conflict checks:")
+    from rf4s_modkit import areagroup as ag, rf4m as _rf4m
+    from map_editor import data as _md
+    _check("the gate spawner's Gen archive: DUNG_B02 loads its own table; zones of one block "
+           "share an offset (DUNG_B02 in the DUNG_C group still loads it); map 44 has none; "
+           "DUNG_I13 reaches DUNG_J01's table",
+           ag.gen_archive(285, 0x410) == ag.gen_archive(285, 0x800) == 4201
+           and ag.archive_owner(4201) == 285 and ag.gen_archive(44, 0x100) is None
+           and ag.archive_owner(ag.gen_archive(539, 0x20000)) == 541 and ag.base_map_id("MAP_CITY_05_SUMMER") == 44)
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    maps = sorted(B.glob("MAP_*.rf4m"))
+    if not maps:
+        _skip("MGRP conflicts", "no extracted bundleMain"); return
+    flagged = []
+    for p in maps:
+        m = _rf4m.Rf4mMap.load(p)
+        own = _md.gen_name_for_map(p.stem)
+        flagged += [(p.stem, msg) for _sv, msg in ag.problems(
+            m.mgrp(), p.name, gen_entries=_md.gen_entries(own) if own else None,
+            gen_name_for=_md.gen_name_for_id, gen_entries_for=_md.gen_entries)]
+    _check(f"no shipped map is flagged ({len(maps)} maps)", not flagged, flagged[:3])
+    gn, ent = _md.gen_name_for_id, (lambda fn: 5)
+    town = ag.problems(0x21, "MAP_DUNG_B02.rf4m", gen_entries=7, gen_name_for=gn, gen_entries_for=ent)
+    stray = ag.problems(0x400, "MAP_CITY_02.rf4m", gen_name_for=gn, gen_entries_for=ent)
+    season = ag.problems(0x21, "MAP_CITY_00_SUMMER.rf4m")
+    two = ag.problems(0x2410, "MAP_DUNG_B02.rf4m")
+    _check("flagged: a gated room moved to a gateless group, a town map pointed at a non-Gen "
+           "archive, a fixed season contradicting the seasonal copy, a second group bit",
+           any("never appear" in m for _s, m in town) and any("not a monster-gate table" in m for _s, m in stray)
+           and any("summer file fixes the season to spring" in m for _s, m in season)
+           and any("only bit 10" in m for _s, m in two), (town, stray, season, two))
+    try:
+        import tkinter as tk  # noqa: F401
+    except Exception:
+        _skip("MGRP panel", "no tkinter"); return
+    root, ed, errs = _headless_panel("MAP_DUNG_B06", B)   # (GenB06 has gates; B02 has none)
+    try:
+        mt = ed.maptab
+        mt.refresh()
+        note = mt.mgrp_note.cget("text")
+        _check("the Map tab shows MGRP as Season / Weather / Area and what the game makes of it",
+               mt.season.get() == "follows the calendar" and mt.weather.get() is False
+               and mt.group.get().startswith("bit 10 · DUNG_B Water Ruins (zone 5)")
+               and "Music: SEQ_DGN_B.ogg" in note and "Monster gates: GenB06.bin" in note
+               and "Crate loot: DUNG_B pool" in note and not mt.mgrp_warn.cget("text"), note)
+        n_gates = _md.gen_entry_count(ed.doc.gen)
+        mt.group.set(mt.group_choices[0 + 1])            # bit 5, the town
+        mt._commit_mgrp_controls()
+        ed._run_pending()
+        warn = mt.mgrp_warn.cget("text")
+        probs = [msg for sv, f, msg in ed.validate() if msg.startswith("MGRP:")]
+        _check("moving the room into the town group warns on the Map tab and in Problems "
+               "(its gates never appear)",
+               ed.doc.map.mgrp() & ~0x1F == 0x20 and n_gates and f"{n_gates} gate entr" in warn
+               and "never appear" in warn and probs, (hex(ed.doc.map.mgrp()), warn, probs))
+        mt.weather.set(True); mt.season.set("always winter")
+        mt._commit_mgrp_controls()
+        _check("Weather / Season set only their own bits (rain on: bit 4 cleared; winter: bit 3)",
+               ed.doc.map.mgrp() == 0x28, hex(ed.doc.map.mgrp()))
+        _check("MGRP panel raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_map_editor_extra_warnings():
+    """More Problems checks: a chest sharing its collected flag (with another chest here, or
+    on another map -- a duplicate / pasted chest), a chest with no flag, an empty or
+    out-of-table loot row (INFO / WARN), a room whose area group differs from the rest of its
+    dungeon (INFO) and a file name the game never loads. On the shipped maps only the 36
+    chests that really give nothing are noted -- no warning."""
+    print("map editor: chest flags / loot rows, area vs dungeon, unloaded file names:")
+    import collections
+    from rf4s_modkit import areagroup as ag, rf4m as _rf4m
+    from map_editor import data as _md
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    maps = sorted(B.glob("MAP_*.rf4m"))
+    if not maps:
+        _skip("extra warnings", "no extracted bundleMain"); return
+    sev = collections.Counter()
+    for p in maps:
+        m = _rf4m.Rf4mMap.load(p)
+        sev.update(sv for sv, _i, _m in _md.chest_problems(p.stem, m.mobj_records()))
+        sev.update(sv for sv, _m in ag.problems(m.mgrp(), p.name,
+                                                sibling_zones=_md.sibling_zones(p.stem)))
+    _check("shipped maps: no warning, only the chests that give nothing are noted",
+           set(sev) <= {"INFO"} and sev["INFO"] == 36, dict(sev))
+    m = _rf4m.Rf4mMap.load(B / "MAP_DUNG_A03.rf4m")
+    recs = [list(r) for r in m.mobj_records()]
+    k = next(i for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44)
+    dup = list(recs[k]); recs.append(dup)                         # a duplicated chest
+    other = next((stem, ch) for stem, (_g, ch) in _md.map_summaries().items()
+                 if ch and not stem.upper().startswith("MAP_DUNG_A03"))
+    foreign = list(recs[k]); foreign[13] = other[1][0][1]; recs.append(foreign)
+    noflag = list(recs[k]); noflag[13] = -1; noflag[8] = 400; recs.append(noflag)
+    msgs = [msg for _sv, _i, msg in _md.chest_problems("MAP_DUNG_A03", recs)]
+    _check("chests: a duplicate's shared flag, a flag another map's chest uses, no flag, a "
+           "row past the table are flagged",
+           any(f"with chest #{len(recs) - 3}" in x for x in msgs)
+           and any(other[0] in x for x in msgs) and any("never removes it" in x for x in msgs)
+           and any("past the 190-row" in x for x in msgs), msgs)
+    note = ag.problems(0x2000, "MAP_DUNG_B10.rf4m", sibling_zones=_md.sibling_zones("MAP_DUNG_B10"))
+    _check("a Water Ruins room with the Floating Empire group gets a note (music, crates, minimap)",
+           any(sv == "INFO" and "other MAP_DUNG_B rooms use area group bit 10" in x
+               and "SEQ_DGN_F" in x for sv, x in note), note)
+    _check("a file name the game never loads is flagged",
+           any("not one of the game's map files" in x for _sv, x in ag.problems(0x21, "MAP_ALL_MOBJ.rf4m")))
+
+
+def test_map_editor_minimap_tab():
+    """The sidebar's Properties (was Map) and Minimap tabs: the Minimap tab shows the picture
+    the HUD draws for the open map's id (rf4s_modkit.minimap), the map's footprint and its
+    fog-of-war reveal on it (both in the drawn half-scale px of rf3MapMiniPos), the part the
+    editor shows, and a click centres the editor on that spot (the inverse placement); blank
+    and maze pictures get no footprint."""
+    print("map editor Minimap tab:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("minimap tab", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_00.rf4m").exists() or not (B / "MAP_DUNG_F01.rf4m").exists():
+        _skip("minimap tab", "no extracted bundleMain"); return
+    me = _map_editor()
+    from map_editor import data as _md
+    from rf4s_modkit import rf4m as _rf4m, minimap as _mm
+    root = tk.Tk()
+    root.geometry("1100x760+40+40")
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tk.Frame(root)
+        f.pack(fill="both", expand=True)
+        ed = me.MapEditorPanel(f, _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m"), "MAP_FIELD_01",
+                               tex_reader=_md.folder_reader(B))
+        for _ in range(30):
+            root.update()
+        tabs = [ed.nb.tab(t, "text") for t in ed.nb.tabs()]
+        _check("the sidebar tabs: Map is now Properties, Minimap follows it",
+               tabs[:5] == ["View", "Inspect", "Objects", "Properties", "Minimap"], tabs)
+        ed.show_tab("Minimap")
+        root.update()
+        mt = ed.minimaptab
+        mid = _md.map_id("MAP_FIELD_01")
+        rects = [mt.pic.coords(i) for i in mt.pic.find_all() if mt.pic.type(i) == "rectangle"]
+        foot = rects[0] if rects else None
+        rev = _mm.record(mid)["reveal"]
+        k = 2 * mt._scale
+        _check("MAP_FIELD_01: its picture, footprint and fog reveal (same half-scale units)",
+               mt.title.cget("text") == "Minimap · mini_map_70_field" and mt._photo is not None
+               and len(rects) >= 2 and foot is not None
+               and abs(foot[0] - rev[0] * k) < 2 and abs(foot[1] - rev[1] * k) < 2,
+               (foot, rev, mt._scale))
+        ed.set_map(_rf4m.Rf4mMap.load(B / "MAP_CITY_00.rf4m"), "MAP_CITY_00")
+        root.update()
+        calls = []
+        orig = ed.view.center_on
+        ed.view.center_on = lambda tx, ty: (calls.append((tx, ty)), orig(tx, ty))
+        W, H, _ = ed.doc.grid
+        p = mt._to_canvas(_md.map_id("MAP_CITY_00"), W * 8 * 3 // 4, H * 8 // 2)
+        mt._click(type("E", (), {"x": p[0], "y": p[1]})())
+        _check("a click on the minimap centres the editor on that spot",
+               calls and abs(calls[0][0] - W * 3 // 4) <= 1 and abs(calls[0][1] - H // 2) <= 1,
+               (calls, W, H))
+        ed.view.center_on = orig
+        # a drag (real button-1 press + motion events): the editor's view follows the pointer
+        ed.view.set_zoom(24)
+        root.update()
+        mid00 = _md.map_id("MAP_CITY_00")
+        a = mt._to_canvas(mid00, W * 8 // 4, H * 8 // 2)
+        b = mt._to_canvas(mid00, W * 8 * 3 // 4, H * 8 // 2)
+        vc = ed.view.canvas
+        mt.pic.event_generate("<ButtonPress-1>", x=int(a[0]), y=int(a[1]))
+        root.update()
+        x_start = vc.canvasx(0)
+        for k in range(1, 6):
+            x = int(a[0] + (b[0] - a[0]) * k / 5)
+            mt.pic.event_generate("<Motion>", x=x, y=int(a[1]), state=0x100)   # Button1 held
+            root.update()
+        x_end = vc.canvasx(0)
+        mt.pic.event_generate("<ButtonRelease-1>", x=int(b[0]), y=int(b[1]))
+        root.update()
+        moved_tiles = (x_end - x_start) / ed.view.cp
+        _check("dragging on the minimap moves the editor's view along (about half the map "
+               "for a drag across half the footprint)",
+               abs(moved_tiles - W / 2) <= 3, (round(moved_tiles, 1), W))
+        ed.set_map(_rf4m.Rf4mMap.load(B / "MAP_DUNG_F01.rf4m"), "MAP_DUNG_F01")
+        root.update()
+        _check("a Sharance Maze floor: the blank picture, no footprint, the maze note",
+               not [i for i in mt.pic.find_all() if mt.pic.type(i) == "rectangle"]
+               and "Sharance Maze" in mt.info.cget("text"), mt.info.cget("text"))
+        _check("minimap tab raised no callback errors", not errs, errs[:1])
+    finally:
+        try:
+            root.update()
+        except tk.TclError:
+            pass
         root.destroy()
 
 
@@ -9769,7 +10004,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_minimap_tab, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

@@ -180,6 +180,39 @@ def gen_file_for_map(name):
     return find_extracted(fn) if fn else None
 
 
+def gen_name_for_id(map_id):
+    """GenX##.bin of a map id (by its MAP_* file), or None."""
+    f = map_names.map_file(map_id) if map_id is not None else None
+    return gen_name_for_map(f) if f else None
+
+
+def gen_entry_count(table):
+    """Gate entries in a GenTable (None: no table)."""
+    return None if table is None else sum(len(p) for p in table.patterns)
+
+
+_GEN_COUNTS = {}
+
+
+def gen_entries(fn):
+    """Gate entries in the Gen file `fn` found in the game folder (None: absent or
+    unreadable); cached per file until it changes."""
+    p = find_extracted(fn) if fn else None
+    if p is None:
+        return None
+    try:
+        st = p.stat()
+    except OSError:
+        return None
+    key = (str(p), st.st_mtime_ns, st.st_size)
+    if key not in _GEN_COUNTS:
+        try:
+            _GEN_COUNTS[key] = gen_entry_count(gen.GenTable.load(p))
+        except Exception:  # noqa: BLE001 - a damaged table: no count
+            _GEN_COUNTS[key] = None
+    return _GEN_COUNTS[key]
+
+
 def maps_for_gen(gen_name, map_names):
     """The maps (from `map_names`) whose monster generator is `gen_name`, the base map first,
     then its seasonal variants."""
@@ -244,6 +277,96 @@ def chest_loot(rec):
     if slots is None:
         return f"Loot (row {r}): past the table's {chestloot.ROWS} rows -- no known contents"
     return f"Loot (row {r}): " + chestloot.summary(slots, lambda i: item_name(i) or f"item {i}")
+
+
+_MAP_SUMMARY = {}
+
+
+def map_summaries():
+    """{MAP_* name: (mgrp, [(entity index, collected flag f13, loot row f8) per chest])} for
+    every map in the game folder (the copy the game loads), read once per file change -- all
+    872 maps take well under a second."""
+    from rf4s_modkit import rf4m
+    out = {}
+    for low, paths in extracted_index().items():
+        if not (low.startswith("map_") and low.endswith(".rf4m")):
+            continue
+        p = paths[0]
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        key = (str(p), st.st_mtime_ns, st.st_size)
+        hit = _MAP_SUMMARY.get(str(p))
+        if hit is None or hit[0] != key:
+            try:
+                m = rf4m.Rf4mMap.load(p)
+                chests = [(i, r[13], r[8]) for i, r in enumerate(m.mobj_records())
+                          if (r[0] & 0xFFFF) == 44]
+                hit = (key, (m.mgrp(), chests))
+            except Exception:  # noqa: BLE001 - a damaged map: left out
+                hit = (key, (None, []))
+            _MAP_SUMMARY[str(p)] = hit
+        out[p.stem] = hit[1]
+    return out
+
+
+def sibling_zones(name):
+    """Counter of the area-group zones of the other rooms of this map's family (areagroup.
+    family_of), from the game folder; this file itself left out."""
+    from collections import Counter
+    from rf4s_modkit import areagroup
+    fam = areagroup.family_of(name)
+    me = map_base(name).upper()
+    c = Counter()
+    if fam is None:
+        return c
+    for stem, (mgrp, _ch) in map_summaries().items():
+        if stem.upper() != me and mgrp is not None and areagroup.family_of(stem) == fam:
+            c[areagroup.zone_of_mgrp(mgrp)] += 1
+    return c
+
+
+def chest_problems(name, recs):
+    """[(severity, entity index, message)] for the treasure chests (MOBJ 44) in `recs` (this
+    map's records, unsaved edits included): no collected flag, a flag shared with another
+    chest -- here, or on another map of the game folder (seasonal copies of this map share
+    theirs on purpose) -- an empty loot row, a row past the table."""
+    out = []
+    mine = [(i, r[13], r[8]) for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44]
+    if not mine:
+        return out
+    base = SEASON_RE.sub("", map_base(name)).upper() if name else None
+    others = {}
+    for stem, (_mg, chests) in map_summaries().items():
+        if base is not None and SEASON_RE.sub("", stem).upper() == base:
+            continue
+        for j, flag, _row in chests:
+            if flag != -1:
+                others.setdefault(flag, []).append(f"{stem} #{j}")
+    here = {}
+    for i, flag, _row in mine:
+        here.setdefault(flag, []).append(i)
+    for i, flag, row in mine:
+        if flag == -1:
+            out.append(("WARN", i, f"chest #{i} has no collected flag (f13 = -1): the game never "
+                                   f"removes it, so it is back with the same loot on every visit"))
+        else:
+            twins = [j for j in here[flag] if j != i]
+            if twins:
+                out.append(("WARN", i, f"chest #{i} shares its collected flag {flag} with chest "
+                                       + ", ".join(f"#{j}" for j in twins)
+                                       + " on this map: opening one removes the other"))
+            if flag in others:
+                out.append(("WARN", i, f"chest #{i} shares its collected flag {flag} with "
+                                       + ", ".join(others[flag][:3])
+                                       + ": opening either chest removes the other"))
+        if row >= chestloot.ROWS:
+            out.append(("WARN", i, f"chest #{i}: loot row {row} is past the {chestloot.ROWS}-row "
+                                   f"chest table -- the game reads unrelated data as its items"))
+        elif row < 0 or not any(item for item, _v in (chestloot.row(row) or [])):
+            out.append(("INFO", i, f"chest #{i} gives nothing (loot row {row} is empty)"))
+    return out
 
 
 def crate_loot(rec, mgrp):

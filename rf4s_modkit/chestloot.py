@@ -91,15 +91,9 @@ def summary(slots, item_name=str):
 
 # ---- crates ----------------------------------------------------------------------------- #
 def zone_of_mgrp(mgrp):
-    """The area-group index the game derives from a map's MGRP value (Minimap_BuildForMap
-    RF4S.exe+0x13B3F0 -> the minimap task's byte +52, read by the crate spawner and the
-    monster-gate spawner): the lowest set bit of (MGRP >> 5) -- i.e. MGRP group bit - 5 --
-    and 0 when MGRP < 0x20. None without an MGRP."""
-    if mgrp is None:
-        return None
-    v = (mgrp & 0xFFFFFFFF) & ~0x1F
-    b = v >> 5 if v >= 0x20 else 5
-    return next((i for i in range(26) if b >> i & 1), 26)
+    """The area-group zone of an MGRP value (see rf4s_modkit.areagroup)."""
+    from .areagroup import zone_of_mgrp as _z
+    return _z(mgrp)
 
 
 def crate_pools(zone):
