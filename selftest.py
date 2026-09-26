@@ -7392,24 +7392,21 @@ def test_map_editor_undo():
             panel.set_active_gate((0, 0))
             gt._show_gate()
             ent = d.gen.patterns[0][0]
-            # the gate's positions as numbers in the Gates tab, editable (also off the map)
-            rows = [gt.gpos.item(r, "values") for r in gt.gpos.get_children()]
-            want = [(str(x), str(y)) for x, y in ent.gate_pos.points]
-            off0 = int(gt.gpos.get_children()[0])
-            gt.gpos.selection_set(str(off0))
-            gt._gpos_picked()
+            # the gate's position as x / y fields in the Gates tab, editable (also off the map)
+            x0, y0 = ent.gate_pos.points[0][:2]
+            shown = (gt.gx.get(), gt.gy.get())
             gt.gx.set(str((d.grid[0] + 4) * 8))
             gt._commit_gpos()
             gt._show_gate()
-            moved = gt.gpos.item(str(off0), "values")
+            moved = (gt.gx.get(), gt.gpos_lbl.cget("text"))
             panel.undo()
             gt._show_gate()
-            back = gt.gpos.item(str(off0), "values")
-            _check("the Gates tab lists the gate's positions as numbers; typing moves one (also "
+            back = (gt.gx.get(), gt.gy.get())
+            _check("the Gates tab shows the gate's position as x / y fields; typing moves it (also "
                    "off the map, marked), and it undoes",
-                   [r[:2] for r in rows] == want and "off the map" in moved[2]
-                   and back[:2] == rows[0][:2] and panel.sel == ("gpos", off0),
-                   (rows, moved, back))
+                   shown == (str(x0), str(y0)) and moved[0] == str((d.grid[0] + 4) * 8)
+                   and "off the map" in moved[1] and back == shown,
+                   (shown, moved, back))
             ent = d.gen.patterns[0][0]              # the undo rebuilt the table
             f0 = ent.hdr.flag
             gt.visible.set(not gt.visible.get())
