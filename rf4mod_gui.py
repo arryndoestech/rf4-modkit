@@ -850,8 +850,24 @@ class App:
             self.load_source(lambda: Source.from_manifest(p))
         elif p.suffix == ".mbundle":
             self.load_source(lambda: Source.from_bundle(p))
+        elif self.source is not None:
+            self.open_file_tab(p)
         else:
             self.load_source(lambda: Source.from_file(p))
+
+    def open_file_tab(self, p: pathlib.Path):
+        """One file from disk in a new tab, next to the files listed now: the list (the game
+        copy) stays, and the tab reads textures, text and the rest from it as for the game's
+        own files. A map opened this way saves back to this file (Ctrl+S)."""
+        try:
+            data = p.read_bytes()
+        except OSError as e:
+            messagebox.showerror("Open failed", str(e))
+            return None
+        doc = self._open_in_tab(("file", str(p.resolve())), p.name, data, "new")
+        if doc is not None:
+            self.status.config(text=f"Opened {p} (with {self.source.label})")
+        return doc
 
     def cmd_options(self):
         """The Options window: toolkit settings, applied as soon as they are ticked and kept
@@ -1730,7 +1746,12 @@ class App:
                 nb.pack(fill="both", expand=True)
             nb.select(mv["mapframe"])
             return nb, panel
-        nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
+        # the editor alone: a notebook whose tab strip is hidden (the Chunks / Hex tabs only
+        # come back, with the strip, when the editor cannot be built)
+        style = ttk.Style()
+        style.layout("MapOnly.TNotebook.Tab", [])
+        style.configure("MapOnly.TNotebook", borderwidth=0, tabmargins=0)
+        nb = ttk.Notebook(doc.content, style="MapOnly.TNotebook"); nb.pack(fill="both", expand=True)
         try:
             import map_editor
             mapframe = ttk.Frame(nb); nb.add(mapframe, text="Map (edit)")
@@ -1744,24 +1765,10 @@ class App:
             nb.select(mapframe)              # open the map editor first
         except Exception as e:
             self.status.config(text=f"map editor unavailable: {e}")
+            nb.configure(style="TNotebook")  # the Chunks / Hex fallback shows its tabs
             return nb, None                  # not cached: the next map retries the build
         doc._map_view = {"nb": nb, "panel": panel, "mapframe": mapframe, "extra": []}
-        nb.bind("<<NotebookTabChanged>>", lambda e: self._on_map_tab_changed(e, doc), add="+")
         return nb, panel
-
-    def _on_map_tab_changed(self, _e=None, doc=None):
-        """Fill a lazily-built tab (the Hex dump) the first time it is shown."""
-        doc = doc or self._doc
-        mv = getattr(doc, "_map_view", None)
-        if mv is None:
-            return
-        try:
-            cur = mv["nb"].nametowidget(mv["nb"].select())
-        except (tk.TclError, KeyError):
-            return
-        fill = mv.get("lazy", {}).pop(str(cur), None)
-        if fill is not None:
-            fill()
 
     def _view_rf4m(self, name, data):
         doc = self._doc
@@ -1770,14 +1777,21 @@ class App:
         doc._map_panel = None               # reset: a failed embed must not export a stale panel
         nb, panel = self._map_notebook(m, name)
         doc._map_panel = panel
-        mv = getattr(doc, "_map_view", None)
-        before = set(nb.tabs())
+        if panel is not None:               # a map opened from disk saves back to its own file
+            key = getattr(doc, "key", None)
+            panel.file_path = (pathlib.Path(key[1]) if isinstance(key, tuple) and key
+                               and key[0] == "file" else None)
         # cutscene/event tab: this map's scenes from rf3.mc tail[mapId], in the map editor's
-        # sidebar next to Gates / Problems (the outer notebook keeps Map / Chunks / Hex)
+        # sidebar next to Gates / Problems
         try:
             self._build_events_tab(panel.nb if panel is not None else nb, name)
         except Exception as e:
             self.status.config(text=f"events tab unavailable: {e}")
+        if panel is not None:               # the editor alone, no Chunks / Hex tabs
+            doc._export_kind = "map_png"
+            self.export_btn.config(state="normal")
+            return
+        # without the editor: a chunk summary and a hex dump
         # summary tab
         txt = self._make_text_tab(nb, "Chunks", doc=doc)
         txt.insert("end", f"{m.summary()}\n\n")
@@ -1792,26 +1806,10 @@ class App:
             txt.insert("end", f"MAPJ records: {len(mapj)}  (first: {mapj[0]})\n")
         txt.config(state="disabled")
         # read-only hex tab (a peer of Chunks); monospace so the offset / hex / ASCII columns
-        # line up. Filled only when first opened: dumping a whole map into a Text widget cost
-        # ~0.2 s on every map click for a tab most people never look at.
+        # line up
         hx = self._make_text_tab(nb, "Hex", mono=True, doc=doc)
-
-        def fill_hex(hx=hx, data=data):
-            hx.config(state="normal")
-            hx.delete("1.0", "end")
-            hx.insert("end", hexdump(data, limit=len(data)))
-            hx.config(state="disabled")
-        if mv is not None:
-            mv["extra"] = [nb.nametowidget(t) for t in nb.tabs() if t not in before]
-            mv.setdefault("lazy", {})[str(hx.master.master)] = fill_hex
-        else:
-            fill_hex()
-        # Export = WYSIWYG map view (current zoom + enabled overlays) when the
-        # embedded editor is up; the ATTR-heatmap PNG (set above) stays as the
-        # fallback when it isn't.
-        if doc._map_panel is not None:
-            doc._export_kind = "map_png"
-            self.export_btn.config(state="normal")
+        hx.insert("end", hexdump(data, limit=len(data)))
+        hx.config(state="disabled")
 
     @staticmethod
     def _season_bases(stem):

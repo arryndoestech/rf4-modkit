@@ -167,6 +167,11 @@ class EntityForm(Form):
             lab += f"\ntexture {tex}"
         elif name:
             lab += "\nno sprite of its own"
+        loot = data.chest_loot(rec)             # a treasure chest: its contents (row f8)
+        crate = data.crate_loot(rec, self.doc.map.mgrp())   # a crate: its area's pool + odds
+        for extra in (loot, crate):
+            if extra:
+                lab += "\n" + extra
         self.type_label.config(text=lab)
         raw = self.raw.get()
         if mapparam or raw:

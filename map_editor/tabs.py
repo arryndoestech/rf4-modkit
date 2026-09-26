@@ -120,6 +120,9 @@ class ObjectsTab(ttk.Frame):
         key = iid_key(s[0]) if s else None
         if key is None:
             return
+        if tuple(key) == self.ed.sel:
+            return          # reveal()'s own echo (it can arrive after _syncing is cleared):
+                            # re-selecting would drop the rest of a multi-selection
         if key[0] == "spawn":
             self.ed.open_spawn(key[1])
             return
@@ -223,7 +226,8 @@ class MapTab(ui.ScrollFrame):
             v.set(bool(g & mask))
         bits = [b for b in range(5, 26) if g >> b & 1]
         self.group.set(self.group_choices[bits[0] - 4] if bits else "(none)")
-        self.mgrp_note.config(text=rf4m.mgrp_notes(g) if m.mgrp() is not None else "⚠ no MGRP chunk: the game crashes on load")
+        self.mgrp_note.config(text="\n".join(rf4m.mgrp_explain(g)) if m.mgrp() is not None
+                              else "⚠ no MGRP chunk: the game crashes on load")
         cols = m.mlig_colors()
         for i, (dv, tv, sw, en) in enumerate(self.tints):
             c = cols[i]
@@ -270,10 +274,16 @@ class MapTab(ui.ScrollFrame):
         v = self.ed.doc.map.mgrp() or 0
         for mask, bv in self.mgrp_bits.items():
             v = (v | mask) if bv.get() else (v & ~mask)
-        v &= ~(((1 << 26) - 1) & ~0x1F)                  # clear bits 5..25
+        # the area group is the LOWEST set bit of 5..25: swap only that one, so extra group
+        # bits (MAP_F_ROOM_00's 22 / 23 next to 6) survive a season / weather tick
+        old = next((b for b in range(5, 26) if v >> b & 1), None)
         g = self.group.get()
-        if g.startswith("bit "):
-            v |= 1 << int(g.split()[1])
+        new = int(g.split()[1]) if g.startswith("bit ") else None
+        if new != old:
+            if old is not None:
+                v &= ~(1 << old)
+            if new is not None:
+                v |= 1 << new
         self._set_mgrp(v)
 
     def _set_tints(self, cols, label):

@@ -21,10 +21,15 @@ payload in the map task work buffer and never copies it:
                     map's ambience (bit0 spring .. bit3 winter; Map_LoadById turns them
                     into work[15] = 0..3, -1 = follow the calendar): petals/leaves/
                     light motes, ambient sfx, BGM variant. bit 4 = no weather effects
-                    (dungeons/interiors). bits 5..25 = ONE-HOT area group (5 Selphia,
-                    6 rooms, 7 farm, 8 fields, 9 DUNG_A ... 25 DUNG_O/P) -> BGM track
-                    and minimap sheet group. A map WITHOUT an MGRP chunk crashes the
-                    loader (it dereferences the pointer unconditionally).
+                    (dungeons/interiors). bits 5..25 = area group (5 Selphia,
+                    6 rooms, 7 farm, 8 fields, 9 DUNG_A ... 25 DUNG_O/P): the LOWEST
+                    set bit gives the zone = bit - 5 (0 below 0x20), which picks the
+                    base BGM (RF4S.exe+0x4D5710), the minimap group, the monster-gate
+                    zone and the crate loot pool (chestloot.crate_pools). Bit 2
+                    (autumn) also sets BGM target mode 2. MAP_F_ROOM_00 adds bits
+                    22+23 to group 6: the minimap's room sub-group (lowest of 22+).
+                    mgrp_explain() lists all of it. A map WITHOUT an MGRP chunk
+                    crashes the loader (it dereferences the pointer unconditionally).
     MLIG  3 x u32   tile tint colours for DAY / EVENING / NIGHT, one dword each as
                     0x00BBGGRR (only the low 24 bits are read; a zero triplet means
                     "engine default": day 255,255,255, evening 247,214,197, night
@@ -174,6 +179,72 @@ def mgrp_notes(value: int) -> str:
     if len(groups) > 1:
         parts.append("WARNING: more than one group bit (the game uses the lowest)")
     return ", ".join(parts)
+
+
+# The base BGM of each area group (zone), before Scene_ApplyContextualBGM's per-room / season /
+# night / festival rules: g_baseMapBgmByFlagBit RF4S.exe+0x4D5710, 21 u32 sound ids indexed by
+# the zone -- shipped in refdata/rf4s_exe_tables.json (chestloot.area_bgm).
+
+
+def mgrp_bgm(zone):
+    """Sound label of the base BGM the game plays in area group `zone` ('SEQ_DGN_B.ogg'),
+    from the table shipped in refdata/rf4s_exe_tables.json; None when it is not there."""
+    try:
+        from . import chestloot, soundtable
+        sid = chestloot.area_bgm(zone)
+    except Exception:
+        return None
+    return None if sid is None else (soundtable.sound_label(sid) or f"sound 0x{sid:X}")
+
+
+def mgrp_explain(value) -> list[str]:
+    """What the game does with each part of an MGRP dword, one line per part (verified in the
+    exe 2026-09-26: Map_LoadById stores the raw value as the map task's work[16] and the low
+    nibble as work[15]; its readers are below)."""
+    from . import chestloot
+    v = value & 0xFFFFFFFF
+    out = []
+    seasons = [n for m, n in MGRP_SEASON_BITS.items() if v & m]
+    if seasons:
+        out.append("bits 0-3, fixed season: " + "+".join(seasons) + " -- the map's ambience "
+                   "and BGM variant ignore the calendar (work[15] = the lowest set bit)")
+    else:
+        out.append("bits 0-3 clear: the season follows the calendar")
+    if v & 0x4:
+        out.append("bit 2 (autumn) also switches the BGM stream to target mode 2 instead of 1 "
+                   "(Scene_ApplyContextualBGM -> BGM_SetTargetMode; what mode 2 changes is not "
+                   "traced)")
+    if v & MGRP_NO_WEATHER:
+        out.append("bit 4, no weather: no rain / snow particles (WeatherTask_Tick); the sound "
+                   "task sets its indoor flag from it too (SndTask_Tick)")
+    zone = chestloot.zone_of_mgrp(v)
+    groups = [b for b in range(5, 26) if v >> b & 1]
+    if groups:
+        b = groups[0]
+        out.append(f"area group: bit {b} ({MGRP_GROUP_NAMES.get(b, 'unnamed')}) = zone {zone}")
+    else:
+        out.append("no area-group bit: zone 0 (the Selphia town group)")
+    bgm = mgrp_bgm(zone)
+    if bgm:
+        out.append(f"  base BGM {bgm} (then per-room, season, night and festival rules)")
+    pools = chestloot.crate_pools(zone)
+    out.append("  crates roll the " + " / ".join(
+        f"{p['label']} ({p['share']:.0%})" if p["share"] < 1 else p["label"] for p in pools) + " pool")
+    out.append(f"  monster gates read zone {zone}'s entry of the encounter-archive table; the "
+               "minimap uses the group too")
+    extra = groups[1:]
+    if extra:
+        if zone == 1:
+            sub = next((i for i in range(10) if v >> (22 + i) & 1), None)
+            out.append(f"bits {', '.join(map(str, extra))} next to the group: with group bit 6 "
+                       f"the minimap takes the room sub-group from the lowest of bits 22+ "
+                       f"({'bit %d = sub-group %d' % (22 + sub, sub) if sub is not None else 'none'})")
+        else:
+            out.append(f"bits {', '.join(map(str, extra))} are also set; the game only uses the "
+                       "lowest group bit")
+    if v >> 26:
+        out.append(f"bits 26-31 (0x{v & 0xFC000000:X}): no reader found")
+    return out
 
 
 class Rf4mError(Exception):

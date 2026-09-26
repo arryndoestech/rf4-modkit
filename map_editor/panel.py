@@ -32,6 +32,8 @@ _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos
 # The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
 # switching maps (the host may rebuild this panel) and pastes into another toolkit window.
 CLIP_TAG = "RF4S map object "
+MULTI_HINT = ("%d selected -- drag one to move them all, arrows nudge them, Delete deletes them; "
+              "Shift+click adds / removes one")
 _CLIP_KINDS = ("mobj", "warp", "si", "gpos", "mpos")
 _KIND_NAME = {"mobj": "entity", "warp": "warp", "si": "search spot", "gpos": "gate position",
               "mpos": "monster spawn point"}
@@ -57,6 +59,7 @@ class MapEditorPanel:
         self.on_open_scene = on_open_scene
         self.doc = None
         self.sel = None
+        self.selection = []         # every selected key (sel, the one the forms show, last)
         self.gate_index = None
         self.paint_value = 0x1
         self.brush = 1
@@ -68,6 +71,7 @@ class MapEditorPanel:
         self._spawn_bank = None
         self._pending = set()
         self._dialogs = []
+        self.file_path = None       # set by the host for a map opened from disk: Save goes there
         self._build()
         self.tex_reader = tex_reader
         self.set_tool("select", focus=False)    # the host keeps its focus (e.g. the file list)
@@ -186,7 +190,9 @@ class MapEditorPanel:
         for name, t in self.tools.items():
             c.bind(f"<KeyPress-{t.key}>", lambda _e, n=name: self.set_tool(n))
         for k in ("Delete", "BackSpace"):
-            c.bind(f"<{k}>", lambda _e: self.delete(self.sel))
+            c.bind(f"<{k}>", lambda _e: self.delete_selection())
+        for k in ("a", "A"):
+            c.bind(f"<Control-{k}>", lambda _e: self.select_all() or "break")
         c.bind("<Escape>", lambda _e: self.escape())
         # copy / cut / paste objects (canvas only: text fields keep their own Ctrl+C/V)
         for k in ("c", "C"):
@@ -253,6 +259,8 @@ class MapEditorPanel:
         self.doc = MapDocument(mapobj, name)
         self.doc.subscribe(self._changed)
         self.sel = None
+        self.selection = []
+        self.view.st.multi = ()
         self.gate_index = None
         self._spawns_for = None
         self.view.set_doc(self.doc)
@@ -392,13 +400,20 @@ class MapEditorPanel:
         s = self.sel
         if s is None:
             return
-        kind, k = s
-        ok = ((kind == "mobj" and k < len(d.objs)) or
-              (kind == "warp" and k < len(d.map.mapj_records())) or
-              (kind == "si" and d.si is not None and k < len(d.si.spots)) or
-              (kind in ("gpos", "mpos") and any((pk, off) == s for pk, off, *_r in d.gate_points())))
-        if not ok:
+        if not self._key_valid(s):
             self.select(None)
+        elif len(self.selection) > 1:
+            keep = [k for k in self.selection if self._key_valid(k)]
+            if keep != self.selection:
+                self.select(s, keep=keep)
+
+    def _key_valid(self, s):
+        d = self.doc
+        kind, k = s
+        return ((kind == "mobj" and k < len(d.objs)) or
+                (kind == "warp" and k < len(d.map.mapj_records())) or
+                (kind == "si" and d.si is not None and k < len(d.si.spots)) or
+                (kind in ("gpos", "mpos") and any((pk, off) == s for pk, off, *_r in d.gate_points())))
 
     def _update_chrome(self):
         parts = self.dirty_parts()
@@ -553,7 +568,11 @@ class MapEditorPanel:
             if users:
                 m.add_command(label="Show its gate", command=lambda: self.show_gate(users[0]))
         m.add_separator()
-        m.add_command(label="Delete", command=lambda: self.delete(key))
+        if len(self.selection) > 1 and tuple(key) in self.selection:
+            m.add_command(label=f"Delete {len(self.selection)} selected",
+                          command=self.delete_selection)
+        else:
+            m.add_command(label="Delete", command=lambda: self.delete(key))
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:
@@ -586,14 +605,21 @@ class MapEditorPanel:
     # ------------------------------------------------------------------ #
     # selection
     # ------------------------------------------------------------------ #
-    def select(self, key, center=False):
+    def select(self, key, center=False, keep=()):
+        """Select `key` (None: nothing). `keep`: other keys that stay selected with it (a
+        multi-selection; `key` is the one the Inspect tab shows)."""
         if key is not None and key[0] in ("gpos", "mpos"):
             users = next((u for pk, off, _x, _y, u in self.doc.gate_points() if (pk, off) == tuple(key)), [])
             if users and self.gate_index not in users:
                 self.set_active_gate(users[0])
         self.sel = tuple(key) if key is not None else None
+        rest = [tuple(k) for k in keep if k is not None and tuple(k) != self.sel]
+        self.selection = rest + ([self.sel] if self.sel is not None else [])
         self.view.st.sel = self.sel
+        self.view.st.multi = tuple(self.selection) if len(self.selection) > 1 else ()
         self.view.invalidate("sel")
+        if len(self.selection) > 1:
+            self.status(MULTI_HINT % len(self.selection))
         self._update_gate_focus()
         if self.sel and self.sel[0] == "gpos":  # the Gates tab's positions list follows
             self.encounters._show_gpos(self.active_gate)
@@ -605,6 +631,62 @@ class MapEditorPanel:
                 self.show_tab("Inspect")
             if center:
                 self.center_on(self.sel)
+
+    def add_to_selection(self, key):
+        """Shift+click on an unselected object: it joins the selection (and is shown)."""
+        if key is not None:
+            self.select(key, keep=self.selection)
+
+    def remove_from_selection(self, key):
+        """Shift+click on a selected object: it leaves the selection."""
+        rest = [k for k in self.selection if k != tuple(key)]
+        self.select(rest[-1] if rest else None, keep=rest[:-1])
+
+    def select_many(self, keys, add=False):
+        """Select every key in `keys` (a selection box); add=True keeps what was selected."""
+        keys = [tuple(k) for k in keys]
+        base = [k for k in self.selection if k not in keys] if add else []
+        allk = base + keys
+        if not allk:
+            self.select(None)
+            return
+        self.select(allk[-1], keep=allk[:-1])
+
+    def select_all(self):
+        """Ctrl+A: every object shown on the map."""
+        if self.doc is None or not self.doc.grid:
+            return
+        W, H, _ = self.doc.grid
+        self.select_many(self.keys_in_rect(0, 0, W * 8, H * 8))
+
+    def keys_in_rect(self, x0, y0, x1, y1):
+        """Keys of the shown objects whose position (a warp: its zone's centre) lies in the
+        sub-unit rectangle, in map order."""
+        d, L = self.doc, self.view.st.layers
+        if d is None:
+            return []
+        x0, x1 = sorted((x0, x1))
+        y0, y1 = sorted((y0, y1))
+
+        def inside(x, y):
+            return x0 <= x <= x1 and y0 <= y <= y1
+        out = []
+        for i, o in enumerate(d.objs):
+            if render.entity_visible(o, L) and inside(o["pos_x"], o["pos_y"]):
+                out.append(("mobj", i))
+        if L.get("mapj"):
+            for j, r in enumerate(d.map.mapj_records()):
+                if inside(r[1] + r[3] // 2, r[2] + r[4] // 2):
+                    out.append(("warp", j))
+        if L.get("si") and d.si is not None:
+            for k, sp in enumerate(d.si.spots):
+                if inside(sp.x, sp.y):
+                    out.append(("si", k))
+        if L.get("gates") and d.gen is not None:
+            for pk, off, x, y, _u in d.gate_points():
+                if inside(x, y):
+                    out.append((pk, off))
+        return out
 
     def show_tab(self, title):
         # by title, not position: a host can add tabs (the asset explorer inserts Events)
@@ -696,16 +778,30 @@ class MapEditorPanel:
         self.apply(self.describe_move(key), self.aspect_of(key), lambda: self.set_position(key, pos))
 
     def nudge(self, dx, dy):
-        s = self.sel
-        if s is None or self.doc is None:
+        """Arrow keys: move the selection (every selected object) by (dx, dy) sub-units."""
+        keys = self.selection or ([self.sel] if self.sel else [])
+        if not keys or self.doc is None:
             return
-        p = self.position_of(s)
-        if p is None:
+        moves = []
+        for s in keys:
+            p = self.position_of(s)
+            if p is None:
+                return
+            new = (p[0] + dx, p[1] + dy) + tuple(p[2:])
+            if min(new[0], new[1]) < 0 and s[0] != "warp":
+                return                          # one would leave the map: none moves
+            moves.append((s, new))
+        if len(moves) == 1:
+            self.set_position_edit(*moves[0])
             return
-        new = (p[0] + dx, p[1] + dy) + tuple(p[2:])
-        if min(new[0], new[1]) < 0 and s[0] != "warp":
-            return
-        self.set_position_edit(s, new)
+        self.move_many(moves)
+
+    def move_many(self, moves):
+        """[(key, position)] as one undo step."""
+        def do():
+            for s, p in moves:
+                self.set_position(s, p)
+        self.apply(f"Move {len(moves)} objects", {self.aspect_of(s) for s, _p in moves}, do)
 
     def center_on(self, key):
         if key is None or self.doc is None:
@@ -742,6 +838,37 @@ class MapEditorPanel:
                 (d.gen.remove_gate_position if kind == "gpos" else d.gen.remove_monster_position)(e, i)
         self.select(None)
         if self.apply(label, self.aspect_of(key), do):
+            self.status(label)
+
+    def delete_selection(self):
+        """Delete: every selected object, as one undo step."""
+        keys = list(self.selection) or ([self.sel] if self.sel else [])
+        if len(keys) < 2:
+            self.delete(keys[0] if keys else None)
+            return
+        d = self.doc
+        pts = []                                # gate / monster points: (entry, index) first
+        for kind, k in keys:
+            if kind in ("gpos", "mpos"):
+                e, i = d.locate_point(kind, k)
+                if e is not None:
+                    pts.append((kind, e, i))
+
+        def do():
+            # highest index first, so the ones still to go keep their numbers
+            for kind in ("mobj", "warp", "si"):
+                for k in sorted((k for kk, k in keys if kk == kind), reverse=True):
+                    if kind == "mobj":
+                        d.map.delete_mobj_record(k)
+                    elif kind == "warp":
+                        d.map.delete_mapj_record(k)
+                    else:
+                        del d.si.spots[k]
+            for kind, e, i in sorted(pts, key=lambda t: -t[2]):
+                (d.gen.remove_gate_position if kind == "gpos" else d.gen.remove_monster_position)(e, i)
+        label = f"Delete {len(keys)} objects"
+        self.select(None)
+        if self.apply(label, {self.aspect_of(k) for k in keys}, do):
             self.status(label)
 
     def room_for(self, kind):
@@ -1416,6 +1543,20 @@ class MapEditorPanel:
         if "gen" in parts and not self._fatal_ok("monster gates", "Monster gates have fatal problems",
                                                  "The game would crash or hang on this table"):
             return False
+        own = None
+        if self.file_path is not None and "map" in parts:   # a map opened from disk: its own file
+            try:
+                pathlib.Path(self.file_path).write_bytes(d._bytes("map"))
+            except OSError as e:
+                messagebox.showerror("Save", f"Could not write {self.file_path}:\n{e}")
+                return False
+            d.mark_saved("map")
+            parts.remove("map")
+            own = f"Saved {self.file_path}"
+            if not parts:
+                self._update_chrome()
+                self.status(own)
+                return True
         names = {"map": f"{d.base}.rf4m",
                  "si": d.si_path.name if d.si_path else data.si_name_for_map(d.base),
                  "gen": d.gen_path.name if d.gen_path else data.gen_name_for_map(d.base)}
@@ -1448,7 +1589,7 @@ class MapEditorPanel:
         bdir = gamepaths.find_bundle_dir()
         shown = [str(t.relative_to(bdir.parent)) if bdir and bdir.parent in t.parents else str(t)
                  for t in written]
-        self.status("Saved " + ", ".join(shown)
+        self.status("Saved " + ", ".join(([str(self.file_path)] if own else []) + shown)
                     + (f" (originals kept in {gamepaths.BACKUP_DIR})" if backed else "")
                     + " -- " + reload_hint(new))
         others = {n: v for n, v in targets[None].items()}

@@ -91,6 +91,7 @@ tools/modding/
 ├── cutscene_editor/     # the cutscene editor: rf3.mc + rf3mc.<locale> + em.bin, one undo history
 ├── gen_opcode_reference.py  # regenerates CUTSCENE_OPCODES.md + opcodes_list.csv from opcode_meta
 ├── gen_map_names_json.py    # regenerates docs/map_names.json (map id -> name, MAP_* file, minimap sheet)
+├── gen_exe_tables_json.py   # regenerates refdata/rf4s_exe_tables.json: chest loot, crate pools, area BGM (tables that exist only in RF4S.exe)
 ├── gen_minimap_sheets.py    # renders docs/minimap_sheets/: every minimap picture with its rf3MapMiniPos rows drawn on
 ├── CUTSCENE_OPCODES.md  # greppable reference: every reversed cutscene opcode + enum-arg values + em.bin ops
 ├── opcodes_list.csv  # flat list: op_dec, op_hex, mnemonic, handler, category, prototype, description (all 763 + control)
@@ -112,6 +113,8 @@ tools/modding/
     ├── bcenc.py         # BC1/BC3/BC7 encoders  same-size re-encodes (numpy-accelerated, pure-Python fallback)
     ├── rf4m.py          # .rf4m maps            parse + rebuild + full edit
     ├── mapground.py     # ground-texture atlas  stitch + layer composite + export/import (tile split)
+    ├── chestloot.py     # chest + crate loot (shipped in refdata/rf4s_exe_tables.json): chest rows (RF4S.exe+0x9EFA60, row = f8), crate pools per area group (zone = MGRP group bit - 5)
+    ├── exetables.py     # read tables out of RF4S.exe (RVA -> file offset); only gen_exe_tables_json.py and the selftest use it
     ├── map_names.py     # map id -> in-game name / MAP_* file, HUD location-band rules
     ├── minimap.py       # map id -> mini_map_* picture + placement (rf3MapMiniPos)
     ├── aibn.py          # AI scripts            disassemble + assemble
@@ -196,7 +199,9 @@ The contents can be in any of these layouts:
 The GUI lists the game copy's files on start. Its **Open** menu (*File…*, *Folder…*) looks at
 files outside the game (a downloaded mod, `Bundle\00_mods`, exported files) from any folder,
 no fixed layout required; *File…* on a `.mbundle` or a `Manifest.plist` lists the files inside
-it. **Back to the game** lists the game's files again. `python rf4mod_gui.py <path>` opens any
+it. *File…* on any other file opens it in a new tab and keeps the game's files listed, so it
+reads textures and text from the game like the game's own files (a map opened this way saves
+back to its own file with Ctrl+S, not into the game folder). **Back to the game** lists the game's files again. `python rf4mod_gui.py <path>` opens any
 of these from the command line.
 
 ### Verifying the install
@@ -329,7 +334,7 @@ python tools/modding/rf4mod.py mapview MAP_DUNG_A04   # same, via the CLI
 ```
 
 The editor (`map_editor.MapEditorPanel`) is **embedded in the main GUI**: selecting any
-`.rf4m` opens it as the front **Map (edit)** tab, and map edits flow into the GUI's working
+`.rf4m` opens it straight in the map editor (the whole tab), and map edits flow into the GUI's working
 copy (so `Extract…` saves them). Outside the GUI, the same panel runs as a standalone
 program with a map list (`map_explorer.py` / `rf4mod mapview`).
 
@@ -361,7 +366,7 @@ and a sidebar with six tabs (it opens on View):
 | **View** | layer toggles (kept in `settings.json`, like the ground display, scenery and ATTR opacity, so every map and the next start open the same way: ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, monster gates, script NPCs), **draw sprites** (on by default: each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite and shines through the ATTR fill; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity + **darken** (the ground drops by 0-80 %, 25 % by default, so the objects on it stand out), the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
 | **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, monster gates, script NPCs) and filterable; picking a row selects it and scrolls it into view |
-| **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
+| **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too) with what each part drives (fixed season, weather, zone = group bit - 5 -> base BGM, crate pool, monster-gate zone, minimap; extra group bits are kept when you edit), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
 | **Gates** | the `Gen*.bin` (monster gates): gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
 | **Events** | (in the asset explorer) the map's cutscene scenes from its event bank in `rf3.mc`, biggest first with a dialogue preview; double-click or *Open in Cutscene Editor*; *New scene on this map…* |
 | **Problems** | validation of all three files -- including monster spawn points with no walkable ground (ATTR bit 0x01 / 0x20) within their radius, where the game then spawns every monster on the point itself, and gate positions outside the map; selecting an issue selects its object |
@@ -370,7 +375,7 @@ and a sidebar with six tabs (it opens on View):
 
 | Tool | Key | Use |
 |---|---|---|
-| Select | V | click selects (markers and borders first, then warps, then the inside of a sprite; clicking the selection again -- press and release without moving -- steps to the next thing under the pointer), drag moves the selection (whole tiles, keeping the sub-tile offset; hold Shift for free placement); a selected warp shows 8 handles to resize it; double-click / Ctrl+click a warp opens its destination (also where other objects overlap it) |
+| Select | V | click selects (markers and borders first, then warps, then the inside of a sprite; clicking the selection again -- press and release without moving -- steps to the next thing under the pointer), drag moves the selection (whole tiles, keeping the sub-tile offset; hold Shift for free placement); a selected warp shows 8 handles to resize it; double-click / Ctrl+click a warp opens its destination (also where other objects overlap it). **Several at once:** Shift+click adds / removes one, a drag on empty map selects everything in the box (Shift+drag adds), Ctrl+A selects all; dragging any of them moves them all, arrow keys nudge and Delete deletes the whole selection (one undo step each), a plain click on one of them selects only it. A selected or hovered **treasure chest** shows its loot (its f8 row of the chest table, shipped in refdata/rf4s_exe_tables.json); a **crate** shows its whole area pool with each item's odds (one item rolled per visit; same chances grouped) |
 | Paint | B | paint the ATTR value with a 1-9 tile brush (`[` / `]`); right-click picks a value; Shift+click draws a line from the last painted tile |
 | Fill | G | flood-fill the clicked region, or replace that value on the whole map |
 | Rectangle | R | drag a rectangle and fill it |
@@ -465,6 +470,7 @@ back** — the exporter takes its aspect from the map's current ATTR.
 
 ```bash
 python tools/modding/gen_map_names_json.py      # (re)build docs/map_names.json from the vendored tables
+python tools/modding/gen_exe_tables_json.py     # (re)extract refdata/rf4s_exe_tables.json from RF4S.exe (only for a new game build)
 python tools/modding/gen_minimap_sheets.py      # render docs/minimap_sheets/ (needs Bundle/ + Pillow)
 python tools/modding/gen_minimap_sheets.py --labels names --clean --zoom 4   # vanilla pictures + room names -> docs/minimap_sheets_named/
 ```

@@ -3,7 +3,9 @@
 so every gesture is exactly one undo step.
 
     select  V   click selects, drag moves (Shift = sub-tile precision), warp handles resize,
-                double-click or Ctrl+click a warp opens its destination map
+                double-click or Ctrl+click a warp opens its destination map; Shift+click adds /
+                removes, a drag on empty map selects everything in the box, and dragging one
+                of several selected objects moves them all
     paint   B   paint the ATTR value with a square brush; right-click picks a value,
                 Shift+click draws a straight line from the last painted tile
     fill    G   flood-fill the clicked region (or replace the value map-wide)
@@ -72,8 +74,11 @@ class SelectTool(Tool):
     name, label, key, cursor = "select", "Select", "v", ""
     hint = ("Click to select, drag to move (hold Shift for sub-tile precision); click the same "
             "spot again to select the next thing under the pointer (a drag moves the selection "
-            "instead). Drag a selected warp's handles to resize it. Double-click or Ctrl+click a "
-            "warp to open its destination map. Arrow keys nudge the selection by a tile (Shift: 1 sub-unit).")
+            "instead). Several at once: Shift+click adds / removes one, drag on empty map to "
+            "select everything in a box (Shift+drag adds), Ctrl+A selects all; drag any of them "
+            "to move them all. Drag a selected warp's handles to resize it. Double-click or "
+            "Ctrl+click a warp to open its destination map. Arrow keys nudge the selection by a "
+            "tile (Shift: 1 sub-unit), Delete deletes it.")
 
     def __init__(self, ed):
         super().__init__(ed)
@@ -88,6 +93,11 @@ class SelectTool(Tool):
         self.dragging = False
         self.started = False
         self.cycle = None           # candidates to step through on release (a plain click)
+        self.group = {}             # key -> position when pressed: everything a drag moves
+        self.band = None            # (x, y) sub-units where a selection-box drag started
+        self.band_add = False       # Shift: the box adds to the selection
+        self.shift_off = None       # Shift+click on a selected object: dropped on release
+        self.collapse = None        # a click on one of several selected: only it, on release
 
     def press(self, e):
         self._reset()
@@ -97,12 +107,33 @@ class SelectTool(Tool):
         keys = self.view.keys_at(e)
         # the selected warp's grab handles win over everything
         handle = next((k for k in keys if k[0] == "handle"), None)
-        if handle is not None and ed.sel and ed.sel[0] == "warp":
+        if handle is not None and ed.sel and ed.sel[0] == "warp" and len(ed.selection) < 2:
             rec = doc.map.mapj_records()[ed.sel[1]]
             self.target, self.mode = ed.sel, handle[1]
             self.origin = tuple(rec[1:5])
             return
         cands = self.view.pick_candidates(e)
+        shift = bool(e.state & 0x0001)
+        movable = [k for k in cands if k[0] != "spawn"]
+        if shift:
+            # Shift+click: add the object to the selection, or (on release, if it was not a
+            # drag) take a selected one out; on empty map a box that adds
+            key = movable[0] if movable else None
+            if key is None:
+                self._start_band(e, add=True)
+                return
+            if key in ed.selection:
+                self.shift_off = key
+            else:
+                ed.add_to_selection(key)
+            self._start_move(e, key)
+            return
+        if len(ed.selection) > 1:
+            hit = next((k for k in cands if k in ed.selection), None)
+            if hit is not None:                 # a drag moves them all; a click keeps only it
+                self.collapse = hit
+                self._start_move(e, hit)
+                return
         if ed.sel is not None and ed.sel in cands:
             # pressing on the selection keeps it: a drag moves it, and a plain click (released
             # without moving) steps to the next thing under the pointer -- see release()
@@ -116,20 +147,47 @@ class SelectTool(Tool):
                 return
             ed.select(key)
             self._announce(key, cands)
+            if key is None:
+                self._start_band(e, add=False)
+                return
         if key is None:
             return
+        self._start_move(e, key)
+
+    def _start_move(self, e, key):
+        """Get ready to drag `key` -- and, when it is part of a multi-selection, all of it."""
+        ed = self.ed
         self.target, self.mode = key, "move"
         self.origin = ed.position_of(key)
         self.anchor = self.view.subunit_at(e)
+        keys = ed.selection if key in ed.selection and len(ed.selection) > 1 else [key]
+        self.group = {k: ed.position_of(k) for k in keys}
+        self.group = {k: p for k, p in self.group.items() if p is not None}
+
+    def _start_band(self, e, add):
+        """A drag from empty map draws a selection box (released: everything in it)."""
+        self.band = self.view.subunit_at(e)
+        self.band_add = add
+
+    def _band_rect(self, e):
+        (ax, ay), (bx, by) = self.band, self.view.subunit_at(e)
+        return min(ax, bx), min(ay, by), max(ax, bx), max(ay, by)
 
     def drag(self, e):
-        if self.target is None:
+        if self.target is None and self.band is None:
             return
         if not self.dragging:
             if (abs(e.x - self.press_xy[0]) < DRAG_THRESHOLD_PX
                     and abs(e.y - self.press_xy[1]) < DRAG_THRESHOLD_PX):
                 return                          # still a click: nothing moves
             self.dragging = True
+        if self.band is not None:
+            x0, y0, x1, y1 = self._band_rect(e)
+            self.view.preview_rect((x0 >> 3, y0 >> 3, x1 >> 3, y1 >> 3))
+            return
+        if self.mode == "move" and len(self.group) > 1:
+            self._drag_group(e)
+            return
         if self.mode == "move":
             pos = self._moved_to(e)
         else:
@@ -141,23 +199,49 @@ class SelectTool(Tool):
             self.started = True
         self.ed.set_position(self.target, pos)
 
-    def _moved_to(self, e):
-        """Whole-tile moves keep the exact sub-tile offset; Shift places freely."""
+    def _drag_group(self, e):
+        """Move every selected object by the pointer's offset (one undo step)."""
+        dx, dy = self._delta(e)
+        moves = []
+        for k, o in self.group.items():
+            pos = self._clamped(k, o, dx, dy)
+            if tuple(pos) != tuple(self.ed.position_of(k)):
+                moves.append((k, pos))
+        if not moves:
+            return
+        if not self.started:
+            self.doc.begin(f"Move {len(self.group)} objects",
+                           {self.ed.aspect_of(k) for k in self.group})
+            self.started = True
+        for k, pos in moves:
+            self.ed.set_position(k, pos)
+
+    def _delta(self, e):
+        """Pointer offset since the press: whole tiles (each object keeps its sub-tile
+        offset), or sub-units with Shift."""
         sx, sy = self.view.subunit_at(e)
-        ox, oy = self.origin[0], self.origin[1]
         if e.state & 0x0001:                    # Shift
-            nx, ny = ox + (sx - self.anchor[0]), oy + (sy - self.anchor[1])
-        else:
-            nx = ox + ((sx >> 3) - (self.anchor[0] >> 3)) * 8
-            ny = oy + ((sy >> 3) - (self.anchor[1] >> 3)) * 8
+            return sx - self.anchor[0], sy - self.anchor[1]
+        return (((sx >> 3) - (self.anchor[0] >> 3)) * 8,
+                ((sy >> 3) - (self.anchor[1] >> 3)) * 8)
+
+    def _clamped(self, key, origin, dx, dy):
+        """`origin` moved by (dx, dy), kept on the map."""
+        ox, oy = origin[0], origin[1]
+        nx, ny = ox + dx, oy + dy
         W, H, _ = self.doc.grid
-        if self.target[0] == "warp":
-            ow, oh = self.origin[2], self.origin[3]
+        if key[0] == "warp":
+            ow, oh = origin[2], origin[3]
             # keep it inside the grid, but never pull an edge warp further out than it was
             nx = max(min(0, ox), min(max(W * 8 - ow, ox), nx))
             ny = max(min(0, oy), min(max(H * 8 - oh, oy), ny))
             return (nx, ny, ow, oh)
         return (max(0, min(W * 8 - 1, nx)), max(0, min(H * 8 - 1, ny)))
+
+    def _moved_to(self, e):
+        """Whole-tile moves keep the exact sub-tile offset; Shift places freely."""
+        dx, dy = self._delta(e)
+        return self._clamped(self.target, self.origin, dx, dy)
 
     def _resized_to(self, e):
         """Move only the dragged edge(s) onto the tile boundary under the pointer."""
@@ -179,6 +263,27 @@ class SelectTool(Tool):
     def release(self, e):
         if self.started:
             self.ed.finish_edit()
+        if self.band is not None:
+            box = self._band_rect(e) if self.dragging else None
+            add = self.band_add
+            self.view.preview_rect(None)
+            self._reset()
+            if box is not None:
+                self.ed.select_many(self.ed.keys_in_rect(*box), add=add)
+            elif not add:
+                self.ed.select(None)
+            return
+        if not self.dragging:
+            if self.shift_off is not None:      # Shift+click on a selected one: out it goes
+                off = self.shift_off
+                self._reset()
+                self.ed.remove_from_selection(off)
+                return
+            if self.collapse is not None:       # a click on one of several: only it
+                key = self.collapse
+                self._reset()
+                self.ed.select(key)
+                return
         cycle = self.cycle if not self.dragging else None
         self._reset()
         if cycle:                               # a click on the selection: the next one
@@ -202,9 +307,10 @@ class SelectTool(Tool):
                        % (cands.index(key) + 1, len(cands), what))
 
     def cancel(self):
-        """Esc during a drag: put the object back."""
+        """Esc during a drag: put the objects back (or drop the selection box)."""
         if self.started:
             self.doc.cancel()
+        self.view.preview_rect(None)
         self._reset()
 
     def right_press(self, e):

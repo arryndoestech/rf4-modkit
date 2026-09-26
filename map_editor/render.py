@@ -712,9 +712,10 @@ def overlay(group, st):
     elif group == "lift":
         # the selected object's sprite once more, above the ATTR fill (no key: the copy in
         # "under" stays the hit, so the pick order does not change)
-        sel = st.sel
-        if (sel is not None and sel[0] == "mobj" and sel[1] < len(doc.objs) and L.get("sprites")
-                and HAS_PIL):
+        for sel in (getattr(st, "multi", ()) or (st.sel,)):   # every selected sprite
+            if (sel is None or sel[0] != "mobj" or sel[1] >= len(doc.objs) or not L.get("sprites")
+                    or not HAS_PIL):
+                continue
             o = doc.objs[sel[1]]
             if entity_visible(o, L) and not flagstate.hidden(o, getattr(st, "flags", None)):
                 src = st.sprites.source(o)
@@ -815,7 +816,19 @@ def overlay(group, st):
 
 
 def _selection(st):
-    doc, cp, sel = st.doc, st.cp, st.sel
+    """The selection frame of every selected object (a multi-selection: all of them; the
+    resize handles only for a lone selected warp)."""
+    multi = getattr(st, "multi", ()) or ()
+    if len(multi) > 1:
+        out = []
+        for key in multi:
+            out += _selection_one(st, tuple(key), handles=False)
+        return out
+    return _selection_one(st, st.sel, handles=True)
+
+
+def _selection_one(st, sel, handles=True):
+    doc, cp = st.doc, st.cp
     if sel is None:
         return []
     kind, k = sel
@@ -838,7 +851,7 @@ def _selection(st):
             rect = warp_rect_px(recs[k], cp)
             out.append(Prim("rect", rect, outline=SEL_COLOR, width=3))
             hs = max(3, cp // 2)
-            for mode, (hx, hy) in handle_points(rect).items():
+            for mode, (hx, hy) in (handle_points(rect).items() if handles else ()):
                 out.append(Prim("rect", (hx - hs, hy - hs, hx + hs, hy + hs), key=("handle", mode),
                                 fill=SEL_COLOR, outline="#002b33"))
     elif kind == "si" and doc.si is not None and k < len(doc.si.spots):

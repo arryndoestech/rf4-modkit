@@ -13,7 +13,7 @@ import pathlib
 import re
 import struct
 
-from rf4s_modkit import gamepaths, gen, map_names, script, textdb
+from rf4s_modkit import chestloot, gamepaths, gen, map_names, script, textdb
 from rf4s_modkit.refdata import refdata_path
 
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent.parent
@@ -229,6 +229,54 @@ def item_names():
 
 def item_name(i):
     return item_names().get(i, "")
+
+
+def chest_loot(rec):
+    """What a treasure chest (MOBJ type 44) gives: 'Loot (row N): 3x Recovery Potion', read
+    from the game folder's RF4S.exe (rf4s_modkit.chestloot). None for other types."""
+    if rec is None or (rec[0] & 0xFFFF) != 44:
+        return None
+    r = rec[8]
+    try:
+        slots = chestloot.row(r)
+    except chestloot.ChestLootError as e:
+        return f"Loot (row {r}): unknown -- {e}"
+    if slots is None:
+        return f"Loot (row {r}): past the table's {chestloot.ROWS} rows -- no known contents"
+    return f"Loot (row {r}): " + chestloot.summary(slots, lambda i: item_name(i) or f"item {i}")
+
+
+def crate_loot(rec, mgrp):
+    """What a breakable crate (MOBJ type 53) can give on this map: one item rolled from its
+    area group's pool each time the room loads (rf4s_modkit.chestloot). Every item, most
+    likely first, items with the same chance grouped so even the 79-item DUNG_M pool fits a
+    tooltip -- 'Crate loot (DUNG_B pool, 1 item per visit): 8.6% Antidote Grass · 5.7% each:
+    nothing, Grapes, Purple Grass · ...'. None for other types."""
+    if rec is None or (rec[0] & 0xFFFF) != 53:
+        return None
+    if rec[10] == 1:
+        return "Crate loot: nothing (f10 = 1 makes it an empty crate)"
+    zone = chestloot.zone_of_mgrp(mgrp)
+    pools = chestloot.crate_pools(zone)
+    what = " / ".join(f"{p['label']} {p['share']:.0%}" if p["share"] < 1 else p["label"]
+                      for p in pools)
+    try:
+        odds = chestloot.crate_odds(zone)
+    except chestloot.ChestLootError as e:
+        return f"Crate loot ({what} pool): unknown -- {e}"
+
+    def name(i):
+        return "nothing" if i == 0 else (item_name(i) or f"item {i}")
+    groups = []                                 # [(chance, [names])], most likely first
+    for i, p in odds:
+        pct = round(p * 100, 1)
+        if groups and groups[-1][0] == pct:
+            groups[-1][1].append(name(i))
+        else:
+            groups.append((pct, [name(i)]))
+    parts = [f"{pct:g}% " + (names[0] if len(names) == 1 else "each: " + ", ".join(names))
+             for pct, names in groups]
+    return f"Crate loot ({what} pool, 1 item per visit): " + " · ".join(parts)
 
 
 _ITEM_CHOICES = None

@@ -5784,6 +5784,59 @@ def _headless_dialogs():
     return box
 
 
+def test_explorer_open_file():
+    """rf4mod_gui Open file…: one file from disk opens in a new tab and the file list (the game
+    copy) stays, so the tab reads textures from the game; a map opened that way saves back
+    to its own file, not into the game folder."""
+    print("asset explorer Open file… (keeps the game copy):")
+    import importlib.util, tempfile, shutil
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("explorer open file", "no tkinter: %s" % e); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("explorer open file", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_open", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    _headless_dialogs()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tmp / "MAP_OPEN_TEST.rf4m"
+        shutil.copyfile(B / "MAP_CITY_04.rf4m", f)
+        app = gui.App(root, initial=str(B))
+        src = app.source
+        app.open_path(f)
+        root.update_idletasks()
+        doc = app._doc
+        panel = doc._map_panel
+        _check("Open file… on a map keeps the game copy listed and opens the map in a new tab",
+               app.source is src and doc is not None and doc.key == ("file", str(f.resolve()))
+               and panel is not None and panel.file_path == f.resolve(),
+               (app.source is src, getattr(doc, "key", None)))
+        _check("the opened map reads its textures from the game copy",
+               panel.tex_reader == src.read_named, panel.tex_reader)
+        before = f.read_bytes()
+        panel.select(("mobj", 0))
+        panel.nudge(8, 0)
+        ok = panel.save_to_game()
+        leaked = [p for p in pathlib.Path(BUNDLE_DIR).rglob("MAP_OPEN_TEST.rf4m")]
+        _check("Ctrl+S on a map opened from disk writes that file, nothing in the game folder",
+               ok and f.read_bytes() != before and not leaked and not panel.doc.dirty("map"),
+               (ok, leaked))
+        _check("Open file… raised no callback errors", not errs, errs[:1])
+    finally:
+        try:
+            root.update()
+        except tk.TclError:
+            pass
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_explorer_tabs():
     """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
     state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
@@ -6395,6 +6448,300 @@ def test_map_editor_attr_tip():
     finally:
         for a in root.tk.splitlist(root.tk.call("after", "info")):
             root.after_cancel(a)                # (a pending refocus would run on a dead root)
+        root.destroy()
+
+
+def test_map_editor_multi_select():
+    """Map editor multi-selection: Shift+click adds / removes, a drag on empty map selects
+    what lies in the box, dragging one of several moves them all (one undo step), arrow keys
+    nudge and Delete deletes the whole selection (one undo step each), a plain click on one
+    of them keeps only it, and every selected object gets a selection frame."""
+    print("map editor multi-selection (Shift+click, box, group move / nudge / delete):")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor multi-select", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("map editor multi-select", "no extracted bundleMain"); return
+    me = _map_editor()
+    from map_editor import render as _render
+    from rf4s_modkit import rf4m as _rf4m
+    root = tk.Tk()
+    root.geometry("1000x700+40+40")
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tk.Frame(root)
+        f.pack(fill="both", expand=True)
+        ed = me.MapEditorPanel(f, _rf4m.Rf4mMap.load(B / "MAP_CITY_04.rf4m"), "MAP_CITY_04")
+        v, c = ed.view, ed.view.canvas
+        for _ in range(200):
+            root.update()
+            if c.winfo_ismapped() and c.winfo_width() > 200:
+                break
+        d = ed.doc
+
+        def pos(k):
+            r = d.map.mobj_records()[k]
+            return r[14], r[15]
+        objs = [i for i, o in enumerate(d.objs) if _render.entity_visible(o, v.st.layers)]
+        a, b = objs[0], objs[1]
+
+        def ev(x, y, state=0):
+            """A pointer event at map sub-unit (x, y)."""
+            px = x * v.cp / 8 - c.canvasx(0)
+            py = y * v.cp / 8 - c.canvasy(0)
+            return type("E", (), {"x": int(px), "y": int(py), "state": state,
+                                  "x_root": 0, "y_root": 0})()
+
+        def click(x, y, state=0, to=None):
+            t = ed.tools["select"]
+            t.press(ev(x, y, state))
+            if to is not None:
+                for k in range(1, 5):          # a few motion steps, as a real drag sends
+                    t.drag(ev(x + (to[0] - x) * k // 4, y + (to[1] - y) * k // 4, state))
+                t.release(ev(to[0], to[1], state))
+            else:
+                t.release(ev(x, y, state))
+            root.update()
+        ed.set_tool("select")
+        # 1) Shift+click adds, the frames go on both
+        ed.select(("mobj", a))
+        ed.add_to_selection(("mobj", b))
+        root.update()
+        frames = _render._selection(v.st)
+        _check("Shift+click adds to the selection; every selected object gets a frame",
+               ed.selection == [("mobj", a), ("mobj", b)] and v.st.multi == tuple(ed.selection)
+               and len(frames) >= 2, (ed.selection, len(frames)))
+        # 2) arrows nudge all, one undo step
+        pa, pb = pos(a), pos(b)
+        n_undo = len(d.undo_stack)
+        ed.nudge(8, 0)
+        _check("arrow keys nudge every selected object (one undo step)",
+               pos(a) == (pa[0] + 8, pa[1]) and pos(b) == (pb[0] + 8, pb[1])
+               and len(d.undo_stack) == n_undo + 1, (pa, pos(a), pb, pos(b)))
+        ed.undo()
+        _check("one undo puts them all back", pos(a) == pa and pos(b) == pb)
+        # 3) dragging one of them moves both
+        ed.select(("mobj", b), keep=[("mobj", a)])
+        v.center_on(pa[0] >> 3, pa[1] >> 3)
+        root.update()
+        grab = None                             # a point on one of the two, where it is drawn
+        for it, k in list(v._items.items()):
+            if k in ed.selection and c.bbox(it):
+                x0, y0, x1, y1 = c.bbox(it)
+                gx, gy = int((x0 + x1) / 2 * 8 / v.cp), int((y0 + y1) / 2 * 8 / v.cp)
+                if any(q in ed.selection for q in v.pick_candidates(ev(gx, gy))):
+                    grab = (gx, gy)
+                    break
+        if grab is not None:
+            click(grab[0], grab[1], to=(grab[0] + 16, grab[1]))
+            moved = pos(a) == (pa[0] + 16, pa[1]) and pos(b) == (pb[0] + 16, pb[1])
+            _check("dragging one of several selected objects moves them all by the same amount",
+                   moved and len(ed.selection) == 2, (pa, pos(a), pb, pos(b), ed.selection))
+            ed.undo()
+            _check("the group drag is one undo step", pos(a) == pa and pos(b) == pb)
+        else:
+            _skip("group drag", "object hidden under another at its position")
+        # 4) a drag on empty map selects what lies in the box
+        W, H, _ = d.grid
+        spot = None
+        for ty in range(1, H - 1, 2):
+            for tx in range(1, W - 1, 2):
+                v.center_on(tx, ty)
+                root.update()
+                if not v.pick_candidates(ev(tx * 8 + 4, ty * 8 + 4)):
+                    spot = (tx * 8 + 4, ty * 8 + 4)
+                    break
+            if spot:
+                break
+        if spot is not None:
+            ed.select(None)
+            end = (min(W * 8 - 1, spot[0] + 160), min(H * 8 - 1, spot[1] + 160))
+            v.center_on((spot[0] + end[0]) // 16, (spot[1] + end[1]) // 16)
+            root.update()
+            want = ed.keys_in_rect(spot[0], spot[1], end[0], end[1])
+            click(spot[0], spot[1], to=end)
+            _check("a drag on empty map selects everything in the box",
+                   set(ed.selection) == set(want) and v.st.sel is not None if want else not ed.selection,
+                   (len(want), len(ed.selection)))
+        else:
+            _skip("selection box", "no empty spot found")
+        # 5) Ctrl+A, then Delete deletes them all as one undo step
+        ed.select(("mobj", a), keep=[("mobj", b)])
+        n_obj, n_undo = len(d.objs), len(d.undo_stack)
+        ed.delete_selection()
+        _check("Delete deletes the whole selection (one undo step)",
+               len(d.objs) == n_obj - 2 and len(d.undo_stack) == n_undo + 1 and not ed.selection,
+               (n_obj, len(d.objs)))
+        ed.undo()
+        _check("one undo brings them all back", len(d.objs) == n_obj and pos(a) == pa)
+        ed.select_all()
+        _check("Ctrl+A selects every shown object",
+               len(ed.selection) >= len(objs) and ("mobj", a) in ed.selection, len(ed.selection))
+        # 6) Shift+click on a selected one takes it out; a plain click keeps only one
+        ed.select(("mobj", b), keep=[("mobj", a)])
+        ed.remove_from_selection(("mobj", b))
+        _check("Shift+click on a selected object takes it out of the selection",
+               ed.selection == [("mobj", a)] and ed.sel == ("mobj", a) and v.st.multi == ())
+        _check("multi-selection raised no callback errors", not errs, errs[:1])
+    finally:
+        try:
+            root.update()
+        except tk.TclError:
+            pass
+        root.destroy()
+
+
+def test_chest_loot():
+    """Treasure-chest loot (rf4s_modkit.chestloot): the RF4S.exe+0x9EFA60 table shipped in
+    refdata/rf4s_exe_tables.json -- 190 rows of 4 slots (11-bit item id + a 4-bit value); when
+    the game folder has the same RF4S.exe the file was extracted from, every table in it
+    matches the exe byte for byte (gen_exe_tables_json.build). The map editor shows a chest's
+    contents in the Inspect tab and the hover tooltip, and follows an f8 edit."""
+    print("treasure-chest loot table (RF4S.exe+0x9EFA60, shipped in refdata) in the map editor:")
+    import hashlib
+    from rf4s_modkit import chestloot as cl, exetables as _ext
+    rows = cl.load()
+    _check("the shipped chest table: 190 rows of 4 slots",
+           len(rows) == 190 and all(len(r) == 4 for r in rows), len(rows))
+    exe = _ext.default_exe()
+    if exe is None:
+        _skip("shipped tables vs RF4S.exe", "no RF4S.exe next to the game's Bundle folder")
+    elif hashlib.sha256(exe.read_bytes()).hexdigest() != cl.tables()["source"]["sha256"]:
+        _skip("shipped tables vs RF4S.exe", "the game folder has a different RF4S.exe build")
+    else:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "gen_exe_tables_json", pathlib.Path(__file__).with_name("gen_exe_tables_json.py"))
+        gen_mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen_mod)
+        fresh = gen_mod.build(exe)
+        shipped = cl.tables()
+        _check("refdata/rf4s_exe_tables.json matches this RF4S.exe (chest rows, crate pools, "
+               "area BGM; table at file offset 0x9EE660)",
+               fresh["chest_loot"] == shipped["chest_loot"]
+               and fresh["crate_pools"] == shipped["crate_pools"]
+               and fresh["area_bgm"] == shipped["area_bgm"]
+               and _ext.rva_to_offset(exe.read_bytes(), cl.TABLE_RVA) == 0x9EE660)
+    _check("rows decode to item ids + the 4-bit value: row 0 = 3 Recovery Potions, row 7 = "
+           "Bronze + 3 Iron [2], row 9 empty, a negative row has nothing",
+           rows[0] == [(127, 0)] * 3 + [(0, 0)]
+           and rows[7] == [(820, 0), (819, 2), (819, 2), (819, 2)]
+           and rows[9] == [(0, 0)] * 4 and cl.row(-1) == []
+           and cl.summary(rows[7], {820: "Bronze", 819: "Iron"}.get) == "Bronze, 3x Iron [2]"
+           and cl.summary([]) == "(empty)", (rows[0], rows[7]))
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("chest loot in the editor", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_A03.rf4m").exists():
+        _skip("chest loot in the editor", "no extracted bundleMain"); return
+    root, ed, errs = _headless_panel("MAP_DUNG_A03", B)
+    try:
+        recs = ed.doc.map.mobj_records()
+        k = next(i for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44)
+        ed.select(("mobj", k))
+        root.update_idletasks()
+        form = ed.inspector._form
+        shown = form.type_label.cget("text")
+        tip = ed.view.describe_key(("mobj", k))
+        row = recs[k][8]
+        _check("selecting a chest shows its loot in the Inspect tab and the hover tooltip",
+               f"Loot (row {row}): " in shown and "Recovery Potion" in shown
+               and f"Loot (row {row}): " in tip, (shown.splitlines()[-1:], tip.splitlines()[-1:]))
+        rec = list(recs[k]); rec[8] = 6
+        ed.apply("chest row", "mobj", lambda: ed.doc.map.set_mobj_record(k, rec))
+        root.update_idletasks()
+        after = form.type_label.cget("text")
+        _check("changing the chest's row (f8) shows the new row's loot",
+               "Loot (row 6): Spear, Iron Shield" in after, after.splitlines()[-1:])
+        _check("chest loot raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_crate_loot_and_mgrp():
+    """Crate loot + the MGRP decode: a crate (type 53) rolls one item per visit from the pool
+    of its map's area group (zone = MGRP group bit - 5; DUNG_E 80 % common / 20 % rare, the
+    rest the default pool) -- the odds of every pool add up to 1, the editor shows them in the
+    Inspect tab / hover tooltip (f10 = 1: empty); mgrp_explain spells out the season, weather,
+    group, base BGM, crate pool and the castle's extra group bits, and editing the season on
+    the Map tab keeps those extra bits."""
+    print("crate loot pools + MGRP decode:")
+    from rf4s_modkit import chestloot as cl, rf4m as _rf4m
+    zones = {z: cl.zone_of_mgrp(v) for z, v in (("castle", 0x00C00051), ("fields", 0x104),
+                                                 ("DUNG_E", 0x2000), ("dummy", 0x10), ("none", None))}
+    _check("zone = MGRP group bit - 5 (0 below 0x20; the lowest group bit wins)",
+           zones == {"castle": 1, "fields": 3, "DUNG_E": 8, "dummy": 0, "none": None}, zones)
+    sums = {z: round(sum(p for _i, p in cl.crate_odds(z)), 6) for z in (3, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16)}
+    e = dict(cl.crate_odds(8))
+    _check("every crate pool's odds add up to 1; DUNG_E: Platinum 4/8 of the 20 % rare roll",
+           set(sums.values()) == {1.0} and abs(max(e.values()) - 0.1) < 1e-9, sums)
+    ex = _rf4m.mgrp_explain(0x00C00051)
+    _check("mgrp_explain: fixed season, no weather, group bit 6 = zone 1, base BGM, crate pool, "
+           "and the castle's extra bits 22 / 23 as the minimap room sub-group",
+           any("fixed season: spring" in l for l in ex) and any("no weather" in l for l in ex)
+           and any("bit 6" in l and "zone 1" in l for l in ex)
+           and any("base BGM SEQ_ROOM" in l for l in ex) and any("crates roll the default" in l for l in ex)
+           and any("22, 23" in l and "sub-group 0" in l for l in ex), ex)
+    _check("mgrp_explain: bit 2 switches the BGM mode, DUNG_E crates roll 80 % / 20 %",
+           any("target mode 2" in l for l in _rf4m.mgrp_explain(0x104))
+           and any("DUNG_E common (80%) / DUNG_E rare (20%)" in l for l in _rf4m.mgrp_explain(0x2000)))
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("crate loot in the editor", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_B01.rf4m").exists() or not (B / "MAP_F_ROOM_00.rf4m").exists():
+        _skip("crate loot in the editor", "no extracted bundleMain"); return
+    from map_editor import data as _md
+
+    def _cl_text(mgrp):
+        return _md.crate_loot([53] + [0] * 15, mgrp)
+    root, ed, errs = _headless_panel("MAP_DUNG_B01", B)
+    try:
+        recs = ed.doc.map.mobj_records()
+        k = next(i for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 53)
+        ed.select(("mobj", k))
+        root.update_idletasks()
+        form = ed.inspector._form
+        shown = form.type_label.cget("text")
+        tip = ed.view.describe_key(("mobj", k))
+        from rf4s_modkit import chestloot as _cl
+        n_items = len(_cl.crate_odds(5))
+        listed = shown.splitlines()[-1].split(": ", 1)[1]
+        names = [x for part in listed.split(" · ") for x in part.split("% ", 1)[1]
+                 .removeprefix("each: ").split(", ")]
+        _check("selecting a crate shows its whole area pool with the odds, same chances grouped "
+               "(Inspect + hover tooltip, nothing cut off)",
+               "Crate loot (DUNG_B pool, 1 item per visit): 8.6% Antidote Grass · 5.7% each: "
+               "nothing, Grapes, Purple Grass" in shown and "more" not in shown
+               and len(names) == n_items and tip.splitlines()[-1] == shown.splitlines()[-1],
+               (len(names), n_items, shown.splitlines()[-1][:120]))
+        big = tk.Label(root, text=ed.view.describe_key(("mobj", k)).rsplit("\n", 1)[0] + "\n"
+                       + _cl_text(0x200010), font=("Consolas", 8), wraplength=480, justify="left")
+        big.update_idletasks()
+        _check("even the 79-item DUNG_M pool fits a tooltip (under 480 x 300 px)",
+               big.winfo_reqwidth() <= 480 and big.winfo_reqheight() < 300,
+               (big.winfo_reqwidth(), big.winfo_reqheight()))
+        rec = list(recs[k]); rec[10] = 1
+        ed.apply("empty crate", "mobj", lambda: ed.doc.map.set_mobj_record(k, rec))
+        root.update_idletasks()
+        _check("f10 = 1 shows the crate as empty",
+               "nothing (f10 = 1" in form.type_label.cget("text"))
+        # the castle keeps its extra group bits when the Map tab changes its season
+        ed.set_map(_rf4m.Rf4mMap.load(B / "MAP_F_ROOM_00.rf4m"), "MAP_F_ROOM_00")
+        mt = ed.maptab
+        mt.refresh()
+        mt.mgrp_bits[0x2].set(True)
+        mt.mgrp_bits[0x1].set(False)
+        mt._commit_mgrp_controls()
+        _check("ticking a season on the Map tab keeps MAP_F_ROOM_00's extra group bits 22 / 23",
+               ed.doc.map.mgrp() == 0x00C00052, hex(ed.doc.map.mgrp()))
+        _check("crate loot / MGRP raised no callback errors", not errs, errs[:1])
+    finally:
         root.destroy()
 
 
@@ -8485,18 +8832,14 @@ def test_asset_explorer_gui():
         _outer = [nb.tab(t, "text") for t in nb.tabs()]
         _side = [p2.nb.tab(t, "text") for t in p2.nb.tabs()]
         _check("the map's Events tab sits in the editor's sidebar (once, just before Problems, "
-               "which stays last); the outer tabs stay Map (edit) / Chunks / Hex",
-               _outer == ["Map (edit)", "Chunks", "Hex"] and _side[-2:] == ["Events", "Problems"]
+               "which stays last); a map tab is the editor alone (no Chunks / Hex, no tab strip)",
+               _outer == ["Map (edit)"] and nb.cget("style") == "MapOnly.TNotebook"
+               and [e[0] for e in gui.ttk.Style().layout("MapOnly.TNotebook.Tab")] in ([], ["null"])
+               and _side[-2:] == ["Events", "Problems"]
                and _side.count("Events") == 1, "%s | %s" % (_outer, _side))
         p2.show_tab("Problems")
         _check("show_tab finds a tab by its title with Events inserted (Problems, not Events)",
                p2.nb.tab(p2.nb.select(), "text") == "Problems")
-        hx_tab = [t for t in nb.tabs() if nb.tab(t, "text") == "Hex"][0]
-        hx_text = [w for w in nb.nametowidget(hx_tab).winfo_children()[0].winfo_children()
-                   if isinstance(w, tk.Text)][0]
-        empty_before = hx_text.get("1.0", "end-1c") == ""
-        nb.select(hx_tab); app._on_map_tab_changed()
-        _check("Hex tab fills only when first opened", empty_before and hx_text.get("1.0", "3.0").strip() != "")
         gen0 = p2.view.ground.generation
         show("MAP_FIELD_01_0000.texture")
         _check("a non-map view hides the editor (kept alive) and suspends its decode",
@@ -9426,8 +9769,8 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
         try:

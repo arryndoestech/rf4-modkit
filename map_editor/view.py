@@ -14,7 +14,7 @@ from tkinter import ttk
 import guiutil
 from rf4s_modkit import mobj_types
 
-from . import attrs, render, ui
+from . import attrs, data, render, ui
 
 ZOOMS = (2, 3, 4, 6, 8, 12, 16, 24)      # px per tile; 1 px showed nothing useful
 OPEN_ZOOM = 6                              # px per tile a map opens at (Fit / 0 shows it all)
@@ -48,6 +48,7 @@ class ViewState:
         self.cp = 6
         self.layers = {}
         self.sel = None
+        self.multi = ()                          # a multi-selection: every selected key
         self.active_gate = None
         self.gate_focus = False                  # outline the active gate's points (panel)
         self.spawns = []
@@ -697,7 +698,11 @@ class MapView(ttk.Frame):
             o = d.objs[i]
             tid = o["type_id"] & 0xFFFF
             head = mobj_types.mobj_display_name(tid) or f"type {tid}"
-            return f"#{i}  {head}\n{o['category']}  tile ({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
+            text = f"#{i}  {head}\n{o['category']}  tile ({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
+            rec = d.map.mobj_records()[i]
+            loot = (data.chest_loot(rec) if tid == 44 else
+                    data.crate_loot(rec, d.map.mgrp()) if tid == 53 else None)
+            return text + ("\n" + loot if loot else "")
         if kind == "si" and d.si is not None and i < len(d.si.spots):
             sp = d.si.spots[i]
             return f"search spot #{i}  tile ({sp.tile_x}, {sp.tile_y})  {len(sp.pool.entries)} drop(s)"
