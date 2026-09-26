@@ -2780,19 +2780,20 @@ class App:
 
     def _view_gifts(self, name, data):
         """rf3PresentNpc*.bin NPC gift-preference table (read-only decode, item names)."""
+        doc = self._doc
         items = _load_item_names()
         chars = _load_char_names()
         num = int(pathlib.Path(name).stem[13:15]) if pathlib.Path(name).stem[13:15].isdigit() else 0
         name_fn = lambda i: items.get(i, "")
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         who = chars.get(num, "?")
         ttk.Label(bar, text=f"Gift preferences — char {num} {who}  (archive {14850 + num})",
                   ).pack(side="left", padx=6)
-        tv = ttk.Treeview(self.content, columns=("aff", "item", "fp"), show="headings", height=20)
+        tv = ttk.Treeview(doc.content, columns=("aff", "item", "fp"), show="headings", height=20)
         for c, w in (("aff", 130), ("item", 320), ("fp", 90)):
             tv.heading(c, text={"aff": "affinity", "item": "item / target", "fp": "FP / note"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         catbytes = _find_extracted("rf3PresentCategory.bin")
@@ -2817,7 +2818,7 @@ class App:
                                          else "")
                     tv.insert("", "end", values=(aff, tgt, note))
         # ---- edit controls (2026-09-19): tier / FP of an item, signature dislike, remove ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_item, v_tier, v_fp = tk.StringVar(), tk.StringVar(value="loved"), tk.StringVar()
         ttk.Label(ctl, text="item id").pack(side="left")
         ttk.Entry(ctl, textvariable=v_item, width=7).pack(side="left", padx=2)
@@ -2847,7 +2848,7 @@ class App:
                 fp = int(v_fp.get(), 0) if v_fp.get().strip() else None
             except ValueError:
                 messagebox.showerror("Bad value", "item id (and FP) must be integers"); return
-            t = gifts.GiftTable.parse(self.cur_data)
+            t = gifts.GiftTable.parse(doc.cur_data)
             try:
                 if action == "set":
                     t.set_item(iid, v_tier.get(), fp)
@@ -2858,16 +2859,16 @@ class App:
                 blob = t.build()
             except Exception as ex:  # noqa: BLE001 - surface the module's own message
                 messagebox.showerror("Edit failed", str(ex)); return
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text=f"gift table edited ({action} item {iid}) — Save table… / Extract… to write")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(self.cur_name).name,
+                                             initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("gift table", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, act in (("Set tier", "set"), ("Signature dislike", "signature"), ("Remove item", "remove")):
             ttk.Button(ctl, text=lbl, command=lambda a=act: _edit(a)).pack(side="left", padx=2)
         ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
