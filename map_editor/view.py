@@ -6,7 +6,9 @@ moved entity only the entity group, and so on. The background image (texture + A
 is rebuilt only when the grid, zoom or a background setting changes."""
 from __future__ import annotations
 
+import sys
 import tkinter as tk
+import types
 from tkinter import ttk
 
 import guiutil
@@ -75,6 +77,7 @@ class MapView(ttk.Frame):
         self._attr_photo = None
         self._photos = {}                        # (type_id, size) -> PhotoImage
         self._tip = None
+        self._pointer_e = None      # the last pointer position over the canvas (Alt at rest)
 
         hbar = ttk.Scrollbar(self, orient="horizontal")
         vbar = ttk.Scrollbar(self, orient="vertical")
@@ -95,7 +98,16 @@ class MapView(ttk.Frame):
         c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
         c.bind("<B2-Motion>", lambda e: c.scan_dragto(e.x, e.y, gain=1))
         c.bind("<Motion>", self._motion, add="+")
-        c.bind("<Leave>", lambda _e: (self.hide_tip(), self._hover(None)), add="+")
+        c.bind("<Leave>", lambda _e: (self._set_pointer(None), self.hide_tip(), self._hover(None)),
+               add="+")
+        # Alt (like the cutscene editor; Ctrl still works) shows the ATTR tooltip, also when
+        # pressed with the pointer at rest. "break" keeps a bare Alt from putting the window
+        # into menu mode (tk::WinMenuKey), which would eat the next key.
+        top = self.winfo_toplevel()
+        for seq in ("<KeyPress-Alt_L>", "<KeyPress-Alt_R>"):
+            top.bind(seq, lambda _e: self._alt(True), add="+")
+        for seq in ("<KeyRelease-Alt_L>", "<KeyRelease-Alt_R>"):
+            top.bind(seq, lambda _e: self._alt(False), add="+")
 
     # ---- document / settings ------------------------------------------- #
     @property
@@ -630,10 +642,30 @@ class MapView(ttk.Frame):
         return "break"
 
     # ---- hover -------------------------------------------------------------- #
+    # Tk's Alt bit: 0x20000 on Windows (Mod1 = 0x0008 is Num Lock there), Mod1 elsewhere
+    ALT_MASK = 0x20000 if sys.platform == "win32" else 0x0008
+
+    def _set_pointer(self, e):
+        self._pointer_e = None if e is None else types.SimpleNamespace(
+            x=e.x, y=e.y, x_root=e.x_root, y_root=e.y_root)
+
+    def _alt(self, down):
+        """Alt pressed / released with the pointer over the map: show / drop the ATTR tip."""
+        p = self._pointer_e
+        if p is None or self.doc is None or not self.canvas.winfo_ismapped():
+            return None
+        self._tip_at(p, self.ALT_MASK if down else 0)
+        return "break"
+
     def _motion(self, e):
+        self._set_pointer(e)
         t = self.tile_at(e)
         self._hover(t)
-        if e.state & 0x0004 and t is not None:          # Ctrl: ATTR inspector tooltip
+        self._tip_at(e, e.state)
+
+    def _tip_at(self, e, state):
+        t = self.tile_at(e)
+        if state & (self.ALT_MASK | 0x0004) and t is not None:   # Alt / Ctrl: ATTR inspector
             v = self.doc.cell(*t)
             self.show_tip(e, f"tile ({t[0]}, {t[1]})   ATTR = 0x{v:X}\n{attrs.attr_notes(v)}")
             return

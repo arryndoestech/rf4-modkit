@@ -145,7 +145,7 @@ def attr_notes(v):
 
 
 # ---------------------------------------------------------------------------
-# Ctrl-hover help for the Paint ATTR checkboxes.
+# Hover help for the Paint ATTR checkboxes.
 #
 # Each entry is what that bit actually does, and how well that is evidenced.
 # "Engine reads it" means at least one function applies a mask containing the bit
@@ -207,7 +207,7 @@ PAINT_FLAGS = [
 
 
 def surface_help():
-    """Ctrl-hover text for the surface dropdown itself."""
+    """Hover text for the surface dropdown itself."""
     out = ["The surface field (loader group D).",
            "The loader copies a cell as stored, but no shipped tile carries more",
            "than ONE of these: verified over every shipped map, 3,280,534 cells,",
@@ -356,7 +356,7 @@ ATTR_BIT_HELP = {
 
 
 def attr_bit_help(mask):
-    """Ctrl-hover text for one Paint ATTR checkbox."""
+    """Hover text for one Paint ATTR checkbox."""
     body = ATTR_BIT_HELP.get(mask)
     if not body:
         return "0x%X\nNo description recorded for this bit." % mask

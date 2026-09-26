@@ -6345,6 +6345,59 @@ def test_map_editor_clipboard():
         root.destroy()
 
 
+def test_map_editor_attr_tip():
+    """Map editor ATTR tooltip: Alt+hover (like the cutscene editor) and Ctrl+hover show the
+    tile's ATTR decode, a bare hover does not, and pressing / releasing Alt with the pointer
+    at rest shows / drops it."""
+    print("map editor ATTR tooltip (Alt / Ctrl hover):")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor ATTR tooltip", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("map editor ATTR tooltip", "no extracted bundleMain"); return
+    me = _map_editor()
+    from rf4s_modkit import rf4m as _rf4m
+    root = tk.Tk()
+    root.geometry("900x650+40+40")
+    try:
+        f = tk.Frame(root)
+        f.pack(fill="both", expand=True)
+        ed = me.MapEditorPanel(f, _rf4m.Rf4mMap.load(B / "MAP_CITY_04.rf4m"), "MAP_CITY_04")
+        v, c = ed.view, ed.view.canvas
+        for _ in range(200):                    # events reach a canvas only once it is mapped
+            root.update()
+            if c.winfo_ismapped() and c.winfo_width() > 200:
+                break
+
+        def tip():
+            return v._tip_label.cget("text") if v._tip is not None else ""
+
+        def move(state):
+            v.hide_tip()
+            c.event_generate("<Motion>", x=150, y=150, state=state, when="now")
+            root.update()
+            return tip()
+        plain, ctrl, alt = move(0), move(0x0004), move(v.ALT_MASK)
+        move(0)
+        c.focus_force()
+        c.event_generate("<KeyPress-Alt_L>", when="now"); root.update()
+        at_rest = tip()
+        c.event_generate("<KeyRelease-Alt_L>", when="now"); root.update()
+        released = tip()
+        _check("map editor: Alt+hover / Ctrl+hover show the ATTR tip, a bare hover does not",
+               "ATTR =" in ctrl and "ATTR =" in alt and "ATTR =" not in plain,
+               f"plain={plain!r} ctrl={ctrl!r} alt={alt!r}")
+        _check("map editor: pressing Alt at rest shows the ATTR tip, releasing drops it",
+               "ATTR =" in at_rest and "ATTR =" not in released,
+               f"at_rest={at_rest!r} released={released!r}")
+    finally:
+        for a in root.tk.splitlist(root.tk.call("after", "info")):
+            root.after_cancel(a)                # (a pending refocus would run on a dead root)
+        root.destroy()
+
+
 def test_map_editor_save_to_game():
     """Map editor Save (Ctrl+S) writes in place, like the cutscene editor: the changed map and
     search spots go over the files the game loads from the game folder, with no dialog; the
@@ -9373,7 +9426,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
