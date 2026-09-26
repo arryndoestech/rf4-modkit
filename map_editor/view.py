@@ -122,7 +122,17 @@ class MapView(ttk.Frame):
 
     def _ground_ready(self, key):
         if key == self.ground_key():
-            self.invalidate("bg")
+            self.invalidate("bg", "under")      # the held-back sprites appear with the ground
+
+    def ground_pending(self):
+        """True while the ground texture this view will show is still being decoded; the
+        true-size sprites wait for it, so they never pop up on an empty background."""
+        d = self.doc
+        if d is None or d.grid is None or not render.HAS_PIL or self.ground.reader is None:
+            return False
+        if self.ground_sel == "off" and not self.scenery:
+            return False
+        return not self.ground.has(self.ground_key())
 
     def ground_image(self, block=False):
         d = self.doc
@@ -202,6 +212,8 @@ class MapView(ttk.Frame):
         for it in c.find_withtag(g):
             self._items.pop(it, None)
         c.delete(g)
+        if g == "under" and self.ground_pending():
+            return                              # drawn when the ground arrives (_ground_ready)
         for p in render.overlay(g, self.st):
             o = p.opt
             tags = (g,)
@@ -333,20 +345,45 @@ class MapView(ttk.Frame):
                 out.append(k)
         return out
 
-    def warp_at(self, e):
-        """Index of the warp zone containing the pointer (smallest zone wins)."""
+    def warps_at(self, e):
+        """Indices of the warp zones containing the pointer, smallest zone first."""
         t = self.tile_at(e)
         d = self.doc
         if t is None or not self.st.layers.get("mapj"):
-            return None
-        best = None
+            return []
+        found = []
         for j, rec in enumerate(d.map.mapj_records()):
             x0, y0, x1, y1 = rec[1] >> 3, rec[2] >> 3, (rec[1] + rec[3]) >> 3, (rec[2] + rec[4]) >> 3
             if x0 <= t[0] <= max(x1, x0) and y0 <= t[1] <= max(y1, y0):
-                area = (x1 - x0 + 1) * (y1 - y0 + 1)
-                if best is None or area < best[0]:
-                    best = (area, j)
-        return best[1] if best else None
+                found.append(((x1 - x0 + 1) * (y1 - y0 + 1), j))
+        return [j for _a, j in sorted(found)]
+
+    def warp_at(self, e):
+        """Index of the warp zone containing the pointer (smallest zone wins)."""
+        w = self.warps_at(e)
+        return w[0] if w else None
+
+    PICKABLE = ("mobj", "gpos", "mpos", "si", "spawn", "warp")
+
+    def pick_candidates(self, e, kinds=PICKABLE):
+        """Everything a click here can select, in the order a click picks it: precise hits
+        (markers, labels, outlines, sprite borders), then the warp zones under the pointer
+        (smallest first), then the insides of true-size sprites -- they lie below the warps
+        and the ATTR fill, so they are the weakest hit (topmost sprite first)."""
+        x, y = self.canvas_xy(e)
+        strong, weak = [], []
+        under = set(self.canvas.find_withtag("under"))
+        for it in reversed(self.canvas.find_overlapping(x - 3, y - 3, x + 3, y + 3)):
+            k = self._items.get(it)
+            if k is None or k[0] not in kinds:
+                continue
+            (weak if it in under else strong).append(k)
+        out = []
+        warps = [("warp", j) for j in self.warps_at(e)] if "warp" in kinds else []
+        for k in strong + warps + weak:
+            if k not in out:
+                out.append(k)
+        return out
 
     # ---- zoom / scroll ------------------------------------------------------- #
     def max_zoom(self):
@@ -456,8 +493,10 @@ class MapView(ttk.Frame):
             v = self.doc.cell(*t)
             self.show_tip(e, f"tile ({t[0]}, {t[1]})   ATTR = 0x{v:X}\n{attrs.attr_notes(v)}")
             return
-        keys = self.keys_at(e)
-        k = next((k for k in keys if k[0] != "handle"), None)
+        cands = self.pick_candidates(e)
+        k = cands[0] if cands else None          # what a click would select
+        if k is not None and k[0] == "warp":
+            k = None                             # (warps show their destination on the map)
         text = self.describe_key(k) if k else None
         if text:
             self.show_tip(e, text)

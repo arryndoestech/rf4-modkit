@@ -29,7 +29,6 @@ STACK = ("bg", "under", "attr") + tuple(g for g in GROUPS if g != "under")
 
 SEL_COLOR = "#00e5ff"
 WARP_COLOR = "#ffd040"
-INVISIBLE_COLOR = "#b48cff"     # stand-in for a fully transparent true-size sprite
 BORDER_COLOR = "#ff3030"        # the outline of every true-size sprite ("sprite borders")
 SI_COLOR = "#ffe000"
 GATE_COLOR = "#ff8c1a"
@@ -366,7 +365,7 @@ class TrueSprites:
 
     def __init__(self):
         self.reader = None
-        self._src = {}                     # (texture name, frame) -> (RGBA, quad, invisible) | None
+        self._src = {}                     # (texture name, frame) -> (RGBA, quad) | None
         self._scaled = OrderedDict()
 
     def reset(self):
@@ -374,9 +373,7 @@ class TrueSprites:
         self._scaled.clear()
 
     def source(self, o):
-        """(texture name, frame, quad, invisible) for a decoded MOBJ entry, or None.
-        invisible = every pixel of the drawn part is fully transparent (the game draws
-        nothing: MOBJ_CLEAR_WALL, MOBJ_LAST_BOSS_WALL_*), so the editor shows a stand-in."""
+        """(texture name, frame, quad) for a decoded MOBJ entry, or None."""
         r = self.reader
         name = o.get("name")
         if r is None or not name:
@@ -393,13 +390,11 @@ class TrueSprites:
                     if frame >= texture.frame_count(data):
                         frame = 0
                     got = spritequad.sprite_image(data, frame)
-                    if got is not None:
-                        got = got + (got[0].getchannel("A").getextrema()[1] == 0,)
                 except Exception:
                     got = None
             self._src[key] = got
         got = self._src[key]
-        return (fn, key[1], got[1], got[2]) if got else None
+        return (fn, key[1], got[1]) if got else None
 
     def pil(self, fn, frame, w, h, mirror):
         """The sprite resized to w x h canvas pixels (mirrored when asked)."""
@@ -498,19 +493,12 @@ def overlay(group, st):
                 if gone:
                     out.append(Prim("rect", rect, key=("mobj", i), outline="#9a9aa8", width=1,
                                     dash=(4, 3)))
-                elif L.get("tborders", True) and not src[3]:     # the sprite's extent
+                elif L.get("tborders", True):   # the sprite's extent (also for invisible walls)
                     out.append(Prim("rect", rect, key=("mobj", i), outline=BORDER_COLOR, width=1))
-                elif src[3]:                # a fully transparent sprite: a stand-in above ATTR
-                    out.append(Prim("rect", rect, key=("mobj", i), outline=INVISIBLE_COLOR, width=2,
-                                    dash=(6, 4)))
-                    out.append(Prim("line", (rect[0], rect[1], rect[2], rect[3]), fill=INVISIBLE_COLOR,
-                                    dash=(6, 4)))
-                    out.append(Prim("line", (rect[0], rect[3], rect[2], rect[1]), fill=INVISIBLE_COLOR,
-                                    dash=(6, 4)))
                 if labels_on:
                     nm = mobj_types.mobj_display_name(tid) or o["category"]
                     out.append(Prim("text", ((rect[0] + rect[2]) // 2, rect[1] - 1),
-                                    text=nm + (" (hidden by flag)" if gone else " (invisible)" if src[3] else ""),
+                                    text=nm + (" (hidden by flag)" if gone else ""),
                                     fill="#ffe000", size=small, anchor="s"))
                 continue
             size = max(8, min(256, int(base * (o.get("scale") or 1.0))))

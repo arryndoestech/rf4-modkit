@@ -7821,20 +7821,16 @@ def test_sprite_quads_and_flags():
         kinds = lambda: {p.key[1]: p.kind for g in ("ent", "under") for p in mrender.overlay(g, st)
                          if p.key in (("mobj", 14), ("mobj", 15)) and p.kind != "text"}
         st.flags = None
-        stand_in = [p for p in mrender.overlay("ent", st) if p.key == ("mobj", 15)]
         red = lambda: [p for p in mrender.overlay("ent", st)
                        if p.key == ("mobj", 14) and p.opt.get("outline") == mrender.BORDER_COLOR]
         had = bool(red())
         panel.set_layer("tborders", False)
         gone_off = not red()
         panel.set_layer("tborders", True)
-        _check("editor: 'sprite borders' draws a red border around a true-size sprite (and can be "
-               "turned off)", had and gone_off)
-        _check("editor: the fully transparent clear wall gets a visible stand-in above the ATTR fill",
-               any(p.kind == "rect" and p.opt.get("outline") == mrender.INVISIBLE_COLOR for p in stand_in)
-               and not any(p.opt.get("outline") == mrender.INVISIBLE_COLOR
-                           for p in mrender.overlay("ent", st) if p.key == ("mobj", 14)),
-               str([(p.kind, p.opt) for p in stand_in]))
+        wall_red = any(p.key == ("mobj", 15) and p.opt.get("outline") == mrender.BORDER_COLOR
+                       for p in mrender.overlay("ent", st))
+        _check("editor: 'sprite borders' draws a red border around a true-size sprite, the "
+               "transparent clear wall included (and can be turned off)", had and gone_off and wall_red)
         st.flags = None
         k0 = kinds()
         st.flags = state(73)
@@ -7845,7 +7841,9 @@ def test_sprite_quads_and_flags():
                "74 the wall", k0 == {14: "tsprite", 15: "tsprite"} and k1 == {14: "rect", 15: "tsprite"}
                and k2 == {14: "tsprite", 15: "rect"}, "%s %s %s" % (k0, k1, k2))
         st.flags = None
-        panel.view.invalidate_all()
+        _v = panel.view
+        _v.ground.get_blocking(_v.doc.base, _v.ground_sel, _v.doc.grid[0], _v.doc.grid[1], _v.scenery)
+        panel.view.invalidate_all()                     # (the sprites wait for the ground)
         panel.view.flush()
         cv = panel.view.canvas
         pos = {it: n for n, it in enumerate(cv.find_all())}          # display list, bottom first
@@ -7858,6 +7856,74 @@ def test_sprite_quads_and_flags():
                and high("under") < low("attr") < low("warp") and high("under") < low("ent"),
                "bg %s under %s-%s attr %s warp %s ent %s" % (high("bg"), low("under"), high("under"),
                                                            low("attr"), low("warp"), low("ent")))
+        # picking: inside a warp that a sprite covers, the warp wins; clicking again cycles
+        v = panel.view
+        cv = v.canvas
+        # the sprites wait for the ground texture
+        v.ground.cache.clear()
+        v.invalidate("under")
+        v.flush()
+        held = v.ground_pending() and not cv.find_withtag("under")
+        d0 = v.doc
+        v.ground.get_blocking(d0.base, v.ground_sel, d0.grid[0], d0.grid[1], v.scenery)
+        v._ground_ready(v.ground_key())
+        v.flush()
+        _check("editor: true-size sprites are held back until the ground texture has loaded",
+               held and not v.ground_pending() and len(cv.find_withtag("under")) > 0)
+        spr = {p.key: p.xy for p in mrender.overlay("under", st)}
+        spot = None
+        for j, rec in enumerate(v.doc.map.mapj_records()):
+            wx0, wy0, wx1, wy1 = mrender.warp_rect_px(rec, st.cp)
+            for k2, (sx0, sy0, sx1, sy1) in spr.items():
+                x0, y0, x1, y1 = max(wx0, sx0) + 6, max(wy0, sy0) + 6, min(wx1, sx1) - 6, min(wy1, sy1) - 6
+                if x1 > x0 and y1 > y0:
+                    spot = (j, k2, (x0 + x1) // 2, (y0 + y1) // 2)
+                    break
+            if spot:
+                break
+        if spot is None:
+            _skip("editor: warp under a sprite", "no warp overlaps a true-size sprite on MAP_CITY_04")
+        else:
+            j, k2, px, py = spot
+
+            class _E:
+                pass
+            ev = _E()
+            ev.x, ev.y = px - int(cv.canvasx(0)), py - int(cv.canvasy(0))
+            ev.state = 0
+            cands = v.pick_candidates(ev)
+            tool = panel.tools["select"] if hasattr(panel, "tools") and isinstance(panel.tools, dict) else None
+            picked = []
+            if tool is not None:
+                for _n in range(2):
+                    tool.press(ev)
+                    tool.release(ev) if hasattr(tool, "release") else None
+                    picked.append(panel.sel)
+            _check("editor: inside a warp that a true-size sprite covers, the warp is picked first; "
+                   "clicking again steps to the sprite",
+                   cands and cands[0] == ("warp", j) and k2 in cands
+                   and (tool is None or (picked[0] == ("warp", j) and picked[1] != ("warp", j))),
+                   "%s picked %s" % (cands, picked))
+            if tool is not None:
+                # a fast second click arrives as a double-click: still a cycling click
+                before = panel.sel
+                tool.double(ev)
+                tool.release(ev)
+                fast = panel.sel != before and panel.sel in cands
+                # press on the selection + drag: moves it, never cycles
+                sel0 = panel.sel
+                pos0 = tuple(panel.position_of(sel0))
+                tool.press(ev)
+                ev2 = _E()
+                ev2.x, ev2.y, ev2.state = ev.x + 5 * st.cp, ev.y, 0
+                tool.drag(ev2)
+                tool.release(ev2)
+                moved = tuple(panel.position_of(sel0)) != pos0
+                kept = panel.sel == sel0
+                panel.doc.undo() if hasattr(panel.doc, "undo") else None
+                _check("editor: a fast second click (double-click) cycles too; a press + drag on "
+                       "the selection moves it without cycling",
+                       fast and moved and kept, "fast %s moved %s kept %s" % (fast, moved, kept))
         st.sel = ("mobj", 14)
         selp = mrender.overlay("sel", st)
         tr = [p.xy for p in mrender.overlay("under", st) if p.key == ("mobj", 14)]

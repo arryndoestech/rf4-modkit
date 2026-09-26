@@ -70,9 +70,10 @@ class Tool:
 # --------------------------------------------------------------------------- #
 class SelectTool(Tool):
     name, label, key, cursor = "select", "Select", "v", ""
-    hint = ("Click to select, drag to move (hold Shift for sub-tile precision). Drag a "
-            "selected warp's handles to resize it. Double-click or Ctrl+click a warp to open "
-            "its destination map. Arrow keys nudge the selection by a tile (Shift: 1 sub-unit).")
+    hint = ("Click to select, drag to move (hold Shift for sub-tile precision); click the same "
+            "spot again to select the next thing under the pointer (a drag moves the selection "
+            "instead). Drag a selected warp's handles to resize it. Ctrl+click a warp (or "
+            "double-click one with nothing else on top) to open its destination map. Arrow keys nudge the selection by a tile (Shift: 1 sub-unit).")
 
     def __init__(self, ed):
         super().__init__(ed)
@@ -86,6 +87,7 @@ class SelectTool(Tool):
         self.press_xy = None
         self.dragging = False
         self.started = False
+        self.cycle = None           # candidates to step through on release (a plain click)
 
     def press(self, e):
         self._reset()
@@ -99,15 +101,20 @@ class SelectTool(Tool):
             self.target, self.mode = ed.sel, handle[1]
             self.origin = tuple(rec[1:5])
             return
-        key = next((k for k in keys if k[0] in ("mobj", "gpos", "mpos", "si", "spawn")), None)
-        if key is not None and key[0] == "spawn":
-            ed.open_spawn(key[1])
-            return
-        if key is None:
-            j = self.view.warp_at(e)
-            if j is not None:
-                key = ("warp", j)
-        ed.select(key)
+        cands = self.view.pick_candidates(e)
+        if ed.sel is not None and ed.sel in cands:
+            # pressing on the selection keeps it: a drag moves it, and a plain click (released
+            # without moving) steps to the next thing under the pointer -- see release()
+            key = ed.sel
+            if len(cands) > 1:
+                self.cycle = cands
+        else:
+            key = cands[0] if cands else None
+            if key is not None and key[0] == "spawn":
+                ed.open_spawn(key[1])
+                return
+            ed.select(key)
+            self._announce(key, cands)
         if key is None:
             return
         self.target, self.mode = key, "move"
@@ -171,7 +178,26 @@ class SelectTool(Tool):
     def release(self, e):
         if self.started:
             self.ed.finish_edit()
+        cycle = self.cycle if not self.dragging else None
         self._reset()
+        if cycle:                               # a click on the selection: the next one
+            ed = self.ed
+            i = cycle.index(ed.sel) + 1 if ed.sel in cycle else 0
+            key = cycle[i % len(cycle)]
+            if key[0] == "spawn":
+                ed.open_spawn(key[1])
+                return
+            ed.select(key)
+            self._announce(key, cycle)
+
+    def _announce(self, key, cands):
+        """Status line when several things are under the pointer."""
+        if key is None or len(cands) < 2:
+            return
+        what = ("warp #%d" % key[1] if key[0] == "warp"
+                else (self.view.describe_key(key) or str(key)).split("\n")[0])
+        self.ed.status("%d of %d here: %s -- click again for the next"
+                       % (cands.index(key) + 1, len(cands), what))
 
     def cancel(self):
         """Esc during a drag: put the object back."""
@@ -181,20 +207,22 @@ class SelectTool(Tool):
 
     def right_press(self, e):
         """Context menu for the object under the pointer."""
-        keys = self.view.keys_at(e)
-        key = next((k for k in keys if k[0] in ("mobj", "gpos", "mpos", "si")), None)
-        if key is None:
-            j = self.view.warp_at(e)
-            key = ("warp", j) if j is not None else None
+        cands = self.view.pick_candidates(e, kinds=("mobj", "gpos", "mpos", "si", "warp"))
+        key = self.ed.sel if self.ed.sel in cands else (cands[0] if cands else None)
         if key is not None:
             self.ed.select(key)
             self.ed.context_menu(e, key)
 
     def double(self, e):
-        j = self.view.warp_at(e)
-        if j is not None:
-            self.ed.goto_warp(j)
+        """Tk sends a fast second click here instead of to press(): it opens the warp's
+        destination when the warp is the only thing under the pointer, otherwise it is an
+        ordinary click (so quick clicks still step through overlapping things)."""
+        cands = self.view.pick_candidates(e)
+        if len(cands) == 1 and cands[0][0] == "warp":
+            self.ed.goto_warp(cands[0][1])
             return "break"
+        self.press(e)
+        return "break"
 
 
 # --------------------------------------------------------------------------- #
