@@ -6251,6 +6251,40 @@ def test_map_editor_labels():
             for it in yellow)
         _check("every label is outlined: 8 black copies, one pixel off, drawn under it",
                len(black) == 8 * len(yellow) and outlined, f"{len(black)} outline items for {len(yellow)} labels")
+        # labels don't overlap each other (MAP_CITY_02 had "street street light" before)
+        from rf4s_modkit import rf4m as _rf4m
+        for nm in ("MAP_CITY_02", "MAP_FIELD_01"):
+            fr = tk.Frame(root)                     # the same Tk (images don't cross interpreters)
+            p2 = _map_editor().MapEditorPanel(fr, _rf4m.Rf4mMap.load(B / (nm + ".rf4m")), nm)
+            root.update_idletasks()
+            try:
+                v2 = p2.view
+                # the object labels on their own (warp names / script NPCs off, whatever an
+                # earlier test left in settings.json)
+                v2.st.layers.update(labels=True, sprites=False, dest=False, spawns=False)
+                v2._draw_group("dest"); v2._draw_group("spawn")
+                v2._draw_group("ent")
+                v2._update_scrollregion()            # (normally set on idle)
+                bx = [r["box"] for r in v2._labels["ent"]]
+                ov = sum(1 for i in range(len(bx)) for j in range(i + 1, len(bx))
+                         if bx[i][0] < bx[j][2] and bx[j][0] < bx[i][2]
+                         and bx[i][1] < bx[j][3] and bx[j][1] < bx[i][3])
+                _check(f"{nm}: no two name labels overlap ({len(bx)} labels)", bx and ov == 0,
+                       f"{ov} overlapping pairs")
+                # the window's top edge: a label it cuts off moves under its object, and back
+                c2 = v2.canvas
+                rec = next(r for r in v2._labels["ent"] if r["home_anchor"] == "s" and r["box"][1] > 50)
+                sr = [float(x) for x in c2.cget("scrollregion").split()]
+                c2.yview_moveto((rec["box"][1] + 3 - sr[1]) / (sr[3] - sr[1]))
+                v2._fit_labels_to_view()
+                under = not rec["at_home"] and c2.itemcget(rec["it"], "anchor") == "n"
+                c2.yview_moveto(0)
+                v2._fit_labels_to_view()
+                back = rec["at_home"] and c2.coords(rec["it"]) == list(rec["home"])
+                _check(f"{nm}: a label cut off by the window's top edge moves under its object, "
+                       "and back once scrolled", under and back, f"under={under} back={back}")
+            finally:
+                fr.destroy()
         from PIL import Image, ImageDraw
         im = Image.new("RGBA", (200, 100))
         dr = ImageDraw.Draw(im)

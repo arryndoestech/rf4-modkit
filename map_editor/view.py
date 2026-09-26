@@ -45,6 +45,7 @@ class MapView(ttk.Frame):
         self.on_hover_tile = on_hover_tile       # fn(tile | None)
         self.on_zoom = None                      # fn() after the zoom changed
         self._items = {}                         # canvas item -> selection key
+        self._labels = {}                        # group -> [placed label records] (_place_label)
         self._dirty = set()
         self._pending = False
         self._bg_photo = None
@@ -55,7 +56,7 @@ class MapView(ttk.Frame):
         hbar = ttk.Scrollbar(self, orient="horizontal")
         vbar = ttk.Scrollbar(self, orient="vertical")
         self.canvas = tk.Canvas(self, bg="#101014", highlightthickness=0,
-                                xscrollcommand=hbar.set, yscrollcommand=vbar.set)
+                                xscrollcommand=hbar.set, yscrollcommand=lambda *a: self._yscrolled(vbar, a))
         hbar.config(command=self.canvas.xview)
         vbar.config(command=self.canvas.yview)
         self.status = ttk.Label(self, anchor="w", font=("Segoe UI", 8), padding=(4, 1))
@@ -211,6 +212,7 @@ class MapView(ttk.Frame):
         for it in c.find_withtag(g):
             self._items.pop(it, None)
         c.delete(g)
+        self._labels[g] = []
         if g in ("under", "lift") and self.ground_pending():
             return                              # drawn when the ground arrives (_ground_ready)
         for p in render.overlay(g, self.st):
@@ -233,7 +235,7 @@ class MapView(ttk.Frame):
                 it = c.create_text(*p.xy, text=o["text"], fill=o.get("fill"), font=font,
                                    anchor=o.get("anchor", "center"), tags=tags)
                 if o.get("below") or o.get("halo"):
-                    self._place_label(it, p, font, tags)
+                    self._place_label(it, p, font, tags, g)
             elif p.kind == "sprite":
                 ph = self._sprite_photo(o["fn"], o["frame"], p.xy, o["mirror"])
                 if ph is None:
@@ -243,36 +245,109 @@ class MapView(ttk.Frame):
                 continue
             if p.key is not None:
                 self._items[it] = p.key
+        if self._labels.get(g):
+            self._fit_labels_to_view()
 
     # the outline: the label drawn again in the halo colour, one pixel off in every direction,
     # under the coloured text (a Tk canvas has no text outline of its own)
     HALO_OFFSETS = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
 
-    def _place_label(self, it, p, font, tags):
-        """A name label: under its object when it would stick out above the map's top edge,
-        shifted in from the left / right edges, then outlined."""
+    def _place_label(self, it, p, font, tags, group):
+        """A name label: the first spot of -- above its object, a line or three higher, under
+        it, a line or two lower -- that stays on the map and overlaps no label already placed
+        (when every one does: the one that overlaps least); shifted in from the left / right
+        edges; then outlined. Remembered for _fit_labels_to_view."""
         c, o = self.canvas, p.opt
         d = self.st.doc
         mw = d.grid[0] * self.cp if d is not None and d.grid else None
+        up = o.get("anchor", "s")
         box = c.bbox(it)
-        if box and box[1] < 0 and o.get("below"):
-            c.coords(it, *o["below"])
-            c.itemconfigure(it, anchor={"s": "n"}.get(o.get("anchor"), o.get("anchor")))
-            box = c.bbox(it)
-        if box and mw:
-            dx = -box[0] if box[0] < 0 else (mw - box[2] if box[2] > mw else 0)
-            if dx and box[2] - box[0] <= mw:
-                c.move(it, dx, 0)
+        if not box:
+            return
+        h = box[3] - box[1]
+        (ax, ay), below = p.xy, o.get("below")
+        spots = [((ax, ay - k * h), up) for k in range(4)]
+        if below:
+            spots += [((below[0], below[1] + k * h), "n") for k in range(3)]
+        placed = [bx for recs in self._labels.values() for r in recs for bx in (r["box"],)]
+
+        def put(xy, anchor):
+            c.coords(it, *xy)
+            c.itemconfigure(it, anchor=anchor)
+            bx = c.bbox(it)
+            if mw:
+                dx = -bx[0] if bx[0] < 0 else (mw - bx[2] if bx[2] > mw else 0)
+                if dx and bx[2] - bx[0] <= mw:
+                    c.move(it, dx, 0)
+                    bx = (bx[0] + dx, bx[1], bx[2] + dx, bx[3])
+            return bx
+
+        def overlap(bx):                        # area shared with the labels already placed
+            return sum(max(0, min(bx[2], q[2]) - max(bx[0], q[0])) * max(0, min(bx[3], q[3]) - max(bx[1], q[1]))
+                       for q in placed)
+        chosen, best = None, None
+        for xy, anchor in spots:
+            bx = put(xy, anchor)
+            if bx[1] < 0:                       # off the map's top edge
+                continue
+            ov = overlap(bx)
+            if ov == 0:
+                chosen = bx
+                break
+            if best is None or ov < best[0]:
+                best = (ov, xy, anchor)
+        if chosen is None:                      # crowded: the spot that overlaps least
+            chosen = put(best[1], best[2]) if best else put(below or (ax, ay), "n" if below else up)
+        halos = []
         halo = o.get("halo")
         if halo:
             x, y = c.coords(it)
             anchor = c.itemcget(it, "anchor")
             for ox, oy in self.HALO_OFFSETS:
-                h = c.create_text(x + ox, y + oy, text=o["text"], fill=halo, font=font,
-                                  anchor=anchor, tags=tags)
-                c.tag_lower(h, it)
+                hid = c.create_text(x + ox, y + oy, text=o["text"], fill=halo, font=font,
+                                    anchor=anchor, tags=tags)
+                c.tag_lower(hid, it)
+                halos.append(hid)
                 if p.key is not None:
-                    self._items[h] = p.key
+                    self._items[hid] = p.key
+        self._labels.setdefault(group, []).append(
+            {"it": it, "halos": halos, "box": chosen, "home": tuple(c.coords(it)),
+             "home_anchor": c.itemcget(it, "anchor"), "under": below, "at_home": True})
+
+    # ---- labels at the window's top edge ------------------------------------------ #
+    def _yscrolled(self, vbar, args):
+        vbar.set(*args)
+        self._fit_labels_to_view()              # cheap: a few dozen coordinate checks
+
+    def _fit_labels_to_view(self):
+        """A label above its object that the window's top edge cuts off, while the object
+        itself is in view, moves under the object; it moves back once there is room."""
+        c = self.canvas
+        try:
+            if not c.winfo_exists():
+                return
+            top = c.canvasy(0)
+        except tk.TclError:
+            return
+        for recs in self._labels.values():
+            for r in recs:
+                if r["home_anchor"] != "s" or not r["under"]:
+                    continue                    # already under its object (or nowhere to go)
+                cut = r["box"][1] < top <= r["under"][1]
+                if cut and r["at_home"]:
+                    # straight down (keeps the shift in from a side edge)
+                    self._shift_label(r, 0, r["under"][1] - r["home"][1], "n")
+                    r["at_home"] = False
+                elif not cut and not r["at_home"]:
+                    cx, cy = c.coords(r["it"])
+                    self._shift_label(r, r["home"][0] - cx, r["home"][1] - cy, "s")
+                    r["at_home"] = True
+
+    def _shift_label(self, r, dx, dy, anchor):
+        c = self.canvas
+        for i in [r["it"]] + r["halos"]:
+            c.move(i, dx, dy)
+            c.itemconfigure(i, anchor=anchor)
 
     def _sprite_photo(self, fn, frame, rect, mirror):
         x0, y0, x1, y1 = rect
