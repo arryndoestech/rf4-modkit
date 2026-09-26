@@ -3794,8 +3794,9 @@ class App:
         you pick which season(s) a crop grows in via checkboxes (writes the +104
         boost/penalty bits) alongside per-field editing (water, growth-rate mults, stages).
         Byte-surgical; Apply updates the in-memory table, Save…/Extract… writes it out."""
+        doc = self._doc
         t = nlcl.NlclTable(data)
-        self._param = t
+        doc._param = t
         stem = "rf3CropParam"
         namefn = (lambda i: "")
         itemjson = ACTOR_NAMES_PATH.parent / "rf4s_item_names.json"
@@ -3804,7 +3805,7 @@ class App:
             tbl = _json.loads(itemjson.read_text(encoding="utf-8"))
             namefn = lambda i: tbl.get(str(i), "")
 
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"rf3CropParam: {t.entry_count} crops × {t.record_size} B  "
                             "(season affinity + growth tuning)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
@@ -3815,7 +3816,7 @@ class App:
         show_cols = ["stage1", "stage2", "stage3", "regrow", "water", "grow_cap",
                      "gmul_size", "gmul_1", "gmul_2", "gmul_3", "harvest", "seed"]
         cols = ["#"] + show_cols + ["grows", "name"]
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=15)
         widths = {"#": 40, "grows": 150, "name": 150}
         for c in cols:
@@ -3845,7 +3846,7 @@ class App:
                     break
         sv.trace_add("write", fill); only_crops.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(self.content, text="Edit selected crop")
+        ed = ttk.LabelFrame(doc.content, text="Edit selected crop")
         ed.pack(fill="x", padx=6, pady=4)
         grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=2)
         ftyp = {n: (o, ty) for n, o, ty in t.schema(stem)["fields"]}
@@ -3900,17 +3901,17 @@ class App:
                     t.set(i, 104, old & ~nlcl._CROP_SEASON_MASK, "u32")   # grow everywhere
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", str(e)); return
-            self.cur_data = t.build()
+            doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied crop {i} — Save…/Extract… to write a loose override")
 
         def save_tbl():
-            blob = t.build(); self.cur_data = blob
+            blob = t.build(); doc.cur_data = blob
             f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(self.cur_name).name,
+                initialfile=pathlib.Path(doc.cur_name).name,
                 filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(blob)
+                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved crop table → {f}")
         btns = ttk.Frame(ed); btns.pack(fill="x", padx=4, pady=(0, 3))
         ttk.Button(btns, text="Save table…", command=save_tbl).pack(side="right", padx=4)
