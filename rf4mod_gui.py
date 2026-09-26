@@ -755,6 +755,9 @@ class App:
         self.tree.bind("<<TreeviewOpen>>", self._on_group_open)
 
         self.tree.configure(selectmode="browse")
+        # a click opens the file in a new tab; Up / Down (any key) browse in the current tab
+        self.tree.bind("<ButtonPress-1>", lambda _e: setattr(self, "_select_by_key", False), add="+")
+        self.tree.bind("<KeyPress>", lambda _e: setattr(self, "_select_by_key", True), add="+")
 
         self.right = ttk.Frame(paned)
         paned.add(self.right, weight=3, minsize=300)
@@ -766,24 +769,30 @@ class App:
         self.header.pack(side="left", fill="x", expand=True)
         self._close_tab_btn = ttk.Button(hb, text="Close tab", command=self.cmd_close_tab)
         from guiutil import Tip
-        Tip(self._close_tab_btn, "Close this file's tab (Ctrl+W; a middle click on a tab closes "
-                                 "that one). Every file you click opens in its own tab.")
-        self.tabs = ttk.Notebook(self.right)
-        self.tabs.enable_traversal()            # Ctrl+Tab / Ctrl+Shift+Tab switch tabs
-        self.tabs.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-        self.tabs.bind("<Button-2>", self._on_tab_click_close)
-        self._tab_menu = tk.Menu(self.tabs, tearoff=False)
+        Tip(self._close_tab_btn, "Close this file's tab (Ctrl+W; a tab's × or a middle click "
+                                 "closes that one). Every file you click opens in its own tab.")
+        # the open files' tabs (scrolls: ◀ ▶ / the wheel; ▼ lists them all) over the shown page
+        from guiutil import TabBar
+        self.tabbar = TabBar(self.right, on_select=self._select_doc, on_close=self.cmd_close_tab,
+                             on_menu=self._on_tab_menu)
+        self.tab_area = ttk.Frame(self.right)
+        self._tab_menu = tk.Menu(self.tabbar, tearoff=False)
         self._tab_menu.add_command(label="Close", command=lambda: self.cmd_close_tab(self._tab_menu_doc))
         self._tab_menu.add_command(label="Close the other tabs",
                                    command=lambda: self.cmd_close_others(self._tab_menu_doc))
-        self.tabs.bind("<Button-3>", self._on_tab_menu)
         self.root.bind("<Control-w>", lambda _e: self.cmd_close_tab())
+        self.root.bind("<Control-Tab>", lambda _e: self._cycle_tab(1) or "break")
+        self.root.bind("<Control-Shift-Tab>", lambda _e: self._cycle_tab(-1) or "break")
+        try:
+            self.root.bind("<Control-ISO_Left_Tab>", lambda _e: self._cycle_tab(-1) or "break")
+        except tk.TclError:                     # no such keysym here
+            pass
         self.content = ttk.Frame(self.right)   # the blank view's frame (App routes to _Doc)
         self.content.pack(fill="both", expand=True)
         self._blank.frame = self.content
         self._poll_id = self.root.after(1000, self._poll_marks)
         # stop the poll with the window (a destroyed Tk must not run it)
-        self.tabs.bind("<Destroy>", lambda e: e.widget is self.tabs and self._stop_poll(), add="+")
+        self.tabbar.bind("<Destroy>", lambda e: e.widget is self.tabbar and self._stop_poll(), add="+")
 
     def _build_status(self):
         sb = ttk.Frame(self.root)
@@ -1144,12 +1153,14 @@ class App:
         if iid not in self._index:
             return  # a group node
         self._cur_iid = iid
-        self._open_iid(iid)
+        by_key = self.__dict__.get("_select_by_key", False)
+        self._select_by_key = False
+        self._open_iid(iid, browse=by_key)
 
     def _entry_key(self, name):
         return (self.source.label if self.source else "", name)
 
-    def _open_iid(self, iid):
+    def _open_iid(self, iid, browse=False):
         name, _group, loader = self.source.entries[self._index[iid]]
         key = self._entry_key(name)
         data = None
@@ -1160,18 +1171,30 @@ class App:
                 messagebox.showerror("Read failed", str(e))
                 return
             self.tree.set(iid, "size", human(len(data)))
-        self._open_in_tab(key, name, data)
+        self._open_in_tab(key, name, data, browse)
 
-    def _open_in_tab(self, key, name, data):
-        """Show a file in its own tab: the tab that already has it, else a new one. The tab
-        (_Doc), or None when the user declined."""
+    def _open_in_tab(self, key, name, data, browse=False):
+        """Show a file: in the tab that already has it, else in a new tab (a click). With
+        browse (Up / Down in the file list) it replaces the file in the tab being browsed
+        with -- the last tab a click or a browse step filled -- unless that tab has unsaved
+        changes (then a new tab: nothing is thrown away). The tab (_Doc), or None when the
+        user declined."""
         doc = next((d for d in self._docs if d.key == key), None)
         if doc is not None:
             self._select_doc(doc)
+            if not browse:                      # a click on an open file: browse from there
+                self._browse_doc = doc
             return doc
-        if name.lower().endswith(".rf4m") and not self._ok_to_open_map_tab():
+        target = None
+        if browse:
+            b = self.__dict__.get("_browse_doc")
+            if b in self._docs and not b.is_dirty():
+                target = b
+        new_map_editor = target is None or target.map_panel() is None
+        if name.lower().endswith(".rf4m") and new_map_editor and not self._ok_to_open_map_tab():
             return None
-        doc = self._new_doc()
+        doc = target or self._new_doc()
+        self._browse_doc = doc
         self._select_doc(doc)
         doc.key, doc.saved = key, data
         self._show(name, data)
@@ -1193,32 +1216,36 @@ class App:
         return ok
 
     def _new_doc(self):
-        frame = ttk.Frame(self.tabs)
+        frame = ttk.Frame(self.tab_area)
         doc = _Doc(frame)
         self._docs.append(doc)
-        self.tabs.add(frame, text="…")
+        self.tabbar.add(doc, "…")
         if len(self._docs) == 1:                # the first tab replaces the blank view
             self._blank.frame.pack_forget()
-            self.tabs.pack(fill="both", expand=True)
+            self.tabbar.pack(fill="x", padx=2)
+            self.tab_area.pack(fill="both", expand=True)
             self._close_tab_btn.pack(side="right")
         return doc
 
     def _select_doc(self, doc):
+        """Show `doc`'s page and tab, and make it the one the viewers work on."""
         if doc is not self._blank:
-            self.tabs.select(doc.frame)
+            if doc.frame.winfo_manager() != "pack":
+                for d in self._docs:
+                    if d is not doc and d.frame.winfo_manager():
+                        d.frame.pack_forget()
+                doc.frame.pack(fill="both", expand=True)
+            self.tabbar.select(doc)
         self._activate(doc)
 
-    def _on_tab_changed(self, _e=None):
-        try:
-            frame = self.tabs.nametowidget(self.tabs.select())
-        except (tk.TclError, KeyError):
-            return
-        doc = next((d for d in self._docs if d.frame is frame), None)
-        if doc is not None:
-            self._activate(doc)
+    def _cycle_tab(self, step):
+        """Ctrl+Tab / Ctrl+Shift+Tab: the next / previous tab (wraps around)."""
+        if len(self._docs) > 1 and self._doc in self._docs:
+            i = self._docs.index(self._doc)
+            self._select_doc(self._docs[(i + step) % len(self._docs)])
 
     def _activate(self, doc):
-        """Make `doc` the tab the viewers work on (the notebook shows its frame)."""
+        """Make `doc` the tab the viewers work on (_select_doc shows its page)."""
         old = self._doc
         if doc is old:
             return
@@ -1230,23 +1257,9 @@ class App:
         self.export_btn.config(state="normal" if doc.state.get("_export_kind") else "disabled")
         doc.on_show()
 
-    def _doc_at(self, e):
-        try:
-            i = self.tabs.index(f"@{e.x},{e.y}")
-        except tk.TclError:
-            return None
-        return self._docs[i] if 0 <= i < len(self._docs) else None
-
-    def _on_tab_click_close(self, e):
-        doc = self._doc_at(e)
-        if doc is not None:
-            self.cmd_close_tab(doc)
-
-    def _on_tab_menu(self, e):
-        doc = self._doc_at(e)
-        if doc is not None:
-            self._tab_menu_doc = doc
-            self._tab_menu.tk_popup(e.x_root, e.y_root)
+    def _on_tab_menu(self, doc, e):
+        self._tab_menu_doc = doc
+        self._tab_menu.tk_popup(e.x_root, e.y_root)
 
     def cmd_close_tab(self, doc=None):
         """Close a tab (the current one by default); asks first when it has unsaved changes."""
@@ -1300,19 +1313,20 @@ class App:
             self._activate(nxt)
         else:
             doc.on_hide()
-        self.tabs.forget(doc.frame)
+        self.tabbar.remove(doc)
         doc.frame.destroy()
         if not self._docs:                      # back to the blank view
-            self.tabs.pack_forget()
+            self.tabbar.pack_forget()
+            self.tab_area.pack_forget()
             self._close_tab_btn.pack_forget()
             self._blank.frame.pack(fill="both", expand=True)
         else:
-            self.tabs.select(self._doc.frame)
+            self._select_doc(self._doc)         # the neighbour activated above: show its page
 
     def _retitle(self, doc):
         if doc in self._docs:
             try:
-                self.tabs.tab(doc.frame, text=doc.title())
+                self.tabbar.set_text(doc, doc.title())
             except tk.TclError:
                 pass
 

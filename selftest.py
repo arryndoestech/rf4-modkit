@@ -5626,7 +5626,7 @@ def test_explorer_tabs():
             return app._doc
 
         def title(d):
-            return app.tabs.tab(d.frame, "text")
+            return app.tabbar.text(d)
         # 1) edits survive: a click with unsaved changes opens a new tab
         a = open_("rf3Schedule.bin")
         orig = app.cur_data
@@ -5650,6 +5650,46 @@ def test_explorer_tabs():
         box["yesnocancel"] = False
         gone = app.cmd_close_tab(a) is True and a not in app._docs and app._doc in (b, c)
         _check("closing a tab with unsaved changes asks: Cancel keeps it, No closes it", kept and gone)
+        # 1b) Up / Down in the list browse in one tab; only a click opens a new tab
+        def key_(nm):
+            app._select_by_key = True           # what the list's <KeyPress> binding records
+            return open_(nm)
+        spare = [n for n in sorted(ents) if n.startswith("rf3") and n.endswith(".bin")
+                 and not any(d.key and d.key[1].endswith(n) for d in app._docs)][:4]
+        base = open_(spare[0])                  # a click: a new tab, browsing starts there
+        n0 = len(app._docs)
+        k1 = key_(spare[1])
+        replaced = k1 is base and len(app._docs) == n0 and base.key[1].endswith(spare[1])
+        k2 = key_("rf3CropParam.bin")           # already open in tab c: go there, keep it
+        onto_open = k2 is c and len(app._docs) == n0 and c.key[1].endswith("rf3CropParam.bin")
+        k3 = key_(spare[2])                     # browsing goes on in the browsed tab, not in c
+        on_in_base = (k3 is base and base.key[1].endswith(spare[2]) and len(app._docs) == n0
+                      and c.key[1].endswith("rf3CropParam.bin"))
+        _check("Up / Down show the next file in the browsed tab (no new tab); an already-open "
+               "file's tab is shown, and browsing goes on in the browsed tab",
+               replaced and onto_open and on_in_base, f"{replaced} {onto_open} {on_in_base}")
+        base.state["cur_data"] = base.state["cur_data"][:-1] + bytes([base.state["cur_data"][-1] ^ 1])
+        k4 = key_(spare[3])
+        _check("a browse step from a tab with unsaved changes opens a new tab (the edits stay)",
+               k4 is not base and len(app._docs) == n0 + 1 and base.key[1].endswith(spare[2])
+               and base.is_dirty())
+        box["yesnocancel"] = False
+        app.cmd_close_tab(base)
+        # a real Down key in the list (keys need a window that can take the focus)
+        root.deiconify(); root.geometry("900x600+20+20"); root.lift(); root.update()
+        i0 = next(k for k, e in enumerate(app.source.entries) if e[0].endswith(spare[0]))
+        app._reveal_entry(i0); root.update()
+        app._select_by_key = False
+        app._on_select(None); root.update()     # clicked: its own tab
+        n1 = len(app._docs)
+        clicked = app._doc
+        app.tree.focus(app.tree.selection()[0])
+        app.tree.focus_force(); root.update()
+        app.tree.event_generate("<KeyPress-Down>"); root.update()
+        root.withdraw()
+        _check("the Down key in the file list shows the next file in the same tab",
+               len(app._docs) == n1 and app._doc is clicked
+               and not clicked.key[1].endswith(spare[0]), f"{n1} -> {len(app._docs)}")
         # 2) map tabs: their own editors; copy in one, paste in the other with Ctrl+C / Ctrl+V
         m1 = open_("MAP_CITY_04.rf4m")
         p1 = app._map_panel

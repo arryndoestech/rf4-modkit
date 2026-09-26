@@ -267,6 +267,147 @@ def ask_yes_no_optout(parent, title, message, yes="Yes", no="Cancel",
     return res["ok"], bool(skip.get())
 
 
+class TabBar(ttk.Frame):
+    """A row of tabs that scrolls (ttk.Notebook squeezes tabs it has no room for): the ◀ ▶
+    buttons and the mouse wheel scroll it, ▼ lists every tab to pick one, each tab's ×
+    or a middle click closes it. Tabs are keyed by any hashable; the host shows the page.
+    on_select(key) / on_close(key) / on_menu(key, event) are the host's callbacks."""
+    BG, SEL, HOVER, LINE, DIM = "#dddddd", "#ffffff", "#ebebeb", "#b4b4b4", "#707070"
+
+    def __init__(self, parent, on_select, on_close, on_menu=None):
+        super().__init__(parent)
+        self._on_select, self._on_close, self._on_menu = on_select, on_close, on_menu
+        self._tabs = {}                          # key -> (frame, label, close label)
+        self._sel = None
+        self._drop = ttk.Button(self, text="▼", width=2, command=self._post_list)
+        self._drop.pack(side="right")
+        Tip(self._drop, "Every open tab: pick one to go to it.")
+        self._next = ttk.Button(self, text="▶", width=2, command=lambda: self.scroll(1))
+        self._next.pack(side="right")
+        self._prev = ttk.Button(self, text="◀", width=2, command=lambda: self.scroll(-1))
+        self._prev.pack(side="left")
+        self.canvas = tk.Canvas(self, height=1, highlightthickness=0, bd=0, xscrollincrement=40)
+        self.canvas.pack(side="left", fill="x", expand=True)
+        self.inner = tk.Frame(self.canvas, bg=self.LINE)
+        self.canvas.create_window(0, 0, window=self.inner, anchor="nw")
+        self.inner.bind("<Configure>", self._sync)
+        self.canvas.bind("<Configure>", self._sync)
+        self._wheel(self.canvas)
+        self._menu = tk.Menu(self, tearoff=False)
+
+    # ---- tabs ---------------------------------------------------------------------- #
+    def add(self, key, text):
+        f = tk.Frame(self.inner, bg=self.BG)
+        lbl = tk.Label(f, text=text, bg=self.BG, padx=8, pady=3)
+        x = tk.Label(f, text="×", bg=self.BG, fg=self.DIM, padx=4)
+        lbl.pack(side="left")
+        x.pack(side="left")
+        f.pack(side="left", padx=(0, 1), pady=(1, 0))
+        for w in (f, lbl):
+            w.bind("<Button-1>", lambda _e, k=key: self._pick(k))
+            w.bind("<Button-2>", lambda _e, k=key: self._on_close(k))
+            w.bind("<Enter>", lambda _e, k=key: self._paint(k, hover=True))
+            w.bind("<Leave>", lambda _e, k=key: self._paint(k))
+            if self._on_menu:
+                w.bind("<Button-3>", lambda e, k=key: self._on_menu(k, e))
+            self._wheel(w)
+        x.bind("<Button-1>", lambda _e, k=key: self._on_close(k))
+        x.bind("<Enter>", lambda _e: x.config(fg="#c42b1c"))
+        x.bind("<Leave>", lambda _e: x.config(fg=self.DIM))
+        self._tabs[key] = (f, lbl, x)
+        self._paint(key)
+
+    def remove(self, key):
+        t = self._tabs.pop(key, None)
+        if t is not None:
+            t[0].destroy()
+        if self._sel == key:
+            self._sel = None
+
+    def set_text(self, key, text):
+        if key in self._tabs:
+            self._tabs[key][1].config(text=text)
+
+    def text(self, key):
+        return self._tabs[key][1].cget("text") if key in self._tabs else None
+
+    def keys(self):
+        return list(self._tabs)                  # in tab order (dicts keep insertion order)
+
+    def select(self, key):
+        """Mark `key` as the shown tab and scroll it into view (no on_select callback)."""
+        old, self._sel = self._sel, key
+        for k in (old, key):
+            if k in self._tabs:
+                self._paint(k)
+        self.after_idle(lambda: self.see(key))
+
+    def selected(self):
+        return self._sel
+
+    def _pick(self, key):
+        if key != self._sel:
+            self._on_select(key)
+
+    def _paint(self, key, hover=False):
+        if key not in self._tabs:
+            return
+        f, lbl, x = self._tabs[key]
+        bg = self.SEL if key == self._sel else (self.HOVER if hover else self.BG)
+        for w in (f, lbl, x):
+            w.config(bg=bg)
+
+    # ---- scrolling ----------------------------------------------------------------- #
+    def _wheel(self, w):
+        w.bind("<MouseWheel>", lambda e: self.scroll(-1 if e.delta > 0 else 1))
+        w.bind("<Shift-MouseWheel>", lambda e: self.scroll(-1 if e.delta > 0 else 1))
+
+    def scroll(self, direction):
+        self.canvas.xview_scroll(direction * 3, "units")
+        self._arrows()
+
+    def see(self, key):
+        """Scroll so tab `key` is fully visible."""
+        if key not in self._tabs:
+            return
+        try:
+            self.update_idletasks()
+            f = self._tabs[key][0]
+            total = max(self.inner.winfo_width(), 1)
+            view = self.canvas.winfo_width()
+            left = self.canvas.canvasx(0)
+            x0, x1 = f.winfo_x(), f.winfo_x() + f.winfo_width()
+            if x0 < left:
+                self.canvas.xview_moveto(x0 / total)
+            elif x1 > left + view:
+                self.canvas.xview_moveto(max(x1 - view, 0) / total)
+            self._arrows()
+        except tk.TclError:
+            pass
+
+    def _sync(self, _e=None):
+        self.canvas.configure(height=self.inner.winfo_reqheight(),
+                              scrollregion=(0, 0, self.inner.winfo_reqwidth(), 1))
+        self._arrows()
+
+    def _arrows(self):
+        lo, hi = self.canvas.xview()
+        self._prev.state(["!disabled"] if lo > 0.0005 else ["disabled"])
+        self._next.state(["!disabled"] if hi < 0.9995 else ["disabled"])
+
+    def _post_list(self):
+        m = self._menu
+        m.delete(0, "end")
+        for k, (_f, lbl, _x) in self._tabs.items():
+            mark = "✓  " if k == self._sel else "     "
+            m.add_command(label=mark + lbl.cget("text"), command=lambda k=k: self._pick(k))
+        b = self._drop
+        try:
+            m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            m.grab_release()
+
+
 class Tip:
     """Hover help for a widget (shown after a short delay)."""
 
