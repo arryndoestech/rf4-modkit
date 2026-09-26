@@ -2185,10 +2185,14 @@ def test_script():
         class _SearchDoc:
             container, em, textarc = c, None, None
         _sdoc = _SearchDoc()
-        _give = script.op_from_name("GiveItem")
-        _r1 = _ceb.find_scenes(_sdoc, "opcode", "GiveItem")
-        _op_ok = all(any(_st.op == _give for _st in _sc.stmts.values()) for _pos, _sc in _r1[:100])
-        _r2 = _ceb.find_scenes(_sdoc, "opcode", str(_give))
+        # ops 423 and 424 share the mnemonic (one handler, no opcode branch), so a search by
+        # name must equal the union of the searches by each number
+        _gops = [_o for _o in range(script.DISPATCHABLE_ACTION_OPS)
+                 if "giveplayeritem" in script.opcode_mnemonic(_o).lower()]
+        _r1 = _ceb.find_scenes(_sdoc, "opcode", "GivePlayerItem")
+        _op_ok = all(any(_st.op in _gops for _st in _sc.stmts.values()) for _pos, _sc in _r1[:100])
+        _r2 = sorted({(_p, _sc.entry_pc) for _o in _gops
+                      for _p, _sc in _ceb.find_scenes(_sdoc, "opcode", str(_o))})
         _r3 = _ceb.find_scenes(_sdoc, "speaker", "Arthur")
         _spk_ok = all(any(script.is_portrait_op(_st.op)
                           and "arthur" in (script.portrait_speaker_name(_st.op) or "").lower()
@@ -2334,7 +2338,7 @@ def test_script():
     from rf4s_modkit import opcode_meta as _om
     _check("scene ops 146/148/300 have curated mnemonics",
            _om.mnemonic(146) == "EquipItemToPlayer" and _om.mnemonic(148) == "QueryPlayerFlag40000"
-           and _om.mnemonic(300) == "AdvanceDay")
+           and _om.mnemonic(300) == "ResetAllNpcSchedules")
     # SWITCH_GE (0xFFF6) has exactly `cnt` targets, no spurious trailing duplicate
     # (IDA: selector>=n aliases target[n-1]; there is no separate default slot).
     _sw = script.decode_statement(bytes.fromhex("f6ff" + "0000" + "0200" + "1000" + "2000"), 0)
@@ -2506,15 +2510,15 @@ def test_script():
         # persist through build->reparse and the action must decode (the opcode half of the
         # 'build a wholly-new cutscene' workflow, alongside append_text for the dialogue text).
         c8 = script.Container(raw)
-        _give = script.op_from_name("GiveItem")
+        _give = script.op_from_name("GivePlayerItem")
         c8.insert_before(c8.banks[b5.index], dpc5,
                          "DIALOG #8801\nop%d 258, 1, 0" % _give)
         s8 = script.disassemble_scene(c8.banks[b5.index], s5.action_type, s5.entry_pc)
         _m8 = [script.opcode_mnemonic(st.op) for st in s8.stmts.values() if st.op < 0xFFF0]
         _d8 = [st.dialog_id for st in s8.stmts.values() if st.mnem == "DIALOG"]
         _check("author-by-name: insert DIALOG + action-by-name composes + decodes",
-               s8.ok and 8801 in _d8 and "GiveItem" in _m8
-               and script.render_action(_give, ["258", "1", "0"]) == "GiveItem(258=Pineapple Juice, 1, 0)")
+               s8.ok and 8801 in _d8 and "GivePlayerItem" in _m8
+               and script.render_action(_give, ["258", "1", "0"]) == "GivePlayerItem(258=Pineapple Juice, 1, 0)")
     else:
         _skip("script structural insert", "no suitable scene found")
     # delete-safety: deleting a statement that is a BRANCH TARGET must not corrupt the scene --
@@ -2726,8 +2730,8 @@ def test_script():
     _labelfix = (
         len(om.arg_names(464)) == 3 and any("quality" in _a for _a in _la(464))
         and [_a[:6] for _a in _la(609)] == ["center", "center", "radius"]
-        and len(om.arg_names(405)) == 2 and any("loved" in _a for _a in _la(405))
-        and len(om.arg_names(478)) == 2 and any("scripted" in _a for _a in _la(478))
+        and len(om.arg_names(405)) == 2 and any("plant" in _a for _a in _la(405))
+        and len(om.arg_names(478)) == 2 and any("held" in _a for _a in _la(478))
         and len(om.arg_names(10)) == 2 and any("name string" in _a for _a in _la(10))
         and any("blip" in _a for _a in _la(10)))      # arg1 = the text blip (SE_WORDS_M/F/O/D)
     _check("opcode_meta: five scene-ops carry their IDA-verified arg labels (464/609/405/478/10)",
@@ -2743,7 +2747,7 @@ def test_script():
         len(om.arg_names(596)) == 1 and om.arg_names(596)[0].lower().startswith("n ")
         and len(om.arg_names(597)) == 1 and "categor" in om.arg_names(597)[0].lower()
         and len(om.arg_names(598)) == 1 and "name" in om.arg_names(598)[0].lower()
-        and len(om.arg_names(681)) == 1 and "categor" in om.arg_names(681)[0].lower()
+        and len(om.arg_names(681)) == 1 and "bread" in om.arg_names(681)[0].lower()
         and len(om.arg_names(656)) == 2 and any("snap" in _a.lower() for _a in om.arg_names(656)))
     _check("opcode_meta: five more scene-ops carry IDA-verified input labels (596/597/598/681/656)",
            _labelfix2)
@@ -2766,7 +2770,7 @@ def test_script():
     _alias_mismatch = []
     for _o in range(763):
         _dd = om.META.get(_o, {}).get("d") or ""
-        _mm = re.search(r"[Aa]lias of op (\d+)", _dd)
+        _mm = re.match(r"(?:True |Exact )?[Aa]lias of op (\d+)", _dd)
         if _mm:
             _tgt = int(_mm.group(1))
             if len(om.arg_names(_o)) != len(om.arg_names(_tgt)):
@@ -2834,7 +2838,7 @@ def test_script():
            "not a steam achievement" in _d379 and "achievement 1072" not in _d379
            and _m557 == "SetNpcRecognitionFlags" and _m558 == "SetNpcRecognitionFlags"
            and "gameflags_writepacked" in om.describe(557).lower()
-           and "not a steam achievement" in om.describe(558).lower())
+           and "gameflags_writepacked" in om.describe(558).lower())
     # A description that assigns a label's exact name to a different argN (e.g. the SetSpeaker
     # family said "arg1 = face frame" while "face frame" is label index 0) would mislead an author
     # cross-referencing the tooltip prose against the editor's 0-based arg rows. The negative
@@ -2896,7 +2900,7 @@ def test_script():
               for _o in range(763)
               if om.mnemonic(_o) not in ("(unbound)", "(unused)", "nop", "invalid"))
     _check("op_from_name resolves every curated mnemonic + is case-insensitive",
-           _rt and script.op_from_name("giveitem") == 423
+           _rt and script.op_from_name("giveplayeritem") == 423
            and script.op_from_name("no_such_op") is None)
     # op discovery search (powers 'did you mean' when authoring by name)
     _fade = {m for _o, m in script.find_ops("fade")}
@@ -4834,7 +4838,7 @@ def test_script_authoring():
            and "DIALOG #5" in lst and len(sc3.stmts) == len(sc.stmts) + 5,   # 3 new + moved copy + JMP back
            f"{len(sc.stmts)} -> {len(sc3.stmts)} stmts, ok={sc3.ok}")
     body = ("FRAME 2\nSetSpeakerNancy 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
-            "PROMPT_CHOICE CANCEL->done, #100->yes, #101->done\nyes:\nGiveItem 258, 1, 0\ndone:\nEND")
+            "PROMPT_CHOICE CANCEL->done, #100->yes, #101->done\nyes:\nGivePlayerItem 258, 1, 0\ndone:\nEND")
     c3.rewrite_scene(b3, sc.entry_pc, body)
     sc4 = script.disassemble_scene(b3, sc.action_type, sc.entry_pc)
     kinds = [x.mnem for x in sc4.stmts.values()]

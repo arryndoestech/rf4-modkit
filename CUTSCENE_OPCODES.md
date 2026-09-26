@@ -2,7 +2,7 @@
 
 Reverse-engineered `rf3.mc` cutscene Script VM opcodes (`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 763 slots).
 
-Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — **711** named opcodes across 14 categories (plus 52 reserved/unused slots), the control-flow opcodes, the expression grammar, and the **em.bin** Event-Manager opcodes scenes bridge to. Do not edit by hand; re-run the generator to refresh. This is the GUI-free companion to the editor's Alt-hover tooltips.
+Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — **726** named opcodes across 14 categories (plus 37 reserved/unused slots), the control-flow opcodes, the expression grammar, and the **em.bin** Event-Manager opcodes scenes bridge to. Do not edit by hand; re-run the generator to refresh. This is the GUI-free companion to the editor's Alt-hover tooltips.
 
 ## Contents
 
@@ -19,7 +19,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 - [Scene flow / control](#scene-flow--control) (29 ops)
 - [Queries](#queries) (166 ops)
 - [Other](#other) (7 ops)
-- [No-op (PC-port stub)](#no-op-pc-port-stub) (5 ops)
+- [No-op (PC-port stub)](#no-op-pc-port-stub) (20 ops)
 - [Control opcodes (flow backbone)](#control-opcodes-flow-backbone) (15 ops)
 - [Expression operands (argument encoding)](#expression-operands-argument-encoding)
 - [Event Manager (em.bin) opcodes](#event-manager-embin-opcodes)
@@ -27,53 +27,53 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 
 ## Dialogue & portraits
 
-### `op 5` — ShowNpcBubbleVariant(line id, sub-token, emote/param)
+### `op 5` — ShowPortrait(character id, expression, side)
 *handler:* `Script_VMOp_ShowNpcBubbleVariant`
 
-Show an NPC speech/thought bubble — a variant form of ShowNpcBubble (op 6) built on the same NpcBubble_DispatchFromDescriptor pipeline. Blocks (returns busy) until any active screen fade completes. Takes THREE args (corpus: all 793 uses pass 3): arg0 = line id (into rf3mc.<locale>; descriptor u16 slot 0), arg1 = sub-token (descriptor u16 slot 1), arg2 = a byte param/emote (descriptor byte 6; corpus values like 254). The old hint list promised a 4th sfx/emote arg that the handler never reads.
+Show or update a character's E-mote portrait (no name plate, no text-blip change, no emote icon, no voice). arg0 = character id (0 = player), arg1 = expression (<1000 = that character's face index, 1000..1927 = raw expression entry, 255/254 = special reset values), arg2 = side (0 / 1). Returns busy while a screen fade runs.
 
 Args:
-  0. line id
-  1. sub-token
-  2. emote/param (byte)
+  0. character id (0=player)
+  1. expression (face index; 1000+ = raw entry)
+  2. side (0/1)
 
-### `op 6` — ShowNpcBubble(content id, sub, param, sfx/emote id)
+### `op 6` — ShowPortraitWithEmote(character id, side, expression, emote icon)
 *handler:* `Script_VMOp_ShowNpcBubble`
 
-Show an NPC speech/thought bubble — the core bubble op. arg0 = content id with a dispatch: < 1000 = builtin EMOTE (emote-to-string table); 1000..1927 = dialogue STRING, index = id - 1000 (out of range clamps to 1000; 928 valid entries). arg1 = sub-token, arg2 = extra param (PSB-emote capable), arg3 = sfx/emote (>= 0x1F0 plays a voice line via the NPC-variant remap, else an emote id). Blocks until any active screen fade completes; re-showing identical text is a no-op (per-slot last-text cache).
+Show or update a character's E-mote portrait by character id, optionally with an emote icon or a voice clip; does not touch the name plate or text blip. arg0 = character id (0 = player), arg1 = side (0/1), arg2 = expression (<1000 = face index, 1000..1927 = raw expression entry), arg3 = trigger: >= 0x1F0 plays that voice/sfx through Sfx_PlayByIdWithNpcVariantRemap, otherwise an emote-icon id (186..192) queued on the portrait (0 = none). Busy while a fade runs.
 
 Args:
-  0. content id (<1000=emote, 1000+=line, idx=id-1000)
-  1. sub
-  2. param
-  3. sfx/emote id
+  0. character id (0=player)
+  1. side (0/1)
+  2. expression (face index; 1000+ = raw entry)
+  3. emote icon (186-192) or voice sfx id (>=0x1F0)
 
-### `op 7` — ShowNpcBubble(content id, sub, param, sfx/emote id)
+### `op 7` — ShowPortraitWithEmote(character id, side, expression, emote icon)
 *handler:* `Script_VMOp_ShowNpcBubble`
 
-Alias of op 6 (same handler): show an NPC speech/thought bubble.
+Show or update a character's E-mote portrait by character id, optionally with an emote icon or a voice clip; does not touch the name plate or text blip. arg0 = character id (0 = player), arg1 = side (0/1), arg2 = expression (<1000 = face index, 1000..1927 = raw expression entry), arg3 = trigger: >= 0x1F0 plays that voice/sfx through Sfx_PlayByIdWithNpcVariantRemap, otherwise an emote-icon id (186..192) queued on the portrait (0 = none). Busy while a fade runs.
 
 Args:
-  0. content id (<1000=emote, 1000+=line)
-  1. sub
-  2. param
-  3. sfx/emote id (>=0x1F0=voice)
+  0. character id (0=player)
+  1. side (0/1)
+  2. expression (face index; 1000+ = raw entry)
+  3. emote icon (186-192) or voice sfx id (>=0x1F0)
 
-### `op 8` — DialogueLine(line id)
+### `op 8` — SetSpeakerName(name id)
 *handler:* `Dialogue_ProcessLineDirective`
 
-Show a dialogue line. arg0 = line id: >=0x30 = text-archive entry id (the common case, rendered as DIALOG #NNNN), 1-26 = standard slot load, 27-47 = event-participant line (portrait shown for 27-33/41-47), 0xFFFF = end marker. Also picks the speaker's dialogue tick-chime SFX class (Dialogue_PickChimeClassForSpeaker) before showing the text. SPEAKER NOTE (IDA-verified 2026-09-25): arg0 is a NAME-ARCHIVE id, not a text line -- the handler loads that name into the name plate of the message box (Dialogue_LoadAndShowText with the name archive of the task, the same path as SetSpeakerVoice), so the following DIALOG lines are spoken by it. Dialogue_ProcessLineDirective RF4S.exe+0x209DF0: 1-26 = the name of that villager (1 = Vishnal), >= 48 = any name entry, 0 = clear the name, 27-47 = an event participant resolved at run time.
+Set the message-box NAME PLATE (and the matching text blip) for the following DIALOG lines; shows no text and no portrait. arg0 = name id: 0 = the player's own saved name with the player's blip ('???' instead before main-scenario progress 2 or in state 0x401000), 1..26 = that villager's name (22/23 = the child names from the prebuilt child-name buffer, not the archive) (chime class from Dialogue_PickChimeClassForSpeaker, g_lastDialogueEmoteId from the NPC's byte +57), 27..47 = an event participant resolved at run time via g_eventNpcParticipants (27-33 / 41-47 also show its portrait, Dialogue_LoadEventLineWithPortrait), >= 48 = any entry of the task's name archive, 0xFFFF = the '???' placeholder. Latched at host+108 (repeating the same id does nothing); also clears the name-hide bit (entries[4] bit 0) except on the 0xFFFF path.
 
 Args:
-  0. line id (>=0x30 archive entry; 1-26 std slot; 27-47 event line; 0xFFFF end)
+  0. name id (0 = player's own name, 1-26 villager, 27-47 event participant, >=48 name-archive entry, 0xFFFF '???')
 
-### `op 9` — DialogueLine(speaker/line id)
+### `op 9` — SetSpeakerName(name id)
 *handler:* `Dialogue_ProcessLineDirective`
 
-Show a dialogue line (portrait speaks; reads speaker/line tokens).
+Set the message-box NAME PLATE (and the matching text blip) for the following DIALOG lines; shows no text and no portrait. arg0 = name id: 0 = the player's own saved name with the player's blip ('???' instead before main-scenario progress 2 or in state 0x401000), 1..26 = that villager's name (22/23 = the child names from the prebuilt child-name buffer, not the archive) (chime class from Dialogue_PickChimeClassForSpeaker, g_lastDialogueEmoteId from the NPC's byte +57), 27..47 = an event participant resolved at run time via g_eventNpcParticipants (27-33 / 41-47 also show its portrait, Dialogue_LoadEventLineWithPortrait), >= 48 = any entry of the task's name archive, 0xFFFF = the '???' placeholder. Latched at host+108 (repeating the same id does nothing); also clears the name-hide bit (entries[4] bit 0) except on the 0xFFFF path.
 
 Args:
-  0. speaker/line id
+  0. name id (0 = player's own name, 1-26 villager, 27-47 event participant, >=48 name-archive entry, 0xFFFF '???')
 
 ### `op 10` — SetSpeakerVoice(name string id, text blip)
 *handler:* `NpcBubble_DispatchSimpleScriptedLine`
@@ -90,725 +90,833 @@ Args:
      - `3` = dragon blip
      - `4` = player's blip
 
-### `op 11` — SetDialogStateBit(name label)
+### `op 11` — SetSpeakerNameVisible(name label)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
 
-Name-label toggle for the following lines: writes bit 0 of the dialogue flags word (g_gameGlobalsSlotTable.entries[4]) = (arg == 0) (ScriptVMOp11_SetSceneStateBit0FromArg). Dialogue_LoadAndShowLine / Dialogue_LoadAndShowText / DialogueBox_SpawnBubbleAndSpeakerNameSprites copy that bit into the speaker-name label's hide bit (sprite flag 8) -- the same bit narration mode and the '???' no-name entry force on. So 0 = hide the name (inner voice, sound words, retold speech), 1 = show it. It does NOT pick a side: the left/right slot comes from the portrait cue (SetSpeakerX left/right). Loading a new name plate (SetSpeakerVoice / DialogueLine) clears the bit again. Corpus: bank 300 alternates 1 before quoted speech and 0 before first-person narration; bank 4 puts 0 before '*WHOOSH!*' (IDA + corpus 2026-09-25).
+Show or hide the speaker name label for the following DIALOG lines: arg0 == 0 sets the name-hide bit (g_gameGlobalsSlotTable entries[4] bit 0), any non-zero value clears it; DialogueBox_SpawnBubbleAndSpeakerNameSprites and Dialogue_LoadAndShowText copy the bit into the name-label sprite's hidden flag. Every Dialogue_LoadAndShowText call clears the bit again (it sets it only for name id 0xFFFF), so a later speaker cue that loads a new name re-shows the label.
 
 Args:
-  0. name label (0 = hide, 1 = show)
+  0. name label (0 = hide, non-zero = show)
      - `0` = hide name
      - `1` = show name
 
-### `op 12` — BubbleLineV3(speaker, index, sub)
+### `op 12` — SetSpeakerById(speaker, face, side)
 *handler:* `NpcBubble_DispatchScriptedLineV3Tokens`
 
-Show a scripted speech bubble (3 tokens: speaker, index, sub).
+Speaker cue by CHARACTER ID (the generic form of ops 16-75, without emote/voice triggers): arg0 = speaker char id (portrait + name plate + text blip; name via Dialogue_RemapBubbleLineId24To28, 24..28 -> 309/149/239/24/25), arg1 = face index compacted to a class (0-1 -> 0, 2-4 -> 1, 5-8 -> 2, 9-11 -> 3, 12-15 -> 4, 16-18 -> 1, 19 -> 5, >= 20 passed through raw), arg2 = side (0/1; also the side for Dialogue_LoadAndShowText). Clears host+864; busy while a fade runs.
 
 Args:
-  0. speaker
-  1. index
-  2. sub
+  0. speaker (char id, 0=player)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. face (compacted to 0-5)
+  2. side (0/1)
 
-### `op 13` — BubbleLineV3(line id, line index, sub index)
+### `op 13` — SetSpeakerById(speaker, face, side)
 *handler:* `NpcBubble_DispatchScriptedLineV3Tokens`
 
-Show a scripted speech bubble (3 tokens). arg0 = line id (also picks the chime SFX class and, when changed, remaps via Dialogue_RemapBubbleLineId24To28 into the shown text), arg1 = line index (compacted to a 0-5 bubble category), arg2 = sub index. Builds a bubble descriptor and calls NpcBubble_DispatchFromDescriptor; blocks while a fade runs. Per the IDB analysis the first token is a LINE id, not a speaker id. Unused in the shipped corpus. SPEAKER NOTE (IDA-verified 2026-09-25): arg0 is a NAME-ARCHIVE id, not a text line -- the handler loads that name into the name plate of the message box (Dialogue_LoadAndShowText with the name archive of the task, the same path as SetSpeakerVoice), so the following DIALOG lines are spoken by it. NpcBubble_DispatchScriptedLineV3Tokens RF4S.exe+0x207A70; ids 24-28 are remapped (24->309 Pico, 25->149 Soldier, 26->239 Ethelberd, 27->24 Barrett, 28->25 Raven).
+Speaker cue by CHARACTER ID (the generic form of ops 16-75, without emote/voice triggers): arg0 = speaker char id (portrait + name plate + text blip; name via Dialogue_RemapBubbleLineId24To28, 24..28 -> 309/149/239/24/25), arg1 = face index compacted to a class (0-1 -> 0, 2-4 -> 1, 5-8 -> 2, 9-11 -> 3, 12-15 -> 4, 16-18 -> 1, 19 -> 5, >= 20 passed through raw), arg2 = side (0/1; also the side for Dialogue_LoadAndShowText). Clears host+864; busy while a fade runs.
 
 Args:
-  0. line id
-  1. line index (0-5 category)
-  2. sub index
+  0. speaker (char id, 0=player)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. face (compacted to 0-5)
+  2. side (0/1)
 
-### `op 14` — BubbleLineV4(line id, line index, sub index, param)
+### `op 14` — SetSpeakerByIdWithEmote(speaker, side, expression, emote icon)
 *handler:* `NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport`
 
-Show a scripted speech bubble (4 tokens; PSB-emote capable). arg0 = line id (NOT a speaker: when the emote feature flag is on and line id >= 30 it is remapped through the NPC emote PSB table; otherwise used directly for the bubble text). arg1 = line index, arg2 = sub index (>= 0x1F0 triggers the sfx sub-action chain), arg3 = param. SPEAKER NOTE (IDA-verified 2026-09-25): arg0 is a NAME-ARCHIVE id, not a text line -- the handler loads that name into the name plate of the message box (Dialogue_LoadAndShowText with the name archive of the task, the same path as SetSpeakerVoice), so the following DIALOG lines are spoken by it. NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport RF4S.exe+0x207CE0; the id is used as is.
+Speaker cue by CHARACTER ID (runtime-selectable form of ops 16-75): arg0 = speaker char id (name plate via Dialogue_LoadAndShowText when it differs from host+108, text blip via Dialogue_PickChimeClassForSpeaker, portrait; with save-config flag 0x40, ids >= 30 are first mapped through g_npcEmotePsbTable), arg1 = side (0 left / 1 right; passed both to the portrait descriptor and as Dialogue_LoadAndShowText's side), arg2 = expression (<1000 face index, 1000..1927 raw expression entry), arg3 = emote icon 186-192 (queued on the portrait) or a voice sfx id >= 0x1F0 (played). Busy while a fade runs.
 
 Args:
-  0. line id
-  1. line index
-  2. sub index
-  3. param
+  0. speaker (char id, 0=player)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. side (0/1)
+  2. expression (face index; 1000+ = raw entry)
+  3. emote icon (186-192) or voice sfx id (>=0x1F0)
 
-### `op 15` — ShowSpeakerBubble(speaker, line index, sub, sfx/emote id)
+### `op 15` — SetSpeakerByIdWithEmote(speaker, side, expression, emote icon)
 *handler:* `NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport`
 
-Show a speech bubble line for a SPEAKER, with emote-PSB support. arg0 = speaker (npc/char id: selects the chime class, name text and per-NPC emote byte; with save-config emote flag 0x40 set, ids >= 30 index g_npcEmotePsbTable and get substituted -- the Switch-era PSB emote path). arg1 = line index (passed to Dialogue_LoadAndShowText). arg2 = sub/param. arg3 = trigger: >= 0x1F0 plays a voice sfx, else stored as the bubble emote byte.
+Speaker cue by CHARACTER ID (runtime-selectable form of ops 16-75): arg0 = speaker char id (name plate via Dialogue_LoadAndShowText when it differs from host+108, text blip via Dialogue_PickChimeClassForSpeaker, portrait; with save-config flag 0x40, ids >= 30 are first mapped through g_npcEmotePsbTable), arg1 = side (0 left / 1 right; passed both to the portrait descriptor and as Dialogue_LoadAndShowText's side), arg2 = expression (<1000 face index, 1000..1927 raw expression entry), arg3 = emote icon 186-192 (queued on the portrait) or a voice sfx id >= 0x1F0 (played). Busy while a fade runs.
 
 Args:
-  0. speaker (npc id)
-  1. line index
-  2. sub
-  3. sfx/emote id (>=0x1F0=voice)
+  0. speaker (char id, 0=player)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. side (0/1)
+  2. expression (face index; 1000+ = raw entry)
+  3. emote icon (186-192) or voice sfx id (>=0x1F0)
 
-### `op 16` — SetSpeakerMC(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 16` — SetSpeakerMC(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lest/Frey (slot 0, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 0 = Lest/Frey (player) (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate with the player's saved name (Dialogue_LoadAndShowText id 0 -> Save_GetPlayerNameOrDefault; '???' before main-scenario progress 2); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 17` — SetSpeakerMC(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 17` — SetSpeakerMC(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lest/Frey (slot 0, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 0 = Lest/Frey (player) (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate with the player's saved name (Dialogue_LoadAndShowText id 0 -> Save_GetPlayerNameOrDefault; '???' before main-scenario progress 2); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 18` — SetSpeakerVishnal(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 18` — SetSpeakerVishnal(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Vishnal (slot 1, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 1 = Vishnal (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 1; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 19` — SetSpeakerVishnal(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 19` — SetSpeakerVishnal(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Vishnal (slot 1, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 1 = Vishnal (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 1; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 20` — SetSpeakerClorica(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 20` — SetSpeakerClorica(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Clorica (slot 2, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 2 = Clorica (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 2; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 21` — SetSpeakerClorica(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 21` — SetSpeakerClorica(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Clorica (slot 2, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 2 = Clorica (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 2; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 22` — SetSpeakerVolkanon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 22` — SetSpeakerVolkanon(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Volkanon (slot 3, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 3 = Volkanon (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 3; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 23` — SetSpeakerVolkanon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 23` — SetSpeakerVolkanon(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Volkanon (slot 3, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 3 = Volkanon (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 3; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 24` — SetSpeakerForte(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 24` — SetSpeakerForte(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Forte (slot 4, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 4 = Forte (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 4; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 25` — SetSpeakerForte(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 25` — SetSpeakerForte(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Forte (slot 4, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 4 = Forte (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 4; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 26` — SetSpeakerKiel(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 26` — SetSpeakerKiel(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Kiel (slot 5, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 5 = Kiel (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 5; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 27` — SetSpeakerKiel(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 27` — SetSpeakerKiel(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Kiel (slot 5, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 5 = Kiel (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 5; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 28` — SetSpeakerBado(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 28` — SetSpeakerBado(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Bado (slot 6, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 6 = Bado (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 6; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 29` — SetSpeakerBado(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 29` — SetSpeakerBado(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Bado (slot 6, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 6 = Bado (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 6; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 30` — SetSpeakerMargaret(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 30` — SetSpeakerMargaret(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Margaret (slot 7, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 7 = Margaret (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 7; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 31` — SetSpeakerMargaret(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 31` — SetSpeakerMargaret(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Margaret (slot 7, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 7 = Margaret (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 7; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 32` — SetSpeakerDylas(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 32` — SetSpeakerDylas(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dylas (slot 8, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 8 = Dylas (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 8; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 33` — SetSpeakerDylas(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 33` — SetSpeakerDylas(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dylas (slot 8, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 8 = Dylas (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 8; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 34` — SetSpeakerArthur(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 34` — SetSpeakerArthur(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Arthur (slot 9, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 9 = Arthur (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 9; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 35` — SetSpeakerArthur(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 35` — SetSpeakerArthur(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Arthur (slot 9, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 9 = Arthur (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 9; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 36` — SetSpeakerPorcoline(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 36` — SetSpeakerPorcoline(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Porcoline (slot 10, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 10 = Porcoline (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 10; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 37` — SetSpeakerPorcoline(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 37` — SetSpeakerPorcoline(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Porcoline (slot 10, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 10 = Porcoline (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 10; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 38` — SetSpeakerXiaoPai(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 38` — SetSpeakerXiaoPai(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Xiao Pai (slot 11, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 11 = Xiao Pai (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 11; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 39` — SetSpeakerXiaoPai(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 39` — SetSpeakerXiaoPai(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Xiao Pai (slot 11, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 11 = Xiao Pai (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 11; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 40` — SetSpeakerLinFa(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 40` — SetSpeakerLinFa(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lin Fa (slot 12, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 12 = Lin Fa (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 12; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 41` — SetSpeakerLinFa(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 41` — SetSpeakerLinFa(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Lin Fa (slot 12, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 12 = Lin Fa (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 12; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 42` — SetSpeakerAmber(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 42` — SetSpeakerAmber(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Amber (slot 13, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 13 = Amber (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 13; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 43` — SetSpeakerAmber(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 43` — SetSpeakerAmber(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Amber (slot 13, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 13 = Amber (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 13; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 44` — SetSpeakerIlluminata(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 44` — SetSpeakerIlluminata(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Illuminata (slot 14, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 14 = Illuminata (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 14; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 45` — SetSpeakerIlluminata(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 45` — SetSpeakerIlluminata(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Illuminata (slot 14, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 14 = Illuminata (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 14; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 46` — SetSpeakerDoug(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 46` — SetSpeakerDoug(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Doug (slot 15, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 15 = Doug (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 15; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 47` — SetSpeakerDoug(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 47` — SetSpeakerDoug(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Doug (slot 15, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 15 = Doug (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 15; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 48` — SetSpeakerBlossom(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 48` — SetSpeakerBlossom(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Blossom (slot 16, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 16 = Blossom (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 16; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 49` — SetSpeakerBlossom(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 49` — SetSpeakerBlossom(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Blossom (slot 16, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 16 = Blossom (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 16; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 50` — SetSpeakerDolce(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 50` — SetSpeakerDolce(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dolce (slot 17, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 17 = Dolce (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 17; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 51` — SetSpeakerDolce(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 51` — SetSpeakerDolce(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Dolce (slot 17, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 17 = Dolce (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 17; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 52` — SetSpeakerJones(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 52` — SetSpeakerJones(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Jones (slot 18, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 18 = Jones (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 18; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 53` — SetSpeakerJones(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 53` — SetSpeakerJones(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Jones (slot 18, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 18 = Jones (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 18; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 54` — SetSpeakerNancy(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 54` — SetSpeakerNancy(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Nancy (slot 19, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 19 = Nancy (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 19; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 55` — SetSpeakerNancy(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 55` — SetSpeakerNancy(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Nancy (slot 19, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 19 = Nancy (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 19; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 56` — SetSpeakerLeon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 56` — SetSpeakerLeon(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Leon (slot 20, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 20 = Leon (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 20; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 57` — SetSpeakerLeon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 57` — SetSpeakerLeon(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Leon (slot 20, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 20 = Leon (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 20; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 58` — SetSpeakerVentuswill(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 58` — SetSpeakerVentuswill(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Ventuswill (slot 21, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 21 = Ventuswill (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 21; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 59` — SetSpeakerVentuswill(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 59` — SetSpeakerVentuswill(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Ventuswill (slot 21, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 21 = Ventuswill (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 21; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 60` — SetSpeakerSon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 60` — SetSpeakerSon(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Son (slot 22, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 22 = Son (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 22; the portrait/chime resolve slot 22/23 to REG_CHILD_ID; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 61` — SetSpeakerSon(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 61` — SetSpeakerSon(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Son (slot 22, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 22 = Son (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 22; the portrait/chime resolve slot 22/23 to REG_CHILD_ID; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 62` — SetSpeakerDaughter(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 62` — SetSpeakerDaughter(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Daughter (slot 23, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 23 = Daughter (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 23; the portrait/chime resolve slot 22/23 to REG_CHILD_ID; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 63` — SetSpeakerDaughter(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 63` — SetSpeakerDaughter(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Daughter (slot 23, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 23 = Daughter (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 23; the portrait/chime resolve slot 22/23 to REG_CHILD_ID; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 64` — SetSpeakerPico(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 64` — SetSpeakerPico(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Pico (slot 24, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 24 = Pico (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 309 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 65` — SetSpeakerPico(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 65` — SetSpeakerPico(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Pico (slot 24, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 24 = Pico (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 309 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 66` — SetSpeakerSoldier(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 66` — SetSpeakerSoldier(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Soldier (slot 25, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 25 = Soldier (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 149 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 67` — SetSpeakerSoldier(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 67` — SetSpeakerSoldier(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Soldier (slot 25, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 25 = Soldier (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 149 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 68` — SetSpeakerEthelberd(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 68` — SetSpeakerEthelberd(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Ethelberd (slot 26, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 26 = Ethelberd (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 239 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 69` — SetSpeakerEthelberd(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 69` — SetSpeakerEthelberd(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Ethelberd (slot 26, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 26 = Ethelberd (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 239 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 70` — SetSpeakerBarrett(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 70` — SetSpeakerBarrett(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Barrett (slot 27, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 27 = Barrett (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 24 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 71` — SetSpeakerBarrett(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 71` — SetSpeakerBarrett(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Barrett (slot 27, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor.
+Speaker cue for the following DIALOG line(s): speaker slot 27 = Barrett (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 24 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 72` — SetSpeakerRaven(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 72` — SetSpeakerRaven(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Raven (slot 28, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 28 = Raven (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 25 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 73` — SetSpeakerRaven(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 73` — SetSpeakerRaven(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Raven (slot 28, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 28 = Raven (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 25 (slot remap); also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 74` — SetSpeakerTraveler(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 74` — SetSpeakerTraveler(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Traveler (slot 29, from the opcode number), left side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 29 = Traveler (slot = (op-16)>>1), left side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 29; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 75` — SetSpeakerTraveler(face frame, emote / voice id, emote / voice id 2, emote / voice id 3)
+### `op 75` — SetSpeakerTraveler(face, emote icon, emote icon or voice sfx id 2, emote icon or voice sfx id 3)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
-Speaker cue for the following DIALOG line(s) -- designates the speaker=Traveler (slot 29, from the opcode number), right side, and their portrait. Carries no text (the next DIALOG does), and PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) -- one cue can carry a whole multi-line speech (917 shipped scenes do). arg0 = face frame (0=neutral, 1=anger, 2=cry, 3=smile, 4=surprise, 5=shy, 6+ per-character extras -- selects <NN>_<NAME>_face_<FFF> portrait art). arg1/arg2 = up to two trigger ids, each either an emote-bubble id (186-192: 188 normal, 189 anger, 190 sad, 191 smile, 192 surprise; row/kind-dependent, renders !/? for surprise/troubled) OR a voice-line sfx id (>= 0x1F0 -- the engine's dual-use threshold -- played through the NPC-variant remap). NOTE: arg2 is a second trigger id, not a target actor. The handler (NpcBubble_DispatchAreaInfoLine, RF4S.exe+0x207F70) reads at most 4 args: a rare arg3 is a third trigger (voice ids play; only the first two non-voice ids are kept as bubble emotes), and anything past arg3 is ignored.
+Speaker cue for the following DIALOG line(s): speaker slot 29 = Traveler (slot = (op-16)>>1), right side (op & 1), shows that character's E-mote portrait and, when the slot differs from the latched host+108, loads the name plate = name-archive entry 29; also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text and persists until the next speaker op / EndDialogue. arg0 = expression: < 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), 1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock alternate expressions of the character's current outfit row (g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued on the portrait (the first two non-voice ids are kept; 0 = none).
 
 Args:
-  0. face frame
-  1. emote / voice id
-  2. emote / voice id 2
-  3. emote / voice id 3 (rare)
+  0. face (expression: <1000 face index, 1000-1927 raw entry, 255/254 stock alternates)
+  1. emote icon (186-192) or voice sfx id (>=0x1F0)
+  2. emote icon or voice sfx id 2
+  3. emote icon or voice sfx id 3 (rare)
 
-### `op 83` — CloseDialogueBubbles(which)
+### `op 83` — ClosePortraits(which)
 *handler:* `Script_VMOp_CloseBubblesWaitClosed`
 
-Close on-screen dialogue bubble(s) and BLOCK the scene until the close animation finishes. arg selects which: 0 = close the FIRST bubble slot (ctx+88), 1 = close the SECOND slot (ctx+96), any other value = close BOTH. Each path calls DialogueBubble_TransitionState(slot, 0) and then keeps returning 'blocked' while the bubble state / g_npcBubbleActiveByScreen shows a bubble still closing. Use before switching speakers or ending a conversation cleanly. (The old hint '0 = both' was wrong: 0 closes one slot; only a value other than 0/1 closes both.)
+Dismiss speaker PORTRAIT(s) and block until the dismissal animation is done. arg0: 0 = the side-0 portrait (host+88), 1 = the side-1 portrait (host+96), any other value = both. Each is sent DialogueBubble_TransitionState(p, 0) (slide off to x -64 or 464) and the slot pointer cleared; the op keeps returning busy while g_npcBubbleActiveByScreen / the portrait slot table still shows one active.
 
 Args:
-  0. which (0=slot 0, 1=slot 1, other=both)
+  0. which (0 = side-0 portrait, 1 = side-1 portrait, other = both)
 
 ### `op 92` — EndDialogue()
 *handler:* `ScriptVMOp_DialogueTeardownBubblesAndCommit_NoArgs`
@@ -848,22 +956,22 @@ Dialogue box style 2: thought -- a cloud box with a bubble-trail tail pointing a
 
 Dialogue box style 3: trembling -- a wavy box that shakes sideways. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).
 
-### `op 98` — SetDialogueField161(value)
+### `op 98` — ShakeDialogueBox(frames)
 *handler:* `Script_VMOp_SetDialogueField161`
 
-Write a byte to field +161 of the current dialogue task. arg0 = value. Low-level dialogue-display flag; exact effect is engine-internal (only touched by a few scenes).
+Shake the message box for N frames: writes the dialogue task's shake counter (+161, u8). DialogueBox_TickStateMachine offsets the box, name and text by the byte_7FF753E5E1D0 dx/dy pattern while the counter is non-zero and decrements it each frame (horizontal only while box style 3 is active). This is the same counter the shout/trembling styles arm with 10. The argument is truncated to a byte; any box-style op resets it to 0.
 
 Args:
-  0. value
+  0. frames (u8; value & 0xFF)
 
-### `op 149` — PlayerScriptedTalkAnim(anim id, trigger flag)
+### `op 149` — PlayerScriptedTalkAnim(anim id, loop)
 *handler:* `ScriptVM_Op_BeginPlayerScriptedTalkWithAnim`
 
-Put the player into a scripted-talk pose and play an animation on them — for gestures during dialogue (nod, bow, shrug). arg0 = anim id (-1 = the default 'standard talk' anim 187). arg1 non-zero sets the anim-trigger-active bit.
+Put the player into scripted-talk mode (if not already) and play an anim on the player. arg0 = anim id (-1 -> 187; 1 = return to default behaviour instead of a clip). arg1 != 0 sets the player's scene_node flag 0x4 = loop the clip; arg1 == 0 leaves the bit unchanged (it is never cleared here). Also clears scene ctx+116 bit 0x8000000, which re-arms the wait in op 152.
 
 Args:
-  0. anim id (-1 = default talk)
-  1. trigger flag (0/1)
+  0. anim id (-1 = 187, 1 = back to default)
+  1. loop (non-zero sets the loop bit; 0 leaves it unchanged)
 
 ### `op 243` — EndDialogueLock(mode)
 *handler:* `Script_VMOp_EndDialogueLock`
@@ -912,7 +1020,7 @@ Args:
 ### `op 319` — SetEmote(npc id, emote id)
 *handler:* `Script_VMOp_SetNpcEmoteByte`
 
-Set an NPC's facial-expression / emote byte (record +57), switching its portrait face (happy/sad/angry/etc) -- e.g. mid-dialogue. Same handler as op320 SetNpcEmoteByte. NOT a transient emote 'bubble' popup (those are op5/6/7 ShowNpcBubble).
+Set an NPC's facial-expression / emote byte (record +57), switching its portrait face (happy/sad/angry/etc) -- e.g. mid-dialogue. Ops 319 and 320 share this handler. NOT an emote icon over the actor (that is op 211/212 ShowActorEmote).
 
 Args:
   0. npc id
@@ -945,13 +1053,13 @@ Args:
      - `26` = Mistress Trupin
   1. emote id
 
-### `op 320` — SetNpcEmoteByte(npc, emote id)
+### `op 320` — SetEmote(npc id, emote id)
 *handler:* `Script_VMOp_SetNpcEmoteByte`
 
-Set an NPC's persistent emote / facial-expression byte (record +57) — the expression it shows (happy / sad / angry …) both in and out of dialogue, and the last-dialogue-emote global. arg0 = npc (char id), arg1 = emote id. Distinct from op 93 (which sets the CURRENT dialogue speaker's emote only).
+Set an NPC's facial-expression / emote byte (record +57), switching its portrait face (happy/sad/angry/etc) -- e.g. mid-dialogue. Ops 319 and 320 share this handler. NOT an emote icon over the actor (that is op 211/212 ShowActorEmote).
 
 Args:
-  0. npc (char id)
+  0. npc id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1017,13 +1125,13 @@ Args:
      - `26` = Mistress Trupin
   1. mood id
 
-### `op 323` — SetNpcMoodByte(npc, mood id)
+### `op 323` — SetMood(npc id, mood id)
 *handler:* `Script_VMOp_SetNpcMoodByte`
 
-Set an NPC's persistent MOOD byte (record +56) — its temperament/default expression state, distinct from the emote byte (+57, op 320). arg0 = npc (char id), arg1 = mood id.
+Set an NPC's MOOD byte (record +56) -- a per-NPC temperament/mood state. Distinct from the displayed facial expression / emote byte (record +57, op319 SetEmote); unlike SetEmote this does NOT update g_lastDialogueEmoteId. Same handler as op323.
 
 Args:
-  0. npc (char id)
+  0. npc id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1056,19 +1164,19 @@ Args:
 ### `op 357` — SetVar7(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind7`
 
-Write `value` into global script-variable bank 7 at [index] (Globals_LookupChoiceCommitStateSlotByKindId(7), index <= 51). Same family as SetVar0/3/15: ENGINE-GLOBAL slots shared with the choice-commit system and readable by dialogue-text substitution codes. Shipped scripts use bank 7 to stage NUMBERS for the next menu/dialog -- e.g. order-shop scenes run GetEffectCost(license/upgrade, 0); SetVar7(0, reg0); GetEffectCost(...); SetVar7(1, reg0); ... so the price list can be substituted into the text. NOT a portrait/face op -- the handler is a bare kind-7 var write.
+Write `value` into global script-variable bank 7 (52 u32 slots) at [index]; index > 51 is ignored and the value is clamped as UNSIGNED to 999,999,999 (negatives become 999999999). Shipped scripts use it to stage numbers (e.g. prices from GetPrinceOrderCost) for dialogue-text substitution; bank 7 is also the slot the choice-commit system writes. Read back with GetVar7.
 
 Args:
-  0. index
-  1. value
+  0. index (0-51)
+  1. value (clamped to 999999999)
 
-### `op 413` — SetDialogueState8(value)
+### `op 413` — SetDialogueBoxY(y position)
 *handler:* `Script_VMOp_SetEntries8DwordFromArg`
 
-Set a low-level dialogue-box auxiliary state value (game-globals slot 8, one of the aux speaker/line-descriptor fields cleared together with slots 7 and 9 when the dialogue HUD tears down). arg0 = value.
+Override the dialogue box's Y position: game-globals slot 8 = arg0; when non-zero DialogueBox_TickStateMachine uses it instead of the default 110 (0x6E) for the box layouts that take a fixed Y. Cleared by Dialogue_TickHudTeardown when the dialogue HUD closes.
 
 Args:
-  0. value
+  0. y position (0 = default 110)
 
 ### `op 415` — SetDialogueFlag4Bit2(cond)
 *handler:* `Script_VMOp_SetEntries4Bit2ByZero`
@@ -1078,10 +1186,10 @@ Set or clear dialogue-box control bit 0x4 in the dialogue flags word: arg0 == 0 
 Args:
   0. cond (0=set bit, else clear)
 
-### `op 555` — SetNpcBubbleFlavor(npc, flavor id)
+### `op 555` — SetNpcAttentionRadius(npc, radius)
 *handler:* `Script_VMOp_SetNpcDialogueBubbleFlavorById`
 
-Set an NPC's ambient dialogue-bubble flavor (record +26) — which floating speech-bubble variant it shows (mood / '!' / '?' etc). arg0 = npc (char id), arg1 = flavor id. See project_rf4s_dialogue.md.
+Set the NPC's attention radius (record +26, stored as a byte zero-extended into the word) and run Npc_BroadcastBubbleProximityHandshake. For every villager with a non-zero +26, that routine flags each other villager on the same map with record +48 bit 0x20 when it is within +26 tile units (octagonal distance) and is not itself radiating, muted (+20 bit 0x40) or busy (+228 bit 0x1). 0 turns it off. It is a distance, not a bubble variant.
 
 Args:
   0. npc (char id)
@@ -1112,12 +1220,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. flavor id
+  1. radius (tile units, 0-255; 0 = off)
 
-### `op 556` — SetNpcBubbleFlavor(npc, flavor id)
+### `op 556` — SetNpcAttentionRadius(npc, radius)
 *handler:* `Script_VMOp_SetNpcDialogueBubbleFlavorById`
 
-Alias of op 555 (same handler): set an NPC's dialogue-bubble flavor.
+Set the NPC's attention radius (record +26, stored as a byte zero-extended into the word) and run Npc_BroadcastBubbleProximityHandshake. For every villager with a non-zero +26, that routine flags each other villager on the same map with record +48 bit 0x20 when it is within +26 tile units (octagonal distance) and is not itself radiating, muted (+20 bit 0x40) or busy (+228 bit 0x1). 0 turns it off. It is a distance, not a bubble variant.
 
 Args:
   0. npc (char id)
@@ -1148,7 +1256,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. flavor id
+  1. radius (tile units, 0-255; 0 = off)
 
 ### `op 610` — SetChoiceVisibleMask(choice 0 visible, choice 1 visible, …)
 *handler:* `Script_VMOp_SetSceneChoiceVisibleMaskFromArgs`
@@ -1186,13 +1294,13 @@ Pick the row the NEXT choice menu opens on (the default highlight). arg0 = a row
 Args:
   0. option index
 
-### `op 614` — SetDialogueSpeaker(mode)
+### `op 614` — SetDialogueBoxMode(mode)
 *handler:* `Script_VMOp_SetDialogueSpeakerSideByte`
 
-Set the dialogue box MODE: byte 2 of the dialogue mode word g_gameGlobalsSlotTable.entries[9] (Script_VMOp_SetDialogueSpeakerSideByte RF4S.exe+0x21C740). Value 2 = NARRATION: the box hides the speaker-name label (DialogueBox_SpawnBubbleAndSpeakerNameSprites), the typewriter mutes the text blips (Sprite_TickTypewriterDripText) and about forty other dialogue-box paths switch to their mode-2 variant; value 1 is tested by the HUD and bubble code too; 0 = normal. The HUD teardown resets it (IDA-verified 2026-09-25; the older 'right-side speaker' reading was wrong).
+Set the dialogue-box mode byte (byte 2 of g_gameGlobalsSlotTable.entries[9]). 2 = narration: no speaker-name label, no text blips; 0 = normal; 1 = the menu-style dialogue layout (every shipped use; FMenu_*, NpcBubble_SpawnPositionedDualScreen, Dialogue_SpawnHud and ChoiceDialog code pick different widget offsets when the byte is 1). (The existing description is right; only the name is misleading.)
 
 Args:
-  0. mode (2 = narration: no name label, no blips; 0 = normal)
+  0. mode (0 = normal, 1 = menu-style dialogue layout, 2 = narration)
 
 ### `op 615` — ArmChoiceOption(value 1, value 2, value 3)
 *handler:* `Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm`
@@ -1215,7 +1323,7 @@ Args:
 ### `op 624` — SetDialogueHoldFrames(frames)
 *handler:* `Script_VMOp_SetDialogueHoldFrameCounter`
 
-Seed the dialogue box's per-frame hold countdown (byte 3 of the line descriptor). The speech-box state machine decrements it once per frame, so this briefly delays the box for arg0 frames (0-255). Used to pace a line before it starts advancing.
+Lock out the player's advance input for N dialogue-box frames: sets a byte countdown that DialogueBox_TickStateMachine decrements every tick; while it is nonzero, DialogueBox_TickState5 ignores the confirm/skip buttons. Stops a line from being skipped too fast.
 
 Args:
   0. frames (0-255)
@@ -1228,13 +1336,13 @@ Set the active shop's shopkeeper message/greeting line to `arg`. Writes arg (a m
 Args:
   0. shopkeeper message index (0-359, indexes locale text archive 15206)
 
-### `op 699` — SetDialogueSpeakerIf(condition)
+### `op 699` — SetNarrationModeIf(enable)
 *handler:* `Script_VMOp_SetDialogueSecondarySpeakerIfNonzero`
 
-Conditional NARRATION switch (Script_VMOp_SetDialogueSecondarySpeakerIfNonzero RF4S.exe+0x220250): a non-zero arg0 sets the dialogue mode (op 614) to 2 -- speaker-name label hidden, text blips muted, so the following lines read as narration; zero leaves the mode alone (IDA-verified 2026-09-25; not a 'right-side speaker').
+If arg0 != 0, set the dialogue-box mode byte (the byte op 614 writes) to 2 = narration (no speaker-name label, muted text blips); if arg0 == 0, leave it unchanged. (The existing description is right; only the name is misleading.)
 
 Args:
-  0. condition (non-zero = switch to narration)
+  0. enable (nonzero = narration mode)
 
 ## Camera / screen
 
@@ -1276,13 +1384,13 @@ Args:
   0. actor slot (0=player)
   1. snap position (0/1)
 
-### `op 188` — SnapCameraToPlayer(instant)
+### `op 188` — HoldCameraInPlace(exact)
 *handler:* `Script_VMOp_SnapCameraToPlayer`
 
-Recenter/lock the camera on the player: sets scene flag +116 bit 0x40000 (camera-recenter request) and actor flag 4 on all players. arg != 0: additionally snapshots the CURRENT CAMERA position into the script anchor g_scriptMarkAnchorPosQ12 (the same anchor op 193 sets and op 196 tests) and rewrites the map scroll origin (map work_buffer[11..12]) to the camera tile - an instant snap. arg == 0: commits the camera target clamped to map bounds (smooth ease). Note the snapshot stores the camera position, not the player's tile.
+Detach the camera from following (player camera flag 4) and make its current position its target, so it stops where it is. arg != 0: target = current camera position exactly (plus map scroll origin). arg == 0: commit the current position through Camera_CommitTargetAndClampToBounds (clamped into the map's camera bounds). Nothing here reads the player's position.
 
 Args:
-  0. instant (0=ease, 1=snap)
+  0. exact (1 = hold exactly, 0 = clamp into bounds)
 
 ### `op 189` — ResetCameraToPlayer(snap)
 *handler:* `Script_VMOp_WarpPlayerAndResetCamera`
@@ -1302,31 +1410,31 @@ Args:
   1. y (tiles)
   2. pan speed (/100 tiles per frame, cap 15)
 
-### `op 191` — ResetCameraToActor(actor slot, mode)
+### `op 191` — ResetCameraToActor(actor, speed)
 *handler:* `Script_VMOp_ResetCameraToActor`
 
-Re-attach the camera to the player(s) and center on an actor. BLOCKING: returns busy until a ~3-frame settle completes. arg0 = actor scene-slot (0 = player). arg1 = mode: 0 -> hard-snap the anchor to the actor, -1 -> attach only (no recompute), any other value -> ease toward the actor.
+Re-attach the camera and center it on an actor (0 = player, 1..47 NPC). arg1 = 0 -> hard-snap target+position to the actor; -1 -> attach only; any other value is the ease SPEED (x40.96, same /100-tiles-per-frame channel as op 190). Blocks ~4 frames (ctx+26 counter) before continuing.
 
 Args:
-  0. actor slot (0=player)
-  1. mode (0=snap, -1=attach only, else ease)
+  0. actor (0=player, 1-47 NPC)
+  1. speed (/100 tiles per frame; 0 = snap, -1 = attach only)
 
-### `op 192` — ResetCameraToActor(actor slot, mode)
+### `op 192` — ResetCameraToActor(actor, speed)
 *handler:* `Script_VMOp_ResetCameraToActor`
 
-Alias of op 191 (same handler): re-attach + center the camera on an actor, blocking until a ~3-frame settle completes.
+Re-attach the camera and center it on an actor (0 = player, 1..47 NPC). arg1 = 0 -> hard-snap target+position to the actor; -1 -> attach only; any other value is the ease SPEED (x40.96, same /100-tiles-per-frame channel as op 190). Blocks ~4 frames (ctx+26 counter) before continuing.
 
 Args:
-  0. actor slot (0=player)
-  1. mode (0=snap, -1=attach only, else ease)
+  0. actor (0=player, 1-47 NPC)
+  1. speed (/100 tiles per frame; 0 = snap, -1 = attach only)
 
-### `op 193` — SetCameraAnchorToPlayer(mode)
+### `op 193` — SetCameraTargetToCurrentPosition(speed)
 *handler:* `Script_VMOp_SetCameraAnchorToPlayerOrTarget`
 
-Anchor the scene camera (handler Script_VMOp_SetCameraAnchorToPlayerOrTarget). Always sets camera-mode bit 0x40000 on ctx+116, then branches on arg: (0) anchor the camera to the player -- as a side effect this also snapshots the player's world position into the script 'mark' (g_scriptMarkAnchorPosQ12) and writes the tile (x, y) into the current map task's work_buffer[+11]/[+12]; (non-0) refresh the camera toward the current target actor. Ends with Camera_ComputeDistanceVectorToTarget. The mark it records in mode 0 is what QueryPlayerMovedBeyondSnapshot (op 196) reads to detect whether the player has moved.
+Make the camera's current position its target (no player involved). arg = 0: target = position exactly (and map scroll origin), then recompute the pan vector. arg != 0: commit the position through the bounds clamp, then (unless arg == -1) recompute the pan vector with speed arg (x40.96, /100 tiles per frame) - i.e. ease back inside the map bounds.
 
 Args:
-  0. mode (0 = anchor to player + set movement mark, else refresh to target)
+  0. speed (0 = hold exactly, -1 = clamp only, else /100 tiles per frame)
 
 ### `op 194` — FocusCameraOnPlayer((ignored — engine reads no args))
 *handler:* `Script_VMOp_FocusCameraOnPlayerWait`
@@ -1364,7 +1472,7 @@ Args:
 ### `op 200` — SetCameraTargetActor(actor slot, pan speed)
 *handler:* `Script_VMOp_SetCameraTargetActor`
 
-Alias of op 199 (same handler): pan the camera to an actor by scene-slot. arg1 = the same pan-speed channel as op 199 (shipped scenes use 400-800 here = 4..8 tiles/frame).
+Pan the camera to an actor chosen by scene-slot (same 0..0x2F slot space as dialogue speakers; slot 0 / empty slot falls back to the player). Anchors on the actor's world position and recomputes the follow vector; locks player movement. arg1 = the same PAN-SPEED channel as SetCameraTarget (op 190): arg1/100 tiles per frame, cap 15 (shipped scenes use ~100-400).
 
 Args:
   0. actor slot
@@ -1479,7 +1587,7 @@ Args:
 ### `op 683` — PlayCutsceneVideo(video id)
 *handler:* `Script_VMOp_PlayCutsceneVideoOrAdvanceDialogue`
 
-Play a pre-rendered full-motion cutscene VIDEO by id (a WebM movie), OR — if a dialogue is mid-step — advance it to the next step instead. arg0 = video id. The op that triggers an FMV cutscene.
+Play full-motion video [arg0] (Cutscene_PlayVideoById). If a dialogue box is still open (or a scripted event / dialogue-slot mismatch blocks it), the op instead nudges the dialogue to close (state 6 -> 7), tears down the two bubble slots, and returns 1 so the VM retries the op next step. The video therefore starts only once no dialogue is up; the dialogue is never 'advanced' as an alternative outcome.
 
 Args:
   0. video id
@@ -1499,13 +1607,13 @@ Args:
 
 ## Actors & player
 
-### `op 77` — SetActorFacingAngle(actor, target facing, turn speed)
+### `op 77` — SlidePortraitToX(portrait character id, target screen x, slide speed)
 *handler:* `Script_VMOp_SetActorFacingAngle`
 
-Turn an actor toward a target facing. arg0 = actor (char id, 0=player; resolved by matching the scene's two bound actor slots ctx+88/ctx+96, not the global tables). arg1 = TARGET facing, written raw (u16) to motion field +94 while +92 snapshots the current facing (+44) as the lerp start; bit 0x8000 of arg1 clears motion byte +99 (turn-mode/snap selector, default 1). arg2 = TURN SPEED: run through the engine's canonical speed formula ((167773*x)>>12, here x25 scale) into motion field +88, with turn progress (+32) reset to 0. NOTE: the previous hints had arg1/arg2 swapped (rate vs angle).
+Slide a speaker PORTRAIT horizontally to an absolute screen x. arg0 = character id of the portrait (must be one of the two on-screen portraits, else no-op), arg1 = target screen x (pixels; written to portrait +94, start = current x; bit 15 of the value clears the direction byte +99), arg2 = slide speed (same Q12 conversion as the move ops, x25). Does not wait; pair with op 81.
 
 Args:
-  0. actor (char id, 0=player)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1533,16 +1641,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. target facing (bit 0x8000 = mode flag)
-  2. turn speed
+  1. target screen x (pixels)
+  2. slide speed
 
-### `op 78` — SetActorFacingAngle(actor, turn rate, angle)
+### `op 78` — SlidePortraitToX(portrait character id, target screen x, slide speed)
 *handler:* `Script_VMOp_SetActorFacingAngle`
 
-Alias of op 77 (same handler): set an actor's target facing angle + turn rate.
+Slide a speaker PORTRAIT horizontally to an absolute screen x. arg0 = character id of the portrait (must be one of the two on-screen portraits, else no-op), arg1 = target screen x (pixels; written to portrait +94, start = current x; bit 15 of the value clears the direction byte +99), arg2 = slide speed (same Q12 conversion as the move ops, x25). Does not wait; pair with op 81.
 
 Args:
-  0. actor (char id, 0=player)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1570,16 +1678,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. turn rate (bit 0x8000 = ease)
-  2. angle (degrees)
+  1. target screen x (pixels)
+  2. slide speed
 
-### `op 79` — SetActorTurnAngle(actor, turn delta, turn speed)
+### `op 79` — SlidePortraitBy(portrait character id, x delta, slide speed)
 *handler:* `Script_VMOp_SetActorTurnAngle`
 
-Turn an actor by a RELATIVE amount: adds signed arg1 to the motion target-turn field (+94); arg1's sign also sets the turn-direction byte (+99: positive=1, negative=0 — the old 'bit 0x8000 = ease vs snap' claim was just this sign bit). arg2 = turn SPEED, not an angle: it goes through the same 167773/4096 (x40.96, then x25) Q12 speed conversion as the move ops' speed channel and lands in motion +88. arg0 = actor (char id, matched against the two scene actor slots; 0 = player). Corpus shows paired +40/-40 wiggles at speed 100 during dialogue (head-shake beats).
+Slide a speaker PORTRAIT horizontally by a relative amount. arg0 = character id of an on-screen portrait (else no-op), arg1 = signed x delta in pixels added to the portrait's target x (+94; sign sets the direction byte +99), arg2 = slide speed (Q12 conversion x25 -> +88). Starts the slide (state 0xC) and returns immediately; op 81 waits for it.
 
 Args:
-  0. actor (char id, 0=player)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1607,16 +1715,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. turn delta (signed, sign=direction)
-  2. turn speed
+  1. x delta (pixels, signed)
+  2. slide speed
 
-### `op 80` — SetActorTurnAngle(actor, turn delta, angle)
+### `op 80` — SlidePortraitBy(portrait character id, x delta, slide speed)
 *handler:* `Script_VMOp_SetActorTurnAngle`
 
-Alias of op 79 (same handler): add to an actor's turn rate + aim it at an angle.
+Slide a speaker PORTRAIT horizontally by a relative amount. arg0 = character id of an on-screen portrait (else no-op), arg1 = signed x delta in pixels added to the portrait's target x (+94; sign sets the direction byte +99), arg2 = slide speed (Q12 conversion x25 -> +88). Starts the slide (state 0xC) and returns immediately; op 81 waits for it.
 
 Args:
-  0. actor (char id, 0=player)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1644,16 +1752,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. turn delta (bit 0x8000 = ease)
-  2. angle (degrees)
+  1. x delta (pixels, signed)
+  2. slide speed
 
-### `op 84` — SetActorMotionField62(actor, value, apply)
+### `op 84` — SetPortraitField62(portrait character id, value, apply)
 *handler:* `Script_VMOp_SetActorMotionField62`
 
-Low-level motion tuning: write a value to an actor's motion-struct field +62 (only if the 3rd arg is non-zero). arg0 = actor (matched vs the scene's participant slots), arg1 = value, arg2 = apply flag. Engine-internal motion parameter — rarely needed directly.
+Portrait tweak: if arg2 != 0 and a portrait with char id arg0 is on screen, write arg1 to field +62 of the SIDE-0 portrait (host+88) - note it always writes the host+88 portrait, not the matched one. +62 is initialised to 100 by NpcBubble_Init; no reader was found. With arg2 = 0 (every shipped use) the op does nothing.
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1681,16 +1789,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. value
-  2. apply (0/1)
+  1. value (u16; default 100)
+  2. apply (0 = do nothing)
 
-### `op 85` — SetActorMotionField56(actor, value)
+### `op 85` — SetPortraitTargetY(portrait character id, target screen y)
 *handler:* `Script_VMOp_SetActorMotionField56`
 
-Low-level motion tuning: write a value to an actor's motion-struct field +56. arg0 = actor, arg1 = value. Engine-internal motion parameter.
+Move a speaker PORTRAIT vertically: sets its target screen y (+56); each frame its y eases 1/4 of the remaining distance toward it. 0 disables the easing (y stays where it is). arg0 = portrait character id (else no-op), arg1 = target y (pixels, signed).
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1718,15 +1826,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. value
+  1. target screen y (pixels; 0 = hold)
 
-### `op 86` — SetActorMotionField56(actor, value)
+### `op 86` — SetPortraitTargetY(portrait character id, target screen y)
 *handler:* `Script_VMOp_SetActorMotionField56`
 
-Alias of op 85 (same handler): write actor motion field +56.
+Move a speaker PORTRAIT vertically: sets its target screen y (+56); each frame its y eases 1/4 of the remaining distance toward it. 0 disables the easing (y stays where it is). arg0 = portrait character id (else no-op), arg1 = target y (pixels, signed).
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1754,15 +1862,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. value
+  1. target screen y (pixels; 0 = hold)
 
-### `op 87` — SetActorMotionField60(actor, value)
+### `op 87` — JoltPortraitY(portrait character id, y jolt)
 *handler:* `Script_VMOp_SetActorMotionField60`
 
-Low-level motion tuning: write a value to an actor's motion-struct field +60. arg0 = actor, arg1 = value. Engine-internal motion parameter.
+Give a speaker PORTRAIT a vertical jolt: sets its extra y offset (+60), which NpcBubble_SetPosition adds to the drawn y and NpcBubble_TickTask halves toward 0 every frame (a hop / drop that springs back). arg0 = portrait character id (else no-op), arg1 = offset in pixels (signed).
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1790,15 +1898,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. value
+  1. y jolt (pixels, signed; decays by half per frame)
 
-### `op 88` — SetActorMotionField60(actor, value)
+### `op 88` — JoltPortraitY(portrait character id, y jolt)
 *handler:* `Script_VMOp_SetActorMotionField60`
 
-Alias of op 87 (same handler): write actor motion field +60.
+Give a speaker PORTRAIT a vertical jolt: sets its extra y offset (+60), which NpcBubble_SetPosition adds to the drawn y and NpcBubble_TickTask halves toward 0 every frame (a hop / drop that springs back). arg0 = portrait character id (else no-op), arg1 = offset in pixels (signed).
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1826,15 +1934,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. value
+  1. y jolt (pixels, signed; decays by half per frame)
 
-### `op 89` — SetActorMotionMask(actor, mask level n)
+### `op 89` — SetPortraitTremble(portrait character id, tremble level n)
 *handler:* `Script_VMOp_SetActorMotionMask`
 
-Low-level motion tuning: writes a per-actor motion mask byte (actor motion struct +66). arg0 = actor (matched against the scene's two participant slots at ctx+96/+88, like op 81). arg1 is a LEVEL, not a raw mask: the byte written is 127>>arg1; arg1 = 0 (or out of 1..254) writes 0xFF (all bits). Engine-internal; exact field semantics uncertain.
+Make a speaker PORTRAIT tremble: writes the tremble mask +66 = 127 >> n for n in 1..254 (the portrait's y flips by the +58 amplitude, 1 px by default, whenever (phase & mask) == 0, so n = 6 flips every 2 frames, n = 3 every 16); n = 0 (or 255) writes 0xFF = tremble off. arg0 = portrait character id (else no-op).
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1862,15 +1970,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. mask level n (byte written = 127>>n; 0 = 0xFF all bits)
+  1. tremble level n (0 = off; larger = faster, 6 = every other frame)
 
-### `op 90` — SetActorMotionMask(actor, shift n)
+### `op 90` — SetPortraitTremble(portrait character id, tremble level n)
 *handler:* `Script_VMOp_SetActorMotionMask`
 
-Alias of op 89 (same handler): set an actor's motion mask byte (motion struct +66) from a SHIFT COUNT, not a raw mask: writes 127>>n for n in 1..254, otherwise 0xFF. arg0 = actor (char id, resolved via a1+96/+88). Exact field semantics uncertain; unused in the shipped corpus.
+Make a speaker PORTRAIT tremble: writes the tremble mask +66 = 127 >> n for n in 1..254 (the portrait's y flips by the +58 amplitude, 1 px by default, whenever (phase & mask) == 0, so n = 6 flips every 2 frames, n = 3 every 16); n = 0 (or 255) writes 0xFF = tremble off. arg0 = portrait character id (else no-op).
 
 Args:
-  0. actor (char id)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -1898,7 +2006,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. shift n (writes 127>>n; 0/255 = 0xFF)
+  1. tremble level n (0 = off; larger = faster, 6 = every other frame)
 
 ### `op 99` — TeleportActor(actor, x, y)
 *handler:* `Script_VMOp_TeleportActorToCoords`
@@ -1940,7 +2048,7 @@ Args:
 ### `op 100` — TeleportActor(actor, x, y)
 *handler:* `Script_VMOp_TeleportActorToCoords`
 
-Alias of op 99 (same handler): instantly warp an actor to a tile.
+Instantly warp an actor to a tile. arg0 = actor (char id, 0 = player). arg1/arg2 = destination X/Y in tiles. The player is snapped to the ground; an NPC is streamed in if needed. No walk animation — use the Move* ops for a visible walk.
 
 Args:
   0. actor (char id, 0=player)
@@ -1974,10 +2082,10 @@ Args:
   1. x (tiles)
   2. y (tiles)
 
-### `op 101` — PlaceOrFaceActor(actor, x, y, facing)
+### `op 101` — PlaceActorAndFace(actor, x, y, facing)
 *handler:* `ScriptAction_PlaceActorOrSetFacing`
 
-Dual-purpose: with X and Y given, TELEPORT an actor to that tile (like op 99); with only an actor id + angle, just set its facing. arg0 = actor (char id, 0 = player). arg1/arg2 = X/Y tiles (place mode). arg3 = facing degrees (face-only mode). Player is re-snapped to the ground on placement.
+Teleport an actor to a tile AND set its facing. arg0 = actor (0 = player, 1..47 NPC; >= 48 = no-op), arg1/arg2 = x/y tiles (as op 99: marks host+352, streams the NPC in, snaps the player to the ground), arg3 = facing in degrees (x181; player: facing_b + g_playerFacingDirty; NPC: target yaw +158 with ease shift +160 = 0, i.e. instant). There is no face-only mode: with fewer than 3 args the handler returns busy and the statement blocks forever; with exactly 3 the facing is taken from an uninitialised local.
 
 Args:
   0. actor (char id, 0=player)
@@ -2012,10 +2120,10 @@ Args:
   2. y (tiles)
   3. facing (degrees)
 
-### `op 102` — PlaceOrFaceActor(actor, x, y, facing)
+### `op 102` — PlaceActorAndFace(actor, x, y, facing)
 *handler:* `ScriptAction_PlaceActorOrSetFacing`
 
-Alias of op 101 (same handler): teleport an actor to a tile, or set its facing.
+Teleport an actor to a tile AND set its facing. arg0 = actor (0 = player, 1..47 NPC; >= 48 = no-op), arg1/arg2 = x/y tiles (as op 99: marks host+352, streams the NPC in, snaps the player to the ground), arg3 = facing in degrees (x181; player: facing_b + g_playerFacingDirty; NPC: target yaw +158 with ease shift +160 = 0, i.e. instant). There is no face-only mode: with fewer than 3 args the handler returns busy and the statement blocks forever; with exactly 3 the facing is taken from an uninitialised local.
 
 Args:
   0. actor (char id, 0=player)
@@ -2050,10 +2158,10 @@ Args:
   2. y (tiles)
   3. facing (degrees)
 
-### `op 103` — TurnActorToAngle(actor, facing, pitch/mode)
+### `op 103` — TurnActorToAngle(actor, facing, ease shift)
 *handler:* `ScriptVM_Op_SetEntityFacingAngleByteScaled`
 
-Turn an actor toward a facing angle in DEGREES (×181 -> the u16 angle; 181×360 ≈ 65536), plus a pitch/mode byte — sets the TARGET facing and the turn-pending flag (the turn-lerp tick eases toward it; pair with QueryActorAnimBusy op 129 to wait for the turn). arg0 = actor (char id, 0 = player), arg1 = degrees, arg2 = pitch/mode. CORPUS-PROVEN degrees: the arg distribution is 0/45/90/135/180/225/270/315 — compass multiples of 45, never a 0-255 spread (the old 'byte angle' reading was wrong). Distinct from SetActorFacingAngle (77/78), which writes the facing instantly.
+Turn an actor toward a compass facing. arg0 = actor (0 = player, 1..47 NPC; >= 48 or argc < 3 = no-op), arg1 = facing in degrees (x181 -> u16), arg2 = turn ease shift: each frame the facing moves (remaining >> shift) toward the target, so 0 = instant snap, 2 = a quarter per frame (NPC: actor+158 target / +160 shift, npc+20 |= 0x800 when shift != 0; player: facing_b + field_A0 = shift, g_playerFacingDirty).
 
 Args:
   0. actor (char id, 0=player)
@@ -2085,12 +2193,12 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
   1. facing (degrees)
-  2. pitch/mode
+  2. ease shift (0 = snap; 2 = 1/4 per frame)
 
-### `op 104` — TurnActorToAngle(actor, facing, pitch/mode)
+### `op 104` — TurnActorToAngle(actor, facing, ease shift)
 *handler:* `ScriptVM_Op_SetEntityFacingAngleByteScaled`
 
-Alias of op 103 (same handler): turn an actor toward a target facing in degrees.
+Turn an actor toward a compass facing. arg0 = actor (0 = player, 1..47 NPC; >= 48 or argc < 3 = no-op), arg1 = facing in degrees (x181 -> u16), arg2 = turn ease shift: each frame the facing moves (remaining >> shift) toward the target, so 0 = instant snap, 2 = a quarter per frame (NPC: actor+158 target / +160 shift, npc+20 |= 0x800 when shift != 0; player: facing_b + field_A0 = shift, g_playerFacingDirty).
 
 Args:
   0. actor (char id, 0=player)
@@ -2122,15 +2230,15 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
   1. facing (degrees)
-  2. pitch/mode
+  2. ease shift (0 = snap; 2 = 1/4 per frame)
 
-### `op 106` — RotateActorInPlace(actor, delta, total steps)
+### `op 106` — RotateActorInPlace(npc, degrees per frame, frame count)
 *handler:* `ScriptVM_Op_RotateEntityFacingByStepsWithCounter`
 
-Rotate an actor's facing by [delta] each frame for [total steps] frames — a spin/turn-in-place animation. BLOCKING until the step count is reached. arg0 = actor (char id, 0 = player), arg1 = delta (byte per step, ×181), arg2 = total steps. For 'spin around' moments (dizzy, transformation, celebration).
+Spin an NPC in place: every frame adds arg1 degrees (x181) to its current and target facing (and to its held entity's facing at actor+240 -> +186), blocking until this has run arg2 times (a single global step counter, reset to 0 on completion). arg0 must be an NPC id 1..47: id 0 dereferences a null actor (crash), >= 48 is a no-op; with fewer than 3 args the op blocks forever.
 
 Args:
-  0. actor (char id, 0=player)
+  0. npc (char id 1-47; not the player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -2158,8 +2266,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. delta (byte/step)
-  2. total steps
+  1. degrees per frame (signed)
+  2. frame count
 
 ### `op 107` — TurnActorToFaceTarget(turner, look-at target, mode)
 *handler:* `ScriptAction_TurnActorToFaceTarget`
@@ -2228,7 +2336,7 @@ Args:
 ### `op 108` — TurnActorToFaceTarget(turner, look-at target, mode)
 *handler:* `ScriptAction_TurnActorToFaceTarget`
 
-Alias of op 107 (same handler): turn an actor to face another actor.
+Rotate one actor to look at another — the workhorse for 'actors face each other before dialogue'. arg0 = turner (0 = player, 1..47 = villager, >=48 = monster). arg1 = look-at target (same encoding). arg2 = mode: 0 = snap instantly, non-zero = ease/lerp toward it.
 
 Args:
   0. turner (char id, 0=player)
@@ -2292,7 +2400,7 @@ Args:
 ### `op 109` — TurnActorToFaceTarget(turner, look-at target, mode)
 *handler:* `ScriptAction_TurnActorToFaceTarget`
 
-Alias of op 107 (same handler): turn an actor to face another actor.
+Rotate one actor to look at another — the workhorse for 'actors face each other before dialogue'. arg0 = turner (0 = player, 1..47 = villager, >=48 = monster). arg1 = look-at target (same encoding). arg2 = mode: 0 = snap instantly, non-zero = ease/lerp toward it.
 
 Args:
   0. turner (char id, 0=player)
@@ -2353,47 +2461,10 @@ Args:
      - `26` = Mistress Trupin
   2. mode (0=snap, else ease)
 
-### `op 110` — FaceEventActor(char id, event key, anim id)
+### `op 110` — FaceEventActor(actor, event-actor id, ease shift)
 *handler:* `ScriptVMOp_MakeActorFaceCalendarEventActorAndSetAnim`
 
-Make an actor turn to face a calendar-event-bound actor and start an animation. arg0 = char id (0=player, 1-47=NPC), arg1 = event key (calendar-event registry lookup), arg2 = animation id. NPC targets also re-align a paired sibling. The cutscene 'turn to look at X and react' op.
-
-Args:
-  0. char id (0=player, 1-47=NPC)
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
-  1. event key
-  2. anim id
-
-### `op 111` — SetActorRotationRaw(actor, facing)
-*handler:* `Script_VMOp_SetActorRotationRaw`
-
-Instantly SNAP an actor's facing to an angle — no turn animation, no easing. arg0 = actor (char id, 0 = player). arg1 = facing degrees (converted ×181 to the u16 rotation, 65536 = 360°). Contrast op 77 SetActorFacingAngle, which turns via the motion/ease field.
+Turn an actor (0 = player, 1..47 NPC; >= 48 = no-op) to face an EVENT ACTOR looked up by id in g_calendarEventMng (the monster / event-bound actor ids such as 100, 200, 300). arg2 is the same turn ease shift as op 107 (0 = snap, 2 = quarter per frame), not an animation.
 
 Args:
   0. actor (char id, 0=player)
@@ -2424,12 +2495,13 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. facing (degrees)
+  1. event-actor id (g_calendarEventMng record id)
+  2. ease shift (0 = snap)
 
-### `op 112` — SetActorRotationRaw(actor, facing)
+### `op 111` — SetActorAuxYaw(actor, secondary yaw target)
 *handler:* `Script_VMOp_SetActorRotationRaw`
 
-Alias of op 111 (same handler): instantly snap an actor's facing angle.
+Set the TARGET of an actor's secondary yaw pair (actor+0xD8; current value at +0xD6), not its body facing: arg1 degrees x181. Actor_IntegrateMotionAndFacing eases +0xD6 toward it with the actor's ease shift (+160), so it is not an instant snap. arg0 = actor (0 = player, 1..47 NPC; >= 48 = no-op); needs 2 args.
 
 Args:
   0. actor (char id, 0=player)
@@ -2460,12 +2532,48 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. facing (degrees)
+  1. secondary yaw target (degrees)
+
+### `op 112` — SetActorAuxYaw(actor, secondary yaw target)
+*handler:* `Script_VMOp_SetActorRotationRaw`
+
+Set the TARGET of an actor's secondary yaw pair (actor+0xD8; current value at +0xD6), not its body facing: arg1 degrees x181. Actor_IntegrateMotionAndFacing eases +0xD6 toward it with the actor's ease shift (+160), so it is not an instant snap. arg0 = actor (0 = player, 1..47 NPC; >= 48 = no-op); needs 2 args.
+
+Args:
+  0. actor (char id, 0=player)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. secondary yaw target (degrees)
 
 ### `op 115` — MoveActorToTile_LockAI(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
-Walk an actor to an ABSOLUTE tile position, then LOCK its AI (npc+568 |= 0x10) so nothing interrupts the staged pose — used when actors slide into cutscene positions and must hold. Despite the old 'ByOffset' name, args 1/2 are absolute tiles, not offsets: the move command stores x<<12 / y<<12 RAW with no world-position anchor added, on both the NPC and player/scene paths (ops 115-118 are the absolute family; 123-128 are the relative one). args: actor (0 = player), x, y (tiles), facing degrees (x181 -> u16 rotation), speed, jump flag (non-zero = jump/run, 1.2x speed multiplier).
+Walk an actor to an ABSOLUTE tile position, then LOCK its AI (npc+568 |= 0x10) so nothing interrupts the staged pose — used when actors slide into cutscene positions and must hold. Args 1/2 are absolute tiles, not offsets: the move command stores x<<12 / y<<12 RAW with no world-position anchor added, on both the NPC and player/scene paths (ops 115-118 are the absolute family; 123-128 are the relative one). args: actor (0 = player), x, y (tiles), facing degrees (x181 -> u16 rotation), speed, jump flag (non-zero = jump/run, 1.2x speed multiplier).
 
 Args:
   0. actor (char id, 0=player)
@@ -2505,7 +2613,7 @@ Args:
 ### `op 116` — MoveActorToTile_LockAI(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
-Move an actor to an ABSOLUTE tile position + set facing, while locking its AI (npc+568 |= 0x10) so it cannot start new behaviors during the move. arg0 = actor (char id, 0 = player via the scene move queue), arg1/arg2 = target x/y in tiles (written raw as x<<12 / y<<12 - NOT offsets), arg3 = facing (degrees, *181 -> u16 rotation), arg4 = speed, arg5 = jump flag (0/1; jump selects the 4915.2 speed multiplier and sets npc+568 bit 0x800000). Ops 115-118 are the absolute-position family; 123-128 are the relative (ByOffset) family.
+Walk an actor to an ABSOLUTE tile position, then LOCK its AI (npc+568 |= 0x10) so nothing interrupts the staged pose — used when actors slide into cutscene positions and must hold. Args 1/2 are absolute tiles, not offsets: the move command stores x<<12 / y<<12 RAW with no world-position anchor added, on both the NPC and player/scene paths (ops 115-118 are the absolute family; 123-128 are the relative one). args: actor (0 = player), x, y (tiles), facing degrees (x181 -> u16 rotation), speed, jump flag (non-zero = jump/run, 1.2x speed multiplier).
 
 Args:
   0. actor (char id, 0=player)
@@ -2542,13 +2650,13 @@ Args:
   4. speed
   5. jump (0/1)
 
-### `op 117` — MoveActorToTile_LockAINoFace(actor, x, y, speed, jump)
+### `op 117` — MoveActorToTileFaceTravel(actor, x, y, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
-Move an actor to an ABSOLUTE tile (x,y) with NO facing change, then post-lock its AI (npc task +568 |= 0x10). 5 args: actor (char id, 0=player, must be <48), x tile, y tile, speed, jump flag. Position is written raw as x<<12 / y<<12 into the move command (absolute Q12 world coords) -- unlike op 125, which is genuinely relative. Speed = (arg*167773>>12) x (4915.2 if jump else 4096.0) >> 12, then Npc_StartMoveTowards. Bank 211 walks Volkanon to absolute (166,467) with it; scenes also feed it coordinates straight from position queries (reg0/reg1).
+Move an actor to an ABSOLUTE tile (x,y). Move-command mode byte = 0, so the actor turns to face its direction of travel (there is simply no final-facing argument); afterwards sets actor.control_flags(+0x238) bit 0x10, the same 'scene-controlled' bit the dispatcher sets on every NPC when a cutscene starts. Speed = (arg*167773>>12) x 1.2 when jump != 0.
 
 Args:
-  0. actor (char id, 0=player)
+  0. actor (char id <48)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -2581,13 +2689,13 @@ Args:
   3. speed
   4. jump (0/1)
 
-### `op 118` — MoveActorToTile_LockAINoFace(actor, x, y, speed, jump)
+### `op 118` — MoveActorToTileFaceTravel(actor, x, y, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
-Alias of op 117 (same handler): move an actor to an ABSOLUTE tile (not a relative offset — the position args are written raw as x<<12/y<<12 into the move command, unlike the genuinely-relative op 125/126 variant which adds the actor's current position), with NO facing change, and lock the actor's AI afterward (npc.+64.+568 |= 0x10). arg0 = actor (char id, 0=player, <48), arg1/arg2 = X/Y tiles, arg3 = speed, arg4 = jump flag (0/1; jump applies a 1.2x speed factor). 5 args — there is no facing arg. IDB-corrected 2026-08-12 (bank 211 walks Volkanon to absolute (166,467)).
+Move an actor to an ABSOLUTE tile (x,y). Move-command mode byte = 0, so the actor turns to face its direction of travel (there is simply no final-facing argument); afterwards sets actor.control_flags(+0x238) bit 0x10, the same 'scene-controlled' bit the dispatcher sets on every NPC when a cutscene starts. Speed = (arg*167773>>12) x 1.2 when jump != 0.
 
 Args:
-  0. actor (char id, 0=player)
+  0. actor (char id <48)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -2615,93 +2723,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x (tiles)
-  2. y (tiles)
+  1. x (tiles, absolute)
+  2. y (tiles, absolute)
   3. speed
   4. jump (0/1)
 
-### `op 119` — NpcWalkToTile(npc, x, y, speed, run)
+### `op 119` — MoveActorToTileKeepFacing(npc, x, y, speed, jump)
 *handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
-Walk an NPC to an ABSOLUTE tile. arg0 = npc char id (<48). arg1/arg2 = target X/Y in tiles. arg3 = speed coefficient. arg4 = run flag (0 = walk, non-zero = run at 1.2x). Sets the NPC's 'moving' flag; unlike the Move*ByOffset ops this takes an absolute destination, not a delta.
-
-Args:
-  0. npc (char id)
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
-  1. x (tiles)
-  2. y (tiles)
-  3. speed
-  4. run (0/1)
-
-### `op 120` — NpcWalkToTile(npc, x, y, speed, run)
-*handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
-
-Alias of op 119 (same handler): walk an NPC to an absolute tile.
-
-Args:
-  0. npc (char id)
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
-  1. x (tiles)
-  2. y (tiles)
-  3. speed
-  4. run (0/1)
-
-### `op 121` — NpcMoveAlt(npc, tile x, tile y, speed)
-*handler:* `ScriptVMOp_NpcStartMoveAlternateKind2048`
-
-Start an NPC moving toward tile (arg1, arg2) using the ALTERNATE movement mode (kind 2048 — dash/teleport-style, distinct from the normal kind-2 walk/run mover). arg0 = npc char id (<48), arg3 = speed (scaled x167773>>12, ~x41 Q12). Exactly 4 args — there is no 5th 'target param': the handler reads 4 and calls Npc_StartMoveTowards(npc, cmd) with no target id. Sets the NPC actor's 'moving' flag (control_flags |= 0x10).
+Move an NPC to an ABSOLUTE tile while KEEPING its current facing (side-step / back-pedal): move-command mode byte = 2, which Npc_StartMoveTowards turns into control_flags 0x20000 (no auto-face). Afterwards sets control_flags bit 0x10 (scene-controlled), exactly like op 117. jump/run flag != 0 multiplies speed by 1.2 and sets the jump bit 0x800000.
 
 Args:
   0. npc (char id <48)
@@ -2732,14 +2762,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. tile x
-  2. tile y
+  1. x (tiles, absolute)
+  2. y (tiles, absolute)
   3. speed
+  4. jump (0/1)
 
-### `op 122` — NpcMoveAlt(npc, tile x, tile y, speed, target param)
-*handler:* `ScriptVMOp_NpcStartMoveAlternateKind2048`
+### `op 120` — MoveActorToTileKeepFacing(npc, x, y, speed, jump)
+*handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
-Start an NPC moving toward a tile using the alternate movement mode (kind 2048), duplicate of op 121. arg0 = npc char id (<48), arg1/arg2 = tile x/y, arg3 = speed, arg4 = target parameter.
+Move an NPC to an ABSOLUTE tile while KEEPING its current facing (side-step / back-pedal): move-command mode byte = 2, which Npc_StartMoveTowards turns into control_flags 0x20000 (no auto-face). Afterwards sets control_flags bit 0x10 (scene-controlled), exactly like op 117. jump/run flag != 0 multiplies speed by 1.2 and sets the jump bit 0x800000.
 
 Args:
   0. npc (char id <48)
@@ -2770,10 +2801,86 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. tile x
-  2. tile y
+  1. x (tiles, absolute)
+  2. y (tiles, absolute)
   3. speed
-  4. target param
+  4. jump (0/1)
+
+### `op 121` — MoveNpcToTileKeepAnim(npc, x, y, speed)
+*handler:* `ScriptVMOp_NpcStartMoveAlternateKind2048`
+
+Move an NPC to an ABSOLUTE tile WITHOUT resetting its animation: cmd mode byte = 8, which makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset-to-idle/walk-anim routine), so whatever clip PlayActorAnim started keeps playing while the actor glides. No jump flag (byte0 = 0); speed = arg*167773>>12 (same scale as a non-jump walk). Sets control_flags 0x10 afterwards.
+
+Args:
+  0. npc (char id <48)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. x (tiles, absolute)
+  2. y (tiles, absolute)
+  3. speed
+
+### `op 122` — MoveNpcToTileKeepAnim(npc, x, y, speed)
+*handler:* `ScriptVMOp_NpcStartMoveAlternateKind2048`
+
+Move an NPC to an ABSOLUTE tile WITHOUT resetting its animation: cmd mode byte = 8, which makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset-to-idle/walk-anim routine), so whatever clip PlayActorAnim started keeps playing while the actor glides. No jump flag (byte0 = 0); speed = arg*167773>>12 (same scale as a non-jump walk). Sets control_flags 0x10 afterwards.
+
+Args:
+  0. npc (char id <48)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. x (tiles, absolute)
+  2. y (tiles, absolute)
+  3. speed
 
 ### `op 123` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffsetAndFace`
@@ -2818,7 +2925,7 @@ Args:
 ### `op 124` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffsetAndFace`
 
-Alias of op 123 (same handler): relative move + face, no AI changes.
+Basic cutscene walk: move an actor by a RELATIVE tile offset and face the given angle (no AI changes). args: actor (0=player), dx, dy (tiles), facing degrees, speed, jump flag.
 
 Args:
   0. actor (char id, 0=player)
@@ -2855,10 +2962,10 @@ Args:
   4. speed
   5. jump (0/1)
 
-### `op 125` — MoveActorByOffset_InterruptAI(actor, dx, dy, speed, jump)
+### `op 125` — MoveActorByOffsetFaceTravel(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_InterruptAi`
 
-Force-reposition: PRE-CLEARS the actor's AI state, then moves it by a RELATIVE tile offset (no facing update). Use to yank an actor out of its routine before a scene. args: actor (0=player), dx, dy, (facing ignored), speed, jump flag.
+Move an actor by a RELATIVE tile offset, turning to face the direction of travel (mode 0, no end-facing arg). NPC path first clears control_flags bit 0x4 (the 'hidden' bit op 141 sets) and actor+0xB4 bits 0x10C, then Npc_StartMoveTowards; actor 0 = player via the scene mover (mode 0, or 8 when ctx+72 bit 0 is set). 5 args, no facing.
 
 Args:
   0. actor (char id, 0=player)
@@ -2894,10 +3001,10 @@ Args:
   3. speed
   4. jump (0/1)
 
-### `op 126` — MoveActorByOffset_InterruptAI(actor, dx, dy, speed, jump)
+### `op 126` — MoveActorByOffsetFaceTravel(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_InterruptAi`
 
-Alias of op 125 (same handler): interrupt-AI relative reposition.
+Move an actor by a RELATIVE tile offset, turning to face the direction of travel (mode 0, no end-facing arg). NPC path first clears control_flags bit 0x4 (the 'hidden' bit op 141 sets) and actor+0xB4 bits 0x10C, then Npc_StartMoveTowards; actor 0 = player via the scene mover (mode 0, or 8 when ctx+72 bit 0 is set). 5 args, no facing.
 
 Args:
   0. actor (char id, 0=player)
@@ -2933,10 +3040,10 @@ Args:
   3. speed
   4. jump (0/1)
 
-### `op 127` — MoveActorByOffset_Continue(actor, dx, dy, speed, jump)
+### `op 127` — MoveActorByOffsetKeepFacing(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_NoFaceUpdate`
 
-Continuation move: relative tile offset, no facing update, no AI changes — chains after another Move to extend a walk. Takes exactly 5 args: actor (char id, 0 = player), dx, dy (tiles, Q12-shifted), speed (x40.96 coefficient, x1.2 when jumping), jump flag. Unlike its and-face sibling there is NO facing argument (that variant takes 6). NPC path uses move-kind 2 (walk-keep-facing); player/scene path kind 4 (or 12 with ctx+72 bit 0).
+Move an actor by a RELATIVE tile offset while KEEPING its current facing (side-step / back-pedal). NPC path mode 2 (-> control_flags 0x20000); player path via the scene mover with mode 4 (-> player control_flags 0x20000) or 12. 5 args, no facing; jump flag x1.2 speed.
 
 Args:
   0. actor (char id, 0=player)
@@ -2972,10 +3079,10 @@ Args:
   3. speed
   4. jump (0/1)
 
-### `op 128` — MoveActorByOffset_Continue(actor, dx, dy, speed, jump)
+### `op 128` — MoveActorByOffsetKeepFacing(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_NoFaceUpdate`
 
-Alias of op 127 (same handler): move an actor (NPC, or the scene/player actor when arg0=0) by a RELATIVE tile offset WITHOUT updating its facing (NPC move kind 2 = walk-keep-facing; scene kind 4/12). 5 args -- there is NO facing argument; that belongs to the with-facing sibling handler. Jump flag scales speed 1.2x and sets the NPC jump bit 0x800000.
+Move an actor by a RELATIVE tile offset while KEEPING its current facing (side-step / back-pedal). NPC path mode 2 (-> control_flags 0x20000); player path via the scene mover with mode 4 (-> player control_flags 0x20000) or 12. 5 args, no facing; jump flag x1.2 speed.
 
 Args:
   0. actor (char id, 0=player)
@@ -3011,10 +3118,10 @@ Args:
   3. speed
   4. jump (0/1)
 
-### `op 133` — PlayActorAnim(actor, anim id, hold pose)
+### `op 133` — PlayActorAnim(actor, anim id, loop)
 *handler:* `Script_VMOp_PlayActorActionAnim`
 
-Play an action/animation on an actor. arg0 = actor (char id, 0 = player). arg1 = anim/action id -- an index into that actor's own animation archive, so the same id can be a different animation on different characters (no global id->name list); verify per character. arg2 non-zero marks it as a held scripted pose (and, for the player, begins a scripted-talk interaction). Pair with QueryActorAnimBusy (op 129) to wait for it.
+Play an animation on an actor. arg1 = anim id; id 1 is special: instead of a clip it calls the actor's own behaviour callback (actor+0x48), i.e. hands the actor back to its default idle/AI (for the player it may begin a scripted talk interaction). arg2 != 0 sets scene_node flag 0x4 = LOOP the clip (the engine sets the same bit on idle anims); 0 clears it for NPCs (plays once, op 137 can wait for its end); on the player path 0 leaves the bit unchanged (the player branch only ever sets it). Player: begins a scripted-talk interaction first if not already in one.
 
 Args:
   0. actor (char id, 0=player)
@@ -3045,13 +3152,13 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. anim id (per-character archive)
-  2. hold pose (0/1)
+  1. anim id (1 = resume default behaviour)
+  2. loop (0/1; 0 clears the bit for NPCs only)
 
-### `op 134` — PlayActorAnim(actor, anim/action id, hold pose)
+### `op 134` — PlayActorAnim(actor, anim id, loop)
 *handler:* `Script_VMOp_PlayActorActionAnim`
 
-Alias of op 133 (same handler): play an action animation on an actor.
+Play an animation on an actor. arg1 = anim id; id 1 is special: instead of a clip it calls the actor's own behaviour callback (actor+0x48), i.e. hands the actor back to its default idle/AI (for the player it may begin a scripted talk interaction). arg2 != 0 sets scene_node flag 0x4 = LOOP the clip (the engine sets the same bit on idle anims); 0 clears it for NPCs (plays once, op 137 can wait for its end); on the player path 0 leaves the bit unchanged (the player branch only ever sets it). Player: begins a scripted-talk interaction first if not already in one.
 
 Args:
   0. actor (char id, 0=player)
@@ -3082,16 +3189,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. anim/action id
-  2. hold pose (0/1)
+  1. anim id (1 = resume default behaviour)
+  2. loop (0/1; 0 clears the bit for NPCs only)
 
-### `op 141` — SetActorInvulnerable(actor, guard)
+### `op 141` — SetActorOpacity(actor, opacity percent)
 *handler:* `ScriptVMOp_SetActorInvulnerability`
 
-Toggle an actor's scripted invulnerability guard. arg0 = actor (char id, 0 = player). arg1 has INVERTED polarity: arg1 == 0 turns the guard ON (sets the armor-guard bit); arg1 != 0 turns it OFF and clears the invuln overlay tint. Wrap scripted-combat cutscenes so staged actors can't be killed.
+Show/hide an actor. arg1 == 0 sets control_flags(+0x238) bit 0x4 (hidden); arg1 != 0 clears that bit and sets the model opacity to arg1 percent (SceneNode_SetAlpha(node, arg1*0.01)).
 
 Args:
-  0. actor (char id, 0=player)
+  0. actor (char id <48, 0=player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3119,7 +3226,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. guard (0 = invulnerable ON, non-zero = OFF)
+  1. opacity percent (0 = hide)
 
 ### `op 142` — MoveSceneActorToTile(x, y, facing, speed, run)
 *handler:* `Script_VMOp_MoveActorToCoords`
@@ -3133,16 +3240,16 @@ Args:
   3. speed
   4. run (0/1)
 
-### `op 143` — MoveToCoords(tile x, tile y, speed, run)
+### `op 143` — MoveSceneActorToTileFaceTravel(x, y, speed, run)
 *handler:* `ScriptVM_Op_QueueMoveCommandToCoords`
 
-Queue a scripted 'move to tile coordinates' command for the scene's active mover. arg0/arg1 = target tile x/y (<<12 to Q12), arg2 = SPEED coefficient (not a distance: it gets the identical 167773/4096 = x40.96 Q12 conversion as NpcWalkToTile's speed arg, x1.2 when running; shipped scenes pass ~120-250), arg3 = 0 to walk / non-zero to run. Mode byte 8 added when ctx+72 bit 0 is set. Choreographs NPC/player movement during a cutscene.
+Move the scene-controlled actor (the player) to an ABSOLUTE tile, facing the direction of travel (mode 0, no end-facing, no keep-facing). arg2 = speed (x40.96, x1.2 when running), arg3 = run flag.
 
 Args:
-  0. tile x
-  1. tile y
+  0. x (tiles)
+  1. y (tiles)
   2. speed
-  3. run (0=walk)
+  3. run (0/1)
 
 ### `op 144` — MoveSceneActorStraight(x, y, speed, run)
 *handler:* `Script_VMOp_MoveActorStraight`
@@ -3158,7 +3265,7 @@ Args:
 ### `op 146` — EquipItemToPlayer(item id)
 *handler:* `ScriptVMOp146_ScriptedEquipItemToPlayer`
 
-Scripted equip: force-equips item [item id] into the player's equip slot 1 (via Player_OnEquipChanged), if it can be held. Pairs with op 147 to restore.
+Scripted equip: if the player's current held/equip slot passes Inventory_CanStackOrMerge, writes item (id & 0x7FF | 0x800) into the player's equip slot record (actor_inner+0x2A0+984 -> +72), calls Player_OnEquipChanged, then Player_BeginScriptedTalkAndIdle(1).
 
 Args:
   0. item id
@@ -3196,20 +3303,20 @@ Args:
   4. facing (degrees)
   5. variant index
 
-### `op 155` — EventSpawnNpcFollower(char id, event key, x, y, facing, behaviour flag, follow speed)
+### `op 155` — EventSpawnNpcEx(char id, event key, x, y, facing, flag, scalar %)
 *handler:* `ScriptVMOp_CalendarEvent_AddNpcWithFollowSpeedAndFlag`
 
-Spawn an event NPC that trails at a follow speed — always claims a NEW registry slot. arg0 = char id (which character/model), arg1 = event key (the scene-local handle — SAME char/key order as ops 153/154, IDA-verified 2026-08-18: ScriptVMOp_CalendarEvent_AddNpcWithFollowSpeedAndFlag stores arg0 in the char word and arg1 in the key word), arg2/arg3 = X/Y tiles, arg4 = facing degrees, arg5 = behaviour flag byte (packed at record WORD5), arg6 = follow-speed multiplier (stored as value × 0.01). Use for a companion/tag-along that keeps pace during a scene.
+Always appends a new event-actor record like op 154 (char arg0, key arg1, x, y, facing deg). Record WORD5 = 0x8000 | (arg5 & 1) << 14 - only bit 0 of arg5 matters and bit 15 is always set; record +16 = float(arg6) * 0.01. What reads WORD5 bits 14/15 and the +16 float was not traced, so 'follow speed' is unconfirmed.
 
 Args:
   0. char id (model)
      - *(enum: 392 values — use the in-editor picker or the id database)*
-  1. event key (scene-local handle)
+  1. event key
   2. x (tiles)
   3. y (tiles)
   4. facing (degrees)
-  5. behaviour flag
-  6. follow speed
+  5. flag (bit 0 only)
+  6. scalar % (stored x0.01)
 
 ### `op 156` — UnregisterEventActor(char id, event key)
 *handler:* `ScriptVMOp_KillCalendarEventByCharAndEventKey`
@@ -3233,10 +3340,10 @@ Args:
   3. speed
   4. run (0/1)
 
-### `op 161` — EventNpcWalkToTilePriority(event key, x, y, speed, run)
+### `op 161` — EventNpcWalkToTileKeepFacing(event key, x, y, speed, run)
 *handler:* `ScriptVMOp_CalendarEvent_BeginScriptedNpcMovementAndSetCtrlFlag20000`
 
-Walk a spawned event NPC to an ABSOLUTE tile AND lock it into high-priority scripted movement (control flag 0x20000) so it ignores AI and player interaction until the walk finishes — the cutscene-safe version of op 160. arg0 = event key (char id), arg1/arg2 = X/Y tiles, arg3 = speed, arg4 = run (0/1).
+Same as op 160 (walk/run an event actor to an absolute tile) but first sets the actor's control_flags bit 0x20000, which suppresses auto-facing toward the movement direction - the actor side-steps / back-pedals keeping its current facing.
 
 Args:
   0. event key
@@ -3245,24 +3352,24 @@ Args:
   3. speed
   4. run (0/1)
 
-### `op 162` — SetMonsterFacing(monster, facing, mode)
+### `op 162` — SetEventActorFacing(event key, facing, turn ease)
 *handler:* `ScriptVMOp_SetMonsterFacingDegrees`
 
-Set a monster's facing to an absolute angle. arg0 = monster (char id), arg1 = facing degrees (×181 → u16), arg2 = mode (0 = snap, non-zero = ease). (The handler's name says 'EightDirIndex' but the value is plain degrees, like every other facing op.)
-
-Args:
-  0. monster (char id)
-  1. facing (degrees)
-  2. mode (0=snap, else ease)
-
-### `op 163` — FaceEventActorTowardTarget(event key, look-at target, mode)
-*handler:* `ScriptVM_Op_FaceCalendarEventTowardEntity`
-
-Rotate a spawned event actor to look at another entity — the event-actor twin of TurnActorToFaceTarget (op 107). arg0 = event key (the actor that turns). arg1 = look-at target (0 = player, 1..47 = NPC, 48+ = event actor). arg2 = mode (0 = snap, non-zero = ease/lerp).
+Set a spawned EVENT actor's target facing. arg0 = event key (not a monster/char id), arg1 = degrees (x181), arg2 = turn easing shift stored at actor+0xA0: each frame facing moves by (remaining >> shift), so 0 = snap, 1 = half the gap per frame, 2 = quarter (smoother). Sets record flag 0x8 (turn pending) for op 164.
 
 Args:
   0. event key
-  1. look-at target (char id)
+  1. facing (degrees)
+  2. turn ease (0 = snap, higher = slower)
+
+### `op 163` — FaceEventActorTowardTarget(event key, look-at target, turn ease)
+*handler:* `ScriptVM_Op_FaceCalendarEventTowardEntity`
+
+Turn a spawned event actor to look at a roster actor. arg0 = event key (the one that turns), arg1 = look-at target (0 = player, 1..47 = NPC; values >= 48 are NOT supported - the handler uses an uninitialised pointer), arg2 = turn easing shift (0 = snap, n = 1/2^n of the remaining angle per frame).
+
+Args:
+  0. event key
+  1. look-at target (0=player, 1-47 NPC)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3290,12 +3397,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  2. mode (0=snap, else ease)
+  2. turn ease (0 = snap, higher = slower)
 
 ### `op 167` — EventActorPlayAnim(event key, anim id, loop)
 *handler:* `ScriptVMOp_StartAnimOnCalendarEventActorWithLoopFlag`
 
-Play an animation on a spawned event actor. arg0 = event key, arg1 = anim id, arg2 = loop flag (non-zero = keep repeating). Pair with WaitForEventActorReady (op 169) to wait for a one-shot anim to finish.
+Play an animation on a spawned event actor. arg0 = event key, arg1 = anim id, arg2 = loop flag (non-zero = keep repeating). Pair with QueryEventActorAnimBusy (op 169) to wait for a one-shot anim to finish.
 
 Args:
   0. event key
@@ -3310,14 +3417,14 @@ Force a spawned event actor to re-sync its animation frame from its widget after
 Args:
   0. event key
 
-### `op 170` — SetEventActorSpeedScale(event key, scale %)
+### `op 170` — SetEventActorAnimSpeed(event key, anim speed %)
 *handler:* `ScriptVMOp_CalendarEvent_SetActorMoveScaleFactor`
 
-Set a spawned event actor's move / animation speed multiplier. arg0 = event key (char id), arg1 = scale percent (÷100 = the multiplier: 100 = normal, 50 = half-speed slow-mo, 200 = double). For slow-motion or sped-up cutscene moments.
+Set a spawned event actor's ANIMATION playback speed: model node (actor+0x20) +0x180 float = arg1 * 0.01 (100 = normal, 50 = half, 0 = frozen pose). Movement speed is not affected.
 
 Args:
   0. event key
-  1. scale % (100 = 1.0×)
+  1. anim speed % (100 = normal, 0 = freeze)
 
 ### `op 171` — SetEventActorAlpha(event key, alpha %)
 *handler:* `ScriptVMOp_SetCalendarEventActorAlphaPercent0To100OrHide`
@@ -3328,49 +3435,49 @@ Args:
   0. event key
   1. alpha % (0-100, 0=hide)
 
-### `op 172` — EventActorStopAnim(event key, anim id)
+### `op 172` — ShowEventActorEmote(event key, emote icon id)
 *handler:* `ScriptVMOp_StopAnimAndClearOutfitOverride_OnCalendarEventActor`
 
-Stop a spawned event actor's current animation and clear any outfit/costume override. arg0 = event key, arg1 = anim id to settle to. Event-actor twin of StopActorAnimAndClearOutfitOverride (ops 211/212).
+Show an emote/balloon icon over a spawned event actor. arg1 = icon subtype (0 = clear). Stores it at actor+0x140 and, unless the same icon (>=16) is already shown, spawns Action 143 (VfxAction_SpawnPrimarySprite) at the actor with subtype arg1 and plays a matching SFX for ids 4/5, 6/8 and 14.
 
 Args:
   0. event key
-  1. anim id
+  1. emote icon id (0 = clear)
 
-### `op 173` — MarkCalendarEventCancelled(event id)
+### `op 173` — SetEventActorInScriptFlag(event key)
 *handler:* `Script_VMOp_MarkCalendarEventActorByEventId`
 
-Find the calendar-event record with matching event_id (low-16 match in `g_calendarEventMng_20wPerRecord`) and OR 0x80 into its +564 field -- the 'cancelled/expired' flag. Returns 1 if the event id wasn't found in the current table.
+Set bit 0x80 of the event ACTOR's +0x234 flags (not the record). The only reader is monster AI opcode 0x80 (MonsterScript_Op80_IfScriptLocked), which treats the actor as 'in script/cutscene' and takes its scripted branch. arg0 = event key.
 
 Args:
-  0. event id
+  0. event key
 
-### `op 174` — AddActorVerticalVelocity(actor, velocity)
+### `op 174` — AddActorHeightOffset(actor, height delta)
 *handler:* `ScriptVMOp_AddVerticalVelocityToActorClampedByJumpFlag`
 
-Add a vertical velocity impulse to an actor — a scripted hop/jump or a downward burst. arg0 = target (0 = player, 1..48 = NPC, 48+ = event key). arg1 = velocity (positive = up). If the actor lacks the jump flag the result is clamped to non-upward (so it can only fall, not launch).
+Add arg1 << 12 to the actor's height offset (actor+0x50, a position component integrated alongside x/y in Actor_IntegrateMotionAndFacing; NEGATIVE = up). Unless render_state_flags bit 0x4 is set the result is clamped to <= 0, so the actor cannot be pushed below its ground height. Target: 0 = player, 1..47 NPC, > 48 = event key (48 itself fails).
 
 Args:
-  0. actor (0=player, 1-48=NPC, 48+=event key)
-  1. velocity (up if jump-enabled)
+  0. actor (0=player, 1-47 NPC, >48 event key)
+  1. height delta (negative = up)
 
-### `op 175` — SetEventActorStateWord(event key, value)
+### `op 175` — SetEventActorCollideRadius(event key, collision radius)
 *handler:* `ScriptVMOp_SetCalendarEventActorWordField172`
 
-Set a low-level per-actor state word (task field +172) on a spawned event actor. arg0 = event key, arg1 = value. Engine-internal state used by specific scripted setups; exact effect depends on the actor.
+Set a spawned event actor's collision radius: u16 at actor+0xAC (Actor_t.collide_radius) = arg1.
 
 Args:
   0. event key
-  1. value
+  1. collision radius
 
-### `op 176` — SetEventActorGreyscale(event key, grey level)
+### `op 176` — SetEventActorScale(event key, scale %)
 *handler:* `ScriptVMOp_SetCalendarEventActorSpriteTintGreyscale`
 
-Tint a spawned event actor's sprite toward greyscale/monochrome (all three colour channels set equal). arg0 = event key, arg1 = grey level (scaled ×40.96 internally; lower = darker/dimmer). For flashbacks, petrification, dark-mood scenes.
+Set a spawned event actor's uniform model scale: scale_x/y/z (actor+0x88/+0x8C/+0x90) = arg1 * 167773 >> 12, i.e. percent -> Q12 (100 = 4096 = 1.0, 50 = half size).
 
 Args:
   0. event key
-  1. grey level (lower = darker)
+  1. scale % (100 = normal)
 
 ### `op 177` — EventActorEnterIdle(event key, (unused — handler reads only 1 arg; shipped scripts pass 2))
 *handler:* `ScriptVMOp_EnterActorIdleStateByCalendarEventKey`
@@ -3381,14 +3488,14 @@ Args:
   0. event key
   1. (unused — handler reads only 1 arg; shipped scripts pass 2)
 
-### `op 178` — SetEventActorTargetFacing(event key, facing)
+### `op 178` — SetEventActorTurnAngle(event key, angle)
 *handler:* `ScriptVMOp_SetCalendarEventActorTargetFacingDegrees`
 
-Set a spawned event actor's TARGET facing angle; the NPC tick interpolates its current facing toward it (a smooth turn). arg0 = event key, arg1 = facing degrees (×181 → u16). (The handler's name says 'DirIndex' but the math is plain degrees, matching every other facing op.)
+Set the target of an event actor's SECONDARY rotation (u16 at actor+0xD8 = 181*deg); Actor_IntegrateMotionAndFacing eases the current value at +0xD6 toward it using the same +0xA0 shift as facing. This is the angle pair op 113 WaitActorAuxYaw and op 179 test - NOT the movement facing (+0x9C/+0x9E) that ops 162/163/164 use.
 
 Args:
   0. event key
-  1. facing (degrees)
+  1. angle (degrees)
 
 ### `op 180` — KillEventActor(event key)
 *handler:* `ScriptVMOp_CalendarEvent_KillActorWithDeathAnimAndKnockback`
@@ -3406,23 +3513,23 @@ Cleanly despawn a spawned event actor — NO death animation (contrast op 180 Ki
 Args:
   0. event key
 
-### `op 183` — SetEntityLevelAndRespawnAI(entity, level)
+### `op 183` — SetActorAIScript(actor, AI script id)
 *handler:* `ScriptVM_Op_SetEntityLevelAndSpawnMonster`
 
-Set an actor's level and re-run its monster behaviour script (respawns its AI at the new level) with a level-up VFX. arg0 = entity (0 = player, 1..47 = NPC, 48+ = event key). arg1 = new level, or -1 to play the level-up VFX only without changing the level. Used for scripted power-ups / boss phase changes.
+Replace an actor's monster-AI (AIBN) script. arg1 = AI script id: written to stats->ai_script_id (+0x54), the old script ctx gets flag 0x1000, and MonsterScript_SpawnTaskAndLoadScript starts a new AI task loading archive (id+1). arg1 = -1 instead sets the current script ctx flag 0x40000000 (the flag Npc_FinalizeTeleportAndNotify clears) without loading anything. Target: 0 = player, 1..47 NPC, >= 48 event key.
 
 Args:
-  0. entity (0=player, 1-47=NPC, 48+=event key)
-  1. level (-1 = VFX only)
+  0. actor (0=player, 1-47 NPC, 48+ event key)
+  1. AI script id (-1 = suspend current)
 
-### `op 184` — SetActorScriptedStateBit(actor, flag)
+### `op 184` — SetActorIgnoredByMonsters(actor, set)
 *handler:* `ScriptVMOp_SetActorOrEventActorStatusEquipBit10000000`
 
-Set or clear an actor's scripted-state bit 0x10000000 in its status/equip bitfield (inferred to hide the actor during a scene transition). arg0 = target (0 = player, 1..47 = NPC, 48+ = event key). arg1 = 0 clears the bit, non-zero sets it.
+Set/clear bit 0x10000000 of the actor's status_equip_flags (+0x10). Monster AI skips an actor with this bit when picking or validating a target, and Combat_ComputeDamage branches on it in the element-bonus step. arg1 != 0 sets, 0 clears. Target: 0 = player, 1..47 NPC, >= 48 event key.
 
 Args:
-  0. actor (0=player, 1-47=NPC, 48+=event key)
-  1. flag (0/1)
+  0. actor (0=player, 1-47 NPC, 48+ event key)
+  1. set (0/1)
 
 ### `op 185` — PlayActorSplash(actor)
 *handler:* `Script_VMOp_PlayActorSplashAnim`
@@ -3467,13 +3574,13 @@ Recompute and re-apply the camera's per-map clamp bounds and zoom for the curren
 Args:
   0. mode (0=direct distance write, else standard zoom apply)
 
-### `op 206` — CancelNpcPathOrEquipMainhand(npc, item id / cancel target)
+### `op 206` — SetActorHeldItem(actor, item id)
 *handler:* `Script_VMOp_CancelNpcPathOrPlayerEquipMainhand`
 
-Dual-purpose. For an NPC (arg0 != 0): cancel its pending path / scripted action so it stays put for a scene (arg1 = a specific target to cancel, 0 = cancel all). For the player (arg0 = 0): equip the mainhand weapon = arg1 (0 = unequip), refreshing stats. Stages the player's loadout ('NPC hands you a sword') or freezes an NPC's movement.
+Set what an actor holds. NPC (arg0 1..47): arg1 = item id -> Npc_ClearActivePathTarget(actor, item|0x8000) which, as the id is negative as int16, calls Actor_EquipStartingItemByNpcParam and puts that item's model in the NPC's hand; arg1 = 1 -> passes 0 (re-apply the NPC's configured equipment when it is in equipped mode, else clear); arg1 = 0 -> destroys the three held-item models (actor inner +248/+256/+264) and zeroes the held ids +180/+182/+184. Player (arg0 = 0): arg1 = item id -> add to bag if absent (applying the pending-interaction record) and equip it as the main weapon; arg1 = 0 -> unequip the weapon to the bag and re-apply the other equipment.
 
 Args:
-  0. npc (char id, 0=player)
+  0. actor (0=player, 1-47 NPC)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3501,16 +3608,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. item id / cancel target
+  1. item id (0 = remove; NPC: 1 = default equipment)
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 207` — CancelNpcPathOrEquipMainhand(npc, item id / cancel target)
+### `op 207` — SetActorHeldItem(actor, item id)
 *handler:* `Script_VMOp_CancelNpcPathOrPlayerEquipMainhand`
 
-Alias of op 206 (same handler): cancel an NPC's path, or equip the player's mainhand.
+Set what an actor holds. NPC (arg0 1..47): arg1 = item id -> Npc_ClearActivePathTarget(actor, item|0x8000) which, as the id is negative as int16, calls Actor_EquipStartingItemByNpcParam and puts that item's model in the NPC's hand; arg1 = 1 -> passes 0 (re-apply the NPC's configured equipment when it is in equipped mode, else clear); arg1 = 0 -> destroys the three held-item models (actor inner +248/+256/+264) and zeroes the held ids +180/+182/+184. Player (arg0 = 0): arg1 = item id -> add to bag if absent (applying the pending-interaction record) and equip it as the main weapon; arg1 = 0 -> unequip the weapon to the bag and re-apply the other equipment.
 
 Args:
-  0. npc (char id, 0=player)
+  0. actor (0=player, 1-47 NPC)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3538,7 +3645,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. item id / cancel target
+  1. item id (0 = remove; NPC: 1 = default equipment)
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 208` — HandOrDropItem(target npc, item id)
@@ -3551,13 +3658,14 @@ Args:
   1. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 211` — StopActorAnim(actor, anim id)
+### `op 211` — ShowActorEmote(actor, emote icon id)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Stop an actor's current animation cleanly and clear any outfit/costume override (set by SetNpcOutfit). arg0 = actor (char id; 0 = player, -1 = the current interaction NPC, 1..47 = NPC). arg1 = anim id to settle to. Use to drop a special pose/outfit between scene beats.
+Show an emote/balloon icon over an actor (0 = player, -1 = current interaction NPC, 1..47 NPC). arg1 = icon id (0 = clear). Stored at actor+0x140; unless the same icon (>= 16) is already up, spawns Action 143 (VfxAction_SpawnPrimarySprite, subtype = icon) at the actor and plays an SFX for icons 4/5, 6/8 and 14. NPCs whose control_flags hidden bit 0x4 is set are skipped. No animation or outfit is touched.
 
 Args:
-  0. actor (char id, 0=player, -1=current)
+  0. actor (0=player, -1=current NPC, 1-47 NPC)
+     - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -3584,15 +3692,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. anim id
+  1. emote icon id (0 = clear)
 
-### `op 212` — StopActorAnim(actor, anim id)
+### `op 212` — ShowActorEmote(actor, emote icon id)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Alias of op 211 (same handler): stop an actor's anim + clear its outfit override.
+Show an emote/balloon icon over an actor (0 = player, -1 = current interaction NPC, 1..47 NPC). arg1 = icon id (0 = clear). Stored at actor+0x140; unless the same icon (>= 16) is already up, spawns Action 143 (VfxAction_SpawnPrimarySprite, subtype = icon) at the actor and plays an SFX for icons 4/5, 6/8 and 14. NPCs whose control_flags hidden bit 0x4 is set are skipped. No animation or outfit is touched.
 
 Args:
-  0. actor (char id, 0=player, -1=current)
+  0. actor (0=player, -1=current NPC, 1-47 NPC)
+     - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -3619,7 +3728,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. anim id
+  1. emote icon id (0 = clear)
 
 ### `op 217` — ApplyFriendshipDelta(npc id, mode, xp/value)
 *handler:* `ScriptVM_Op_ApplyFriendshipDeltaToNpc`
@@ -3658,19 +3767,19 @@ Args:
   1. mode (add / sub / set = the null / zero / self leaf)
   2. xp/value
 
-### `op 221` — AdjustCurrentNpcFriendship(op kind, xp/value)
+### `op 221` — AdjustCurrentNpcFriendship(mode, xp/value)
 *handler:* `ScriptVMOp_NpcFriendshipAdjustByKindWithCurrentInteraction`
 
-Adjust the friendship of the NPC the player is currently talking to (g_currentInteractionNpc). arg0 = op kind: 4 = add friendship XP, 5 = subtract XP, 6 = set the friendship points absolutely. arg1 = the XP delta (kinds 4/5) or the absolute value (kind 6). The go-to op for dialogue-choice reactions (+/- affection).
+Adjust the current interaction NPC's friendship. The mode is arg0's token KIND (like op 217's arg1), not its value: null leaf (kind 4) = add XP, zero leaf (kind 5) = subtract XP, self leaf (kind 6) = set points absolutely. arg1 = amount.
 
 Args:
-  0. op kind (4=add, 5=sub, 6=set)
+  0. mode (add / sub / set = null / zero / self leaf)
   1. xp/value
 
 ### `op 222` — LockNpcPose(npc)
 *handler:* `ScriptVMOp_NpcLockFacingAndSetActionFlags`
 
-Freeze an NPC's facing/pose for a cutscene: snapshots its current facing and sets the pose-locked + action-pending flags so it holds still and won't turn on its own. arg0 = npc (char id). Released by ReleaseNpcLocks (op 230).
+Freeze an NPC's facing/pose for a cutscene: snapshots its current facing and sets the pose-locked + action-pending flags so it holds still and won't turn on its own. arg0 = npc (char id).
 
 Args:
   0. npc (char id)
@@ -3741,7 +3850,7 @@ Args:
 ### `op 224` — SetNpcEngaged(npc, engaged)
 *handler:* `ScriptVMOp_SetNpcEngagedFlagAndRefreshSchedule`
 
-Alias of op 223 (same handler): pause/resume an NPC's schedule for a scene.
+Pull an NPC out of (or back into) its daily schedule so it can take part in a scene. arg0 = npc (char id), arg1 = engaged: non-zero pauses the NPC's routine ('engaged'), 0 releases it back to its schedule. Refreshes its schedule state immediately.
 
 Args:
   0. npc (char id)
@@ -3846,13 +3955,13 @@ Args:
      - `26` = Mistress Trupin
   1. (unused — handler reads only 1 arg; corpus passes 2)
 
-### `op 234` — HideNpc(npc, (ignored))
+### `op 234` — HideNpc(npc, (unused — handler reads only 1 arg; corpus passes 2))
 *handler:* `Script_VMOp_HideNpcAndSetFlag`
 
-Alias of op 233 (same handler): hide an NPC — calls Npc_SetHiddenFlag(id) and sets record+52 bit 0x20000000 (the hidden bit QueryNpcActorPresent/op 282 tests on the actor side). arg0 = npc (char id < 48). The corpus always passes a second arg (usually 1) that the RF4S handler never reads — vestigial.
+Hide an NPC — make it invisible/despawned and set its hidden state bit. arg0 = npc (char id). Removes the NPC from the scene; pair with a schedule refresh or SetNpcVisibleFlag to bring it back.
 
 Args:
-  0. npc (char id)
+  0. npc (char id <48)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3880,15 +3989,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. (ignored)
+  1. (unused — handler reads only 1 arg; corpus passes 2)
 
 ### `op 244` — NpcShowItem(npc)
 *handler:* `Script_VMOp_BeginNpcItemShow`
 
-Make an NPC play its 'show / hold up an item' gesture — the pose used when an NPC presents an item to the player (gift, quest reward, discovery). arg0 = npc (char id).
+Make an NPC hold up the item it is carrying: needs the NPC's model to hold an item (+304 -> +178 in 1..1107). If the NPC's actor state is 20 it instead puts the item away and returns to idle (Npc_ResetActorPostTeleport + Npc_FinalizeTeleportAndNotify); otherwise it starts the show-item action (actor state 19, anim archive base+18, tick NpcAction_TickItemShow).
 
 Args:
-  0. npc (char id)
+  0. npc (char id, 1-47)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3917,13 +4026,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 246` — StreamInNpcAtTile(npc, stream kind, x, y)
+### `op 246` — StreamInNpcAtTile(npc, map id, x, y)
 *handler:* `ScriptAction_StreamInNpcAtPosition`
 
-The 'appear here' action: stream an NPC into the scene AND place it at a tile, with no walk-on. arg0 = npc (char id, <48), arg1 = stream kind (load filter), arg2/arg3 = X/Y tiles. Lighter than a full teleport — keeps the NPC's existing AI state.
+Stream an NPC into a given map and place it at a tile with no walk-on: sets the NPC actor's map id (actor+84, via Actor_SetFacingDirection which is misnamed) and record+188 to arg1, runs the schedule spawn/place, writes X/Y (tiles<<12) to actor+88/+92 and record+192/+196, stops its anim if not moving, then (for npc != 0) drops any held item and restores its idle pose.
 
 Args:
-  0. npc (char id)
+  0. npc (char id, <48)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -3951,7 +4060,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. stream kind
+  1. map id
   2. x (tiles)
   3. y (tiles)
 
@@ -3994,7 +4103,7 @@ Args:
 ### `op 249` — SetNpcVisibleFlag(npc, visible)
 *handler:* `Script_VMOp_SetNpcVisibleFlag`
 
-Alias of op 248 (same handler): toggle an NPC's visibility-suppression flag.
+Toggle an NPC's visibility/interaction suppression bit (record +52 bit 0x800). arg0 = npc (char id), arg1 = visible: non-zero clears the suppress bit (NPC shown / interactive), 0 sets it (suppressed). Lighter than HideNpc — just flips the flag.
 
 Args:
   0. npc (char id)
@@ -4065,7 +4174,7 @@ Args:
 ### `op 251` — SyncActorAnimFrame(actor)
 *handler:* `ScriptVMOp_SyncActorAnimFrameFromWidget`
 
-Alias of op 250 (same handler): re-sync an actor's animation frame from its widget.
+Force an actor to re-sync its animation frame from its widget after a programmatic state change (fixes a one-frame pose pop). arg0 = actor (char id, 0 = player). The regular-actor twin of EventActorResyncAnimFrame (op 168).
 
 Args:
   0. actor (char id, 0=player)
@@ -4100,7 +4209,7 @@ Args:
 ### `op 252` — SetActorAnimSpeedScale(actor, speed %)
 *handler:* `ScriptVMOp_SetActorAnimSpeedScale`
 
-Set an actor's animation speed multiplier. arg0 = actor (char id, 0 = player), arg1 = speed percent (÷100: 100 = normal, 50 = slow-mo, 200 = fast). The regular-actor twin of SetEventActorSpeedScale (op 170).
+Set an actor's animation speed multiplier. arg0 = actor (char id, 0 = player), arg1 = speed percent (÷100: 100 = normal, 50 = slow-mo, 200 = fast). The regular-actor twin of SetEventActorAnimSpeed (op 170).
 
 Args:
   0. actor (char id, 0=player)
@@ -4136,7 +4245,7 @@ Args:
 ### `op 253` — SetActorAnimSpeedScale(actor, speed %)
 *handler:* `ScriptVMOp_SetActorAnimSpeedScale`
 
-Alias of op 252 (same handler): set an actor's animation speed multiplier.
+Set an actor's animation speed multiplier. arg0 = actor (char id, 0 = player), arg1 = speed percent (÷100: 100 = normal, 50 = slow-mo, 200 = fast). The regular-actor twin of SetEventActorAnimSpeed (op 170).
 
 Args:
   0. actor (char id, 0=player)
@@ -4208,19 +4317,19 @@ Args:
 ### `op 256` — SetActorStatusConditions(target, op)
 *handler:* `ScriptVMOp_SetActorStatusConditionsByMaskAndTargetSelect`
 
-Apply or cure status conditions (poison / paralysis / sleep / seal / fatigue / cold) on an actor — for story afflictions and cures. arg0 = target (0 = player, 2 = companion 1, 3 = companion 2, else = the current interaction NPC). arg1 = op: 0 = clear all, 1 = afflict (poison+paralysis+sleep+seal+fatigue), 2 = cold only, 3 = clear the standard 4, 4 = clear cold+fatigue.
+Set or clear status-ailment bits on actor+180. arg0: 0 = player, 2 = companion 1, 3 = companion 2, anything else = the companion matching the current interaction NPC. arg1: 0 = clear 0x2F (every ailment except fatigue 0x10), 1 = set 0x2F (poison/seal/paralysis/sleep + cold, not fatigue), 2 = set 0x20 (cold), 3 = clear 0x0F, 4 = clear 0x30 (fatigue + cold).
 
 Args:
-  0. target (0=player,2/3=companion,else NPC)
-  1. op (0=clear,1=afflict,2=cold,3/4=cure)
+  0. target (0 = player, 2/3 = companion slot, else talking companion)
+  1. op (0 clear 0x2F, 1 set 0x2F, 2 set cold, 3 clear 0x0F, 4 clear fatigue+cold)
 
-### `op 261` — SetNpcParticipationFlag(npc, count, other npc …)
+### `op 261` — SetNpcParticipationFlag(npc id …)
 *handler:* `ScriptVMOp_SetNpcFriendshipBit80000000_RangeOrList`
 
-Set a persistent NPC flag (record +52 bit 0x80000000) — a town-wide event / ledger participation marker. arg0 = npc (char id); 0 applies it to ALL 23 villagers. Otherwise arg1 = count and that many npc ids each get the flag.
+Set bit 0x80000000 in npc record+52 (meaning not established). arg0 = 0: all villagers 1..23. Otherwise every arg is an npc char id (variadic, no count arg) and each gets the bit.
 
 Args:
-  0. npc (char id, 0=all)
+  0. npc id … (arg0 = 0 = all villagers 1-23)
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -4247,16 +4356,14 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. count
-  2. other npc …
 
-### `op 263` — RespawnNpcAtSchedulePos(npc)
+### `op 263` — ResetNpcToIdle(npc)
 *handler:* `ScriptVMOp_RespawnNpcAtScheduledPosition`
 
-Make an NPC reappear at its schedule-computed position after it was moved off-screen — resets its motion state and fires the 'arrived' event. arg0 = npc (char id). Used for quest-delivery / scene transitions.
+Reset an NPC's scripted action: destroy the item/prop it is holding (actor+264 task, model+178 cleared), restore its idle animation and idle tick (Npc_FinalizeTeleportAndNotify), and clear its movement target (actor+112/+120). Does not move the NPC.
 
 Args:
-  0. npc (char id)
+  0. npc (char id, 1-47)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -4285,13 +4392,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 264` — RespawnNpcAtSchedulePos(npc)
+### `op 264` — ResetNpcToIdle(npc)
 *handler:* `ScriptVMOp_RespawnNpcAtScheduledPosition`
 
-Alias of op 263 (same handler): respawn an NPC at its scheduled position.
+Reset an NPC's scripted action: destroy the item/prop it is holding (actor+264 task, model+178 cleared), restore its idle animation and idle tick (Npc_FinalizeTeleportAndNotify), and clear its movement target (actor+112/+120). Does not move the NPC.
 
 Args:
-  0. npc (char id)
+  0. npc (char id, 1-47)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -4320,10 +4427,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 266` — SetOrClearNpcSchedule(npc, persist, x, y, facing, apply, sched kind, sub kind, state)
+### `op 266` — SetOrClearNpcSchedule(npc, map id, x, y, facing, apply, sched kind, sub kind, state)
 *handler:* `Script_VMOp_NpcScheduleOrClear`
 
-Place an NPC at a scripted (location, facing, state) for a scene, OR clear its schedule entirely. arg0 = npc (char id), arg1 = persist flag, arg2/arg3 = X/Y tiles, arg4 = facing (0-255), arg5 = apply switch (non-zero = place, 0 = clear back to normal schedule), arg6 = schedule kind, arg7 = sub-kind, arg8 = state byte. The heavy 'pin this NPC here' / 'release it' lever.
+Pin an NPC to a scripted spot, or release it. Always writes the scripted-placement record: record+220 = {x, y, map id, facing}, record+228 = {2*sched kind | 1 (active), sub kind, state}, +232 = 0. arg5 != 0 then applies it (Npc_ApplyScheduleState(npc, 18)); arg5 == 0 instead resets the NPC's schedule working state (+17 = 18, frees the path buffers at +112/+120, clears flag bits) without clearing the record's active bit.
 
 Args:
   0. npc (char id)
@@ -4354,19 +4461,19 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. persist
+  1. map id
   2. x (tiles)
   3. y (tiles)
-  4. facing (0-255)
-  5. apply (0=clear)
+  4. facing (degrees, stored as deg*181>>8)
+  5. apply (0 = release)
   6. sched kind
   7. sub kind
   8. state
 
-### `op 267` — SetOrClearNpcSchedule(npc, persist, x, y, facing, apply, sched kind, sub kind, state)
+### `op 267` — SetOrClearNpcSchedule(npc, map id, x, y, facing, apply, sched kind, sub kind, state)
 *handler:* `Script_VMOp_NpcScheduleOrClear`
 
-Alias of op 266 (same handler): pin an NPC to a scripted spot/state, or clear it.
+Pin an NPC to a scripted spot, or release it. Always writes the scripted-placement record: record+220 = {x, y, map id, facing}, record+228 = {2*sched kind | 1 (active), sub kind, state}, +232 = 0. arg5 != 0 then applies it (Npc_ApplyScheduleState(npc, 18)); arg5 == 0 instead resets the NPC's schedule working state (+17 = 18, frees the path buffers at +112/+120, clears flag bits) without clearing the record's active bit.
 
 Args:
   0. npc (char id)
@@ -4397,19 +4504,19 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. persist
+  1. map id
   2. x (tiles)
   3. y (tiles)
-  4. facing (0-255)
-  5. apply (0=clear)
+  4. facing (degrees, stored as deg*181>>8)
+  5. apply (0 = release)
   6. sched kind
   7. sub kind
   8. state
 
-### `op 270` — RefreshNpcSchedule(npc, mode flag)
+### `op 270` — ReleaseNpcScriptedPlacement(npc, full reset)
 *handler:* `Script_VMOp_RefreshNpcSchedule`
 
-Refresh an NPC's schedule for TODAY — re-evaluates where it should be for the current day/time and updates it there. arg0 = npc (char id), arg1 = a mode flag. Use after a scene displaces NPCs or after advancing time.
+Hand an NPC pinned by a script (record+228 bit 0) back to its schedule for today: clears the pin; if the in-conversation bit (record+52 0x1000) was set it ends the conversation and ALWAYS does the full Npc_ResetDailyScheduleAndAi; otherwise arg1 == 0 applies today's state in place (Npc_ApplyScheduleState) while arg1 != 0 does the full schedule+AI reset (skipped when the NPC is flagged record+48 bit 0x10 and its current schedule map is walkable). Does nothing if the NPC is not pinned.
 
 Args:
   0. npc (char id)
@@ -4440,12 +4547,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. mode flag
+  1. full reset (0 = apply state only)
 
-### `op 271` — RefreshNpcSchedule(npc, mode flag)
+### `op 271` — ReleaseNpcScriptedPlacement(npc, full reset)
 *handler:* `Script_VMOp_RefreshNpcSchedule`
 
-Alias of op 270 (same handler): refresh an NPC's schedule for today.
+Hand an NPC pinned by a script (record+228 bit 0) back to its schedule for today: clears the pin; if the in-conversation bit (record+52 0x1000) was set it ends the conversation and ALWAYS does the full Npc_ResetDailyScheduleAndAi; otherwise arg1 == 0 applies today's state in place (Npc_ApplyScheduleState) while arg1 != 0 does the full schedule+AI reset (skipped when the NPC is flagged record+48 bit 0x10 and its current schedule map is walkable). Does nothing if the NPC is not pinned.
 
 Args:
   0. npc (char id)
@@ -4476,16 +4583,43 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. mode flag
+  1. full reset (0 = apply state only)
 
-### `op 275` — SetNpcPresenceState(npc index, mode)
+### `op 275` — SetNpcPresenceState(npc, mode)
 *handler:* `ScriptVMOp275_SetNpcPresenceStateAndFlag768`
 
-Set NPC [arg0]'s presence/companion state. arg1 = -1: clear the NPC's bit in the global presence mask (qword_...B300-family dword) and clear its record's companion bit (+52 bit 0x400000). Any other arg1 value sets the presence-mask bit; arg1 == 1 ADDITIONALLY marks the NPC as companion (+52: set bit 0x400000 and state bits 0x300), copies a record flag to byte +16, and writes 0 into packed game-flag 768. So: 1 = add as companion, -1 = remove, other values touch only the presence bit.
+Set or clear an NPC's town-presence state. arg1 == -1 clears the NPC's bit (1<<npc) in g_sys_npcPresenceBits, any other value sets it. Independently, record+52 bit 0x400000 (the present flag op 273 reads) is set to (arg1 == 1), so it is CLEARED for every value other than 1. When arg1 == 1 it also sets record+52 bits 0x300 (clearing 0x400), copies record+52 bit 0x80 into byte +16, and writes 0 to packed game-flag 768.
 
 Args:
-  0. npc index
-  1. mode (1=add companion, -1=remove, other=presence bit only)
+  0. npc (char id)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. mode (1 = present, -1 = absent, other = presence-mask bit only, clears the present flag)
 
 ### `op 281` — SetNpcDateState(npc, date state)
 *handler:* `NpcSchedule_ApplyStateAndAwardFriendship`
@@ -4604,7 +4738,7 @@ Args:
 ### `op 287` — SetNpcOutfit(npc, outfit)
 *handler:* `ScriptVMOp_SetNpcOutfitVariantAndPersistBitsInRecord`
 
-Change an NPC's outfit/costume variant. arg0 = npc (char id), arg1 = variant: 0 = default, 1 = pajamas / bed outfit, 2 = festival / alternate, 3 = swimwear. Variants 0-2 PERSIST across scene changes (stored in the NPC record); variant 3 is single-scene only.
+Set an NPC's outfit variant (Actor_ApplyNpcOutfitVariant loads model file + variant). arg1: 0 = default (clears record+52 bits 0x60), 1 = variant 1 / pajamas (sets 0x40), 2 or 4 = variant 2 / swimsuit (sets 0x20), 3 = variant 3 applied without record bits (not persistent). Bits 0x20/0x40 in the record make variants 1-2 persist.
 
 Args:
   0. npc (char id)
@@ -4635,11 +4769,11 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. outfit (0=default,1=pajamas,2=festival,3=swim)
+  1. outfit (0 default, 1 pajamas, 2 swimsuit, 3 variant 3 not persisted)
      - `0` = Default
      - `1` = Pajamas
-     - `2` = Festival
-     - `3` = Swimsuit
+     - `2` = Swimsuit
+     - `3` = Variant 3
 
 ### `op 289` — CarryBaby(actor)
 *handler:* `ScriptVMOp_ActorCarryBaby_Dakko240`
@@ -4681,42 +4815,14 @@ Args:
 
 Write the packed marriage/family-status game-flag (packed id 4391 -> value 2) and run the family birthday/anniversary milestone check for today: compares the current date to the spouse's and children's birthdays and the wedding anniversary, setting the matching family-milestone game-flags. These go through GameFlags_WritePacked_OrAchievement (packed game-flags), NOT Steam achievements. No args. Used in anniversary/birthday cutscenes.
 
-### `op 291` — SpawnChildEventRecords(char id, room id)
+### `op 291` — SpawnChildEventRecords(value stored at record+4, value stored at record+6)
 *handler:* `ScriptVMOp_SpawnSpecialCalendarEventRecordsByChildNum`
 
-Spawn calendar-event records for the player's CHILDREN (count comes from the child-number game flag). Each record places a child event NPC into the scene registry. arg0 = char id, arg1 = room id. Used in family / child cutscenes.
+Add at most ONE child record to the calendar-event/placement registry (g_calendarEventMng_20wPerRecord, cap 32): only when GF_REG_CHILD_NUM != 0 (count clamped to 1). Record = {key 512, type 302 or 303 (by child variant flag 287), arg0, arg1, random word, active bit}.
 
 Args:
-  0. char id
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
-  1. room id
-     - *(enum: 867 values — use the in-editor picker or the id database)*
+  0. value stored at record+4 (u16)
+  1. value stored at record+6 (u16)
 
 ### `op 292` — CommitMarriage()
 *handler:* `ScriptVMOp_CommitMarriageToSpouseAndFireAchievements`
@@ -4762,7 +4868,7 @@ Args:
 ### `op 294` — ResetNpcDailySchedule(npc, state)
 *handler:* `Script_VMOp_ResetNpcDailySchedule`
 
-Alias of op 293 (same handler): reset an NPC's daily schedule + AI.
+Put an NPC back on a daily-schedule state. arg0 = npc (char id), arg1 = state. Two distinct paths: arg1 != -1 -> Npc_ResetDailyScheduleAndAi(npc, state) (resets schedule AND AI) and returns WITHOUT touching the scene reservation; arg1 == -1 -> recompute today's state (record +17, or Schedule_GetNpcStateForToday when the computed bit +228&1 is clear), apply via Npc_ApplyScheduleState, and clear this scene's placed-actor/reservation bit (ctx+352 bit npc). Heavier than op 296; use at scene end to hand an NPC back to normal life.
 
 Args:
   0. npc (char id)
@@ -4870,7 +4976,7 @@ Args:
 ### `op 297` — ApplyNpcScheduleState(npc, state)
 *handler:* `Script_VMOp_ApplyNpcScheduleState`
 
-Alias of op 296 (same handler): apply a schedule state to an NPC.
+Apply a schedule STATE to an NPC (its position/pose for that state) and clear its scene reservation. arg0 = npc (char id), arg1 = state, or -1 to auto-compute today's. Lighter than op 293 — does not reset the NPC's AI.
 
 Args:
   0. npc (char id)
@@ -4941,7 +5047,7 @@ Args:
 ### `op 299` — ApplyPendingNpcPlan(npc)
 *handler:* `NpcSchedule_ApplyPendingNpcPlan`
 
-Alias of op 298 (same handler): apply an NPC's pending schedule plan for today.
+Apply an NPC's PENDING schedule plan for today — re-parses and applies its calendar-computed schedule, clears its scene reservation, and refreshes the story-progress cache. arg0 = npc (char id). Like op 296 but also snapshots story progress.
 
 Args:
   0. npc (char id)
@@ -5044,10 +5150,10 @@ Args:
      - `26` = Mistress Trupin
   1. base wait (ticks, jittered 0.75x-1.125x)
 
-### `op 303` — SetNpcActionDelay(npc, delay)
+### `op 303` — SetNpcActionDelay(npc, base wait)
 *handler:* `Script_VMOp_SetNpcActionDelayWithJitter`
 
-Alias of op 302 (same handler). It does NOT touch friendship: writes a jittered WAIT into the NPC's schedule countdown (npc record +212, decremented once per NpcSchedule_Tick; on expiry the NPC performs its next scheduled action). Written value is uniform in [0.75 x arg1, 1.125 x arg1); arg1 <= 0 writes nothing. Starting a move or interaction clears the timer. arg0 = npc (char id, < 48), arg1 = requested delay (ticks).
+Make an NPC wait before its next scheduled AI action: writes a jittered countdown into the NPC's schedule-wait timer (record +212). Value = uniform [0.75*arg1, 1.125*arg1) via the shared MMIX RNG; if 3/4*arg1 <= 0 nothing is written. NpcSchedule_Tick decrements it once per tick and performs the next schedule action when it hits 0; starting a move/interaction clears it. Does NOT touch friendship (2026-08 analysis). arg0 = npc (char id), arg1 = base wait (ticks).
 
 Args:
   0. npc (char id)
@@ -5078,7 +5184,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. delay (ticks, jittered 0.75-1.125x)
+  1. base wait (ticks, jittered 0.75x-1.125x)
 
 ### `op 313` — RestorePlayerRP()
 *handler:* `Script_VMOp_RestorePlayerRPFull`
@@ -5094,13 +5200,13 @@ Args:
   0. x (tiles)
   1. y (tiles)
 
-### `op 317` — SetNpcVisibility(npc, show)
+### `op 317` — SetNpcVisible(npc id, visible)
 *handler:* `Script_VMOp_SetNpcVisibility`
 
-Show or hide an NPC's LIVE actor immediately by toggling its render-hide bit. arg0 = npc (char id), arg1 = show (non-zero = show, 0 = hide). More direct than HideNpc (op 233) and distinct from SetNpcVisibleFlag (op 248, which flips a record bit).
+Show or hide a scene NPC.
 
 Args:
-  0. npc (char id)
+  0. npc id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -5128,15 +5234,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. show (0=hide, 1=show)
+  1. visible
 
-### `op 327` — SetActorOutfitVariant(actor, pose/variant)
+### `op 327` — EndActorTransformAndSetOutfit(actor, mode)
 *handler:* `Script_VMOp_SetActorOutfitVariant`
 
-Alias of op 328 (same handler Script_VMOp_SetActorOutfitVariant). arg0 = actor (char id, 0 = player; 48-255 no-op). arg1 = pose/variant: 255 = END — detach the current scripted pose and return the actor to AI idle; 3 = apply the alt-outfit asset set (Actor_ApplyNpcOutfitVariant 3); any other value only detaches a previous pose first. Player path also refreshes player render state. No transform-animation task is involved — the old 'PlayActorTransform' name overstated it. Unused in the shipped corpus.
+arg0 = actor (0 = player, 48-255 ignored). arg1 == 255: if the actor is character-changed (status_equip_flags bit 0x8 set, 0x400 clear) spawn a 'char_change' task back to its own character (Actor_SpawnCharacterChangeTransformTask(actor, 0)). Other arg1: if both bits 0x408 are set, revert the same way first; then arg1 == 3 applies outfit variant 3. Player target also calls Player_BeginScriptedTalkAndIdle(1).
 
 Args:
-  0. actor (char id, 0=player)
+  0. actor (char id, 0 = player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -5164,15 +5270,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. pose/variant (255=end pose, 3=alt outfit)
+  1. mode (255 = end transform, 3 = outfit variant 3, other = revert only)
 
-### `op 328` — PlayActorTransform(actor, pose/variant)
+### `op 328` — EndActorTransformAndSetOutfit(actor, mode)
 *handler:* `Script_VMOp_SetActorOutfitVariant`
 
-Play an animated outfit / pose CHANGE on an actor (the character-change transform task). arg0 = actor (char id, 0 = player). arg1 = pose: 255 = end the pose and return to idle, 3 = swap to the alternate-outfit asset set; other values begin a pose (detaching any prior one). For 'character transforms / changes clothes' moments. Contrast op 287 (SetNpcOutfit — persistent pajamas/festival/swim variants).
+arg0 = actor (0 = player, 48-255 ignored). arg1 == 255: if the actor is character-changed (status_equip_flags bit 0x8 set, 0x400 clear) spawn a 'char_change' task back to its own character (Actor_SpawnCharacterChangeTransformTask(actor, 0)). Other arg1: if both bits 0x408 are set, revert the same way first; then arg1 == 3 applies outfit variant 3. Player target also calls Player_BeginScriptedTalkAndIdle(1).
 
 Args:
-  0. actor (char id, 0=player)
+  0. actor (char id, 0 = player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -5200,25 +5306,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. pose/variant (255=end, 3=alt)
+  1. mode (255 = end transform, 3 = outfit variant 3, other = revert only)
 
-### `op 330` — SetOutfitDirect(actor, outfit)
+### `op 330` — SetActorOutfitDirect(actor, outfit variant)
 *handler:* `Script_VMOp_SetActorOutfitDirect`
 
-Set an actor's outfit index directly.
-
-Args:
-  0. actor
-  1. outfit
-     - `0` = Default
-     - `1` = Pajamas
-     - `2` = Festival
-     - `3` = Swimsuit
-
-### `op 331` — SetActorOutfitDirect(actor, outfit variant)
-*handler:* `Script_VMOp_SetActorOutfitDirect`
-
-Directly set an actor's outfit/costume variant with NO transition animation (an instant swap). arg0 = actor (char id, 0 = player), arg1 = outfit variant id. The lightweight version of PlayActorTransform (op 328).
+Directly set an actor's outfit/costume variant with NO transition animation (an instant swap). arg0 = actor (char id, 0 = player), arg1 = outfit variant id. The lightweight version of EndActorTransformAndSetOutfit (op 328).
 
 Args:
   0. actor (char id, 0=player)
@@ -5252,81 +5345,16 @@ Args:
   1. outfit variant
      - `0` = Default
      - `1` = Pajamas
-     - `2` = Festival
-     - `3` = Swimsuit
+     - `2` = Swimsuit
+     - `3` = Variant 3
 
-### `op 393` — FreezePlayer(release)
-*handler:* `Script_VMOp_SetPlayerScriptedFreeze`
+### `op 331` — SetActorOutfitDirect(actor, outfit variant)
+*handler:* `Script_VMOp_SetActorOutfitDirect`
 
-Lock or release player input (scripted freeze). INVERTED sense: arg0 == 0 FREEZES the player (sets control_flags bit 4, scene-node word bit 1, and the input-disabled bit 0x20000000 on actor_inner); arg0 != 0 releases all three. Shipped scenes open with FreezePlayer(0) and close with FreezePlayer(1).
-
-Args:
-  0. release (0=freeze, nonzero=unfreeze)
-
-### `op 394` — WarpPlayer(tile x, tile y)
-*handler:* `Script_VMOp_TeleportPlayerToTile`
-
-Teleport the player to a map tile.
+Directly set an actor's outfit/costume variant with NO transition animation (an instant swap). arg0 = actor (char id, 0 = player), arg1 = outfit variant id. The lightweight version of EndActorTransformAndSetOutfit (op 328).
 
 Args:
-  0. tile x
-  1. tile y
-
-### `op 395` — SetPlayerPose(facing deg, pose)
-*handler:* `Script_VMOp_SetPlayerFacingAndPose`
-
-Set the player's facing angle and pose.
-
-Args:
-  0. facing deg
-  1. pose
-
-### `op 396` — SetPlayerFacingAndPose(facing, pose)
-*handler:* `Script_VMOp_SetPlayerFacingAndPose`
-
-Set the player's facing angle AND pose in one op (instant snap). arg0 = facing degrees (×181 → u16), arg1 = pose byte. Marks the renderer dirty so the change shows immediately. Handy for a posed player shot.
-
-Args:
-  0. facing (degrees)
-  1. pose
-
-### `op 397` — SetPartyOutfit(variant)
-*handler:* `Script_VMOp_SetPartyOutfitVariantAndSyncFriendship`
-
-Set the party outfit variant and sync friendship.
-
-Args:
-  0. variant
-
-### `op 400` — SetPlayerMale(male)
-*handler:* `Script_VMOp_SetPlayerCharacterLestOrFrey`
-
-Switch the player character between **Lest (male / arg=1)** and **Frey (female / arg=0)**. Calls `Player_SetCharacterVariantLestOrFrey`, refreshes equipped sprites + scene state, zeros the save-snapshot scratch, and reloads the greeting string from archive 16369 (NPC name archive): arg=1 -> entry 0 (title greeting), arg=0 -> entry 599 (default 'Frey' name). This is the actual character-swap op. Dev menu label: 'Boy' / 'Girl'.
-
-Args:
-  0. male (1 = Lest / Boy, 0 = Frey / Girl)
-
-### `op 427` — MaxWeaponSkills()
-*handler:* `Script_VMOp_SetFirst6WeaponSkillsToLevel30`
-
-Set the player's six weapon skills (Sword, Long Sword, Spear, Axe/Hammer, Dual Blade, Glove) all to level 30 and refresh the weapon-skill rank-unlock bits — a scripted/dev mastery grant (e.g. a New Game+ starter). Takes no arguments.
-
-### `op 472` — SetChildGrowthValue(child, value)
-*handler:* `Script_VMOp_SetChildFriendshipByteAt2`
-
-Write a child NPC's growth/level value (record byte +2, distinct from the friendship-level byte; capped below 65). arg0 = child char id (24-47), arg1 = value (0-64).
-
-Args:
-  0. child (char id 24-47)
-  1. value (0-64)
-
-### `op 474` — SetEventLeadNpc(npc, clear flag)
-*handler:* `Script_VMOp_SetCurrentEventLeadNpcAndClearFlag2`
-
-Declare the lead / central NPC of the current scripted event (who is speaking or the scene focuses on) — writes it to the event participant list. arg0 = npc (char id), arg1 non-zero also clears a status flag on that slot. Used at scene start.
-
-Args:
-  0. npc (char id)
+  0. actor (char id, 0=player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -5354,12 +5382,90 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. clear flag (0/1)
+  1. outfit variant
+     - `0` = Default
+     - `1` = Pajamas
+     - `2` = Swimsuit
+     - `3` = Variant 3
+
+### `op 393` — FreezePlayer(release)
+*handler:* `Script_VMOp_SetPlayerScriptedFreeze`
+
+Lock or release player input (scripted freeze). INVERTED sense: arg0 == 0 FREEZES the player (sets control_flags bit 4, scene-node word bit 1, and the input-disabled bit 0x20000000 on actor_inner); arg0 != 0 releases all three. Shipped scenes open with FreezePlayer(0) and close with FreezePlayer(1).
+
+Args:
+  0. release (0=freeze, nonzero=unfreeze)
+
+### `op 394` — WarpPlayer(tile x, tile y)
+*handler:* `Script_VMOp_TeleportPlayerToTile`
+
+Teleport the player to a map tile.
+
+Args:
+  0. tile x
+  1. tile y
+
+### `op 395` — SetPlayerFacingAndPose(facing, pose byte)
+*handler:* `Script_VMOp_SetPlayerFacingAndPose`
+
+Snap the player's facing to arg0 degrees (facing = deg * 181) and set the player byte at +0xA0 to arg1 (a pose/stance byte, 0-3 in the corpus); marks g_playerFacingDirty. Ops 395 and 396 share this handler.
+
+Args:
+  0. facing (degrees)
+  1. pose byte
+
+### `op 396` — SetPlayerFacingAndPose(facing, pose byte)
+*handler:* `Script_VMOp_SetPlayerFacingAndPose`
+
+Snap the player's facing to arg0 degrees (facing = deg * 181) and set the player byte at +0xA0 to arg1 (a pose/stance byte, 0-3 in the corpus); marks g_playerFacingDirty. Ops 395 and 396 share this handler.
+
+Args:
+  0. facing (degrees)
+  1. pose byte
+
+### `op 397` — SetPartyOutfit(outfit id)
+*handler:* `Script_VMOp_SetPartyOutfitVariantAndSyncFriendship`
+
+Change the outfit of the player and both companions. Outfit ids follow the fashion flags: 0 normal, 1 pajamas, 2 swimsuit, 3 wedding, 4 bath (4 also sets player control bit 0). Player: Actor_ApplyNpcOutfitVariant(player, arg). Companions with char id < 24: 1 persists the pajama bit (NPC state +52 bit 0x40), 2 or 4 persists the swimsuit bit (0x20), 0 clears both, 3 applies the wedding outfit without persisting. Returns the previous outfit ids: reg0 = player, reg1/reg2 = companion 1/2 (0 when absent).
+
+Args:
+  0. outfit id (0 normal, 1 pajamas, 2 swimsuit, 3 wedding, 4 bath)
+
+### `op 400` — SetPlayerMale(male)
+*handler:* `Script_VMOp_SetPlayerCharacterLestOrFrey`
+
+Switch the player between Lest (arg != 0: model NPC_PLAYER_00, control bit 0x8000000, scale 4096) and Frey (arg = 0: NPC_PLAYER_01, scale 3904) via Player_SetCharacterVariantLestOrFrey, refresh the game-globals slot ids, then RESET the player name to the default for that gender (text archive 16369 rf3TxtNpc entry 0 'Lest' / entry 599 'Frey').
+
+Args:
+  0. male (1 = Lest, 0 = Frey)
+
+### `op 427` — MaxWeaponSkills()
+*handler:* `Script_VMOp_SetFirst6WeaponSkillsToLevel30`
+
+Set the player's six weapon skills (Sword, Long Sword, Spear, Axe/Hammer, Dual Blade, Glove) all to level 30 and refresh the weapon-skill rank-unlock bits — a scripted/dev mastery grant (e.g. a New Game+ starter). Takes no arguments.
+
+### `op 472` — SetGuestNpcSubVariant(npc, variant)
+*handler:* `Script_VMOp_SetChildFriendshipByteAt2`
+
+Write byte +2 of the per-NPC record for char id 24-47 (ignored if value >= 65). That byte is the guest's second dialogue/portrait variant: Town_BuildDailyGuestNpcRoster rolls it in [0,65) each day and Dialogue_ProcessLineDirective passes it to Dialogue_LoadEventLineWithPortrait.
+
+Args:
+  0. npc (char id 24-47)
+  1. variant (0-64)
+
+### `op 474` — SetGuestRosterGate(roster gate value, force rebuild)
+*handler:* `Script_VMOp_SetCurrentEventLeadNpcAndClearFlag2`
+
+Write arg0 to the header byte of the daily guest-NPC roster (RF4S.exe data at the IDB label g_currentEventParticipantNpcList_8u16; initialised to 100, and Town_BuildDailyGuestNpcRoster spawns no guests when it is 0). If arg1 != 0, also clear the roster's 'already built' bit (header word bit 0x2) so the next roster build runs again.
+
+Args:
+  0. roster gate value (0 = no guests)
+  1. force rebuild (0/1)
 
 ### `op 475` — SetNpcStateByte(npc, value)
 *handler:* `Script_VMOp_SetNpcFriendshipByteAt58`
 
-Write a per-NPC state byte (offset +58 in the NPC record array) for npc [arg0] (< 48) — a relationship/state-machine flag byte. arg1 = value. Invalid npc ids trap as a script error.
+Write arg1 to byte +58 (0x3A) of the NPC's record (g_gameGlobalsSlotTable entry) for char id < 48. What the byte means is not established. The 'relationship/state-machine' label has no support. An invalid id or missing table writes to address 0x3A (deliberate crash).
 
 Args:
   0. npc (char id, <48)
@@ -5392,45 +5498,10 @@ Args:
      - `26` = Mistress Trupin
   1. value
 
-### `op 476` — SpawnNpc(npc id)
+### `op 476` — RecruitNpcToParty(npc)
 *handler:* `Script_VMOp_StreamInNpcAtPlayerPos`
 
-Stream an NPC in at the player's position.
-
-Args:
-  0. npc id
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
-
-### `op 477` — StreamInNpcAtPlayer(npc)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos`
-
-Bring an NPC into the scene at the player's position (streaming it in if needed) and add/sync it as a companion, with marriage-trigger handling. arg0 = npc (char id). Use to make an NPC join the player for a scene.
+Add an NPC to the player's party. If the NPC has no actor yet, stream it in (Npc_StreamInById) and place it at the player's position. Then Companion_AddOrSyncWithMarriageTrigger puts it in a free companion slot (Npc_RecruitAsCompanionAndStateClean -> Companion_FinalizeInPartyAllocStatsAndGauge: party slot, friendship gauge, equipment/stats). If both slots are full, companion 1 is dismissed first, and a date with them ends (EV_DATE_FINISH). No-op if the NPC is already a companion.
 
 Args:
   0. npc (char id)
@@ -5462,46 +5533,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 478` — SpawnNpcScripted(npc id, scripted)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos_WithScriptedFlag`
+### `op 477` — RecruitNpcToParty(npc)
+*handler:* `Script_VMOp_StreamInNpcAtPlayerPos`
 
-Stream an NPC in at the player. arg1 sets/clears the npc record's bit 30 (0x40000000) 'scripted-presence / cutscene-owned' marker.
-
-Args:
-  0. npc id
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
-  1. scripted (0/1)
-
-### `op 479` — StreamNpcAtPlayer(npc, scripted)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos_WithScriptedFlag`
-
-Stream an NPC into the scene at the player's position and sync it as a companion (handles the marriage trigger). arg0 = npc char id, arg1 = scripted flag: non-zero sets the NPC's 'owned by cutscene / scripted-presence' record bit, zero clears it. Used to make an NPC appear beside the player for a scene.
+Add an NPC to the player's party. If the NPC has no actor yet, stream it in (Npc_StreamInById) and place it at the player's position. Then Companion_AddOrSyncWithMarriageTrigger puts it in a free companion slot (Npc_RecruitAsCompanionAndStateClean -> Companion_FinalizeInPartyAllocStatsAndGauge: party slot, friendship gauge, equipment/stats). If both slots are full, companion 1 is dismissed first, and a date with them ends (EV_DATE_FINISH). No-op if the NPC is already a companion.
 
 Args:
   0. npc (char id)
@@ -5532,38 +5567,109 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. scripted (0/1)
 
-### `op 480` — WakeSceneNpcChild()
+### `op 478` — RecruitNpcToPartyHeld(npc, held)
+*handler:* `Script_VMOp_StreamInNpcAtPlayerPos_WithScriptedFlag`
+
+Same as RecruitNpcToParty (stream in at the player's position if needed via Npc_RequestStreamInViaController + Npc_SetSlotWorldPosition, then add to a companion slot), then set (arg1 != 0) or clear bit 0x40000000 of the NPC record +52. That bit is the scene-held flag: Friendship_QueueFirstNpcEncounterEvent skips NPCs that have it, and Companion_DismissNpcAndRestoreSchedule clears it.
+
+Args:
+  0. npc (char id)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. held (0/1)
+
+### `op 479` — RecruitNpcToPartyHeld(npc, held)
+*handler:* `Script_VMOp_StreamInNpcAtPlayerPos_WithScriptedFlag`
+
+Same as RecruitNpcToParty (stream in at the player's position if needed via Npc_RequestStreamInViaController + Npc_SetSlotWorldPosition, then add to a companion slot), then set (arg1 != 0) or clear bit 0x40000000 of the NPC record +52. That bit is the scene-held flag: Friendship_QueueFirstNpcEncounterEvent skips NPCs that have it, and Companion_DismissNpcAndRestoreSchedule clears it.
+
+Args:
+  0. npc (char id)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
+  1. held (0/1)
+
+### `op 480` — RecruitHostNpcToParty()
 *handler:* `Script_VMOp_WakeSceneChildOfCurrentInteractionNpc`
 
-Wake the scene child of the current interaction NPC.
+If there is a current interaction NPC (char id != 0xFFFF), add the script host's actor (host+32, i.e. the NPC whose script is running) to the party via Companion_AddOrSyncWithMarriageTrigger. That call dismisses companion 1 if both slots are full and ends a date with them. No args.
 
 ### `op 492` — FaceNpcToPlayer(mode)
 *handler:* `Script_VMOp_SetSceneNpcFacingModeAndStandInFrontOfPlayer`
 
-Make a scene NPC stand in front of / face the player.
+Set the script host NPC's scripted-facing mode (bits 16-17 of the dword at [actor+304]+448, read back by op 493) to arg0. Mode 1 also gives the NPC a stand point 96 world units from the player, on the line toward the NPC (written to [actor+296]+194/196), so it walks up and faces the player. Any other mode clears that stand point. Acts only on the host actor (host+32).
 
 Args:
-  0. mode
+  0. mode (0 = off, 1 = stand in front of player, 2 = mode 2 without stand point)
 
-### `op 553` — SetNpcScriptedPresence(flag, npc id …)
+### `op 553` — SetNpcSubEventFlag(set, npc char id …)
 *handler:* `Script_VMOp_SetNpcRecordBit23ByList`
 
-Set or clear the 'presence-locked / scripted' bit (record +52 bit 0x800000) on one or more NPCs. arg0 = flag (0 = clear, 1 = set), followed by npc ids; with no ids it applies to all 23 villagers. Locks NPCs into the scene's control.
+Set (arg0 != 0) or clear bit 0x800000 of record +52 for each listed NPC (char id < 48). If the list is empty or contains a 0, the bit is applied to all villagers 1-23 instead. FinishCurrentSubEvent (op 549) clears the same bit for everyone, so it is a sub-event participation marker; no reader was located, so what the bit gates is unproven (hence the neutral name).
 
 Args:
-  0. flag (0=clear, 1=set)
-  1. npc id …
+  0. set (0 = clear, else set)
+  1. npc char id … (0 or none = all villagers 1-23)
 
-### `op 554` — SetNpcScriptedPresence(flag, npc id …)
+### `op 554` — SetNpcSubEventFlag(set, npc char id …)
 *handler:* `Script_VMOp_SetNpcRecordBit23ByList`
 
-Alias of op 553 (same handler): set/clear the scripted-presence bit on NPCs.
+Set (arg0 != 0) or clear bit 0x800000 of record +52 for each listed NPC (char id < 48). If the list is empty or contains a 0, the bit is applied to all villagers 1-23 instead. FinishCurrentSubEvent (op 549) clears the same bit for everyone, so it is a sub-event participation marker; no reader was located, so what the bit gates is unproven (hence the neutral name).
 
 Args:
-  0. flag (0=clear, 1=set)
-  1. npc id …
+  0. set (0 = clear, else set)
+  1. npc char id … (0 or none = all villagers 1-23)
 
 ### `op 562` — RefreshSceneNpcs()
 *handler:* `Script_VMOp_RefreshAllNpcsOnSceneLoadAndUnblockVM`
@@ -5580,13 +5686,13 @@ Make the player pick up / carry the scene's target object: snaps the player to t
 
 If the player is holding a grabbed object that is flagged throwable, commit it into the bag. A pickup-convenience op. Takes no arguments.
 
-### `op 620` — UnlockMonsterDex(monster id)
+### `op 620` — MarkSpouseCleared(spouse char id)
 *handler:* `Script_VMOp_UnlockMonsterDexEntryAchievement`
 
-Unlock a monster's bestiary / dex entry — sets the dex bit and fires the first-encounter achievement. arg0 = monster id. Fired the first time a monster is encountered. Setter counterpart of QueryMonsterDexBit (op 695).
+Record that the given NPC was married (spouse cleared): reports flag/achievement 16582 with the NPC id, sets g_saveConfigFlags bit 1, sets bit [id] in g_sys_spouseClearedBits (rf4_sys.sav), then runs Marriage_FinalizeOnceAndBroadcastWedding.
 
 Args:
-  0. monster id
+  0. spouse char id
 
 ### `op 660` — SetActorStatusFlag(char id, on)
 *handler:* `Script_VMOp_SetActorStatusFlagBit0x20Or0x10000ByCharId`
@@ -5636,7 +5742,7 @@ Args:
 ### `op 662` — SetActorArmorBreak(char id, value)
 *handler:* `Script_VMOp_SetActorArmorBreakBit0x4000ByCharId`
 
-Toggle an actor's armor-break bit by char id.
+Set (arg1 != 0) or clear bit 0x4000 of Actor_t.control_flags (+568) on the actor with char id [arg0] (0 player, <48 NPC, >=48 event actor). Requires the actor to have a stats block. What the bit means is unknown: its writers include Npc_BuildCharNpcActorTask, Actor_SpawnByCharId, Npc_SpawnCharEventActor, Companion_DismissAndResetActorState, Player_BeginThrowAction, the boss ultimate-attack action and op 664; it is cleared in Player_OnHitCancelInteractionAndCinematic, Quest_OnReactionDispatched_AdvanceState and others. Nothing supports 'armor break'.
 
 Args:
   0. char id
@@ -5669,10 +5775,10 @@ Args:
      - `26` = Mistress Trupin
   1. value
 
-### `op 663` — DisableActorHpRegen(char id)
+### `op 663` — MakeActorUntameable(char id)
 *handler:* `Script_VMOp_SetActorHpRegenRateZeroByCharId`
 
-Set the target actor's HP-regen rate to 0, stopping passive HP recovery. arg0 = char id (0=player, <48=NPC, >=48=event actor). Used so a scripted actor can't heal itself mid-battle.
+Set the target actor's tame base (stats+0xDA) to 0, which makes the monster impossible to tame: MonsterTame_RollAttemptWithItem returns -1 when stats+218 == 0. arg0 = char id (0 player, <48 NPC, >=48 event actor, the usual case: event monsters 100-105/300).
 
 Args:
   0. char id (0=player, <48=NPC, >=48=event)
@@ -5707,7 +5813,7 @@ Args:
 ### `op 664` — LockActorMaxSp(char id)
 *handler:* `Script_VMOp_ForceActorMaxSpAndLockByCharId`
 
-Force the target actor to maximum SP/RP (regen set to -1) and set a locked state, also releasing any companion-AI claim on it. arg0 = char id (0=player, <48=NPC, >=48=event actor). Freezes an actor in a controlled state for a cutscene.
+On the target actor (char id: 0 player, <48 NPC, >=48 event actor), set stats+0xDC and stats+0xDE to -1 (IDB field names ai_sight_range / ai_fov_width), set control_flags (+568) bit 0x4000 (see op 662), and clear bit 0x800 of dword +40 of the object at actor field_108+32. Nothing here touches SP/RP.
 
 Args:
   0. char id (0=player, <48=NPC, >=48=event)
@@ -5783,10 +5889,10 @@ Apply a combat attack entry (from the attack database) to the player — scripte
 Args:
   0. attack id
 
-### `op 692` — OnFirstMarriageAccepted()
+### `op 692` — FinishPendingDate()
 *handler:* `Script_VMOp_OnFirstMarriageAcceptanceUnlockAndReset`
 
-Finalize a first marriage acceptance: unlock the marriage achievement, clear the candidate NPC's proposal state, and trigger the marriage-acceptance follow-up sequence (CondScript entry 80). No args — fired the moment a proposal is accepted.
+Find the first NPC (ids 1-23) whose date state (npc_record+52 bits 24-26) is 1 or 2 (a date promised or scheduled today). If found: write packed flag/achievement 34346 = 0, reset that date state to 0, and dispatch em.bin entry 80 (EMFE_EV_DATE_FINISH, the post-date reset). No-op if no NPC has a pending date. No args.
 
 ### `op 738` — NpcAction_Kind0_LieDownToSleep()
 *handler:* `NpcAction_Kind0_LieDownToSleep`
@@ -5923,44 +6029,44 @@ Fully heal the party — restores the player and both active companions to max H
 ### `op 312` — HealPartyByShift(shift)
 *handler:* `Script_VMOp_HealPartyHPByShift`
 
-Heal the party (player + both companions) by a fraction of each one's max HP. arg0 = shift: 0 = full heal, 1 = half max HP, 2 = quarter, and so on (heal = hp_max >> shift). Partial recovery.
+Set party HP to a fraction of max. arg0 >= 0: player HEALS hp_max >> arg0; each companion is first damaged by its full hp_max and then healed hp_max >> arg0, i.e. its HP is SET to hp_max >> arg0 (flags two HUD entries for redraw). arg0 < 0: player HP is SET to hp_max >> -arg0 (full heal, then damage max - max>>n); companions untouched.
 
 Args:
-  0. shift (0=full, 1=½, 2=¼ …)
+  0. shift (>= 0: player +max>>n, companions = max>>n; < 0: player = max>>-n)
 
 ### `op 314` — CurePartyStatus()
 *handler:* `Script_VMOp_ClearPartyStatusConditions`
 
 Cure the standard status conditions on the whole party (player + both companions): poison, paralysis, sleep, seal, and cold. Fatigue and faint are NOT cleared. No args. For medicine / recovery scenes.
 
-### `op 483` — SyncCompanions()
+### `op 483` — DismissBothCompanions()
 *handler:* `Script_VMOp_SyncBothCompanionsToScene`
 
-Sync both companions into the scene.
+Dismiss both companions from the party. For each slot, Companion_SyncToScene kills its AI script and gauge. An NPC goes back to its schedule (Companion_DismissNpcAndRestoreSchedule), staying on the current map if its schedule has a spot here, else warping out with the departure effect (action 0x8C). A date in state 3/4 ends (EV_DATE_FINISH). A tamed monster is recalled to the farm (MonsterFarm_RecallCompanionAndRehome). No args.
 
-### `op 484` — SyncBothCompanions()
+### `op 484` — DismissBothCompanionsQuiet()
 *handler:* `Script_VMOp_SyncBothCompanionsToScene_SetSyncFlag1`
 
-Bring both companions into the current scene with a forced full sync (sets sync bit 0). Takes no arguments. Use SyncBothCompanionsWithFlags (op 485) when you need finer control over the sync mode.
+Dismiss both companions like op 483, but first set dismiss-mode bit 0x1, which suppresses the departure effect (Action_TriggerAttacker 0x8C at the companion's position) for NPCs and recalled monsters. No args.
 
-### `op 485` — SyncBothCompanionsWithFlags(flag1, flag2)
+### `op 485` — DismissBothCompanionsEx(force return to schedule, no departure effect)
 *handler:* `Script_VMOp_SyncBothCompanionsToScene_WithFlags`
 
-Bring both companions into the current scene, configuring the sync mode: arg0 non-zero sets sync bit 1, arg1 non-zero sets sync bit 0 (force full sync). The general-purpose companion scene-sync op.
+Dismiss both companions with options. arg0 != 0 sets mode bit 0x2: the NPC is always sent back to its schedule, skipping the 'stay on this map' path. arg1 != 0 sets bit 0x1: no departure effect.
 
 Args:
-  0. flag1 (sync bit 1)
-  1. flag2 (force full sync)
+  0. force return to schedule (0/1)
+  1. no departure effect (0/1)
 
-### `op 486` — SyncCompanionByCharId(char id, flag1, flag2)
+### `op 486` — DismissCompanionByCharId(char id, force return to schedule, no departure effect)
 *handler:* `Script_VMOp_SyncCompanionMatchingCharIdWithFlags`
 
-Bring the ONE companion whose char id matches [arg0] into the scene, with the same two sync flags as op 485. arg0 = 0 matches the scene's current actor, arg0 = 22 looks up the married partner via game flag, otherwise it is a direct char-id match.
+Dismiss the one companion whose char id matches arg0 (no-op if none), with the same two mode flags as op 485. arg0 = 0 matches the script host's actor; arg0 = 22 is replaced by GameFlag REG_CHILD_ID (5 bits), not the spouse.
 
 Args:
-  0. char id (0=scene actor, 22=spouse)
-  1. flag1 (sync bit 1)
-  2. flag2 (force full sync)
+  0. char id (0 = host actor, 22 = REG_CHILD_ID)
+  1. force return to schedule (0/1)
+  2. no departure effect (0/1)
 
 ### `op 488` — SetCompanionScriptedPresence(mode)
 *handler:* `Script_VMOp_SetBothCompanionScriptedPresenceAndMaybeReset`
@@ -5970,25 +6076,25 @@ Lock or release BOTH companions' AI for cutscene control. arg0 = 0 puts them in 
 Args:
   0. mode (0=lock for scene, else release)
 
-### `op 489` — SetCompanionMetFlag(clear)
+### `op 489` — SetCompanionsSceneHeld(release)
 *handler:* `Script_VMOp_SetCompanionNpcRecordScriptedFlagAndQueueEncounter`
 
-Toggle both companions' 'already met / scripted-present' record flag: arg0 == 0 sets it (mark as met), non-zero clears it — and when cleared while the clock hour is outside 6..18 (calendar field +8, the hour Script_VMOp_SetOrAddCalendarHourMinute writes; the handler Script_VMOp_SetCompanionNpcRecordScriptedFlagAndQueueEncounter, RF4S.exe+0x212840), queues each companion's first-meeting encounter event. Used at a cutscene's end to control whether first-time-meeting dialogue fires.
+Set (arg0 == 0) or clear (arg0 != 0) the scene-held bit 0x40000000 of both companions' NPC records. When clearing at night (hour < 6 or > 18), queue companion event kind 2 for companion slots 1 and 2 through Friendship_QueueFirstNpcEncounterEvent. That call skips the spouse, NPCs still held, NPCs with friendship level >= 7, NPCs with a date state, and runs only when REG_SUBEV_NOW is 0. This is the late-night companion check, not a first meeting.
 
 Args:
-  0. clear (0=mark met, else clear; queues the meeting at night)
+  0. release (0 = hold, else release and run the night check)
 
-### `op 494` — SetCompanionInvulnerable(slot, clear)
+### `op 494` — SetCompanionVisible(slot, visible)
 *handler:* `Script_VMOp_SetCompanionArmorBreakBit4`
 
-Set or clear a companion's invulnerability guard (control_flags bit 4) — the companion counterpart of SetActorInvulnerable (op 141). arg0 = companion slot (0 or 1; >=2 = both). arg1 = 0 sets the guard (invulnerable), non-zero clears it. Wrap scripted combat so companions can't be downed.
+Show or hide the companions. arg1 == 0 sets control_flags (+0x238) bit 0x4 (hidden, the same bit op 141 SetActorOpacity uses) on companion slot arg0 (0/1; >= 2 = both); non-zero clears it (shown; unlike op 141 no opacity is applied). The companion move/pose ops (496-501) clear the same bit and op 503 skips hidden companions. Nothing here affects damage.
 
 Args:
-  0. slot (0/1, >=2=both)
+  0. slot (0/1, >=2 = both)
      - `0` = Companion 1
      - `1` = Companion 2
      - `2` = Both
-  1. clear (0=guard on, else off)
+  1. visible (0 = hide, else show)
 
 ### `op 495` — WarpCompanion(slot, tile x, tile y)
 *handler:* `Script_VMOp_TeleportCompanionsToTile`
@@ -6091,17 +6197,17 @@ Args:
   1. target
   2. pose
 
-### `op 503` — StopCompanionAnim(slot, clear mode/flag)
+### `op 503` — ShowCompanionEmote(slot, emote icon id)
 *handler:* `Script_VMOp_StopCompanionAnimAndClearOutfitOverride`
 
-Stop the companion's current animation and (per the flag) clear its per-NPC outfit override; also clears armor-break bit 4 and control-flags 0x10C. Skips companions that are stunned/frozen (actor+568 bit 4). arg0 = companion slot (0=companion 1, 1=companion 2, 2=both). arg1 = clear mode/flag passed to Npc_StopAnimAndClearOutfitOverride (NOT an outfit id).
+Show an emote icon over a companion (companion form of op 211 ShowActorEmote). For companion slot arg0 (0/1, 2 = both) whose actor is not hidden (control_flags bit 0x4 clear), Npc_StopAnimAndClearOutfitOverride(actor, arg1) stores arg1 at actor+0x140 and, unless the same icon (>= 16) is already up, spawns Action 143 (VfxAction_SpawnPrimarySprite, subtype = icon) and plays an SFX for icons 4/5, 6/8 and 14; arg1 = 0 clears the icon. Then clears control_flags bit 0x4 and field_B4 bits 0x10C. No animation or outfit is touched.
 
 Args:
-  0. slot (0=comp1, 1=comp2, 2=both)
+  0. slot (0 = companion 1, 1 = companion 2, 2 = both)
      - `0` = Companion 1
      - `1` = Companion 2
      - `2` = Both
-  1. clear mode/flag
+  1. emote icon id (0 = clear)
 
 ### `op 506` — WarpMonstersToPlayer()
 *handler:* `Script_VMOp_TeleportAllCompanionMonstersToPlayer`
@@ -6227,75 +6333,75 @@ Args:
 ### `op 351` — SetVar4(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind4`
 
-Write `value` into global script-variable bank 4 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar4 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind4.
+Write `value` into global script-variable bank 4 (52 u32 slots) at [index]; index > 51 is ignored. The value is clamped as UNSIGNED to 999,999,999, so any negative value is stored as 999999999. Bank 4 is engine-global (not per-scene), is also written by the choice-commit system and is read by dialogue-text substitution codes; read back with GetVar4.
 
 Args:
-  0. index
-  1. value
+  0. index (0-51)
+  1. value (clamped to 999999999)
 
 ### `op 353` — SetVar5(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind5`
 
-Write `value` into global script-variable bank 5 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar5 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind5.
+Write `value` into global script-variable bank 5 (52 u32 slots) at [index]; index > 51 is ignored and the value is clamped as UNSIGNED to 999,999,999 (negatives become 999999999). Engine-global bank, also written by choice commit and read by dialogue-text substitution codes; read back with GetVar5.
 
 Args:
-  0. index
-  1. value
+  0. index (0-51)
+  1. value (clamped to 999999999)
 
 ### `op 355` — SetVar6(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind6`
 
-Write `value` into global script-variable bank 6 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar6 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind6.
+Write `value` into global script-variable bank 6 (52 u32 slots) at [index]; index > 51 is ignored and the value is clamped as UNSIGNED to 999,999,999 (negatives become 999999999). Engine-global bank, also written by choice commit and read by dialogue-text substitution codes; read back with GetVar6.
 
 Args:
-  0. index
-  1. value
+  0. index (0-51)
+  1. value (clamped to 999999999)
 
 ### `op 359` — SetVar8(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind8`
 
-Write `value` into global script-variable bank 8 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar8 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind8.
+Write `value` into global script-variable bank 8 (16 u32 slots) at [index]; index >= 16 is ignored, no value clamp. Special values: -1 stores companion 1's farm-table record index (signed u16 at actor+0x1E6, the index op 411 uses into g_MonsterFarmTable; -1 when the monster has no record) and -2 companion 2's (0 when that companion slot is empty). Read back with GetVar8; also read by dialogue-text substitution codes.
 
 Args:
-  0. index
-  1. value
+  0. index (0-15)
+  1. value (-1 = companion 1 farm-table record index, -2 = companion 2's)
 
 ### `op 361` — SetVar9(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind9_WithNpcFallback`
 
-Write `value` into global script-variable bank 9 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar9 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind9_WithNpcFallback.
+Write `value` into global script-variable bank 9 (16 u32 slots) at [index]; index >= 16 ignored. value -1 is replaced by the calendar date code (day + 100*season) of the festival currently in progress (GameFlag REG_FESTA), when one is set. Bank 9 has no VM reader op; it is consumed by dialogue-text substitution codes and by NpcAi_ResolveVillagerBehavior.
 
 Args:
-  0. index
-  1. value
+  0. index (0-15)
+  1. value (-1 = current festival's date code)
 
 ### `op 364` — SetVar10(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind10`
 
-Write `value` into global script-variable bank 10 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar10 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind10.
+Write `value` into global script-variable bank 10 at [index] (index < 16, no value clamp). Bank 10 has no VM reader op; it is read directly by dialogue-text substitution codes.
 
 Args:
-  0. index
+  0. index (0-15)
   1. value
 
 ### `op 365` — SetVar15(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind15`
 
-Write `value` into global script-variable bank 15 at [index]. These banks are ENGINE-GLOBAL state slots -- kinds 0-3 live in the game-globals slot table, the rest in dedicated arrays -- NOT per-scene scratch: a value set here stays visible to later scenes and SHARES storage with the choice-commit system (a committed PROMPT_CHOICE writes its follow-up param into the same slots via the same lookup). These slots also feed NPC villager-behavior AI and dialogue-text substitution codes (a text code reads a stored slot, else falls back to a default), so SetVar reaches beyond scene branching. Read it back with GetVar15 (into reg0). IDA-verified: Script_VMOp_WriteVarArrayKind15.
+Write `value` into global script-variable bank 15 at [index] (index < 16, no clamp). Bank 15 has no VM reader op; it feeds dialogue-text substitution codes (corpus writes ids like 23, 161-165 right before a dialogue line).
 
 Args:
-  0. index
+  0. index (0-15)
   1. value
 
-### `op 366` — SetVar13(bank-13 value, index, bank-14 value(s) …)
+### `op 366` — SetVar13And14(bank-13 value, index, bank-14 values…)
 *handler:* `Script_VMOp_WriteVarArrayKind13AndKind14Multi`
 
-Write to the paired global script-variable banks 13/14 at [index] — arg order is (value, index), not (index, value): bank13[arg1] = arg0, with arg0 == 0 replaced by the sentinel 0x3B49; every FURTHER arg is written into bank 14 starting at the same index (arg2 -> bank14[index], arg3 -> bank14[index+1], ...; both banks capped at 16 slots). The corpus-dominant 3-arg form SetVar13(0, idx, v) therefore stores v in BANK 14 and the sentinel in bank 13; the 11/12-arg forms bulk-fill bank 14. These are engine-global choice-commit slots (shared with PROMPT_CHOICE and dialogue-text substitution). Read back with GetVar13/GetVar14 (into reg0).
+bank13[arg1] = arg0 (0 is replaced by 0x3B49); then each further arg k (k >= 2) is written to bank14[arg1 + k - 2] (both banks 16 slots, out-of-range writes dropped). The common 3-arg form SetVar13And14(0, idx, v) puts v in bank 14 (read back with GetVar14) and the sentinel in bank 13; the 11/12-arg forms bulk-fill bank 14.
 
 Args:
-  0. bank-13 value (0 -> sentinel 0x3B49)
+  0. bank-13 value (0 -> 0x3B49)
   1. index
-  2. bank-14 value(s) …
+  2. bank-14 values…
 
 ### `op 373` — DispatchCondScriptEntry(em entry id)
 *handler:* `Script_VMOp_DispatchCondScriptEntry`
@@ -6313,16 +6419,16 @@ Run em.bin entry [id]'s ALT action stream. Date scenes end with entry 80 EV_DATE
 Args:
   0. em entry id
 
-### `op 443` — SetFlagBit(flag id, value, (unused, always 0), (unused, always 0))
+### `op 443` — SetFlagBit(flag id, value, (ignored), (ignored))
 *handler:* `Script_VMOp_SetGameFlagBitDirect`
 
-Set or clear a single game-flag bit in GameFlags ZONE 2: absolute bit 4096 + id (the handler adds the buffer's zone2_base; ids are zone-2 relative like MOBJ f13, NOT emdeb/emflags names; known blocks in emflags.ZONE2_BLOCKS). No extra +1007 — do NOT confuse with op 318, which adds 1007 and only sets. arg0 = flag id, arg1 = 0 clears / non-zero sets. The handler reads only 2 args, but every shipped statement passes 4 — args 2-3 are always 0 and ignored; the editor should accept/emit the 4-arg form.
+Set (arg1 != 0) or clear (arg1 = 0) GameFlags bit zone2_base + arg0 (zone-2 relative id). Only two args are read; shipped statements pass four, and the ignored third arg is 1 in about 40% of them, the fourth always 0.
 
 Args:
-  0. flag id
-  1. value (0=clear, else set)
-  2. (unused, always 0)
-  3. (unused, always 0)
+  0. flag id (zone-2 relative)
+  1. value (0 = clear, else set)
+  2. (ignored)
+  3. (ignored)
 
 ### `op 444` — SetFlagBitIfCond(flag id, em entry id)
 *handler:* `Script_VMOp_SetGameFlagBitGatedByCondScript`
@@ -6336,7 +6442,7 @@ Args:
 ### `op 557` — SetNpcRecognitionFlags(value, npc ids)
 *handler:* `Script_VMOp_UnlockPerNpcAchievementByList`
 
-Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (an npc id of 0 falls back to the married partner). These are the 23 per-NPC recognition flags (1451-1473); like op290/op698 they go through GameFlags_WritePacked_OrAchievement -- a graded packed-flag write, NOT one of the ~30 named Steam achievements (the old 'UnlockNpcAchievements' name overstated it).
+Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (an npc id of 0 falls back to the married partner). These are the 23 per-NPC recognition flags (1451-1473); like op290/op698 they go through GameFlags_WritePacked_OrAchievement -- a graded packed-flag write, NOT one of the ~30 named Steam achievements.
 
 Args:
   0. value
@@ -6345,20 +6451,20 @@ Args:
 ### `op 558` — SetNpcRecognitionFlags(value, npc ids)
 *handler:* `Script_VMOp_UnlockPerNpcAchievementByList`
 
-Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (duplicate of op 557; npc id 0 = the married partner). Per-NPC recognition flags 1451-1473 via GameFlags_WritePacked_OrAchievement -- a packed-flag write, not a Steam achievement.
+Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (an npc id of 0 falls back to the married partner). These are the 23 per-NPC recognition flags (1451-1473); like op290/op698 they go through GameFlags_WritePacked_OrAchievement -- a graded packed-flag write, NOT one of the ~30 named Steam achievements.
 
 Args:
   0. value
   1. npc ids (variadic)
 
-### `op 566` — AdvanceStoryMilestone(progress, story step)
+### `op 566` — RecordFestivalPlacement(placement, festival id)
 *handler:* `Script_VMOp_OnStoryMilestoneProgressAndUnlock`
 
-Advance a main-story milestone and unlock its achievement. arg0 = progress level (1-3), arg1 = story-step id (6-17). Commits the story-progress game flag, broadcasts the story event to every NPC (updates their reactions), and — if this raises the recorded progress — unlocks the achievement mapped to that step. The core 'story just advanced' op for scenario cutscenes.
+Record the player's placement in a festival contest. If placement is 1-3, broadcast it to the NPCs (Memory_BroadcastEventToNpcsAndApplyPlayerEffect(festival, placement)). Then read that festival's 2-bit best-placement field (packed ids 4876-4904; 0 counts as 4) and store the new placement if it is better, i.e. lower. The ids are packed game-flag fields, not achievements or story steps.
 
 Args:
-  0. progress (1-3)
-  1. story step (6-17)
+  0. placement (1-3)
+  1. festival id (REG_FESTA value: 6, 8-17)
 
 ### `op 571` — SetSceneScratch(byte value, word value)
 *handler:* `Script_VMOp_SetSceneFlagByteAndWord`
@@ -6390,7 +6496,7 @@ Args:
 ### `op 629` — SetRegisters(reg0 value, reg1 value, …up to reg9)
 *handler:* `Script_VMOp_ExportArgsAsCtxOutArray10`
 
-Alias of op 628 (same handler): load reg0..reg9 from up to 10 values.
+Load the VM REGISTER FILE reg0..reg9 (ctx+64..+100) from up to 10 argument values — reg[i] = arg[i]. These are the registers expressions read back via the reg tokens, SWITCH_EQ selectors dispatch on, and camera/position ops consume (GetPlayerPosition writes reg0/reg1; a staged PROMPT_CHOICE writes the pick to reg0). This op is how a script seeds them explicitly (1,825 uses). Registers are flat scratch — NOT saved across CALL — so consume them before the next op that writes reg0.
 
 Args:
   0. reg0 value
@@ -6420,13 +6526,13 @@ Set save-config settings flag bit 4 of g_saveConfigFlags.
 
 Set save-config settings flag bit 5 of g_saveConfigFlags.
 
-### `op 685` — SetGlobalScratch(value)
+### `op 685` — SetFreeLookCameraMode(mode)
 *handler:* `Script_VMOp_SetGlobalDword302E4`
 
-Set a general-purpose global scratch dword (persists across scenes within a session). arg0 = value. Stash a value here and read it back later with GetGlobalScratch (op 686) to pass data between scripts.
+Set the free-look camera control word (dword_...02E4) that ActionTask_TickFreeLookCamera reads every tick: nonzero lets the stick/d-pad drive the free-look camera; 2 (or higher) makes the camera exit (sfx 0x100223F, word reset to 0, task switched to ActionTask_TickPausedNoInputContext); 3 pauses it the same way without the reset. 0 = the tick's default branch.
 
 Args:
-  0. value
+  0. mode (0, 1, 2 = exit, 3 = pause)
 
 ## Audio
 
@@ -6438,35 +6544,35 @@ Switch background music with a crossfade. **arg = -1 restores the contextual BGM
 Args:
   0. bgm id (or -1 = restore)
 
-### `op 380` — StopMusic(volume arg)
+### `op 380` — StopMusic((ignored; corpus passes 0-18000))
 *handler:* `Script_VMOp_StopBGMWithCrossfade`
 
-STOP the current BGM with a crossfade out: the handler computes a volume target from arg/100 but passes track id -1 to BGM_SwitchWithCrossfade (RF4S.exe+0x19AA00), whose a1<0 branch stops the channel voice and discards the target. So the op halts music; it does not ramp to a level (old 'FadeMusic volume ramp' reading retired 2026-09-01). The single corpus arg is effectively ignored.
+Stop the current BGM immediately (no fade): BGM_SwitchWithCrossfade(-1, arg/100) takes its negative-id branch, which calls Sfx_StopChannelVoice and ignores the fade argument. Also sets the scripted-BGM marker (host+116 bit 0x10000000) so the contextual BGM does not restart until PlayMusic -1.
 
 Args:
-  0. volume arg (computed, then discarded by the stop branch)
+  0. (ignored; corpus passes 0-18000)
 
-### `op 382` — SetSfxVolume(mode / volume, attenuation)
+### `op 382` — FadeMusicVolume(volume percent, fade duration)
 *handler:* `Script_VMOp_SetSfxCaptureVolumeOverride`
 
-Override the SFX-capture volume for the scene (handler Script_VMOp_SetSfxCaptureVolumeOverride). arg0 = mode/volume: -1 restores the default volume; any other value captures the current scaled capture volume. arg1 = distance attenuation, passed to Sfx_ApplyDistanceAttenuation. (Handler reads two args -- argbuf[-3]=mode, [-5]=attenuation.)
+Fade the BGM channel volume. arg0 != -1: remember the current BGM volume in host+264 and ramp the BGM (Sfx_GetVoiceSlotByChannel(-1)) to arg0/100 of the category volume over arg1 ticks. arg0 = -1: ramp back to the remembered volume over arg1 and clear host+264 to -1.0.
 
 Args:
-  0. mode / volume (-1 = restore default)
-  1. attenuation
+  0. volume percent (-1 = restore)
+  1. fade duration
 
-### `op 383` — SetSfxDuckingBypass(enable)
+### `op 383` — SetMusicLock(lock)
 *handler:* `Script_VMOp_SetSfxCaptureBypassFlag`
 
-Set the SFX-capture / audio-ducking bypass flag on `g_sfxCaptureActive[+9]` (writes `arg != 0`). Used to **temporarily disable SFX ducking during cutscenes** so scripted BGM plays at full volume without being auto-lowered by an active NPC bubble / dialog.
+Set/clear the BGM lock byte (sound-task ctx +9). While set, Scene_ApplyContextualBGM does nothing, so the scripted track keeps playing across map changes and the 06:00/21:00 hour rolls instead of being replaced by the area music.
 
 Args:
-  0. enable
+  0. lock (0/1)
 
-### `op 384` — ResetSfxScratch()
+### `op 384` — ResetMusicResumePositions()
 *handler:* `Script_VMOp_ClearSfxCaptureWorkVars`
 
-Reset the SFX/BGM dispatcher's per-channel scratch state (zeroes ~20 bytes of capture work vars). Low-level audio housekeeping. Takes no arguments.
+Zero the five per-class BGM resume positions (sound-task ctx +72..+91), so the next village/dungeon/story/title/jingle track started by BGM_SwitchWithCrossfade plays from the beginning instead of resuming.
 
 ### `op 385` — PlaySound(sfx id)
 *handler:* `Script_VMOp_PlaySfxById`
@@ -6491,13 +6597,13 @@ Args:
   0. sfx / voice id
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
-### `op 389` — FindVoiceSlot((ignored by the handler))
+### `op 389` — SetPooledVoiceVolume(volume percent)
 *handler:* `Script_VMOp_FindOrPreemptVoiceSlot`
 
-Reserve a voice sfx slot: Sfx_FindOrPreemptVoice() picks (or preempts) a slot and Sfx_ApplyDistanceAttenuation(slot, ..., 0) sets it to full volume. The handler reads NO script args - the single value retail scripts pass (12 uses) is decoded by the VM and discarded.
+Set a voice-pool slot's volume to arg0/100 immediately: Sfx_FindOrPreemptVoice picks a slot (a free one if any, else the lowest-priority / shortest-remaining playing voice) and Sfx_ApplyDistanceAttenuation(slot, arg0/100, 0) applies it. The argument IS read.
 
 Args:
-  0. (ignored by the handler)
+  0. volume percent
 
 ### `op 390` — StopVoiceId(voice id)
 *handler:* `Script_VMOp_VoiceStopMatchingId`
@@ -6520,19 +6626,19 @@ Args:
 ### `op 461` — SuppressRewardJingle()
 *handler:* `Script_VMOp_SuppressNextRewardPopupSfx`
 
-Suppress the jingle of the NEXT reward popup (sets the scene's suppress bit that the reward ops check). Pairs with GrantFestivalRewards (op 462). Takes no arguments.
+Set host+120 bit 0x40, which silences the jingle of every later reward popup from this script host (ops 457, 458, 459, 462); the reward ops only test the bit and never clear it.
 
 ## Time & calendar
 
-### `op 300` — AdvanceDay()
+### `op 300` — ResetAllNpcSchedules()
 *handler:* `ScriptVMOp300_AdvanceDayResetSchedules`
 
-Advance to the next day and reset all NPC schedules + AI (Day_AdvanceResetAllNpcSchedulesAndAi). No args.
+Reset every villager (1..23) and every current event participant to today's schedule state with a full schedule+AI reset (Npc_ResetDailyScheduleAndAi), skipping NPCs mid-event (actor+16 bit 0x200) or already flagged; marks each reset NPC with record+48 bit 0x1000. The calendar is not touched. No args.
 
-### `op 304` — GetMinute()
+### `op 304` — GetYear()
 *handler:* `Script_VMOp_GetCalendarMinute`
 
-Read the current calendar minute.
+reg0 = the calendar YEAR (cal_inner+20). No args.
 
 ### `op 305` — GetSeason()
 *handler:* `Script_VMOp_GetCalendarSeason`
@@ -6544,10 +6650,10 @@ Read the current calendar SEASON index into the VM output — NOT the hour. The 
 
 Read the current calendar day.
 
-### `op 307` — GetMonthSeason()
+### `op 307` — GetHourMinute()
 *handler:* `Script_VMOp_GetCalendarMonthAndSeason`
 
-Read the calendar's month and season into the VM outputs: main output = month, second output = season (0=Spring, 1=Summer, 2=Fall, 3=Winter). Reads the display-snapshot calendar struct. Takes no arguments.
+reg0 = current HOUR (cal_inner+8, 0-23), reg1 = current MINUTE (cal_inner+4). No args.
 
 ### `op 308` — GetDateSnapshot()
 *handler:* `Script_VMOp_GetCalendarFullSnapshot`
@@ -6575,7 +6681,7 @@ Read the weather streak / cycle-position counter into the VM output (how far thr
 ### `op 451` — GetDayOfWeek()
 *handler:* `Script_VMOp_GetCalendarDayOfWeek`
 
-Read the current day of the week.
+reg0 = (day - 1) % 6 where day is the calendar day-of-season field (cal_inner +12, 0 treated as 1); range 0-5.
 
 ### `op 465` — SetCalendarPauseFlag(pause)
 *handler:* `Script_VMOp_SetCalendarPauseFlagFromBit0`
@@ -6585,15 +6691,15 @@ Halt or resume in-game time during a scene — sets the scene's calendar-pause c
 Args:
   0. pause (bit 0)
 
-### `op 466` — SkipToTime(hour, minute, enable)
+### `op 466` — SkipToTime(hour, minute, target mode)
 *handler:* `Script_VMOp_FastForwardCalendarToHourMinute`
 
-Fast-forward the clock FORWARD to a target time (hour:minute), rolling into the next day(s) if the target is earlier than now -- the classic cutscene 'time passes' skip (FastForwardForSleep). arg0 = target HOUR (cal_inner +8, forward delta mod 24), arg1 = target MINUTE (cal_inner +4), arg2 = enable (0 = no-op). Definitive field map from Calendar_NormalizeTimeCarry: cal_inner = [+0 Q12sec, +4 minute, +8 hour, +12 day, +16 season, +20 year]; hour>24 rolls the day, day>30 rolls the season -- so this sets the TIME, not the date (date advances only via rollover). Shipped scenes: arg0 = a target hour (6/8/17/21/22...), arg1 = 0 (on the hour), arg2 = 1. (Was mislabeled SkipToDate/day+month.)
+Advance the clock and run the sleep fast-forward (Calendar_FastForwardForSleep). arg2 != 0: target mode - hours += (arg0 - hour) mod 24 and minutes += arg1 - minute when arg1 > minute. arg2 = 0: relative mode - hours += arg0, minutes += arg1. Quirks of target mode: when arg0 equals the current hour the CURRENT hour count is added, when arg1 equals the current minute the current minute is added, and when arg1 is below the current minute (current - arg1) minutes are added.
 
 Args:
-  0. hour
-  1. minute
-  2. enable (0 = no-op)
+  0. hour (target, or delta when arg2 = 0)
+  1. minute (target, or delta when arg2 = 0)
+  2. target mode (1) / delta mode (0)
 
 ### `op 467` — SetTime(hour, minute, absolute)
 *handler:* `Script_VMOp_SetOrAddCalendarHourMinute`
@@ -6605,33 +6711,32 @@ Args:
   1. minute
   2. absolute (0=add, else set)
 
-### `op 468` — FastForwardCalendar(±year/season, ±month, ±day, ±hour, absolute)
+### `op 468` — FastForwardCalendar(year, season, day, mode)
 *handler:* `Script_VMOp_FastForwardCalendarFineGrained`
 
-Fast-forward the in-game calendar and run the sleep update (schedule refresh, crop growth, etc). arg0 = year/season, arg1 = month, arg2 = day, arg3 = hour, arg4 = absolute mode (0 = advance by these amounts, non-zero = set directly). The time-skip op ('…the next morning').
+Advance the calendar's year / season / day and run the sleep fast-forward (Calendar_FastForwardForSleep) plus a schedule refresh. Takes 4 args, not 5: arg0 = year, arg1 = season, arg2 = day, arg3 = mode. mode != 0 adds arg0/1/2 to year/season/day as deltas; mode 0 adds |arg0 - current year| and |arg2 - current day| (so reaches the target only when it is ahead; an equal value doubles the field) and adds arg1 to the season. It never touches hour; it also adds the current seconds and minute to themselves (doubles them) before normalising.
 
 Args:
-  0. ±year/season
-  1. ±month
-  2. ±day
-  3. ±hour
-  4. absolute (0/1)
+  0. year (delta or target)
+  1. season (delta)
+  2. day (delta or target)
+  3. mode (0 = move toward target, non-zero = add deltas)
 
-### `op 469` — SetOrAddCalendarDate(year/season, month, day, absolute)
+### `op 469` — SetOrAddCalendarDate(year, season, day, absolute)
 *handler:* `Script_VMOp_SetOrAddCalendarYMDS`
 
-Set or advance the calendar's year / month / day in one call, then run the sleep update and refresh the clock HUD. arg0-2 = the date components, arg3 = absolute mode (0 = add the amounts, non-zero = set them directly). Coarser than FastForwardCalendar (op 468) — no hour.
+Set or add the calendar year / season / day in one call, then run the sleep fast-forward and refresh the clock/weather HUD. arg3 = mode: non-zero sets the three fields directly, 0 adds them (if the added day lands on 0 it becomes day 30 of the previous season). Hour/minute are kept.
 
 Args:
-  0. year/season
-  1. month
-  2. day
-  3. absolute (0/1)
+  0. year
+  1. season (0-3)
+  2. day (1-30)
+  3. absolute (0 = add, non-zero = set)
 
-### `op 627` — SleepToMorning()
+### `op 627` — JumpToRandomDate()
 *handler:* `Script_VMOp_SleepWithRandomizedMinuteAndUnpause`
 
-Advance to the next morning (randomized minute) and unpause.
+Move the calendar to a random date in the current year: keeps the time of day (seconds/minute/hour) and the year, sets day = random 1..30 and season = random 0..3, normalizes, then runs Calendar_FastForwardForSleep to the new target with the per-minute callbacks suppressed. Afterwards clears the player's field_B4 and sets game-main work+8 bit 1. No args.
 
 ### `op 637` — SaveCalendarSnapshot()
 *handler:* `Calendar_SaveSnapshot`
@@ -6640,13 +6745,13 @@ Save a calendar snapshot.
 
 ## Items, rewards, economy
 
-### `op 209` — GiveOrDropItem(target, item id)
+### `op 209` — HandOrDropItem(target npc, item id)
 *handler:* `Script_Action_HandOrDropItem`
 
-Materialize an item and place it: arg0 = target (0 = the player, 1-47 = an NPC slot), arg1 = item id. NPCs receive it in-hand; the player holds it, or — if the player can't hold it — it drops on the ground with a puff. The 'NPC hands you a gift / holds up an item' cutscene primitive (uses the pending-interaction record for item attributes).
+**Cutscene 'NPC hands you a gift' primitive.** Spawns an item visual and attaches it to either an NPC's hand or the player. **arg 0 = target**: 0 = give to player (either attach to hand OR drop on ground if player has status 0x4000 / secondary_mod in the 'item-blocked' range 1..0x453 — plays Sfx 0x100226D + fires Action_TriggerActor(0x13)). >0 = NPC slot index (looked up via g_gameGlobalsSlotTable), then `Item_SpawnVisualTask` + `Npc_AttachHeldItem`. **arg 1 = item_id** masked to 11 bits (0..2047). The item metadata is loaded from `g_itemDatabase` (recipe metadata copied via 5-byte stride).
 
 Args:
-  0. target (0=player, 1-47=NPC)
+  0. target npc (0=player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -6740,60 +6845,60 @@ Args:
   1. mode (add / sub / set = the null / zero / self leaf)
   2. amount
 
-### `op 423` — GiveItem(item id, count, quality)
+### `op 423` — GivePlayerItem(item id, count, quality)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
 
-Give the player an item (stack + quality).
+Give the player item arg0 x arg1 at quality/level arg2 (stored as arg2-1 in each quality byte; 9 bytes for stackables, 1 otherwise), applying any attributes staged by op 421. Tries the backpack, then the rune-ability page; reg0 = 1 if it went into one of them. If both are full: when the player is already carrying something (status 0x4000 or a held item) the item is dropped at the player's feet with the drop jingle, otherwise the player holds it up in their hands. Ops 423 and 424 share this handler.
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. count
-  2. quality
+  2. quality (1-10)
 
-### `op 424` — GivePlayerItem(item id, stack count, quality)
+### `op 424` — GivePlayerItem(item id, count, quality)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
 
-Give the player an item — the core reward/gift op. arg0 = item id, arg1 = stack count, arg2 = quality. Plays the pick-up animation and adds it to the backpack (or rune/ability page); if the bag is full it drops the item at the player's feet with a jingle instead. Writes success (1/0) to the VM output.
+Give the player item arg0 x arg1 at quality/level arg2 (stored as arg2-1 in each quality byte; 9 bytes for stackables, 1 otherwise), applying any attributes staged by op 421. Tries the backpack, then the rune-ability page; reg0 = 1 if it went into one of them. If both are full: when the player is already carrying something (status 0x4000 or a held item) the item is dropped at the player's feet with the drop jingle, otherwise the player holds it up in their hands. Ops 423 and 424 share this handler.
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. stack count
-  2. quality
+  1. count
+  2. quality (1-10)
 
-### `op 425` — ForcePlayerHoldItem(item id, quality, stack count)
+### `op 425` — ForcePlayerHoldItem(item id, count, quality)
 *handler:* `Script_VMOp_ForcePlayerHoldItemOrConsume`
 
-Put an item directly in the player's HANDS (held, not in the bag) with the pickup jingle. arg0 = item id (0 = instead consume/use up the currently-held item), arg1 = quality, arg2 = stack count. For 'the player holds up what they just made / received'. Distinct from GivePlayerItem (op 424), which adds to the backpack.
+Put an item straight into the player's hands (equipment record 0, the carried item) with the SE_HOLD jingle: arg0 = item id, arg1 = count, arg2 = quality (> 10 treated as 1). Staged op-421 attributes are applied. arg0 = 0 instead uses up the currently held stack (up to 15 decrements until empty).
 
 Args:
-  0. item id (0=consume held)
-     - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. quality
-  2. stack count
-
-### `op 428` — TakeItem(item id, count, quality filter)
-*handler:* `Script_VMOp_TakeItemFromAnyContainer`
-
-Remove (consume) N of an item from ANY of the player's containers — backpack, equipped-extras, every inventory page, storage, weapon rack, closet, tool box, shipping bin, fridge, bookshelf, and rune abilities — scanned in priority order until the demand is met. arg0 = item id, arg1 = count, arg2 = quality filter (when > 0, only removes copies whose quality byte is 0). Plays the 'item removed' jingle when finished.
-
-Args:
-  0. item id
-     - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. count
-  2. quality filter (>0=plain only)
-
-### `op 429` — TakeItemFromBackpack(item id, count, quality)
-*handler:* `Script_VMOp_TakeItemFromBackpackOrEquipExtras`
-
-Remove an item from the player's backpack or equip-extras (a scripted take). arg0 = item id, further args = count / quality. Used for quest turn-ins and story items taken from the player.
-
-Args:
-  0. item id
+  0. item id (0 = consume held)
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. count
   2. quality
+
+### `op 428` — TakeItem(item id, count, level filter)
+*handler:* `Script_VMOp_TakeItemFromAnyContainer`
+
+Remove arg1 (5-bit, max 31) of item arg0 from every player container in order: backpack (60), the carried item (decremented up to count times), equipment records 1-10, storage, weapon rack, closet, tool box, shipping box, fridge, bookshelf, rune page. A stack larger than the demand is reduced and the op stops; a stack equal to the demand is cleared and the op stops; a stack SMALLER than the demand is cleared and the scan continues with the full, undiminished demand. arg2 >= 0 restricts removal to copies whose level byte is 0; -1 = any level. The 'delivered' item effect, g_lastRemovedItemIdForScript and Player_ClearCarriedRecordsMatching only run when the scan reaches the end without an early stop.
+
+Args:
+  0. item id
+     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  1. count (max 31)
+  2. level filter (-1 = any, >= 0 = level-1 copies only)
+
+### `op 429` — TakeItemFromBackpack(item id, count, level filter)
+*handler:* `Script_VMOp_TakeItemFromBackpackOrEquipExtras`
+
+Same removal loop as op 428 but only over the 60 backpack slots, then the carried item (decremented up to count times if its id matches). arg2 >= 0 only removes level-byte-0 copies (-1 = any). A stack equal to the demand is cleared and the scan stops; only a smaller stack is cleared and followed by further removals with the full demand. Writes no result register.
+
+Args:
+  0. item id
+     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  1. count (max 31)
+  2. level filter (-1 = any)
 
 ### `op 430` — ConsumeHeldItem(count)
 *handler:* `Script_VMOp_ConsumeFromHeldItemNTimes`
@@ -6803,19 +6908,19 @@ Consume / use up N of the item the player is currently holding. arg0 = count. Fo
 Args:
   0. count
 
-### `op 452` — SpawnItemAtTile(item id, count, quality, x tile, y tile, as-drop)
+### `op 452` — SpawnItemAtTile(item id, quality, count, x tile, y tile, as pickup)
 *handler:* `Script_VMOp_SpawnItemAtTileAsDropOrVisual`
 
-Spawn an item in the world at a map tile -- as a droppable pickup or a visual-only prop, chosen by the last arg (handler Item_SpawnAtPositionAsDropOrVisual). NOT a shipping-bin op (real shipping = QueryShippingBoxTotalGold @ op 649). Verified: 28 scene call sites pass (item, count, quality, x_tile, y_tile, drop).
+Spawn item arg0 in the world at tile (arg3, arg4) via Item_SpawnAtPositionAsDropOrVisual, as a pickup when arg5 != 0 or a visual-only prop when 0. arg1 is the QUALITY (clamped to 1-10, stored as arg1-1) and arg2 the COUNT (packed << 11). Staged op-421 attributes are applied.
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. count
-  2. quality
+  1. quality (1-10)
+  2. count
   3. x tile
   4. y tile
-  5. as-drop (0=visual, 1=pickup)
+  5. as pickup (0 = visual, 1 = pickup)
 
 ### `op 453` — DropStagedItem()
 *handler:* `Script_VMOp_DropStagedItemAtPlayerTile`
@@ -6869,25 +6974,32 @@ Args:
   1. x (tiles)
   2. y (tiles)
 
-### `op 460` — AddRewardItem(reward slot, item id, count, quality)
+### `op 460` — AddRewardItem(reward slot, item id, quality, count)
 *handler:* `Script_VMOp_AddItemToRewardSlotPopup`
 
-Add an item to a reward slot and queue the reward popup (RewardSlot_AddToInventoryAndQueuePopup). arg0 = reward slot id, arg1 = item id, arg2 = count (clamped to 1-10; forced to 1 for non-stackable items), arg3 = quality (clamped to 1-9). Unused in the shipped corpus.
+Put an item into reward-popup slot arg0 (RewardSlot_AddToInventoryAndQueuePopup): arg1 = item id, arg2 = QUALITY (clamped to 1-10, stored as arg2-1), arg3 = COUNT (clamped to 1-9). Sets the item's discovered bit.
 
 Args:
   0. reward slot
-     - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. item id
-  2. count (1-10)
-  3. quality (1-9)
+     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  2. quality (1-10)
+  3. count (1-9)
 
-### `op 462` — GrantFestivalRewards(reward tokens)
+### `op 462` — GrantFestivalRewards(item/token 1, count 1, item/token 2, count 2, item/token 3, count 3, item/token 4, count 4)
 *handler:* `Festival_RollAndDistributeRewardsFromTemplate`
 
-Roll and grant up to 8 festival/event rewards from a reward template and show the reward popup (with the completion jingle unless silenced by op 461). Each variadic token chooses a roll strategy: 0x270D festival prize item, 0x270E shop-category roll, 0x270F generic loot, 0x2710 quest-specific loot; any other value is a literal item id.
+Open a reward popup (jingle 0x10000E9 unless op 461 was used) and fill up to 4 reward slots from (item, count) ARG PAIRS: even args pick the item - 9997 (0x270D) a random shop-available item among ids 111-114, 9998 (0x270E) a Shop_RollByCategoryFromTable roll over 13 categories, 9999 (0x270F) Loot_RollGenericFromTable, 10000 (0x2710) Loot_RollQuestSpecificFromTable (with a price-based stack when a request is active), anything else a literal item id - and each following odd arg sets that slot's count. At most 8 args are read.
 
 Args:
-  0. reward tokens (variadic)
+  0. item/token 1
+  1. count 1
+  2. item/token 2
+  3. count 2
+  4. item/token 3
+  5. count 3
+  6. item/token 4
+  7. count 4
 
 ### `op 463` — DropItem(item id)
 *handler:* `Script_VMOp_DropSingleItemAtPlayer`
@@ -6898,16 +7010,16 @@ Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 464` — DropItemStack(item id, count, quality)
+### `op 464` — DropItemStack(item id, quality, count)
 *handler:* `Script_VMOp_DropItemStackAtPlayer`
 
-Drop a stack of an item at the player (item id, count, quality). Handler packs quality into the slot's high bits, like the item-spawn family.
+Drop item arg0 at the player: arg1 = QUALITY (0 treated as 1, stored as arg1-1), arg2 = COUNT (packed << 11). Plays the drop jingle 0x100226D and action 0x13.
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. count
-  2. quality
+  1. quality
+  2. count
 
 ### `op 563` — EquipScriptedWeapon(weapon item id)
 *handler:* `Script_VMOp_ForceEquipWeaponSlot1AsScripted`
@@ -6923,22 +7035,21 @@ Args:
 
 Undo EquipScriptedWeapon (op 563): restore the mainhand weapon that was backed up when the scripted weapon was equipped, and refresh the HUD. Takes no arguments.
 
-### `op 587` — GiveTileObject(item id, container id, x, y)
+### `op 587` — PlaceFurniture(furniture/tile-object id, room id, tile x, tile y)
 *handler:* `Script_VMOp_TryGiveTileObjectAndPlayDrop`
 
-Place a 'tile object' — a collectible/scene object that sits on a tile (like a dropped item the player can walk over to pick up) — with the drop jingle and drop indicator. arg0 = item id, arg1 = container/context id (-1 = current), arg2/arg3 = X/Y tiles (-1 = the player's tile). Writes 1 to the VM output if placed (max 16 active).
+Place a furniture tile object (id [arg0], in the tile-object id space, not the item table) in room [arg1] at tile (arg2, arg3). Only allowed if that room has fewer than 16 active objects; id 328 is exempt and instead upgrades an existing 327 record in place. arg1 = -1 means the current room; tile -1 = default position. If placed in the current room (and id != 328), plays sfx 0x100226D and action 0x13 at the tile (or at the player). reg0 = 1 if placed, else 0.
 
 Args:
-  0. item id
-     - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. container id (-1=current)
-  2. x (tiles, -1=player)
-  3. y (tiles, -1=player)
+  0. furniture/tile-object id
+  1. room id (-1 = current room)
+  2. tile x (-1 = default/player)
+  3. tile y (-1 = default/player)
 
-### `op 590` — OpenRequestBox()
+### `op 590` — BreakFurnitureIntoMaterials()
 *handler:* `Script_VMOp_DropQuestBoxItems1022And1023AndDestroy`
 
-Open the scene's request box: spawn item 1022 (the Box) and item 1023 (the Note) at the object's position with a dirt-cloud puff, then clear the tile-object slot and destroy the box actor. This is the 'open Eliza's Request Box' interaction. Takes no arguments.
+Break the host furniture object: dirt-cloud puff, drop item 1022 (Lumber) and item 1023 (Material Stone) at its position, free its tile-object registry slot and destroy the object. Takes no arguments.
 
 ### `op 597` — RollShopCategoryItemReturnId(shop category)
 *handler:* `Script_VMOp_RollShopCategoryItemReturnId`
@@ -6951,63 +7062,63 @@ Args:
 ### `op 598` — RollRandomItemMatchingDisplayName(display-name string id)
 *handler:* `Script_VMOp_RollRandomItemMatchingDisplayName`
 
-Roll a random item whose display-name string id matches the arg (groups items that share a name, e.g. all Swords), preferring the cheapest tier; result to the VM output slot. Used for shop randomization.
+Roll a random item among all items whose display-name string id == arg0 (items sharing a name) that pass Item_CheckShopFilter (the story/unlock gate); reg0 = the pick. If none pass, reg0 = the matching item with the lowest unlock threshold (data_28), or 82 if nothing matches.
 
 Args:
   0. display-name string id
 
-### `op 599` — LootRollGenericFromTable()
+### `op 599` — RollRandomDishItem()
 *handler:* `Script_VMOp_LootRollGenericFromTable`
 
-Loot Roll Generic From Table. Rolls a value via the RNG (usually a random item id, sometimes an integer or position) and writes the result to the VM output slot for a following read — used to generate reward / treasure / shop contents.
+Pick one of shop categories 5-11 uniformly (item ids 134-299, the cooked-dish range, Trout Sashimi..Turnip Heaven) and roll an unlocked item from it with Shop_RollByCategoryFromTable; reg0 = item id. No args.
 
-### `op 600` — RollRandomShopItem()
+### `op 600` — RollRandomEquipmentItem()
 *handler:* `Script_VMOp_RollRandomShopItemFromRandomCategory`
 
-Roll a random shop item id and write it to the VM output (reg0) for a following read. MMIX RNG first picks one of 5 shop categories (the '!"#$%' category byte table), then Shop_RollByCategoryFromTable rolls an item from that category's shop table. No args. Used to generate random reward/treasure contents.
+Pick one of 16 fixed shop categories uniformly (15-19, 24-26 weapons; 33 shields; 34 accessories; 35 headgear; 36 shoes; 37 armor; 48/49 skill and spell items; 57 the 318-327 bread range) and roll an unlocked item from it; reg0 = item id. No args.
 
-### `op 601` — RollRandomRingItemIdInTier()
+### `op 601` — RollRandomFurItem()
 *handler:* `Script_VMOp_RollRandomRingItemIdInTier`
 
-Roll Random Ring Item Id In Tier. Rolls a value via the RNG (usually a random item id, sometimes an integer or position) and writes the result to the VM output slot for a following read — used to generate reward / treasure / shop contents.
+Roll a random unlocked item from {814, 815, 816, 879, 939} (Fur S/M/L, Wooly Furball, Quality Puffy Fur); reg0 = item id. If none passes Item_CheckShopFilter, falls back to the lowest-threshold member (default 814). No args.
 
-### `op 602` — RollRandomTurnipFamilyItemIdInTier()
+### `op 602` — RollRandomMedicineOrFailedDish()
 *handler:* `Script_VMOp_RollRandomTurnipFamilyItemIdInTier`
 
-Roll Random Turnip Family Item Id In Tier. Rolls a value via the RNG (usually a random item id, sometimes an integer or position) and writes the result to the VM output slot for a following read — used to generate reward / treasure / shop contents.
+Roll a random unlocked item from ids 115-119, 123, 131-133 (Antidote Potion, Para-Gone, Roundoff, Cold Medicine, Formuade, Heavy Spice, Object X, Failed Dish, Disastrous Dish); reg0 = item id, fallback 132 (Failed Dish). No args.
 
-### `op 603` — ShopRollByCategoryRange()
+### `op 603` — RollRandomGrassItem()
 *handler:* `Script_VMOp_ShopRollByCategoryRange`
 
-Shop Roll By Category Range. Rolls a value via the RNG (usually a random item id, sometimes an integer or position) and writes the result to the VM output slot for a following read — used to generate reward / treasure / shop contents.
+Roll a random unlocked item from ids 71-81 (Medicinal Herb, Antidote Grass and the colored grasses); reg0 = item id, fallback = the lowest-threshold member (initially 71). No args.
 
-### `op 604` — RollRandomMineralOrIngredientItemIdInTier()
+### `op 604` — RollRandomIngredientItem()
 *handler:* `Script_VMOp_RollRandomMineralOrIngredientItemIdInTier`
 
-Roll Random Mineral Or Ingredient Item Id In Tier. Rolls a value via the RNG (usually a random item id, sometimes an integer or position) and writes the result to the VM output slot for a following read — used to generate reward / treasure / shop contents.
+Roll a random unlocked item from the fixed set {5, 33, 37, 38, 123, 294, 301, 304, 305, 306, 313} (Pink Melon, Leek, Hot-Hot Fruit, Giant Hot-Hot Fruit, Heavy Spice, Relax Tea Leaves, Chocolate, Milk S/M/L, Honey); reg0 = item id, default 301 (Chocolate). No args.
 
-### `op 605` — RollRandomFilteredItem()
+### `op 605` — RollRandomSeasoningItem()
 *handler:* `Script_VMOp_RollRandomItemByLookupBytemask195`
 
-Roll a random item id from a fixed eligible set — iterates the 195 item ids in [123, 314), keeps those whose byte in a lookup table is 0, applies a shop-availability filter, then MMIX-picks one (falls back to item 314 if none) — and write it to the VM output for a following read. The table's meaning is unverified (plausibly 'gift items NPCs accept'). No args.
+Roll a random unlocked seasoning/cooking-base item: ids 123-126, 270, 271, 302, 310, 314-317 (Heavy Spice, Sweet Powder, Sour Drop, Mixed Herbs, Ketchup, Butter, Wine, Mayonnaise, Flour, Oil, Curry Powder, Rice Flour); reg0 = item id, default 314 (Flour). No args.
 
 ### `op 606` — RollThreeFlowerItemsAvoidDup()
 *handler:* `Script_VMOp_RollThreeFlowerItemsAvoidDup`
 
 Roll a 3-flower gift choice: writes item 63 (fixed first option) plus two distinct random flower/plant items to the THREE VM outputs reg0/reg1/reg2 (ctx+64/+68/+72). Candidates are item ids 63-70 and 84-109 that pass the shop filter (up to 40 collected); the two rolled picks avoid id 63 and each other (retry-capped, falling back to 65/67), using the global MMIX PRNG. No args. Used by the flower-choice gift dialogue.
 
-### `op 607` — RollRandomItemByLookupBytemask28()
+### `op 607` — RollRandomFlowerSeedItem()
 *handler:* `Script_VMOp_RollRandomItemByLookupBytemask28`
 
-Roll a random item id from a fixed 28-id window and write it to the VM output for a following read. Scans item ids 758-785, keeps those whose entry in a 28-byte eligibility table is 0 AND that pass the shop-unlock filter (Item_CheckShopFilter), then picks one with the MMIX RNG; if none qualify, returns the fallback id 759. Takes no arguments. (What items 758-785 are is unconfirmed — likely an ingredient/produce subset — so the mnemonic is kept as-is.)
+Roll a random unlocked flower seed: ids 758, 759, 765, 771, 773-785 (Moondrop, Toyherb, Pink Cat, Charm Blue, Cherry Grass ... White Crystal Seeds; vegetable seeds in 758-785 are excluded); reg0 = item id, default 759 (Toyherb Seeds). No args.
 
 ### `op 616` — QueryAndSetCraftedFlag(item id)
 *handler:* `Script_VMOp_QueryAndSetCraftedItemFlagBit`
 
-Read the 'has ever been crafted' flag for an item — returns the OLD value to the VM output, then marks the item as crafted in the save flags. arg0 = item id (100000 = a misc-craft sentinel). Gates first-craft dialogue / rewards.
+Test-and-set the 'has been crafted' flag. For an item id: looks up its craft record (Item_FindCraftDataRecordForItemId); reg0 = the OLD bit at zone2 + craft_id + 1062, then the bit is set (reg0 = 0 and nothing is set if the item has no craft record). For 100000: the handler sets flag zone2+1403 BEFORE reading it, so reg0 is always 1 (when a save is loaded).
 
 Args:
-  0. item id (100000=misc)
+  0. item id (100000 = misc-craft flag)
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 639` — GetPrincePoints()
@@ -7039,7 +7150,7 @@ Args:
 ### `op 645` — PromotePrinceRank()
 *handler:* `PrinceRank_PromoteIfReached`
 
-Promote the prince rank if the threshold is reached.
+Promote the prince rank for every tier whose tourist threshold is reached (it can jump several ranks, up to 5), add each tier's gold reward to player gold (clamped to 2e9; sets flag 810 once gold >= 10,000,000). Outputs: reg0 = 1 if promoted, reg1 = the new rank, reg2 = the gold reward. No args.
 
 ### `op 653` — ClearShopSelectionA()
 *handler:* `Script_VMOp_ClearShopSelectedSlotIdxA`
@@ -7107,24 +7218,24 @@ Args:
      - `36` = Leadership
      - `37` = Bartering
 
-### `op 681` — LootRollByCategoryForPlayer(loot category)
+### `op 681` — RollBreadRecipe(bread item id)
 *handler:* `Script_VMOp_LootRollByCategoryForPlayer`
 
-Roll a loot item for the player from a category loot table (LootTable_RollByCategory) and write the item id to the VM output slot for a following read.
+Roll the recipe the player learns from a recipe bread: arg0 = the bread item id (318/319 Medicine Bread(+), 320/321 Cooking Bread(+), 322/323 Weapon Bread(+), 324/325 Accessory Bread(+), 326/327 Farming Bread(+)). The pool is built from that bread's crafting-data archives, with weight 80 for the plain bread and 100 for the '+' version; Cooking Bread's pool depends on which kitchen utensils exist (or on unlock bit 23). reg0 = the rolled recipe's item id (0 if none).
 
 Args:
-  0. loot category
+  0. bread item id (318-327)
 
-### `op 696` — RemoveItemFromBackpack(item id, count, quality)
+### `op 696` — RemoveItemFromBackpack(item id, count, level filter)
 *handler:* `Script_VMOp_RemoveItemFromBackpackByIdAndCount`
 
-Remove items from the player — the 'take from player' op (quest turn-in, a story item being taken). arg0 = item id, arg1 = count, arg2 = quality filter (-1 = any quality; >=0 = only that quality). Also decrements the held item if it matches.
+Take [arg1] of item [arg0] from the backpack (60 slots). A slot matches if its id == arg0 and its flag bit (+2 bit 0) is set; with arg2 >= 0 it must also have level byte (+4) == 0 (arg2's value itself is not compared; -1 = any level). The first slot holding more than the count is reduced and the op ends. A slot holding <= count is emptied, and the search continues with the FULL count again (the remaining count is never reduced), so a split stack can lose more than asked. If nothing ended the search and the held item matches, it decrements the held stack up to count times and clears the carried records.
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. count
-  2. quality (-1=any)
+  2. level filter (-1 = any, >=0 = level-0 slots only)
 
 ### `op 701` — SetPlayerSkillXp(skill index, xp value)
 *handler:* `Script_VMOp_SetPlayerSkillXpByIdx`
@@ -7214,7 +7325,7 @@ Args:
 ### `op 140` — ApplyEffectToActor(actor, effect kind id)
 *handler:* `ScriptVM_Op_ApplyEffectKindToEntity`
 
-Alias of op 139 (same handler): apply an effect kind to an actor.
+Apply an Effect (damage / heal / status / VFX) to an actor via Effect_ApplyByKindAndSpawn — the scripted-effect entry point. arg0 = actor (char id, 0 = player). arg1 = effect kind id (dispatched by g_effectKindSpawnTable to spawn the visual + apply the gameplay effect). Used for scripted magic, sparkles, heals, and status in cutscenes.
 
 Args:
   0. actor (char id, 0=player)
@@ -7257,14 +7368,14 @@ Args:
   1. x (tiles)
   2. y (tiles)
 
-### `op 151` — TriggerActorAttack(attack id, attacker)
+### `op 151` — TriggerActionOnActor(action id, actor)
 *handler:* `Script_VMOp_TriggerActorAttack`
 
-Make an actor perform a combat attack move (as_atk timeline) from its current position, via Action_TriggerAttacker. arg0 = attack id. arg1 = attacker (char id, 0 = player). Used for scripted combat in cutscenes (boss demos, story fights).
+Spawn an Action (g_actionConstructorTable id - the same id space as op 150/165, not an as_atk attack timeline) parented to an actor and placed at its position (payload flag byte +20 bit 0 set). arg0 = action id, arg1 = actor (0 = player, 1..47 NPC).
 
 Args:
-  0. attack id
-  1. attacker (char id, 0=player)
+  0. action id
+  1. actor (char id, 0=player)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -7334,30 +7445,30 @@ Args:
 
 Force a full refresh of the current map's tiles — mark every tile dirty and recompute its visibility/attribute flags, then flag the player for refresh. Call after a scripted map or tile-attribute change so it redraws. Takes no arguments.
 
-### `op 401` — MonsterFarmSpawn(spawn param)
+### `op 401` — SendMonsterToFarmArea(farm area)
 *handler:* `Script_VMOp_MonsterFarmSpawnFromInteraction`
 
-Send the current interaction monster to the player's monster farm (picks a farm area and spawns it there). arg0 = a spawn mode/param. For taming/relocating a monster you're interacting with.
+Send the barn monster this script belongs to (host+32) out to work farm area arg0: 1-3 = that area, -1 (0xFF) = a weighted-random free area, 0 = recall (clears the area bits 0x600 and the seed-planting order 0x40000). Sets record flags bits 9-10 = area plus 0x2000 and spawns its farm-worker task. Does nothing if the monster is already assigned to that area, is flagged 0x100, or the global at RF4S.exe+0xE3CB30 has id 0xFFFF.
 
 Args:
-  0. spawn param
+  0. farm area (1-3, -1 = random free, 0 = recall)
 
-### `op 402` — SendMonsterToFarmOrClearFlags(arg)
+### `op 402` — RecallFarmMonster(farm record index)
 *handler:* `Script_VMOp_MonsterFarmSpawnOrClearFlags`
 
-Dual-purpose monster-farm op: arg0 == -1 sends the current interaction monster to the farm (if it is a valid monster); any other value is a farm-slot index whose status flags (bits 0x600) get cleared.
+Stop a barn monster's field work. arg0 = -1: the script's own monster (host+32) via MonsterFarm_PickAreaAndSpawn(.., 1, 0), whose area-0 path clears the area bits 0x600 and the seed-planting order 0x40000. Otherwise arg0 is a g_MonsterFarmTable index and only its area bits 0x600 are cleared.
 
 Args:
-  0. arg (-1 = send to farm, else farm slot)
+  0. farm record index (-1 = this script's monster)
 
-### `op 405` — SetMonsterFarmLovedToday(farm monster, loved)
+### `op 405` — SetFarmMonsterPlantOrder(farm record index, plant seeds)
 *handler:* `Script_VMOp_SetMonsterFarmLovedTodayBit`
 
-Set or clear the 'loved today' bit (record flag 0x40000) for a farm monster. arg0 = the farm monster (-1 = current interaction NPC's monster); arg1 = the bit value (1 = mark loved/cared-for today, 0 = clear). Affects daily affection/produce. Read back with op 406.
+Set or clear record flag bit 18 (0x40000) of a barn monster: arg0 = g_MonsterFarmTable index, or -1 for the monster this script belongs to (host+32); arg1 = 1 set / 0 clear. Bit 18 is the 'also plant seeds' work order: the farm-worker state machine goes to the seed-planting phase only when it is set. It is a standing order (not daily), cleared when the monster is recalled.
 
 Args:
-  0. farm monster
-  1. loved (0/1)
+  0. farm record index (-1 = this script's monster)
+  1. plant seeds (0/1)
 
 ### `op 410` — TameEventMonster(event key)
 *handler:* `Script_VMOp_TameCalendarEventNpc`
@@ -7401,41 +7512,41 @@ Spawn and initialise the monster-roster participants for the current scene event
 
 Clear the active flag of every placed tile object (mass reset of the 61 map-object records) and zero their state. Takes no arguments.
 
-### `op 593` — PickRandomTileObject(candidate item ids)
+### `op 593` — PickRandomPlacedFurniture(candidate furniture ids)
 *handler:* `Script_VMOp_PickRandomActiveTileObjectByCandidates`
 
-From a variadic list of candidate item ids, randomly pick one that currently has an active tile object matching the input context (MMIX weighted-random; ~1/8 of the time it picks nothing). Main output = picked item id, or 0. Used to randomly choose which placed object to trigger.
+From a list of candidate furniture ids, gather those that have an active tile object in the current room and pick one at random. The pick is weighted by the id value itself (the ids are passed to MMIX_WeightedRandomPick as weights), and repeating an id raises its odds. Only 1 roll in 8 picks anything: 7/8 of the time reg0 = 0. reg0 = the picked id, or 0.
 
 Args:
-  0. candidate item ids (variadic)
+  0. candidate furniture ids (variadic)
 
-### `op 617` — ShowCreditsOverlay(mode)
+### `op 617` — ShowStaffCredits(mode)
 *handler:* `Script_VMOp_SpawnOrConfigureItemPickupIconTaskStaff`
 
-Spawn / configure the staff-credits overlay task (task class 'staff', reusing the item-pickup-icon framework as a scrollable credits driver); if the task already exists it is just re-flagged. arg0 = mode: 0 = Fade (long), 1 = Fade (short), 2 = Credits screen (bottom), 3 = Credits screen (top) - the dev menu's four entries.
+Start the staff-credits task (task name 'staff', tick ItemPickupIcon_Tick_StateMachine). Mode 0 sets work+166 |= 0x10, mode 1 |= 0x18, modes 2 and 3 switch the tick to ItemPickupIcon_Tick_ScrollAndSpawn (the handler treats 2 and 3 identically). If the credits task already exists, it sets that task's work byte +172 = 1 (a finish/advance signal) only when host+312 is that task, and clears host+312.
 
 Args:
-  0. mode (0=fade long, 1=fade short, 2=credits bottom, 3=credits top)
+  0. mode (0, 1 = fade variants; 2/3 = scrolling credits)
      - `0` = Fade (long)
      - `1` = Fade (short)
      - `2` = Credits (bottom)
      - `3` = Credits (top)
 
-### `op 625` — BeginDungeonArea(dungeon area id)
+### `op 625` — EnterSharanceMazeStage(maze stage)
 *handler:* `Trigger_DungeonAreaBegin`
 
-Enter a dungeon area by id — loads the area and installs the in-dungeon input context (442). arg0 = dungeon area id. A scene-transition op for going into a dungeon.
+Start a Sharance Maze challenge stage (0 Garden of Light, 1 Smoldering Prominence, 2 Deepwater Shrine, 3 Dragon Ruins, 4 Challenge to Fantasy, 5 Banquet of Nightmares). Sets g_currentBossState_modeFlag = stage, remembers the current room and the player's tile for the return trip (Dungeon_BeginArea), then writes scene-context fields +0x3C = 442, +0x3E/+0x40 = 0x120, +0x42 = 0 and sets +0x38 bit 0x80. The script warps with the next op.
 
 Args:
-  0. dungeon area id
+  0. maze stage (0-5)
 
-### `op 643` — TriggerEffect(effect id, sub-index / variant)
+### `op 643` — ApplyPrinceOrder(order id, sub-index / variant)
 *handler:* `Script_DispatchEffectById`
 
-Dispatch a town/prince effect by id (Effects_DispatchById; spends its cost) and write the returned did-promote flag to the query register. arg1 = sub-index/variant handed to the dispatcher (commonly a runtime variable; verified read at argbuf[-5]).
+Buy and apply Prince Point order [arg0] (sub-index arg1: festival id, license/NPC variant, etc.). Orders 32-50 need and deduct all four costs (PP, lumber, material stone, gold); every other order deducts only PP = GetCost(id, sub). If unaffordable nothing changes. reg0 = 1 if the order was paid and applied, else 0.
 
 Args:
-  0. effect id
+  0. order id
      - `10` = Blossom's Furniture
      - `11` = Lumi's Flower Shop
      - `12` = Cooking Bread tier
@@ -7486,10 +7597,10 @@ Args:
   2. width (fine)
   3. height (fine)
 
-### `op 689` — ResetMonsterSpawns()
+### `op 689` — RespawnRoomFurnitureVisuals()
 *handler:* `Script_VMOp_ResetMonsterSpawnTrackerForPlayer`
 
-Reset the monster-spawn tracker for the player.
+Re-spawn the visual tasks of every active furniture/tile object in the player's current room/context (the one held by the player is skipped). A redraw of placed furniture; no monsters are involved. No args.
 
 ## Quests
 
@@ -7506,123 +7617,149 @@ Args:
 ### `op 239` — QueryQuestNpcsAvailable(max distance, primary npc, other npc …)
 *handler:* `Quest_AreAllNpcsAvailableAndWithinDistance`
 
-Alias of op 238 (same handler): 1 iff the quest's NPCs are all free and gathered.
+Read 1 iff a primary NPC and all listed NPCs are available (not busy/sleeping schedule codes 13/25, not already mid-event, not inaccessible) AND each listed NPC is within a max distance of the primary — the quest-event group gate. arg0 = max distance, arg1 = primary npc (char id, <48), arg2+ = the other npc ids (their count is implied by the arg count — there is no explicit count arg). Writes 1/0 to reg0. Like op 240 but also requires the NPCs aren't already mid-event.
 
 Args:
   0. max distance
   1. primary npc
   2. other npc …
 
-### `op 507` — PopulateNpcQuestRequest(target item id, count, category alt …)
+### `op 507` — PopulateSlayRequest(monster char id, kill count, reward category …)
 *handler:* `Quest_PopulateNpcSlot`
 
-Fill the current NPC's daily quest-request slot with a 'bring me [item]' request (into g_npcDailyRequestArray). arg0 = target item id (0 = auto-pick from the daily wanted list), arg1 = required count (0 = random 1-4), further args = category ids for alternate acceptable items. Writes success to the VM output. The base runtime quest generator; the PopulateQuestKindN ops are its templated variants.
+Post a kind-1 (slay monsters) request into the host NPC's request record (char id < 24, else record 0). arg0 = monster char id (0 = DailyVisitor_PickWantedItem: weighted pick of 48..199, 1-in-16 chance of the 200..253 boss band, story-gated). arg1 = kill count (0 = random 1-4; forced to 1 for ids 200..253). Each further arg is a reward CATEGORY: Shop_RollByCategoryFromTable rolls one reward item per arg into rewards[0..3] (-1 skips). The record is written only if not already posted (status bit 0x2), except record 0. Status becomes posted + fresh (0x4002). reg0 = 1 if a target existed.
 
 Args:
-  0. target item id (0=auto)
-  1. count (0=random)
-  2. category alt …
+  0. monster char id (0 = random)
+  1. kill count (0 = random 1-4)
+  2. reward category … (up to 4, -1 = none)
 
-### `op 508` — PopulateQuestKind2RandomAlts(item id, template param, template param, alt category seed …)
+### `op 508` — PopulateQuestKind2RandomRewards(target item id, param byte, count, reward category …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Post a kind-2 request into the host NPC's record (char id < 24, else record 0; skipped if already posted, except record 0): +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category: Shop_RollByCategoryFromTable rolls up to 4 reward items (re-rolling up to 64 times so a reward never equals the target item) into rewards[0..3]. No register result. The preview op (532) returns target / count / rewards / param in reg0 / reg1 / reg2-4 / reg5.
 
 Args:
-  0. item id
-  1. template param (byte4)
-  2. template param (byte5)
-  3. alt category seed …
+  0. target item id
+  1. param byte (+5; corpus: an NPC char id local / REG_CHILD_ID)
+  2. count (+4)
+  3. reward category … (up to 4)
 
-### `op 509` — PopulateQuestKind2RandomAlts(item id, template param, template param, alt category seed …)
+### `op 509` — PopulateQuestKind2RandomRewards(target item id, param byte, count, reward category …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 2, whose alternate objective items are rolled AT RANDOM from shop-category tables (Shop_RollByCategoryFromTable re-rolls each seed until the result differs from the main item; up to 4 alternates). arg0 = objective item id; then two template params; trailing args = alternate category seeds. Distinct from the literal-alternates (slot 208) and chained-random (slot 209) siblings. See docs/23.
+Post a kind-2 request into the host NPC's record (char id < 24, else record 0; skipped if already posted, except record 0): +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category: Shop_RollByCategoryFromTable rolls up to 4 reward items (re-rolling up to 64 times so a reward never equals the target item) into rewards[0..3]. No register result. The preview op (532) returns target / count / rewards / param in reg0 / reg1 / reg2-4 / reg5.
 
 Args:
-  0. item id
-  1. template param (byte4)
-  2. template param (byte5)
-  3. alt category seed …
+  0. target item id
+  1. param byte (+5; corpus: an NPC char id local / REG_CHILD_ID)
+  2. count (+4)
+  3. reward category … (up to 4)
 
-### `op 510` — PopulateQuestKind2WithLiteralAlternates(item id, template param, template param, alt item id …)
+### `op 510` — PopulateQuestKind2LiteralRewards(target item id, param byte, count, reward item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithLiteralAlternates`
 
-Populate the current NPC's daily quest-request slot using request template KIND 2 (With Literal Alternates). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.
-
-Args:
-  0. item id
-  1. template param (byte4)
-  2. template param (byte5)
-  3. alt item id … (first 4 kept)
-
-### `op 511` — PopulateQuestKind3TwoItemsRandomCats()
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
-
-Populate the current NPC's daily quest-request slot using request template KIND 3 (Two Items Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-### `op 512` — PopulateQuestKind3TwoItemsRandomCats()
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
-
-Populate the current NPC's daily quest-request slot using request template KIND 3 (Two Items Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-### `op 513` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
-
-Populate the current NPC's daily quest-request slot using request template KIND 4 (Chained Random). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Post a kind-2 request like op 508, but the trailing args are literal reward item ids copied verbatim into rewards[0..3] (no roll, no stop on 0).
 
 Args:
   0. target item id
-  1. param (byte4)
-  2. param (byte5)
-  3. category seed … (one roll each)
+  1. param byte (+5)
+  2. count (+4)
+  3. reward item id … (first 4 kept)
 
-### `op 514` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
+### `op 511` — PopulateQuestKind3RandomRewards(item A, item B, count, param byte, reward category …)
+*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
+
+Post a kind-3 request into the host NPC's record: +6 = arg0, +8 = arg1 (two u16s, presumably two items; +2 target stays 0), +4 = arg2, +5 = arg3. Each extra arg (from arg4) is a reward category rolled into rewards[1..3]. The loop index is off by one, so rewards[0] stays 0 and a 4th category is dropped.
+
+Args:
+  0. item A (+6)
+  1. item B (+8)
+  2. count (+4)
+  3. param byte (+5)
+  4. reward category … (up to 3)
+
+### `op 512` — PopulateQuestKind3RandomRewards(item A, item B, count, param byte, reward category …)
+*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
+
+Post a kind-3 request into the host NPC's record: +6 = arg0, +8 = arg1 (two u16s, presumably two items; +2 target stays 0), +4 = arg2, +5 = arg3. Each extra arg (from arg4) is a reward category rolled into rewards[1..3]. The loop index is off by one, so rewards[0] stays 0 and a 4th category is dropped.
+
+Args:
+  0. item A (+6)
+  1. item B (+8)
+  2. count (+4)
+  3. param byte (+5)
+  4. reward category … (up to 3)
+
+### `op 513` — PopulateQuestKind4RandomRewards(target item id, param byte, count, reward category …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
-Populate the current NPC's daily quest-request slot using request template KIND 4 (Chained Random). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Post a kind-4 request into the host NPC's record: +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category rolled once into rewards[0..3] (no re-roll). The 'chained' seed feedback is dead: every iteration re-reads its own arg.
 
 Args:
   0. target item id
-  1. param (byte4)
-  2. param (byte5)
-  3. category seed … (one roll each)
+  1. param byte (+5)
+  2. count (+4)
+  3. reward category …
 
-### `op 515` — PopulateQuestKind4Byte4_1LiteralAlts(target item id, param, alt item id …)
+### `op 514` — PopulateQuestKind4RandomRewards(target item id, param byte, count, reward category …)
+*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
+
+Post a kind-4 request into the host NPC's record: +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category rolled once into rewards[0..3] (no re-roll). The 'chained' seed feedback is dead: every iteration re-reads its own arg.
+
+Args:
+  0. target item id
+  1. param byte (+5)
+  2. count (+4)
+  3. reward category …
+
+### `op 515` — PopulateQuestKind4LiteralRewards(target item id, param byte, (ignored), reward item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind4Byte4_1LiteralAlts`
 
-Populate the current NPC's daily quest-request slot using request template KIND 4 (Byte4_1 Literal Alts). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.
+Post a kind-4 request with count forced to 1: +2 = arg0 item, +5 = arg1. arg2 is never read (the literal loop starts at index 3). From arg3 on, literal reward item ids go verbatim into rewards[0..3].
 
 Args:
   0. target item id
-  1. param (byte5)
-  2. alt item id …
+  1. param byte (+5)
+  2. (ignored)
+  3. reward item id …
 
-### `op 516` — PopulateQuestKind5SimpleNoAlts(item id)
+### `op 516` — PostBoardQuestKind5(param byte)
 *handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
-Populate the current NPC's daily quest-request slot using request template KIND 5 (Simple No Alts). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Overwrite request record 0 (the board record, whoever the host NPC is) with a kind-5 entry: +5 = arg0, +10 = host char id, state 1, status reset to posted (0x2). No target item, count or rewards.
 
 Args:
-  0. item id
+  0. param byte (+5)
 
-### `op 517` — PopulateQuestKind5SimpleNoAlts(item id)
+### `op 517` — PostBoardQuestKind5(param byte)
 *handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
-Populate the current NPC's daily quest-request slot using request template KIND 5 (Simple No Alts). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Overwrite request record 0 (the board record, whoever the host NPC is) with a kind-5 entry: +5 = arg0, +10 = host char id, state 1, status reset to posted (0x2). No target item, count or rewards.
 
 Args:
-  0. item id
+  0. param byte (+5)
 
-### `op 518` — PopulateQuestKind6TwoArgsNoItem()
+### `op 518` — PostBoardQuestKind6(param byte, count)
 *handler:* `Script_VMOp_PopulateQuestRequestKind6TwoArgsNoItem`
 
-Populate the current NPC's daily quest-request slot using request template KIND 6 (Two Args No Item). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Overwrite request record 0 (the board record) with a kind-6 entry: +5 = arg0, +4 = arg1 (count/goal), no target item and no rewards.
 
-### `op 519` — PopulateQuestKind7CraftRecipeExpose()
+Args:
+  0. param byte (+5)
+  1. count (+4)
+
+### `op 519` — PostBoardCraftQuest(craft category, item id, param byte, count)
 *handler:* `Script_VMOp_PopulateQuestRequestKind7CraftRecipeExpose`
 
-Populate the current NPC's daily quest-request slot using request template KIND 7 (Craft Recipe Expose). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Overwrite request record 0 with a kind-7 (craft) entry: +8 = arg0 craft category, +2 = arg1 item, +5 = arg2, +4 = arg3. Then load that category's craft data and, if the item has a recipe, return its up to 6 non-zero ingredient ids in reg1..reg6 and their count in reg0.
+
+Args:
+  0. craft category
+  1. item id
+     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  2. param byte (+5)
+  3. count (+4)
 
 ### `op 520` — PostQuestGoalNumber(goal number, reward item ids)
 *handler:* `Script_VMOp_PopulateQuestRequestKind8_GoalNumberLiteralRewards`
@@ -7633,168 +7770,190 @@ Args:
   0. goal number (level/count to reach)
   1. reward item ids (variadic, literal)
 
-### `op 521` — PopulateQuestKind9BackrefLiteralAlts(item id, alt item id …)
+### `op 521` — PopulateQuestKind9LiteralRewards(target item id, reward item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind9BackrefLiteralAlts`
 
-Populate the current NPC's daily quest-request slot using request template KIND 9 (Backref Literal Alts). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.
+Post a kind-9 request into the host NPC's record (else record 0): +2 = arg0 item. Literal reward item ids from arg1 go into rewards[0..3] (stop at the first 0). The record pointer is bound to the script task (task+136) so the following accept/complete/reward ops use it.
 
 Args:
-  0. item id
-  1. alt item id … (0 ends; first 4 kept)
+  0. target item id
+  1. reward item id … (0 ends)
 
-### `op 522` — PopulateQuestKind10BackrefRandomCats(category id …)
+### `op 522` — PopulateQuestKind10RandomRewards(reward category …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 10 (Backref Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Post a kind-10 request (no target, count or param) into the host NPC's record (else record 0) and bind it to the script task (task+136). Each arg is a reward category rolled into rewards[0..3]; a 0 category stops the list.
 
 Args:
-  0. category id …
+  0. reward category … (0 ends)
 
-### `op 523` — PopulateQuestKind10BackrefLiteralAlts(alt item id …)
+### `op 523` — PopulateQuestKind10LiteralRewards(reward item id …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefLiteralAlts`
 
-Populate the current NPC's daily quest-request slot using request template KIND 10 (Backref Literal Alts). A runtime quest generator whose alternate objective items are the EXPLICIT literal item ids passed as args (stored verbatim — NO random category roll). See docs/23.
+Post a kind-10 request (no target) into the host NPC's record (else record 0), bind it to the script task (task+136), and copy the literal reward item ids (0 ends) into rewards[0..3].
 
 Args:
-  0. alt item id …
+  0. reward item id … (0 ends)
 
 ### `op 525` — QuestOnComplete()
 *handler:* `Quest_OnComplete`
 
-Run the quest-completion handler for the current request — award friendship / rewards and mark the request done. Fired when the player fulfils an NPC's request.
+Complete the quest bound to the script task (task+136): RQ clear count +1, write the quest id to a packed flag, queue companion event 10, Quest_OnComplete_TriggerNpcReactions (friendship). A villager request (record npc != 0) adds prince points (category 7). A board request adds category-6 points, bumps REG_RQ_COUNT, or sets the per-insert flag (2684 + REG_INSERT_NOW) when REG_INSERT_NOW is set; for board quest ids 33-36 it instead clears daily-visitor discount bit 0-3, and decrements REG_REM_QUEST_COUNT. The record is then zeroed and marked done (0x8001). No items are given here; the reward popup op does that.
 
-### `op 528` — QueryQuestRewardItem(quest id, reward index)
+### `op 528` — QueryQuestRewardItem(request record, reward index)
 *handler:* `Script_VMOp_QueryQuestRewardItemAt`
 
-Read one reward item id of a quest template into the VM output: returns the u16 at g_npcQuestRewardTemplates_12u16PerQuest[quest_id * 12 + index + 7]. TWO args: arg0 = quest (template) id, arg1 = reward slot index 0-3 (out-of-range index returns the default, 1). Corpus (8 uses, always 2 args): QueryQuestRewardItem(0, 0) gates SuppressRewardJingle + ShowQuestReward before QuestOnComplete.
+reg0 = reward item idx (0-3) of request record [arg0] (the 24-byte request record of char id arg0; 0 = the board record). An index >= 4 returns 1. The record index is not range-checked.
 
 Args:
-  0. quest id
+  0. request record (char id < 24, 0 = board)
   1. reward index (0-3)
 
-### `op 529` — ClearQuestRewardTemplates()
+### `op 529` — ClearAllRequestRecords()
 *handler:* `Script_VMOp_ClearAllNpcQuestRewardTemplates`
 
-Clear all of the current NPC's staged quest-reward templates. No args. Used when abandoning or resetting a quest offer.
+Zero all 24 request records (576 bytes: the board record and every villager's request, including status bits). No args.
 
 ### `op 530` — CommitQuestAcceptance()
 *handler:* `Quest_CommitAcceptance`
 
 Commit the player's acceptance of the offered quest — moves it from 'preview' to an active daily request on the NPC. The second step of the two-step accept (preview → commit).
 
-### `op 531` — QuestSceneTeardown()
+### `op 531` — ClearBoardRequest()
 *handler:* `Script_VMOp_QuestSceneTeardownAndClearRewards`
 
-Tear down the quest-offer scene and clear its staged rewards. No args. Called when the request-board / quest dialogue closes.
+Dispatch em.bin alt action EV_SUBEV_COM_52, zero request record 0 (the board record, all 24 bytes), and set scene control flags (& 0xFF3EFFFF | 0x800000). No args.
 
 ### `op 532` — QueryNpcQuestPreview()
 *handler:* `Script_VMOp_QueryCurrentInteractionNpcQuestPreview`
 
-Read a preview of the current interaction NPC's available quest request into the VM output (so the dialogue can describe it before the player accepts). No args.
+If the interaction NPC's request record (char id < 24, else record 0) is posted (status 0x2): reg0 = target item (+2), reg1 = count (+4), reg2..reg4 = rewards[0..2], reg5 = param byte (+5), reg6 = accepted (status bit 0x4). Otherwise reg6 = 0 and the other registers are unchanged.
 
 ### `op 535` — QueryQuestRemainingByItem(item id)
 *handler:* `Script_VMOp_QueryQuestRequestRemainingByItemId`
 
-Read how many of an item are still needed across active quest requests into the VM output. arg0 = item id. For 'you still owe me N of these' dialogue.
+reg0 = max(0, count - progress) of the first request record whose target equals arg0 (0 if its state is 2). Bug: the loop bound is an uninitialised stack byte (the unused home slot of the 2nd argument), so the number of records searched is undefined.
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 536` — RequestBoxFirstSubmit()
+### `op 536` — StartReservedSubEvent()
 *handler:* `Script_VMOp_OnRequestBoxFirstSubmitAchievementAndScriptCallback`
 
-Run the 'first request-box quest submitted today' pipeline: mark the active request claimed, unlock the submit achievements, play the shared + per-quest reward scenes, and schedule tomorrow's request reroll. Does nothing if already submitted today or there is no active quest. Takes no arguments. Pairs with RequestBoxClaimFinalize (op 549).
+If no sub-event is running (REG_SUBEV_NOW == 0) and one is reserved (REG_SUBEV_RSV != 0): move RSV into NOW and clear RSV. Set request-array flag 0x4, dispatch em.bin EV_SUBEV_INIT and the sub-event's own entry (id + 118, for ids 25..143), clear scene flag 0x200000, zero two more 9-bit registers (packed 0x80B4 / 0x80BD), and register SubEvent_AdvanceNowTimer in a free calendar callback slot (index kept for op 549). No args.
 
-### `op 537` — PopulateQuestKind2WithRandomCats(item id, template param, template param, alt category seed …)
+### `op 537` — QueueSubEventGoalKind2(target item id, param byte, count)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-Args:
-  0. item id
-  1. template param (byte4)
-  2. template param (byte5)
-  3. alt category seed …
-
-### `op 538` — PopulateQuestKind2WithRandomCats(item id, template param, template param, alt category seed …)
-*handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
-
-Populate the current NPC's daily quest-request slot using request template KIND 2 (With Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-Args:
-  0. item id
-  1. template param (byte4)
-  2. template param (byte5)
-  3. alt category seed …
-
-### `op 539` — PopulateQuestKind3TwoItemsRandomCats()
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
-
-Populate the current NPC's daily quest-request slot using request template KIND 3 (Two Items Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-### `op 540` — PopulateQuestKind3TwoItemsRandomCats()
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
-
-Populate the current NPC's daily quest-request slot using request template KIND 3 (Two Items Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-### `op 541` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
-
-Populate the current NPC's daily quest-request slot from template KIND 4. Despite the 'Chained' name, the chained-roll path is DEAD CODE: the per-iteration arg read always succeeds (index < count at RF4S.exe+0x216B20), so each category-seed arg gets exactly one independent roll. arg0 = target item id, arg1/arg2 = template bytes 4/5, args[3..] = per-roll category seeds.
+Queue-mode alias of op 508. Because the opcode is >= 537, the handler does not touch the NPC request record. If a sub-event is running (REG_SUBEV_NOW != 0) and fewer than 20 entries are queued, it appends a 24-byte kind-2 entry {+2 item = arg0, +5 = arg1, +4 count = arg2, +10 host char id, state 1 = active} to the sub-event goal queue (count at request-array byte 3, entries at RF4S.exe data 0xE9AF0C). Reward args are ignored in this mode.
 
 Args:
   0. target item id
-  1. param (byte4)
-  2. param (byte5)
-  3. category seed … (one roll each)
+  1. param byte (+5)
+  2. count (+4)
 
-### `op 542` — PopulateQuestKind4ChainedRandom(target item id, param, param, category seed …)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
+### `op 538` — QueueSubEventGoalKind2(target item id, param byte, count)
+*handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 4 (Chained Random). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Queue-mode alias of op 508. Because the opcode is >= 537, the handler does not touch the NPC request record. If a sub-event is running (REG_SUBEV_NOW != 0) and fewer than 20 entries are queued, it appends a 24-byte kind-2 entry {+2 item = arg0, +5 = arg1, +4 count = arg2, +10 host char id, state 1 = active} to the sub-event goal queue (count at request-array byte 3, entries at RF4S.exe data 0xE9AF0C). Reward args are ignored in this mode.
 
 Args:
   0. target item id
-  1. param (byte4)
-  2. param (byte5)
-  3. category seed … (one roll each)
+  1. param byte (+5)
+  2. count (+4)
 
-### `op 543` — PopulateQuestKind5SimpleNoAlts(item id)
-*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
+### `op 539` — QueueSubEventGoalKind3(item A, item B, count, param byte)
+*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 5 (Simple No Alts). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
-
-Args:
-  0. item id
-
-### `op 544` — PopulateQuestKind5SimpleNoAlts(item id)
-*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
-
-Populate the current NPC's daily quest-request slot using request template KIND 5 (Simple No Alts). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Queue-mode alias of op 511: append an active kind-3 entry {+6 = arg0, +8 = arg1, +4 = arg2, +5 = arg3, +10 host} to the sub-event goal queue when REG_SUBEV_NOW != 0 (max 20). No reward rolls.
 
 Args:
-  0. item id
+  0. item A (+6)
+  1. item B (+8)
+  2. count (+4)
+  3. param byte (+5)
 
-### `op 545` — PopulateQuestKind6TwoArgsNoItem()
+### `op 540` — QueueSubEventGoalKind3(item A, item B, count, param byte)
+*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
+
+Queue-mode alias of op 511: append an active kind-3 entry {+6 = arg0, +8 = arg1, +4 = arg2, +5 = arg3, +10 host} to the sub-event goal queue when REG_SUBEV_NOW != 0 (max 20). No reward rolls.
+
+Args:
+  0. item A (+6)
+  1. item B (+8)
+  2. count (+4)
+  3. param byte (+5)
+
+### `op 541` — QueueSubEventGoalKind4(target item id, param byte, count)
+*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
+
+Queue-mode alias of op 513: append an active kind-4 entry {+2 item = arg0, +5 = arg1, +4 count = arg2, +10 host} to the sub-event goal queue when REG_SUBEV_NOW != 0 (max 20). No reward rolls.
+
+Args:
+  0. target item id
+  1. param byte (+5)
+  2. count (+4)
+
+### `op 542` — QueueSubEventGoalKind4(target item id, param byte, count)
+*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
+
+Queue-mode alias of op 513: append an active kind-4 entry {+2 item = arg0, +5 = arg1, +4 count = arg2, +10 host} to the sub-event goal queue when REG_SUBEV_NOW != 0 (max 20). No reward rolls.
+
+Args:
+  0. target item id
+  1. param byte (+5)
+  2. count (+4)
+
+### `op 543` — QueueSubEventGoalKind5(param byte)
+*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
+
+Queue-mode alias of op 516: append an active kind-5 entry {+5 = arg0, +10 host char id} to the sub-event goal queue when REG_SUBEV_NOW != 0 (max 20). Record 0 is not touched.
+
+Args:
+  0. param byte (+5)
+
+### `op 544` — QueueSubEventGoalKind5(param byte)
+*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
+
+Queue-mode alias of op 516: append an active kind-5 entry {+5 = arg0, +10 host char id} to the sub-event goal queue when REG_SUBEV_NOW != 0 (max 20). Record 0 is not touched.
+
+Args:
+  0. param byte (+5)
+
+### `op 545` — QueueSubEventGoalKind6(param byte, count)
 *handler:* `Script_VMOp_PopulateQuestRequestKind6TwoArgsNoItem`
 
-Populate the current NPC's daily quest-request slot using request template KIND 6 (Two Args No Item). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Queue-mode alias of op 518: append an active kind-6 entry {+5 = arg0, +4 = arg1} to the sub-event goal queue when REG_SUBEV_NOW != 0.
 
-### `op 546` — PopulateQuestKind7CraftRecipeExpose()
+Args:
+  0. param byte (+5)
+  1. count (+4)
+
+### `op 546` — QueueSubEventCraftGoal(craft category, item id, param byte, count)
 *handler:* `Script_VMOp_PopulateQuestRequestKind7CraftRecipeExpose`
 
-Populate the current NPC's daily quest-request slot using request template KIND 7 (Craft Recipe Expose). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Queue-mode alias of op 519: append an active kind-7 craft entry {+8 craft category = arg0, +2 item = arg1, +5 = arg2, +4 = arg3} to the sub-event goal queue when REG_SUBEV_NOW != 0. The recipe lookup still runs: ingredients go to reg1..reg6, count to reg0.
 
-### `op 547` — PopulateQuestKind10BackrefRandomCats()
+Args:
+  0. craft category
+  1. item id
+     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  2. param byte (+5)
+  3. count (+4)
+
+### `op 547` — QueueSubEventGoalKind10((ignored) …)
 *handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefRandomCats`
 
-Populate the current NPC's daily quest-request slot using request template KIND 10 (Backref Random Cats). A runtime quest generator: rolls the objective item(s)/counts from the request template (plus alternate items from categories where this shape has them). See docs/23. Args are template-specific (item ids and category ids).
+Queue-mode alias of op 522: append an empty active kind-10 entry (only the host char id) to the sub-event goal queue when REG_SUBEV_NOW != 0. The category args are ignored and the task binding is not made.
 
-### `op 549` — RequestBoxClaimFinalize()
+Args:
+  0. (ignored) …
+
+### `op 549` — FinishCurrentSubEvent()
 *handler:* `Script_VMOp_OnRequestBoxQuestClaimedFinalize`
 
-Finalize and clean up the request-box reward claim (counterpart to op 536): set the completion flags, unlock the reward achievements, dispatch the reward scenes, reset the throw queue, refresh every NPC's schedule, clear all NPCs' request state, award prince points, and unregister the reroll callback. Takes no arguments -- the handler (Script_VMOp_OnRequestBoxQuestClaimedFinalize) reads only the implicit scene state; the corpus emits it with zero operands (cnt=0 in all occurrences).
+End the running town sub-event (only if REG_SUBEV_NOW != 0). Set its done bit (flag 1224 + id), store the id in the 9-bit register at 0x80AB, clear REG_SUBEV_NOW and flag 334, dispatch em.bin EV_SUBEV_INIT, and clear request-array flag 0x4. Also roll flag 5785 = 1/2 and refresh NPC 1-23 schedules. Wipe the sub-event goal queue and 32 bytes after it, and clear per-NPC sub-event record bits and flags (1427+i, 863-885 blocks) for ids 1-31. Add category-5 prince points (unless save bit 0x40) and unregister the SubEvent_AdvanceNowTimer calendar callback that op 536 installed. No args.
 
 ## Scene flow / control
 
@@ -7852,28 +8011,28 @@ Run the go-to-bed / sleep-to-next-day sequence. arg0 != 0 (retail always 1): the
 Args:
   0. cinematic (1=full sequence, 0=instant day advance)
 
-### `op 230` — ReleaseNpcLocks(release mode, participant npc id …)
+### `op 230` — SetSceneCast(mode, kept villager id …)
 *handler:* `Cutscene_ReleaseNpcLocksAndRefreshFromSchedule`
 
-Release every NPC AI lock/placement from a prior scene: restores normal AI bits, refreshes each placed NPC from its schedule (per bit in sceneCtx+352), and clears the placed-actor reservation mask. Despite the old 'CutsceneEnd' name, corpus tracing shows it typically runs at the START of scenes as a reset-prologue (49% of uses in the first decile; only 2% near the end), immediately before placement/teleport ops — the real lifecycle is RELEASE -> PLACE -> LOCK -> RUN. arg0 = release mode (0 = leave AI-locked, non-zero = restore normal AI), then the participant NPC ids -- there is no count argument, the handler loops over args 1..argc-1 (Cutscene_ReleaseNpcLocksAndRefreshFromSchedule reads argc as the count, verified 2026-09-23); participants are excluded and unlock via their own dialogue/anim completion).
+Scene-cast setup. For every villager 1..23 NOT named in args 1..n and for ALL eight entries of the event participant list (the args exempt only villagers) (and not in companion/equipped mode, actor+16 bit 0x200): record +48 bits 28/29 = mode, and actor control_flags bits 0x4 (hidden) and 0x20 = mode (with mode != 0 it also clears the emote at +0x140 and sets +0x23C bit 0x20). So mode 1 HIDES everyone except the listed participants and mode 0 un-hides them. Also sets ctx+116 bit 29 = mode, calls Npc_RefreshFromSchedule for those same NPCs when their ctx+352 placement-mask bit is set (listed villagers are never refreshed), and clears that mask.
 
 Args:
-  0. release mode (0=stay locked)
-  1. participant npc id …
+  0. mode (1 = hide non-participants, 0 = show all)
+  1. kept villager id … (1-23; the event-participant list is always processed)
 
-### `op 231` — ReleaseNpcLocks(release mode, participant npc id …)
+### `op 231` — SetSceneCast(mode, kept villager id …)
 *handler:* `Cutscene_ReleaseNpcLocksAndRefreshFromSchedule`
 
-Alias of op 230 (same handler): release NPC locks and refresh each flagged NPC from its schedule — restores normal-AI bits, calls Npc_RefreshFromSchedule for every bit in the sceneCtx+352 mask, then clears the mask. Despite the old 'CutsceneEnd' name, corpus timing shows it typically runs at scene START as a reset/prologue before placement ops (49% of uses in the first decile of their scene, only 2% near the end): the real lifecycle is RELEASE -> PLACE -> LOCK -> RUN. args: release mode (0 = stay locked), then participant npc ids (no count arg -- the handler uses argc) (participants are excluded from immediate release).
+Scene-cast setup. For every villager 1..23 NOT named in args 1..n and for ALL eight entries of the event participant list (the args exempt only villagers) (and not in companion/equipped mode, actor+16 bit 0x200): record +48 bits 28/29 = mode, and actor control_flags bits 0x4 (hidden) and 0x20 = mode (with mode != 0 it also clears the emote at +0x140 and sets +0x23C bit 0x20). So mode 1 HIDES everyone except the listed participants and mode 0 un-hides them. Also sets ctx+116 bit 29 = mode, calls Npc_RefreshFromSchedule for those same NPCs when their ctx+352 placement-mask bit is set (listed villagers are never refreshed), and clears that mask.
 
 Args:
-  0. release mode (0=stay locked)
-  1. participant npc id …
+  0. mode (1 = hide non-participants, 0 = show all)
+  1. kept villager id … (1-23; the event-participant list is always processed)
 
 ### `op 242` — SetSceneFlag0x200()
 *handler:* `Script_VMOp_SetSceneFlag0x200`
 
-Set bit 0x200 in the scene ctx's result/control field at [+116] (if ctx+32 is non-null; +116 is the same field Script_VMStep sets to 1 on halt). In the corpus (703 uses) it is almost always `BR_Z(guard) -> SetSceneFlag0x200 -> END` -- set CONDITIONALLY at the very end of a scene branch, right before the scene ends. So it marks a scene OUTCOME bit the caller reads after the scene returns (e.g. 'this branch was taken / handled'). The gating guard is usually a per-NPC sub-event flag (`FLG_SUB_T_*`) or `FLG_JUST_MARRIED_MODE`, so in practice it flags a marriage / sub-event scene branch as consumed. The exact outcome bit is not pinned, but it is set at scene-EXIT, not during dialogue -- an earlier 'blocks input while dialogue is active' guess was wrong, contradicted by the usage pattern.
+If the script host has an actor (host+32), OR bit 0x200 into host+116 (the host's event-state word). No reader of this bit with a direct 0x200 test has been found in RF4S.exe, so its effect is unknown; the 'scene outcome consumed' reading is inferred from where scripts place it (just before END), not from code.
 
 ### `op 285` — SetSceneReadyFlag(mode, (ignored by handler))
 *handler:* `ScriptVMOp_SetScriptStateBit72_1_OnArgZero`
@@ -7884,21 +8043,27 @@ Args:
   0. mode (0 = set flag)
   1. (ignored by handler)
 
-### `op 332` — PlayScriptedBeat(actor ctx, arg1, arg2, kind id)
+### `op 332` — WarpToMap(map id, x, y, arrival event id)
 *handler:* `ScriptAction_BeginConfiguredAction_PruneUiEvents`
 
-Launch a 4-param scripted beat / cutscene event on an actor. Writes the four u16 args into the action task's config slots (+60..+66) and commits (bit 0x80 at +56). arg3 (kind_id) drives a range gate on +57: 1000-1099 -> bit 0 (credit-roll-scale variant), 100-999 -> bit 1 (scripted-event variant), anything else INCLUDING 1100+ -> both clear (decompile: (kind-100) <= 0x383 = 999 max). Also clears g_gameGlobalsSlotTable entry-4 low nibbles, clears sceneControlFlags bit 0x100000, flags the current dialogue task, and - only when kind_id != 0 - prunes pending g_gameEventQueue events of types 20/24/28/30 (mask 0x41100000). Vanilla: 'Ackna Battle' (globalvar[0x2D5], 403, 453, 0), 'Ending (Plaza 2nd Run)' (globalvar[0x30], 8, 347, 130), 'Credit Roll 3' (globalvar[0x94], -96, 0, 1200).
+Request a map transition for the script host: host+60/+62/+64/+66 = map id, x, y, arrival event id; sets host+56 bit 0x80. The event id also sets host+57 bit 0 (1000-1099) or bit 1 (100-999). Clears dialogue-lock state like op 243 and, when the event id is non-zero, prunes queued events of types 20/24/28/30. NpcAi_FinalizeEventAndPostTick later consumes it: starts the scene transition to (map, x, y) and, if the event id is non-zero, sets host+56 bit 0x40 and packed flag 1018.
 
 Args:
-  0. actor ctx
-  1. arg1
-  2. arg2
-  3. kind id
+  0. map id
+  1. x (tiles)
+  2. y (tiles)
+  3. arrival event id (0 = none)
 
-### `op 333` — BeginBeat2()
+### `op 333` — WarpToMapInSubEvent(map id, x, y, arrival event id)
 *handler:* `ScriptAction_BeginConfiguredAction_Variant1`
 
-Begin a scripted scene action (variant; caches a game-flag value).
+Same as op 332 (map, x, y, arrival event id) but afterwards forces host+57 to bit 0 only and stores GF_REG_SUBEV_NOW (low 7 bits) into host+58.
+
+Args:
+  0. map id
+  1. x (tiles)
+  2. y (tiles)
+  3. arrival event id (0 = none)
 
 ### `op 337` — WaitForFade()
 *handler:* `Script_VMOp_WaitForFadeComplete`
@@ -8001,13 +8166,13 @@ Args:
      - `89` = Shop_BaseId_57
      - `90` = BirthdayEntry
 
-### `op 376` — BeginShopkeeperInteraction(shopkeeper npc, shop id, mode)
+### `op 376` — BeginShopkeeperInteraction(npc id, action id, (ignored))
 *handler:* `Script_VMOp_BeginCalendarContextualInteraction`
 
-**'Try to open shopkeeper NPC's shop, gated by their schedule.'** Same underlying dispatcher as TriggerWorldAction (op 375, World_DispatchInteractionEvent) but adds a **day-of-week eligibility check** on the shopkeeper's schedule first. Corpus proof: **all 192 vanilla call sites in rf3.mc pass a shop id (kinds 75-89)** — none use anything else. \n\nThe switch on arg 0 dispatches on the SHOPKEEPER's NPC ID and maps each to their day-off + a kind-override table: 0 (generic/anon) -> kind 22 / day 6 (Sat); 6 (Bado) / 9 (Arthur) / 10 (Porcoline) -> passthrough / day 0 (Sun); 8 (Dylas) -> kind 23 if GF_FLG_DIRUS_FRIENDLY set, else 8 / day 0 (Sun); 11 (Xiao Pai) / 12 (Lin Fa) -> passthrough / day 6 (Sat); 13 (Amber) -> kind 25 if GameFlag 875 packed, else 13 / day 5 (Fri); 14 (Illuminata) -> passthrough / day 5 (Fri); 15 (Doug) -> kind 24 if Scene_EvalConditionByIdA(0x2D) true, else 15 / day 5 (Fri); 16 (Blossom) -> passthrough / day 5 (Fri); 17 (Dolce) / 18 (Jones) / 19 (Nancy) -> passthrough / day 1 (Mon); 22/23 (Son/Daughter) -> kind 26 / day 6 (Sat); 25 -> kind 21 / day 6 (Sat); default -> kind 26 / day 6 (Sat). \n\nDay-of-week check: today = `(g_calendarTask.cal_inner[+12] - 1) % 6`. If matched -> eligible (`g_interactionDailyEligible = 1`, `g_interactionDailyRollPassed = 0`). Else eligible=0 and roll a **deterministic MMIX-LCG (~1/63 chance)** using (shop_id + 0x4000, g_calendarDailyRandomSeed, calendar-snapshot) to set DailyRollPassed. The downstream shop task reads those globals to decide 'shop open normally' vs 'bonus lucky day' vs 'closed today, show closed-dialog instead'. Then World_DispatchInteractionEvent fires with arg 1 (shop id) in a1+25. arg 2 = mode (always 0 in vanilla).
+Open an NPC's shop/service interaction (action id arg1, stored at host+25) via World_DispatchInteractionEvent, after computing a per-NPC interaction kind and a weekday check: arg0 (NPC) maps to a kind override and a weekday (e.g. 8 Dylas -> kind 23 if FLG_DIRUS_FRIENDLY, 13 -> 25 if packed flag 875, 15 -> 24 if EV_DAG_SILENT, 25 -> kind 21 / sub 28, 22/23/unknown -> 26). If today's (day-1)%6 equals that weekday g_interactionDailyEligible = 1, otherwise 0 plus a deterministic ~1/63 daily roll seeded by arg1 and the calendar. Blocks until the interaction finishes. The third argument is not read.
 
 Args:
-  0. shopkeeper npc
+  0. npc id
      - `0` = Anonymous
      - `6` = Bado
      - `8` = Dylas
@@ -8025,7 +8190,7 @@ Args:
      - `22` = Son
      - `23` = Daughter
      - `25` = Guest25
-  1. shop id
+  1. action id (75-89 in the corpus)
      - `75` = Shop_WeaponFarmTool
      - `76` = Shop_Accessory
      - `77` = Shop_ExcavatedEquipment
@@ -8041,42 +8206,42 @@ Args:
      - `87` = Shop_Yue
      - `88` = Shop_Restaurant
      - `89` = Shop_BaseId_57
-  2. mode
+  2. (ignored)
 
-### `op 421` — SetupPendingInteraction(action id, flag byte, extra param …)
+### `op 421` — SetNextItemAttributes(level byte, crafted bits, ingredient item ids)
 *handler:* `Script_VMOp_SetupPendingInteractionRecord`
 
-Stage a 'pending interaction record' — a scratch buffer that the next item-give / interaction op (GivePlayerItem, AttachItemVisual) reads to apply extra params (e.g. a just-crafted item's runes, a specific action). arg0 = action id, arg1 = flag byte, then up to 6 extra u16 params.
+Stage attributes for the NEXT item a script creates (GivePlayerItem, SpawnItemAtTile, ForcePlayerHoldItem, the NPC hand/attach-item ops; DropItem/DropItemStack do not read it): arg0 overrides the item's level byte (+4), arg1 sets the 3-bit 'crafted' field (bits 1-3 of the flags word +2), and args 2-7 fill the six u16 ingredient/material item-id slots (+6..+17, e.g. a dish's ingredients). The record is consumed and cleared by the first such op.
 
 Args:
-  0. action id
-  1. flag byte
-  2. extra param …
+  0. level byte
+  1. crafted bits (0-7)
+  2. ingredient item ids (up to 6)
 
-### `op 422` — SetupPendingInteractionV2(action id, flag byte, extra param …)
+### `op 422` — SetNextItemAttributesPacked(byte +4, byte +6, 10-bit fields…)
 *handler:* `Script_VMOp_SetupPendingInteractionRecord_Variant2`
 
-Variant of op 421 (distinct handler Script_VMOp_SetupPendingInteractionRecord_Variant2, same purpose): stage the pending-interaction record for the next item/interaction op.
+Alternate staging form (marker 2): byte+4 = arg0, byte+6 = arg1, arg2 and args 3-5 packed as 10-bit fields. No consumer applies a marker-2 record - every item op only applies marker 1 and then clears the record - so in the shipped exe this op has no lasting effect beyond discarding any staged op-421 attributes.
 
 Args:
-  0. action id
-  1. flag byte
-  2. extra param …
+  0. byte +4
+  1. byte +6
+  2. 10-bit fields…
 
-### `op 524` — CommitThrowQueue()
+### `op 524` — NopCompleteSubEventGoals()
 *handler:* `Script_VMOp_PromoteAllPendingThrowEntriesToActive`
 
-Promote every pending entry in the dungeon 'throw'/delivery queue from pending to active, committing a batch of populated entries at once. Only takes effect while in a dungeon area. Takes no arguments.
+No-op as opcode 524. The shared handler only acts when the current opcode is >= 537; op 548 is the working form (sets every active sub-event goal to state 2, complete).
 
-### `op 548` — CommitThrowQueue()
+### `op 548` — CompleteAllSubEventGoals()
 *handler:* `Script_VMOp_PromoteAllPendingThrowEntriesToActive`
 
-Promote every pending entry in the dungeon 'throw'/delivery queue to active (duplicate of op 524). Only takes effect in a dungeon area. Takes no arguments.
+Set every sub-event goal-queue entry in state 1 (active) to state 2. State 2 is 'complete' for these records: op 552 then reports 0 remaining, and NpcAi_AdvanceQuestProgressAndScheduleReaction uses 2 for completed kill requests. Only this opcode does anything; op 524 (same handler) is a no-op. No args.
 
-### `op 551` — ResetThrowQueue()
+### `op 551` — ResetSubEventGoals()
 *handler:* `Script_VMOp_ResetGeneralThrowQueue`
 
-Clear the dungeon 'throw'/delivery queue: reset the entry count to 0 and wipe all 20 entry templates. Takes no arguments.
+Clear the sub-event goal queue: entry count = 0 and all 20 x 24-byte entries zeroed. No args.
 
 ### `op 559` — StartFestivalContest(contest)
 *handler:* `Script_VMOp_SpawnFestivalSceneEvent`
@@ -8128,13 +8293,13 @@ Kick off the return-to-title sequence via app relaunch. Dev menu uses this after
 
 ## Queries
 
-### `op 81` — QueryActorMotionState(actor)
+### `op 81` — WaitPortraitSettled(portrait character id)
 *handler:* `Script_VMOp_QueryActorMotionState`
 
-1 while the actor is mid-motion — its motion-state code (motion+42 & 0x7C) is NOT the settled/idle value 0x10; 0 once settled. arg0 = actor (matched against the scene's two participant slots). Wait-for-move-done predicate.
+Block the script while the given speaker portrait is still animating (sliding in/out or moving: portrait state (+42 & 0x7C) != 0x10); continue once it has settled. arg0 = portrait character id; if no on-screen portrait matches, it does not block. Nothing is written to a VM register - the result is the handler's busy flag.
 
 Args:
-  0. actor (char id, 0=player)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -8163,13 +8328,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 82` — QueryActorMotionState(actor)
+### `op 82` — WaitPortraitSettled(portrait character id)
 *handler:* `Script_VMOp_QueryActorMotionState`
 
-Alias of op 81 (same handler): 1 while the actor is mid-motion, 0 when settled.
+Block the script while the given speaker portrait is still animating (sliding in/out or moving: portrait state (+42 & 0x7C) != 0x10); continue once it has settled. arg0 = portrait character id; if no on-screen portrait matches, it does not block. Nothing is written to a VM register - the result is the handler's busy flag.
 
 Args:
-  0. actor (char id, 0=player)
+  0. portrait character id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -8206,10 +8371,10 @@ Always writes 0 to the VM output — the intended calendar-event lookup is stubb
 Args:
   0. event id (consumed; result discarded)
 
-### `op 113` — QueryActorRotating(actor)
+### `op 113` — WaitActorAuxYaw(actor)
 *handler:* `Script_VMOp_QueryActorRotating`
 
-1 while the actor is still turning toward its target facing (current rotation != target rotation); 0 once the turn has settled. arg0 = actor (char id, 0 = player). Pair with SetActorFacingAngle / TurnActorToFaceTarget to wait for the turn.
+Block while the actor's secondary yaw (actor+0xD6) has not reached the target set by op 111 (+0xD8); continue when equal, or at once for ids >= 48 / missing actors. Nothing is written to a VM register - the result is the handler's busy flag.
 
 Args:
   0. actor (char id, 0=player)
@@ -8241,10 +8406,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 114` — QueryActorRotating(actor)
+### `op 114` — WaitActorAuxYaw(actor)
 *handler:* `Script_VMOp_QueryActorRotating`
 
-Alias of op 113 (same handler): 1 while the actor is still turning, 0 when settled.
+Block while the actor's secondary yaw (actor+0xD6) has not reached the target set by op 111 (+0xD8); continue when equal, or at once for ids >= 48 / missing actors. Nothing is written to a VM register - the result is the handler's busy flag.
 
 Args:
   0. actor (char id, 0=player)
@@ -8276,10 +8441,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 129` — QueryActorAnimBusy(actor, ignored actor …)
+### `op 129` — QueryActorMoveBusy(actor, ignored actor …)
 *handler:* `Script_VMOp_QueryNpcAnimDone`
 
-1 while the actor is still playing its scripted action animation OR turning; 0 once idle/done. arg0 = actor (char id, 0 = player, which delegates to QueryPlayerTurnBusy). Pair with PlayActorAnim (op 133) to wait for the anim to finish. (Handler is named 'AnimDone' but returns busy=1.) ONLY arg0 IS READ: 72 of the 2,072 shipped statements pass extra actors, but Script_VMOp_QueryNpcAnimDone never looks past arg0 (verified 2026-09-23), so the wait ends as soon as the FIRST actor is idle. To wait on several actors, use one statement per actor.
+Blocking predicate: returns 1 (op re-runs next frame) while the NPC still has an active move command (npc+20 bit 0x8, set by Npc_StartMoveTowards) or a pending turn (npc+20 bit 0x800 with actor facing +0x9C != target +0x9E); 0 when done or actor absent. Actor 0 delegates to QueryPlayerTurnBusy (player scripted-move lock 0x10000 / pending turn). It does NOT look at animation state. Only arg0 is read.
 
 Args:
   0. actor (char id, 0=player)
@@ -8310,12 +8475,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. ignored actor … (not read by the engine)
+  1. ignored actor … (not read)
 
-### `op 130` — QueryActorAnimBusy(actor, ignored actor …)
+### `op 130` — QueryActorMoveBusy(actor, ignored actor …)
 *handler:* `Script_VMOp_QueryNpcAnimDone`
 
-Alias of op 129 (same handler): 1 while the actor's anim/turn is still playing. Only arg0 is read; extra actors are ignored.
+Blocking predicate: returns 1 (op re-runs next frame) while the NPC still has an active move command (npc+20 bit 0x8, set by Npc_StartMoveTowards) or a pending turn (npc+20 bit 0x800 with actor facing +0x9C != target +0x9E); 0 when done or actor absent. Actor 0 delegates to QueryPlayerTurnBusy (player scripted-move lock 0x10000 / pending turn). It does NOT look at animation state. Only arg0 is read.
 
 Args:
   0. actor (char id, 0=player)
@@ -8346,7 +8511,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. ignored actor … (not read by the engine)
+  1. ignored actor … (not read)
 
 ### `op 131` — QueryActorBeyondRange(actor, range)
 *handler:* `ScriptVM_Op_QueryEntityBeyondRangeOfTarget`
@@ -8387,7 +8552,7 @@ Args:
 ### `op 132` — QueryActorBeyondRange(actor, range)
 *handler:* `ScriptVM_Op_QueryEntityBeyondRangeOfTarget`
 
-Alias of op 131 (same handler): 1 while the actor is beyond [range] of its target.
+1 while the actor is FARTHER than [range] tiles from its target marker (the player checks a global target position; an NPC checks its own move target); 0 once within range. arg0 = actor (char id, 0 = player), arg1 = range in tiles. Wait-until-arrived predicate. (Handler is named 'InRange' but returns 1 when far.)
 
 Args:
   0. actor (char id, 0=player)
@@ -8458,7 +8623,7 @@ Args:
 ### `op 136` — QueryActorTilePosition(actor)
 *handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
 
-Alias of op 135 (same handler): read an actor's tile X/Y into the VM output slots.
+Read an actor's current tile position: writes X and Y (tiles) to the VM output slots for a following read. arg0 = actor (char id, 0 = player). Falls back to the NPC's backup position if its actor isn't spawned.
 
 Args:
   0. actor (char id, 0=player)
@@ -8490,13 +8655,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 137` — QueryNpcLoadedAndActive(npc)
+### `op 137` — QueryActorAnimBusy(npc)
 *handler:* `ScriptVMOp_QueryNpcExistsLoadedAndNotIdle`
 
-1 if the NPC exists, has a live actor, and is NOT in its idle state (i.e. is currently doing something); 0 otherwise. arg0 = npc (char id, <48). Gate scripted branches on whether an NPC is present and active.
+Blocking predicate: returns 1 (re-run next frame) while the NPC exists, has an actor, and its scene node's 'anim finished' flag (node+8 bit 0x8) is still clear, i.e. waits for the current non-looping clip to end. Returns 0 at once if the NPC or its actor is missing.
 
 Args:
-  0. npc (char id)
+  0. npc (char id <48)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -8525,13 +8690,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 138` — QueryNpcLoadedAndActive(npc)
+### `op 138` — QueryActorAnimBusy(npc)
 *handler:* `ScriptVMOp_QueryNpcExistsLoadedAndNotIdle`
 
-Alias of op 137 (same handler): 1 if the NPC is loaded and active.
+Blocking predicate: returns 1 (re-run next frame) while the NPC exists, has an actor, and its scene node's 'anim finished' flag (node+8 bit 0x8) is still clear, i.e. waits for the current non-looping clip to end. Returns 0 at once if the NPC or its actor is missing.
 
 Args:
-  0. npc (char id)
+  0. npc (char id <48)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -8570,10 +8735,10 @@ Args:
 
 Query -> VM query register: 1 if the player has status/accessory-effect flag 0x40000, else 0.
 
-### `op 152` — WaitPlayerScriptSync()
+### `op 152` — QueryPlayerAnimBusy()
 *handler:* `Script_VMOp_QueryPlayerScriptReady`
 
-Blocking sync point, NOT a register query: it writes nothing to reg0 (branching on reg0 after it reads a stale value). The handler returns block/retry while the scene busy flag (sceneCtx+116 & 0x8000000) is clear AND the player's scene_node bit 8 is clear, and lets the script proceed once either is set. Shipped scenes place it between PlayerScriptedTalkAnim steps as an animation-phase sync. Exact flag polarity is engine-internal (the IDB notes it blocks while the player looks 'ready'). No args.
+Blocking predicate (player twin of op 137): returns 1 (re-run next frame) while scene ctx+116 bit 0x8000000 is clear AND the player's scene_node 'anim finished' bit 0x8 is clear, i.e. waits until the clip started by op 149 / op 133 on the player has ended. No args; writes nothing to registers.
 
 ### `op 164` — QueryEventActorMoving(event key)
 *handler:* `ScriptVMOp_CalendarEvent_QueryNpcTurnOrArrivalState`
@@ -8583,10 +8748,10 @@ Blocking sync point, NOT a register query: it writes nothing to reg0 (branching 
 Args:
   0. event key
 
-### `op 169` — WaitForEventActorReady(event key)
+### `op 169` — QueryEventActorAnimBusy(event key)
 *handler:* `ScriptVMOp_QueryCalendarEventActorReadyOrInMidAction`
 
-WAIT/barrier, not a query: blocks the scene (handler returns 1 = replay next frame) until the keyed event actor exists and its controller bit 0x8 is set (streamed in / action committed), then execution continues. arg0 = event key. Writes nothing to the VM output — pair it directly with the next event-actor op.
+Blocking predicate: returns 1 (re-run next frame) while the keyed event actor is missing or its scene_node 'anim finished' bit (node+8 bit 0x8) is clear - i.e. waits for the one-shot clip started by op 167 to end.
 
 Args:
   0. event key
@@ -8594,7 +8759,7 @@ Args:
 ### `op 179` — QueryEventActorTurning(event key)
 *handler:* `ScriptVMOp_QueryCalendarEventActorStillTurningTowardTarget`
 
-1 while a spawned event actor is still turning toward its target facing (target != current); 0 once settled. arg0 = event key. Wait-for-turn predicate — the event-actor twin of QueryActorRotating (op 113).
+1 while a spawned event actor is still turning toward its target facing (target != current); 0 once settled. arg0 = event key. Wait-for-turn predicate — the event-actor twin of WaitActorAuxYaw (op 113).
 
 Args:
   0. event key
@@ -8612,13 +8777,13 @@ Args:
 
 BARRIER: block the scene until the CAMERA has arrived at the mark anchor set by SetCameraPosition/SetCameraTarget (ops 186/190) — per-axis |camera − anchor| <= 2048 Q12 = half a tile (Chebyshev). No args. This is what paces every scripted camera sweep: `SetCameraTarget(x, y, speed); WaitCameraAtMark()` holds until the pan lands. (The IDB comparison is against g_cameraPosQ12, the CAMERA, not the player.)
 
-### `op 196` — QueryPlayerMovedBeyondSnapshot(threshold)
+### `op 196` — QueryCameraBeyondRangeOfTarget(range)
 *handler:* `Script_VMOp_QueryPlayerMovedBeyondDistFromAnchor`
 
-Query -> VM register: 1 if the player's world position has moved more than `arg << 12` (Q4.12 tiles) from the last op-193 snapshot in EITHER axis; 0 otherwise. Pair with op 193 as a 'watch for the player leaving a set radius' construct.
+Blocking predicate: 1 while the CAMERA position is more than arg tiles from its target on X or Y, 0 once within range - a range-parameterised op 195. The player position is not read.
 
 Args:
-  0. threshold
+  0. range (tiles)
 
 ### `op 213` — GetPlayerPosition()
 *handler:* `Script_VMOp_GetPlayerPosition`
@@ -8697,7 +8862,7 @@ Args:
 ### `op 219` — QueryNpcFriendshipLevel(npc)
 *handler:* `Script_VMOp_QueryNpcFriendshipLevel`
 
-Alias of op 218 (same handler): read an NPC's friendship level into the VM output.
+Read an NPC's friendship LEVEL (not raw points) into the VM output slot. arg0 = npc (char id); 0 uses the NPC the player is currently talking to. -1 if the NPC isn't found.
 
 Args:
   0. npc (char id, 0=current)
@@ -8728,48 +8893,22 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 220` — QueryAllNpcsFriendship(npc, target level)
+### `op 220` — QueryAllNpcsFriendship(0, target level)
 *handler:* `ScriptVMOp_QueryAllAvailableNpcsFriendshipMeetsTarget`
 
-Read 1 iff an NPC's friendship level meets/exceeds [target]. arg0 = npc (char id), arg1 = target level. When arg0 = 0, instead checks that ALL story-available villagers meet the target (gated by story progress + the active festival). Gate town-wide events on overall affection.
+reg0 = 1 if every story-available villager 1..23 (mask gated by story progress 0x3C/0x63/0x8B/0xD1, the EMFE_SYELZA_READY condition, plus the current child from GameFlags) has friendship level >= arg1. arg0 must be 0: with a non-zero arg0 the handler (bug) evaluates Npc_GetFriendshipLevel(arg1) >= arg1, i.e. it looks up the NPC whose id equals the target level.
 
 Args:
-  0. npc (char id, 0=all available)
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
+  0. 0 (non-zero is broken)
   1. target level
 
 ### `op 226` — QueryNpcScheduleId(npc)
 *handler:* `Script_VMOp_QueryNpcScheduleId`
 
-Read an NPC's current schedule id (which scheduled activity it's doing) into the VM output. arg0 = npc (char id). Quirk: arg0 = 0 returns the current INPUT-CONTEXT id instead of a schedule. Branch on what an NPC is up to right now.
+reg0 = the NPC's current schedule id (Npc_GetCurrentScheduleId), rounded down to a multiple of 4 when < 0x40. arg0 = 0 instead returns the current ROOM id (g_currentRoomId; -1 while input is suppressed or the main task's flag 2 is set).
 
 Args:
-  0. npc (char id, 0=input ctx)
+  0. npc (char id, 0 = current room id)
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -8836,7 +8975,7 @@ Args:
 ### `op 228` — QueryNpcScheduleIsOneOf(npc, schedule id …)
 *handler:* `ScriptVM_Op_QueryNpcCurrentScheduleIsOneOf`
 
-Alias of op 227 (same handler): 1 iff an NPC's schedule matches one of a list.
+Read 1 iff an NPC's current schedule id matches ANY id in the list. arg0 = npc (char id; 0 tests the PLAYER's scene/menu-state field, 22 the current child id). args[1..] = the schedule ids - there is NO count argument: the 'count' is the statement's own packed arg-count slot (the handler at RF4S.exe+0x1FD9F0 reads it from the encoding, confirmed 2026-09-01).
 
 Args:
   0. npc (char id, 0=player, 22=current child)
@@ -8872,7 +9011,7 @@ Args:
 ### `op 229` — QueryNpcAvailableFlagClear(npc id)
 *handler:* `Script_VMOp_QueryNpcSlotFlag40Clear`
 
-Query -> VM register: 1 if NPC's state word (npc[+20]) bit 0x40 is CLEAR, else 0. Bit 0x40 is presumably an 'is busy' or 'in scene' marker; the op returns TRUE when the NPC is FREE. Silently no-ops for npc id >= 48.
+reg0 = 1 if bit 0x40 of the NPC record's u16 at +20 is clear. The mechanics are certain; what bit 0x40 means (the 'available' label) is not established, and the handler has no null check on the record.
 
 Args:
   0. npc id
@@ -8942,7 +9081,7 @@ Args:
 ### `op 235` — QueryNpcSeenToggle(npc)
 *handler:* `Script_VMOp_QueryNpcSeenToggle`
 
-Read whether an NPC is interaction-eligible AND toggle its 'seen today' bit into the VM output. arg0 = npc (char id). Like QueryNpcInteractEligible (op 236) but with a fixed mode. Used to gate first-encounter dialogue.
+Query (reg0) whether an NPC is eligible for a once-per-toggle interaction with the script's own actor: NPC and the calling actor (host+32) must not be in actor state 13/25, the NPC must pass Npc_IsInCurrentArea, and it must be within 48 distance units of the calling actor. On success it TOGGLES bit 0x100000 of the CALLING actor's npc record+48 and returns 1 if that bit was clear before (0 if it was set). Equivalent to op 236 with range fixed at 48.
 
 Args:
   0. npc (char id)
@@ -8974,10 +9113,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 236` — QueryNpcInteractEligible(npc, mode)
+### `op 236` — QueryNpcInteractEligible(npc, range)
 *handler:* `Script_VMOp_QueryNpcInteractEligible`
 
-Read whether an NPC is currently eligible to be interacted with (present, loaded, not busy) into the VM output, and toggle its 'seen' bit. arg0 = npc (char id), arg1 = mode. Used to gate first-interaction / talk dialogue.
+Same as op 235 but with an explicit range: reg0 = 1 iff the NPC and the calling actor are free (state not 13/25), the NPC exists, the NPC is within arg1 distance of the calling actor (0 = no range check), and bit 0x100000 on the calling actor's record+48 was clear before this call (the bit is toggled every successful call).
 
 Args:
   0. npc (char id)
@@ -9008,15 +9147,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. mode
+  1. range (distance units, 0 = unlimited)
 
-### `op 237` — QueryNpcPairInteraction(subject npc, target npc, range)
+### `op 237` — QueryNpcPairInteraction(npc A, npc B, range to the calling actor)
 *handler:* `ScriptVM_Op_QueryNpcInteractionEligibilityWithSubject`
 
-Read whether one NPC can interact with another right now — close enough and hasn't already interacted with them today. arg0 = subject npc (char id), arg1 = target npc (char id), arg2 = range. For NPC-to-NPC greeting / pairing events.
+Advance and read a 2-bit hysteresis state (bits 21-22 of the calling actor's npc record+48) for two NPCs relative to the script's own actor: each NPC is 'close' if it and the calling actor are not in state 13/25 and it is within arg2 distance of the CALLING actor (arg2 = 0 treats both as close). reg0 = the next state of a fixed 0->1->2->3->0 sequence: from 0: both close -> 1, only A -> 2, only B -> 3, neither -> 0; from 1: A close -> 2, else B close -> 3, else 0; from 2: B close -> 3, else 0; from 3: always 0 (arg2 = 0 marks both as close, so the value simply cycles). A non-zero GF_REG_FESTA forces a would-be 2/3 to 0. Both NPCs must pass Npc_IsInCurrentArea (villager game-flag bit 981+id / child table), else reg0 is not written.
 
 Args:
-  0. subject npc (char id)
+  0. npc A (char id)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -9044,7 +9183,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. target npc (char id)
+  1. npc B (char id)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -9072,7 +9211,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  2. range
+  2. range to the calling actor
 
 ### `op 240` — QueryNpcGroupPresentNearby(max distance, primary npc, other npc …)
 *handler:* `Script_QueryNpcGroupPresentNearby`
@@ -9087,11 +9226,38 @@ Args:
 ### `op 241` — QueryNpcGroupPresentNearby(max distance, primary npc, other npc …)
 *handler:* `Script_QueryNpcGroupPresentNearby`
 
-Alias of op 240 (same handler): 1 iff a group of NPCs are gathered within range.
+Read 1 into reg0 iff a group of NPCs are all present and available (actor state != 13/25, not busy/inaccessible) and each within arg0 distance of the primary. arg0 = max distance, arg1 = primary npc (char id), remaining args = the other npc char ids -- there is NO count argument: the handler derives the group size from the statement's own arg count. The dominant 2-arg form (distance, npc) degenerates to a single-NPC 'present & available' check (self-distance 0). 5-arg form = primary + 3 others.
 
 Args:
   0. max distance
   1. primary npc (char id)
+     - `0` = Lest/Frey
+     - `1` = Vishnal
+     - `2` = Clorica
+     - `3` = Volkanon
+     - `4` = Forte
+     - `5` = Kiel
+     - `6` = Bado
+     - `7` = Margaret
+     - `8` = Dylas
+     - `9` = Arthur
+     - `10` = Porcoline
+     - `11` = Xiao Pai
+     - `12` = Lin Fa
+     - `13` = Amber
+     - `14` = Illuminata
+     - `15` = Doug
+     - `16` = Blossom
+     - `17` = Dolce
+     - `18` = Jones
+     - `19` = Nancy
+     - `20` = Leon
+     - `21` = Ventuswill
+     - `22` = Son
+     - `23` = Daughter
+     - `24` = Barrett
+     - `25` = Raven
+     - `26` = Mistress Trupin
   2. other npc …
 
 ### `op 245` — QueryGiftAffinity(npc id, item id)
@@ -9194,91 +9360,64 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 255` — QueryEntityActionStatus(entity)
+### `op 255` — QueryActorAilmentState(target)
 *handler:* `ScriptVM_Op_QueryEntityActionStatusAndEventCode`
 
-Read an entity's status + action-event codes into TWO VM output slots. arg0 = entity (char id, 0 = player; else resolved via the current interaction NPC's companion). Output +64 = status (0 idle / 1 busy / 2 talking / 3 low-HP / 4 talking-only); output +68 = action-event code (115..118) used to pick a follow-up dialogue reaction.
+Read an actor's status-ailment bits (actor+180, the same word op 256 sets) as two codes. reg0: 1 if bit 0x08 set, else 4 if only bit 0x10 (fatigue) is set, 2 if 0x10 plus others or any other ailment bit, 3 if no ailment and HP <= half max, else 0. reg1: 115 if bit 0x01, 116 if 0x04, 117 if 0x02, 118 if 0x20 (cold), else 0. arg0 = 0: the player; non-zero: the companion whose char id matches the current interaction NPC.
 
 Args:
-  0. entity (char id, 0=player)
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
+  0. target (0 = player, else the companion being talked to)
 
 ### `op 257` — QueryAllNpcsEligibleForComment(npc id …)
 *handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
-Read 1 iff EVERY listed NPC is eligible to deliver an ambient flavor comment (present, not busy, in the current area, not story-gated). ALL-must-pass, not any: eligible_found starts at 1 and the FIRST failing candidate zeroes it; ids >= 0x30 are skipped (RF4S.exe+0x2007E0, confirmed 2026-09-01). Variadic: each arg is one candidate char id; no count argument.
+reg0 = 1 iff EVERY listed NPC can deliver an ambient comment: exists, not busy/inaccessible, actor state not 13/25/208, per-villager gate flag (bit 862+id) clear for ids < 24, and extra gates for id 7 (GF_FLG_MARGUERITE_VOICE_OFF) and 15 (GF_FLG_DAG_SUBEV_STOP). An arg of 0 means the player's spouse (GF_REG_WIFE_ID); ids >= 0x30 are skipped. Variadic, no count arg.
 
 Args:
-  0. npc id … (candidate char ids, variadic)
+  0. npc id … (0 = spouse)
 
 ### `op 258` — QueryAllNpcsEligibleForComment(npc id …)
 *handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
-Alias of op 257 (same handler): 1 iff EVERY candidate char id passed as an arg can deliver a flavor comment - ALL-must-pass (first failure zeroes the result), ids >= 0x30 skipped. The dominant corpus form passes a single candidate (reg0), where all/any coincide.
+reg0 = 1 iff EVERY listed NPC can deliver an ambient comment: exists, not busy/inaccessible, actor state not 13/25/208, per-villager gate flag (bit 862+id) clear for ids < 24, and extra gates for id 7 (GF_FLG_MARGUERITE_VOICE_OFF) and 15 (GF_FLG_DAG_SUBEV_STOP). An arg of 0 means the player's spouse (GF_REG_WIFE_ID); ids >= 0x30 are skipped. Variadic, no count arg.
 
 Args:
-  0. npc id … (candidate char ids, variadic)
+  0. npc id … (0 = spouse)
 
-### `op 259` — QueryNpcRosterPresence(slot count, npc id …)
+### `op 259` — PickRandomVillagers(count to pick, excluded npc id …)
 *handler:* `ScriptVM_Op_QueryNpcRosterPresenceByList`
 
-Check which of the listed NPCs are currently rendered in the scene — writes a present/absent flag (1/0) for each into up to 10 consecutive VM output slots. arg0 = how many slots to fill, then the npc ids to test. Test which characters are on-stage before triggering interactions.
+Pick arg0 distinct random villagers (from the 23 roster ids) and write their char ids to reg0..reg(arg0-1) (max 10). Args 1.. are char ids to EXCLUDE (built into a bitmask); the roster also drops NPCs gated by story progress, the spouse's/child state, record+52 bit 0x1000, the per-villager gate flags (862+id) and festival-day rules. If GF_REG_FESTA > 17 nothing is picked (outputs 0).
 
 Args:
-  0. slot count
-  1. npc id …
+  0. count to pick (<=10 written)
+  1. excluded npc id …
 
 ### `op 260` — QueryActorHpWellness()
 *handler:* `ScriptVMOp_QueryActorHpLowOrUnknownForDialogueBranch`
 
-Read the current scene subject's HP wellness for a dialogue branch into the VM output: 0 = healthy (HP > 50%), 1 = low HP (≤ 50%), 2 = no combat stats. No args (uses the scene's subject actor). Drives 'Are you ok? You look hurt.' reactions.
+Read the script host actor's (host+32) HP state into reg0: 2 = HP is 0, 1 = HP <= half max, 0 = otherwise. No args.
 
 ### `op 262` — QueryCurrentInteractionNpc()
 *handler:* `ScriptVMOp_QueryCurrentInteractionNpcCharId`
 
 Read the char id of the NPC the player is currently talking to / interacting with into the VM output slot (0xFFFF if none). Use to branch a shared script on which NPC triggered it.
 
-### `op 265` — QueryPlayerDeadOrCompanionScripted(mode)
+### `op 265` — QueryPlayerOrCompanionDowned(mode)
 *handler:* `Script_VMOp_QueryPlayerOrCompanionDowned`
 
-Dual-mode query -> VM register based on arg: (arg != 0) writes 1 if the player is currently dead (vtable[+7] == Player_DeathTickCallback), else 0. (arg == 0) walks companions 0..1 and writes 1 if any companion has `companion[+460] == 11` with a null `[+304]` field (a 'scripted sequence in progress' state), else 0.
+reg0: arg0 != 0 -> 1 if the player's task tick is Player_DeathTickCallback (player down); arg0 == 0 -> 1 if either companion has stats hp_curr == 0 and actor state 11 (knocked out).
 
 Args:
-  0. mode
+  0. mode (non-zero = player, 0 = companions)
 
-### `op 268` — QueryNpcArrivedAtSchedule(npc, more npc ids)
+### `op 268` — QueryNpcArrivedAtSchedule(npc id …)
 *handler:* `Script_VMOp_QueryNpcArrivedAtSchedule`
 
-Read 1 iff the given NPC(s) have arrived at their schedule-computed spots and are available (Npc_IsAtScheduledSpotAndAvailable) into the VM output. arg0 = 0: checks ALL villagers 1..23 (1 only if every present one is in place). Otherwise EVERY arg is an npc char id - the op is variadic with NO count argument - and all listed NPCs must be in place. Wait-until-NPCs-in-position predicate before a staged scene.
+reg0 = 1 iff every listed NPC has reached its scripted/scheduled spot and is available (Npc_IsAtScheduledSpotAndAvailable: record+228 bit 0 set, not busy, not festival-substituted, waypoint index at the end). Variadic, every arg is an npc id, no count. arg0 = 0 switches mode: scan villagers 1..23 with record+228 bit 0 set and return 1 iff NONE of them is in place.
 
 Args:
-  0. npc (char id, 0=all villagers)
+  0. npc id … (arg0 = 0 = all-villager mode)
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -9305,15 +9444,14 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. more npc ids (variadic)
 
-### `op 269` — QueryNpcArrivedAtSchedule(npc, more npc ids ...)
+### `op 269` — QueryNpcArrivedAtSchedule(npc id …)
 *handler:* `Script_VMOp_QueryNpcArrivedAtSchedule`
 
-Query -> reg0 whether NPC(s) are at their scheduled spot (Npc_IsAtScheduledSpotAndAvailable). ALL args are npc char ids -- variadic list, NO count argument: with an explicit list, returns 1 iff EVERY listed NPC passes the check. With arg0 = 0, scans schedule-active NPCs 1..23 (record +228 bit 1 set) and returns 1 iff NONE of them passes -- the all-NPC mode's polarity is inverted vs the list mode (decompile-verified quirk). Alias of op 268 (same handler).
+reg0 = 1 iff every listed NPC has reached its scripted/scheduled spot and is available (Npc_IsAtScheduledSpotAndAvailable: record+228 bit 0 set, not busy, not festival-substituted, waypoint index at the end). Variadic, every arg is an npc id, no count. arg0 = 0 switches mode: scan villagers 1..23 with record+228 bit 0 set and return 1 iff NONE of them is in place.
 
 Args:
-  0. npc (char id; 0 = all-NPC mode)
+  0. npc id … (arg0 = 0 = all-villager mode)
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -9340,7 +9478,6 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. more npc ids ... (variadic)
 
 ### `op 273` — QueryNpcPresent(npc)
 *handler:* `Script_VMOp_QueryNpcPresentFlag`
@@ -9379,10 +9516,10 @@ Args:
 ### `op 274` — QueryNpcPresent(npc)
 *handler:* `Script_VMOp_QueryNpcPresentFlag`
 
-Alias of op 273 (same handler): read an NPC's present flag, or the villager present-count when arg0 = 0.
+Read whether a villager is 'present' — record bit 0x400000 (bit 22 of record+52, present-in-town) — into the VM output. arg0 = villager id, valid only for 1-23 (the handler requires id < 24; other ids yield 0). arg0 = 0 instead returns the COUNT of villagers (1-23) currently present.
 
 Args:
-  0. npc (char id, 0=count all)
+  0. npc (villager id <24; 0 = count all present)
      - `1` = Vishnal
      - `2` = Clorica
      - `3` = Volkanon
@@ -9410,13 +9547,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 276` — QueryNpcModelId(npc)
+### `op 276` — QueryNpcHeldItem(npc)
 *handler:* `Script_VMOp_QueryNpcModelId`
 
-Read an NPC's current model/resource id (the loaded character model) into the VM output; 0 if none. arg0 = npc (char id). Use to check which model/costume an NPC is displaying.
+reg0 = the item id the NPC is currently holding (actor+304 -> +178, valid range 1..1107), else 0.
 
 Args:
-  0. npc (char id)
+  0. npc (char id, 1-47)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -9445,13 +9582,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 277` — QueryNpcModelId(npc)
+### `op 277` — QueryNpcHeldItem(npc)
 *handler:* `Script_VMOp_QueryNpcModelId`
 
-Alias of op 276 (same handler): read an NPC's current model/resource id.
+reg0 = the item id the NPC is currently holding (actor+304 -> +178, valid range 1..1107), else 0.
 
 Args:
-  0. npc (char id)
+  0. npc (char id, 1-47)
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -9518,7 +9655,7 @@ Args:
 ### `op 279` — QueryNpcFavoriteItem(npc)
 *handler:* `Script_VMOp_QueryNpcFavoriteItem`
 
-Alias of op 278 (same handler): read a rolled favorite-gift item id for an NPC.
+Read one of an NPC's favorite/loved gift item ids (rolled) into the VM output. arg0 = npc (char id). Used to hint or pre-fill a gift in a scene.
 
 Args:
   0. npc (char id)
@@ -9620,15 +9757,15 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 283` — QueryCompanionNpcId()
+### `op 283` — QueryDateCompanionId()
 *handler:* `Script_VMOp_QueryCompanionNpcId`
 
-Read the char id of the player's current NPC companion (the villager following the player) into the VM output, or 0 if none. Use to branch on who is accompanying the player during a scene.
+reg0 = char id of the party companion (companion slot 1 or 2, char id < 48) whose date state (npc record+52 bits 24-26, the op 280/281 field) is non-zero, else 0. A companion with no date state is not returned.
 
-### `op 288` — QueryNpcActorStateWord(npc)
+### `op 288` — QueryNpcOutfit(npc)
 *handler:* `ScriptVMOp_QueryNpcActorWordField488`
 
-Read a per-NPC actor state word (actor field +488) into the VM output; 0 if the NPC isn't loaded. arg0 = npc (char id). The exact meaning is engine-internal (a 16-bit state field a few scripts branch on).
+reg0 = the NPC's current outfit variant (actor+488: 0 default, 1 pajamas, 2 swimsuit, 3 ...), 0 if unresolvable.
 
 Args:
   0. npc (char id)
@@ -9748,18 +9885,18 @@ Args:
 Args:
   0. actor
 
-### `op 338` — CheckNpcSchedule(npc)
+### `op 338` — QueryNpcOnPlayerMap(npc)
 *handler:* `Script_VMOp_GetNpcScheduleMatchAndId`
 
-Check whether an NPC is currently on its EXPECTED schedule and read that schedule id. arg0 = NPC char id (0 falls back to the player's spouse via the wife-id game flag). Writes 1/0 to the main VM output — 1 if the NPC's current schedule id equals the scene's pre-set expected-schedule field — and the NPC's season-adjusted current schedule id to the second output. Used to gate dialogue on where an NPC is supposed to be right now.
+reg0 = 1 iff the NPC's current map (Npc_GetCurrentScheduleId: actor+84, or record+188 when not spawned) equals the player's current map (player actor+84); reg1 = the NPC's map id, plus the season index for outdoor maps < 0x40. arg0 = 0 means the spouse (GF_REG_WIFE_ID).
 
 Args:
-  0. npc (char id, 0=spouse)
+  0. npc (char id, 0 = spouse)
 
-### `op 339` — GetNpcSchedule(npc)
+### `op 339` — GetNpcCurrentMap(npc)
 *handler:* `Script_VMOp_GetNpcCurrentScheduleId`
 
-Read an NPC's current schedule id (which daily-itinerary slot it is in right now) into the VM output. arg0 = NPC char id. Schedules below 0x40 are season-adjusted: the current season index is added unless it is Winter. Lets a script branch on an NPC's present activity/location.
+reg0 = the NPC's current map id (actor+84, or record+188 when not spawned, 0xFFFFFFFF if unresolvable), plus the season index for outdoor maps < 0x40.
 
 Args:
   0. npc (char id)
@@ -9863,50 +10000,23 @@ Read global script-variable bank 8 at [index] into reg0 -- the paired reader for
 Args:
   0. index
 
-### `op 362` — GetNpcBirthdayMonthAndDay(kind9 slot, npc id)
+### `op 362` — GetFestivalDate(bank-9 slot, festival id)
 *handler:* `Script_VMOp_GetNpcBirthdayMonthAndDay`
 
-Read NPC #arg1's birthday from calendar archive 16340. Format: archive record = 4 bytes each: [+0]=npc_id, [+1]=month (1..4 = RF4 season month), [+2]=day, [+3]=unused. Walks records at archive+28 (count at archive+24) until matching npc_id found. **Writes** the packed calendar code `day + 100*month` to var-array-kind-9 at [arg 0], and separately writes month to ctx[+64] + day to ctx[+68]. Silently defaults to (0, 0) if the NPC is not in the archive.
+Look up festival #arg1 in the calendar table (archive 16340, rf3TxtCalendar_split2_1.bin: 4-byte records {npc, season, day, festival}) by the FESTIVAL byte (record byte 3). reg0 = season (0-3), reg1 = day, and bank-9 var [arg0] = day + 100*season. If not found the outputs are uninitialised stack bytes.
 
 Args:
-  0. kind9 slot
-  1. npc id
-     - `0` = Lest/Frey
-     - `1` = Vishnal
-     - `2` = Clorica
-     - `3` = Volkanon
-     - `4` = Forte
-     - `5` = Kiel
-     - `6` = Bado
-     - `7` = Margaret
-     - `8` = Dylas
-     - `9` = Arthur
-     - `10` = Porcoline
-     - `11` = Xiao Pai
-     - `12` = Lin Fa
-     - `13` = Amber
-     - `14` = Illuminata
-     - `15` = Doug
-     - `16` = Blossom
-     - `17` = Dolce
-     - `18` = Jones
-     - `19` = Nancy
-     - `20` = Leon
-     - `21` = Ventuswill
-     - `22` = Son
-     - `23` = Daughter
-     - `24` = Barrett
-     - `25` = Raven
-     - `26` = Mistress Trupin
+  0. bank-9 slot (0-15)
+  1. festival id
 
-### `op 363` — GetEventMonthOrBirthFlag(kind0 slot, event id)
+### `op 363` — GetNpcBirthday(var slot, npc id)
 *handler:* `Script_VMOp_GetCalendarEventMonthWithFallback`
 
-Like op 362 but reads only the MONTH byte from calendar archive 16340 for a given event_id. **Fallback when arg 1 = 0**: reads player's birth season/day from GameFlags (GF_REG_PLAYER_BIRTH_SEASON 2-bit + GF_REG_PLAYER_BIRTH_DAY 5-bit). Writes result + **616** (a festival-ID base offset) into var-array-kind-0 at [arg 0]; also writes day into var-array-kind-3 and ctx[+64]/[+68]. Used to compute 'this event's festival id' for downstream lookups.
+Get character #arg1's birthday: arg1 != 0 looks up the calendar table (archive 16340) by the NPC byte (record byte 0); arg1 = 0 reads the player's birthday from GameFlags REG_PLAYER_BIRTH_SEASON/DAY. reg0 = season (0-3), reg1 = day; bank-0 var [arg0] = season + 616 (a text-substitution id for the season name) and bank-3 var [arg0] = day.
 
 Args:
-  0. kind0 slot
-  1. event id (0=player birthday)
+  0. var slot (bank 0 index 0-15, bank 3 index 0-51)
+  1. npc id (0 = player)
 
 ### `op 367` — GetVar14(index)
 *handler:* `Script_VMOp_ReadVarArrayKind14`
@@ -9916,10 +10026,10 @@ Read global script-variable bank 14 at [index] into reg0 -- the paired reader fo
 Args:
   0. index
 
-### `op 369` — QueryPlayerCanInteract((ignored))
+### `op 369` — TryMountPlayerOnHostActor((ignored))
 *handler:* `Script_VMOp_QueryPlayerCanInteractWithActor`
 
-Attempt a player-mount/interaction onto the current scene actor and report the outcome. reg0 = 0 if the player is mid-action, 2 if carry-blocked (status 0x4000), else the result of Player_BeginMountTransitionAndInstallTickAndAnchor -- i.e. when free it actually BEGINS the mount transition. reg1 = 1 iff the player is not mid-action. The handler reads NO script args, though shipped scripts always pass one literal (ignored).
+Try to mount the player on the script's host actor (host+32, e.g. a farm monster). reg1 = 0 if the player is mid-action (render_state_flags & 0x1E) else 1; reg0 = 0 when mid-action, 2 when the player already has status 0x4000 (mounted/carrying), otherwise the result of Player_BeginMountTransitionAndInstallTickAndAnchor - which actually starts the mount. Takes no script args (the corpus passes one ignored literal).
 
 Args:
   0. (ignored)
@@ -9943,17 +10053,17 @@ Args:
 ### `op 377` — ConsumeInteractionResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Consume a PENDING INTERACTION result -- NOT a PROMPT_CHOICE reader (the choice menu never touches these bits). If scene-ctx +116 bit 24 is set, reg0 = the 2-bit value in bits 22-23 and bit 24 is cleared; otherwise reg0 is left alone. The pending bit is set by World_DispatchInteractionEvent for interaction kinds 4/44/45 (which also latch scene +0xA4 = 1/2/3 and clear bits 22-23) and cleared at the start of every other interaction. IDA-verified 2026-09-24 (Script_VMOp_ConsumeChoiceCommitResult).
+If host+116 bit 24 (interaction result pending) is set, reg0 = (host+116 >> 22) & 3 and bit 24 is cleared; otherwise reg0 is untouched. The pending bit is set by World_DispatchInteractionEvent for action ids 3, 43 and 44 (which also set host+164 = 1/2/3 and clear bits 22-23) and cleared at the start of every other world interaction.
 
 ### `op 378` — ConsumeInteractionResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Same handler as op 377 (Script_VMOp_ConsumeChoiceCommitResult): consume the pending interaction result into reg0 -- not a PROMPT_CHOICE reader.
+If host+116 bit 24 (interaction result pending) is set, reg0 = (host+116 >> 22) & 3 and bit 24 is cleared; otherwise reg0 is untouched. The pending bit is set by World_DispatchInteractionEvent for action ids 3, 43 and 44 (which also set host+164 = 1/2/3 and clear bits 22-23) and cleared at the start of every other world interaction.
 
-### `op 398` — QueryUnusedPoses(invert)
+### `op 398` — BuildOutfitChoiceMask(invert)
 *handler:* `Script_VMOp_QueryUnlockedAlternatePoseMask`
 
-Read 1 iff the player has any UNUSED unlocked alternate pose available. Scans the 16 alternate-pose unlock flags (GameFlags 729-744), skips the pose already in use, and builds an availability bitmask into the scene's choice-visibility field (the same one op 610's choice menu reads). Used to offer a 'change pose' menu only when there is an unused pose to switch to. arg0 = invert flag.
+Build the choice-visibility mask (host+244) for an outfit menu: bit 0 = player is not in the normal outfit, bit i (1-15) = fashion flag 728+i (GF_FLG_FASHION_PAJAMA .. _COLOR07) unlocked and not the outfit currently worn. arg0 != 0 inverts the mask; a non-zero mask gets bit 0x10000; bit 4 (bath) is always cleared. reg0 = mask != 0.
 
 Args:
   0. invert (0/1)
@@ -9963,23 +10073,23 @@ Args:
 
 Read the player's substate id.
 
-### `op 403` — GetMonsterRosterAbsent()
+### `op 403` — GetFreeFarmAreas()
 *handler:* `Script_VMOp_QueryMonsterRosterAbsentMask`
 
-For monster ids 1-3, write to the VM outputs whether each is NOT active in the monster roster (inverted presence flag, fixed context). Produces three outputs.
+For farm areas 1-3 of the farm the player is on (current room mapped to its farm-field id), reg0/reg1/reg2 = 1 if no worker monster is assigned to that area, else 0. No args.
 
-### `op 404` — GetMonsterRosterPresent(input context)
+### `op 404` — GetOccupiedFarmAreas(farm field / room id)
 *handler:* `Script_VMOp_QueryMonsterRosterPresentMaskByCtx`
 
-For monster ids 1-3, write to the VM outputs whether each IS active in the monster roster within input context [arg0]. Produces three outputs.
+For farm areas 1-3 of the farm field given by arg0, reg0/reg1/reg2 = 1 if a worker monster is assigned to that area. arg0 is a room/field id: 4-23 used directly, barn rooms 77-126 map to field 4 + 4*((room-77)/10), anything else to 4; a negative value means the current room.
 
 Args:
-  0. input context
+  0. farm field / room id (-1 = current)
 
-### `op 406` — GetMonsterFarmLovedToday()
+### `op 406` — GetFarmMonsterPlantOrder()
 *handler:* `Script_VMOp_GetMonsterFarmLovedTodayBit`
 
-Read whether the farm monster the script is CURRENTLY addressing (the barn roster record whose task ptr matches the script ctx subject at +32) has been 'loved'/cared for today (g_MonsterFarmTable record flag bit 18) into the VM output; 0 if the subject is not a barn monster. Takes NO args. Counterpart of op 405.
+reg0 = bit 18 (the 'also plant seeds' work order) of the g_MonsterFarmTable record whose worker task is this script's host subject (host+32); 0 if the subject is not a barn monster. No args. Counterpart of op 405.
 
 ### `op 407` — QueryActiveKillCount()
 *handler:* `Script_VMOp_QueryActiveKillCount`
@@ -9994,29 +10104,29 @@ Count the living monsters on the field EXCLUDING the two boss char ids (141/142)
 ### `op 409` — CountTamedFarmMonsters()
 *handler:* `Script_VMOp_CountTamedMonstersWithFlag1000`
 
-Count farm monsters flagged 'tamed today' (flag bit 0x1000) across all 200 farm slots into the VM output.
+Count the occupied slots of the 200-entry monster table (record flag 0x1000 = slot holds a tamed monster), i.e. how many monsters the player owns; cache it at g_farmMonsterMng+250 and return it in reg0.
 
-### `op 411` — QueryCompanionMonsterData(target index, query kind)
+### `op 411` — QueryCompanionMonsterData(companion slot / farm record index, query kind)
 *handler:* `Script_QueryCompanionMonsterData`
 
-Read player / companion / farm-monster data into the VM output — a multi-purpose query. arg0 = target index (party member or monster), arg1 = query kind: 0-4 = party-member stats (base / mods / points / monster fields), 5-10 = farm-monster roster / flags / census / level / affinity. Sibling of QueryGameState. For stat-based dialogue and monster-farm scenes.
+Multi-purpose monster query, arg1 = kind. Kinds 0-4 read party slot arg0 (0 = companion 1, 1 = companion 2) stats: 0 = 4 dwords (+60/+68/+72/+76) into reg0-3, 1 and 2 = eight s16 stat blocks (+136.., +152..), 3 = eight dwords (+100..), 4 = monster fields plus reg6 = level and reg7 = affinity of its farm record. 5 = for farm areas 1-3 on this farm, reg0-2 = the working monster's record index (0xFFFF if none). 6 = plant-seeds order bit of record arg0. 7 = barn workload count (ceil(owned/4) + owned monsters with order bits 0x40000/0x20000 + owned monsters working an area). 8 = for this script's monster: reg0 = state (1 working an area, 2 flag 0x100, 3 out in the roster, 0 otherwise), reg1 = affinity, reg2 = 1, reg3 = area. 9 = this script's monster: reg0 = level, reg1 = affinity. 10 = record arg0: reg0 = level, reg1 = affinity.
 
 Args:
-  0. target index
-  1. query kind
+  0. companion slot / farm record index
+  1. query kind (0-10)
 
 ### `op 414` — GetChoiceIndexAndItem()
 *handler:* `Script_VMOp_GetScriptChoiceIndexAndItemId`
 
 Read the last scripted item-selection result into TWO VM outputs: query register 0 = the choice slot index (0-7, extracted from scene-ctx +116 bits 6-8), register 1 = the associated item id (11-bit, from ctx+40 field +380). DISTINCT from ConsumeInteractionResult (ops 377/378) -- eResult (op 377/378 = Script_VMOp_ConsumeChoiceCommitResult, a different handler) -- this one (Script_VMOp_GetScriptChoiceIndexAndItemId) returns the index+item pair for an item-pick menu, not the committed PROMPT_CHOICE value.
 
-### `op 416` — QueryPlayerVariable(variable, skill id)
+### `op 416` — QueryPlayerVariable(variable code, skill id)
 *handler:* `Script_VMOp_QueryPlayerStatByCharCode`
 
-Read a player variable chosen by an ASCII char-code arg: 'd'(100)=Gold, 'f'(102)=ArmorDef, 'g'(103)=FarmTameCount, 'h'(104)=Skill (2nd arg = skill id), 'i'(105)=Stone, 'j'(106)=Compost, 'k'(107)=MaxSkillLevel; a bare index <=39 reads that skill's level. Result goes to the scene query slot.
+reg0 = a player value selected by an ASCII code: 'd'(100) gold, 'f'(102) player level (base_stats.level + 1), 'g'(103) fodder in the barn bin (g_farmMonsterMng+252), 'h'(104) level of skill arg1, 'i'(105) stone, 'j'(106) compost, 'k'(107) highest level among the 40 skills; any other code 0-39 = that skill's level. Other codes leave reg0 = 0.
 
 Args:
-  0. variable
+  0. variable code
      - `100` = Gold
      - `102` = ArmorDef
      - `103` = FarmTameCount
@@ -10024,7 +10134,7 @@ Args:
      - `105` = Stone
      - `106` = Compost
      - `107` = MaxSkillLevel
-  1. skill id
+  1. skill id (only for 'h')
      - `0` = Short Sword
      - `1` = Long Sword
      - `2` = Spear
@@ -10064,10 +10174,10 @@ Args:
      - `36` = Leadership
      - `37` = Bartering
 
-### `op 418` — QueryBackpackHasOccupiedSlot()
+### `op 418` — QueryBackpackHasRoom()
 *handler:* `Script_VMOp_QueryBackpackHasOccupiedSlot`
 
-Read 1 iff the player's backpack has at least one occupied slot (holds any item) into the VM output. No args.
+reg0 = 1 if the backpack has at least one EMPTY slot within its current capacity (15/30/45/60 from Inventory_GetPageSlotCount), else 0. No args.
 
 ### `op 419` — QueryBackpackHasFreeSlot()
 *handler:* `Script_VMOp_QueryBackpackOrEquipFirstFreeSlot`
@@ -10082,26 +10192,26 @@ Read 1 iff the player's backpack has at least [N] free slots into the VM output 
 Args:
   0. min free slots
 
-### `op 426` — IsExtrasSlotFull()
+### `op 426` — IsPlayerHoldingItem()
 *handler:* `Script_VMOp_QueryEquipExtrasSlot24Occupied`
 
-Read 1 iff the player's equip-extras slot (the single extra/accessory slot at inventory +24) currently holds at least one of a valid item. Writes the boolean to the VM output so a script can test whether that slot is occupied before offering to fill it. Takes no arguments.
+reg0 = 1 if the player's carried-item slot (record 0 of the equipment block, g_itemDatabase->ptr_00 + 24) holds an item. No args.
 
 ### `op 431` — HasItem(item id, min count, min quality)
 *handler:* `Script_VMOp_QueryItemAvailableInBackpackOrEquipExtras`
 
-Query whether the player owns at least [count] of an item at quality >= [quality], searching the backpack + equip-extras slot. Main output = 1 if found, else 0; the second output = a per-slot flag bit of the matched slot. arg2 quality is 1-based (pass 0 to accept any quality). The classic 'do you have N of item X?' dialogue gate.
+reg0 = 1 if the backpack (60 slots), the carried item or equipment record 1 holds item arg0 with count >= arg1 and level byte + 1 >= arg2 (0 or -1 = any level). reg2 (not reg1) = bit 0 of the matched slot's flags byte (+2).
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. min count
-  2. min quality (0=any)
+  2. min quality (<= 0 = any)
 
 ### `op 432` — CheckCropPlantable(seed item id)
 *handler:* `Script_VMOp_QueryCropPlantableAndTileInfo`
 
-Check whether a seed can be planted on the tile the player is on, and read tile info. arg0 = seed item id. Outputs: main = plantable this season (1/0; Turnip Seed [39] is always plantable in Spring), then the tile's yield/pattern value, the crop sub-type, and a 'regrowing crop' flag. Gates the 'plant this here?' farming dialogue.
+Look up seed item arg0's crop row (item metadata data_10 -> rf3CropParam row, 108 bytes) - no tile is inspected. reg0 = 1 if the current season's bit is set in the row's season mask (high nibble of the word at +104), or if arg0 == 39 and it is spring; reg1 = sum of the row's first four bytes (the growth-stage lengths); reg2 = item metadata byte +4 (category); reg3 = item metadata flag (data_10+4 bit 3).
 
 Args:
   0. seed item id
@@ -10142,15 +10252,15 @@ Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 437` — NpcWantsItem(item id, npc)
+### `op 437` — IsItemInCategoryList(item id, category list)
 *handler:* `Script_VMOp_QueryItemInNpcOfferListArchive14850`
 
-Query whether item [arg0] appears in NPC [arg1]'s offer / present list (the gift-preference archive 14850). Main output = 1 if the item is in that NPC's list. Used to gate 'does this NPC want this item?' dialogue.
+reg0 = 1 if item arg0 appears in item-category list (arg1 - 0x8100) of rf3PresentCategory.bin (archive 14850, 21 lists of item ids). The list index is computed as u16(arg1 + 0x7F00), so scripts pass 0x8100 + list index (33024 + k).
 
 Args:
   0. item id
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. npc (char id)
+  1. category list (0x8100 + index)
 
 ### `op 438` — QueryHasItemOfCategory(category id)
 *handler:* `Script_VMOp_QueryBackpackOrEquipHasItemOfCategory`
@@ -10163,7 +10273,7 @@ Args:
 ### `op 440` — GetNpcSpecies(char id)
 *handler:* `Script_VMOp_QueryNpcParamSpeciesByCharId`
 
-Read an NPC/monster's species id from the NPC-parameter data (rf3NpcParam) into the VM output. arg0 = char id. Lets a script tell what species an actor is (e.g. 'is this a monster?').
+reg0 = the signed 16-bit field at +292 of rf3NpcParam record arg0 (archive 14812, 308-byte records). The field is 0 for all 48 villager records and 161-726 for monster records, shared by colour variants.
 
 Args:
   0. char id
@@ -10218,30 +10328,30 @@ Args:
 
 Read the current weather code into the VM output (see SetWeather / op 446 for the code values 0-8). Takes no arguments.
 
-### `op 456` — QueryEquippedItemAttr(equip slot, attribute id)
+### `op 456` — QueryEquippedItemAttr(equip selector, attribute)
 *handler:* `Script_VMOp_QueryEquippedItemAttrByEquipSlot`
 
-Read an equipped item's id + a chosen attribute into the VM output (output slot 0 = item id, slot 1 = attribute value). arg0 = equip slot (0 weapon, 1 shield, 2 head, 3 body, 4 boots, 5 accessory). arg1 = attribute id: 0-8 = enchant-slot effects, 9/10 = upgrade attrs, 11 = base item id, 12 = rune-slot count, 13/14 = rune ids. For upgrade / enchant / appraisal dialogue.
+reg0 = item id of the player's equipment record picked by arg0 (0 -> record 1 weapon/tool, 1 -> record 2 shield, 2 -> record 4, 3 -> record 5, 4 -> record 6 boots, 5 -> record 3), reg1 = attribute arg1: 0-8 = the nine 10-bit enchantment ids (Item_GetEnchantmentSlotId), 9 = Item_AggregateUpgradeAttrA, 10 = Item_AggregateUpgradeAttrB, 11 = Item_GetUpgradeBoundItemId, 12 = payload byte +6, 13 = bits 10-19 of dword +8, 14 = bits 0-9 of dword +8; other values leave reg1 unchanged. A selector outside 0-5 dereferences null.
 
 Args:
-  0. equip slot (0=weapon..5=accessory)
-  1. attribute id
+  0. equip selector (0-5)
+  1. attribute (0-14)
 
-### `op 470` — GetChildFriendLevel(child)
+### `op 470` — GetGuestNpcVariant(npc)
 *handler:* `Script_VMOp_QueryChildFriendshipByteAt1`
 
-Read a child NPC's friendship level (record byte +1) into the VM output. arg0 = child char id (24-47); out-of-range yields 0.
+Return byte +1 of the per-NPC record for char ids 24-47 (g_ChildFriendshipTable, 8 bytes per id) in reg0. That byte is not friendship: Town_BuildDailyGuestNpcRoster writes 4/5/6 for ids 24/25/26 and a random appearance/variant value for guest ids 27-47, and Dialogue_ProcessLineDirective passes it to Dialogue_LoadEventLineWithPortrait as the guest's variant. Out-of-range id reads through a null pointer (no guard).
 
 Args:
-  0. child (char id 24-47)
+  0. npc (char id 24-47)
 
-### `op 471` — GetChildFriendPoints(child)
+### `op 471` — GetChildFriendPoints(npc)
 *handler:* `Script_VMOp_QueryChildFriendshipWordAt4`
 
-Read a child NPC's friendship points (the word at record +4) into the VM output. arg0 = child char id (24-47).
+Return the raw friendship word (+4) of the record for char id 24-47 in reg0 (0 if out of range). The value is level*4 + a 2-bit progress count: Npc_GetFriendshipLevel returns word>>2 (cap 10000) and Npc_GetFriendshipLevelBase returns word&3 for these ids.
 
 Args:
-  0. child (char id 24-47)
+  0. npc (char id 24-47)
 
 ### `op 473` — RollChildDailyPref(child, range)
 *handler:* `Script_VMOp_RollOrGetChildPersistedRandom`
@@ -10263,7 +10373,7 @@ Args:
 ### `op 482` — GetPartyMemberId(slot)
 *handler:* `Script_VMOp_QueryPartyMemberDwordAt8`
 
-Read a party member's identity field (task +8) by slot into the VM output (duplicate of op 481): arg0 = 0 for companion 1, 1 for companion 2. Returns 0 if the slot is empty.
+Read a party member's identity field (task +8) by slot into the VM output: arg0 = 0 for companion 1, 1 for companion 2. Returns 0 if that slot is empty. Used to branch dialogue on who is currently in the party.
 
 Args:
   0. slot (0=companion 1, 1=companion 2)
@@ -10273,23 +10383,23 @@ Args:
 
 Read 1 iff the NPC the player is currently talking to is in the active party (one of the two companion slots). No args. Branch on 'is this NPC traveling with me'.
 
-### `op 490` — QueryMarriagePartnerInParty()
+### `op 490` — QueryDatePartnerAtDateSpot()
 *handler:* `Script_VMOp_QueryMarriagePartnerInPartyAndUnlockAch771`
 
-Read 1 iff your marriage candidate is present in the party for a date/proposal scene (and, if so, unlock the 'met your partner' achievement). No args. Gates the marriage-scene branch.
+reg0 = 1 if your date is here: a companion (or, when companion slot 0 is empty, the script host's actor) with char id < 24, NPC date state 3 (record +52 bits 24-26 == 3, on a date), standing on the map stored in GameFlag REG_DATE_MAP. If that NPC was found through a companion slot, it also writes packed flag / achievement 771. Returns 0 when FLG_NEXT_IS_MAPJUMP_EVENT is set. No args.
 
 ### `op 493` — GetNpcFacingMode()
 *handler:* `Script_VMOp_QueryNpcScriptedFacingModeBits`
 
 Read the CURRENT scene NPC's scripted-facing mode bits (low 2 bits of the facing-mode word at scene_npc+304 -> +450) into the VM output. Takes NO arguments — it always targets the scene's own NPC record (sceneCtx+32), writing 0 if there is none. Counterpart of the mode setter (op 492 family).
 
-### `op 502` — IsCompanionMoving(slot)
+### `op 502` — WaitCompanionSettled(slot)
 *handler:* `Script_VMOp_QueryAnyCompanionStillTransitioning`
 
-1 if any companion is still moving/rotating (blocking poll).
+Blocking wait: while the selected companion(s) are still moving (record +20 bit 0x8) or still turning (record +20 bit 0x800 with actor +158 != +156), the handler returns 1, so the op re-runs next tick. Otherwise it returns 0 and the script continues. Writes no register.
 
 Args:
-  0. slot
+  0. slot (0/1, 2 = both)
      - `0` = Companion 1
      - `1` = Companion 2
      - `2` = Both
@@ -10310,10 +10420,10 @@ Read the daily traveling-visitor (Sakura merchant) data by mode into the VM outp
 Args:
   0. mode (0,1,2,3,9,10)
 
-### `op 552` — GetThrowQueueRemaining(item id)
+### `op 552` — GetSubEventGoalRemaining(item id)
 *handler:* `Script_VMOp_QueryGeneralThrowQueueRemainingByItemId`
 
-Read how many more of item [arg0] are still needed by the dungeon 'throw'/delivery queue (need minus have, floored at 0) into the VM output. The 'how many left to gather?' check.
+reg0 = max(0, count - progress) of the first sub-event goal-queue entry whose target item equals arg0 (0 if that entry's state is 2 or none matches).
 
 Args:
   0. item id
@@ -10324,10 +10434,10 @@ Args:
 
 Read the current scene's four state-machine bytes (scene+540..+543) into the first four VM outputs. Scene-local status bytes a scene script can inspect (byte +541 is the SetSceneScratch byte).
 
-### `op 567` — GetTomorrowsBirthdayNpc()
+### `op 567` — GetTomorrowsCalendarEvent()
 *handler:* `Script_VMOp_QueryTomorrowBirthdayNpcIfNotMet`
 
-Read the char id of the NPC whose birthday is TOMORROW into the VM output (0 if none, or if the reminder for them is already accounted for today). Drives 'don't forget about X's birthday tomorrow!' reminder dialogue.
+reg0 = the calendar event id scheduled for tomorrow, if that event is enabled (bit id set in the calendar-event enable bitmap, dword g_effectAppliedBits+4); else 0. The date is taken as tomorrow only when the hour is 6-23 (before 6:00 it uses today's date). The id comes from the 4-byte records of archive 16340 (season, day -> event id).
 
 ### `op 568` — GetSceneNpc(index)
 *handler:* `Script_VMOp_QuerySceneNpcByIndexAndDirtyBit`
@@ -10337,14 +10447,14 @@ Read a scene NPC's char id into the main VM output — arg0 <= 0 selects the sce
 Args:
   0. index (<=0 = primary, 1-7 = family)
 
-### `op 569` — RankFestivalContestants(contest param 0, contest param 1)
+### `op 569` — RankFestivalContestants(player score part A, player score part B)
 *handler:* `Script_VMOp_QueryTopRankedNpcsFromRoster`
 
-Roll and rank the top 3 festival-contest competitors (friendship-weighted scores, gated by the active festival flag) and write their (npc id, score_lo, score_hi) tuples into the scene result registers (9 dwords at ctx+64..+100) for the contest-results cutscene. arg0/arg1 tune the roster/scoring. (Recategorized flow->query: returns data to the VM.)
+Rank three roster NPCs plus the player for the active festival (REG_FESTA). Scene_BuildNpcRoster picks 3 NPCs and Festival_RollContestCompetitorScores rolls each one's two score parts. The player is the 4th entry (id 0), scored with arg0/arg1. The entries are sorted by the sum of the parts (ties nudged down by 1), and the top three (id, part A, part B) go to reg0..reg8.
 
 Args:
-  0. contest param 0
-  1. contest param 1
+  0. player score part A
+  1. player score part B
 
 ### `op 570` — GetTodaysRequestNpc()
 *handler:* `Script_VMOp_QueryTodayDailyRequestActiveNpcId`
@@ -10377,25 +10487,25 @@ Read the NPC/actor id of scene event #arg0 into the VM output (from the 40-byte-
 Args:
   0. event index
 
-### `op 577` — GetEventParticipants()
+### `op 577` — GetFestivalResults()
 *handler:* `Script_VMOp_QueryCalendarEventParticipantsAndScoreFromArchive16340`
 
-Read the current calendar event's four participants (npc id + day, into the VM outputs) and compute the event's score from the calendar-event archive (16340) into the main output. Empty participant slots are consumed as it scans. Used by festival/event cutscenes to list who took part and how they scored.
+For places 1-4 of the current scene event (u16 ids at scene+376, values at scene+384): reg(2i+1) = id, reg(2i+2) = value. When the id is 0 (the player) and scene+533 bit 0x8 is clear, it broadcasts the player's placement i+1 to the NPCs (Memory_BroadcastEventToNpcsAndApplyPlayerEffect(event, i+1)). reg0 = the event's calendar date (season*100 + day) from archive 16340. There is no computed score.
 
 ### `op 579` — GetSceneEventFlags()
 *handler:* `Script_VMOp_QuerySceneEventFlagsTriplet`
 
 Read the scene's event-state triplet into three VM outputs: a word at scene+546, a byte at scene+543, and a word at scene+548. Scene-event bookkeeping fields.
 
-### `op 580` — GetHeldItemStats()
+### `op 580` — GetGivenItemStats()
 *handler:* `Script_VMOp_QueryHeldItemEffectiveStatsOrCraftRecord`
 
-Read the currently-held item's display stats into the VM outputs (6 values starting at the main output). Weapon/armor: [0] equipped flag, [1] sub-value, [2] equip type, [3] ATK%, [4] DEF% (percentages clamped to +/-100), [5] item id. Any other item: [0] equipped flag, [1] craft tier, [2] a byte field, [3] craft level, [5] item id. Used to render the held-item tooltip inside scripted menus.
+Read stats of the item slot stored at g_currentSceneContext+356, which is the item last thrown or handed to an NPC (written by Throw_DispatchToNpcWithQuestGiftCheck), not the item in the player's hand. For ids 132-317 (equipment), Item_ComputeEffectiveStats gives: reg0 = slot flag bit 0, reg1 = u16 slot+18, reg2 = (slot+2 >> 1) & 7, reg3/reg4 = two stat percentages clamped to +/-100. For other items: reg0 = flag bit 0, reg1 = (dword slot+8 >> 10) & 0x3FF, reg2 = u8 slot+6, reg3 = the craft record's level byte (>99 -> 1). reg5 = item id in both cases.
 
 ### `op 581` — CheckFishRecord(fish size rank)
 *handler:* `Script_VMOp_QueryAndUpdateFishCaughtMaxRank`
 
-Compare a fish's size rank (arg0) against the saved 'largest fish caught' record and update the record if it is bigger. Main output = 0 for a new record (and the record is saved), 2 if it ties the record, 1 if smaller; the previous max is written to the second output. Drives the 'biggest catch!' fishing dialogue.
+Compare arg0 with the saved fish record (high dword of g_fishCaughtBitfield). If arg0 is larger, store it and set reg0 = 0 (new record). Otherwise reg0 = 1 on a tie and 2 if smaller. reg1 = the previous record.
 
 Args:
   0. fish size rank
@@ -10405,46 +10515,44 @@ Args:
 
 Read the saved 'largest fish caught' size rank into the VM output. Read-only counterpart to CheckFishRecord (op 581).
 
-### `op 588` — IsTileObjectActive(item id)
+### `op 588` — IsFurniturePlaced(furniture/tile-object id)
 *handler:* `Script_VMOp_QueryTileObjectActiveByItemId`
 
-Query whether a placed map object (tile object) holding item [arg0] is currently active on the map — searches the 64-slot map-entity registry. Main output = 1 if found, else 0.
+Query whether a furniture tile object with id [arg0] is active anywhere, in any room (it scans all 64 registry slots). reg0 = 1 if found, else 0.
 
 Args:
-  0. item id
-     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  0. furniture/tile-object id
 
-### `op 592` — CanPlaceTileObject(item id)
+### `op 592` — CanPlaceFurnitureInRoom(room id)
 *handler:* `Script_VMOp_QueryTileObjectFreeOrFew`
 
-Query whether there is room for another tile object matching item [arg0] (pass 0 for any): main output = 1 when fewer than 16 of them are currently active. The 'can I place another?' gate.
+Query whether room [arg0] can take another furniture tile object: reg0 = 1 when fewer than 16 are active in that room. arg0 = 0 means the current room.
 
 Args:
-  0. item id (0 = any)
-     - *(enum: 1108 values — use the in-editor picker or the id database)*
+  0. room id (0 = current room)
 
-### `op 618` — IsPickingUpItem()
+### `op 618` — WaitStaffCreditsDone()
 *handler:* `Script_VMOp_QueryActiveItemPickupIcon`
 
-Read 1 if the player is currently mid-item-pickup (the pickup-icon animation task is active), else 0. Lets a script wait out a pickup before continuing.
+Block while the staff-credits task (from op 617) is running: the handler returns 1 while the task's tick is one of the two credits ticks, so the VM re-runs the op every step; it returns 0 (continues) once the task is gone. reg0 is not written. No args.
 
-### `op 619` — QueryNpcAdmireResponse()
+### `op 619` — QueryNpcAcceptsPartyInvite()
 *handler:* `Script_VMOp_QueryAndCacheNpcAdmireResponse`
 
-Read the current interaction NPC's 'admire' reaction into the VM output: 0 = no/reserved, 1 = happy, 2 = excited. Gated by friendship level, story progress, season, and per-NPC conditions; the result is cached so re-queries stay stable. Drives confession / gift-admire dialogue branches. No args.
+Decide whether the current interaction NPC agrees to go out with the player (party invite). reg0 = 1 accept, 0 decline. Declines if: (char < 24) their flag 1451+id is set, or they are tied up in the reserved sub-event; (char 24/25) g_saveConfigFlags bit 6 is set; friendship level < 7 and the hour is outside 6..17; Ventuswill (char 21) before story progress 0x1FF; Doug (char 15) before 0x1A4. Otherwise the answer is cached for the day in npc_record+48 bits 26-27: roll accept with (95 + level/2)% if friendship >= 3, never below 3; Forte (4) always accepts.
 
 ### `op 622` — QueryDifficulty()
 *handler:* `Script_VMOp_QueryDifficultyMode`
 
 Read the current difficulty into the VM output (counterpart of op 621): 0 = Easy, 1 = Normal, 2 = Hard or Hell (indistinguishable at the engine level). No args.
 
-### `op 626` — GetInventoryFlagBit(bit index)
+### `op 626` — GetMazeStageClearedBit(maze stage bit)
 *handler:* `Script_VMOp_QueryPlayerInventoryFlagBit`
 
-Read bit [arg0] of the player's inventory-flags word into the VM output — a generic inventory state-bit test (0 or 1).
+reg0 = bit [arg0] of g_playerInventoryFlags_word. Bits 0-5 are the Sharance Maze stages cleared (0 Garden of Light ... 5 Banquet of Nightmares): the maze menu shows stage i+1 only if bit i is set, and bit 5 gates the 'You completed the Banquet of Nightmares' trophy text.
 
 Args:
-  0. bit index
+  0. maze stage bit (0-5)
 
 ### `op 635` — GetActionTriggerByte(index)
 *handler:* `Script_VMOp_QueryActionTriggerByteByIdx`
@@ -10454,18 +10562,18 @@ Read action-trigger byte [arg0] (index clamped 0-2, from the scene's 3-byte trig
 Args:
   0. index (0-2)
 
-### `op 638` — GetForecasts()
+### `op 638` — GetHarvestReport()
 *handler:* `Script_Query_DailyForecasts`
 
-Roll and read today/tomorrow/day+6 crop & weather forecast icons into four VM outputs (used by the Prince-Points HUD forecast display). Takes no arguments.
+Fill reg0..reg3 with the item ids of the weekly harvest report: reg0 = this week's bumper crop, reg1 = this week's poor crop, reg2/reg3 = next week's bumper/poor crop (the calendar advanced 6 days). Each value is the u16 at +96 of crop-kind record 38..78 in the current map's tile/crop table, chosen by the date-seeded daily RNG. No args.
 
-### `op 644` — GetEffectState(effect id, sub-index / variant)
+### `op 644` — GetPrinceOrderState(order id, sub-index / bit)
 *handler:* `Script_QueryEffectStateById`
 
-Query a town/prince effect's state by id (Effects_QueryById) into the query register. arg1 = sub-index/variant (verified read at argbuf[-5]; usually 0 in shipped scenes).
+reg0 = the state of Prince Point order [arg0]: for ids 0-2 and 29, bit [arg1] of the applied-order bitsets; for shop/license orders (10-28), the unlock bit (12 returns the 2-bit Cooking Bread tier); for storage orders (31+), the current upgrade level read from GameFlags.
 
 Args:
-  0. effect id
+  0. order id
      - `10` = Blossom's Furniture
      - `11` = Lumi's Flower Shop
      - `12` = Cooking Bread tier
@@ -10494,20 +10602,20 @@ Args:
      - `36` = Farm Tool Box upgrade
      - `37` = Closet upgrade
      - `38` = Shipping Box upgrade
-  1. sub-index / variant
+  1. sub-index / bit (usually 0)
 
 ### `op 646` — GetPrinceRank()
 *handler:* `Script_QueryPrinceRank`
 
-Read the current prince rank.
+Read the current prince rank into reg1 (NOT reg0; this handler writes vm+68). No args.
 
-### `op 647` — GetEffectCost(effect id, currency index)
+### `op 647` — GetPrinceOrderCost(order id, currency)
 *handler:* `Script_QueryEffectCostForCurrency`
 
-Read the cost of a town/prince development effect in a given currency into the VM output. arg0 = effect id, arg1 = currency index.
+reg0 = the cost of Prince Point order [arg0]. arg1 is the currency (0 PP, 1 lumber, 2 material stone, 3 gold) for the multi-currency orders (storage 31-38, room/farm expansion 39/40, barns 41-50). For orders with sub-variants it is the sub-index instead: order 0 = festival id (g_ppOrderFestivalCostBySub), order 29 = airship sub (0/1).
 
 Args:
-  0. effect id
+  0. order id
      - `10` = Blossom's Furniture
      - `11` = Lumi's Flower Shop
      - `12` = Cooking Bread tier
@@ -10536,27 +10644,27 @@ Args:
      - `36` = Farm Tool Box upgrade
      - `37` = Closet upgrade
      - `38` = Shipping Box upgrade
-  1. currency index
+  1. currency (0 PP/1 lumber/2 stone/3 gold) or sub-index
 
-### `op 648` — QueryTownDevelopment()
+### `op 648` — GetShippingCompletionPercent()
 *handler:* `Script_QueryTownDevelopmentPercent`
 
-Read the town/shipping development percentage (unique items shipped ÷ total unique × 100, clamped to 100) into the VM output. For progress-gated dialogue ('the town is X% developed'). No args.
+reg0 = shipping-list completion percent: the number of distinct shippable items ever shipped divided by the number of distinct shippable items, times 100, truncated and clamped to 100. Uses the ALL category (index 0) of the sale-records cache. No args.
 
 ### `op 649` — QueryShippingBoxGold()
 *handler:* `Script_VMOp_QueryShippingBoxTotalGold`
 
 Read the total gold value of everything currently in the shipping box into the VM output (capped at 999,999,999). No args. For shipping-total dialogue.
 
-### `op 650` — GetLifetimeCropGold()
+### `op 650` — GetLifetimeShippedGold()
 *handler:* `Script_VMOp_QueryLifetimeShippedGoldCategory0`
 
-Read the player's lifetime shipped-gold total for shipping category 0 (Crops) into the VM output (capped at 2,000,000,000). Takes no arguments.
+reg0 = total gold earned from shipping over the whole save, all categories (sale-records category 0 = the ALL aggregate), capped at 2,000,000,000. No args.
 
-### `op 652` — GetSceneWord348()
+### `op 652` — GetPreviousMapId()
 *handler:* `Script_VMOp_QuerySceneA1Word348`
 
-Read the scene context's state word at offset +348 into the VM output. A scene-local scratch/status value whose meaning depends on the individual scene script.
+reg0 = scene-context word +348, which Npc_OnTalkAction_QueueDialogueCascade sets to the previous g_lastInteractionActionId (the value it also writes to REG_PREV_MAPID) on each scene transition, i.e. the map the player came from. No args.
 
 ### `op 658` — GetSceneWordPair112()
 *handler:* `Script_VMOp_QuerySceneA1WordPair112`
@@ -10593,31 +10701,31 @@ Read save-config settings flag bit 3 (g_saveConfigFlags) into the VM output.
 
 Read the player's rune-medal count into the VM output. Takes no arguments.
 
-### `op 676` — GetConst20()
+### `op 676` — GetMedalGoldRate()
 *handler:* `Script_VMOp_QueryConst20`
 
-Write the constant 20 to the VM output — a fixed capacity/limit sentinel used by a few scripts. Takes no arguments.
+reg0 = 20, the Rune Medal -> gold exchange rate that op 675 applies. The shipped use shows it in the exchange dialogue next to the medal count. No args.
 
-### `op 684` — QuerySaveConfigBitByIdx(config bit index)
+### `op 684` — IsProjectorSceneUnlocked(scene index)
 *handler:* `Script_VMOp_QuerySaveConfigFlagBitByIdx`
 
-Read a save-config settings flag bit by INDEX into the VM output. arg0 = bit index (0..58, spanning a 27-bit + a 32-bit config word). Generic settings read (distinct from the g_saveConfigFlags bit ops 666-673).
+reg0 = unlock bit [arg0] of the system-save scene-memory bitset: bits 0-26 from g_sys_scriptFlagBits0_26, bits 27-58 from g_sys_scriptFlagBits27_58 (bit arg0-27). Used by the Projector memory-playback menu to show which scenes ('Opening', 'Opening 2', 'Enter Vishnal', ...) can be replayed.
 
 Args:
-  0. config bit index
+  0. scene index (0-58)
 
-### `op 686` — GetGlobalScratch()
+### `op 686` — GetFreeLookCameraMode()
 *handler:* `Script_VMOp_QueryGlobalDword302E4`
 
-Read the general-purpose global scratch dword (set by op 685) into the VM output. No args.
+reg0 = the free-look camera control word (see op 685); ActionTask_TickFreeLookCamera resets it to 0 when the camera exits, so scripts can poll for that. No args.
 
-### `op 690` — GetNpcProgressAndProp(npc)
+### `op 690` — GetNpcGivenHat(npc char id)
 *handler:* `Script_VMOp_QueryNpcRecordDword252AndItemId676`
 
-Read an NPC's progress/state value (record +252) into the main VM output, and a derived prop item id (base 676 + an NPC state byte, or 0) into the second output. arg0 = npc char id.
+For NPC [arg0]: reg0 = npc_record+252 dword (nonzero while the NPC has / wears a headgear the player gave them), reg1 = that headgear's item id = 676 + npc_record+256 byte (0 if none; 677+ = Silver Hairpin, Gold Hairpin, Fancy Hat, ...). arg0 = 0 gives 0/0.
 
 Args:
-  0. npc (char id)
+  0. npc char id
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -10651,13 +10759,13 @@ Args:
 
 Read save-config settings flag bit 1 (g_saveConfigFlags) into the VM output.
 
-### `op 695` — QueryMonsterDexBit(monster id)
+### `op 695` — QuerySpouseClearedBit(spouse char id)
 *handler:* `Script_VMOp_QueryMonsterDexBitByMonsterId`
 
-Read 1 iff a monster has been recorded in the monster dex (encountered/tamed) into the VM output. arg0 = monster id. For 'have you seen this monster?' gates.
+Intended: reg0 = bit [arg0] of g_sys_spouseClearedBits (rf4_sys.sav; set by op 620). Actual code (bug): reg0 = g_sys_spouseClearedBits & ((1 << arg0) != 0) = g_sys_spouseClearedBits & 1, so it reads only bit 0 whatever arg0 is (practically always 0).
 
 Args:
-  0. monster id
+  0. spouse char id (ignored, see bug)
 
 ### `op 700` — QueryBackpackHasItem(item id, min quantity, min quality)
 *handler:* `Script_VMOp_QueryBackpackHasItemAtLeastQtyQuality`
@@ -10738,27 +10846,102 @@ Args:
 ### `op 0` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
 
-No-op / padding token -- 4 bytes, no operands. Its dispatch slot is the shared return-0 stub, so it does nothing at runtime. Shipped cutscenes emit it inertly between statements (interspersed padding / alignment). Harmless to keep or delete.
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 76` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
 
 ### `op 272` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
 
-Reserved opcode — bound to a shared no-op stub (a SoLoud bus placeholder). Does nothing and should not appear in real scripts.
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
 
 ### `op 381` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
 
-Stubbed no-op (bound to the shared `return 0;` stub) — a 3DS-era op that does nothing on the PC port. UNLIKE most stub slots, shipped cutscenes DO still emit it (~15x in rf3.mc), so seeing it in a scene is normal, not corruption. Safe to keep or delete.
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
 
 ### `op 388` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
 
-Stubbed no-op (bound to the shared `return 0;` stub) — a 3DS-era op that does nothing on the PC port. Shipped cutscenes still emit it (~5x in rf3.mc), so it is a legitimate (if inert) statement, not corruption. Safe to keep or delete.
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 391` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 491` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 505` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 526` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 533` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 550` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 565` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 583` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 584` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 585` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 586` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 608` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 630` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
+
+### `op 636` — nop()
+*handler:* `BusInstance_SoLoud__vslot_002`
+
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
 
 ### `op 693` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
 
-**No-op stub in the PC port** (ICF-folded `return 0;` with ~379 xrefs in the binary). Bank 292 @0x0888 fires it with args 2..18, 100/101, 221 as if toggling dev flags ('Scenario Clear Flag ON', 'Marriage Flag ON', 'Movie flags OFF', ...), but the actual side-effect was stripped. The dev-menu dialog messages ('Marriage Flag has been set to +ON+') still print, but nothing happens. Was likely a 3DS-era dev-flag setter. Safe to keep, delete, or rewrite -- it does nothing on PC.
+No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.
 
 ## Control opcodes (flow backbone)
 
@@ -10873,7 +11056,7 @@ Scenes bridge to **em.bin** Event-Manager entries via the bridge action opcodes 
 
 These dispatch-table slots carry no author-facing opcode (reserved, removed in the PC port, or table padding):
 
-76, 368, 391, 491, 505, 526, 533, 550, 565, 583, 584, 585, 586, 608, 630, 636, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737
+368, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737
 
 ## Opcode index (by number)
 
@@ -10882,11 +11065,11 @@ Every named action opcode by number (reserved slots omitted; see above).
 | op | mnemonic | op | mnemonic | op | mnemonic |
 |---:|:--|---:|:--|---:|:--|
 | 0 | `nop` | 1 | `SetSceneCtxBit3FromArg` | 2 | `Wait` |
-| 3 | `WaitReset` | 4 | `WaitPlain` | 5 | `ShowNpcBubbleVariant` |
-| 6 | `ShowNpcBubble` | 7 | `ShowNpcBubble` | 8 | `DialogueLine` |
-| 9 | `DialogueLine` | 10 | `SetSpeakerVoice` | 11 | `SetDialogStateBit` |
-| 12 | `BubbleLineV3` | 13 | `BubbleLineV3` | 14 | `BubbleLineV4` |
-| 15 | `ShowSpeakerBubble` | 16 | `SetSpeakerMC` | 17 | `SetSpeakerMC` |
+| 3 | `WaitReset` | 4 | `WaitPlain` | 5 | `ShowPortrait` |
+| 6 | `ShowPortraitWithEmote` | 7 | `ShowPortraitWithEmote` | 8 | `SetSpeakerName` |
+| 9 | `SetSpeakerName` | 10 | `SetSpeakerVoice` | 11 | `SetSpeakerNameVisible` |
+| 12 | `SetSpeakerById` | 13 | `SetSpeakerById` | 14 | `SetSpeakerByIdWithEmote` |
+| 15 | `SetSpeakerByIdWithEmote` | 16 | `SetSpeakerMC` | 17 | `SetSpeakerMC` |
 | 18 | `SetSpeakerVishnal` | 19 | `SetSpeakerVishnal` | 20 | `SetSpeakerClorica` |
 | 21 | `SetSpeakerClorica` | 22 | `SetSpeakerVolkanon` | 23 | `SetSpeakerVolkanon` |
 | 24 | `SetSpeakerForte` | 25 | `SetSpeakerForte` | 26 | `SetSpeakerKiel` |
@@ -10906,209 +11089,214 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 66 | `SetSpeakerSoldier` | 67 | `SetSpeakerSoldier` | 68 | `SetSpeakerEthelberd` |
 | 69 | `SetSpeakerEthelberd` | 70 | `SetSpeakerBarrett` | 71 | `SetSpeakerBarrett` |
 | 72 | `SetSpeakerRaven` | 73 | `SetSpeakerRaven` | 74 | `SetSpeakerTraveler` |
-| 75 | `SetSpeakerTraveler` | 77 | `SetActorFacingAngle` | 78 | `SetActorFacingAngle` |
-| 79 | `SetActorTurnAngle` | 80 | `SetActorTurnAngle` | 81 | `QueryActorMotionState` |
-| 82 | `QueryActorMotionState` | 83 | `CloseDialogueBubbles` | 84 | `SetActorMotionField62` |
-| 85 | `SetActorMotionField56` | 86 | `SetActorMotionField56` | 87 | `SetActorMotionField60` |
-| 88 | `SetActorMotionField60` | 89 | `SetActorMotionMask` | 90 | `SetActorMotionMask` |
-| 91 | `SetSceneBit` | 92 | `EndDialogue` | 93 | `SetDialogueBoxStyle` |
-| 94 | `SetBoxNormal` | 95 | `SetBoxShout` | 96 | `SetBoxThought` |
-| 97 | `SetBoxTrembling` | 98 | `SetDialogueField161` | 99 | `TeleportActor` |
-| 100 | `TeleportActor` | 101 | `PlaceOrFaceActor` | 102 | `PlaceOrFaceActor` |
-| 103 | `TurnActorToAngle` | 104 | `TurnActorToAngle` | 105 | `QueryCalendarEventStub` |
-| 106 | `RotateActorInPlace` | 107 | `TurnActorToFaceTarget` | 108 | `TurnActorToFaceTarget` |
-| 109 | `TurnActorToFaceTarget` | 110 | `FaceEventActor` | 111 | `SetActorRotationRaw` |
-| 112 | `SetActorRotationRaw` | 113 | `QueryActorRotating` | 114 | `QueryActorRotating` |
-| 115 | `MoveActorToTile_LockAI` | 116 | `MoveActorToTile_LockAI` | 117 | `MoveActorToTile_LockAINoFace` |
-| 118 | `MoveActorToTile_LockAINoFace` | 119 | `NpcWalkToTile` | 120 | `NpcWalkToTile` |
-| 121 | `NpcMoveAlt` | 122 | `NpcMoveAlt` | 123 | `MoveActorByOffset` |
-| 124 | `MoveActorByOffset` | 125 | `MoveActorByOffset_InterruptAI` | 126 | `MoveActorByOffset_InterruptAI` |
-| 127 | `MoveActorByOffset_Continue` | 128 | `MoveActorByOffset_Continue` | 129 | `QueryActorAnimBusy` |
-| 130 | `QueryActorAnimBusy` | 131 | `QueryActorBeyondRange` | 132 | `QueryActorBeyondRange` |
-| 133 | `PlayActorAnim` | 134 | `PlayActorAnim` | 135 | `QueryActorTilePosition` |
-| 136 | `QueryActorTilePosition` | 137 | `QueryNpcLoadedAndActive` | 138 | `QueryNpcLoadedAndActive` |
-| 139 | `ApplyEffectToActor` | 140 | `ApplyEffectToActor` | 141 | `SetActorInvulnerable` |
-| 142 | `MoveSceneActorToTile` | 143 | `MoveToCoords` | 144 | `MoveSceneActorStraight` |
-| 145 | `QueryPlayerTurnBusy` | 146 | `EquipItemToPlayer` | 147 | `RestoreDefaultEquip` |
-| 148 | `QueryPlayerFlag40000` | 149 | `PlayerScriptedTalkAnim` | 150 | `TriggerActionAtTile` |
-| 151 | `TriggerActorAttack` | 152 | `WaitPlayerScriptSync` | 153 | `EventSpawnNpc` |
-| 154 | `EventSpawnNpcVariant` | 155 | `EventSpawnNpcFollower` | 156 | `UnregisterEventActor` |
-| 157 | `SpawnMapEntity` | 158 | `SetMapAmbientColor` | 159 | `SwapMapPalette` |
-| 160 | `EventNpcWalkToTile` | 161 | `EventNpcWalkToTilePriority` | 162 | `SetMonsterFacing` |
-| 163 | `FaceEventActorTowardTarget` | 164 | `QueryEventActorMoving` | 165 | `TriggerActionAtEventActor` |
-| 166 | `ApplyEffectToEventActor` | 167 | `EventActorPlayAnim` | 168 | `EventActorResyncAnimFrame` |
-| 169 | `WaitForEventActorReady` | 170 | `SetEventActorSpeedScale` | 171 | `SetEventActorAlpha` |
-| 172 | `EventActorStopAnim` | 173 | `MarkCalendarEventCancelled` | 174 | `AddActorVerticalVelocity` |
-| 175 | `SetEventActorStateWord` | 176 | `SetEventActorGreyscale` | 177 | `EventActorEnterIdle` |
-| 178 | `SetEventActorTargetFacing` | 179 | `QueryEventActorTurning` | 180 | `KillEventActor` |
-| 181 | `DismissEventActor` | 182 | `QueryEventActorTilePosition` | 183 | `SetEntityLevelAndRespawnAI` |
-| 184 | `SetActorScriptedStateBit` | 185 | `PlayActorSplash` | 186 | `SetCameraPosition` |
-| 187 | `ReattachCameraToActor` | 188 | `SnapCameraToPlayer` | 189 | `ResetCameraToPlayer` |
-| 190 | `SetCameraTarget` | 191 | `ResetCameraToActor` | 192 | `ResetCameraToActor` |
-| 193 | `SetCameraAnchorToPlayer` | 194 | `FocusCameraOnPlayer` | 195 | `WaitCameraAtMark` |
-| 196 | `QueryPlayerMovedBeyondSnapshot` | 197 | `ShakeCamera` | 198 | `WaitForPlayerEffect` |
-| 199 | `SetCameraTargetActor` | 200 | `SetCameraTargetActor` | 201 | `SetCameraSettleMode` |
-| 202 | `SetCameraZoom` | 203 | `SetCameraMapBounds` | 204 | `SleepInBed` |
-| 205 | `RefreshMapTiles` | 206 | `CancelNpcPathOrEquipMainhand` | 207 | `CancelNpcPathOrEquipMainhand` |
-| 208 | `HandOrDropItem` | 209 | `GiveOrDropItem` | 210 | `AttachItemVisual` |
-| 211 | `StopActorAnim` | 212 | `StopActorAnim` | 213 | `GetPlayerPosition` |
-| 214 | `SetNpcStoryFlag` | 215 | `ClearNpcStoryFlag` | 216 | `QueryNpcInCurrentArea` |
-| 217 | `ApplyFriendshipDelta` | 218 | `QueryNpcFriendshipLevel` | 219 | `QueryNpcFriendshipLevel` |
-| 220 | `QueryAllNpcsFriendship` | 221 | `AdjustCurrentNpcFriendship` | 222 | `LockNpcPose` |
-| 223 | `SetNpcEngaged` | 224 | `SetNpcEngaged` | 225 | `StreamInNpc` |
-| 226 | `QueryNpcScheduleId` | 227 | `QueryNpcScheduleIsOneOf` | 228 | `QueryNpcScheduleIsOneOf` |
-| 229 | `QueryNpcAvailableFlagClear` | 230 | `ReleaseNpcLocks` | 231 | `ReleaseNpcLocks` |
-| 232 | `QueryNpcHidden` | 233 | `HideNpc` | 234 | `HideNpc` |
-| 235 | `QueryNpcSeenToggle` | 236 | `QueryNpcInteractEligible` | 237 | `QueryNpcPairInteraction` |
-| 238 | `QueryQuestNpcsAvailable` | 239 | `QueryQuestNpcsAvailable` | 240 | `QueryNpcGroupPresentNearby` |
-| 241 | `QueryNpcGroupPresentNearby` | 242 | `SetSceneFlag0x200` | 243 | `EndDialogueLock` |
-| 244 | `NpcShowItem` | 245 | `QueryGiftAffinity` | 246 | `StreamInNpcAtTile` |
-| 247 | `QueryTileFacingTarget` | 248 | `SetNpcVisibleFlag` | 249 | `SetNpcVisibleFlag` |
-| 250 | `SyncActorAnimFrame` | 251 | `SyncActorAnimFrame` | 252 | `SetActorAnimSpeedScale` |
-| 253 | `SetActorAnimSpeedScale` | 254 | `SetActorAnimFrameDirect` | 255 | `QueryEntityActionStatus` |
-| 256 | `SetActorStatusConditions` | 257 | `QueryAllNpcsEligibleForComment` | 258 | `QueryAllNpcsEligibleForComment` |
-| 259 | `QueryNpcRosterPresence` | 260 | `QueryActorHpWellness` | 261 | `SetNpcParticipationFlag` |
-| 262 | `QueryCurrentInteractionNpc` | 263 | `RespawnNpcAtSchedulePos` | 264 | `RespawnNpcAtSchedulePos` |
-| 265 | `QueryPlayerDeadOrCompanionScripted` | 266 | `SetOrClearNpcSchedule` | 267 | `SetOrClearNpcSchedule` |
-| 268 | `QueryNpcArrivedAtSchedule` | 269 | `QueryNpcArrivedAtSchedule` | 270 | `RefreshNpcSchedule` |
-| 271 | `RefreshNpcSchedule` | 272 | `nop` | 273 | `QueryNpcPresent` |
-| 274 | `QueryNpcPresent` | 275 | `SetNpcPresenceState` | 276 | `QueryNpcModelId` |
-| 277 | `QueryNpcModelId` | 278 | `QueryNpcFavoriteItem` | 279 | `QueryNpcFavoriteItem` |
-| 280 | `QueryNpcDateState` | 281 | `SetNpcDateState` | 282 | `QueryNpcActorPresent` |
-| 283 | `QueryCompanionNpcId` | 284 | `MountActor` | 285 | `SetSceneReadyFlag` |
-| 286 | `ShakeActor` | 287 | `SetNpcOutfit` | 288 | `QueryNpcActorStateWord` |
-| 289 | `CarryBaby` | 290 | `PostFamilyMilestones` | 291 | `SpawnChildEventRecords` |
-| 292 | `CommitMarriage` | 293 | `ResetNpcDailySchedule` | 294 | `ResetNpcDailySchedule` |
-| 295 | `ResetNpcScheduleWithState` | 296 | `ApplyNpcScheduleState` | 297 | `ApplyNpcScheduleState` |
-| 298 | `ApplyPendingNpcPlan` | 299 | `ApplyPendingNpcPlan` | 300 | `AdvanceDay` |
-| 301 | `RefreshNpcScheduleForToday` | 302 | `SetNpcActionDelay` | 303 | `SetNpcActionDelay` |
-| 304 | `GetMinute` | 305 | `GetSeason` | 306 | `GetDay` |
-| 307 | `GetMonthSeason` | 308 | `GetDateSnapshot` | 309 | `IsFrey` |
-| 310 | `QueryPlayerIsLest` | 311 | `HealPartyFull` | 312 | `HealPartyByShift` |
-| 313 | `RestorePlayerRP` | 314 | `CurePartyStatus` | 315 | `QueueNpcGreetingEvent` |
-| 316 | `SetNpcVisible` | 317 | `SetNpcVisibility` | 318 | `SetFlag` |
-| 319 | `SetEmote` | 320 | `SetNpcEmoteByte` | 321 | `GetEmote` |
-| 322 | `SetMood` | 323 | `SetNpcMoodByte` | 324 | `GetMood` |
-| 325 | `GetLumber` | 326 | `ModifyLumber` | 327 | `SetActorOutfitVariant` |
-| 328 | `PlayActorTransform` | 329 | `IsPosing` | 330 | `SetOutfitDirect` |
-| 331 | `SetActorOutfitDirect` | 332 | `PlayScriptedBeat` | 333 | `BeginBeat2` |
-| 334 | `FadeScreen` | 335 | `FadeScreenToClear` | 336 | `SetFadeColor` |
-| 337 | `WaitForFade` | 338 | `CheckNpcSchedule` | 339 | `GetNpcSchedule` |
-| 340 | `SetVar0` | 341 | `SetVar0` | 342 | `GetVar0` |
-| 343 | `SetVar1` | 344 | `GetVar1` | 345 | `SetVar11` |
-| 346 | `GetVar11` | 347 | `SetVar2` | 348 | `SetVar2` |
-| 349 | `SetVar3` | 350 | `GetVar3` | 351 | `SetVar4` |
-| 352 | `GetVar4` | 353 | `SetVar5` | 354 | `GetVar5` |
-| 355 | `SetVar6` | 356 | `GetVar6` | 357 | `SetVar7` |
-| 358 | `GetVar7` | 359 | `SetVar8` | 360 | `GetVar8` |
-| 361 | `SetVar9` | 362 | `GetNpcBirthdayMonthAndDay` | 363 | `GetEventMonthOrBirthFlag` |
-| 364 | `SetVar10` | 365 | `SetVar15` | 366 | `SetVar13` |
-| 367 | `GetVar14` | 369 | `QueryPlayerCanInteract` | 370 | `SetSceneStateBit1` |
-| 371 | `EvalCondScriptA` | 372 | `EvalCondScriptB` | 373 | `DispatchCondScriptEntry` |
-| 374 | `CondScriptDispatchAltAction` | 375 | `TriggerWorldAction` | 376 | `BeginShopkeeperInteraction` |
-| 377 | `ConsumeInteractionResult` | 378 | `ConsumeInteractionResult` | 379 | `PlayMusic` |
-| 380 | `StopMusic` | 381 | `nop` | 382 | `SetSfxVolume` |
-| 383 | `SetSfxDuckingBypass` | 384 | `ResetSfxScratch` | 385 | `PlaySound` |
-| 386 | `StopVoices` | 387 | `PlaySfxWithNpcRemap` | 388 | `nop` |
-| 389 | `FindVoiceSlot` | 390 | `StopVoiceId` | 392 | `PlayVoicedSound` |
-| 393 | `FreezePlayer` | 394 | `WarpPlayer` | 395 | `SetPlayerPose` |
-| 396 | `SetPlayerFacingAndPose` | 397 | `SetPartyOutfit` | 398 | `QueryUnusedPoses` |
-| 399 | `GetPlayerSubstate` | 400 | `SetPlayerMale` | 401 | `MonsterFarmSpawn` |
-| 402 | `SendMonsterToFarmOrClearFlags` | 403 | `GetMonsterRosterAbsent` | 404 | `GetMonsterRosterPresent` |
-| 405 | `SetMonsterFarmLovedToday` | 406 | `GetMonsterFarmLovedToday` | 407 | `QueryActiveKillCount` |
-| 408 | `CountLivingEnemies` | 409 | `CountTamedFarmMonsters` | 410 | `TameEventMonster` |
-| 411 | `QueryCompanionMonsterData` | 412 | `BlackScreen` | 413 | `SetDialogueState8` |
-| 414 | `GetChoiceIndexAndItem` | 415 | `SetDialogueFlag4Bit2` | 416 | `QueryPlayerVariable` |
-| 417 | `ModifyPlayerResource` | 418 | `QueryBackpackHasOccupiedSlot` | 419 | `QueryBackpackHasFreeSlot` |
-| 420 | `QueryBackpackFreeSlots` | 421 | `SetupPendingInteraction` | 422 | `SetupPendingInteractionV2` |
-| 423 | `GiveItem` | 424 | `GivePlayerItem` | 425 | `ForcePlayerHoldItem` |
-| 426 | `IsExtrasSlotFull` | 427 | `MaxWeaponSkills` | 428 | `TakeItem` |
-| 429 | `TakeItemFromBackpack` | 430 | `ConsumeHeldItem` | 431 | `HasItem` |
-| 432 | `CheckCropPlantable` | 433 | `QueryFishSizeRecords` | 434 | `GetItemGoldValue` |
-| 435 | `GetItemBuyPrice` | 436 | `IsItemStackable` | 437 | `NpcWantsItem` |
-| 438 | `QueryHasItemOfCategory` | 439 | `ReleaseFarmMonster` | 440 | `GetNpcSpecies` |
-| 441 | `QueryConfirmButton` | 442 | `QueryStickInputActive` | 443 | `SetFlagBit` |
-| 444 | `SetFlagBitIfCond` | 445 | `GetFlagBit` | 446 | `SetWeather` |
-| 447 | `GetWeather` | 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` |
-| 450 | `GetWeatherStreak` | 451 | `GetDayOfWeek` | 452 | `SpawnItemAtTile` |
-| 453 | `DropStagedItem` | 454 | `SpawnItemVisual` | 455 | `DespawnItemVisuals` |
-| 456 | `QueryEquippedItemAttr` | 457 | `ShowRewardPopup` | 458 | `ShowQuestReward` |
-| 459 | `ShowRewardPopupAtTile` | 460 | `AddRewardItem` | 461 | `SuppressRewardJingle` |
-| 462 | `GrantFestivalRewards` | 463 | `DropItem` | 464 | `DropItemStack` |
-| 465 | `SetCalendarPauseFlag` | 466 | `SkipToTime` | 467 | `SetTime` |
-| 468 | `FastForwardCalendar` | 469 | `SetOrAddCalendarDate` | 470 | `GetChildFriendLevel` |
-| 471 | `GetChildFriendPoints` | 472 | `SetChildGrowthValue` | 473 | `RollChildDailyPref` |
-| 474 | `SetEventLeadNpc` | 475 | `SetNpcStateByte` | 476 | `SpawnNpc` |
-| 477 | `StreamInNpcAtPlayer` | 478 | `SpawnNpcScripted` | 479 | `StreamNpcAtPlayer` |
-| 480 | `WakeSceneNpcChild` | 481 | `GetPartyMemberId` | 482 | `GetPartyMemberId` |
-| 483 | `SyncCompanions` | 484 | `SyncBothCompanions` | 485 | `SyncBothCompanionsWithFlags` |
-| 486 | `SyncCompanionByCharId` | 487 | `QueryCurrentNpcInParty` | 488 | `SetCompanionScriptedPresence` |
-| 489 | `SetCompanionMetFlag` | 490 | `QueryMarriagePartnerInParty` | 492 | `FaceNpcToPlayer` |
-| 493 | `GetNpcFacingMode` | 494 | `SetCompanionInvulnerable` | 495 | `WarpCompanion` |
+| 75 | `SetSpeakerTraveler` | 76 | `nop` | 77 | `SlidePortraitToX` |
+| 78 | `SlidePortraitToX` | 79 | `SlidePortraitBy` | 80 | `SlidePortraitBy` |
+| 81 | `WaitPortraitSettled` | 82 | `WaitPortraitSettled` | 83 | `ClosePortraits` |
+| 84 | `SetPortraitField62` | 85 | `SetPortraitTargetY` | 86 | `SetPortraitTargetY` |
+| 87 | `JoltPortraitY` | 88 | `JoltPortraitY` | 89 | `SetPortraitTremble` |
+| 90 | `SetPortraitTremble` | 91 | `SetSceneBit` | 92 | `EndDialogue` |
+| 93 | `SetDialogueBoxStyle` | 94 | `SetBoxNormal` | 95 | `SetBoxShout` |
+| 96 | `SetBoxThought` | 97 | `SetBoxTrembling` | 98 | `ShakeDialogueBox` |
+| 99 | `TeleportActor` | 100 | `TeleportActor` | 101 | `PlaceActorAndFace` |
+| 102 | `PlaceActorAndFace` | 103 | `TurnActorToAngle` | 104 | `TurnActorToAngle` |
+| 105 | `QueryCalendarEventStub` | 106 | `RotateActorInPlace` | 107 | `TurnActorToFaceTarget` |
+| 108 | `TurnActorToFaceTarget` | 109 | `TurnActorToFaceTarget` | 110 | `FaceEventActor` |
+| 111 | `SetActorAuxYaw` | 112 | `SetActorAuxYaw` | 113 | `WaitActorAuxYaw` |
+| 114 | `WaitActorAuxYaw` | 115 | `MoveActorToTile_LockAI` | 116 | `MoveActorToTile_LockAI` |
+| 117 | `MoveActorToTileFaceTravel` | 118 | `MoveActorToTileFaceTravel` | 119 | `MoveActorToTileKeepFacing` |
+| 120 | `MoveActorToTileKeepFacing` | 121 | `MoveNpcToTileKeepAnim` | 122 | `MoveNpcToTileKeepAnim` |
+| 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` | 125 | `MoveActorByOffsetFaceTravel` |
+| 126 | `MoveActorByOffsetFaceTravel` | 127 | `MoveActorByOffsetKeepFacing` | 128 | `MoveActorByOffsetKeepFacing` |
+| 129 | `QueryActorMoveBusy` | 130 | `QueryActorMoveBusy` | 131 | `QueryActorBeyondRange` |
+| 132 | `QueryActorBeyondRange` | 133 | `PlayActorAnim` | 134 | `PlayActorAnim` |
+| 135 | `QueryActorTilePosition` | 136 | `QueryActorTilePosition` | 137 | `QueryActorAnimBusy` |
+| 138 | `QueryActorAnimBusy` | 139 | `ApplyEffectToActor` | 140 | `ApplyEffectToActor` |
+| 141 | `SetActorOpacity` | 142 | `MoveSceneActorToTile` | 143 | `MoveSceneActorToTileFaceTravel` |
+| 144 | `MoveSceneActorStraight` | 145 | `QueryPlayerTurnBusy` | 146 | `EquipItemToPlayer` |
+| 147 | `RestoreDefaultEquip` | 148 | `QueryPlayerFlag40000` | 149 | `PlayerScriptedTalkAnim` |
+| 150 | `TriggerActionAtTile` | 151 | `TriggerActionOnActor` | 152 | `QueryPlayerAnimBusy` |
+| 153 | `EventSpawnNpc` | 154 | `EventSpawnNpcVariant` | 155 | `EventSpawnNpcEx` |
+| 156 | `UnregisterEventActor` | 157 | `SpawnMapEntity` | 158 | `SetMapAmbientColor` |
+| 159 | `SwapMapPalette` | 160 | `EventNpcWalkToTile` | 161 | `EventNpcWalkToTileKeepFacing` |
+| 162 | `SetEventActorFacing` | 163 | `FaceEventActorTowardTarget` | 164 | `QueryEventActorMoving` |
+| 165 | `TriggerActionAtEventActor` | 166 | `ApplyEffectToEventActor` | 167 | `EventActorPlayAnim` |
+| 168 | `EventActorResyncAnimFrame` | 169 | `QueryEventActorAnimBusy` | 170 | `SetEventActorAnimSpeed` |
+| 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` | 173 | `SetEventActorInScriptFlag` |
+| 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` | 176 | `SetEventActorScale` |
+| 177 | `EventActorEnterIdle` | 178 | `SetEventActorTurnAngle` | 179 | `QueryEventActorTurning` |
+| 180 | `KillEventActor` | 181 | `DismissEventActor` | 182 | `QueryEventActorTilePosition` |
+| 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` | 185 | `PlayActorSplash` |
+| 186 | `SetCameraPosition` | 187 | `ReattachCameraToActor` | 188 | `HoldCameraInPlace` |
+| 189 | `ResetCameraToPlayer` | 190 | `SetCameraTarget` | 191 | `ResetCameraToActor` |
+| 192 | `ResetCameraToActor` | 193 | `SetCameraTargetToCurrentPosition` | 194 | `FocusCameraOnPlayer` |
+| 195 | `WaitCameraAtMark` | 196 | `QueryCameraBeyondRangeOfTarget` | 197 | `ShakeCamera` |
+| 198 | `WaitForPlayerEffect` | 199 | `SetCameraTargetActor` | 200 | `SetCameraTargetActor` |
+| 201 | `SetCameraSettleMode` | 202 | `SetCameraZoom` | 203 | `SetCameraMapBounds` |
+| 204 | `SleepInBed` | 205 | `RefreshMapTiles` | 206 | `SetActorHeldItem` |
+| 207 | `SetActorHeldItem` | 208 | `HandOrDropItem` | 209 | `HandOrDropItem` |
+| 210 | `AttachItemVisual` | 211 | `ShowActorEmote` | 212 | `ShowActorEmote` |
+| 213 | `GetPlayerPosition` | 214 | `SetNpcStoryFlag` | 215 | `ClearNpcStoryFlag` |
+| 216 | `QueryNpcInCurrentArea` | 217 | `ApplyFriendshipDelta` | 218 | `QueryNpcFriendshipLevel` |
+| 219 | `QueryNpcFriendshipLevel` | 220 | `QueryAllNpcsFriendship` | 221 | `AdjustCurrentNpcFriendship` |
+| 222 | `LockNpcPose` | 223 | `SetNpcEngaged` | 224 | `SetNpcEngaged` |
+| 225 | `StreamInNpc` | 226 | `QueryNpcScheduleId` | 227 | `QueryNpcScheduleIsOneOf` |
+| 228 | `QueryNpcScheduleIsOneOf` | 229 | `QueryNpcAvailableFlagClear` | 230 | `SetSceneCast` |
+| 231 | `SetSceneCast` | 232 | `QueryNpcHidden` | 233 | `HideNpc` |
+| 234 | `HideNpc` | 235 | `QueryNpcSeenToggle` | 236 | `QueryNpcInteractEligible` |
+| 237 | `QueryNpcPairInteraction` | 238 | `QueryQuestNpcsAvailable` | 239 | `QueryQuestNpcsAvailable` |
+| 240 | `QueryNpcGroupPresentNearby` | 241 | `QueryNpcGroupPresentNearby` | 242 | `SetSceneFlag0x200` |
+| 243 | `EndDialogueLock` | 244 | `NpcShowItem` | 245 | `QueryGiftAffinity` |
+| 246 | `StreamInNpcAtTile` | 247 | `QueryTileFacingTarget` | 248 | `SetNpcVisibleFlag` |
+| 249 | `SetNpcVisibleFlag` | 250 | `SyncActorAnimFrame` | 251 | `SyncActorAnimFrame` |
+| 252 | `SetActorAnimSpeedScale` | 253 | `SetActorAnimSpeedScale` | 254 | `SetActorAnimFrameDirect` |
+| 255 | `QueryActorAilmentState` | 256 | `SetActorStatusConditions` | 257 | `QueryAllNpcsEligibleForComment` |
+| 258 | `QueryAllNpcsEligibleForComment` | 259 | `PickRandomVillagers` | 260 | `QueryActorHpWellness` |
+| 261 | `SetNpcParticipationFlag` | 262 | `QueryCurrentInteractionNpc` | 263 | `ResetNpcToIdle` |
+| 264 | `ResetNpcToIdle` | 265 | `QueryPlayerOrCompanionDowned` | 266 | `SetOrClearNpcSchedule` |
+| 267 | `SetOrClearNpcSchedule` | 268 | `QueryNpcArrivedAtSchedule` | 269 | `QueryNpcArrivedAtSchedule` |
+| 270 | `ReleaseNpcScriptedPlacement` | 271 | `ReleaseNpcScriptedPlacement` | 272 | `nop` |
+| 273 | `QueryNpcPresent` | 274 | `QueryNpcPresent` | 275 | `SetNpcPresenceState` |
+| 276 | `QueryNpcHeldItem` | 277 | `QueryNpcHeldItem` | 278 | `QueryNpcFavoriteItem` |
+| 279 | `QueryNpcFavoriteItem` | 280 | `QueryNpcDateState` | 281 | `SetNpcDateState` |
+| 282 | `QueryNpcActorPresent` | 283 | `QueryDateCompanionId` | 284 | `MountActor` |
+| 285 | `SetSceneReadyFlag` | 286 | `ShakeActor` | 287 | `SetNpcOutfit` |
+| 288 | `QueryNpcOutfit` | 289 | `CarryBaby` | 290 | `PostFamilyMilestones` |
+| 291 | `SpawnChildEventRecords` | 292 | `CommitMarriage` | 293 | `ResetNpcDailySchedule` |
+| 294 | `ResetNpcDailySchedule` | 295 | `ResetNpcScheduleWithState` | 296 | `ApplyNpcScheduleState` |
+| 297 | `ApplyNpcScheduleState` | 298 | `ApplyPendingNpcPlan` | 299 | `ApplyPendingNpcPlan` |
+| 300 | `ResetAllNpcSchedules` | 301 | `RefreshNpcScheduleForToday` | 302 | `SetNpcActionDelay` |
+| 303 | `SetNpcActionDelay` | 304 | `GetYear` | 305 | `GetSeason` |
+| 306 | `GetDay` | 307 | `GetHourMinute` | 308 | `GetDateSnapshot` |
+| 309 | `IsFrey` | 310 | `QueryPlayerIsLest` | 311 | `HealPartyFull` |
+| 312 | `HealPartyByShift` | 313 | `RestorePlayerRP` | 314 | `CurePartyStatus` |
+| 315 | `QueueNpcGreetingEvent` | 316 | `SetNpcVisible` | 317 | `SetNpcVisible` |
+| 318 | `SetFlag` | 319 | `SetEmote` | 320 | `SetEmote` |
+| 321 | `GetEmote` | 322 | `SetMood` | 323 | `SetMood` |
+| 324 | `GetMood` | 325 | `GetLumber` | 326 | `ModifyLumber` |
+| 327 | `EndActorTransformAndSetOutfit` | 328 | `EndActorTransformAndSetOutfit` | 329 | `IsPosing` |
+| 330 | `SetActorOutfitDirect` | 331 | `SetActorOutfitDirect` | 332 | `WarpToMap` |
+| 333 | `WarpToMapInSubEvent` | 334 | `FadeScreen` | 335 | `FadeScreenToClear` |
+| 336 | `SetFadeColor` | 337 | `WaitForFade` | 338 | `QueryNpcOnPlayerMap` |
+| 339 | `GetNpcCurrentMap` | 340 | `SetVar0` | 341 | `SetVar0` |
+| 342 | `GetVar0` | 343 | `SetVar1` | 344 | `GetVar1` |
+| 345 | `SetVar11` | 346 | `GetVar11` | 347 | `SetVar2` |
+| 348 | `SetVar2` | 349 | `SetVar3` | 350 | `GetVar3` |
+| 351 | `SetVar4` | 352 | `GetVar4` | 353 | `SetVar5` |
+| 354 | `GetVar5` | 355 | `SetVar6` | 356 | `GetVar6` |
+| 357 | `SetVar7` | 358 | `GetVar7` | 359 | `SetVar8` |
+| 360 | `GetVar8` | 361 | `SetVar9` | 362 | `GetFestivalDate` |
+| 363 | `GetNpcBirthday` | 364 | `SetVar10` | 365 | `SetVar15` |
+| 366 | `SetVar13And14` | 367 | `GetVar14` | 369 | `TryMountPlayerOnHostActor` |
+| 370 | `SetSceneStateBit1` | 371 | `EvalCondScriptA` | 372 | `EvalCondScriptB` |
+| 373 | `DispatchCondScriptEntry` | 374 | `CondScriptDispatchAltAction` | 375 | `TriggerWorldAction` |
+| 376 | `BeginShopkeeperInteraction` | 377 | `ConsumeInteractionResult` | 378 | `ConsumeInteractionResult` |
+| 379 | `PlayMusic` | 380 | `StopMusic` | 381 | `nop` |
+| 382 | `FadeMusicVolume` | 383 | `SetMusicLock` | 384 | `ResetMusicResumePositions` |
+| 385 | `PlaySound` | 386 | `StopVoices` | 387 | `PlaySfxWithNpcRemap` |
+| 388 | `nop` | 389 | `SetPooledVoiceVolume` | 390 | `StopVoiceId` |
+| 391 | `nop` | 392 | `PlayVoicedSound` | 393 | `FreezePlayer` |
+| 394 | `WarpPlayer` | 395 | `SetPlayerFacingAndPose` | 396 | `SetPlayerFacingAndPose` |
+| 397 | `SetPartyOutfit` | 398 | `BuildOutfitChoiceMask` | 399 | `GetPlayerSubstate` |
+| 400 | `SetPlayerMale` | 401 | `SendMonsterToFarmArea` | 402 | `RecallFarmMonster` |
+| 403 | `GetFreeFarmAreas` | 404 | `GetOccupiedFarmAreas` | 405 | `SetFarmMonsterPlantOrder` |
+| 406 | `GetFarmMonsterPlantOrder` | 407 | `QueryActiveKillCount` | 408 | `CountLivingEnemies` |
+| 409 | `CountTamedFarmMonsters` | 410 | `TameEventMonster` | 411 | `QueryCompanionMonsterData` |
+| 412 | `BlackScreen` | 413 | `SetDialogueBoxY` | 414 | `GetChoiceIndexAndItem` |
+| 415 | `SetDialogueFlag4Bit2` | 416 | `QueryPlayerVariable` | 417 | `ModifyPlayerResource` |
+| 418 | `QueryBackpackHasRoom` | 419 | `QueryBackpackHasFreeSlot` | 420 | `QueryBackpackFreeSlots` |
+| 421 | `SetNextItemAttributes` | 422 | `SetNextItemAttributesPacked` | 423 | `GivePlayerItem` |
+| 424 | `GivePlayerItem` | 425 | `ForcePlayerHoldItem` | 426 | `IsPlayerHoldingItem` |
+| 427 | `MaxWeaponSkills` | 428 | `TakeItem` | 429 | `TakeItemFromBackpack` |
+| 430 | `ConsumeHeldItem` | 431 | `HasItem` | 432 | `CheckCropPlantable` |
+| 433 | `QueryFishSizeRecords` | 434 | `GetItemGoldValue` | 435 | `GetItemBuyPrice` |
+| 436 | `IsItemStackable` | 437 | `IsItemInCategoryList` | 438 | `QueryHasItemOfCategory` |
+| 439 | `ReleaseFarmMonster` | 440 | `GetNpcSpecies` | 441 | `QueryConfirmButton` |
+| 442 | `QueryStickInputActive` | 443 | `SetFlagBit` | 444 | `SetFlagBitIfCond` |
+| 445 | `GetFlagBit` | 446 | `SetWeather` | 447 | `GetWeather` |
+| 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` | 450 | `GetWeatherStreak` |
+| 451 | `GetDayOfWeek` | 452 | `SpawnItemAtTile` | 453 | `DropStagedItem` |
+| 454 | `SpawnItemVisual` | 455 | `DespawnItemVisuals` | 456 | `QueryEquippedItemAttr` |
+| 457 | `ShowRewardPopup` | 458 | `ShowQuestReward` | 459 | `ShowRewardPopupAtTile` |
+| 460 | `AddRewardItem` | 461 | `SuppressRewardJingle` | 462 | `GrantFestivalRewards` |
+| 463 | `DropItem` | 464 | `DropItemStack` | 465 | `SetCalendarPauseFlag` |
+| 466 | `SkipToTime` | 467 | `SetTime` | 468 | `FastForwardCalendar` |
+| 469 | `SetOrAddCalendarDate` | 470 | `GetGuestNpcVariant` | 471 | `GetChildFriendPoints` |
+| 472 | `SetGuestNpcSubVariant` | 473 | `RollChildDailyPref` | 474 | `SetGuestRosterGate` |
+| 475 | `SetNpcStateByte` | 476 | `RecruitNpcToParty` | 477 | `RecruitNpcToParty` |
+| 478 | `RecruitNpcToPartyHeld` | 479 | `RecruitNpcToPartyHeld` | 480 | `RecruitHostNpcToParty` |
+| 481 | `GetPartyMemberId` | 482 | `GetPartyMemberId` | 483 | `DismissBothCompanions` |
+| 484 | `DismissBothCompanionsQuiet` | 485 | `DismissBothCompanionsEx` | 486 | `DismissCompanionByCharId` |
+| 487 | `QueryCurrentNpcInParty` | 488 | `SetCompanionScriptedPresence` | 489 | `SetCompanionsSceneHeld` |
+| 490 | `QueryDatePartnerAtDateSpot` | 491 | `nop` | 492 | `FaceNpcToPlayer` |
+| 493 | `GetNpcFacingMode` | 494 | `SetCompanionVisible` | 495 | `WarpCompanion` |
 | 496 | `MoveCompanion` | 497 | `MoveCompanionNF` | 498 | `MoveCompanionRel` |
 | 499 | `MoveCompanionRelNF` | 500 | `SetCompanionPose` | 501 | `CompanionFaceTarget` |
-| 502 | `IsCompanionMoving` | 503 | `StopCompanionAnim` | 504 | `QueryPartyMemberTileY` |
-| 506 | `WarpMonstersToPlayer` | 507 | `PopulateNpcQuestRequest` | 508 | `PopulateQuestKind2RandomAlts` |
-| 509 | `PopulateQuestKind2RandomAlts` | 510 | `PopulateQuestKind2WithLiteralAlternates` | 511 | `PopulateQuestKind3TwoItemsRandomCats` |
-| 512 | `PopulateQuestKind3TwoItemsRandomCats` | 513 | `PopulateQuestKind4ChainedRandom` | 514 | `PopulateQuestKind4ChainedRandom` |
-| 515 | `PopulateQuestKind4Byte4_1LiteralAlts` | 516 | `PopulateQuestKind5SimpleNoAlts` | 517 | `PopulateQuestKind5SimpleNoAlts` |
-| 518 | `PopulateQuestKind6TwoArgsNoItem` | 519 | `PopulateQuestKind7CraftRecipeExpose` | 520 | `PostQuestGoalNumber` |
-| 521 | `PopulateQuestKind9BackrefLiteralAlts` | 522 | `PopulateQuestKind10BackrefRandomCats` | 523 | `PopulateQuestKind10BackrefLiteralAlts` |
-| 524 | `CommitThrowQueue` | 525 | `QuestOnComplete` | 527 | `AdvanceRng` |
-| 528 | `QueryQuestRewardItem` | 529 | `ClearQuestRewardTemplates` | 530 | `CommitQuestAcceptance` |
-| 531 | `QuestSceneTeardown` | 532 | `QueryNpcQuestPreview` | 534 | `GetDailyVisitor` |
-| 535 | `QueryQuestRemainingByItem` | 536 | `RequestBoxFirstSubmit` | 537 | `PopulateQuestKind2WithRandomCats` |
-| 538 | `PopulateQuestKind2WithRandomCats` | 539 | `PopulateQuestKind3TwoItemsRandomCats` | 540 | `PopulateQuestKind3TwoItemsRandomCats` |
-| 541 | `PopulateQuestKind4ChainedRandom` | 542 | `PopulateQuestKind4ChainedRandom` | 543 | `PopulateQuestKind5SimpleNoAlts` |
-| 544 | `PopulateQuestKind5SimpleNoAlts` | 545 | `PopulateQuestKind6TwoArgsNoItem` | 546 | `PopulateQuestKind7CraftRecipeExpose` |
-| 547 | `PopulateQuestKind10BackrefRandomCats` | 548 | `CommitThrowQueue` | 549 | `RequestBoxClaimFinalize` |
-| 551 | `ResetThrowQueue` | 552 | `GetThrowQueueRemaining` | 553 | `SetNpcScriptedPresence` |
-| 554 | `SetNpcScriptedPresence` | 555 | `SetNpcBubbleFlavor` | 556 | `SetNpcBubbleFlavor` |
-| 557 | `SetNpcRecognitionFlags` | 558 | `SetNpcRecognitionFlags` | 559 | `StartFestivalContest` |
-| 560 | `StageSceneNpcs` | 561 | `GetSceneStateBytes` | 562 | `RefreshSceneNpcs` |
-| 563 | `EquipScriptedWeapon` | 564 | `RemoveScriptedWeapon` | 566 | `AdvanceStoryMilestone` |
-| 567 | `GetTomorrowsBirthdayNpc` | 568 | `GetSceneNpc` | 569 | `RankFestivalContestants` |
-| 570 | `GetTodaysRequestNpc` | 571 | `SetSceneScratch` | 572 | `GetSceneScratchByte` |
-| 573 | `GetFestivalPlacements` | 574 | `ShuffleSceneBuffer` | 575 | `GetShuffleValue` |
-| 576 | `GetSceneEventNpc` | 577 | `GetEventParticipants` | 578 | `SpawnEventMonsters` |
-| 579 | `GetSceneEventFlags` | 580 | `GetHeldItemStats` | 581 | `CheckFishRecord` |
-| 582 | `GetFishRecord` | 587 | `GiveTileObject` | 588 | `IsTileObjectActive` |
-| 589 | `PlayerPickUpObject` | 590 | `OpenRequestBox` | 591 | `ClearAllTileObjects` |
-| 592 | `CanPlaceTileObject` | 593 | `PickRandomTileObject` | 594 | `CommitGrabbedObject` |
+| 502 | `WaitCompanionSettled` | 503 | `ShowCompanionEmote` | 504 | `QueryPartyMemberTileY` |
+| 505 | `nop` | 506 | `WarpMonstersToPlayer` | 507 | `PopulateSlayRequest` |
+| 508 | `PopulateQuestKind2RandomRewards` | 509 | `PopulateQuestKind2RandomRewards` | 510 | `PopulateQuestKind2LiteralRewards` |
+| 511 | `PopulateQuestKind3RandomRewards` | 512 | `PopulateQuestKind3RandomRewards` | 513 | `PopulateQuestKind4RandomRewards` |
+| 514 | `PopulateQuestKind4RandomRewards` | 515 | `PopulateQuestKind4LiteralRewards` | 516 | `PostBoardQuestKind5` |
+| 517 | `PostBoardQuestKind5` | 518 | `PostBoardQuestKind6` | 519 | `PostBoardCraftQuest` |
+| 520 | `PostQuestGoalNumber` | 521 | `PopulateQuestKind9LiteralRewards` | 522 | `PopulateQuestKind10RandomRewards` |
+| 523 | `PopulateQuestKind10LiteralRewards` | 524 | `NopCompleteSubEventGoals` | 525 | `QuestOnComplete` |
+| 526 | `nop` | 527 | `AdvanceRng` | 528 | `QueryQuestRewardItem` |
+| 529 | `ClearAllRequestRecords` | 530 | `CommitQuestAcceptance` | 531 | `ClearBoardRequest` |
+| 532 | `QueryNpcQuestPreview` | 533 | `nop` | 534 | `GetDailyVisitor` |
+| 535 | `QueryQuestRemainingByItem` | 536 | `StartReservedSubEvent` | 537 | `QueueSubEventGoalKind2` |
+| 538 | `QueueSubEventGoalKind2` | 539 | `QueueSubEventGoalKind3` | 540 | `QueueSubEventGoalKind3` |
+| 541 | `QueueSubEventGoalKind4` | 542 | `QueueSubEventGoalKind4` | 543 | `QueueSubEventGoalKind5` |
+| 544 | `QueueSubEventGoalKind5` | 545 | `QueueSubEventGoalKind6` | 546 | `QueueSubEventCraftGoal` |
+| 547 | `QueueSubEventGoalKind10` | 548 | `CompleteAllSubEventGoals` | 549 | `FinishCurrentSubEvent` |
+| 550 | `nop` | 551 | `ResetSubEventGoals` | 552 | `GetSubEventGoalRemaining` |
+| 553 | `SetNpcSubEventFlag` | 554 | `SetNpcSubEventFlag` | 555 | `SetNpcAttentionRadius` |
+| 556 | `SetNpcAttentionRadius` | 557 | `SetNpcRecognitionFlags` | 558 | `SetNpcRecognitionFlags` |
+| 559 | `StartFestivalContest` | 560 | `StageSceneNpcs` | 561 | `GetSceneStateBytes` |
+| 562 | `RefreshSceneNpcs` | 563 | `EquipScriptedWeapon` | 564 | `RemoveScriptedWeapon` |
+| 565 | `nop` | 566 | `RecordFestivalPlacement` | 567 | `GetTomorrowsCalendarEvent` |
+| 568 | `GetSceneNpc` | 569 | `RankFestivalContestants` | 570 | `GetTodaysRequestNpc` |
+| 571 | `SetSceneScratch` | 572 | `GetSceneScratchByte` | 573 | `GetFestivalPlacements` |
+| 574 | `ShuffleSceneBuffer` | 575 | `GetShuffleValue` | 576 | `GetSceneEventNpc` |
+| 577 | `GetFestivalResults` | 578 | `SpawnEventMonsters` | 579 | `GetSceneEventFlags` |
+| 580 | `GetGivenItemStats` | 581 | `CheckFishRecord` | 582 | `GetFishRecord` |
+| 583 | `nop` | 584 | `nop` | 585 | `nop` |
+| 586 | `nop` | 587 | `PlaceFurniture` | 588 | `IsFurniturePlaced` |
+| 589 | `PlayerPickUpObject` | 590 | `BreakFurnitureIntoMaterials` | 591 | `ClearAllTileObjects` |
+| 592 | `CanPlaceFurnitureInRoom` | 593 | `PickRandomPlacedFurniture` | 594 | `CommitGrabbedObject` |
 | 595 | `SetMinimapMarker` | 596 | `RollUniformIntegerLessThanN` | 597 | `RollShopCategoryItemReturnId` |
-| 598 | `RollRandomItemMatchingDisplayName` | 599 | `LootRollGenericFromTable` | 600 | `RollRandomShopItem` |
-| 601 | `RollRandomRingItemIdInTier` | 602 | `RollRandomTurnipFamilyItemIdInTier` | 603 | `ShopRollByCategoryRange` |
-| 604 | `RollRandomMineralOrIngredientItemIdInTier` | 605 | `RollRandomFilteredItem` | 606 | `RollThreeFlowerItemsAvoidDup` |
-| 607 | `RollRandomItemByLookupBytemask28` | 609 | `RollRandomPointInRadiusAroundCenter` | 610 | `SetChoiceVisibleMask` |
-| 611 | `ClearChoiceVisibleRange` | 612 | `SetChoiceVisibleBit` | 613 | `CalcChoicePrescroll` |
-| 614 | `SetDialogueSpeaker` | 615 | `ArmChoiceOption` | 616 | `QueryAndSetCraftedFlag` |
-| 617 | `ShowCreditsOverlay` | 618 | `IsPickingUpItem` | 619 | `QueryNpcAdmireResponse` |
-| 620 | `UnlockMonsterDex` | 621 | `SetDifficulty` | 622 | `QueryDifficulty` |
-| 623 | `SetDialogueAutoAdvance` | 624 | `SetDialogueHoldFrames` | 625 | `BeginDungeonArea` |
-| 626 | `GetInventoryFlagBit` | 627 | `SleepToMorning` | 628 | `SetRegisters` |
-| 629 | `SetRegisters` | 631 | `RollSeededHashByMode16` | 632 | `RollSeededDailyRandom` |
-| 633 | `ResetActionEventId` | 634 | `SetActionTriggerByte` | 635 | `GetActionTriggerByte` |
-| 637 | `SaveCalendarSnapshot` | 638 | `GetForecasts` | 639 | `GetPrincePoints` |
+| 598 | `RollRandomItemMatchingDisplayName` | 599 | `RollRandomDishItem` | 600 | `RollRandomEquipmentItem` |
+| 601 | `RollRandomFurItem` | 602 | `RollRandomMedicineOrFailedDish` | 603 | `RollRandomGrassItem` |
+| 604 | `RollRandomIngredientItem` | 605 | `RollRandomSeasoningItem` | 606 | `RollThreeFlowerItemsAvoidDup` |
+| 607 | `RollRandomFlowerSeedItem` | 608 | `nop` | 609 | `RollRandomPointInRadiusAroundCenter` |
+| 610 | `SetChoiceVisibleMask` | 611 | `ClearChoiceVisibleRange` | 612 | `SetChoiceVisibleBit` |
+| 613 | `CalcChoicePrescroll` | 614 | `SetDialogueBoxMode` | 615 | `ArmChoiceOption` |
+| 616 | `QueryAndSetCraftedFlag` | 617 | `ShowStaffCredits` | 618 | `WaitStaffCreditsDone` |
+| 619 | `QueryNpcAcceptsPartyInvite` | 620 | `MarkSpouseCleared` | 621 | `SetDifficulty` |
+| 622 | `QueryDifficulty` | 623 | `SetDialogueAutoAdvance` | 624 | `SetDialogueHoldFrames` |
+| 625 | `EnterSharanceMazeStage` | 626 | `GetMazeStageClearedBit` | 627 | `JumpToRandomDate` |
+| 628 | `SetRegisters` | 629 | `SetRegisters` | 630 | `nop` |
+| 631 | `RollSeededHashByMode16` | 632 | `RollSeededDailyRandom` | 633 | `ResetActionEventId` |
+| 634 | `SetActionTriggerByte` | 635 | `GetActionTriggerByte` | 636 | `nop` |
+| 637 | `SaveCalendarSnapshot` | 638 | `GetHarvestReport` | 639 | `GetPrincePoints` |
 | 640 | `AddPrincePoints` | 641 | `GetTourists` | 642 | `AddTourists` |
-| 643 | `TriggerEffect` | 644 | `GetEffectState` | 645 | `PromotePrinceRank` |
-| 646 | `GetPrinceRank` | 647 | `GetEffectCost` | 648 | `QueryTownDevelopment` |
-| 649 | `QueryShippingBoxGold` | 650 | `GetLifetimeCropGold` | 651 | `AdvanceStoryProgress` |
-| 652 | `GetSceneWord348` | 653 | `ClearShopSelectionA` | 654 | `ClearShopSelectionB` |
+| 643 | `ApplyPrinceOrder` | 644 | `GetPrinceOrderState` | 645 | `PromotePrinceRank` |
+| 646 | `GetPrinceRank` | 647 | `GetPrinceOrderCost` | 648 | `GetShippingCompletionPercent` |
+| 649 | `QueryShippingBoxGold` | 650 | `GetLifetimeShippedGold` | 651 | `AdvanceStoryProgress` |
+| 652 | `GetPreviousMapId` | 653 | `ClearShopSelectionA` | 654 | `ClearShopSelectionB` |
 | 655 | `ClearShopSelectionC` | 656 | `SetMapScrollSpeedX` | 657 | `SetMapScrollSpeedY` |
 | 658 | `GetSceneWordPair112` | 659 | `MyShopAction` | 660 | `SetActorStatusFlag` |
-| 661 | `SetActorStatFlagRecompute` | 662 | `SetActorArmorBreak` | 663 | `DisableActorHpRegen` |
+| 661 | `SetActorStatFlagRecompute` | 662 | `SetActorArmorBreak` | 663 | `MakeActorUntameable` |
 | 664 | `LockActorMaxSp` | 665 | `SetActorFacing` | 666 | `QuerySaveConfigBit0` |
 | 667 | `SetSaveConfigBit0` | 668 | `QuerySaveConfigBit4` | 669 | `SetSaveConfigBit4` |
 | 670 | `QuerySaveConfigBit5` | 671 | `SetSaveConfigBit5` | 672 | `QuerySaveConfigBit2` |
 | 673 | `QuerySaveConfigBit3` | 674 | `GetRuneMedals` | 675 | `ConvertMedalsToGold` |
-| 676 | `GetConst20` | 677 | `SpawnTileEffectObject` | 678 | `ClearTileAttribsInRect` |
-| 679 | `IncrementPlayerSkillLevel` | 680 | `ApplyAttackToPlayer` | 681 | `LootRollByCategoryForPlayer` |
-| 682 | `SetSceneFlag400` | 683 | `PlayCutsceneVideo` | 684 | `QuerySaveConfigBitByIdx` |
-| 685 | `SetGlobalScratch` | 686 | `GetGlobalScratch` | 687 | `RebuildMinimap` |
-| 688 | `ToggleMinimap` | 689 | `ResetMonsterSpawns` | 690 | `GetNpcProgressAndProp` |
-| 691 | `MultiplyValues` | 692 | `OnFirstMarriageAccepted` | 693 | `nop` |
-| 694 | `QuerySaveConfigBit1` | 695 | `QueryMonsterDexBit` | 696 | `RemoveItemFromBackpack` |
-| 697 | `ReturnToTitle` | 698 | `SetShopkeeperMessage` | 699 | `SetDialogueSpeakerIf` |
+| 676 | `GetMedalGoldRate` | 677 | `SpawnTileEffectObject` | 678 | `ClearTileAttribsInRect` |
+| 679 | `IncrementPlayerSkillLevel` | 680 | `ApplyAttackToPlayer` | 681 | `RollBreadRecipe` |
+| 682 | `SetSceneFlag400` | 683 | `PlayCutsceneVideo` | 684 | `IsProjectorSceneUnlocked` |
+| 685 | `SetFreeLookCameraMode` | 686 | `GetFreeLookCameraMode` | 687 | `RebuildMinimap` |
+| 688 | `ToggleMinimap` | 689 | `RespawnRoomFurnitureVisuals` | 690 | `GetNpcGivenHat` |
+| 691 | `MultiplyValues` | 692 | `FinishPendingDate` | 693 | `nop` |
+| 694 | `QuerySaveConfigBit1` | 695 | `QuerySpouseClearedBit` | 696 | `RemoveItemFromBackpack` |
+| 697 | `ReturnToTitle` | 698 | `SetShopkeeperMessage` | 699 | `SetNarrationModeIf` |
 | 700 | `QueryBackpackHasItem` | 701 | `SetPlayerSkillXp` | 738 | `NpcAction_Kind0_LieDownToSleep` |
 | 739 | `Npc_TickWanderBehavior` | 740 | `NpcAction_PlayKindIdleAnim` | 741 | `NpcAction_PlayKindIdleAnim` |
 | 742 | `NpcAction_PlayKindIdleAnim` | 743 | `NpcAction_PlayKindIdleAnim` | 744 | `NpcAction_PlayKindIdleAnim` |

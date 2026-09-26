@@ -83,7 +83,7 @@ def scene_summary(sc):
 
 def op_from_name(name):
     """Opcode number for a curated mnemonic (case-insensitive), or None. Lets the editor
-    accept an op by name (e.g. 'GiveItem') instead of a raw number."""
+    accept an op by name (e.g. 'GivePlayerItem') instead of a raw number."""
     return meta.op_from_mnemonic(name)
 
 
