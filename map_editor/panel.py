@@ -26,7 +26,7 @@ from .inspector import Inspector
 from .tabs import FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, ObjectsTab, ProblemsTab, ViewTab
 from .view import MapView
 
-TABS = ("Inspect", "Objects", "Map", "Encounters", "View", "Problems")
+TABS = ("View", "Inspect", "Objects", "Map", "Encounters", "Problems")
 _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos": "gen"}
 _KIND_NAME = {"mobj": "entity", "warp": "warp", "si": "search spot", "gpos": "gate position",
               "mpos": "monster spawn point"}
@@ -85,9 +85,10 @@ class MapEditorPanel:
         self.encounters = EncountersTab(self.nb, self)
         self.viewtab = ViewTab(self.nb, self)
         self.problems = ProblemsTab(self.nb, self)
-        for w, t in zip((self.inspector, self.objects, self.maptab, self.encounters, self.viewtab,
+        for w, t in zip((self.viewtab, self.inspector, self.objects, self.maptab, self.encounters,
                          self.problems), TABS):
             self.nb.add(w, text=t)
+        self.show_tab("View")                   # the editor opens on the View tab
         self.nb.bind("<<NotebookTabChanged>>", lambda _e: self._tab_changed())
         self.view.on_zoom = self._update_chrome
         self.view.st.layers = self.viewtab.layers()
@@ -758,7 +759,7 @@ class MapEditorPanel:
         g = LAYER_GROUPS[key]
         if g == "bg":
             self.view.invalidate("bg")
-        elif key == "truesize":                 # sprites under the ATTR fill: its opacity changes
+        elif key == "sprites":                  # sprites under the ATTR fill: its opacity changes
             self.view.invalidate("bg", g, "sel")
         else:
             self.view.invalidate(g, "sel")
@@ -1122,14 +1123,14 @@ class MapEditorPanel:
             d.grid, self.view.colors, st.cp, self.view.ground_image(block=True),
             attr_on=st.layers.get("attr", True), alpha=self.view.attr_alpha,
             edges_on=st.layers.get("edges", True), attr_version=d.attr_version,
-            under=bool(st.layers.get("truesize")))
-        # the canvas stacking: ground, true-size sprites, ATTR, the other overlays
+            under=bool(st.layers.get("sprites")))
+        # the canvas stacking: ground, sprites, ATTR, the other overlays
         img = ground.copy() if ground is not None else Image.new("RGBA", (W * st.cp, H * st.cp), (0, 0, 0, 0))
-        img = render.draw_prims(img, render.overlay("under", st), st.sprites, st.truesprites)
+        img = render.draw_prims(img, render.overlay("under", st), st.sprites)
         if top is not None:
             img = Image.alpha_composite(img, top)
         prims = [p for g in render.GROUPS if g not in ("sel", "under") for p in render.overlay(g, st)]
-        return render.draw_prims(img, prims, st.sprites, st.truesprites)
+        return render.draw_prims(img, prims, st.sprites)
 
     def export_png(self):
         img = self.render_to_image()

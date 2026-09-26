@@ -7815,7 +7815,10 @@ def test_sprite_quads_and_flags():
     root, panel, errs = _headless_panel("MAP_CITY_04", B, med.folder_reader(B))
     try:
         st = panel.view.st
-        for k in ("truesize",):
+        _check("editor: View is the first sidebar tab and the one open when the editor loads",
+               panel.nb.tab(panel.nb.tabs()[0], "text") == "View"
+               and panel.nb.tab(panel.nb.select(), "text") == "View")
+        for k in ("sprites",):
             panel.viewtab.vars[k].set(True)
             panel.set_layer(k, True)
         kinds = lambda: {p.key[1]: p.kind for g in ("ent", "under") for p in mrender.overlay(g, st)
@@ -7824,12 +7827,12 @@ def test_sprite_quads_and_flags():
         red = lambda: [p for p in mrender.overlay("ent", st)
                        if p.key == ("mobj", 14) and p.opt.get("outline") == mrender.BORDER_COLOR]
         had = bool(red())
-        panel.set_layer("tborders", False)
+        panel.set_layer("sprite_borders", False)
         gone_off = not red()
-        panel.set_layer("tborders", True)
+        panel.set_layer("sprite_borders", True)
         wall_red = any(p.key == ("mobj", 15) and p.opt.get("outline") == mrender.BORDER_COLOR
                        for p in mrender.overlay("ent", st))
-        _check("editor: 'sprite borders' draws a red border around a true-size sprite, the "
+        _check("editor: 'sprite borders' draws a red border around a full-size sprite, the "
                "transparent clear wall included (and can be turned off)", had and gone_off and wall_red)
         st.flags = None
         k0 = kinds()
@@ -7837,9 +7840,9 @@ def test_sprite_quads_and_flags():
         k1 = kinds()
         st.flags = state(74)
         k2 = kinds()
-        _check("editor: bridge + wall drawn true-size; flag 73 turns the bridge into an outline, "
-               "74 the wall", k0 == {14: "tsprite", 15: "tsprite"} and k1 == {14: "rect", 15: "tsprite"}
-               and k2 == {14: "tsprite", 15: "rect"}, "%s %s %s" % (k0, k1, k2))
+        _check("editor: bridge + wall drawn full-size; flag 73 turns the bridge into an outline, "
+               "74 the wall", k0 == {14: "sprite", 15: "sprite"} and k1 == {14: "rect", 15: "sprite"}
+               and k2 == {14: "sprite", 15: "rect"}, "%s %s %s" % (k0, k1, k2))
         st.flags = None
         _v = panel.view
         _v.ground.get_blocking(_v.doc.base, _v.ground_sel, _v.doc.grid[0], _v.doc.grid[1], _v.scenery)
@@ -7849,7 +7852,7 @@ def test_sprite_quads_and_flags():
         pos = {it: n for n, it in enumerate(cv.find_all())}          # display list, bottom first
         low = lambda tag: min((pos[i] for i in cv.find_withtag(tag)), default=None)
         high = lambda tag: max((pos[i] for i in cv.find_withtag(tag)), default=None)
-        _check("editor: true-size sprites sit right above the ground, below the ATTR fill/edges, "
+        _check("editor: full-size sprites sit right above the ground, below the ATTR fill/edges, "
                "the warps and the markers",
                None not in (high("under"), low("attr"), low("warp"), low("ent"))
                and (high("bg") is None or high("bg") < low("under"))
@@ -7868,7 +7871,7 @@ def test_sprite_quads_and_flags():
         v.ground.get_blocking(d0.base, v.ground_sel, d0.grid[0], d0.grid[1], v.scenery)
         v._ground_ready(v.ground_key())
         v.flush()
-        _check("editor: true-size sprites are held back until the ground texture has loaded",
+        _check("editor: full-size sprites are held back until the ground texture has loaded",
                held and not v.ground_pending() and len(cv.find_withtag("under")) > 0)
         spr = {p.key: p.xy for p in mrender.overlay("under", st)}
         spot = None
@@ -7882,7 +7885,7 @@ def test_sprite_quads_and_flags():
             if spot:
                 break
         if spot is None:
-            _skip("editor: warp under a sprite", "no warp overlaps a true-size sprite on MAP_CITY_04")
+            _skip("editor: warp under a sprite", "no warp overlaps a full-size sprite on MAP_CITY_04")
         else:
             j, k2, px, py = spot
 
@@ -7899,17 +7902,38 @@ def test_sprite_quads_and_flags():
                     tool.press(ev)
                     tool.release(ev) if hasattr(tool, "release") else None
                     picked.append(panel.sel)
-            _check("editor: inside a warp that a true-size sprite covers, the warp is picked first; "
+            _check("editor: inside a warp that a full-size sprite covers, the warp is picked first; "
                    "clicking again steps to the sprite",
                    cands and cands[0] == ("warp", j) and k2 in cands
                    and (tool is None or (picked[0] == ("warp", j) and picked[1] != ("warp", j))),
                    "%s picked %s" % (cands, picked))
             if tool is not None:
-                # a fast second click arrives as a double-click: still a cycling click
-                before = panel.sel
-                tool.double(ev)
-                tool.release(ev)
-                fast = panel.sel != before and panel.sel in cands
+                opened = []
+                real_goto = panel.goto_warp
+                panel.goto_warp = lambda jj: opened.append(jj)
+                try:
+                    # double-click where a sprite overlaps the warp: the warp opens
+                    panel.select(k2)
+                    tool.press(ev); tool.release(ev); tool.double(ev); tool.release(ev)
+                    dbl_over = opened == [j]
+                    # double-click on the selected warp: the first click steps away, the double
+                    # brings the warp back and opens it
+                    opened.clear()
+                    panel.select(("warp", j))
+                    tool.press(ev); tool.release(ev); tool.double(ev); tool.release(ev)
+                    dbl_sel = opened == [j] and panel.sel == ("warp", j)
+                    # a fast second click with no warp involved still cycles
+                    opened.clear()
+                    panel.select(k2)
+                    tool.before_cycle = None
+                    before = panel.sel
+                    tool.double(ev); tool.release(ev)
+                    fast = panel.sel != before and panel.sel in cands and not opened
+                finally:
+                    panel.goto_warp = real_goto
+                _check("editor: double-clicking a warp opens it even where a sprite overlaps it, "
+                       "and also when the warp was already selected",
+                       dbl_over and dbl_sel, "overlap %s selected %s" % (dbl_over, dbl_sel))
                 # press on the selection + drag: moves it, never cycles
                 sel0 = panel.sel
                 pos0 = tuple(panel.position_of(sel0))
@@ -7927,13 +7951,13 @@ def test_sprite_quads_and_flags():
         st.sel = ("mobj", 14)
         selp = mrender.overlay("sel", st)
         tr = [p.xy for p in mrender.overlay("under", st) if p.key == ("mobj", 14)]
-        _check("editor: a selected true-size object gets a frame around its sprite, not the circle",
+        _check("editor: a selected full-size object gets a frame around its sprite, not the circle",
                tr and selp and all(p.kind == "rect" for p in selp)
                and any(p.xy == (tr[0][0] - 1, tr[0][1] - 1, tr[0][2] + 1, tr[0][3] + 1) for p in selp),
                "%s / %s" % ([(p.kind, p.xy) for p in selp], tr))
         st.sel = None
         img = panel.render_to_image(scale=4)
-        _check("editor: export draws the true-size sprites without errors",
+        _check("editor: export draws the full-size sprites without errors",
                img is not None and not errs, str(errs[:1]))
     finally:
         root.destroy()

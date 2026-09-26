@@ -72,8 +72,8 @@ class SelectTool(Tool):
     name, label, key, cursor = "select", "Select", "v", ""
     hint = ("Click to select, drag to move (hold Shift for sub-tile precision); click the same "
             "spot again to select the next thing under the pointer (a drag moves the selection "
-            "instead). Drag a selected warp's handles to resize it. Ctrl+click a warp (or "
-            "double-click one with nothing else on top) to open its destination map. Arrow keys nudge the selection by a tile (Shift: 1 sub-unit).")
+            "instead). Drag a selected warp's handles to resize it. Double-click or Ctrl+click a "
+            "warp to open its destination map. Arrow keys nudge the selection by a tile (Shift: 1 sub-unit).")
 
     def __init__(self, ed):
         super().__init__(ed)
@@ -91,6 +91,7 @@ class SelectTool(Tool):
 
     def press(self, e):
         self._reset()
+        self.before_cycle = None    # a new click: forget what the last release stepped from
         self.press_xy = (e.x, e.y)
         ed, doc = self.ed, self.doc
         keys = self.view.keys_at(e)
@@ -184,6 +185,7 @@ class SelectTool(Tool):
             ed = self.ed
             i = cycle.index(ed.sel) + 1 if ed.sel in cycle else 0
             key = cycle[i % len(cycle)]
+            self.before_cycle = ed.sel          # a double-click may want this one back (double)
             if key[0] == "spawn":
                 ed.open_spawn(key[1])
                 return
@@ -214,13 +216,18 @@ class SelectTool(Tool):
             self.ed.context_menu(e, key)
 
     def double(self, e):
-        """Tk sends a fast second click here instead of to press(): it opens the warp's
-        destination when the warp is the only thing under the pointer, otherwise it is an
-        ordinary click (so quick clicks still step through overlapping things)."""
+        """Tk sends a fast second click here instead of to press(). It opens a warp's
+        destination when the double-click is on a warp: the warp that was selected before
+        the first click stepped away from it, or the warp the first click selected -- other
+        objects overlapping the warp do not matter. Otherwise it is an ordinary click, so
+        quick clicks still step through overlapping things."""
         cands = self.view.pick_candidates(e)
-        if len(cands) == 1 and cands[0][0] == "warp":
-            self.ed.goto_warp(cands[0][1])
-            return "break"
+        prev, self.before_cycle = getattr(self, "before_cycle", None), None
+        for k in (prev, self.ed.sel):
+            if k is not None and k[0] == "warp" and k in cands:
+                self.ed.select(k)
+                self.ed.goto_warp(k[1])
+                return "break"
         self.press(e)
         return "break"
 

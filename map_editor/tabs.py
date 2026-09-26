@@ -577,10 +577,10 @@ class EncountersTab(ui.ScrollFrame):
 # --------------------------------------------------------------------------- #
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": False, "labels": False,
-                  "truesize": False, "tborders": True, "mapj": True, "dest": True, "si": True, "gates": True, "spawns": False}
+                  "sprite_borders": True, "mapj": True, "dest": True, "si": True, "gates": True, "spawns": False}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
-                "truesize": "ent", "tborders": "ent", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
+                "sprite_borders": "ent", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
 FLAGS_NONE = "(all objects)"
 FLAGS_LIVE = "the running game"
@@ -609,15 +609,14 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "actor", "actors", 2, 1, attrs.CAT_COLOR["actor"])
         cb(L, "object", "objects", 3, 0, attrs.CAT_COLOR["object"])
         cb(L, "decoration", "decorations", 3, 1, attrs.CAT_COLOR["decoration"])
-        cb(L, "sprites", "draw sprites", 4, 0)
-        cb(L, "labels", "name labels", 4, 1)
-        ui.Tip(cb(L, "truesize", "true-size sprites", 5, 0),
+        ui.Tip(cb(L, "sprites", "draw sprites", 4, 0),
                "Draw each object's sprite where and as large as the game draws it (the texture's "
-               "own quad and crop, scaled by the record's f6), in the game's depth order. "
-               "Objects without such a sprite keep their marker.")
-        ui.Tip(cb(L, "tborders", "sprite borders", 5, 1),
-               "A red border around every true-size sprite, drawn above the ATTR fill, so each "
-               "object's full extent shows even where its art is faint or covered.")
+               "own quad and crop, scaled by the record's f6), in the game's depth order, right on "
+               "the ground. Objects without such a sprite keep their marker.")
+        cb(L, "labels", "name labels", 4, 1)
+        ui.Tip(cb(L, "sprite_borders", "sprite borders", 5, 0),
+               "A red border around every drawn sprite, above the ATTR fill, so each object's "
+               "full extent shows even where its art is faint, invisible or covered.")
         ttk.Label(L, text="Other", font=ui.HINT_FONT).grid(row=6, column=0, columnspan=4, sticky="w", pady=(4, 0))
         cb(L, "mapj", "warps", 7, 0, render.WARP_COLOR)
         cb(L, "dest", "warp destinations", 7, 1)

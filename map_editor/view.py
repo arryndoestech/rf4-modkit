@@ -28,7 +28,6 @@ class ViewState:
         self.active_gate = None
         self.spawns = []
         self.sprites = render.Sprites()
-        self.truesprites = render.TrueSprites()
         self.flags = None                        # flagstate.FlagState the objects are shown for
 
 
@@ -99,8 +98,6 @@ class MapView(ttk.Frame):
             self.ground.reset()
             self.st.sprites.reader = reader
             self.st.sprites.reset()
-            self.st.truesprites.reader = reader
-            self.st.truesprites.reset()
             self._photos.clear()
             self.background.invalidate()
 
@@ -126,7 +123,7 @@ class MapView(ttk.Frame):
 
     def ground_pending(self):
         """True while the ground texture this view will show is still being decoded; the
-        true-size sprites wait for it, so they never pop up on an empty background."""
+        sprites wait for it, so they never pop up on an empty background."""
         d = self.doc
         if d is None or d.grid is None or not render.HAS_PIL or self.ground.reader is None:
             return False
@@ -146,18 +143,18 @@ class MapView(ttk.Frame):
         return self.ground.get(self.ground_key())
 
     def background_layers(self, block=False):
-        """(ground, attr) images; the true-size sprites are drawn between them."""
+        """(ground, attr) images; the sprites are drawn between them."""
         d = self.doc
         L = self.st.layers
         return self.background.layers(
             d.grid, self.colors, self.cp, self.ground_image(block), attr_on=L.get("attr", True),
             alpha=self.attr_alpha, edges_on=L.get("edges", True), attr_version=d.attr_version,
-            under=bool(L.get("truesize")))
+            under=bool(L.get("sprites")))
 
     # ---- redraw scheduling -------------------------------------------------- #
     def invalidate(self, *groups):
         groups = groups or ("bg",) + render.GROUPS
-        if "ent" in groups:                     # the objects' true-size sprites
+        if "ent" in groups:                     # the objects' sprites
             groups += ("under",)
         self._dirty.update(groups)
         if not self._pending:
@@ -234,10 +231,7 @@ class MapView(ttk.Frame):
                 it = c.create_text(*p.xy, text=o["text"], fill=o.get("fill"), font=font,
                                    anchor=o.get("anchor", "center"), tags=tags)
             elif p.kind == "sprite":
-                it = c.create_image(*p.xy, image=self._sprite_photo(o["tid"], o["size"]),
-                                    anchor="s", tags=tags)
-            elif p.kind == "tsprite":
-                ph = self._true_photo(o["fn"], o["frame"], p.xy, o["mirror"])
+                ph = self._sprite_photo(o["fn"], o["frame"], p.xy, o["mirror"])
                 if ph is None:
                     continue
                 it = c.create_image(p.xy[0], p.xy[1], image=ph, anchor="nw", tags=tags)
@@ -246,17 +240,7 @@ class MapView(ttk.Frame):
             if p.key is not None:
                 self._items[it] = p.key
 
-    def _sprite_photo(self, tid, size):
-        key = (tid, size)
-        ph = self._photos.get(key)
-        if ph is None:
-            from PIL import ImageTk
-            ph = self._photos[key] = ImageTk.PhotoImage(self.st.sprites.pil(tid, size))
-            if len(self._photos) > 512:
-                self._photos.pop(next(iter(self._photos)))
-        return ph
-
-    def _true_photo(self, fn, frame, rect, mirror):
+    def _sprite_photo(self, fn, frame, rect, mirror):
         x0, y0, x1, y1 = rect
         w, h = x1 - x0, y1 - y0
         if w * h > MAX_CANVAS_PX * MAX_CANVAS_PX // 4:
@@ -264,7 +248,7 @@ class MapView(ttk.Frame):
         key = ("true", fn, frame, w, h, mirror)
         ph = self._photos.get(key)
         if ph is None:
-            im = self.st.truesprites.pil(fn, frame, w, h, mirror)
+            im = self.st.sprites.pil(fn, frame, w, h, mirror)
             if im is None:
                 return None
             from PIL import ImageTk
@@ -368,7 +352,7 @@ class MapView(ttk.Frame):
     def pick_candidates(self, e, kinds=PICKABLE):
         """Everything a click here can select, in the order a click picks it: precise hits
         (markers, labels, outlines, sprite borders), then the warp zones under the pointer
-        (smallest first), then the insides of true-size sprites -- they lie below the warps
+        (smallest first), then the insides of sprites -- they lie below the warps
         and the ATTR fill, so they are the weakest hit (topmost sprite first)."""
         x, y = self.canvas_xy(e)
         strong, weak = [], []

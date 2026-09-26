@@ -22,14 +22,14 @@ except ImportError:           # the editor still runs, with a plain-rectangle AT
 
 # Overlay groups, bottom to top.
 GROUPS = ("under", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
-# canvas stacking, bottom to top: the ground texture ("bg"), the true-size sprites ("under",
+# canvas stacking, bottom to top: the ground texture ("bg"), the sprites ("under",
 # drawn as the game draws them, so they sit on the ground), the ATTR fill + cell edges
 # ("attr"), then every other overlay group
 STACK = ("bg", "under", "attr") + tuple(g for g in GROUPS if g != "under")
 
 SEL_COLOR = "#00e5ff"
 WARP_COLOR = "#ffd040"
-BORDER_COLOR = "#ff3030"        # the outline of every true-size sprite ("sprite borders")
+BORDER_COLOR = "#ff3030"        # the outline of every sprite ("sprite borders")
 SI_COLOR = "#ffe000"
 GATE_COLOR = "#ff8c1a"
 MPOS_COLOR = "#ff5aa0"
@@ -38,8 +38,8 @@ HANDLES = ("nw", "n", "ne", "w", "e", "sw", "s", "se")
 
 
 class Prim:
-    """One drawable: kind in rect / oval / poly / line / text / sprite / tsprite (a true-size
-    sprite filling its xy rectangle). `key` is the
+    """One drawable: kind in rect / oval / poly / line / text / sprite (an object's sprite
+    filling its xy rectangle, as the game draws it). `key` is the
     selection key the item hit-tests to (None = decoration only)."""
     __slots__ = ("kind", "xy", "opt", "key")
 
@@ -217,7 +217,7 @@ class Background:
     def layers(self, grid, colors, cp, ground, *, attr_on, alpha, edges_on, attr_version,
                under=False):
         """(ground, attr): the scaled ground texture and the ATTR fill + cell edges as a
-        separate RGBA layer (either may be None), so the true-size sprites can be drawn
+        separate RGBA layer (either may be None), so the sprites can be drawn
         between them. The fill takes the ATTR opacity when anything lies beneath it (the
         ground, or sprites when `under`); otherwise it is opaque. Callers must not draw on
         the images."""
@@ -302,64 +302,6 @@ class Background:
 # object sprites
 # --------------------------------------------------------------------------- #
 class Sprites:
-    """type_id -> its map_obj billboard (decoded once), scaled per size on demand."""
-
-    def __init__(self):
-        self.reader = None
-        self._pil = {}
-        self._scaled = OrderedDict()
-
-    def reset(self):
-        self._pil.clear()
-        self._scaled.clear()
-
-    def _name(self, tid):
-        r = self.reader
-        if r is None:
-            return None
-        if tid < mobj_types.FIRST_MAP_OBJ_TYPE:
-            # forage lanes with a fixed gatherable show its crop sprite (ore varies per record)
-            base = {1: "crop_023", 2: "crop_024", 3: "crop_003", 4: "crop_001"}.get(tid)
-            return base + ".texture" if base and r(base + ".texture") is not None else None
-        fn = mobj_types.mobj_filename(tid)
-        if not fn:
-            return None
-        base = fn.split("/")[-1].rsplit(".", 1)[0]
-        for cand in (base + ".texture", "MOBJ_" + base + ".texture"):
-            if r(cand) is not None:
-                return cand
-        return None
-
-    def pil(self, tid, size):
-        """RGBA sprite for type `tid`, longest side `size` px, or None."""
-        if not HAS_PIL:
-            return None
-        key = (tid, size)
-        if key in self._scaled:
-            self._scaled.move_to_end(key)
-            return self._scaled[key]
-        if tid not in self._pil:
-            im = None
-            name = self._name(tid)
-            if name:
-                try:
-                    im = texture.decode_to_image(self.reader(name))
-                    im = im.convert("RGBA") if im is not None else None
-                except Exception:
-                    im = None
-            self._pil[tid] = im
-        src = self._pil[tid]
-        if src is None:
-            return None
-        sc = size / max(src.size[0], src.size[1], 1)
-        im = src.resize((max(1, int(src.size[0] * sc)), max(1, int(src.size[1] * sc))))
-        self._scaled[key] = im
-        while len(self._scaled) > 256:
-            self._scaled.popitem(last=False)
-        return im
-
-
-class TrueSprites:
     """A placed object's sprite as the game draws it: the texture's TextureCoordinator
     crop, sized and offset by its PolygonVertexes quad (rf4s_modkit.spritequad)."""
 
@@ -437,8 +379,8 @@ def entity_visible(o, layers):
     return layers.get(key, True) and not (o["pos_x"] == 0 and o["pos_y"] == 0) and cat != "mapparam"
 
 
-def _true_rect(o, src, cp):
-    """Canvas rectangle a true-size sprite covers (src = TrueSprites.source(o))."""
+def _sprite_rect(o, src, cp):
+    """Canvas rectangle a sprite covers (src = Sprites.source(o))."""
     x0, y0, x1, y1 = (v * cp / 8 for v in spritequad.world_rect(o, src[2]))
     return int(x0), int(y0), int(x1), int(y1)
 
@@ -464,22 +406,20 @@ def overlay(group, st):
                 out.append(Prim("rect", warp_rect_px(rec, cp), key=("warp", j),
                                 outline=WARP_COLOR, width=2))
     elif group == "under":
-        if L.get("truesize") and HAS_PIL:
+        if L.get("sprites") and HAS_PIL:
             flags = getattr(st, "flags", None)
             for i in sorted(range(len(doc.objs)), key=lambda k: spritequad.z_key(doc.objs[k])):
                 o = doc.objs[i]         # the game's depth order: larger z drawn later
                 if not entity_visible(o, L) or flagstate.hidden(o, flags):
                     continue
-                src = st.truesprites.source(o)
+                src = st.sprites.source(o)
                 if src is not None:
-                    out.append(Prim("tsprite", _true_rect(o, src, cp), key=("mobj", i), fn=src[0],
+                    out.append(Prim("sprite", _sprite_rect(o, src, cp), key=("mobj", i), fn=src[0],
                                     frame=src[1], mirror=spritequad.mirrored(o)))
     elif group == "ent":
         r = max(3, cp // 2 + 1)
-        sprites_on = L.get("sprites")
-        true_on = L.get("truesize") and HAS_PIL
+        sprites_on = L.get("sprites") and HAS_PIL
         labels_on = L.get("labels")
-        base = max(12, min(180, int(cp * 3)))
         flags = getattr(st, "flags", None)
         for i, o in enumerate(doc.objs):
             if not entity_visible(o, L):
@@ -487,13 +427,13 @@ def overlay(group, st):
             cx, cy = (o["pos_x"] >> 3) * cp, (o["pos_y"] >> 3) * cp
             tid = o["type_id"] & 0xFFFF
             gone = flagstate.hidden(o, flags)
-            src = st.truesprites.source(o) if true_on else None
+            src = st.sprites.source(o) if sprites_on else None
             if src is not None:             # the sprite itself is in the "under" group
-                rect = _true_rect(o, src, cp)
+                rect = _sprite_rect(o, src, cp)
                 if gone:
                     out.append(Prim("rect", rect, key=("mobj", i), outline="#9a9aa8", width=1,
                                     dash=(4, 3)))
-                elif L.get("tborders", True):   # the sprite's extent (also for invisible walls)
+                elif L.get("sprite_borders", True):   # the sprite's extent (also for invisible walls)
                     out.append(Prim("rect", rect, key=("mobj", i), outline=BORDER_COLOR, width=1))
                 if labels_on:
                     nm = mobj_types.mobj_display_name(tid) or o["category"]
@@ -501,12 +441,9 @@ def overlay(group, st):
                                     text=nm + (" (hidden by flag)" if gone else ""),
                                     fill="#ffe000", size=small, anchor="s"))
                 continue
-            size = max(8, min(256, int(base * (o.get("scale") or 1.0))))
             if gone:
                 out.append(Prim("oval", (cx - r, cy - r, cx + r, cy + r), key=("mobj", i),
                                 outline="#9a9aa8", width=1, dash=(2, 2)))
-            elif sprites_on and st.sprites.pil(tid, size) is not None:
-                out.append(Prim("sprite", (cx, cy), key=("mobj", i), tid=tid, size=size))
             else:
                 out.append(Prim("oval", (cx - r, cy - r, cx + r, cy + r), key=("mobj", i),
                                 fill=attrs.CAT_COLOR.get(o["category"], "#fff"), outline="#000"))
@@ -578,10 +515,10 @@ def _selection(st):
     out = []
     if kind == "mobj" and k < len(doc.objs):
         o = doc.objs[k]
-        src = (st.truesprites.source(o) if st.layers.get("truesize") and HAS_PIL
+        src = (st.sprites.source(o) if st.layers.get("sprites") and HAS_PIL
                and entity_visible(o, st.layers) else None)
-        if src is not None:                 # a frame around the true-size sprite
-            x0, y0, x1, y1 = _true_rect(o, src, cp)
+        if src is not None:                 # a frame around the sprite
+            x0, y0, x1, y1 = _sprite_rect(o, src, cp)
             out.append(Prim("rect", (x0 - 3, y0 - 3, x1 + 3, y1 + 3), outline="#002b33", width=1))
             out.append(Prim("rect", (x0 - 1, y0 - 1, x1 + 1, y1 + 1), outline=SEL_COLOR, width=3))
         elif o["pos_x"] or o["pos_y"]:
@@ -646,7 +583,7 @@ def _rgb(spec):
 _PIL_ANCHOR = {"center": "mm", "s": "ms", "n": "mt", "w": "lm", "e": "rm"}
 
 
-def draw_prims(img, prims, sprites, truesprites=None):
+def draw_prims(img, prims, sprites=None):
     """Draw overlay primitives onto a PIL RGBA image (the export twin of the canvas)."""
     dr = ImageDraw.Draw(img)
     for p in prims:
@@ -670,15 +607,9 @@ def draw_prims(img, prims, sprites, truesprites=None):
                 dr.text(p.xy, o["text"], fill=fill, font=font, anchor=anchor)
             except (TypeError, ValueError):       # bitmap font: no anchor support
                 dr.text(p.xy, o["text"], fill=fill, font=font)
-        elif p.kind == "sprite":
-            sp = sprites.pil(o["tid"], o["size"])
-            if sp is not None:
-                x, y = p.xy
-                img.alpha_composite(sp, (max(0, int(x - sp.width // 2)), max(0, int(y - sp.height))))
-                dr = ImageDraw.Draw(img)
-        elif p.kind == "tsprite" and truesprites is not None:
+        elif p.kind == "sprite" and sprites is not None:
             x0, y0, x1, y1 = p.xy
-            sp = truesprites.pil(o["fn"], o["frame"], x1 - x0, y1 - y0, o["mirror"])
+            sp = sprites.pil(o["fn"], o["frame"], x1 - x0, y1 - y0, o["mirror"])
             if sp is not None:
                 layer = Image.new("RGBA", img.size)
                 layer.paste(sp, (x0, y0))       # paste clips a sprite hanging off the map

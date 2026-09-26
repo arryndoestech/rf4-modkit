@@ -320,22 +320,22 @@ It edits a map **together with its two sidecar files** -- the search-item spots
 across all three.
 
 **Layout.** A toolbar (Save menu, Undo / Redo, tools, zoom, Validate) above the map canvas
-and a sidebar with six tabs:
+and a sidebar with six tabs (it opens on View):
 
 | Tab | What it does |
 |---|---|
+| **View** | layer toggles (ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, encounter points, script NPCs), **draw sprites** (each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity, the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
 | **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, encounter points, script NPCs) and filterable; picking a row selects it and scrolls it into view |
 | **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
 | **Encounters** | the `Gen*.bin`: gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
-| **View** | layer toggles (ATTR fill, cell edges, grid lines, each entity category, object sprites, name labels, warps, warp destinations, search spots, encounter points, script NPCs), **true-size sprites** (each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity, the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Problems** | validation of all three files; selecting an issue selects its object |
 
 **Tools** (toolbar or key while the map has focus):
 
 | Tool | Key | Use |
 |---|---|---|
-| Select | V | click selects (markers and borders first, then warps, then the inside of a true-size sprite; clicking the selection again -- press and release without moving -- steps to the next thing under the pointer), drag moves the selection (whole tiles, keeping the sub-tile offset; hold Shift for free placement); a selected warp shows 8 handles to resize it; Ctrl+click a warp (or double-click one with nothing else on top) opens its destination |
+| Select | V | click selects (markers and borders first, then warps, then the inside of a sprite; clicking the selection again -- press and release without moving -- steps to the next thing under the pointer), drag moves the selection (whole tiles, keeping the sub-tile offset; hold Shift for free placement); a selected warp shows 8 handles to resize it; double-click / Ctrl+click a warp opens its destination (also where other objects overlap it) |
 | Paint | B | paint the ATTR value with a 1-9 tile brush (`[` / `]`); right-click picks a value; Shift+click draws a line from the last painted tile |
 | Fill | G | flood-fill the clicked region, or replace that value on the whole map |
 | Rectangle | R | drag a rectangle and fill it |
