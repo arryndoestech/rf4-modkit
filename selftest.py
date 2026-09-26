@@ -5586,7 +5586,7 @@ def _headless_dialogs():
 
 def test_explorer_tabs():
     """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
-    state. Clicking a file never throws unsaved edits away (it opens a new tab instead);
+    state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
     switching tabs restores each one's data; reopening an open file selects its tab; closing
     a tab with unsaved changes asks; map tabs keep their own editor, and an object copied in
     one map tab pastes into another with the keyboard; a hidden tab's animation waits."""
@@ -5613,11 +5613,15 @@ def test_explorer_tabs():
         app = gui.App(root, initial=str(B))
         ents = {e[0].rsplit("/", 1)[-1]: e for e in app.source.entries}
 
-        def open_(nm, new_tab=False):
-            n, _g, loader = ents[nm]
-            d = app._open_in_tab(app._entry_key(n), n, loader(), new_tab)
+        def open_(nm):
+            # a click in the file list, the way a user opens a file
+            n, _g, _l = ents[nm]
+            i = next(k for k, e in enumerate(app.source.entries) if e[0] == n)
+            app._reveal_entry(i)
+            app._suppress_select = False
+            app._on_select(None)
             root.update_idletasks()
-            return d
+            return app._doc
 
         def title(d):
             return app.tabs.tab(d.frame, "text")
@@ -5627,27 +5631,27 @@ def test_explorer_tabs():
         app.cur_data = orig[:-1] + bytes([orig[-1] ^ 1])       # what an editor's Apply does
         app._refresh_marks()
         b = open_("rf3NpcParam.bin")
-        _check("a click with unsaved changes opens a new tab (the edited one stays, marked •)",
+        _check("a click opens a new tab (the edited one stays, marked •)",
                len(app._docs) == 2 and a is not b and title(a).endswith("•")
                and a.state["cur_data"] != orig and app._doc is b, [title(d) for d in app._docs])
         c = open_("rf3CropParam.bin")
-        _check("a click on a clean tab shows the file in that tab (no new tab)",
-               c is b and len(app._docs) == 2 and b.state["cur_name"].endswith("rf3CropParam.bin"))
+        _check("a click on a clean tab still opens a new tab (clicks never replace a tab)",
+               c is not b and len(app._docs) == 3 and b.state["cur_name"].endswith("rf3NpcParam.bin"))
         app._select_doc(a)
         _check("switching tabs restores that tab's working copy, header and Extract",
                app.cur_data == a.state["cur_data"] and "rf3Schedule" in app.header.cget("text")
                and str(app.extract_btn.cget("state")) == "normal")
         again = open_("rf3Schedule.bin")
-        _check("opening a file that is already open selects its tab", again is a and len(app._docs) == 2)
+        _check("opening a file that is already open selects its tab", again is a and len(app._docs) == 3)
         box["yesnocancel"] = None
         kept = app.cmd_close_tab(a) is False and a in app._docs
         box["yesnocancel"] = False
-        gone = app.cmd_close_tab(a) is True and a not in app._docs and app._doc is b
+        gone = app.cmd_close_tab(a) is True and a not in app._docs and app._doc in (b, c)
         _check("closing a tab with unsaved changes asks: Cancel keeps it, No closes it", kept and gone)
         # 2) map tabs: their own editors; copy in one, paste in the other with Ctrl+C / Ctrl+V
-        m1 = open_("MAP_CITY_04.rf4m", new_tab=True)
+        m1 = open_("MAP_CITY_04.rf4m")
         p1 = app._map_panel
-        m2 = open_("MAP_FIELD_01.rf4m", new_tab=True)
+        m2 = open_("MAP_FIELD_01.rf4m")
         p2 = app._map_panel
         _check("each map tab has its own map editor", p1 is not None and p2 is not None and p1 is not p2
                and m1.map_panel() is p1 and m2.map_panel() is p2)

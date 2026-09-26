@@ -755,13 +755,6 @@ class App:
         self.tree.bind("<<TreeviewOpen>>", self._on_group_open)
 
         self.tree.configure(selectmode="browse")
-        # Ctrl+click / middle click / right click > Open in new tab: keep the current tab
-        self.tree.bind("<Control-Button-1>", self._on_tree_new_tab)
-        self.tree.bind("<Button-2>", self._on_tree_new_tab)
-        self._tree_menu = tk.Menu(self.tree, tearoff=False)
-        self._tree_menu.add_command(label="Open in new tab", command=lambda: self._open_iid(
-            self._tree_menu_iid, new_tab=True))
-        self.tree.bind("<Button-3>", self._on_tree_menu)
 
         self.right = ttk.Frame(paned)
         paned.add(self.right, weight=3, minsize=300)
@@ -774,7 +767,7 @@ class App:
         self._close_tab_btn = ttk.Button(hb, text="Close tab", command=self.cmd_close_tab)
         from guiutil import Tip
         Tip(self._close_tab_btn, "Close this file's tab (Ctrl+W; a middle click on a tab closes "
-                                 "that one). Ctrl+click a file in the list to open it in a new tab.")
+                                 "that one). Every file you click opens in its own tab.")
         self.tabs = ttk.Notebook(self.right)
         self.tabs.enable_traversal()            # Ctrl+Tab / Ctrl+Shift+Tab switch tabs
         self.tabs.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -788,7 +781,9 @@ class App:
         self.content = ttk.Frame(self.right)   # the blank view's frame (App routes to _Doc)
         self.content.pack(fill="both", expand=True)
         self._blank.frame = self.content
-        self.root.after(1000, self._poll_marks)
+        self._poll_id = self.root.after(1000, self._poll_marks)
+        # stop the poll with the window (a destroyed Tk must not run it)
+        self.tabs.bind("<Destroy>", lambda e: e.widget is self.tabs and self._stop_poll(), add="+")
 
     def _build_status(self):
         sb = ttk.Frame(self.root)
@@ -1151,28 +1146,10 @@ class App:
         self._cur_iid = iid
         self._open_iid(iid)
 
-    def _on_tree_new_tab(self, e):
-        iid = self.tree.identify_row(e.y)
-        if iid in self._index:
-            self._suppress_select = True
-            try:
-                self.tree.selection_set(iid)
-            finally:
-                self.root.after_idle(lambda: setattr(self, "_suppress_select", False))
-            self._cur_iid = iid
-            self._open_iid(iid, new_tab=True)
-        return "break"
-
-    def _on_tree_menu(self, e):
-        iid = self.tree.identify_row(e.y)
-        if iid in self._index:
-            self._tree_menu_iid = iid
-            self._tree_menu.tk_popup(e.x_root, e.y_root)
-
     def _entry_key(self, name):
         return (self.source.label if self.source else "", name)
 
-    def _open_iid(self, iid, new_tab=False):
+    def _open_iid(self, iid):
         name, _group, loader = self.source.entries[self._index[iid]]
         key = self._entry_key(name)
         data = None
@@ -1183,23 +1160,18 @@ class App:
                 messagebox.showerror("Read failed", str(e))
                 return
             self.tree.set(iid, "size", human(len(data)))
-        self._open_in_tab(key, name, data, new_tab)
+        self._open_in_tab(key, name, data)
 
-    def _open_in_tab(self, key, name, data, new_tab=False):
-        """Show a file: in the tab that already has it, else in the current tab (unless that
-        one has unsaved changes: then a new tab, so nothing is thrown away), else in a new
-        tab. The tab (_Doc), or None when the user declined."""
+    def _open_in_tab(self, key, name, data):
+        """Show a file in its own tab: the tab that already has it, else a new one. The tab
+        (_Doc), or None when the user declined."""
         doc = next((d for d in self._docs if d.key == key), None)
         if doc is not None:
             self._select_doc(doc)
             return doc
-        cur = self._doc
-        if new_tab or cur is self._blank or cur.is_dirty():
-            if name.lower().endswith(".rf4m") and not self._ok_to_open_map_tab():
-                return None
-            doc = self._new_doc()
-        else:
-            doc = cur
+        if name.lower().endswith(".rf4m") and not self._ok_to_open_map_tab():
+            return None
+        doc = self._new_doc()
         self._select_doc(doc)
         doc.key, doc.saved = key, data
         self._show(name, data)
@@ -1352,11 +1324,20 @@ class App:
 
     def _poll_marks(self):
         # saves that don't change the working copy (the map editor's Save) clear the mark here
+        self._poll_id = None
         try:
             self._refresh_marks()
-            self.root.after(1000, self._poll_marks)
+            self._poll_id = self.root.after(1000, self._poll_marks)
         except tk.TclError:
             pass
+
+    def _stop_poll(self):
+        if self.__dict__.get("_poll_id"):
+            try:
+                self.root.after_cancel(self._poll_id)
+            except tk.TclError:
+                pass
+            self._poll_id = None
 
     def _doc_after(self, ms, fn):
         """root.after for a view's timer (animations): it runs only while its tab is shown;
@@ -2565,7 +2546,7 @@ class App:
             return
         name, _g, loader = self.source.entries[i]
         self._reveal_entry(i)
-        if self._open_in_tab(self._entry_key(name), name, loader(), new_tab=True) is None:
+        if self._open_in_tab(self._entry_key(name), name, loader()) is None:
             return
         panel = getattr(self, "_map_panel", None)
         if panel is not None:
