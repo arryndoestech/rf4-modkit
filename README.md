@@ -277,7 +277,8 @@ file names (`rf4s_modkit/assetcat.py`), so nothing has to be opened to sort 38,0
 area, which opens and closes (all of `MAP_DUNG_M*` under **Rune Prana**, every street of the
 town under **Selphia**, a shop's upper floor with the shop, a dungeon's entrance and depths with
 the dungeon); untick it for the plain file list. The choice is
-kept in `settings.json`.
+kept in `settings.json` and shared with the standalone map editor's map list (`rf4mod.py map`),
+which groups its maps the same way.
 
 **Tabs.** Clicking a file opens it in its own tab (a file that is already open just
 shows its tab); Up / Down in the list show the next file in the same tab instead. Each tab

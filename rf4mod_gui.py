@@ -881,63 +881,6 @@ class App:
             pass                                # a read-only toolkit folder: just don't keep it
         self._sort_by(None)                     # re-list, keeping the open groups
 
-    _MAP_AREAS = None
-    # in-game area name -> the header it is listed under (areas that belong together)
-    AREA_MERGE = {
-        "Field": "Farm",                    # MAP_FARM_01..04: the farm's other fields
-        # Selphia: the town's streets and the castle gate
-        **{n: "Selphia" for n in ("Selphia Castle Gate", "Selphia: Airship Way", "Selphia: Dragon Lake",
-                                  "Selphia: Housing Area", "Selphia: Melody Street",
-                                  "Selphia: Observatory", "Selphia: Town Square")},
-        **{n: "Selphia Plain" for n in ("Selphia Plain East", "Selphia Plain West",
-                                        "Selphia Plain Mush Road", "Selphia Plain Mush Span")},
-        # buildings: the upper floors and side rooms under the building's name
-        "Carnation's 2F": "Carnation's",
-        "Porcoline's Kitchen 2F": "Porcoline's Kitchen",
-        "Sincerity General 2F": "Sincerity General Store",
-        "Tiny Bandage Clinic 2F": "Tiny Bandage Clinic",
-        "Ste-Coquille Manor 2F": "Sainte-Coquille Manor",
-        **{n: "Bell Hotel" for n in ("Bell Hotel Lobby", "Bell Hotel Guest Room", "Bell Hotel Residence",
-                                     "Bell Bath (and Beyond)")},
-        "Trophy Room B2": "Trophy Room",
-        "Trophy Room B3": "Trophy Room",
-        # dungeons: entrances, depths and wings under the dungeon's name
-        "Leon Karnak - Depths": "Leon Karnak",
-        "Water Ruins - Depths": "Water Ruins",
-        "Yokmir Forest - Depths": "Yokmir Forest",
-        "Maya Road Entrance": "Maya Road",
-        "Obsidian Mnsn. Entrance": "Obsidian Mansion",
-        "Obsidian Mnsn. Theatre": "Obsidian Mansion",
-        **{n: "Floating Empire" for n in ("Floating Empire - Front", "Floating Empire East",
-                                          "Floating Empire South", "Floating Empire West")},
-        "Idra Cave B1": "Idra Cave",
-        "Idra Cave B2": "Idra Cave",
-        "World of Fields": "Sharance Maze",  # MAP_DUNG_F01, the maze's first floor
-        # MAP_FIELD_75..79 and MAP_FIELD_A0..A3: one area per season
-        **{f"{s} {k}": "Seasonal fields and springs" for s in ("Spring", "Summer", "Autumn", "Winter")
-           for k in ("Field", "Spring")},
-    }
-    AREA_PLACEHOLDER = "Unused / placeholder"   # BLANK: ROW n and the '...: Dummy' rows
-
-    @classmethod
-    def _area_header(cls, n):
-        if n.startswith("BLANK: ROW") or n.endswith(": Dummy"):
-            return cls.AREA_PLACEHOLDER
-        return cls.AREA_MERGE.get(n, n)
-
-    @classmethod
-    def _map_area(cls, name):
-        """The in-game area name of a .rf4m entry (rf3TxtMapName via its map id), or None for
-        other files and maps the game's map table doesn't list."""
-        if not name.lower().endswith(".rf4m"):
-            return None
-        if cls._MAP_AREAS is None:
-            from rf4s_modkit import map_names as mn
-            names = {f.upper(): (mn.map_name(i) or "(no name)") for i, f in enumerate(mn._files())}
-            cls._MAP_AREAS = {f: cls._area_header(n) for f, n in names.items()}
-        base = name.replace("\\", "/").rsplit("/", 1)[-1][:-5].upper()
-        return cls._MAP_AREAS.get(base)
-
     def _insert_leaves(self, parent, idxs, group="", open_areas=False):
         """Insert entries (already in display order) under `parent`; with Group maps by
         area on, the .rf4m ones go under one header per area, ahead of the other files."""
@@ -948,7 +891,7 @@ class App:
         areas, rest = {}, []
         if self.group_maps_var.get():
             for i in idxs:
-                a = self._map_area(self.source.entries[i][0])
+                a = map_names.map_area(self.source.entries[i][0])
                 (areas.setdefault(a, []) if a is not None else rest).append(i)
         else:
             rest = idxs

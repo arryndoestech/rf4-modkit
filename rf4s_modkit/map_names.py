@@ -151,3 +151,67 @@ def label_note(map_id):
     if name.startswith("_"):
         return "leading '_' hides the HUD band"
     return None
+
+
+# --------------------------------------------------------------------------- #
+# area headers for map lists (the explorer's file tree, the map editor's map list)
+# --------------------------------------------------------------------------- #
+# in-game area name -> the header it is listed under (areas that belong together)
+AREA_MERGE = {
+    "Field": "Farm",                    # MAP_FARM_01..04: the farm's other fields
+    # Selphia: the town's streets and the castle gate
+    **{n: "Selphia" for n in ("Selphia Castle Gate", "Selphia: Airship Way", "Selphia: Dragon Lake",
+                              "Selphia: Housing Area", "Selphia: Melody Street",
+                              "Selphia: Observatory", "Selphia: Town Square")},
+    **{n: "Selphia Plain" for n in ("Selphia Plain East", "Selphia Plain West",
+                                    "Selphia Plain Mush Road", "Selphia Plain Mush Span")},
+    # buildings: the upper floors and side rooms under the building's name
+    "Carnation's 2F": "Carnation's",
+    "Porcoline's Kitchen 2F": "Porcoline's Kitchen",
+    "Sincerity General 2F": "Sincerity General Store",
+    "Tiny Bandage Clinic 2F": "Tiny Bandage Clinic",
+    "Ste-Coquille Manor 2F": "Sainte-Coquille Manor",
+    **{n: "Bell Hotel" for n in ("Bell Hotel Lobby", "Bell Hotel Guest Room", "Bell Hotel Residence",
+                                 "Bell Bath (and Beyond)")},
+    "Trophy Room B2": "Trophy Room",
+    "Trophy Room B3": "Trophy Room",
+    # dungeons: entrances, depths and wings under the dungeon's name
+    "Leon Karnak - Depths": "Leon Karnak",
+    "Water Ruins - Depths": "Water Ruins",
+    "Yokmir Forest - Depths": "Yokmir Forest",
+    "Maya Road Entrance": "Maya Road",
+    "Obsidian Mnsn. Entrance": "Obsidian Mansion",
+    "Obsidian Mnsn. Theatre": "Obsidian Mansion",
+    **{n: "Floating Empire" for n in ("Floating Empire - Front", "Floating Empire East",
+                                      "Floating Empire South", "Floating Empire West")},
+    "Idra Cave B1": "Idra Cave",
+    "Idra Cave B2": "Idra Cave",
+    "World of Fields": "Sharance Maze",  # MAP_DUNG_F01, the maze's first floor
+    # MAP_FIELD_75..79 and MAP_FIELD_A0..A3: one area per season
+    **{f"{s} {k}": "Seasonal fields and springs" for s in ("Spring", "Summer", "Autumn", "Winter")
+       for k in ("Field", "Spring")},
+}
+AREA_PLACEHOLDER = "Unused / placeholder"   # BLANK: ROW n and the '...: Dummy' rows
+_MAP_AREAS = None
+
+
+def area_header(name):
+    """The header an in-game area name is listed under: related areas merged (AREA_MERGE),
+    the BLANK / Dummy rows together (AREA_PLACEHOLDER)."""
+    if name.startswith("BLANK: ROW") or name.endswith(": Dummy"):
+        return AREA_PLACEHOLDER
+    return AREA_MERGE.get(name, name)
+
+
+def map_area(name):
+    """The area header of a .rf4m file (name / path / entry; its in-game name via the map
+    id, rf3TxtMapName), or None for other files and maps the game's map table doesn't
+    list."""
+    global _MAP_AREAS
+    if not str(name).lower().endswith(".rf4m"):
+        return None
+    if _MAP_AREAS is None:
+        _MAP_AREAS = {f.upper(): area_header(map_name(i) or "(no name)") for i, f in enumerate(_files())}
+    name = str(name)
+    base = name.replace("\\", "/").rsplit("/", 1)[-1][:-5].upper()
+    return _MAP_AREAS.get(base)

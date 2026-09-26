@@ -6,10 +6,13 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from rf4s_modkit import rf4m
+from rf4s_modkit import gamepaths, map_names, rf4m
 
 from . import data, render
 from .panel import MapEditorPanel
+
+
+GROUP_MAPS_SETTING = "group_maps_by_area"      # settings.json, shared with the explorer
 
 
 class MapExplorer:
@@ -32,14 +35,19 @@ class MapExplorer:
         self.filter_var = tk.StringVar()
         self.filter_var.trace_add("write", lambda *_a: self._refresh_list())
         ttk.Entry(left, textvariable=self.filter_var).pack(fill="x", padx=4)
+        # one header per in-game area (the same toggle and setting as the explorer's)
+        self.group_var = tk.BooleanVar(value=bool(gamepaths.get_setting(GROUP_MAPS_SETTING, True)))
+        ttk.Checkbutton(left, text="Group maps by area", variable=self.group_var,
+                        command=self._toggle_group).pack(anchor="w", padx=4, pady=(4, 0))
         lf = ttk.Frame(left)
         lf.pack(fill="both", expand=True, padx=4, pady=4)
         sb = ttk.Scrollbar(lf)
         sb.pack(side="right", fill="y")
-        self.listbox = tk.Listbox(lf, yscrollcommand=sb.set, exportselection=False, width=24)
-        self.listbox.pack(side="left", fill="both", expand=True)
-        sb.config(command=self.listbox.yview)
-        self.listbox.bind("<<ListboxSelect>>", self._on_pick)
+        self.tree = ttk.Treeview(lf, show="tree", selectmode="browse", yscrollcommand=sb.set)
+        self.tree.column("#0", width=210)
+        self.tree.pack(side="left", fill="both", expand=True)
+        sb.config(command=self.tree.yview)
+        self.tree.bind("<<TreeviewSelect>>", self._on_pick)
         host = ttk.Frame(paned)
         paned.add(host, weight=5)
         self.panel = MapEditorPanel(host, status_fn=lambda s: self.status.config(text=s),
@@ -54,11 +62,35 @@ class MapExplorer:
             self.open(initial)
 
     def _refresh_list(self):
+        """List the maps (filtered), under one header per area when grouping is on; a header
+        opens by itself while a filter is typed."""
         words = self.filter_var.get().lower().split()
-        self.listbox.delete(0, "end")
+        t = self.tree
+        was_open = {t.item(i, "text").split("  (")[0] for i in t.get_children() if t.item(i, "open")}
+        t.delete(*t.get_children())
         self._listed = [p for p in self._all if all(w in p.stem.lower() for w in words)]
-        for p in self._listed:
-            self.listbox.insert("end", p.stem)
+        self._iid = {}
+        if self.group_var.get():
+            areas = {}
+            for p in self._listed:
+                areas.setdefault(map_names.map_area(p.name) or "Other maps", []).append(p)
+            for a in sorted(areas, key=str.lower):
+                h = t.insert("", "end", text=f"{a}  ({len(areas[a])})",
+                             open=bool(words) or a in was_open)
+                for p in areas[a]:
+                    self._iid[p] = t.insert(h, "end", text=p.stem)
+        else:
+            for p in self._listed:
+                self._iid[p] = t.insert("", "end", text=p.stem)
+        self._path = {v: k for k, v in self._iid.items()}
+        self._reselect()
+
+    def _toggle_group(self):
+        try:
+            gamepaths.set_setting(GROUP_MAPS_SETTING, bool(self.group_var.get()))
+        except OSError:
+            pass                                # a read-only toolkit folder: just don't keep it
+        self._refresh_list()
 
     def _pick_dir(self):
         d = filedialog.askdirectory(title="Folder of .rf4m maps",
@@ -73,17 +105,24 @@ class MapExplorer:
             self.load(pathlib.Path(f))
 
     def _on_pick(self, _e):
-        s = self.listbox.curselection()
-        if s and self._listed[s[0]] != self._current:
-            if not self.load(self._listed[s[0]]):
+        if getattr(self, "_reselecting", False):
+            return
+        s = self.tree.selection()
+        p = self._path.get(s[0]) if s else None      # None: an area header
+        if p is not None and p != self._current:
+            if not self.load(p):
                 self._reselect()
 
     def _reselect(self):
-        self.listbox.selection_clear(0, "end")
-        if self._current in self._listed:
-            i = self._listed.index(self._current)
-            self.listbox.selection_set(i)
-            self.listbox.see(i)
+        """Highlight the open map (opening its area) without loading it again."""
+        iid = self._iid.get(self._current) if self._current is not None else None
+        self._reselecting = True
+        try:
+            self.tree.selection_set(iid) if iid else self.tree.selection_set(())
+            if iid:
+                self.tree.see(iid)
+        finally:
+            self.tree.after_idle(lambda: setattr(self, "_reselecting", False))
 
     def open(self, arg):
         """Open a map by path or by name (looked up in the extracted tree)."""

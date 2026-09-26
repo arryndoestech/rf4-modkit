@@ -6271,6 +6271,59 @@ def test_map_editor_labels():
             root.destroy()
 
 
+def test_map_explorer_list():
+    """The standalone map editor's map list groups maps by in-game area like the explorer
+    (shared map_names.map_area and the group_maps_by_area setting): headers open while a
+    filter is typed, picking a map loads it, a header loads nothing, and turning the
+    grouping off gives the plain list."""
+    print("standalone map editor: map list grouped by area:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map list", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_M01.rf4m").exists():
+        _skip("map list", "no extracted bundleMain"); return
+    from map_editor import app as mapp, data as med
+    from rf4s_modkit import gamepaths as _gp
+    old = (med.EXTRACTED, med._EXTRACTED_INDEX)
+    med.EXTRACTED, med._EXTRACTED_INDEX = B, None
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        _gp.set_setting("group_maps_by_area", True)
+        ex = mapp.MapExplorer(root)
+        t = ex.tree
+        heads = {t.item(h, "text").split("  (")[0]: h for h in t.get_children()}
+        rp = heads.get("Rune Prana")
+        rp_maps = [t.item(k, "text") for k in t.get_children(rp)] if rp else []
+        _check("the map list has one header per area, like the explorer (Rune Prana holds MAP_DUNG_M01)",
+               len(heads) > 50 and "MAP_DUNG_M01" in rp_maps and len(rp_maps) == 127,
+               f"{len(heads)} headers, Rune Prana {len(rp_maps)}")
+        t.selection_set(rp); root.update()
+        header_ok = ex._current is None
+        leaf = next(k for k in t.get_children(rp) if t.item(k, "text") == "MAP_DUNG_M01")
+        t.selection_set(leaf); root.update()
+        _check("picking a map loads it; picking an area header loads nothing",
+               header_ok and ex._current is not None and ex._current.stem == "MAP_DUNG_M01")
+        ex.filter_var.set("dung_m0"); root.update()
+        opened = [h for h in t.get_children() if t.item(h, "open")]
+        _check("a filter keeps the headers that match, opened",
+               opened and all(t.item(k, "text").lower().startswith("map_dung_m0")
+                              for h in opened for k in t.get_children(h)), str(len(opened)))
+        ex.filter_var.set("")
+        ex.group_var.set(False); ex._toggle_group(); root.update()
+        flat = t.get_children()
+        _check("grouping off lists the maps flat (and is saved for both windows)",
+               len(flat) == len(ex._all) and not t.get_children(flat[0])
+               and _gp.get_setting("group_maps_by_area") is False)
+        _check("map list raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        med.EXTRACTED, med._EXTRACTED_INDEX = old
+        root.destroy()
+
+
 def _headless_panel(name, B, reader=None):
     """(root, panel, errors) for a hidden MapEditorPanel on `name` from folder B."""
     import tkinter as tk
@@ -8775,7 +8828,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels,
+              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
