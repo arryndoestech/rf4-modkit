@@ -25,6 +25,22 @@ from rf4s_modkit import (  # noqa: E402
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 from rf4s_modkit import gamepaths as _gamepaths  # noqa: E402
 BUNDLE_DIR = _gamepaths.bundle_dir()             # the game copy (rf4s_modkit.gamepaths)
+
+
+def _private_settings():
+    """Run against a scratch copy of settings.json: the GUI tests toggle settings the toolkit
+    remembers (map layers, map grouping), which must neither land in the user's file nor be
+    read back from it (a user's saved choices would change what the tests see)."""
+    import json as _json
+    d = _gamepaths._load_settings()
+    for k in ("map_view", "group_maps_by_area"):
+        d.pop(k, None)
+    p = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_selftest_")) / "settings.json"
+    p.write_text(_json.dumps(d), encoding="utf-8")
+    _gamepaths.settings_path = lambda: p
+
+
+_private_settings()
 # Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
 
@@ -7412,7 +7428,8 @@ def test_asset_explorer_gui():
         maps = next(v for v in app.cat_cb.cget("values") if v.startswith("Maps"))
         app.cat_var.set(maps)
         app.filter_var.set("")
-        app._apply_filter_now()
+        app.group_maps_var.set(False)                           # the flat list first
+        app.cmd_group_maps()
         t = app.tree
         leaves = []
         for g in t.get_children():
@@ -7436,7 +7453,28 @@ def test_asset_explorer_gui():
         _check("the category and the text filter combine (Maps + 'city' = town maps only)",
                hits and all("city" in src.entries[i][0].lower() and src.categories()[i] == "map" for i in hits),
                f"{len(hits)} hits")
+        # Group maps by area: a header per in-game area name, the maps under it, open ones kept
         app.filter_var.set("")
+        app.group_maps_var.set(True)
+        app.cmd_group_maps()
+        areas = {}
+        for g in t.get_children():
+            if g in app._group_indices:
+                t.item(g, open=True); t.focus(g); app._on_group_open(None)
+            for a in (t.get_children(g) if g in app._group_indices else [g]):
+                if a not in app._index:
+                    areas[t.item(a, "text").split("  (")[0]] = a
+        rp = areas.get("Rune Prana")
+        rp_maps = [src.entries[app._index[k]][0].rsplit("/", 1)[-1] for k in t.get_children(rp)] if rp else []
+        if rp:
+            t.item(rp, open=True)
+        app._sort_by("name")
+        still = [a for g in t.get_children() for a in (g, *t.get_children(g))
+                 if t.item(a, "text").startswith("Rune Prana  (")]
+        _check("Group maps by area: one header per in-game area (Rune Prana holds MAP_DUNG_M01), "
+               "an open header stays open across a re-sort",
+               len(areas) > 50 and "MAP_DUNG_M01.rf4m" in rp_maps and len(rp_maps) == 127
+               and still and t.item(still[0], "open"), f"{len(areas)} areas, Rune Prana {len(rp_maps)}")
         app.cat_var.set(app.ALL_CATS)
         app._apply_filter_now()
         # every kind of viewer opens without falling back to "[viewer note] <error>" (a renamed

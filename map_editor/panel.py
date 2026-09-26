@@ -98,6 +98,7 @@ class MapEditorPanel:
         self.view.on_zoom = self._update_chrome
         self.view.st.layers = self.viewtab.layers()
         self.view.attr_alpha = self.viewtab.alpha.get()
+        self.view.scenery = self.viewtab.scenery.get()
         self._bind_canvas()
         self._bind_shortcuts()
 
@@ -937,6 +938,7 @@ class MapEditorPanel:
     # ------------------------------------------------------------------ #
     def set_layer(self, key, on):
         self.view.st.layers[key] = on
+        self.viewtab.remember()
         if key == "spawns" and on:
             self._load_spawns()
         g = LAYER_GROUPS[key]
@@ -949,6 +951,7 @@ class MapEditorPanel:
 
     def set_ground_display(self, sel):
         self.view.ground_sel = sel
+        self.viewtab.remember()
         self.view.invalidate("bg")
         self.view.request_ground()
 
@@ -994,11 +997,13 @@ class MapEditorPanel:
 
     def set_scenery(self, on):
         self.view.scenery = bool(on)
+        self.viewtab.remember()
         self.view.invalidate("bg")
         self.view.request_ground()
 
     def set_attr_alpha(self, a):
         self.view.attr_alpha = int(a)
+        self.viewtab.remember()
         self.view.invalidate("bg")
 
     # ---- ground art export / import --------------------------------------- #

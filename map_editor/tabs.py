@@ -5,7 +5,7 @@ import re
 import tkinter as tk
 from tkinter import colorchooser, ttk
 
-from rf4s_modkit import gen, map_names, mapground, mobj_types, rf4m, texture
+from rf4s_modkit import gamepaths, gen, map_names, mapground, mobj_types, rf4m, texture
 
 from . import attrs, data, render, ui
 from .ui import commit_entry, hint, section
@@ -26,7 +26,7 @@ class ObjectsTab(ttk.Frame):
     the map and scrolls it into view."""
 
     GROUPS = (("mobj", "Entities"), ("param", "Map parameters"), ("warp", "Warps"),
-              ("si", "Search spots"), ("gate", "Encounter points"), ("spawn", "Script NPCs"))
+              ("si", "Search spots"), ("gate", "Monster gates"), ("spawn", "Script NPCs"))
 
     def __init__(self, parent, ed):
         super().__init__(parent)
@@ -582,6 +582,7 @@ LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
                 "sprite_borders": "ent", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
+VIEW_SETTING = "map_view"      # settings.json key: the View tab's choices, kept across maps and runs
 FLAGS_NONE = "(all objects)"
 FLAGS_LIVE = "the running game"
 
@@ -592,10 +593,12 @@ class ViewTab(ui.ScrollFrame):
         self.ed = ed
         b = self.body
         self.vars = {}
+        self.saved = self._load_saved()
+        saved_layers = self.saved.get("layers", {})
         L = section(b, "Layers")
 
         def cb(parent, key, text, r, c, color=None):
-            v = self.vars.setdefault(key, tk.BooleanVar(value=LAYER_DEFAULTS[key]))
+            v = self.vars.setdefault(key, tk.BooleanVar(value=bool(saved_layers.get(key, LAYER_DEFAULTS[key]))))
             w = ttk.Checkbutton(parent, text=text, variable=v, command=lambda: ed.set_layer(key, v.get()))
             w.grid(row=r, column=2 * c + 1, sticky="w", padx=(0, 8))
             if color:
@@ -621,7 +624,7 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "mapj", "warps", 7, 0, render.WARP_COLOR)
         cb(L, "dest", "warp destinations", 7, 1)
         cb(L, "si", "search spots", 8, 0, render.SI_COLOR)
-        cb(L, "gates", "encounter points", 8, 1, render.GATE_COLOR)
+        cb(L, "gates", "monster gates", 8, 1, render.GATE_COLOR)
         cb(L, "spawns", "script NPCs", 9, 0, render.SPAWN_COLOR)
         cb(L, "grid", "tile grid lines", 9, 1)
         hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
@@ -653,19 +656,19 @@ class ViewTab(ui.ScrollFrame):
         # ---- ground display ----
         G = section(b, "Ground texture")
         ttk.Label(G, text="show").grid(row=0, column=0, sticky="w")
-        self.ground = tk.StringVar(value="all")
+        self.ground = tk.StringVar(value=self.saved.get("ground", "all"))
         self.ground_cb = ttk.Combobox(G, textvariable=self.ground, values=["off", "all"], width=12,
                                       state="readonly")
         self.ground_cb.grid(row=0, column=1, sticky="w")
         self.ground_cb.bind("<<ComboboxSelected>>", lambda _e: ed.set_ground_display(self.ground.get()))
-        self.scenery = tk.BooleanVar(value=True)
+        self.scenery = tk.BooleanVar(value=bool(self.saved.get("scenery", True)))
         sc_cb = ttk.Checkbutton(G, text="scenery (the map's over-model)", variable=self.scenery,
                                 command=lambda: ed.set_scenery(self.scenery.get()))
         sc_cb.grid(row=3, column=0, columnspan=2, sticky="w")
         ui.Tip(sc_cb, "The pre-rendered billboard cards (statues, railings, rooftops, trees) the "
                       "game draws over the ground, placed where the model's bones put them.")
         ttk.Label(G, text="ATTR opacity").grid(row=1, column=0, sticky="w")
-        self.alpha = tk.IntVar(value=180)
+        self.alpha = tk.IntVar(value=int(self.saved.get("attr_alpha", 180)))
         sc = ttk.Scale(G, from_=0, to=255, orient="horizontal", length=150, variable=self.alpha)
         sc.grid(row=1, column=1, sticky="w")
         sc.bind("<ButtonRelease-1>", lambda _e: ed.set_attr_alpha(self.alpha.get()))
@@ -697,6 +700,21 @@ class ViewTab(ui.ScrollFrame):
     def layers(self):
         return {k: v.get() for k, v in self.vars.items()}
 
+    @staticmethod
+    def _load_saved():
+        d = gamepaths.get_setting(VIEW_SETTING)
+        return d if isinstance(d, dict) else {}
+
+    def remember(self):
+        """Store the layer toggles and ground display in settings.json, so the next map and
+        the next start open the same way."""
+        self.saved.update(layers=self.layers(), scenery=self.scenery.get(),
+                          attr_alpha=self.alpha.get(), ground=self.ground.get())
+        try:
+            gamepaths.set_setting(VIEW_SETTING, self.saved)
+        except OSError:
+            pass                                # a read-only toolkit folder: just don't keep them
+
     def refresh_flag_sources(self):
         vals = [FLAGS_NONE, FLAGS_LIVE] + [p.name for p in data.slot_saves()]
         cur = self.flagsrc.get()
@@ -707,7 +725,9 @@ class ViewTab(ui.ScrollFrame):
     def set_available_layers(self, layers):
         vals = ["off", "all"] + [LAYER_NAMES.get(l, str(l)) for l in layers]
         self.ground_cb["values"] = vals
-        if self.ground.get() not in vals:
+        if self.saved.get("ground") in vals:    # the saved choice, where this map has that layer
+            self.ground.set(self.saved["ground"])
+        elif self.ground.get() not in vals:
             self.ground.set("all" if layers else "off")
         gv = [LAYER_NAMES.get(l, str(l)) for l in layers] or ["0 ground"]
         self.glayer_cb["values"] = gv

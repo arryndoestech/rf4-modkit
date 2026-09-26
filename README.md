@@ -196,9 +196,11 @@ The contents can be in any of these layouts:
   selftest's per-file checks use this layout.
 - **`Bundle/extracted/`** — extracted contents in one flat directory.
 
-For the GUI's "Open Manifest…" + map editor "Open .rf4m…" buttons, you can also
-point at any directory containing those files at runtime — no fixed layout
-required.
+The GUI lists the game copy's files on start. Its **Open** menu (*File…*, *Folder…*) looks at
+files outside the game (a downloaded mod, `Bundle\00_mods`, exported files) from any folder,
+no fixed layout required; *File…* on a `.mbundle` or a `Manifest.plist` lists the files inside
+it. **Back to the game** lists the game's files again. `python rf4mod_gui.py <path>` opens any
+of these from the command line.
 
 ### Verifying the install
 
@@ -274,6 +276,11 @@ box next to Filter lists only one category, with its file count, and combines wi
 text filter (Maps + `city` = the town maps). Click a column header (Asset, Category, Size)
 to sort by it; click again to reverse (Size ▼ = biggest first). Categories come from the
 file names (`rf4s_modkit/assetcat.py`), so nothing has to be opened to sort 38,000 files.
+**Group maps by area** (on by default) lists the `.rf4m` maps under one header per in-game
+area, which opens and closes (all of `MAP_DUNG_M*` under **Rune Prana**, every street of the
+town under **Selphia**, a shop's upper floor with the shop, a dungeon's entrance and depths with
+the dungeon); untick it for the plain file list. The choice is
+kept in `settings.json`.
 
 Selecting an asset shows a **type-aware viewer**:
 
@@ -324,9 +331,9 @@ and a sidebar with six tabs (it opens on View):
 
 | Tab | What it does |
 |---|---|
-| **View** | layer toggles (ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, encounter points, script NPCs), **draw sprites** (on by default: each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite and shines through the ATTR fill; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity, the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
+| **View** | layer toggles (kept in `settings.json`, like the ground display, scenery and ATTR opacity, so every map and the next start open the same way: ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, monster gates, script NPCs), **draw sprites** (on by default: each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite and shines through the ATTR fill; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity, the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
-| **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, encounter points, script NPCs) and filterable; picking a row selects it and scrolls it into view |
+| **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, monster gates, script NPCs) and filterable; picking a row selects it and scrolls it into view |
 | **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
 | **Encounters** | the `Gen*.bin`: gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
 | **Events** | (in the asset explorer) the map's cutscene scenes from its event bank in `rf3.mc`, biggest first with a dialogue preview; double-click or *Open in Cutscene Editor*; *New scene on this map…* |

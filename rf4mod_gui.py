@@ -60,6 +60,7 @@ BUNDLE_DIR = gamepaths.bundle_dir()
 # Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
 EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
 DEFAULT_MANIFEST = BUNDLE_DIR / "Manifest.plist"
+GROUP_MAPS_SETTING = "group_maps_by_area"      # settings.json: the file tree's map grouping
 
 
 def _use_game_paths():
@@ -575,12 +576,8 @@ class App:
 
         if initial:
             self.open_path(pathlib.Path(initial))
-        elif DEFAULT_MANIFEST.is_file() and any(BUNDLE_DIR.glob("*.mbundle")):
-            self.load_source(lambda: Source.from_manifest(DEFAULT_MANIFEST))
-        elif EXTRACTED.is_dir():
-            self.load_source(lambda: Source.from_folder(EXTRACTED))
-        elif DEFAULT_MANIFEST.is_file():
-            self.load_source(lambda: Source.from_manifest(DEFAULT_MANIFEST))
+        else:
+            self.cmd_back_to_game()
         # Warm the lookups the first map view needs (extracted-file index, item names, room
         # table) in the background once the window is up, so the first map click doesn't
         # pay for them (~0.5 s).
@@ -602,16 +599,27 @@ class App:
         bar.pack(fill="x", side="top")
         self._collapse_btn = ttk.Button(bar, text="◀ Files", width=9, command=self.cmd_toggle_files)
         self._collapse_btn.pack(side="left", padx=(2, 6), pady=3)
-        ttk.Button(bar, text="Open Manifest…", command=self.cmd_open_manifest).pack(side="left", padx=2, pady=3)
-        ttk.Button(bar, text="Open Bundle…", command=self.cmd_open_bundle).pack(side="left", padx=2)
+        # a plain button (looks like its neighbours) that drops its menu down below itself
+        self._open_btn = ttk.Button(bar, text="Open ▾", command=self._post_open_menu)
+        self._open_menu = om = tk.Menu(self._open_btn, tearoff=False)
+        om.add_command(label="File…", command=self.cmd_open_file)
+        om.add_command(label="Folder…", command=self.cmd_open_folder)
+        self._open_btn.pack(side="left", padx=2, pady=3)
         ttk.Button(bar, text="Game folder…", command=self.cmd_game_folder).pack(side="left", padx=2)
-        ttk.Button(bar, text="Open Folder…", command=self.cmd_open_folder).pack(side="left", padx=2)
-        ttk.Button(bar, text="Open File…", command=self.cmd_open_file).pack(side="left", padx=2)
+        # shown only while something other than the game is listed (see load_source)
+        self._back_btn = ttk.Button(bar, text="Back to the game", command=self.cmd_back_to_game)
+        from guiutil import Tip
+        Tip(self._open_btn, "Look at files that aren't part of the game: one file (a .mbundle opens as "
+                            "its files), or every file in a folder (a downloaded mod, "
+                            "Bundle\\00_mods, exported files).")
+        Tip(self._back_btn, "List the game's files again.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
-        ttk.Button(bar, text="Extract…", command=self.cmd_extract).pack(side="left", padx=2)
+        self.extract_btn = ttk.Button(bar, text="Extract…", command=self.cmd_extract, state="disabled")
+        self.extract_btn.pack(side="left", padx=2)
         self.export_btn = ttk.Button(bar, text="Export View…", command=self.cmd_export, state="disabled")
         self.export_btn.pack(side="left", padx=2)
+        ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+        ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Label(bar, text="Filter:").pack(side="left")
         self.filter_var = tk.StringVar()
@@ -628,10 +636,15 @@ class App:
                                    values=[self.ALL_CATS])
         self.cat_cb.pack(side="left", padx=2)
         self.cat_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter_now())
-        from guiutil import Tip
         Tip(self.cat_cb, "Show only one kind of file (textures, voice lines, maps...). Works together "
                          "with the Filter box: Maps + 'city' = every town map.")
         Tip(fe, "Show only files whose name contains this text (Enter applies at once).")
+        self.group_maps_var = tk.BooleanVar(value=bool(gamepaths.get_setting(GROUP_MAPS_SETTING, True)))
+        gm = ttk.Checkbutton(bar, text="Group maps by area", variable=self.group_maps_var,
+                             command=self.cmd_group_maps)
+        gm.pack(side="left", padx=(8, 0))
+        Tip(gm, "List the .rf4m maps under a header per in-game area (Rune Prana, Selphia: "
+                "Town Square, ...), each one opens and closes. Off: one flat list of files.")
         self.count_lbl = ttk.Label(bar, text="")
         self.count_lbl.pack(side="right", padx=8)
 
@@ -688,15 +701,44 @@ class App:
         self.status.config(text="  ·  ".join(deps))
 
     # ---- source loading -------------------------------------------------- #
-    def load_source(self, factory):
+    def load_source(self, factory, game=False):
+        """List a new set of files; game=True for the game copy itself (hides Back to the game)."""
+        if not self._guard_map_edits("open something else"):
+            return
         try:
             self.source = factory()
         except Exception as e:
             messagebox.showerror("Open failed", str(e))
             return
         self.root.title(f"RF4S Modding Toolkit — {self.source.label}")
+        if game:
+            self._back_btn.pack_forget()
+        else:
+            self._back_btn.pack(side="left", padx=2, after=self._open_btn)
         self._drop_map_view()
+        # the shown file belonged to the old list: nothing is open (Extract / Export off)
+        self._clear_content()
+        self.cur_name = self.cur_data = self._cur_iid = None
+        self.header.config(text="Select an asset")
+        self.extract_btn.config(state="disabled")
         self._refresh_tree()
+
+    def _post_open_menu(self):
+        b = self._open_btn
+        try:
+            self._open_menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            self._open_menu.grab_release()
+
+    def cmd_back_to_game(self):
+        """List the game copy's files: the archives through the Manifest, or the unpacked
+        folders when the archives were removed."""
+        if DEFAULT_MANIFEST.is_file() and any(BUNDLE_DIR.glob("*.mbundle")):
+            self.load_source(lambda: Source.from_manifest(DEFAULT_MANIFEST), game=True)
+        elif EXTRACTED.is_dir():
+            self.load_source(lambda: Source.from_folder(EXTRACTED), game=True)
+        elif DEFAULT_MANIFEST.is_file():
+            self.load_source(lambda: Source.from_manifest(DEFAULT_MANIFEST), game=True)
 
     def open_path(self, p: pathlib.Path):
         if p.is_dir():
@@ -707,13 +749,6 @@ class App:
             self.load_source(lambda: Source.from_bundle(p))
         else:
             self.load_source(lambda: Source.from_file(p))
-
-    def cmd_open_manifest(self):
-        f = filedialog.askopenfilename(title="Open Manifest.plist",
-                                       initialdir=str(BUNDLE_DIR if BUNDLE_DIR.is_dir() else REPO),
-                                       filetypes=[("Manifest", "Manifest.plist *.plist"), ("All", "*.*")])
-        if f:
-            self.load_source(lambda: Source.from_manifest(f))
 
     def cmd_game_folder(self):
         """Show / change the game copy every tool uses (takes effect on the next start)."""
@@ -727,23 +762,103 @@ class App:
             messagebox.showinfo("Game folder", "The game files are unpacked. Close and start "
                                 "the toolkit again so every tool reads them.", parent=self.root)
 
-    def cmd_open_bundle(self):
-        f = filedialog.askopenfilename(title="Open .mbundle",
-                                       initialdir=str(BUNDLE_DIR if BUNDLE_DIR.is_dir() else REPO),
-                                       filetypes=[("mbundle", "*.mbundle"), ("All", "*.*")])
-        if f:
-            self.load_source(lambda: Source.from_bundle(f))
-
     def cmd_open_folder(self):
-        d = filedialog.askdirectory(title="Open folder of assets",
+        d = filedialog.askdirectory(title="Open a folder of files",
                                     initialdir=str(EXTRACTED if EXTRACTED.is_dir() else REPO))
         if d:
             self.load_source(lambda: Source.from_folder(d))
 
     def cmd_open_file(self):
-        f = filedialog.askopenfilename(title="Open a single asset")
+        """One file; a .mbundle or a Manifest.plist opens as the list of files inside it."""
+        f = filedialog.askopenfilename(title="Open a file")
         if f:
-            self.load_source(lambda: Source.from_file(f))
+            self.open_path(pathlib.Path(f))
+
+    def cmd_group_maps(self):
+        try:
+            gamepaths.set_setting(GROUP_MAPS_SETTING, bool(self.group_maps_var.get()))
+        except OSError:
+            pass                                # a read-only toolkit folder: just don't keep it
+        self._sort_by(None)                     # re-list, keeping the open groups
+
+    _MAP_AREAS = None
+    # in-game area name -> the header it is listed under (areas that belong together)
+    AREA_MERGE = {
+        "Field": "Farm",                    # MAP_FARM_01..04: the farm's other fields
+        # Selphia: the town's streets and the castle gate
+        **{n: "Selphia" for n in ("Selphia Castle Gate", "Selphia: Airship Way", "Selphia: Dragon Lake",
+                                  "Selphia: Housing Area", "Selphia: Melody Street",
+                                  "Selphia: Observatory", "Selphia: Town Square")},
+        **{n: "Selphia Plain" for n in ("Selphia Plain East", "Selphia Plain West",
+                                        "Selphia Plain Mush Road", "Selphia Plain Mush Span")},
+        # buildings: the upper floors and side rooms under the building's name
+        "Carnation's 2F": "Carnation's",
+        "Porcoline's Kitchen 2F": "Porcoline's Kitchen",
+        "Sincerity General 2F": "Sincerity General Store",
+        "Tiny Bandage Clinic 2F": "Tiny Bandage Clinic",
+        "Ste-Coquille Manor 2F": "Sainte-Coquille Manor",
+        **{n: "Bell Hotel" for n in ("Bell Hotel Lobby", "Bell Hotel Guest Room", "Bell Hotel Residence",
+                                     "Bell Bath (and Beyond)")},
+        "Trophy Room B2": "Trophy Room",
+        "Trophy Room B3": "Trophy Room",
+        # dungeons: entrances, depths and wings under the dungeon's name
+        "Leon Karnak - Depths": "Leon Karnak",
+        "Water Ruins - Depths": "Water Ruins",
+        "Yokmir Forest - Depths": "Yokmir Forest",
+        "Maya Road Entrance": "Maya Road",
+        "Obsidian Mnsn. Entrance": "Obsidian Mansion",
+        "Obsidian Mnsn. Theatre": "Obsidian Mansion",
+        **{n: "Floating Empire" for n in ("Floating Empire - Front", "Floating Empire East",
+                                          "Floating Empire South", "Floating Empire West")},
+        "Idra Cave B1": "Idra Cave",
+        "Idra Cave B2": "Idra Cave",
+        "World of Fields": "Sharance Maze",  # MAP_DUNG_F01, the maze's first floor
+        # MAP_FIELD_75..79 and MAP_FIELD_A0..A3: one area per season
+        **{f"{s} {k}": "Seasonal fields and springs" for s in ("Spring", "Summer", "Autumn", "Winter")
+           for k in ("Field", "Spring")},
+    }
+    AREA_PLACEHOLDER = "Unused / placeholder"   # BLANK: ROW n and the '...: Dummy' rows
+
+    @classmethod
+    def _area_header(cls, n):
+        if n.startswith("BLANK: ROW") or n.endswith(": Dummy"):
+            return cls.AREA_PLACEHOLDER
+        return cls.AREA_MERGE.get(n, n)
+
+    @classmethod
+    def _map_area(cls, name):
+        """The in-game area name of a .rf4m entry (rf3TxtMapName via its map id), or None for
+        other files and maps the game's map table doesn't list."""
+        if not name.lower().endswith(".rf4m"):
+            return None
+        if cls._MAP_AREAS is None:
+            from rf4s_modkit import map_names as mn
+            names = {f.upper(): (mn.map_name(i) or "(no name)") for i, f in enumerate(mn._files())}
+            cls._MAP_AREAS = {f: cls._area_header(n) for f, n in names.items()}
+        base = name.replace("\\", "/").rsplit("/", 1)[-1][:-5].upper()
+        return cls._MAP_AREAS.get(base)
+
+    def _insert_leaves(self, parent, idxs, group="", open_areas=False):
+        """Insert entries (already in display order) under `parent`; with Group maps by
+        area on, the .rf4m ones go under one header per area, ahead of the other files."""
+        def leaf(under, i):
+            name = self.source.entries[i][0]
+            disp = name[len(group) + 1:] if group and name.startswith(group + "/") else name
+            self._index[self.tree.insert(under, "end", text=disp, values=self._row_values(i))] = i
+        areas, rest = {}, []
+        if self.group_maps_var.get():
+            for i in idxs:
+                a = self._map_area(self.source.entries[i][0])
+                (areas.setdefault(a, []) if a is not None else rest).append(i)
+        else:
+            rest = idxs
+        for a in sorted(areas, key=str.lower):
+            aid = self.tree.insert(parent, "end", text=f"{a}  ({len(areas[a])})", open=open_areas,
+                                   values=("Area", ""))
+            for i in areas[a]:
+                leaf(aid, i)
+        for i in rest:
+            leaf(parent, i)
 
     # ---- tree ------------------------------------------------------------ #
     GROUP_CAP = 20000     # max leaves shown per group (lazy-loaded on expand)
@@ -813,21 +928,30 @@ class App:
         return sorted(idxs, key=key, reverse=rev)
 
     def _sort_by(self, col):
-        col = {"#0": "name"}.get(col, col)
-        cur, rev = self._sort
-        self._sort = (col, (not rev) if cur == col else False)
+        """Sort by a column header (again = reverse); col None just re-lists."""
+        if col is not None:
+            col = {"#0": "name"}.get(col, col)
+            cur, rev = self._sort
+            self._sort = (col, (not rev) if cur == col else False)
         arrow = " \u25bc" if self._sort[1] else " \u25b2"
         for c, text, key in (("#0", "Asset", "name"), ("cat", "Category", "cat"), ("size", "Size", "size")):
             self.tree.heading(c, text=text + (arrow if key == self._sort[0] else ""))
-        # re-list, keeping the groups that were open
-        was_open = {self.tree.item(g, "text").split("  (")[0] for g in self.tree.get_children()
-                    if self.tree.item(g, "open")}
+        # re-list, keeping the groups (and area headers) that were open
+        def label(iid):
+            return self.tree.item(iid, "text").split("  (")[0]
+        was_open = {label(g) for g in self.tree.get_children() if self.tree.item(g, "open")}
+        areas_open = {(label(g), label(a)) for g in self.tree.get_children()
+                      for a in self.tree.get_children(g) if self.tree.item(a, "open")}
         self._refresh_tree()
         for g in self.tree.get_children():
-            if self.tree.item(g, "text").split("  (")[0] in was_open and g in self._group_indices:
-                self.tree.item(g, open=True)
-                self.tree.focus(g)
-                self._on_group_open(None)
+            if label(g) in was_open:
+                self.tree.item(g, open=True)            # a group, or an area header at the top
+                if g in self._group_indices:
+                    self.tree.focus(g)
+                    self._on_group_open(None)
+            for a in self.tree.get_children(g):
+                if (label(g), label(a)) in areas_open:
+                    self.tree.item(a, open=True)
 
     def _lower_names(self):
         """Lower-cased entry names, computed once per source (the filter compares against
@@ -855,20 +979,15 @@ class App:
 
         if flt:
             # Flat search across ALL groups, capped.
-            groups, shown = {}, 0
             lower = self._lower_names()
-            for i in self._sorted([i for i in keep if flt in lower[i]]):
-                name, group, _l = self.source.entries[i]
-                parent = ""
-                if group:
-                    if group not in groups:
-                        groups[group] = self.tree.insert("", "end", text=group, open=True)
-                    parent = groups[group]
-                disp = name[len(group) + 1:] if group and name.startswith(group + "/") else name
-                self._index[self.tree.insert(parent, "end", text=disp, values=self._row_values(i))] = i
-                shown += 1
-                if shown >= self.FILTER_CAP:
-                    break
+            hits = self._sorted([i for i in keep if flt in lower[i]])[:self.FILTER_CAP]
+            shown = len(hits)
+            by_group = {}
+            for i in hits:
+                by_group.setdefault(self.source.entries[i][1], []).append(i)
+            for group, idxs in by_group.items():
+                parent = self.tree.insert("", "end", text=group, open=True) if group else ""
+                self._insert_leaves(parent, idxs, group, open_areas=True)
             self.count_lbl.config(text=f"{shown} match{'es' if shown != 1 else ''}"
                                   + (" (capped)" if shown >= self.FILTER_CAP else ""))
             return
@@ -887,9 +1006,7 @@ class App:
             gid = self.tree.insert("", "end", text=f"{group}  ({len(gmap[group])})", open=False)
             self._group_indices[gid] = gmap[group]
             self.tree.insert(gid, "end", text="…")   # placeholder -> shows expand arrow
-        for i in self._sorted(ungrouped):
-            self._index[self.tree.insert("", "end", text=self.source.entries[i][0],
-                                         values=self._row_values(i))] = i
+        self._insert_leaves("", self._sorted(ungrouped))
         shown = sum(len(v) for v in gmap.values()) + len(ungrouped)
         self.count_lbl.config(text=(f"{n} entries in {len(gmap)} group(s)" if cat is None else
                                     f"{shown} {assetcat.title(cat).lower()} in {len(gmap)} group(s)"))
@@ -901,10 +1018,8 @@ class App:
         self._group_loaded.add(gid)
         self.tree.delete(*self.tree.get_children(gid))   # drop placeholder
         idxs = self._sorted(self._group_indices[gid])
-        for i in idxs[:self.GROUP_CAP]:
-            name, group, _l = self.source.entries[i]
-            disp = name[len(group) + 1:] if group and name.startswith(group + "/") else name
-            self._index[self.tree.insert(gid, "end", text=disp, values=self._row_values(i))] = i
+        group = self.source.entries[idxs[0]][1] if idxs else ""
+        self._insert_leaves(gid, idxs[:self.GROUP_CAP], group)
         if len(idxs) > self.GROUP_CAP:
             self.tree.insert(gid, "end", text=f"… (+{len(idxs) - self.GROUP_CAP} more — use Filter)")
 
@@ -985,6 +1100,7 @@ class App:
         # self.cur_data, so keep it in sync whatever path called us (file browser,
         # a panel re-rendering after an edit, or a programmatic open).
         self.cur_name, self.cur_data = name, data
+        self.extract_btn.config(state="normal")
         ft = ident.identify(data[:0x4000], filename=name)
         self.header.config(text=f"{name}    —    {ft.fmt}: {ft.desc}    ({human(len(data))})")
         try:
