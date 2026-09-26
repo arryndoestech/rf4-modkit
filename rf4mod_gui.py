@@ -3059,19 +3059,20 @@ class App:
         """rf3route.bin — the NPC town-navigation graph (rooms -> nodes -> edges): tree view,
         path queries through rf3RouteResult.bin, JSON export / import (edits land in the
         working copy) and next-hop matrix regeneration (2026-09-19)."""
+        doc = self._doc
         from rf4s_modkit import route
         import json as _json
         g = route.RouteGraph.parse(data)
         rooms = [(rid, r) for rid, r in enumerate(g.rooms()) if r.node_count]
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"Navigation graph (TRCS) — {len(g.nodes)} nodes, {len(g.edges)} edges "
                             f"in {len(rooms)} rooms; positions are tiles, edge cost = walk cost",
                   wraplength=700).pack(side="left", padx=6)
-        tv = ttk.Treeview(self.content, columns=("kind", "id", "detail"), show="tree headings", height=18)
+        tv = ttk.Treeview(doc.content, columns=("kind", "id", "detail"), show="tree headings", height=18)
         tv.heading("#0", text="room / node / edge"); tv.column("#0", width=230)
         for c, w in (("kind", 60), ("id", 60), ("detail", 520)):
             tv.heading(c, text=c); tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         for rid, r in rooms:
@@ -3088,14 +3089,14 @@ class App:
                               values=("edge", tgt, f"room {e.dest_room} node {e.dest_node}  "
                                                    f"cost {e.cost}{'  (room transition)' if e.cost == 0 else ''}"))
         # ---- path query against the next-hop matrix ----
-        ctl = ttk.Frame(self.content); ctl.pack(fill="x", padx=6, pady=3)
+        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
         v_src, v_dst = tk.StringVar(), tk.StringVar()
         ttk.Label(ctl, text="path from").pack(side="left")
         ttk.Entry(ctl, textvariable=v_src, width=10).pack(side="left", padx=2)
         ttk.Label(ctl, text="to").pack(side="left")
         ttk.Entry(ctl, textvariable=v_dst, width=10).pack(side="left", padx=2)
         ttk.Label(ctl, text="(node id or room:N[:k])", font=("Segoe UI", 8), foreground="#666").pack(side="left")
-        out = ttk.Label(self.content, text="", wraplength=900, justify="left"); out.pack(fill="x", padx=6)
+        out = ttk.Label(doc.content, text="", wraplength=900, justify="left"); out.pack(fill="x", padx=6)
 
         def _node(text):
             s = text.strip()
@@ -3132,9 +3133,9 @@ class App:
                 blob = route.RouteGraph.from_json(_json.loads(pathlib.Path(f).read_text(encoding="utf-8"))).build()
             except Exception as ex:  # noqa: BLE001
                 messagebox.showerror("Import failed", str(ex)); return
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text="graph imported — also rebuild the next-hop matrix (button) and save both")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
 
         def _rebuild():
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3RouteResult.bin",
@@ -3147,7 +3148,7 @@ class App:
             f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3route.bin",
                                              filetypes=[("route graph", "*.bin")])
             if f:
-                pathlib.Path(f).write_bytes(self.cur_data); self.status.config(text=f"Saved → {f}")
+                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, cmd in (("Export JSON…", _export), ("Import JSON…", _import),
                          ("Rebuild next-hop matrix…", _rebuild), ("Save graph…", _save)):
             ttk.Button(ctl, text=lbl, command=cmd).pack(side="right", padx=2)
