@@ -2683,8 +2683,9 @@ class App:
 
     def _view_skillcurve(self, name, data):
         """rf3ParamSkillExp*.bin skill XP-per-level curve (read-only decode)."""
+        doc = self._doc
         xp = skillcurve.parse(data)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         arc = next((a for a, f in skillcurve.ARCHIVE_FILE.items()
                     if pathlib.Path(name).stem.lower() == f.lower()), None)
         who = ""
@@ -2694,7 +2695,7 @@ class App:
         ttk.Label(bar, text=f"Skill XP curve — 100 levels, total {sum(xp)}, "
                             f"cap-bracket table[99]={xp[-1] if xp else 0}   {who}",
                   wraplength=940).pack(side="left", padx=6)
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         txt.insert("end", skillcurve.render(data, upto=100))
         txt.config(state="disabled")
 
