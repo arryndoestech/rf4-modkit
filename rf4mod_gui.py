@@ -1653,9 +1653,10 @@ class App:
             return 1.0
         return max(0.05, min(cw / w, ch / h))
 
-    def _navigate_to_map(self, map_name):
+    def _navigate_to_map(self, map_name, doc=None):
         """Ctrl+click-a-warp handler from the embedded map editor: find {map_name}.rf4m in the
         current source, load it, and re-render (keeping cur_name/cur_data in sync)."""
+        doc = doc or self._doc
         if not self.source:
             return
         target = f"{map_name}.rf4m".lower()
@@ -1666,10 +1667,10 @@ class App:
                     data = loader()
                 except Exception as e:  # noqa: BLE001
                     self.status.config(text=f"navigate failed: {e}"); return
-                self.cur_name, self.cur_data = name, data
-                self._doc.key, self._doc.saved = self._entry_key(name), data
-                self._show(name, data)
-                self._retitle(self._doc)
+                doc.cur_name, doc.cur_data = name, data
+                doc.key, doc.saved = self._entry_key(name), data
+                self._show(name, data, doc)
+                self._retitle(doc)
                 return
         self.status.config(text=f"{map_name}.rf4m not found in this source")
 
@@ -1691,14 +1692,15 @@ class App:
         previous panel's texture-decode thread running and threw its texture cache away.
         Now switching maps is set_map() on the same panel (stale decodes are cancelled, and
         revisiting a map reuses its decoded ground). Returns (notebook, panel | None)."""
-        mv = getattr(self, "_map_view", None)
+        doc = self._doc
+        mv = getattr(doc, "_map_view", None)
         if mv is not None:
             try:
                 alive = bool(mv["nb"].winfo_exists())
             except tk.TclError:
                 alive = False
             if not alive:
-                self._map_view = mv = None
+                doc._map_view = mv = None
         if mv is not None:
             nb, panel = mv["nb"], mv["panel"]
             for f in mv["extra"]:
@@ -1713,35 +1715,36 @@ class App:
                     ev.destroy()
                 except tk.TclError:
                     pass
-            self._map_view_hide = False
+            doc._map_view_hide = False
             panel.tex_reader = self.source.read_named if self.source else None
             panel.set_map(m, name)
             if not nb.winfo_ismapped() or nb.winfo_manager() != "pack":
                 nb.pack(fill="both", expand=True)
             nb.select(mv["mapframe"])
             return nb, panel
-        nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
+        nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
         try:
             import map_editor
             mapframe = ttk.Frame(nb); nb.add(mapframe, text="Map (edit)")
             panel = map_editor.MapEditorPanel(
                 mapframe, m, name,
                 status_fn=lambda s_: self.status.config(text=s_),
-                on_change=lambda b, doc=self._doc: self._set_doc_data(doc, b),
+                on_change=lambda b: self._set_doc_data(doc, b),   # this tab's working copy
                 tex_reader=self.source.read_named if self.source else None,
-                on_navigate=self._navigate_to_map,   # Ctrl+click a warp -> open that map
+                on_navigate=lambda n: self._navigate_to_map(n, doc),   # Ctrl+click a warp -> that map, here
                 on_open_scene=self._open_scene_editor)  # click NPC-spawn marker -> its script line
             nb.select(mapframe)              # open the map editor first
         except Exception as e:
             self.status.config(text=f"map editor unavailable: {e}")
             return nb, None                  # not cached: the next map retries the build
-        self._map_view = {"nb": nb, "panel": panel, "mapframe": mapframe, "extra": []}
-        nb.bind("<<NotebookTabChanged>>", self._on_map_tab_changed, add="+")
+        doc._map_view = {"nb": nb, "panel": panel, "mapframe": mapframe, "extra": []}
+        nb.bind("<<NotebookTabChanged>>", lambda e: self._on_map_tab_changed(e, doc), add="+")
         return nb, panel
 
-    def _on_map_tab_changed(self, _e=None):
+    def _on_map_tab_changed(self, _e=None, doc=None):
         """Fill a lazily-built tab (the Hex dump) the first time it is shown."""
-        mv = getattr(self, "_map_view", None)
+        doc = doc or self._doc
+        mv = getattr(doc, "_map_view", None)
         if mv is None:
             return
         try:
@@ -1753,12 +1756,13 @@ class App:
             fill()
 
     def _view_rf4m(self, name, data):
+        doc = self._doc
         m = rf4m.Rf4mMap.parse(data)
-        self._rf4m = m                       # editable map state (Map tab + MOBJ tab edit this)
-        self._map_panel = None               # reset: a failed embed must not export a stale panel
+        doc._rf4m = m                       # editable map state (Map tab + MOBJ tab edit this)
+        doc._map_panel = None               # reset: a failed embed must not export a stale panel
         nb, panel = self._map_notebook(m, name)
-        self._map_panel = panel
-        mv = getattr(self, "_map_view", None)
+        doc._map_panel = panel
+        mv = getattr(doc, "_map_view", None)
         before = set(nb.tabs())
         # cutscene/event tab: this map's scenes from rf3.mc tail[mapId], in the map editor's
         # sidebar next to Encounters / Problems (the outer notebook keeps Map / Chunks / Hex)
@@ -1767,7 +1771,7 @@ class App:
         except Exception as e:
             self.status.config(text=f"events tab unavailable: {e}")
         # summary tab
-        txt = self._make_text_tab(nb, "Chunks")
+        txt = self._make_text_tab(nb, "Chunks", doc=doc)
         txt.insert("end", f"{m.summary()}\n\n")
         for c in m.chunks:
             txt.insert("end", f"  {c.tag.decode('latin1'):5} {len(c.payload):>8} B   "
@@ -1782,7 +1786,7 @@ class App:
         # read-only hex tab (a peer of Chunks); monospace so the offset / hex / ASCII columns
         # line up. Filled only when first opened: dumping a whole map into a Text widget cost
         # ~0.2 s on every map click for a tab most people never look at.
-        hx = self._make_text_tab(nb, "Hex", mono=True)
+        hx = self._make_text_tab(nb, "Hex", mono=True, doc=doc)
 
         def fill_hex(hx=hx, data=data):
             hx.config(state="normal")
@@ -1797,8 +1801,8 @@ class App:
         # Export = WYSIWYG map view (current zoom + enabled overlays) when the
         # embedded editor is up; the ATTR-heatmap PNG (set above) stays as the
         # fallback when it isn't.
-        if self._map_panel is not None:
-            self._export_kind = "map_png"
+        if doc._map_panel is not None:
+            doc._export_kind = "map_png"
             self.export_btn.config(state="normal")
 
     @staticmethod
@@ -1817,25 +1821,27 @@ class App:
 
     def _events_textarc(self):
         """Lazily load + cache the rf3mc.<locale> dialogue archive for scene previews."""
-        if getattr(self, "_ev_textarc_done", False):
-            return self._ev_textarc
-        self._ev_textarc_done = True
-        self._ev_textarc = None
+        doc = self._doc
+        if getattr(doc, "_ev_textarc_done", False):
+            return doc._ev_textarc
+        doc._ev_textarc_done = True
+        doc._ev_textarc = None
         data = self.source.read_named("rf3mc.eng") if self.source else None
         if data:
             try:
-                self._ev_textarc = textdb.TextArchive.parse(data)
+                doc._ev_textarc = textdb.TextArchive.parse(data)
             except Exception:
-                self._ev_textarc = None
-        return self._ev_textarc
+                doc._ev_textarc = None
+        return doc._ev_textarc
 
     def _build_events_tab(self, nb, name):
         """'Events' tab: the cutscene/event scenes tied to THIS map. rf3.mc's 872 tail
         banks are 1:1 with the 872 rooms, so a map's events live in tail[mapId]. Lists
         those scenes with dialogue previews; opens them in the full Cutscene Editor."""
+        doc = self._doc
         import map_editor
         frame = ttk.Frame(nb)
-        mv = getattr(self, "_map_view", None)
+        mv = getattr(doc, "_map_view", None)
         if mv is not None and nb is not mv["nb"]:
             nb.insert(mv["panel"].problems, frame, text="Events")    # Problems stays last
             mv["events_tab"] = frame                # replaced when the next map opens
@@ -1980,7 +1986,7 @@ class App:
         ttk.Frame(frame, height=4).pack()
         if not entries:
             b.config(state="disabled")
-        self._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
+        doc._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
 
     def _view_textdb(self, name, data):
         doc = self._doc
