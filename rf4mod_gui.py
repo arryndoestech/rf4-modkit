@@ -285,9 +285,10 @@ class _GenHost:
     PICTURE_PX = 440
     PICTURE_PAD = 12                     # the picture column's padx (6 + 6)
 
-    def __init__(self, app, name, g):
+    def __init__(self, app, name, g, tab):
         import types
         self.app, self.name = app, name
+        self.tab = tab                   # the explorer tab (_Doc) this Gen file is open in
         self.doc = types.SimpleNamespace(gen=g, gen_path=pathlib.Path(name))
         self.gate_index = None
         self.pane = None
@@ -338,7 +339,7 @@ class _GenHost:
                                                                     else "monster spawn point"))
 
     def _changed(self, label):
-        self.app.cur_data = self.doc.gen.build()
+        self.tab.cur_data = self.doc.gen.build()
         if self.pane is not None:
             self.pane.refresh()
         self.redraw()
@@ -385,11 +386,12 @@ class _GenHost:
 
     def save(self):
         blob = self.doc.gen.build()
-        self.app.cur_data = blob
+        self.tab.cur_data = blob
         f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile=pathlib.Path(self.name).name,
                                          filetypes=[("Gen table", "*.bin"), ("All", "*.*")])
         if f:
             pathlib.Path(f).write_bytes(blob)
+            self.app._mark_saved(self.tab)
             self.status(f"Saved the monster spawns → {f}")
 
     # ---- the flat map picture ------------------------------------------------------- #
@@ -2544,24 +2546,25 @@ class App:
         them; '+ gate' / '+ spawn' then click the picture) beside the map editor's own
         Encounters pane (gates, weights, counts, rosters). 'Open in map editor' switches to the
         full editor; 'Save table…' writes the file."""
+        doc = self._doc
         from map_editor import tabs as me_tabs
         g = gen.GenTable(data)
-        self._gen = g
+        doc._gen = g
         maps = self._maps_for_gen(name)
-        host = _GenHost(self, name, g)
-        self._gen_host = host
+        host = _GenHost(self, name, g, doc)
+        doc._gen_host = host
         nmfn = _load_actor_names()
         rtxt = ", ".join(f"{nmfn(i) or i}×{c}" for i, c in g.roster().most_common()) or "(none)"
-        ttk.Label(self.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
+        ttk.Label(doc.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
                   wraplength=940).pack(anchor="w", padx=6)
         host.build_map_row(maps)
         # Lay the view out ONCE: the picture's size comes from the map's ATTR grid (no image
         # needed) and the pane gets the rest of the width up front. Otherwise the Encounters
         # pane was drawn at its natural width and re-laid-out ~25 ms later when its scroll area
         # learned the real one -- a visible redraw on every Gen file.
-        total_w = self.content.winfo_width()
+        total_w = doc.content.winfo_width()
         pic = host.picture_size()
-        body = ttk.Frame(self.content)       # built unpacked, shown when complete
+        body = ttk.Frame(doc.content)       # built unpacked, shown when complete
         host.build_picture(body, pic)
         pane = me_tabs.EncountersTab(body, host)
         pane.pack(side="left", fill="both", expand=True)
@@ -2588,7 +2591,7 @@ class App:
 
     def _open_map_encounters(self, map_name):
         """Show a map in the embedded map editor on its Encounters tab (and select it in the
-        file list)."""
+        file list), in the map's own tab."""
         if not map_name or not self.source:
             return
         i = next((k for k, e in enumerate(self.source.entries) if e[0] == map_name), None)
@@ -2596,9 +2599,10 @@ class App:
             return
         name, _g, loader = self.source.entries[i]
         self._reveal_entry(i)
-        if self._open_in_tab(self._entry_key(name), name, loader()) is None:
+        doc = self._open_in_tab(self._entry_key(name), name, loader())
+        if doc is None:
             return
-        panel = getattr(self, "_map_panel", None)
+        panel = doc._map_panel
         if panel is not None:
             try:
                 panel.nb.select(panel.encounters)
