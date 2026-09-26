@@ -229,22 +229,28 @@ def game_targets(names) -> dict | None:
     return out
 
 
+def backup_path(target) -> pathlib.Path | None:
+    """Where backup_once keeps the original of a game-folder file
+    (<game>/ModdingBackup/<same path>), or None for a file outside the game folder."""
+    b = find_bundle_dir()
+    if b is None:
+        return None
+    try:
+        rel = pathlib.Path(target).resolve().relative_to(b.parent.resolve())
+    except ValueError:
+        return None
+    return b.parent / BACKUP_DIR / rel
+
+
 def backup_once(target) -> pathlib.Path | None:
     """Copy a game-folder file that is about to be overwritten to
     <game>/ModdingBackup/<same path>, the first time only (later saves keep that original).
     The backup's path, or None when nothing was copied."""
     import shutil
-    b = find_bundle_dir()
     target = pathlib.Path(target)
-    if b is None or not target.is_file():
-        return None
-    try:
-        rel = target.resolve().relative_to(b.parent.resolve())
-    except ValueError:
-        return None                                # a file outside the game folder
-    dest = b.parent / BACKUP_DIR / rel
-    if dest.exists():
-        return None
+    dest = backup_path(target)
+    if dest is None or not target.is_file() or dest.exists():
+        return None                                # outside the game folder, or kept already
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(target, dest)
     return dest

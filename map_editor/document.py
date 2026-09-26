@@ -68,6 +68,7 @@ class MapDocument:
         self._listeners = []
         self._open: Tx | None = None
         self._saved = {p: self._bytes(p) for p in ("map", "si", "gen")}
+        self.opened = dict(self._saved)          # the files as opened (saves move _saved on)
         self.grid = None
         self.objs = []
         self.attr_version = 0

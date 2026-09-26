@@ -342,7 +342,12 @@ first time, the originals are copied to `ModdingBackup` in the game folder. *Sav
 writes a copy elsewhere. Restart the game to see a change. The farm, the fields, Selphia's
 streets and the farmhouse come in four seasons (`MAP_CITY_00`, `…_SUMMER`, `…_AUTUMN`,
 `…_WINTER`) and the game loads the one for the current season, so an edit to one only shows
-in that season; the first time you save one, the editor says so (once, ever).
+in that season; the first time you save one, the editor says so (once, ever). *Copy changes
+to the other seasons…* (Save menu) carries the edit over: it works out what you changed --
+against the original in `ModdingBackup`, or the map as you opened it -- and replays it on the
+other three: added objects / warps everywhere, changed or removed ones only where that season
+has the same one, ATTR cells where the grid matches. Map settings (season, tints, layers) are
+season-specific and never copied; anything that can't be matched is listed before you confirm.
 
 **Layout.** A toolbar (Save menu, Undo / Redo, tools, zoom, Validate) above the map canvas
 and a sidebar with six tabs (it opens on View):

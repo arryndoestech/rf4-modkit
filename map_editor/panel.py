@@ -114,6 +114,8 @@ class MapEditorPanel:
         menu.add_command(label="Save search items (SI_*.bin) as…", command=self.save_si)
         menu.add_command(label="Save monster gates (Gen*.bin) as…", command=self.save_gen)
         menu.add_separator()
+        menu.add_command(label="Copy changes to the other seasons…", command=self.copy_to_seasons)
+        menu.add_separator()
         menu.add_command(label="Export map view as PNG…", command=self.export_png)
         mb["menu"] = menu
         mb.pack(side="left")
@@ -122,7 +124,8 @@ class MapEditorPanel:
                    "without asking; the first time, the originals are copied to ModdingBackup in "
                    "the game folder. 'Save … as…' writes a copy elsewhere instead.\n"
                    "Farm, field and Selphia maps come in four seasons (…_SUMMER, _AUTUMN, "
-                   "_WINTER): the game loads the one for the current season.")
+                   "_WINTER): the game loads the one for the current season. 'Copy changes to "
+                   "the other seasons…' carries this map's object / warp / ATTR changes over.")
         self.undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo)
         self.undo_btn.pack(side="left", padx=(6, 0))
         ui.Tip(self.undo_btn, lambda: self._undo_tip("undo"))
@@ -1430,6 +1433,87 @@ class MapEditorPanel:
             f"{base} is this place in {mine}. The game loads a different file in each season:\n\n"
             + "\n".join(rest) + f"\n\nSo the change only shows in {mine}. To see it in another "
             "season, make the same edit in that season's map (or play a save in that season).")
+
+    def copy_to_seasons(self):
+        """Carry this map's changes to its other seasons (farm, fields, Selphia's streets,
+        farmhouse: four files, one per season). The changes are worked out against the map as
+        the game shipped it -- the original in ModdingBackup when the map was saved in place,
+        else the map as it was opened -- and replayed on each season (rf4s_modkit.mapdiff):
+        an edited or removed object / warp only where that season has the same one, added ones
+        everywhere, ATTR cells where the grid is the same size; map settings never. Shows what
+        will happen, then writes the seasons over the game's files (originals kept once in
+        ModdingBackup). True when something was written."""
+        from rf4s_modkit import gamepaths, mapdiff, rf4m as _rf4m
+        title = "Copy changes to the other seasons"
+        self.flush_edits()
+        d = self.doc
+        if d is None:
+            return False
+        fam = map_names.season_family(map_names.map_id_for_file(d.base or ""))
+        if not fam:
+            messagebox.showinfo(title, f"{d.base} looks the same all year: the game has no other "
+                                       "seasons of it.")
+            return False
+        mine = next((f for _s, f in fam if f.upper() == (d.base or "").upper()), d.base)
+        targets = gamepaths.game_targets([f + ".rf4m" for _s, f in fam])
+        if targets is None:
+            messagebox.showerror(title, "Set the game folder first (Game folder… in the main window).")
+            return False
+        backup = gamepaths.backup_path(targets[mine + ".rf4m"])
+        if backup is not None and backup.is_file():
+            base_bytes, origin = backup.read_bytes(), "the original in ModdingBackup"
+        else:
+            base_bytes, origin = d.opened["map"], "the map as it was when opened"
+        ch = mapdiff.diff(_rf4m.Rf4mMap.parse(base_bytes), d.map)
+        replayable = ch.cells or any(ch.edited.values()) or any(ch.added.values()) or any(ch.removed.values())
+        if not replayable:
+            messagebox.showinfo(title, f"Nothing to copy: no object, warp or ATTR changes since {origin}."
+                                + (f"\n\n(Changed map settings -- {', '.join(ch.other)} -- are "
+                                   "season-specific and never copied.)" if ch.other else ""))
+            return False
+        plans = []
+        for season, f in fam:
+            if f.upper() == mine.upper():
+                continue
+            t = targets[f + ".rf4m"]
+            src = t if t.is_file() else data.find_extracted(f + ".rf4m")
+            if src is None:
+                plans.append((season, f, None, None, None))
+                continue
+            m = _rf4m.Rf4mMap.load(src)
+            plans.append((season, f, t, m, mapdiff.apply(ch, m)))
+        lines = [f"Changes to {mine} since {origin}: {ch.summary()}.", ""]
+        for season, f, _t, _m, rep in plans:
+            if rep is None:
+                lines.append(f"{f} ({season}): not found in the game folder")
+            else:
+                lines.append(f"{f} ({season}): {len(rep.done)} to copy"
+                             + (f", {len(rep.skipped)} skipped" if rep.skipped else ""))
+        skipped = [f"{f}: {x}" for _s, f, _t, _m, rep in plans if rep for x in rep.skipped]
+        if skipped:
+            lines += ["", "Skipped (that season differs there, or it is season-specific):"]
+            lines += ["  " + x for x in skipped[:12]] + (["  …"] if len(skipped) > 12 else [])
+        todo = [p for p in plans if p[4] is not None and p[4].done]
+        if not todo:
+            messagebox.showinfo(title, "\n".join(lines + ["", "Nothing could be copied."]))
+            return False
+        lines += ["", "Write the other seasons over the game's files? (The originals are kept in "
+                      "ModdingBackup the first time.) A season open in another tab still shows "
+                      "the old map until you reopen it."]
+        if not messagebox.askyesno(title, "\n".join(lines)):
+            return False
+        written = []
+        for season, f, t, m, _rep in todo:
+            try:
+                gamepaths.write_game_file(t, m.build())
+            except OSError as e:
+                messagebox.showerror(title, f"Could not write {t}:\n{e}\n\n(Is the game running "
+                                            "with the file open?)")
+                return bool(written)
+            written.append(f"{f} ({season})")
+        data._EXTRACTED_INDEX = None
+        self.status("Copied the changes to " + ", ".join(written) + " -- restart the game to see them")
+        return True
 
     def save_all(self):
         """Save every changed file, each through its own dialog. False if one was cancelled."""

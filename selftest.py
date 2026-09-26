@@ -6211,6 +6211,82 @@ def test_map_editor_save_to_game():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_map_editor_copy_to_seasons():
+    """Copy changes to the other seasons (map editor Save menu, rf4s_modkit.mapdiff): an
+    object the other season also has is changed there, a spring-only object is skipped and
+    reported, a new object is added, an ATTR cell is copied; map settings never; the seasons
+    are written over the game's files with their originals backed up."""
+    print("map editor: copy changes to the other seasons:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("copy to seasons", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    fam = ["MAP_CITY_00", "MAP_CITY_00_SUMMER", "MAP_CITY_00_AUTUMN", "MAP_CITY_00_WINTER"]
+    if not all((B / (f + ".rf4m")).exists() for f in fam):
+        _skip("copy to seasons", "no extracted bundleMain"); return
+    from tkinter import messagebox as _mb
+    from rf4s_modkit import gamepaths as _gp, mapdiff, rf4m as _rf4m
+    from map_editor import data as med
+    box = _headless_dialogs()
+    said = []
+    _mb.askyesno = lambda t, m, **k: said.append(m) or True
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_seasons_"))
+    game = tmp / "game" / "Bundle"
+    (game / "bundleMain").mkdir(parents=True)
+    (game / "Manifest.plist").write_bytes(b"")
+    for f in fam:
+        shutil.copy2(B / (f + ".rf4m"), game / "bundleMain" / (f + ".rf4m"))
+    old = (_gp.find_bundle_dir, med.EXTRACTED, med._EXTRACTED_INDEX)
+    _gp.find_bundle_dir = lambda refresh=False: game
+    med.EXTRACTED, med._EXTRACTED_INDEX = game, None
+    root = None
+    try:
+        summer0 = _rf4m.Rf4mMap.load(game / "bundleMain" / "MAP_CITY_00_SUMMER.rf4m")
+        s_recs = summer0.mobj_records()
+        root, p, errs = _headless_panel("MAP_CITY_00", game / "bundleMain")
+        m = p.doc.map
+        recs = m.mobj_records()
+        common = next(i for i, r in enumerate(recs) if r in s_recs and (r[0] & 0xFFFF) >= 20)
+        only = next((i for i, r in enumerate(recs) if r not in s_recs and (r[0] & 0xFFFF) >= 20), None)
+        moved = list(recs[common]); moved[14] += 8
+        m.set_mobj_record(common, moved)
+        if only is not None:
+            o2 = list(recs[only]); o2[15] += 8
+            m.set_mobj_record(only, o2)
+        new = list(recs[common]); new[14], new[15] = 8, 8
+        m.add_mobj_record(new)
+        w, h, cells = m.attr_grid()
+        m.set_attr_cell(1, 1, cells[w + 1] ^ 0x1)
+        ok = p.copy_to_seasons()
+        summer = _rf4m.Rf4mMap.load(game / "bundleMain" / "MAP_CITY_00_SUMMER.rf4m")
+        sr = summer.mobj_records()
+        sw, sh, sc = summer.attr_grid()
+        _check("the changes land in the other seasons: a shared object moved, a new object added, "
+               "an ATTR cell set",
+               ok and tuple(moved) in sr and tuple(recs[common]) not in sr and tuple(new) in sr
+               and sc[sw + 1] == cells[w + 1] ^ 0x1 and len(sr) == len(s_recs) + 1)
+        _check("a spring-only object is skipped (and said so), not guessed",
+               only is None or (tuple(o2) not in sr and said and "not the same here" in said[0]),
+               "spring-only object: %s" % ("none" if only is None else "present"))
+        same_rest = all([c.payload for c in summer.chunks if c.tag == t] ==
+                        [c.payload for c in summer0.chunks if c.tag == t]
+                        for t in {c.tag for c in summer0.chunks} - {b"MOBJ", b"ATTR"})
+        _check("everything else in the season (map settings, warps) is left as it was", same_rest)
+        bk = tmp / "game" / _gp.BACKUP_DIR / "Bundle" / "bundleMain" / "MAP_CITY_00_SUMMER.rf4m"
+        _check("each season's original is backed up to ModdingBackup",
+               bk.is_file() and bk.read_bytes() == (B / "MAP_CITY_00_SUMMER.rf4m").read_bytes())
+        _check("mapdiff: a map compared with itself has no changes",
+               mapdiff.diff(summer0, _rf4m.Rf4mMap.load(B / "MAP_CITY_00_SUMMER.rf4m")).empty())
+        _check("copy to seasons raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        _gp.find_bundle_dir = old[0]
+        med.EXTRACTED, med._EXTRACTED_INDEX = old[1], old[2]
+        if root is not None:
+            root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_map_editor_labels():
     """Name labels (objects, script NPCs, warp destinations) stay on the map: one that would
     stick out above the top edge goes under its object, one past a side edge is shifted in;
@@ -8862,7 +8938,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list,
+              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
