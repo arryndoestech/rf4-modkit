@@ -608,7 +608,6 @@ class App:
         ttk.Button(bar, text="Open Folder…", command=self.cmd_open_folder).pack(side="left", padx=2)
         ttk.Button(bar, text="Open File…", command=self.cmd_open_file).pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
-        ttk.Button(bar, text="Map Explorer", command=self.cmd_map_explorer).pack(side="left", padx=2)
         ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
         ttk.Button(bar, text="Extract…", command=self.cmd_extract).pack(side="left", padx=2)
         self.export_btn = ttk.Button(bar, text="Export View…", command=self.cmd_export, state="disabled")
@@ -1274,6 +1273,12 @@ class App:
                 except tk.TclError:
                     pass
             mv["extra"] = []
+            ev = mv.pop("events_tab", None)
+            if ev is not None:
+                try:
+                    ev.destroy()
+                except tk.TclError:
+                    pass
             self._map_view_hide = False
             panel.tex_reader = self.source.read_named if self.source else None
             panel.set_map(m, name)
@@ -1321,9 +1326,10 @@ class App:
         self._map_panel = panel
         mv = getattr(self, "_map_view", None)
         before = set(nb.tabs())
-        # cutscene/event tab: this map's scenes from rf3.mc tail[mapId]
+        # cutscene/event tab: this map's scenes from rf3.mc tail[mapId], in the map editor's
+        # sidebar next to Encounters / Problems (the outer notebook keeps Map / Chunks / Hex)
         try:
-            self._build_events_tab(nb, name)
+            self._build_events_tab(panel.nb if panel is not None else nb, name)
         except Exception as e:
             self.status.config(text=f"events tab unavailable: {e}")
         # summary tab
@@ -1395,9 +1401,18 @@ class App:
         those scenes with dialogue previews; opens them in the full Cutscene Editor."""
         import map_editor
         frame = ttk.Frame(nb)
-        nb.add(frame, text="Events")
-        info = ttk.Label(frame, anchor="w", wraplength=940, justify="left")
+        mv = getattr(self, "_map_view", None)
+        if mv is not None and nb is not mv["nb"]:
+            nb.insert(mv["panel"].problems, frame, text="Events")    # Problems stays last
+            mv["events_tab"] = frame                # replaced when the next map opens
+        else:
+            nb.add(frame, text="Events")
+        info = ttk.Label(frame, anchor="w", justify="left")
         info.pack(fill="x", padx=6, pady=(6, 2))
+        # wrap the texts to the sidebar's width, whatever it is
+        frame.bind("<Configure>", lambda e: [w.config(wraplength=max(120, e.width - 16))
+                                             for w in frame.winfo_children()
+                                             if isinstance(w, ttk.Label)], add="+")
 
         stem = pathlib.Path(name).stem
         rooms = map_editor.load_rooms()                # {name: (mapId, resourceId)}
@@ -1466,13 +1481,18 @@ class App:
         lf.pack(fill="both", expand=True, padx=6, pady=4)
         sb = ttk.Scrollbar(lf)
         sb.pack(side="right", fill="y")
-        lb = tk.Listbox(lf, font=("Consolas", 9), yscrollcommand=sb.set)
+        hsb = ttk.Scrollbar(lf, orient="horizontal")
+        hsb.pack(side="bottom", fill="x")
+        lb = tk.Listbox(lf, font=("Consolas", 9), yscrollcommand=sb.set, xscrollcommand=hsb.set)
         lb.pack(side="left", fill="both", expand=True)
         sb.config(command=lb.yview)
+        hsb.config(command=lb.xview)
         row_entry_pc = []
         for nline, nstmt, epc, ok, preview in entries:
             flag = "" if ok else " [partial]"
-            lb.insert("end", f"@0x{epc:04x}  {nstmt:>3} stmts  {nline:>2} lines{flag}  {preview}")
+            # the dialogue preview first: the sidebar is narrow
+            lb.insert("end", f"{nline:>2} lines  {preview or '(no dialogue)'}   "
+                             f"@0x{epc:04x}, {nstmt} stmts{flag}")
             row_entry_pc.append(epc)
 
         def _editor_window():
@@ -1513,17 +1533,17 @@ class App:
             return res
 
         lb.bind("<Double-Button-1>", open_editor)
-        btn = ttk.Frame(frame)
-        btn.pack(fill="x", padx=6, pady=(0, 6))
-        b = ttk.Button(btn, text="Open in Cutscene Editor →", command=open_editor)
-        b.pack(side="left")
-        nsb = ttk.Button(btn, text="New scene on this map…", command=new_scene)
-        nsb.pack(side="left", padx=(6, 0))
-        ttk.Label(btn, foreground="#888",
-                  text="  New scene… = mint a map-enter scene (MapEnterScene, type 7) in this "
-                       "map's event bank via the editor's New-scene dialog").pack(side="left")
-        ttk.Label(btn, text="  (no dialogue previews until rf3mc.<locale> is in the source)"
-                  if ta is None else "").pack(side="left")
+        b = ttk.Button(frame, text="Open in Cutscene Editor →", command=open_editor)
+        b.pack(fill="x", padx=6, pady=(0, 2))
+        nsb = ttk.Button(frame, text="New scene on this map…", command=new_scene)
+        nsb.pack(fill="x", padx=6, pady=(0, 2))
+        ttk.Label(frame, foreground="#888", justify="left",
+                  text="New scene… = mint a map-enter scene (MapEnterScene, type 7) in this "
+                       "map's event bank via the editor's New-scene dialog").pack(fill="x", padx=6)
+        if ta is None:
+            ttk.Label(frame, justify="left", text="(no dialogue previews until rf3mc.<locale> "
+                                                  "is in the source)").pack(fill="x", padx=6)
+        ttk.Frame(frame, height=4).pack()
         if not entries:
             b.config(state="disabled")
         self._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
@@ -3579,14 +3599,6 @@ class App:
         self._img_canvas.config(scrollregion=(0, 0, disp.width, disp.height))
 
     # ---- extract / export ------------------------------------------------ #
-    def cmd_map_explorer(self):
-        """Open the standalone map editor in a separate window, seeded with the current map."""
-        import map_editor
-        seed = None
-        if self.cur_name and self.cur_name.lower().endswith(".rf4m"):
-            seed = self.cur_name
-        map_editor.MapExplorer(tk.Toplevel(self.root), initial=seed)
-
     def cmd_cutscene_editor(self):
         """Open the cutscene / event-script editor (rf3.mc + rf3mc.<locale>) in a window.
         Reads the script files by basename from the currently-loaded source, so it works

@@ -5608,6 +5608,49 @@ def test_map_editor_script_spawns():
         root.destroy()
 
 
+def test_map_editor_gate_ground():
+    """Problems tab: a monster spawn point with no walkable tile (ATTR bit 0x01 / 0x20) in its
+    radius, and a gate position outside the map, are flagged; clicking selects the point."""
+    print("map editor: gate / spawn point ground checks:")
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_H38.rf4m").exists():
+        _skip("gate ground checks", "no extracted bundleMain"); return
+    found = {}
+    for nm in ("MAP_DUNG_H38", "MAP_FIELD_16", "MAP_DUNG_L13"):
+        root, panel, errs = _headless_panel(nm, B)
+        try:
+            iss = [i for i in panel.validate() if "(Gen record @0x" in i[2]]
+            sel = None
+            if iss:
+                panel.problems.issues = iss
+                panel.problems.tree.insert("", "end", iid="0", text="WARN", values=(iss[0][2],))
+                panel.problems.tree.selection_set("0")
+                panel.problems._picked()
+                sel = panel.sel
+            found[nm] = (iss, sel)
+            if nm == "MAP_DUNG_L13":
+                # a spawn point pasted into solid rock is flagged at once
+                gate = next(e for _pi, _ei, e in panel.doc.gen.all_entries())
+                W, H, cells = panel.doc.grid
+                blocked = next((tx, ty) for ty in range(H) for tx in range(W)
+                               if not cells[ty * W + tx] & 0x21
+                               and all(not cells[yy * W + xx] & 0x21
+                                       for yy in range(max(0, ty - 2), min(H, ty + 3))
+                                       for xx in range(max(0, tx - 2), min(W, tx + 3))))
+                with panel.doc.edit("test", "gen"):
+                    panel.doc.gen.add_monster_position(gate, blocked[0] * 8 + 4, blocked[1] * 8 + 4, 0)
+                found["pasted"] = [i for i in panel.validate() if "monster spawn point (Gen" in i[2]]
+        finally:
+            root.destroy()
+    h38, f16, l13 = found["MAP_DUNG_H38"], found["MAP_FIELD_16"], found["MAP_DUNG_L13"]
+    _check("a spawn point with no walkable ground in reach is flagged and selectable (MAP_DUNG_H38)",
+           any("monster spawn point" in i[2] for i in h38[0]) and h38[1] and h38[1][0] == "mpos", str(h38))
+    _check("a gate position outside the map is flagged and selectable (MAP_FIELD_16)",
+           any("outside the" in i[2] for i in f16[0]) and f16[1] and f16[1][0] == "gpos", str(f16))
+    _check("a clean map stays clean; a point dropped into solid rock is flagged",
+           not l13[0] and len(found["pasted"]) == 1, str(found["pasted"]))
+
+
 def test_map_editor_clipboard():
     """Map editor clipboard: an entity, a warp, a search spot, a gate position and a monster
     spawn point copied on one map paste into
@@ -7296,6 +7339,15 @@ def test_asset_explorer_gui():
         _check("map clicks reuse ONE map editor (set_map, no rebuild)",
                p1 is not None and p1 is p2 and p2.map_base == "MAP_CITY_00")
         nb = app._map_view["nb"]
+        _outer = [nb.tab(t, "text") for t in nb.tabs()]
+        _side = [p2.nb.tab(t, "text") for t in p2.nb.tabs()]
+        _check("the map's Events tab sits in the editor's sidebar (once, just before Problems, "
+               "which stays last); the outer tabs stay Map (edit) / Chunks / Hex",
+               _outer == ["Map (edit)", "Chunks", "Hex"] and _side[-2:] == ["Events", "Problems"]
+               and _side.count("Events") == 1, "%s | %s" % (_outer, _side))
+        p2.show_tab("Problems")
+        _check("show_tab finds a tab by its title with Events inserted (Problems, not Events)",
+               p2.nb.tab(p2.nb.select(), "text") == "Problems")
         hx_tab = [t for t in nb.tabs() if nb.tab(t, "text") == "Hex"][0]
         hx_text = [w for w in nb.nametowidget(hx_tab).winfo_children()[0].winfo_children()
                    if isinstance(w, tk.Text)][0]
@@ -8208,7 +8260,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_script_spawns,
+              test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

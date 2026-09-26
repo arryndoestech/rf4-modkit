@@ -718,7 +718,9 @@ class ViewTab(ui.ScrollFrame):
 
 # --------------------------------------------------------------------------- #
 _REF = (("mobj", re.compile(r"MOBJ #(\d+)")), ("warp", re.compile(r"warp #(\d+)")),
-        ("si", re.compile(r"search spot #(\d+)")))
+        ("si", re.compile(r"search spot #(\d+)")),
+        ("gpos", re.compile(r"gate position \(Gen record @0x([0-9a-f]+)\)")),
+        ("mpos", re.compile(r"monster spawn point \(Gen record @0x([0-9a-f]+)\)")))
 
 
 class ProblemsTab(ttk.Frame):
@@ -768,6 +770,7 @@ class ProblemsTab(ttk.Frame):
         ui.set_text(self.detail, f"{sev} ({where}): {msg}")
         for kind, rx in _REF:
             m = rx.search(msg)
-            if m and where in ("map", "search items"):
-                self.ed.select((kind, int(m.group(1))), center=True)
+            if m and where in ("map", "search items", "encounters"):
+                self.ed.select((kind, int(m.group(1), 16 if kind in ("gpos", "mpos") else 10)),
+                               center=True)
                 return

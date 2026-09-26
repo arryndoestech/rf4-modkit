@@ -283,7 +283,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `.model` | **Textures** tab: every embedded BNTX card with preview / Export / Export all; **Replace texture…** swaps the selected card in place from a PNG · Structure tab |
 | `rf3mc.*` / TEXT | searchable string table; **Export → JSON** |
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON** |
-| `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*) · Events · Chunks · read-only Hex |
+| `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*; its sidebar gains an **Events** tab: the map's cutscene scenes, opened in the Cutscene editor) · Chunks · read-only Hex |
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
 | `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Encounters** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
@@ -312,8 +312,8 @@ python tools/modding/rf4mod.py mapview MAP_DUNG_A04   # same, via the CLI
 
 The editor (`map_editor.MapEditorPanel`) is **embedded in the main GUI**: selecting any
 `.rf4m` opens it as the front **Map (edit)** tab, and map edits flow into the GUI's working
-copy (so `Extract…` saves them). The same panel runs as a standalone window with a map list
-(`map_explorer.py`, or the GUI toolbar's **Map Explorer** button).
+copy (so `Extract…` saves them). Outside the GUI, the same panel runs as a standalone
+program with a map list (`map_explorer.py` / `rf4mod mapview`).
 
 It edits a map **together with its two sidecar files** -- the search-item spots
 (`SI_*.bin`) and the area's encounter table (`Gen*.bin`) -- with **one undo history**
@@ -329,7 +329,8 @@ and a sidebar with six tabs (it opens on View):
 | **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, encounter points, script NPCs) and filterable; picking a row selects it and scrolls it into view |
 | **Map** | season tag (MSEA), MGRP as checkboxes + area-group dropdown (raw hex too), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…**, **Raw chunks…** (hex editor for any chunk), and a summary |
 | **Encounters** | the `Gen*.bin`: gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map |
-| **Problems** | validation of all three files; selecting an issue selects its object |
+| **Events** | (in the asset explorer) the map's cutscene scenes from its event bank in `rf3.mc`, biggest first with a dialogue preview; double-click or *Open in Cutscene Editor*; *New scene on this map…* |
+| **Problems** | validation of all three files -- including monster spawn points with no walkable ground (ATTR bit 0x01 / 0x20) within their radius, where the game then spawns every monster on the point itself, and gate positions outside the map; selecting an issue selects its object |
 
 **Tools** (toolbar or key while the map has focus):
 

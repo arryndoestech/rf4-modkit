@@ -569,7 +569,10 @@ class MapEditorPanel:
                 self.center_on(self.sel)
 
     def show_tab(self, title):
-        self.nb.select(TABS.index(title))
+        # by title, not position: a host can add tabs (the asset explorer inserts Events)
+        tab = next((t for t in self.nb.tabs() if self.nb.tab(t, "text") == title), None)
+        if tab is not None:
+            self.nb.select(tab)
 
     def _tab_changed(self):
         pass
@@ -863,7 +866,10 @@ class MapEditorPanel:
         label = f"Paste {_KIND_NAME[kind]}" + (f" from {src}" if src and src != d.base else "")
         if self.apply(label, _MOVE_ASPECT[kind], do):
             self.select(out.get("k"))
-            self.status(label)
+            k = out.get("k")
+            ref = "(Gen record @0x%x)" % k[1] if k and kind in ("gpos", "mpos") else None
+            bad = [m for _s, _w, m in (self._gate_point_issues() if ref else ()) if ref in m]
+            self.status(label + (" -- but " + bad[0].split(": ", 1)[-1] if bad else ""))
 
     # ---- navigation ------------------------------------------------------- #
     def this_map_id(self):
@@ -1131,6 +1137,8 @@ class MapEditorPanel:
             for s in d.gen.validate():
                 sev, _, msg = s.partition(": ")
                 out.append(("ERROR", "encounters", msg) if sev == "ERROR" else ("WARN", "encounters", s))
+        if d.gen is not None and d.grid:
+            out += self._gate_point_issues()
         if d.si is not None and d.grid:
             W, H, _ = d.grid
             for i, sp in enumerate(d.si.spots):
@@ -1143,6 +1151,46 @@ class MapEditorPanel:
                 if not (0 <= sp.tile_x < W and 0 <= sp.tile_y < H):
                     out.append(("WARN", "search items", f"search spot #{i} at tile ({sp.tile_x}, "
                                                         f"{sp.tile_y}) is outside the {W}x{H} grid"))
+        return out
+
+    # A monster appears at a random spot within its spawn point's radius: the game tries 64
+    # times for a tile whose ATTR value has bit 0x01 or 0x20 (walkable; off the map counts as
+    # blocked), then gives up and uses the point itself (Companion_TickAnimation). Gates are
+    # placed as they are -- the game ships 100+ on non-walkable tiles -- so only a gate
+    # outside the map is flagged.
+    WALKABLE = 0x21
+
+    def _gate_point_issues(self):
+        d = self.doc
+        W, H, cells = d.grid
+
+        def walkable(tx, ty):
+            return 0 <= tx < W and 0 <= ty < H and bool(cells[ty * W + tx] & self.WALKABLE)
+
+        out = []
+        for kind, off, x, y, _users in d.gate_points():
+            tx, ty = x >> 3, y >> 3
+            ref = "(Gen record @0x%x)" % off
+            if kind == "gpos":
+                if not (0 <= tx < W and 0 <= ty < H):
+                    out.append(("WARN", "encounters", f"gate position {ref} at tile ({tx}, {ty}) is "
+                                f"outside the {W}x{H} map -- the gate can never be reached"))
+                continue
+            e, i = d.locate_point(kind, off)
+            r = (e.mon_pos.points[i][2] & 0xFFFF) if e is not None else 0
+            if walkable(tx, ty):
+                continue
+            reach = any(walkable(cx, cy)
+                        for cy in range((y - r) >> 3, ((y + r) >> 3) + 1)
+                        for cx in range((x - r) >> 3, ((x + r) >> 3) + 1)
+                        if (min(max(x, cx * 8), cx * 8 + 7) - x) ** 2
+                        + (min(max(y, cy * 8), cy * 8 + 7) - y) ** 2 <= r * r)
+            if not reach:
+                out.append(("WARN", "encounters",
+                            f"monster spawn point {ref} at tile ({tx}, {ty}): no walkable tile within "
+                            f"its radius ({r} sub-units) -- every monster appears on the point "
+                            f"itself, inside a blocked tile (walkable = ATTR bit 0x01 or 0x20); move "
+                            f"it onto open ground or widen the radius"))
         return out
 
     def stats_line(self):
