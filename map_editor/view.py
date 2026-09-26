@@ -47,6 +47,7 @@ class ViewState:
         self.layers = {}
         self.sel = None
         self.active_gate = None
+        self.gate_focus = False                  # outline the active gate's points (panel)
         self.spawns = []
         self.sprites = render.Sprites()
         self.flags = None                        # flagstate.FlagState the objects are shown for

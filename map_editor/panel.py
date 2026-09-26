@@ -345,8 +345,8 @@ class MapEditorPanel:
             groups |= {"warp", "dest", "sel"}
         if "si" in aspects:
             groups |= {"si", "sel"}
-        if "gen" in aspects:
-            groups |= {"gate", "sel"}
+        if "gen" in aspects:                    # gate markers, and the gates drawn as sprites
+            groups |= {"gate", "sel", "under"}
         if aspects & {"attr", "chunks"}:
             groups |= set(render.GROUPS)
         if groups:
@@ -594,6 +594,7 @@ class MapEditorPanel:
         self.sel = tuple(key) if key is not None else None
         self.view.st.sel = self.sel
         self.view.invalidate("sel")
+        self._update_gate_focus()
         self.inspector.show_selection(self.sel)
         self.objects.reveal(self.sel)
         if self.sel is not None:
@@ -610,7 +611,19 @@ class MapEditorPanel:
             self.nb.select(tab)
 
     def _tab_changed(self):
-        pass
+        self._update_gate_focus()
+
+    def _update_gate_focus(self):
+        """The active gate's points are outlined white only while that gate is being worked
+        on -- one of its points selected, or the Gates tab open -- and the outlines go as
+        soon as the selection or the tab moves on (they used to stay)."""
+        sel = self.sel
+        on = bool(sel and sel[0] in ("gpos", "mpos"))
+        if not on and self.nb.select():
+            on = self.nb.tab(self.nb.select(), "text") == "Gates"
+        if getattr(self.view.st, "gate_focus", None) != on:
+            self.view.st.gate_focus = on
+            self.view.invalidate("gate")
 
     @property
     def active_gate(self):
@@ -984,6 +997,8 @@ class MapEditorPanel:
             self.view.invalidate("bg")
         elif key == "sprites":                  # sprites under the ATTR fill: its opacity changes
             self.view.invalidate("bg", g, "sel")
+        elif key == "gates":                    # the gates drawn as sprites go with their markers
+            self.view.invalidate(g, "under", "sel")
         else:
             self.view.invalidate(g, "sel")
 

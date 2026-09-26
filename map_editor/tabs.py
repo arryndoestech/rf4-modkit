@@ -351,6 +351,13 @@ class EncountersTab(ui.ScrollFrame):
             en = commit_entry(f, self.v[k], self._commit_gate, width=7)
             en.grid(row=r, column=c + 1, sticky="w", pady=1)
             ui.Tip(en, tip)
+        self.visible = tk.BooleanVar(value=False)
+        vis = ttk.Checkbutton(f, text="visible gate", variable=self.visible, command=self._commit_gate)
+        vis.grid(row=3, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        ui.Tip(vis, "Ticked: a gate you can see and break (header flag low byte 0).\n"
+                    "Unticked: an invisible spawner -- the game spawns the gate hidden and "
+                    "unhittable, and its monsters just appear (low byte 1; 700 of the game's "
+                    "1224 gates are like that). The flag's high byte is kept.")
         gb = ttk.Frame(g)
         gb.pack(fill="x", pady=(4, 0))
         ttk.Button(gb, text="Add (copy)", command=self._add_gate).pack(side="left")
@@ -393,7 +400,8 @@ class EncountersTab(ui.ScrollFrame):
         hint(b, "Gates (kind 359-390) are picked by weight; the roster lists the monsters a gate "
                 "spawns (id 48-254), each with a pick weight (its relative chance; stock uses 5 or 10) and one "
                 "weight per monster spawn point. On the map: "
-                "orange G = gate positions, pink dots = monster spawn points (the selected gate's are "
+                "a visible gate's positions show the gate itself, a hidden spawner's (or any, with "
+                "sprites off) an orange G; pink dots = monster spawn points (the selected gate's are "
                 "outlined white). Drag them with the Select tool. Gates often share one roster, so a "
                 "monster added to one shows up in all of them until you 'Make private'.").pack(
             anchor="w", padx=6, pady=6)
@@ -418,8 +426,10 @@ class EncountersTab(ui.ScrollFrame):
                                   f"{len(doc.gen.patterns)} pattern(s)")
         for pi, ei, e in doc.gen.all_entries():
             nmon = sum(1 for s in e.spawns if gen.MONSTER_LO <= s.monster_id <= gen.MONSTER_HI)
+            hidden = "  (hidden)" if e.hdr.flag & 0xFF else ""
             t.insert("", "end", iid=f"{pi}:{ei}",
-                     values=(f"{e.gate_kind}  {data.actor_name(e.gate_kind)}".strip(), e.weight, nmon))
+                     values=(f"{e.gate_kind}  {data.actor_name(e.gate_kind)}".strip() + hidden,
+                             e.weight, nmon))
         gi = self.ed.gate_index
         if gi is not None and t.exists(f"{gi[0]}:{gi[1]}"):
             t.selection_set(f"{gi[0]}:{gi[1]}")
@@ -434,6 +444,7 @@ class EncountersTab(ui.ScrollFrame):
         if e is None:
             for v in self.v.values():
                 v.set("")
+            self.visible.set(False)
             self.kind.var.set("")
             self.share_lbl.config(text="Select a gate.")
             self.pts_lbl.config(text="")
@@ -443,6 +454,7 @@ class EncountersTab(ui.ScrollFrame):
         self.v["cmin"].set(str(e.hdr.count_min))
         self.v["cmax"].set(str(e.hdr.count_max))
         self.v["delay"].set(str(e.hdr.spawn_delay))
+        self.visible.set(not e.hdr.flag & 0xFF)
         for k, s in enumerate(e.spawns):
             ok = gen.MONSTER_LO <= s.monster_id <= gen.MONSTER_HI
             r.insert("", "end", iid=str(k), values=(f"{s.monster_id}  {data.actor_name(s.monster_id) or '?'}"
@@ -451,8 +463,8 @@ class EncountersTab(ui.ScrollFrame):
         if keep and r.exists(keep[0]):
             r.selection_set(keep[0])
         g = self.ed.doc.gen
-        shared = [n for n, blk in (("roster", "roster"), ("gate positions", "gate_pos"),
-                                   ("monster points", "mon_pos"))
+        shared = [n for n, blk in (("settings", "hdr"), ("roster", "roster"),
+                                   ("gate positions", "gate_pos"), ("monster points", "mon_pos"))
                   if sum(1 for _p, _e, o in g.all_entries() if getattr(o, blk) is getattr(e, blk)) > 1]
         self.share_lbl.config(text=("Shares its " + ", ".join(shared) + " with other gates.") if shared else "")
         self.pts_lbl.config(text=f"{len(e.gate_pos.points)} gate position(s), "
@@ -474,9 +486,12 @@ class EncountersTab(ui.ScrollFrame):
         vals = {k: ui.to_int(v.get()) for k, v in self.v.items()}
         if kind is None or None in vals.values():
             return
-        cur = (e.gate_kind, e.weight, e.hdr.count_min, e.hdr.count_max, e.hdr.spawn_delay)
+        # visible = flag low byte 0; hidden keeps its own non-zero low byte (else 1)
+        low = e.hdr.flag & 0xFF
+        flag = (e.hdr.flag & 0xFF00) | (0 if self.visible.get() else (low or 1))
+        cur = (e.gate_kind, e.weight, e.hdr.count_min, e.hdr.count_max, e.hdr.spawn_delay, e.hdr.flag)
         new = (kind & 0xFFFF, vals["weight"] & 0xFFFF, vals["cmin"] & 0xFF, vals["cmax"] & 0xFF,
-               vals["delay"] & 0xFFFF)
+               vals["delay"] & 0xFFFF, flag)
         if cur == new:
             return
         pi, ei = self.ed.gate_index
@@ -486,7 +501,7 @@ class EncountersTab(ui.ScrollFrame):
             ent = g.patterns[pi][ei]
             g.set_gate_kind(pi, ei, new[0])
             g.set_weight(pi, ei, new[1])
-            g.set_hdr(ent, count_min=new[2], count_max=new[3], spawn_delay=new[4])
+            g.set_hdr(ent, count_min=new[2], count_max=new[3], spawn_delay=new[4], flag=new[5])
         self.ed.apply(f"Edit gate {pi}:{ei}", "gen", do)
 
     def _add_gate(self):

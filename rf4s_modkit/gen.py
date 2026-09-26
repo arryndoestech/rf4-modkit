@@ -41,7 +41,10 @@ most ONE pattern (268 of the 690 are empty). Layout, offsets absolute from file 
                         wave delay = spawn_delay + rand(0..127) (-32 above 32), between
                         waves (spawn_delay + rand(0..63)) / 2 with a floor of 48.
                         flag low byte != 0: the spawned gate gets actor state bits 0x24
-                        (as when the player has status 0x40000); flag high byte != 0
+                        and its scene node bit 1 -- HIDDEN and unhittable, an invisible
+                        spawner (700 of the 1224 shipped entries, e.g. every Yokmir
+                        Forest gate but A04 / A08; as when the player has status
+                        0x40000); flag high byte != 0
                         (value 256 in 16 shipped entries) enables the leader-report path.
     +8  u32 -> gate positions  {u32 n; n x (u16 x, u16 y)}   sub-units, tile = >>3;
                         Encounter_TickMonsterSpawnSlots picks one at random for the gate

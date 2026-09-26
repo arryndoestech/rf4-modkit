@@ -6615,6 +6615,39 @@ def test_map_editor_labels():
                and v.ground_dim == 40 and p.viewtab.saved.get("ground_dim") == 40
                and p.viewtab.dim.get() == 40, (base40.getpixel((0, 0)),))
         p.set_ground_dim(25)
+        # monster gates the game shows draw as the Gate actor, clickable in the "G" marker's
+        # place; hidden spawners (header flag low byte != 0) and gates off the map keep the "G"
+        if (B / "MAP_DUNG_A03.rf4m").exists() and (B / "MAP_DUNG_A04.rf4m").exists():
+            got = {}
+            for nm in ("MAP_DUNG_A03", "MAP_DUNG_A04"):
+                fr = tk.Frame(root)
+                pg = _map_editor().MapEditorPanel(fr, _rf4m.Rf4mMap.load(B / (nm + ".rf4m")), nm)
+                root.update_idletasks()
+                try:
+                    vg, dg = pg.view, pg.doc
+                    vg.st.sprites.reader = lambda fn: next(pathlib.Path(BUNDLE_DIR).rglob(fn)).read_bytes()                         if fn == "EFC_00_GATEA.model" else None
+                    vg.st.layers.update(sprites=True, gates=True)
+                    if dg.gen is None:
+                        continue
+                    gp = [(k, off) for k, off, _x, _y, _u in dg.gate_points() if k == "gpos"]
+                    under = [p for p in mrender.overlay("under", vg.st) if p.key and p.key[0] == "gpos"]
+                    marks = [p for p in mrender.overlay("gate", vg.st) if p.kind == "text"]
+                    vg.st.sel = gp[0] if gp else None
+                    ring = [p for p in mrender.overlay("sel", vg.st) if p.kind == "oval"]
+                    vg.st.sel = None
+                    got[nm] = (len(gp), len(under), len(marks), ring and ring[0].xy)
+                finally:
+                    fr.destroy()
+            a03, a04 = got.get("MAP_DUNG_A03"), got.get("MAP_DUNG_A04")
+            if not (a03 and a04):
+                _skip("monster gate sprites", "no GenA03 / GenA04")
+            else:
+                _check("visible monster gates draw as the Gate actor (A04), hidden spawners keep "
+                       "the 'G' (A03, header flag 1); the selection ring fits the gate and goes "
+                       "with the selection",
+                       a04[1] == a04[0] >= 1 and a04[2] == 0 and a04[3][2] - a04[3][0] > 40
+                       and a03[1] == 0 and a03[2] == a03[0] >= 1 and a03[3][2] - a03[3][0] < 40,
+                       got)
         # a tooltip near a monitor edge wraps and stays on that monitor
         import guiutil as _gu
         left, top, right, bottom = _gu.monitor_rect(root, 10, 10)
@@ -7352,6 +7385,44 @@ def test_map_editor_undo():
         root.update()
         missing = [hex(v) for v in set(d.grid[2]) if v not in panel.view.colors]
         _check("every displayed value has a colour", not missing, missing or "%d values" % len(set(d.grid[2])))
+        # the Gates tab's "visible gate" box edits the header flag's low byte (0 = a gate you
+        # see, else an invisible spawner), keeps its high byte, and undoes
+        if d.gen is not None:
+            gt = panel.encounters
+            panel.set_active_gate((0, 0))
+            gt._show_gate()
+            ent = d.gen.patterns[0][0]
+            f0 = ent.hdr.flag
+            gt.visible.set(not gt.visible.get())
+            gt._commit_gate()
+            f1 = ent.hdr.flag
+            gt.refresh()
+            listed = gt.gates.item("0:0", "values")[0]
+            panel.undo()
+            # the active gate's white outlines follow the selection: gone once it moves on
+            from map_editor import render as _mr
+            mp = next((k, off) for k, off, _x, _y, _u in d.gate_points() if k == "mpos")
+            panel.select(mp)
+            lit = sum(1 for p in _mr.overlay("gate", panel.view.st) if p.opt.get("outline") == "#fff")
+            panel.select(None)
+            panel.show_tab("Inspect")
+            after = sum(1 for p in _mr.overlay("gate", panel.view.st) if p.opt.get("outline") == "#fff")
+            _check("a gate's white outlines show while its points are selected and go with the "
+                   "selection (they used to stay)", lit >= 1 and after == 0, (lit, after))
+            # the drawn gates follow the "monster gates" layer (sprites layer on)
+            panel.view.st.sprites.reader = lambda fn: next(pathlib.Path(BUNDLE_DIR).rglob(fn)).read_bytes()                 if fn == "EFC_00_GATEA.model" else None
+            panel.set_layer("sprites", True)
+            panel.set_layer("gates", True)
+            on = sum(1 for p in _mr.overlay("under", panel.view.st) if p.key and p.key[0] == "gpos")
+            panel.set_layer("gates", False)
+            off = sum(1 for p in _mr.overlay("under", panel.view.st) if p.key and p.key[0] == "gpos")
+            panel.set_layer("gates", True)
+            _check("the drawn gates follow the 'monster gates' layer", on >= 1 and off == 0, (on, off))
+            _check("the Gates tab's 'visible gate' box flips the gate header flag's low byte "
+                   "(high byte kept), the list marks hidden gates, and it undoes",
+                   (f0 & 0xFF == 0) == (f1 & 0xFF != 0) and f1 & 0xFF00 == f0 & 0xFF00
+                   and ("(hidden)" in listed) == bool(f1 & 0xFF) and d.gen.patterns[0][0].hdr.flag == f0,
+                   (hex(f0), hex(f1), listed))
         # sidecar edits share the history
         with d.edit("move spot", "si"):
             d.si.spots[0].x += 8

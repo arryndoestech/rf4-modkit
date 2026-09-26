@@ -333,6 +333,75 @@ def _as_additive(img):
     return out
 
 
+# the monster gate's layer strengths and the orb under them, fitted to an in-game screenshot
+# of the Yokmir Forest gate (see _gate_image)
+GATE_GAINS = {"efc_whirl2": 0.3, "efc_lite": 0.3, "efc_gate01L": 2.5}
+GATE_SHADE = (35, 45, 75, 230)
+
+
+def _gate_image(data, gains=None):
+    """The monster gate as the game shows it: EFC_00_GATEA's six quads (all centred, facing
+    the camera, 2 model units per sub-unit), each texture times its material's
+    CombineColor00 added onto the scene (BlendType 2 / 3 -- SrcAlpha, One / One, One), the
+    quarter glow efc_lite mirrored into a round one; under them the actor's drop shadow, a
+    navy orb. Layer strengths (GATE_GAINS) and the orb (GATE_SHADE) are fitted to an in-game
+    screenshot of the Yokmir Forest gate -- a dark blue orb, orange and teal streaks out to
+    its rim, a small bright centre; the layers pulse in the game, this is one moment.
+    Returns (RGBA, quad in sprite px) or None without numpy."""
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    from PIL import ImageDraw, ImageFilter
+    m = model.parse(data)
+    shapes = []
+    for sh in m.shapes:
+        mat = m.materials[sh.material]
+        name = mat.textures[0] if mat.textures else None
+        if name is None:
+            continue
+        pts = m.shape_vertices(sh)
+        half = max(abs(v[0]) for v in pts)
+        tex = texture.decode_bntx(m.data, m.texture_index(name)).convert("RGBA")
+        if name == "efc_lite":                 # stored as the corner of a round glow
+            w, h = tex.size
+            whole = Image.new("RGBA", (w * 2, h * 2))
+            whole.paste(tex, (0, h))
+            whole.paste(tex.transpose(Image.FLIP_LEFT_RIGHT), (w, h))
+            whole.paste(tex.transpose(Image.FLIP_TOP_BOTTOM), (0, 0))
+            whole.paste(tex.transpose(Image.ROTATE_180), (w, 0))
+            tex = whole
+        uv = m.vertex_buffers[sh.vertex_buffer].data.get("_u0") or [(0, 0)]
+        if uv[0][0] > 0.5:                     # this quad's U runs right to left
+            tex = tex.transpose(Image.FLIP_LEFT_RIGHT)
+        k = (gains or GATE_GAINS).get(name, 1.0)
+        col = [c * k for c in mat.user_data.get("CombineColor00", [1, 1, 1])[:3]]
+        shapes.append((mat.user_data.get("DrawOrder", [0])[0], pts[0][2], half, tex, col))
+    if not shapes:
+        return None
+    R = max(s[2] for s in shapes)
+    size = int(2 * R) + 2                      # 1 px per model unit
+    acc = np.zeros((size, size, 3), np.float32)
+    for _order, _z, half, tex, col in sorted(shapes, key=lambda s: (s[0], s[1])):
+        d = max(1, int(2 * half))
+        t = np.asarray(tex.resize((d, d), Image.BILINEAR), np.float32) / 255
+        o = (size - d) // 2
+        acc[o:o + d, o:o + d] += t[..., :3] * np.asarray(col, np.float32) * t[..., 3:4]
+    glow = _as_additive(Image.fromarray((acc.clip(0, 1) * 255).astype(np.uint8), "RGB").convert("RGBA"))
+    shadow = Image.new("L", (size, size), 0)
+    r = size * 0.38
+    ImageDraw.Draw(shadow).ellipse((size / 2 - r, size / 2 - r, size / 2 + r, size / 2 + r),
+                                   fill=GATE_SHADE[3])
+    shadow = shadow.filter(ImageFilter.GaussianBlur(size * 0.012))
+    img = Image.new("RGBA", (size, size), GATE_SHADE[:3] + (0,))
+    img.putalpha(shadow)
+    img = Image.alpha_composite(img, glow)
+    # drawn 10 % under the model's own size: the composite's soft outer layers read larger
+    # than the orb the game shows (user comparison with the Yokmir Forest gate)
+    q = spritequad.PX_PER_SUBUNIT / MODEL_UNITS_PER_SUBUNIT * size / 2 * 0.9
+    return img, (-q, -q, q, q)
+
+
 def _whole_frame(data, frame):
     """A texture without sprite placement data (propeller_ship_02): the whole frame,
     centred on the object at its own size."""
@@ -419,6 +488,25 @@ class Sprites:
             self._src[key] = got
         got = self._src[key]
         return (fn, key[1], got[1]) if got else None
+
+    def gate_source(self):
+        """(key, 0, quad) for a monster gate, or None: every Gate actor kind (359..390)
+        takes model 754 = mons/EFC_00_GATEA from rf3NpcParam -- six camera-facing quads
+        added onto the scene over the actor's drop shadow (see _gate_image)."""
+        key = ("EFC_00_GATEA.model@gate", 0)
+        if self.reader is None:                 # nothing to read from yet: don't remember "none"
+            return None
+        if key not in self._src:
+            got = None
+            data = self.reader("EFC_00_GATEA.model")
+            if data is not None:
+                try:
+                    got = _gate_image(data)
+                except Exception:
+                    got = None
+            self._src[key] = got
+        got = self._src[key]
+        return (key[0], 0, got[1]) if got else None
 
     def _forage_sprite(self, p):
         """The crop_NNN sprite a forage spawn grows (MapEntity_ResolveSpriteArchiveId: archive
@@ -550,6 +638,32 @@ def label(x, y, below, text, fill, size, key=None):
                 halo=LABEL_HALO, below=below)
 
 
+def gate_on_map(doc, x, y):
+    """True when a gate position (sub-units) lies on the map. Encounter_TickMonsterSpawnSlots
+    picks one of a gate's positions at random and spawns the Gate actor there with no tile
+    check -- gates on non-walkable tiles show in the game (the shipped maps hold 100+) --
+    so the one the game can never show is one off the map."""
+    W, H = doc.grid[0], doc.grid[1]
+    return 0 <= x >> 3 < W and 0 <= y >> 3 < H
+
+
+def gate_visible(doc, users):
+    """True when a gate position belongs to a VISIBLE gate: Encounter_TickMonsterSpawnSlots
+    gives the spawned Gate actor state bits 0x24 and hides its scene node when the entry's
+    header flag has a low byte (700 of the shipped 1224 entries -- invisible spawners: the
+    monsters come, no gate is drawn or can be hit). `users` = [(pattern, entry)]."""
+    pats = doc.gen.patterns
+    return any(not (pats[pi][ei].hdr.flag & 0xFF) for pi, ei in users)
+
+
+def gate_sprite_shown(st, doc, x, y, users):
+    """Whether a gate position is drawn as the Gate actor (else as the orange "G"): a
+    visible gate, on the map, with the sprites layer on and the gate model at hand."""
+    return (bool(st.layers.get("sprites")) and HAS_PIL and gate_on_map(doc, x, y)
+            and gate_visible(doc, users)
+            and getattr(st, "sprites", None) is not None and st.sprites.gate_source() is not None)
+
+
 def overlay(group, st):
     """Primitives of one overlay group. `st` is the view state: doc, cp, layers (dict of
     bool), sel (selection key or None), active_gate (Entry | None), spawns, sprites."""
@@ -584,6 +698,15 @@ def overlay(group, st):
                 if src is not None:
                     out.append(Prim("sprite", _sprite_rect(o, src, cp), key=("mobj", i), fn=src[0],
                                     frame=src[1], mirror=spritequad.mirrored(o)))
+            # the monster gates (Gen*.bin gate positions) the game can show, as it draws the
+            # Gate actor -- they take the place of the "G" marker (see gate_sprite_shown)
+            if L.get("gates") and doc.gen is not None:
+                gsrc = st.sprites.gate_source()
+                for kind, off, x, y, users in doc.gate_points():
+                    if kind == "gpos" and gsrc is not None and gate_sprite_shown(st, doc, x, y, users):
+                        o = {"type_id": 0, "pos_x": x, "pos_y": y, "params": ()}
+                        out.append(Prim("sprite", _sprite_rect(o, gsrc, cp), key=("gpos", off),
+                                        fn=gsrc[0], frame=0, mirror=False))
     elif group == "lift":
         # the selected object's sprite once more, above the ATTR fill (no key: the copy in
         # "under" stays the hit, so the pick order does not change)
@@ -650,13 +773,16 @@ def overlay(group, st):
                 if not (0 <= tx < W and 0 <= ty < H):
                     continue
                 cx, cy = tx * cp + cp // 2, ty * cp + cp // 2
-                mine = active is not None and any(doc.gen.patterns[pi][ei] is active
-                                                  for pi, ei in users)
+                # the active gate's points, outlined white while it is being worked on
+                mine = (active is not None and getattr(st, "gate_focus", False)
+                        and any(doc.gen.patterns[pi][ei] is active for pi, ei in users))
                 if kind == "mpos":
                     rr = 5 if mine else 4
                     out.append(Prim("oval", (cx - rr, cy - rr, cx + rr, cy + rr), key=(kind, off),
                                     fill=MPOS_COLOR, outline="#fff" if mine else "#000",
                                     width=2 if mine else 1))
+                elif gate_sprite_shown(st, doc, x, y, users):
+                    pass                        # drawn as the gate (sprites); selection rings it
                 else:
                     out.append(Prim("poly", (cx, cy - gr, cx + gr, cy, cx, cy + gr, cx - gr, cy),
                                     key=(kind, off), fill=GATE_COLOR,
@@ -719,8 +845,13 @@ def _selection(st):
         cx, cy = sp.tile_x * cp + cp // 2, sp.tile_y * cp + cp // 2
         out.append(Prim("oval", (cx - sr, cy - sr, cx + sr, cy + sr), outline=SEL_COLOR, width=3))
     elif kind in ("gpos", "mpos"):
-        for pk, off, x, y, _u in doc.gate_points():
+        for pk, off, x, y, users in doc.gate_points():
             if (pk, off) == sel:
+                if pk == "gpos" and gate_sprite_shown(st, doc, x, y, users):   # round the gate
+                    o = {"type_id": 0, "pos_x": x, "pos_y": y, "params": ()}
+                    out.append(Prim("oval", _sprite_rect(o, st.sprites.gate_source(), cp),
+                                    outline=SEL_COLOR, width=3))
+                    continue
                 gr = max(6, cp // 2 + 2) + 5
                 cx, cy = (x >> 3) * cp + cp // 2, (y >> 3) * cp + cp // 2
                 out.append(Prim("oval", (cx - gr, cy - gr, cx + gr, cy + gr), outline=SEL_COLOR, width=3))
