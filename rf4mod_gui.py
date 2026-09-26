@@ -2638,15 +2638,16 @@ class App:
     def _view_asatk(self, name, data):
         """as_atk_*.bin attack-move timeline: rendered view + an editable listing that
         assembles back into the working copy (2026-09-19)."""
+        doc = self._doc
         s = asatk.summary(data)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         hw = ", ".join(f"{o}-{c}" for o, c in s["hit_windows"]) or "(none)"
         ttk.Label(bar, text=f"Attack timeline — {s['pairs']} events, "
                             f"frames {s['first_frame']}..{s['last_frame']}, "
                             f"hit-window {hw}, effects {', '.join(str(e) for e in s['effects']) or '(none)'}",
                   wraplength=700).pack(side="left", padx=6)
-        nb = ttk.Notebook(self.content); nb.pack(fill="both", expand=True)
-        txt = self._make_text_tab(nb, "Timeline", mono=True)
+        nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
+        txt = self._make_text_tab(nb, "Timeline", mono=True, doc=doc)
         txt.insert("end", asatk.render(data))
         txt.insert("end", "\n\n" + "-" * 60 + "\nOpcode legend (V=IDA-verified, D=data-inferred):\n")
         for op in sorted(asatk.OPCODES):
@@ -2671,13 +2672,13 @@ class App:
             except asatk.AsatkError as ex:
                 messagebox.showerror("Assemble failed", str(ex)); return
             warns = asatk.validate(asatk.parse(blob, stop_at_end=False))
-            self.cur_data = blob
+            doc.cur_data = blob
             self.status.config(text="Timeline assembled (" + (f"{len(warns)} warning(s): {warns[0]}"
                                                                if warns else "no warnings") +
                                     ") — use Extract… / Save to write")
-            self._show(self.cur_name, blob)
+            self._show(doc.cur_name, blob, doc)
         ttk.Button(eb, text="Assemble & apply", command=apply_listing).pack(side="right", padx=6)
-        self._export_kind = "disasm"; self._export_text = asatk.render(data)
+        doc._export_kind = "disasm"; doc._export_text = asatk.render(data)
         self.export_btn.config(state="normal")
 
     def _view_skillcurve(self, name, data):
