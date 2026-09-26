@@ -5792,7 +5792,7 @@ _TAB_VIEWERS = {
 }
 # viewers moved onto their tab's _Doc (the tabs migration): their own Save buttons clear the
 # tab's unsaved mark; the rest still reach their tab through App's shim
-_TAB_MIGRATED = {"aibn", "asatk", "bplist", "emf", "gen", "gift_categories", "hex", "image", "psb", "res", "rf4m", "skillcurve", "strings", "text", "textdb", "texture"}
+_TAB_MIGRATED = {"aibn", "asatk", "bplist", "emf", "gen", "gift_categories", "hex", "image", "psb", "res", "rf4m", "skillcurve", "strengthening", "strings", "text", "textdb", "texture"}
 _TAB_SAVE_LABELS = ("Save table…", "Save…", "Save graph…")   # buttons that write the working copy
 
 

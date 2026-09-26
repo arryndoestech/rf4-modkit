@@ -2703,11 +2703,12 @@ class App:
         """rf3ItemStrengthening.bin — forge material rows / dish ingredient bonuses / the craft
         status word (GUI twin of `rf4mod str`). Grid of the fields that matter most, a filter
         for the NON-FOOD marker, and the full decoded row for the selection."""
+        doc = self._doc
         from rf4s_modkit import strengthening
         t = strengthening.StrengtheningTable(data)
         items = _load_item_names()
         names = {int(k): v for k, v in items.items()}
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"rf3ItemStrengthening: {len(t)} rows x 296 B  (74 s32 per item; "
                             "rows 1108..1149 = level/quality tier rows)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
@@ -2731,7 +2732,7 @@ class App:
         show = ["difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "reach_scale",
                 "heal_hp", "heal_rp", "status_word"]
         cols = ["#", "name"] + show + ["procs", "resists", "flags"]
-        top = ttk.Frame(self.content); top.pack(fill="both", expand=True)
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=14)
         widths = {"#": 44, "name": 170, "procs": 120, "resists": 120, "flags": 260, "status_word": 70}
         for c in cols:
@@ -2763,7 +2764,7 @@ class App:
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
 
-        detail = tk.Text(self.content, height=12, wrap="word")
+        detail = tk.Text(doc.content, height=12, wrap="word")
         detail.pack(fill="x", padx=6, pady=4)
 
         def on_select(*_):
