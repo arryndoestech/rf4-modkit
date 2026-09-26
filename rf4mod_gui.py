@@ -351,7 +351,7 @@ class _GenHost:
         from map_editor import data as med
         from rf4s_modkit import map_names as mn
         app = self.app
-        row = ttk.Frame(app.content)
+        row = ttk.Frame(self.tab.content)
         row.pack(fill="x", padx=6, pady=(2, 4))
         self.map = maps[0][0] if maps else None
         if not maps:
