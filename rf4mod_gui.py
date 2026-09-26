@@ -2112,7 +2112,8 @@ class App:
         entry, and byte-safe in-place edits -- so this panel opens that rather than
         duplicating it, and shows the raw container underneath.
         """
-        bar = ttk.Frame(self.content); bar.pack(fill="x", pady=3)
+        doc = self._doc
+        bar = ttk.Frame(doc.content); bar.pack(fill="x", pady=3)
         ttk.Button(bar, text="Open Event Manager\u2026", command=self.cmd_event_manager
                    ).pack(side="left", padx=6)
         ttk.Label(bar, text="272 trigger entries: decoded conditions + actions, "
