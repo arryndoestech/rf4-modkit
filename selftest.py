@@ -5581,6 +5581,8 @@ def _headless_dialogs():
     filedialog.asksaveasfilename = lambda *a, **k: box["save"]
     filedialog.askopenfilename = lambda *a, **k: ""
     simpledialog.askstring = lambda *a, **k: box.get("askstring")
+    import guiutil
+    guiutil.ask_yes_no_optout = lambda *a, **k: (box["yesno"], box.get("optout", False))
     return box
 
 
@@ -5692,6 +5694,23 @@ def test_explorer_tabs():
         app._select_doc(m1)
         _check("a timer that comes due in a hidden tab waits and runs when the tab is shown again",
                parked and ran == [m1] and not m1.parked)
+        # past MAP_TABS_ASK open maps a new map asks; "Don't warn me again this session" (ticked
+        # even on Cancel) stops the asking until the toolkit closes
+        import guiutil
+        asked = []
+        _ask = guiutil.ask_yes_no_optout
+        guiutil.ask_yes_no_optout = lambda *a, **k: (asked.append(1), (False, True))[1]
+
+        def is_open(nm):
+            return any(d.key and d.key[1].endswith(nm) for d in app._docs)
+        for nm in ("MAP_CITY_00.rf4m", "MAP_CITY_01.rf4m", "MAP_CITY_02.rf4m", "MAP_CITY_03.rf4m"):
+            open_(nm)
+        declined = len(asked) == 1 and not is_open("MAP_CITY_03.rf4m") and is_open("MAP_CITY_02.rf4m")
+        open_("MAP_CITY_03.rf4m")
+        guiutil.ask_yes_no_optout = _ask
+        _check("the 6th map tab asks first; Cancel keeps it closed, and after 'Don't warn me again "
+               "this session' the next map opens without asking",
+               declined and len(asked) == 1 and is_open("MAP_CITY_03.rf4m"), f"asked {len(asked)}x")
         box["yesnocancel"] = False
         for d in list(app._docs):
             app.cmd_close_tab(d)

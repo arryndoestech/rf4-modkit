@@ -227,6 +227,46 @@ class FilterCombo(ttk.Combobox):
         self.configure(values=self._all)
 
 
+def ask_yes_no_optout(parent, title, message, yes="Yes", no="Cancel",
+                      optout="Don't ask again this session"):
+    """A modal yes / no question with an opt-out checkbox (a messagebox has no room for
+    one). Returns (answer, opted_out): Enter = yes, Esc or closing the window = no; the
+    checkbox counts whichever button was pressed."""
+    win = tk.Toplevel(parent)
+    win.title(title)
+    win.resizable(False, False)
+    win.transient(parent)
+    f = ttk.Frame(win, padding=14)
+    f.pack(fill="both", expand=True)
+    ttk.Label(f, text=message, wraplength=420, justify="left").pack(anchor="w")
+    skip = tk.BooleanVar(value=False)
+    ttk.Checkbutton(f, text=optout, variable=skip).pack(anchor="w", pady=(12, 0))
+    res = {"ok": False}
+
+    def done(ok):
+        res["ok"] = ok
+        win.destroy()
+    b = ttk.Frame(f)
+    b.pack(fill="x", pady=(12, 0))
+    ttk.Button(b, text=no, command=lambda: done(False)).pack(side="right")
+    yb = ttk.Button(b, text=yes, command=lambda: done(True))
+    yb.pack(side="right", padx=(0, 6))
+    win.bind("<Return>", lambda _e: done(True))
+    win.bind("<Escape>", lambda _e: done(False))
+    win.protocol("WM_DELETE_WINDOW", lambda: done(False))
+    win.update_idletasks()
+    try:                                        # centred on the parent window
+        x = parent.winfo_rootx() + (parent.winfo_width() - win.winfo_width()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - win.winfo_height()) // 3
+        win.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+    except tk.TclError:
+        pass
+    yb.focus_set()
+    win.grab_set()
+    parent.wait_window(win)
+    return res["ok"], bool(skip.get())
+
+
 class Tip:
     """Hover help for a widget (shown after a short delay)."""
 

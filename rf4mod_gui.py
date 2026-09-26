@@ -1180,12 +1180,17 @@ class App:
 
     def _ok_to_open_map_tab(self):
         n = sum(1 for d in self._docs if d.map_panel() is not None)
-        if n < self.MAP_TABS_ASK:
+        if n < self.MAP_TABS_ASK or self.__dict__.get("_map_tabs_no_ask"):
             return True
-        return messagebox.askyesno(
-            "Open another map", f"{n} maps are open in tabs, and each keeps its own map editor "
-            "(memory and texture decoding). Open another one anyway?\n\nClosing map tabs you "
-            "are done with keeps the toolkit quick.", parent=self.root)
+        import guiutil
+        ok, stop = guiutil.ask_yes_no_optout(
+            self.root, "Open another map",
+            f"{n} maps are open in tabs, and each keeps its own map editor (memory and texture "
+            "decoding). Open another one anyway?\n\nClosing map tabs you are done with keeps "
+            "the toolkit quick.", yes="Open it", optout="Don't warn me again this session")
+        if stop:
+            self._map_tabs_no_ask = True        # until the toolkit is closed (not saved)
+        return ok
 
     def _new_doc(self):
         frame = ttk.Frame(self.tabs)
