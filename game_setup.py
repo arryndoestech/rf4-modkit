@@ -131,7 +131,7 @@ class _Setup:
         ttk.Button(b, text="Make a copy for me...", command=self.copy).pack(side="left", padx=8)
         if current and not gamepaths.is_unpacked(current):
             ttk.Button(b, text="Unpack the game files...",
-                       command=lambda: self._offer_unpack(current)).pack(side="left")
+                       command=lambda: self._unpack_and_close(current)).pack(side="left")
         ttk.Button(b, text="Close" if current else "Skip for now",
                    command=w.destroy).pack(side="right")
         if not current:
@@ -278,17 +278,24 @@ class _Setup:
         messagebox.showinfo("Game folder", msg, parent=self.win)
         self.win.destroy()
 
-    def _offer_unpack(self, b):
+    def _unpack_and_close(self, b):
+        """The Unpack button: once everything is unpacked the setup is done, so close the
+        window (on first run that opens the toolkit's main window)."""
+        if self._offer_unpack(b):
+            self.win.destroy()
+
+    def _offer_unpack(self, b) -> bool:
         """Unpack a folder's archives in place; offer to delete each one as soon as it is
-        unpacked, so at most one archive's worth of extra space is used at a time."""
+        unpacked, so at most one archive's worth of extra space is used at a time. True when
+        every archive ended up unpacked."""
         try:
             man = mbundle.Manifest(b / "Manifest.plist")
             names = [n for n in man.bundle_names() if (b / n).is_file()
                      and n in gamepaths.still_packed(b)]
         except Exception:  # noqa: BLE001
-            return
+            return False
         if not names:
-            return
+            return True
         sizes = {n: (b / n).stat().st_size for n in names}
         total, largest = sum(sizes.values()), max(sizes.values())
         ans = messagebox.askyesnocancel("Unpack the game files", (
@@ -301,17 +308,17 @@ class _Setup:
             "Cancel: don't unpack now."),
             parent=self.win)
         if ans is None:
-            return
+            return False
         need = largest if ans else total
         if shutil.disk_usage(b).free < need * 1.05:
             messagebox.showerror("Unpack", f"Not enough space: unpacking needs {_human(need)} free.",
                                  parent=self.win)
-            return
+            return False
         bad = [m for m in (mbundle.check_archive(b / n, man) for n in names) if m]
         if bad:
             messagebox.showerror("Unpack", "The game's files look damaged:\n" + "\n".join(bad),
                                  parent=self.win)
-            return
+            return False
 
         def work(report):
             finished = {}
@@ -333,6 +340,7 @@ class _Setup:
         if not ok:
             messagebox.showerror("Unpack", f"Unpacking stopped:\n{err}\n\nRun it again later from "
                                  "Game folder... (it resumes).", parent=self.win)
+        return ok
 
 
 class _OneBundle:

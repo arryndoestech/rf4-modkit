@@ -719,9 +719,13 @@ class App:
         """Show / change the game copy every tool uses (takes effect on the next start)."""
         import game_setup
         before = gamepaths.find_bundle_dir()
+        was_unpacked = before is not None and gamepaths.is_unpacked(before)
         if game_setup.run(self.root, current=before) and gamepaths.find_bundle_dir() != before:
             messagebox.showinfo("Game folder", "Saved. Close and start the toolkit again to "
                                 "use the new game folder in every tool.", parent=self.root)
+        elif before is not None and not was_unpacked and gamepaths.is_unpacked(before):
+            messagebox.showinfo("Game folder", "The game files are unpacked. Close and start "
+                                "the toolkit again so every tool reads them.", parent=self.root)
 
     def cmd_open_bundle(self):
         f = filedialog.askopenfilename(title="Open .mbundle",
