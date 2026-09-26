@@ -1983,16 +1983,17 @@ class App:
         self._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
 
     def _view_textdb(self, name, data):
+        doc = self._doc
         arc = textdb.TextArchive.parse(data)
-        bar = ttk.Frame(self.content); bar.pack(fill="x")
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"{len(arc):,} strings").pack(side="left", padx=6)
         ttk.Label(bar, text="Search:").pack(side="left")
         sv = tk.StringVar()
         ttk.Entry(bar, textvariable=sv, width=30).pack(side="left", padx=2)
-        tv = ttk.Treeview(self.content, columns=("idx", "text"), show="headings")
+        tv = ttk.Treeview(doc.content, columns=("idx", "text"), show="headings")
         tv.heading("idx", text="#"); tv.column("idx", width=70, anchor="e", stretch=False)
         tv.heading("text", text="String"); tv.column("text", width=900)
-        vs = ttk.Scrollbar(self.content, orient="vertical", command=tv.yview)
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
         texts = arc.texts()
@@ -2011,7 +2012,7 @@ class App:
                     break
         sv.trace_add("write", repop)
         repop()
-        self._export_kind = "textjson"; self._export_arc = arc
+        doc._export_kind = "textjson"; doc._export_arc = arc
         self.export_btn.config(state="normal")
 
     # plain TEXT routed above; this handles `text` fmt files that are NOT TEXT magic
