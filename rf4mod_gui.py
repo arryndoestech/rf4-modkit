@@ -2090,16 +2090,17 @@ class App:
                 tv.insert(nid, "end", text=str(fk), values=(repr(fv)[:200],))
 
     def _view_aibn(self, name, data):
+        doc = self._doc
         toks = aibn.load_tokens(data)
         dis = aibn.disassemble(toks, annotate=True)
-        txt = self._make_text_tab(None, None, mono=True)
+        txt = self._make_text_tab(None, None, mono=True, doc=doc)
         c = aibn.stats(toks)
         txt.insert("end", f"# {name}: {len(toks)} tokens, {sum(c.values())} statements"
                           f"  (sub N: / N: labels, if (...) {{ }} blocks, Action(args); trailing # = verified operand meanings;"
                           f" rf4mod ai ops <op> for details; `rf4mod ai asm` rebuilds the file from this text)\n\n")
         txt.insert("end", dis)
         txt.config(state="disabled")
-        self._export_kind = "disasm"; self._export_text = dis
+        doc._export_kind = "disasm"; doc._export_text = dis
         self.export_btn.config(state="normal")
 
     def _view_emf(self, name, data):
