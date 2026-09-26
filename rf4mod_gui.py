@@ -557,38 +557,52 @@ class _GenHost:
 
 
 class _Doc:
-    """One open file = one tab: its working copy, the bytes last loaded or saved (so the tab
-    knows it has unsaved changes), its own content frame, and every piece of view state the
-    viewers keep on the App (App routes the VIEW_STATE attributes to the active tab's _Doc,
-    so a hidden tab keeps its images, map editor, zoom ... untouched)."""
-    DEFAULTS = {"cur_name": None, "cur_data": None, "cur_image": None, "zoom": 1.0, "_pil": None}
+    """One open file = one tab: its working copy (cur_data), the bytes last loaded or saved
+    (so the tab knows it has unsaved changes), its own content frame, and the view state its
+    viewer keeps (image, zoom, map editor, animation timers ...), so a hidden tab keeps all
+    of it untouched. Viewers take `doc = self._doc` when they build and use doc.<name>."""
+    VIEW = ("cur_name", "cur_data", "cur_image", "_pil", "_img_canvas",
+            "_export_kind", "_export_text", "_export_data", "_export_arc",
+            "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
+            "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
+            "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
+            "_events_new_scene")
 
-    def __init__(self, frame):
+    def __init__(self, frame, on_data=None):
+        for name in self.VIEW:
+            object.__setattr__(self, name, None)
+        self.zoom = 1.0
+        self.content = frame            # what the viewers build into
         self.frame = frame
         self.key = None                 # (source label, entry name): the same file opens here
         self.saved = None               # the bytes as loaded or last written to a file
         self.header = "Select an asset"
-        self.state = dict(self.DEFAULTS, content=frame)
         self.parked = []                # timers that came due while the tab was hidden
+        self.on_data = on_data          # called after cur_data changes (the tab's • mark)
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        if name == "cur_data" and self.on_data is not None:
+            self.on_data()
 
     def map_panel(self):
         """This tab's map editor (built the first time it shows a map), or None."""
-        mv = self.state.get("_map_view")
+        mv = self._map_view
         return mv.get("panel") if mv else None
 
     def is_dirty(self):
-        panel = self.state.get("_map_panel")        # set while the tab shows a map
+        panel = self._map_panel                     # set while the tab shows a map
         if panel is not None:
             try:
                 return panel.is_dirty()
             except tk.TclError:
                 return False
-        data = self.state.get("cur_data")
+        data = self.cur_data
         return data is not None and self.saved is not None and data is not self.saved \
             and data != self.saved
 
     def title(self):
-        name = (self.state.get("cur_name") or "…").replace("\\", "/").rsplit("/", 1)[-1]
+        name = (self.cur_name or "…").replace("\\", "/").rsplit("/", 1)[-1]
         return name + ("  •" if self.is_dirty() else "")
 
     def on_hide(self):
@@ -612,37 +626,28 @@ class _Doc:
 
 
 class App:
-    # View state the viewers keep on the App (self.cur_data, self._pil, self.content ...):
-    # each lives on the active tab's _Doc (see __getattr__ / __setattr__), so every viewer
-    # works per tab without being rewritten.
-    VIEW_STATE = frozenset({
-        "cur_name", "cur_data", "cur_image", "zoom", "_pil", "_img_canvas", "content",
-        "_export_kind", "_export_text", "_export_data", "_export_arc",
-        "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
-        "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
-        "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
-        "_events_new_scene"})
+    # Migration shim (goes once every viewer uses its tab's _Doc directly): self.<view state>
+    # (self.cur_data, self._pil, self.content ...) reads and writes the active tab's _Doc.
+    VIEW_STATE = frozenset(_Doc.VIEW + ("zoom", "content"))
     MAP_TABS_ASK = 10       # more open map tabs than this asks first (each keeps an editor)
 
     def __getattr__(self, name):
         # only reached when normal lookup fails: VIEW_STATE never sits in the instance dict
         if name in App.VIEW_STATE:
             doc = self.__dict__.get("_doc")
-            if doc is not None and name in doc.state:
-                return doc.state[name]
+            if doc is not None:
+                return getattr(doc, name)
         raise AttributeError(name)
 
     def __setattr__(self, name, value):
         if name in App.VIEW_STATE:
-            self.__dict__["_doc"].state[name] = value
-            if name == "cur_data":
-                self._mark_later()
+            setattr(self.__dict__["_doc"], name, value)
         else:
             object.__setattr__(self, name, value)
 
     def __init__(self, root: tk.Tk, initial=None):
         self.root = root
-        self._blank = _Doc(None)        # the empty view while no tab is open
+        self._blank = _Doc(None, on_data=self._mark_later)   # the empty view while no tab is open
         self._doc = self._blank         # the tab the viewers work on
         self._docs: list[_Doc] = []     # open tabs, in tab order
         self._mark_pending = False
@@ -783,9 +788,8 @@ class App:
             self.root.bind("<Control-ISO_Left_Tab>", lambda _e: self._cycle_tab(-1) or "break")
         except tk.TclError:                     # no such keysym here
             pass
-        self.content = ttk.Frame(self.right)   # the blank view's frame (App routes to _Doc)
-        self.content.pack(fill="both", expand=True)
-        self._blank.frame = self.content
+        self._blank.content = self._blank.frame = ttk.Frame(self.right)   # the blank view
+        self._blank.frame.pack(fill="both", expand=True)
         self._poll_id = self.root.after(1000, self._poll_marks)
         # stop the poll with the window (a destroyed Tk must not run it)
         self.tabbar.bind("<Destroy>", lambda e: e.widget is self.tabbar and self._stop_poll(), add="+")
@@ -1213,7 +1217,7 @@ class App:
 
     def _new_doc(self):
         frame = ttk.Frame(self.tab_area)
-        doc = _Doc(frame)
+        doc = _Doc(frame, on_data=self._mark_later)
         self._docs.append(doc)
         self.tabbar.add(doc, "…")
         if len(self._docs) == 1:                # the first tab replaces the blank view
@@ -1248,8 +1252,8 @@ class App:
         old.on_hide()
         self._doc = doc
         self.header.config(text=doc.header)
-        self.extract_btn.config(state="normal" if doc.state.get("cur_data") is not None else "disabled")
-        self.export_btn.config(state="normal" if doc.state.get("_export_kind") else "disabled")
+        self.extract_btn.config(state="normal" if doc.cur_data is not None else "disabled")
+        self.export_btn.config(state="normal" if doc._export_kind else "disabled")
         doc.on_show()
 
     def _on_tab_menu(self, doc, e):
@@ -1278,7 +1282,7 @@ class App:
         if not doc.is_dirty():
             return True
         self._select_doc(doc)                   # show what the question is about
-        panel = doc.state.get("_map_panel")
+        panel = doc._map_panel
         if panel is not None:
             try:
                 return panel.confirm_discard(action)
@@ -1294,7 +1298,7 @@ class App:
 
     def _drop_doc(self, doc):
         for k in ("_anim_after", "_skel_after"):
-            t = doc.state.get(k)
+            t = getattr(doc, k)
             if t:
                 try:
                     self.root.after_cancel(t)
@@ -1366,44 +1370,52 @@ class App:
 
     def _set_doc_data(self, doc, data):
         """A tab-bound editor (the map editor) changed its tab's working copy."""
-        doc.state["cur_data"] = data
-        self._mark_later()
+        doc.cur_data = data                     # (the doc's on_data updates the • mark)
 
-    def _mark_saved(self):
-        """The shown working copy was just written to a file: the tab has no unsaved changes."""
-        self._doc.saved = self.cur_data
-        self._retitle(self._doc)
+    def _mark_saved(self, doc=None):
+        """A tab's working copy (the shown one by default) was just written to a file: the tab
+        has no unsaved changes."""
+        doc = doc or self._doc
+        doc.saved = doc.cur_data
+        self._retitle(doc)
 
     # ---- viewer dispatch ------------------------------------------------- #
-    def _clear_content(self):
-        if getattr(self, "_anim_after", None):     # stop a running flipbook animation
-            self.root.after_cancel(self._anim_after)
-        self._anim_after = None
-        self._tex_playing = False
-        self._model_playing = False
-        self._tex_frames = None
-        mv = getattr(self, "_map_view", None)
-        for w in self.content.winfo_children():
+    def _clear_content(self, doc=None):
+        doc = doc or self._doc
+        if getattr(doc, "_anim_after", None):     # stop a running flipbook animation
+            self.root.after_cancel(doc._anim_after)
+        doc._anim_after = None
+        doc._tex_playing = False
+        doc._model_playing = False
+        doc._tex_frames = None
+        mv = getattr(doc, "_map_view", None)
+        for w in doc.content.winfo_children():
             if mv is not None and w is mv["nb"]:
                 # Kept for the next map (see _view_rf4m) and deliberately left MAPPED here:
                 # un-mapping and re-mapping it re-paints every themed widget of the editor
                 # (~0.1-0.9 s on Windows) on each map-to-map click. _show hides it once it
                 # knows the new view is not a map.
-                self._map_view_hide = True
+                doc._map_view_hide = True
                 continue
             w.destroy()
-        self._map_panel = None      # not shown: never guard/export a hidden panel
-        self.cur_image = None
-        self._pil = None
-        self.export_btn.config(state="disabled")
-        self._export_kind = None
+        doc._map_panel = None      # not shown: never guard/export a hidden panel
+        doc.cur_image = None
+        doc._pil = None
+        if doc is self._doc:
+            self.export_btn.config(state="disabled")
+        doc._export_kind = None
 
-    def _show(self, name: str, data: bytes):
-        self._clear_content()
+    def _show(self, name: str, data: bytes, doc=None):
+        """Build the viewer for (name, data) in a tab (the shown one by default; another tab
+        is brought to the front first: viewers build into the tab being shown)."""
+        doc = doc or self._doc
+        if doc is not self._doc:
+            self._select_doc(doc)
+        self._clear_content(doc)
         # The shown bytes ARE the working copy: every editing panel reads/writes
-        # self.cur_data, so keep it in sync whatever path called us (file browser,
+        # doc.cur_data, so keep it in sync whatever path called us (file browser,
         # a panel re-rendering after an edit, or a programmatic open).
-        self.cur_name, self.cur_data = name, data
+        doc.cur_name, doc.cur_data = name, data
         self.extract_btn.config(state="normal")
         ft = ident.identify(data[:0x4000], filename=name)
         self.header.config(text=f"{name}    —    {ft.fmt}: {ft.desc}    ({human(len(data))})")
@@ -1468,18 +1480,19 @@ class App:
                 handler(name, data)
             else:
                 self._view_hex(name, data)
-            self._hide_map_view_if_unused()
+            self._hide_map_view_if_unused(doc)
         except Exception as e:
-            self._clear_content()   # drop any partial widgets the failed handler packed
+            self._clear_content(doc)   # drop any partial widgets the failed handler packed
             self._view_hex(name, data, error=str(e))
-            self._hide_map_view_if_unused()
+            self._hide_map_view_if_unused(doc)
 
-    def _hide_map_view_if_unused(self):
+    def _hide_map_view_if_unused(self, doc=None):
         """After a view is built: hide the kept map editor unless that view used it."""
-        mv = getattr(self, "_map_view", None)
-        if mv is None or not getattr(self, "_map_view_hide", False):
+        doc = doc or self._doc
+        mv = getattr(doc, "_map_view", None)
+        if mv is None or not getattr(doc, "_map_view_hide", False):
             return
-        self._map_view_hide = False
+        doc._map_view_hide = False
         try:
             mv["nb"].pack_forget()
             mv["panel"].suspend()           # stop its background texture decode
@@ -1623,12 +1636,13 @@ class App:
         self._export_kind = "png"
         self.export_btn.config(state="normal")
 
-    def _fit_zoom(self, w, h):
+    def _fit_zoom(self, w, h, doc=None):
         """Pick an initial zoom so a large image fits the content pane (never upscales)."""
+        doc = doc or self._doc
         try:
-            self.content.update_idletasks()
-            cw = max(64, self.content.winfo_width() - 24)
-            ch = max(64, self.content.winfo_height() - 48)
+            doc.content.update_idletasks()
+            cw = max(64, doc.content.winfo_width() - 24)
+            ch = max(64, doc.content.winfo_height() - 48)
         except Exception:  # noqa: BLE001
             return 1.0
         if w <= cw and h <= ch:
@@ -3977,8 +3991,9 @@ class App:
         txt.config(state="disabled")
 
     # ---- view helpers ---------------------------------------------------- #
-    def _make_text_tab(self, nb, title, mono=False):
-        parent = self.content if nb is None else ttk.Frame(nb)
+    def _make_text_tab(self, nb, title, mono=False, doc=None):
+        doc = doc or self._doc
+        parent = doc.content if nb is None else ttk.Frame(nb)
         if nb is not None:
             nb.add(parent, text=title)
         frame = ttk.Frame(parent); frame.pack(fill="both", expand=True)
@@ -3990,8 +4005,9 @@ class App:
         txt.pack(side="left", fill="both", expand=True)
         return txt
 
-    def _make_image_canvas(self, parent=None):
-        parent = parent or self.content
+    def _make_image_canvas(self, parent=None, doc=None):
+        doc = doc or self._doc
+        parent = parent or doc.content
         frame = ttk.Frame(parent); frame.pack(fill="both", expand=True)
         hb = ttk.Scrollbar(frame, orient="horizontal")
         vb = ttk.Scrollbar(frame, orient="vertical")
@@ -4001,19 +4017,20 @@ class App:
         canvas.pack(side="left", fill="both", expand=True)
         return canvas
 
-    def _set_zoom(self, z):
-        if self._pil is None:
+    def _set_zoom(self, z, doc=None):
+        doc = doc or self._doc
+        if doc._pil is None:
             return
-        self.zoom = z
-        w, h = self._pil.size
+        doc.zoom = z
+        w, h = doc._pil.size
         # crisp nearest-neighbour when magnifying (see the pixels); smooth LANCZOS
         # when shrinking so downscaled photos/atlases don't alias to noise.
         resample = Image.NEAREST if z >= 1 else Image.LANCZOS
-        disp = self._pil.resize((max(1, int(w * z)), max(1, int(h * z))), resample)
-        self.cur_image = ImageTk.PhotoImage(disp)
-        self._img_canvas.delete("all")
-        self._img_canvas.create_image(0, 0, anchor="nw", image=self.cur_image)
-        self._img_canvas.config(scrollregion=(0, 0, disp.width, disp.height))
+        disp = doc._pil.resize((max(1, int(w * z)), max(1, int(h * z))), resample)
+        doc.cur_image = ImageTk.PhotoImage(disp)
+        doc._img_canvas.delete("all")
+        doc._img_canvas.create_image(0, 0, anchor="nw", image=doc.cur_image)
+        doc._img_canvas.config(scrollregion=(0, 0, disp.width, disp.height))
 
     # ---- extract / export ------------------------------------------------ #
     def cmd_cutscene_editor(self):
@@ -4043,26 +4060,28 @@ class App:
 
     def cmd_extract(self):
         """Save the shown file's working copy; True when it was written."""
-        if self.cur_data is None:
+        doc = self._doc
+        if doc.cur_data is None:
             return False
-        default = pathlib.Path(self.cur_name).name
+        default = pathlib.Path(doc.cur_name).name
         f = filedialog.asksaveasfilename(title="Extract raw bytes", initialfile=default)
         if not f:
             return False
-        pathlib.Path(f).write_bytes(self.cur_data)
-        self.status.config(text=f"Extracted {len(self.cur_data):,} bytes -> {f}")
-        self._mark_saved()
+        pathlib.Path(f).write_bytes(doc.cur_data)
+        self.status.config(text=f"Extracted {len(doc.cur_data):,} bytes -> {f}")
+        self._mark_saved(doc)
         return True
 
     def cmd_export(self):
-        kind = getattr(self, "_export_kind", None)
+        doc = self._doc
+        kind = getattr(doc, "_export_kind", None)
         if not kind:
             return
-        stem = pathlib.Path(self.cur_name).stem
+        stem = pathlib.Path(doc.cur_name).stem
         if kind == "map_png":
             # .rf4m: WYSIWYG snapshot of the embedded map editor -- current zoom
             # level + exactly the overlay layers that are toggled on.
-            panel = getattr(self, "_map_panel", None)
+            panel = getattr(doc, "_map_panel", None)
             img = panel.render_to_image() if panel is not None else None
             if img is None:
                 self.status.config(text="Map export needs Pillow + an ATTR grid.")
@@ -4079,22 +4098,22 @@ class App:
         elif kind == "png":
             f = filedialog.asksaveasfilename(defaultextension=".png", initialfile=stem + ".png",
                                              filetypes=[("PNG", "*.png")])
-            if f and self._pil:
-                self._pil.save(f); self.status.config(text=f"Exported PNG -> {f}")
+            if f and doc._pil:
+                doc._pil.save(f); self.status.config(text=f"Exported PNG -> {f}")
         elif kind == "textjson":
             import json
             f = filedialog.asksaveasfilename(defaultextension=".json", initialfile=stem + ".json",
                                              filetypes=[("JSON", "*.json")])
             if f:
                 pathlib.Path(f).write_text(
-                    json.dumps(self._export_arc.texts(), ensure_ascii=False, indent=1), encoding="utf-8")
-                self.status.config(text=f"Exported {len(self._export_arc)} strings -> {f}")
+                    json.dumps(doc._export_arc.texts(), ensure_ascii=False, indent=1), encoding="utf-8")
+                self.status.config(text=f"Exported {len(doc._export_arc)} strings -> {f}")
         elif kind == "plistjson":
             import json
             f = filedialog.asksaveasfilename(defaultextension=".json", initialfile=stem + ".json",
                                              filetypes=[("JSON", "*.json")])
             if f:
-                obj = bplist.loads(self._export_data)
+                obj = bplist.loads(doc._export_data)
                 pathlib.Path(f).write_text(
                     json.dumps(bplist.to_jsonable(obj), ensure_ascii=False, indent=1), encoding="utf-8")
                 self.status.config(text=f"Exported plist JSON -> {f}")
@@ -4102,7 +4121,7 @@ class App:
             f = filedialog.asksaveasfilename(defaultextension=".txt", initialfile=stem + ".txt",
                                              filetypes=[("Text", "*.txt")])
             if f:
-                pathlib.Path(f).write_text(self._export_text, encoding="utf-8")
+                pathlib.Path(f).write_text(doc._export_text, encoding="utf-8")
                 self.status.config(text=f"Exported disassembly -> {f}")
 
 

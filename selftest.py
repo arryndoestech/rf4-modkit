@@ -5635,13 +5635,13 @@ def test_explorer_tabs():
         b = open_("rf3NpcParam.bin")
         _check("a click opens a new tab (the edited one stays, marked •)",
                len(app._docs) == 2 and a is not b and title(a).endswith("•")
-               and a.state["cur_data"] != orig and app._doc is b, [title(d) for d in app._docs])
+               and a.cur_data != orig and app._doc is b, [title(d) for d in app._docs])
         c = open_("rf3CropParam.bin")
         _check("a click on a clean tab still opens a new tab (clicks never replace a tab)",
-               c is not b and len(app._docs) == 3 and b.state["cur_name"].endswith("rf3NpcParam.bin"))
+               c is not b and len(app._docs) == 3 and b.cur_name.endswith("rf3NpcParam.bin"))
         app._select_doc(a)
         _check("switching tabs restores that tab's working copy, header and Extract",
-               app.cur_data == a.state["cur_data"] and "rf3Schedule" in app.header.cget("text")
+               app.cur_data == a.cur_data and "rf3Schedule" in app.header.cget("text")
                and str(app.extract_btn.cget("state")) == "normal")
         again = open_("rf3Schedule.bin")
         _check("opening a file that is already open selects its tab", again is a and len(app._docs) == 3)
@@ -5668,7 +5668,7 @@ def test_explorer_tabs():
         _check("Up / Down show the next file in the browsed tab (no new tab); an already-open "
                "file's tab is shown, and browsing goes on in the browsed tab",
                replaced and onto_open and on_in_base, f"{replaced} {onto_open} {on_in_base}")
-        base.state["cur_data"] = base.state["cur_data"][:-1] + bytes([base.state["cur_data"][-1] ^ 1])
+        base.cur_data = base.cur_data[:-1] + bytes([base.cur_data[-1] ^ 1])
         k4 = key_(spare[3])
         _check("a browse step from a tab with unsaved changes opens a new tab (the edits stay)",
                k4 is not base and len(app._docs) == n0 + 1 and base.key[1].endswith(spare[2])
@@ -5774,6 +5774,113 @@ def test_explorer_tabs():
         except tk.TclError:
             pass
         root.destroy()
+
+
+# every rf4mod_gui viewer and a game file it shows (basename; "" = a made-up text file)
+_TAB_VIEWERS = {
+    "aibn": "AI_m00.bin", "asatk": "as_atk_axe_00.bin", "bplist": "AppConfig.plist",
+    "crop": "rf3CropParam.bin", "emf": "em.bin", "gen": "GenA01.bin",
+    "gift_categories": "rf3PresentCategory.bin", "gifts": "rf3PresentNpc01.bin",
+    "hex": "01_M_VIZNAR.ogg", "image": "PetMe64-8.png", "monster": "rf3NpcParam.bin",
+    "montame": "rf3MonsterPresent.bin", "param": "Fishing_rate_fish_Spring.bin",
+    "psb": "00_PLAYER_M.psbData", "quest": "rf3TxtQuest_split3_1.bin",
+    "res": "ANIM_DUNG_A02.model", "rf4m": "MAP_CITY_00.rf4m", "route": "rf3route.bin",
+    "route_result": "rf3RouteResult.bin", "schedule": "rf3Schedule.bin",
+    "search_items": "SI_CITY_00.bin", "skillcurve": "rf3ParamSkillExp.bin",
+    "strengthening": "rf3ItemStrengthening.bin", "strings": "Localization-de.strings",
+    "text": "", "textdb": "rf3mc.eng", "texture": "confetti.texture",
+}
+# viewers moved onto their tab's _Doc (the tabs migration): their own Save buttons clear the
+# tab's unsaved mark; the rest still reach their tab through App's shim
+_TAB_MIGRATED = set()
+_TAB_SAVE_LABELS = ("Save table…", "Save…", "Save graph…")   # buttons that write the working copy
+
+
+def test_viewer_tabs():
+    """Every rf4mod_gui viewer in a tab: it opens without an error note, keeps its own data,
+    widgets and header across a switch to another tab and back, and (migrated viewers) its
+    Save button, which writes the working copy, clears the tab's unsaved mark."""
+    print("asset explorer viewers, one per tab:")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("viewer tabs", "no tkinter: %s" % e); return
+    if not (pathlib.Path(BUNDLE_DIR) / "bundleMain" / "rf3Schedule.bin").exists():
+        _skip("viewer tabs", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_vt", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_vt_"))
+    notes = []
+    _orig_hex = gui.App._view_hex
+    gui.App._view_hex = lambda self, name, data, error=None: (
+        notes.append((name, error)) if error else None, _orig_hex(self, name, data, error))[1]
+
+    def widgets(w):
+        n = 0
+        for c in w.winfo_children():
+            n += 1 + widgets(c)
+        return n
+
+    def find_buttons(w):
+        out = []
+        for c in w.winfo_children():
+            if c.winfo_class() == "TButton" and str(c.cget("text")) in _TAB_SAVE_LABELS:
+                out.append(c)
+            out += find_buttons(c)
+        return out
+    try:
+        app = gui.App(root, initial=str(BUNDLE_DIR))
+        byname = {}
+        for e in app.source.entries:
+            byname.setdefault(e[0].rsplit("/", 1)[-1], e)
+        for viewer, fname in _TAB_VIEWERS.items():
+            if fname:
+                if fname not in byname:
+                    _skip(f"{viewer} viewer in a tab", f"{fname} not in this game copy"); continue
+                n, _g, loader = byname[fname]
+                key, data = app._entry_key(n), loader()
+            else:
+                n, key, data = "notes.xyz", ("test", "notes.xyz"), b"a made-up text file\nline 2\n"
+            del notes[:]
+            d1 = app._open_in_tab(key, n, data)
+            root.update_idletasks()
+            data1, header1, w1 = d1.cur_data, app.header.cget("text"), widgets(d1.frame)
+            other = "rf3Schedule.bin" if fname != "rf3Schedule.bin" else "rf3NpcParam.bin"
+            on, _g, ol = byname[other]
+            d2 = app._open_in_tab(app._entry_key(on), on, ol())
+            root.update_idletasks()
+            app._select_doc(d1)
+            root.update_idletasks()
+            kept = (d2 is not d1 and app._doc is d1 and d1.cur_data is data1 and w1 > 0
+                    and widgets(d1.frame) == w1 and app.header.cget("text") == header1)
+            what = "opens, keeps its data, widgets and header across a tab switch"
+            ok = not notes and kept
+            saves = find_buttons(d1.frame)
+            if viewer in _TAB_MIGRATED and saves:
+                d1.cur_data = d1.cur_data[:-1] + bytes([d1.cur_data[-1] ^ 1])   # an edit
+                dirty = d1.is_dirty()
+                out = tmp / f"{viewer}.bin"
+                box["save"] = str(out)
+                saves[0].invoke()
+                root.update_idletasks()
+                box["save"] = ""
+                what += f"; '{saves[0].cget('text')}' clears the tab's unsaved mark"
+                ok = ok and dirty and out.is_file() and not d1.is_dirty()
+            _check(f"{viewer} viewer in a tab: {what}", ok,
+                   f"notes={notes[:1]} kept={kept} {fname or n}")
+            box["yesnocancel"] = False
+            for d in list(app._docs):
+                app.cmd_close_tab(d)
+        _check("viewer tabs raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        gui.App._view_hex = _orig_hex
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _map_editor():
@@ -8491,7 +8598,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_script_spawns, test_map_editor_gate_ground,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()
         try:
