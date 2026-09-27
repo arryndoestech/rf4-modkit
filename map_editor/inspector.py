@@ -536,9 +536,13 @@ class SpotForm(Form):
         ttk.Button(b2, text="Center", width=7, command=lambda: ed.center_on(self.key)).pack(side="left")
         ttk.Button(b2, text="Duplicate", width=9, command=lambda: ed.duplicate(self.key)).pack(side="left", padx=2)
         ttk.Button(b2, text="Delete spot", command=lambda: ed.delete(self.key)).pack(side="left")
-        hint(self, "Daily ground pickups: up to two spots spawn per day (sleeping rerolls). "
-                   "item = entry & 0x7FF, weight = one byte. Stock files share one pool between "
-                   "spots; editing a spot here gives it its own copy.").pack(anchor="w", pady=(4, 0))
+        hint(self, "Daily ground pickups: at most two items per map per day (sleeping rerolls "
+                   "them). They only appear once the story has reached step 39, and only on "
+                   "about half of your visits: the game rolls a coin on each map entry, and a "
+                   "lost roll means nothing that visit and at most one item on a later visit "
+                   "that day -- so test by re-entering a few times. item = entry & 0x7FF, "
+                   "weight = one byte (keep a pool's total <= 255). Stock files share one pool "
+                   "between spots; editing a spot here gives it its own copy.").pack(anchor="w", pady=(4, 0))
 
     def _spot(self):
         si = self.doc.si
@@ -896,8 +900,11 @@ class AddOptions(ttk.Frame):
                                    "to that gate."))
             self.note.pack(anchor="w", pady=(4, 0))
         else:
-            self.note.config(text="Adds a spot with an empty drop pool to this map's SI file "
-                                  "(created if the map has none).")
+            doc = getattr(self.ed, "doc", None)
+            why = doc.si_block_reason() if doc is not None else None
+            self.note.config(text=why or "Adds a spot with an empty drop pool to this map's SI "
+                                         "file (created if the game has a slot for it but the "
+                                         "file is missing).")
             self.note.pack(anchor="w", pady=(4, 0))
 
 

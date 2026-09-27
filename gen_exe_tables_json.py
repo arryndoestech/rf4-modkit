@@ -14,15 +14,29 @@ the exe at run time:
                archive id] (24 rows; [0, 0] = no monster gates in that zone). The gate spawner
                loads archive = map id - first map id + first archive (see rf4s_modkit.areagroup)
 
-Every table records its RVA; the file records the exe it came from (size + SHA-256).
-
 A second file, refdata/rf4s_exe_collision.json (build_collision), holds the collision
 templates of the interactive objects (MOBJ types 196..335): g_mapEntityTemplates
 RF4S.exe+0x4D5030, one pointer per type - 197 (type 196 uses 197's). Each template: +32 i16
 depth bias, +64 u16 width, +66 u16 height (tiles), +68 / +70 i16 x / y offset (sub-units),
 +72 u32 cells[width * height], the ATTR bits OR-ed into the tiles the object covers.
 
-Run:  python gen_exe_tables_json.py [--exe PATH] [--out PATH] [--collision-out PATH]
+It also writes refdata/rf4s_exe_sidecars.json -- which per-map side files the game loads
+(see build_sidecars):
+
+  search_items  g_searchItemArchiveByMapId RF4S.exe+0x4DD260: the SI_*.bin archive id per map
+               id (870 u32, 0 = the map never rolls search items; read by
+               SearchItemMng_TickRollAndSpawnDailySpots RF4S.exe+0x231E80)
+  gen_archives  the file names of every archive the gate spawner can load (any map id 1..869
+               in any zone), from g_fileArchivePathTable RF4S.exe+0x57AD30 (256-byte UTF-16
+               paths, basename kept)
+  encounter_zone_overrun  the 3 u16 pairs right after the 24-row encounter table: MGRP zones
+               24..26 read them (archive half 0 = no gates)
+  area_bgm_overrun  the 6 u32 right after the 21-entry area BGM table: the "music" of MGRP
+               zones 21..26 (only reachable with bits 26..31)
+
+Every table records its RVA; each file records the exe it came from (size + SHA-256).
+Run:  python gen_exe_tables_json.py [--exe PATH] [--out PATH] [--maps-out PATH]
+      [--collision-out PATH] [--sidecars-out PATH]
 """
 from __future__ import annotations
 
@@ -55,6 +69,10 @@ CRATE_POOLS = [
 ]
 BGM_RVA, BGM_ENTRIES = 0x4D5710, 21
 ENC_RVA, ENC_ROWS = 0x4DB1E0, 24
+ENC_OVERRUN_ROWS = 3        # zones 24..26 (MGRP bits 29..31 alone) read past the 24 rows
+BGM_OVERRUN = 6             # zones 21..26 (MGRP bits 26..31 alone) read past the 21 BGM ids
+SI_RVA, SI_MAPS = 0x4DD260, 870
+TOC_RVA, TOC_SLOTS, TOC_STRIDE = 0x57AD30, 18179, 256
 
 ABOUT = ("Tables that exist only in RF4S.exe, extracted by gen_exe_tables_json.py so the "
          "toolkit never reads the exe at run time. chest_loot: treasure chests (MOBJ 44, "
@@ -143,6 +161,86 @@ def dumps_collision(obj):
     out.append(",\n".join(f"  {json.dumps(k)}: {json.dumps(v)}" for k, v in obj["templates"].items()))
     out.append(" }")
     out.append("}")
+    return "\n".join(out) + "\n"
+
+
+SIDECARS_ABOUT = (
+    "Which per-map side files RF4S.exe loads, extracted by gen_exe_tables_json.py so the "
+    "toolkit never reads the exe at run time. search_items: g_searchItemArchiveByMapId "
+    "RF4S.exe+0x4DD260, the SI_*.bin archive per map id (0 = the map never rolls search "
+    "items; ids >= 870 never roll), read by SearchItemMng_TickRollAndSpawnDailySpots "
+    "RF4S.exe+0x231E80 with the room's BASE id; names = the archive file names from "
+    "first_archive on. gen_archives: file names (basename of g_fileArchivePathTable "
+    "RF4S.exe+0x57AD30) of every archive Encounter_TickMonsterSpawnSlots RF4S.exe+0x1E6240 "
+    "can load (map id - first map + first archive, for any map id 1..869 in any zone), from "
+    "`first` on. encounter_zone_overrun: the u16 pairs right after the 24-row "
+    "g_encounterArchiveTable, read for zones 24..26 (archive half 0 = no gates). "
+    "area_bgm_overrun: the u32 right after the 21-entry g_baseMapBgmByFlagBit, read by "
+    "Scene_ApplyContextualBGM for zones 21..26.")
+
+
+def toc_name(data, archive):
+    """Basename of archive `archive`'s path in g_fileArchivePathTable ('' for an empty slot)."""
+    if not 0 <= archive < TOC_SLOTS:
+        return ""
+    off = exetables.rva_to_offset(data, TOC_RVA + TOC_STRIDE * archive)
+    s = data[off:off + TOC_STRIDE].decode("utf-16-le", "replace").split("\0", 1)[0]
+    return s.rsplit("/", 1)[-1]
+
+
+def build_sidecars(exe):
+    """refdata/rf4s_exe_sidecars.json: the SI archive per map id and the Gen archive names."""
+    data = exetables.exe_bytes(exe)
+    si = list(exetables.read("I", SI_RVA, SI_MAPS, exe))
+    used = [a for a in si if a]
+    si_first, si_last = min(used), max(used)
+    zones = [tuple(exetables.read("H", ENC_RVA + 4 * z, 2, exe)) for z in range(ENC_ROWS)]
+    overrun = [list(exetables.read("H", ENC_RVA + 4 * (ENC_ROWS + z), 2, exe))
+               for z in range(ENC_OVERRUN_ROWS)]
+    reach = [(1 - first + arc, 869 - first + arc) for first, arc in zones if arc]
+    g_first, g_last = min(a for a, _b in reach), max(b for _a, b in reach)
+    return {
+        "_about": SIDECARS_ABOUT,
+        "source": {"file": "RF4S.exe", "size": len(data),
+                   "sha256": hashlib.sha256(data).hexdigest()},
+        "search_items": {"rva": f"0x{SI_RVA:X}", "archives": si, "first_archive": si_first,
+                         "names": [toc_name(data, a) for a in range(si_first, si_last + 1)]},
+        "gen_archives": {"toc_rva": f"0x{TOC_RVA:X}", "first": g_first,
+                         "names": [toc_name(data, a) for a in range(g_first, g_last + 1)]},
+        "encounter_zone_overrun": {"rva": f"0x{ENC_RVA + 4 * ENC_ROWS:X}", "rows": overrun},
+        "area_bgm_overrun": {"rva": f"0x{BGM_RVA + 4 * BGM_ENTRIES:X}",
+                             "sound_ids": list(exetables.read("I", BGM_RVA + 4 * BGM_ENTRIES,
+                                                              BGM_OVERRUN, exe))},
+    }
+
+
+def dumps_sidecars(obj):
+    """JSON with the long lists wrapped at ~100 columns (small diffs when the exe changes)."""
+    def wrapped(key, lst):
+        parts, line = [], []
+        for v in lst:
+            line.append(json.dumps(v))
+            if sum(len(x) + 2 for x in line) > 96:
+                parts.append(", ".join(line))
+                line = []
+        if line:
+            parts.append(", ".join(line))
+        return f'  "{key}": [\n   ' + ",\n   ".join(parts) + "\n  ]"
+    si, ga = obj["search_items"], obj["gen_archives"]
+    out = ["{",
+           f' "_about": {json.dumps(obj["_about"])},',
+           f' "source": {json.dumps(obj["source"])},',
+           f' "search_items": {{"rva": {json.dumps(si["rva"])}, '
+           f'"first_archive": {si["first_archive"]},',
+           wrapped("archives", si["archives"]) + ",",
+           wrapped("names", si["names"]),
+           " },",
+           f' "gen_archives": {{"toc_rva": {json.dumps(ga["toc_rva"])}, "first": {ga["first"]},',
+           wrapped("names", ga["names"]),
+           " },",
+           f' "encounter_zone_overrun": {json.dumps(obj["encounter_zone_overrun"])},',
+           f' "area_bgm_overrun": {json.dumps(obj["area_bgm_overrun"])}',
+           "}"]
     return "\n".join(out) + "\n"
 
 
@@ -397,6 +495,7 @@ def main(argv=None):
     ap.add_argument("--out", default=str(refdata_path("rf4s_exe_tables.json")))
     ap.add_argument("--maps-out", default=str(refdata_path("rf4s_exe_map_resources.json")))
     ap.add_argument("--collision-out", default=str(refdata_path("rf4s_exe_collision.json")))
+    ap.add_argument("--sidecars-out", default=str(refdata_path("rf4s_exe_sidecars.json")))
     a = ap.parse_args(argv)
     obj = build(a.exe)
     text = dumps(obj)
@@ -418,6 +517,14 @@ def main(argv=None):
     pathlib.Path(a.collision_out).write_text(text, encoding="utf-8")
     print(f"wrote {a.collision_out}: {len(col['templates'])} collision templates for "
           f"{len(col['by_type'])} object types")
+    side = build_sidecars(a.exe)
+    text = dumps_sidecars(side)
+    if json.loads(text) != side:
+        raise SystemExit("rf4s_exe_sidecars.json does not round-trip")
+    pathlib.Path(a.sidecars_out).write_text(text, encoding="utf-8")
+    print(f"wrote {a.sidecars_out}: {sum(1 for x in side['search_items']['archives'] if x)} "
+          f"maps with search items, {len(side['gen_archives']['names'])} archive names from "
+          f"{side['gen_archives']['first']}")
 
 
 if __name__ == "__main__":

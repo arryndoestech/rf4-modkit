@@ -541,6 +541,9 @@ class AddTool(Tool):
             ed.select(("mobj", i))
             ed.status(f"Added entity #{i} (type {tid}){note}")
         elif what == "spot":
+            if doc.si_block_reason():               # the game never rolls search items here
+                ed.status(doc.si_block_reason())
+                return
             with doc.edit("Add search spot", "si"):
                 si = doc.ensure_si()
                 si.spots.append(search_items.SearchSpot(x=sx, y=sy,

@@ -12,7 +12,15 @@ map task's work[16] and its low nibble as work[15]; the game reads:
                 zone picks the base BGM, the minimap group, the crate loot pool and the
                 monster gates. With group bit 6 the minimap reads a room sub-group from the
                 lowest of bits 22+ (only MAP_F_ROOM_00 sets them).
-    bits 26..31 no reader found
+    bits 26..31 read ONLY when bits 5..25 are all clear: the zone scan (MGRP & ~0x1F) >> 5
+                takes the lowest set bit below 26, so bits 26..30 give zones 21..25 and bit 31
+                alone gives 26 (Minimap_BuildForMap, Scene_ApplyContextualBGM
+                RF4S.exe+0x19AFB0). Those zones read past the 21-entry area BGM table (zones
+                21..25 get sound id 0, zone 26 gets 0xFFFCFFFC: no area music), the monster
+                gates use encounter rows 21 / 22 -- the Cluck-Cluck Nest and Demon's Den rows,
+                so the spawner loads some unrelated archive -- and the crates the default pool.
+                With a group bit 5..25 set they are ignored. No shipped map sets them.
+    no area bit (all of 5..31 clear): zone 0, the same as bit 5 (Selphia town).
 
 MONSTER GATES (Encounter_TickMonsterSpawnSlots RF4S.exe+0x1E6240): the game does NOT look a
 map's Gen file up by name. For a map id 1..869 it takes the zone (map 44 -> 0, 853..857 -> 21,
@@ -20,15 +28,21 @@ map's Gen file up by name. For a map id 1..869 it takes the zone (map 44 -> 0, 8
 
     map id - encounter_zones[zone].first_map + encounter_zones[zone].first_archive
 
-(refdata rf4s_exe_tables.json); a zone whose row is [0, 0] spawns no gates. The map id is the
-BASE id (a seasonal variant counts as its base map). The editor edits GenX##.bin by name, so a
-map moved to another area group can make the game load another room's table (or none).
+(refdata rf4s_exe_tables.json; zones 24..26 read the 3 pairs after the 24-row table, whose
+archive half is 0); a zone whose archive is 0 spawns no gates. The map id is the BASE id (a
+seasonal variant counts as its base map); the MGRP is the one of the file the game loads (a
+seasonal file's own). A room whose area group runs past its zone's run of tables loads
+ANOTHER room's table: shipped, MAP_DUNG_I13 / I14 load GenJ01 / GenJ02.bin (Idra Cave) and
+MAP_DUNG_N41..N43 load GenO01..O03.bin (Cluck-Cluck Nest) -- I14, N42 and N43 get live gates
+from those files. gen_file() names the file the game really loads (exesidecars.archive_name);
+the FIELD_100..110 / A0..A3 tables are GenField99_100..110.bin, and GenQ10.bin lies in no
+zone's run (never loaded).
 """
 from __future__ import annotations
 
 import re
 
-from . import chestloot, map_names
+from . import chestloot, exesidecars, map_names
 
 SEASONS = ("spring", "summer", "autumn", "winter")
 NO_WEATHER = 0x10
@@ -83,7 +97,9 @@ def gate_zone(map_id, mgrp):
 
 
 def _zone_rows():
-    return [tuple(r) for r in chestloot.tables()["encounter_zones"]["rows"]]
+    """The 24 encounter-table rows, then the 3 pairs the game reads past them (zones 24..26)."""
+    return ([tuple(r) for r in chestloot.tables()["encounter_zones"]["rows"]]
+            + exesidecars.zone_overrun_rows())
 
 
 def gen_archive(map_id, mgrp):
@@ -94,6 +110,22 @@ def gen_archive(map_id, mgrp):
         return None
     first_map, first_arc = rows[z]
     return map_id - first_map + first_arc
+
+
+def gen_file(map_id, mgrp):
+    """The file name of the Gen archive the game loads for this (base) map id with this MGRP,
+    or None (no gates, or an archive outside the gate tables' reach)."""
+    return exesidecars.archive_name(gen_archive(map_id, mgrp))
+
+
+def own_archive(map_id):
+    """The archive in whose zone run `map_id` owns the slot (its OWN table), or None."""
+    if map_id is None:
+        return None
+    for arc, first, n in gen_ranges():
+        if first <= map_id < first + n:
+            return arc + map_id - first
+    return None
 
 
 LAST_ZONE_MAPS = 9          # the highest range (maps 861..869) has no next row to end it
@@ -156,6 +188,22 @@ def fitting_groups(map_id):
     return out
 
 
+# the game's own maps without an area-group bit (all 872 scanned 2026-09-27): the two airship
+# rooms and the travel waiting room are played as they are, the rest are placeholders
+SHIPPED_WITHOUT_AREA = ("MAP_ROOM_25", "MAP_ROOM_26", "MAP_TRAVEL_WAITING_ROOM")
+
+
+def _placeholder(map_name):
+    """True for the maps the game itself ships without an area-group bit (placeholders --
+    MAP_DUMMY_*, MAP_NULL, MAP_SYSTEM_*, the F_ROOM_DUMMY rooms -- and SHIPPED_WITHOUT_AREA):
+    zone 0 is how the game has them, not worth a warning."""
+    if map_name is None:
+        return False
+    stem = _SEASON_SUFFIX.sub("", re.sub(r"\.rf4m$", "", str(map_name).replace("\\", "/")
+                                          .rsplit("/", 1)[-1], flags=re.I)).upper()
+    return stem in SHIPPED_WITHOUT_AREA or re.search(r"DUMMY|NULL|SYSTEM", stem) is not None
+
+
 def _entries(n):
     return f"{n} gate entr{'y' if n == 1 else 'ies'}"
 
@@ -182,6 +230,9 @@ def effects(mgrp, map_name=None, gen_name_for=None):
     v = (mgrp or 0) & 0xFFFFFFFF
     zone = zone_of_mgrp(v)
     out = []
+    if zone >= 21:
+        out.append(("Area", f"zone {zone} from bit {zone + 5}: bits 5-25 are all clear, so the "
+                            f"game takes the lowest of bits 26-31"))
     sid = chestloot.area_bgm(zone)
     if sid is not None:
         try:
@@ -189,6 +240,11 @@ def effects(mgrp, map_name=None, gen_name_for=None):
             out.append(("Music", soundtable.sound_label(sid) or f"sound 0x{sid:X}"))
         except Exception:
             out.append(("Music", f"sound 0x{sid:X}"))
+    else:
+        bad = exesidecars.area_bgm_overrun(zone)
+        if bad is not None:
+            out.append(("Music", f"none -- zone {zone} is past the 21-entry area music table "
+                                 f"(the game reads sound id 0x{bad:X})"))
     pools = chestloot.crate_pools(zone)
     out.append(("Crate loot", " / ".join(f"{p['label']} {p['share']:.0%}" if p["share"] < 1
                                           else p["label"] for p in pools) + " pool"))
@@ -200,10 +256,13 @@ def effects(mgrp, map_name=None, gen_name_for=None):
                         if mid is not None and 1 <= mid <= 869 else "none"))
         else:
             owner = archive_owner(arc)
-            fn = gen_name_for(owner) if (gen_name_for and owner is not None) else None
+            fn = exesidecars.archive_name(arc) if owner is not None else None
+            if fn is None and gen_name_for and owner is not None:
+                fn = gen_name_for(owner)
             own = owner == mid
             out.append(("Monster gates", (fn or f"archive {arc}")
-                        + ("" if own else f" -- {_map_label(owner)}'s table, not this map's")))
+                        + ("" if own else f" -- {_map_label(owner)}'s table, not this map's"
+                           if owner is not None else " -- not a monster-gate table")))
     out.append(("Minimap", f"group {zone}"))
     return out
 
@@ -246,8 +305,9 @@ def family_note(mgrp, map_name, sibling_zones):
 
 def problems(mgrp, map_name=None, gen_entries=None, gen_name_for=None, gen_entries_for=None,
              sibling_zones=None):
-    """[(severity, message)] for this MGRP. `gen_entries` = the number of gate entries in the
-    Gen file the editor opened for this map (None: none open); `gen_entries_for(file name)` =
+    """[(severity, message)] for this MGRP. `gen_entries` = the number of gate entries in this
+    map's OWN Gen table (the one in its zone's run; None: none); `gen_name_for(map id)` names a
+    map's own table; `gen_entries_for(file name)` =
     the entry count of another Gen file (None: absent); `sibling_zones` = the zones of the
     other rooms of this map's family (see family_note). Severity 'WARN' (loads, but not as
     probably meant) or 'INFO'; nothing here stops the game from loading."""
@@ -279,8 +339,23 @@ def problems(mgrp, map_name=None, gen_entries=None, gen_name_for=None, gen_entri
     if extra and not (groups[0] == 6 and all(b >= 22 for b in extra)):
         out.append(("WARN", f"several area-group bits ({', '.join(map(str, groups))}): the game "
                             f"uses only bit {groups[0]} ({GROUP_LABELS.get(groups[0], '?')})"))
-    if v >> 26:
-        out.append(("WARN", f"bits 26-31 set (0x{v & 0xFC000000:X}): nothing in the game reads them"))
+    zone = zone_of_mgrp(v)
+    if v >> 26 and groups:
+        out.append(("WARN", f"bits 26-31 set (0x{v & 0xFC000000:X}): ignored while an area-group "
+                            f"bit 5-25 is set (bit {groups[0]} wins)"))
+    elif v >> 26:
+        gates = {21: "the Cluck-Cluck Nest row", 22: "the Demon's Den row"}.get(zone)
+        out.append(("WARN", f"no area-group bit 5-25, so the game takes bit {zone + 5} "
+                            f"(bits 26-31 = 0x{v & 0xFC000000:X}) as the area: zone {zone}, past "
+                            f"the end of the area tables -- no area music, the default crate "
+                            f"pool, minimap group {zone}, and "
+                            + (f"the monster gates come from {gates} of the encounter table, "
+                               f"i.e. some unrelated file" if gates else "no monster gates")
+                            + ". Pick an Area (bits 5-25) instead"))
+    elif not v & ~0x1F and not _placeholder(map_name):
+        out.append(("WARN", "no area-group bit: the game treats the map as zone 0 (Selphia "
+                            "town): town music, minimap group 0, the default crate pool and no "
+                            "monster gates. Pick an Area if the map belongs somewhere else"))
     if map_name is None:
         return out
     mid = base_map_id(map_name)
@@ -301,16 +376,26 @@ def problems(mgrp, map_name=None, gen_entries=None, gen_name_for=None, gen_entri
         # the sum lands outside every zone's run of Gen tables: the spawner loads a file that
         # is not an encounter table at all
         out.append(("WARN", f"with this area group (zone {gate_zone(mid, v)}) the gate spawner "
-                            f"loads archive {arc}, which is not a monster-gate table.{_fix_hint(mid)}"))
+                            f"loads archive {arc}"
+                            + (f" ({exesidecars.archive_name(arc)})" if exesidecars.archive_name(arc) else "")
+                            + f", which is not a monster-gate table.{_fix_hint(mid)}"))
         return out
+    other_fn = exesidecars.archive_name(arc) or (gen_name_for(owner) if gen_name_for else None)
+    other_n = gen_entries_for(other_fn) if (gen_entries_for and other_fn) else None
+    if not gen_entries and other_n:
+        # shipped: MAP_DUNG_I14 -> GenJ02, N42 / N43 -> GenO02 / O03 (the map editor opens
+        # that file for this room, so editing it here changes both rooms)
+        out.append(("INFO", f"this room has no gates of its own: with this area group (zone "
+                            f"{gate_zone(mid, v)}) the game loads {other_fn}, the table of "
+                            f"{_map_label(owner)}, and its {_entries(other_n)} spawn"
+                            f"{'s' if other_n == 1 else ''} here too -- the Gates tab shows that "
+                            f"file, and edits to it change both rooms"))
     if gen_entries:
         # (only when this map's own table has gates: a few shipped rooms point past their
         # area's tables, harmlessly, because they have none)
-        other_fn = gen_name_for(owner) if gen_name_for else None
-        other_n = gen_entries_for(other_fn) if (gen_entries_for and other_fn) else None
         msg = (f"wrong monster gates: with this area group the game loads "
                f"{other_fn or f'archive {arc}'}, the table of {_map_label(owner)}, instead of "
-               f"{own_fn or 'this map’s own Gen file'}. The {_entries(gen_entries)} edited here "
+               f"{own_fn or 'this map’s own Gen file'}. The {_entries(gen_entries)} in {own_fn or 'it'} "
                f"never {'appears' if gen_entries == 1 else 'appear'}")
         if other_n:
             msg += f"; that room's {_entries(other_n)} spawn{'s' if other_n == 1 else ''} here instead"

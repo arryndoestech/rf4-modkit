@@ -11,11 +11,20 @@ Engine chain (IDA-verified 2026-06-10)
 --------------------------------------
 - `GameSystems_Init` spawns the long-lived task **`search_item_mng`**.
 - Its tick `SearchItemMng_TickRollAndSpawnDailySpots` (RF4S.exe+0x231E80) reacts to
-  "needs roll" (set on map entry): `archive_id = g_searchItemArchiveByMapId[map_id]`
-  (+0x4DD260; 870 u32 slots, map ids >= 870 never roll; 305 non-zero covering archive
-  ids **14878..15165** = exactly these 288 files; seasonal map variants share their
-  base map's archive), `nsFileArchive_Load`, then
-  `SearchItem_RollSpotsAndSpawnFromArchive` (+0x231FF0), then release.
+  "needs roll": `archive_id = g_searchItemArchiveByMapId[map_id]` (+0x4DD260; 870 u32
+  slots, map ids >= 870 never roll; 305 non-zero covering archive ids 14878..15165;
+  the room's BASE id, so seasonal variants share their base map's file), then
+  `nsFileArchive_Load`, `SearchItem_RollSpotsAndSpawnFromArchive` (+0x231FF0), release.
+  The game picks the file by MAP ID, not by name (rf4s_modkit.exesidecars ships the
+  table): MAP_CITY_05 loads SI_CITY_06.bin, MAP_CITY_06 none, MAP_FIELD_A0/A2/A3 load
+  SI_FIELD_101/103/104.bin, and SI_DUNG_E45.bin is never loaded. A map whose entry is 0
+  never gets search items, whatever file is saved for it.
+- "needs roll" is set on map entry by Scene_FinalizeMajorTransition (RF4S.exe+0x14117C)
+  only once the story has reached step 39 (g_storyProgressFlag9bit >= 39, no search
+  items before that), and then only on HALF the visits (a 50 % gameplay-RNG roll per
+  entry; the losing half sets the map's done-today bit: nothing that visit, and at most
+  one item on a later visit that day). So a freshly edited spot table shows nothing on
+  about half the visits.
 - Roll algorithm (deterministic per day via `Calendar_DerivedDailyRandStream`;
   sleeping rerolls):
 
@@ -40,9 +49,14 @@ Engine chain (IDA-verified 2026-06-10)
   u8. Consequences for edited files:
     * a pool with more than 255 entries HANGS the game the first time a spot using it
       wins its chance roll (the u8 entry counter wraps before reaching the count);
-    * more than 255 spots makes the spot loop wrap and re-roll the same streams; if no
-      spot then wins, it never ends (hang). The chance is also the LOW BYTE of the
-      count, so 256 spots = chance 0 = the first spot always spawns;
+    * spot index 253 or higher can HANG the game: Calendar_DerivedDailyRandStream
+      (+0x2321D0) steps its generator (u8 stream + 1) times with a u8 counter, so stream
+      255 means 256 steps the counter never reaches -- an endless loop. The item pick
+      of spot i uses stream (i + 2) & 0xFF (`lea edx,[rdi+2]` at +0x2320C1), so spot 253
+      hangs as soon as it wins its chance roll; spot 255's own chance roll (stream 255)
+      hangs whenever the loop reaches it. Safe maximum: 253 spots (indices 0..252).
+      (Past 255 spots the u8 spot index also wraps and the chance is the count's low
+      byte, but the hang comes first.);
     * a pool whose weight bytes sum to 0 (mod 256) never yields an item, but the spot
       still consumes one decrement of `chance`.
   See `SearchItemFile.validate()`.
@@ -113,8 +127,13 @@ DEFAULT_BUILD_DATE = 0x20201119
 SI_VERSION = 2
 MAX_DAILY_SPAWNS = 2          # engine cap per map per day
 WEIGHT_SUM_LIMIT = 255        # engine sums weights in a u8 -- avoid exceeding
-MAX_SPOTS = 255               # u8 spot counter in the roll loop (more -> possible hang)
-MAX_POOL_ENTRIES = 255        # u8 entry counter (more -> certain hang when rolled)
+# Spot i picks its item with Calendar_DerivedDailyRandStream stream (i + 2) & 0xFF, and
+# stream 255 loops forever (a u8 step counter that must reach 256): spot 253 hangs when it
+# wins its chance roll, spot 255 as soon as the loop reaches it -> at most 253 spots.
+MAX_SPOTS = 253
+# The weight-sum and pick loops count entries in a u8 (`inc al` / `inc dl` compared with
+# the u32 count at +0x2320B3 / +0x2320F1): 255 entries end the loop at 255, 256 never do.
+MAX_POOL_ENTRIES = 255
 
 
 class SearchItemError(Exception):
@@ -319,9 +338,9 @@ class SearchItemFile:
         errs, warns = [], []
         n = len(self.spots)
         if n > MAX_SPOTS:
-            errs.append(f"{n} spots: the roll loop counts spots in a u8, so past 255 it wraps "
-                        f"and re-rolls the same streams -- if no spot wins, the game hangs "
-                        f"(and the 1-in-N chance uses only the low byte, {n & 0xFF})")
+            errs.append(f"{n} spots: at most {MAX_SPOTS} -- spot #{MAX_SPOTS} (and any after) "
+                        f"can HANG the game: its daily random roll uses stream 255, which "
+                        f"the game's random-number routine never finishes")
         seen = {}
         for i, sp in enumerate(self.spots):
             seen.setdefault(id(sp.pool), (i, sp.pool))
