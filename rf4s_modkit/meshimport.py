@@ -645,15 +645,36 @@ class ImportReport:
         return [r for r in self.shapes if not r.unchanged]
 
 
-def import_glb(data, path, *, mapping=None):
+def empty_geometry(data, shape, L=None):
+    """ShapeGeometry that REMOVES a shape from view while keeping it in the file: one vertex
+    (a copy of its first) and one degenerate triangle (indices 0, 0, 0). The draw
+    (RF4S.exe+0x3CDDB0) issues the submesh's 3 indices, and a zero-area triangle produces no
+    fragment, so nothing is drawn; the SHAP / VRTX / mesh records, their indices and names stay,
+    so nothing that addresses shapes by index or name (costume parts, material animations)
+    shifts. Structural removal is not offered for that reason."""
+    L = L or _mw.layout(data)
+    si = shape
+    sh = L.shapes[si]
+    recs = _mw._records(data, L, sh)
+    if not recs:
+        raise MeshImportError(f"shape {si} has no vertex to keep")
+    attrs, _stride = _mw._vertex_format(data, sh)
+    p = [struct.unpack_from(f, recs[0], o) for n, f, o in attrs if n == "_p0"][0]
+    box, rad = _mw._shape_bounds(data, sh, [tuple(p[:3])])
+    return _mw.ShapeGeometry(bytes(recs[0]), [0, 0, 0], box, rad)
+
+
+def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False):
     """(new .model bytes, ImportReport): the shapes a glTF / GLB's meshes match (by name, see
     match_shapes; `mapping` = {shape index or name: mesh node name} overrides) rebuilt from
-    those meshes with their bone weights. The result equals `data` byte for byte when nothing
-    changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh."""
+    those meshes with their bone weights. `remove` (shape indices / names) and, with
+    `remove_missing`, every shape the file has no mesh for (deleted in Blender) are emptied
+    (empty_geometry: kept in the file, drawn as nothing). The result equals `data` byte for byte
+    when nothing changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh."""
     m = _model.parse(data)
     L = _mw.layout(data)
     meshes = list(path) if isinstance(path, list) else read_meshes(path, m)
-    if mapping:
+    if mapping is not None:                     # {} = import nothing (e.g. only removals)
         by = {me.name: me for me in meshes}
         plan = {}
         for k, v in mapping.items():
@@ -664,13 +685,33 @@ def import_glb(data, path, *, mapping=None):
         rest = [me for me in meshes if id(me) not in used]
     else:
         plan, rest = match_shapes(m, meshes)
+    drop = {_mw.resolve_shape(m, x) for x in remove}
+    if remove_missing:
+        drop |= {sh.index for sh in m.shapes if sh.index not in plan}
+    for si in drop:                             # an explicit removal wins over a same-named mesh
+        plan.pop(si, None)
     geo, reps = {}, []
     for si in sorted(plan):
         g, rep = shape_geometry_from_mesh(data, si, plan[si], m, L)
         reps.append(rep)
         if g is not None:
             geo[si] = g
-    kept = [(sh.name or f"shape{sh.index}") for sh in m.shapes if sh.index not in plan]
+    for si in sorted(drop):
+        g = empty_geometry(data, si, L)
+        sh = L.shapes[si]
+        rep = ShapeReport(si, m.shapes[si].name, "(removed)")
+        a = L.pool + sh.vertex_offset
+        if (sh.vertex_count == 1 and bytes(data[a:a + sh.buffers[0][2]]) == g.vertices
+                and m.shapes[si].indices == [0, 0, 0]):
+            rep.unchanged = True
+        else:
+            geo[si] = g
+            rep.vertices, rep.triangles = 1, 1
+            rep.notes.append("removed: one degenerate triangle, nothing is drawn (the shape stays in "
+                             "the file, so shape numbers do not shift)")
+        reps.append(rep)
+    reps.sort(key=lambda r: r.shape)
+    kept = [(sh.name or f"shape{sh.index}") for sh in m.shapes if sh.index not in plan and sh.index not in drop]
     report = ImportReport(reps, [me.name for me in rest], kept)
     if not geo:
         return bytes(data), report
@@ -678,6 +719,8 @@ def import_glb(data, path, *, mapping=None):
     L2 = _mw.layout(bytes(out))
     smooth, rigid = _bone_matrices(data, m)
     for si, g in geo.items():
+        if si in drop:
+            continue
         attrs, stride = _mw._vertex_format(data, L.shapes[si])
         if not _update_skin_bones(out, L2.shapes[si], m.shapes[si], g, attrs, stride, m, smooth, rigid):
             next(r for r in reps if r.shape == si).notes.append(

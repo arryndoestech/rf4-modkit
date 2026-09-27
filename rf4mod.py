@@ -2988,7 +2988,8 @@ def cmd_res_model_import_glb(a):
         k, v = item.split("=", 1)
         mapping[k] = v
     try:
-        out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None)
+        out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None,
+                                         remove=a.remove or (), remove_missing=a.remove_missing)
     except (model.ModelError, modelwrite.ModelWriteError, meshimport.MeshImportError, gltf.GltfError) as e:
         sys.exit(f"error: {e}")
     print(rep.text())
@@ -4374,6 +4375,11 @@ def build_parser():
     rmg.add_argument("--map", action="append", metavar="SHAPE=MESH",
                      help="put mesh MESH (the glTF node / Blender object name) on shape SHAPE "
                           "(index or name) instead of matching by name; repeatable")
+    rmg.add_argument("--remove", action="append", metavar="SHAPE",
+                     help="hide shape SHAPE (index or name): it stays in the file as one "
+                          "degenerate triangle that draws nothing; repeatable")
+    rmg.add_argument("--remove-missing", action="store_true",
+                     help="hide every shape the file has no mesh for (objects deleted in Blender)")
     rmg.add_argument("-o", "--out", help="output .model (default: <model>_glb.model here)")
     rmg.set_defaults(func=cmd_res_model_import_glb)
     rmm = rsub.add_parser("model-material", help="list the material settings the game reads "

@@ -9319,7 +9319,8 @@ def test_model_glb_import():
     unmodified .glb is byte-identical; edited meshes come back with the file's positions and
     BONE WEIGHTS (posed like linear blend skinning of those weights), influences the shape
     cannot store are dropped (heaviest kept) or moved to the nearest ancestor bone that has a
-    skinning matrix, and the rebuilt file passes the loader walk."""
+    skinning matrix, the rebuilt file passes the loader walk, and a removed shape stays in the
+    file drawing nothing."""
     print("model import from glTF (Import from Blender):")
     import copy, math, tempfile, shutil
     from rf4s_modkit import gltf as _gl, meshimport as _mi, model as _model, modelwrite as _mw, skelanim as _sk
@@ -9424,6 +9425,18 @@ def test_model_glb_import():
         lst = list(struct.unpack_from("<%dH" % cnt, out, _mw._u64(out, s + 0x28)))
         _check("the shape's used-bone list is rewritten to the bones its vertices now use",
                lst == sorted({by["body_Bone02"], by["head_Bone03"], by["leg_LD_Bone13"]}), lst)
+        # removal: a shape deleted in Blender (remove_missing) is kept but drawn as nothing
+        out, rep = _mi.import_glb(d, [s0], remove_missing=True)
+        m3 = _model.parse(out)
+        again, _r = _mi.import_glb(out, [s0], remove_missing=True)
+        _check("remove_missing: the shape with no mesh keeps its record and numbers but becomes one "
+               "degenerate triangle (1 vertex, indices 0 0 0); the other shape is untouched; "
+               "removing it again changes nothing",
+               len(m3.shapes) == len(m.shapes) and m3.shapes[1].indices == [0, 0, 0]
+               and m3.vertex_buffers[m3.shapes[1].vertex_buffer].count == 1
+               and m3.vertex_buffers[m3.shapes[0].vertex_buffer].data == m.vertex_buffers[m.shapes[0].vertex_buffer].data
+               and not _mw.validate(out) and again == out and m3.shapes[1].name == m.shapes[1].name,
+               rep.text())
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

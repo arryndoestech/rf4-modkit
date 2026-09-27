@@ -699,7 +699,10 @@ What a shape can store is fixed by its vertex format: rigid shapes (skin 0) foll
 bone whatever the weights say; skin-1 shapes keep each vertex's heaviest bone; skinned shapes
 keep their 2 / 3 / 4 heaviest influences, renormalised. A bone the game has no skinning matrix
 for passes its weight to its nearest parent that has one. The import names every such case.
-Not possible yet: new shapes or materials, changing a shape's skin type, moving bones.
+To **remove** a part, delete its object in Blender and import with `--remove-missing` (or pick
+"(remove)" for that shape in the dialog, `--remove SHAPE`): the shape stays in the file (shape
+numbers do not shift) but draws nothing. Not possible yet: new shapes or materials, changing a
+shape's skin type, moving bones.
 
 ## What can be modded, and how
 
