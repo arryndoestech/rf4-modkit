@@ -5838,6 +5838,75 @@ def test_explorer_open_file():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_explorer_model_obj_import():
+    """rf4mod_gui model tab: Import OBJ… replaces shapes' geometry from an OBJ (the Export OBJ
+    format) -- each OBJ object goes onto the shape of the same name -- and makes the result
+    the tab's working copy; an unedited export re-imports as 'unchanged'."""
+    print("asset explorer: Import OBJ on a model tab:")
+    import importlib.util, tempfile, shutil
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("model OBJ import", "no tkinter: %s" % e); return
+    from rf4s_modkit import model as _model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    src = next((p for p in sorted(B.glob("*.model")) if p.stat().st_size < 400_000
+                and _model.is_mesh(p.read_bytes()) and len(_model.parse(p.read_bytes()).shapes) >= 2
+                and all(sh.skin <= 1 for sh in _model.parse(p.read_bytes()).shapes)), None)
+    if src is None:
+        _skip("model OBJ import", "no small multi-shape .model"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_obj", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    _headless_dialogs()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tmp / src.name
+        shutil.copyfile(src, f)
+        app = gui.App(root, initial=str(B))
+        app.open_path(f)
+        root.update_idletasks()
+        doc = app._doc
+        orig = doc.cur_data
+        m = _model.parse(orig)
+        written = _model.export_obj(m, tmp, "exp")
+        obj = next(pathlib.Path(w) for w in written if str(w).endswith(".obj"))
+        text = obj.read_text(encoding="utf-8")
+        same = app._import_model_obj(doc.cur_name, str(obj),
+                                     choose=lambda mm, objs: {sh.index: sh.name for sh in mm.shapes})
+        _check("re-importing an unedited export changes nothing",
+               same and doc.cur_data == orig and "unchanged" in app.status.cget("text"),
+               app.status.cget("text"))
+        # scale the FIRST object's vertices by 2 (v lines up to the second 'o')
+        out, obj_no = [], 0
+        for ln in text.splitlines():
+            if ln.startswith("o "):
+                obj_no += 1
+            if ln.startswith("v ") and obj_no == 1:
+                x, y, z = (float(t) for t in ln.split()[1:4])
+                ln = f"v {2 * x!r} {2 * y!r} {2 * z!r}"
+            out.append(ln)
+        edited = tmp / "edited.obj"
+        edited.write_text("\n".join(out) + "\n", encoding="utf-8")
+        first = m.shapes[0].name
+        ok = app._import_model_obj(doc.cur_name, str(edited), choose=lambda mm, objs: {0: first})
+        m2 = _model.parse(doc.cur_data)
+        _check("Import OBJ… replaces the chosen shape's geometry: the working copy changes, still "
+               "reads as a model, same shape count",
+               ok and doc.cur_data != orig and len(m2.shapes) == len(m.shapes)
+               and "Imported 1 shape" in app.status.cget("text"), app.status.cget("text"))
+        _check("model OBJ import raised no callback errors", not errs, errs[:1])
+    finally:
+        try:
+            root.update()
+        except tk.TclError:
+            pass
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_explorer_tabs():
     """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
     state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
@@ -6680,9 +6749,357 @@ def test_app_icon():
         ok = app_icon.apply(root)
         im = app_icon.image()
         _check("the icon is decoded from the game copy, squared and cached next to the "
-               "settings (not in the toolkit)", ok and im is not None and im.width == im.height
+               "settings.json (the toolkit folder; a scratch copy here)", ok and im is not None and im.width == im.height
                and cp.is_file() and cp.parent == _gamepaths.settings_path().parent,
                (ok, im and im.size, str(cp)))
+    finally:
+        root.destroy()
+
+
+def test_map_editor_blank_overmodel():
+    """Make over-model empty… / Restore…: the map's over-model file is replaced with the game's
+    own empty one (MAP_FIELD_43.model) only after a confirmation that names the maps sharing
+    it; No leaves it alone; the original goes to ModdingBackup and Restore… puts it back.
+    Runs in a scratch game folder."""
+    print("map editor: empty / restore the over-model:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("blank over-model", "no tkinter"); return
+    import shutil, tempfile
+    from tkinter import messagebox as _mb
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FARM_00.model").exists() or not (B / "MAP_FIELD_43.model").exists():
+        _skip("blank over-model", "no extracted bundleMain"); return
+    from rf4s_modkit import mapground as _mg
+    game = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_overmodel_")) / "Game"
+    bundle = game / "Bundle"
+    (bundle / "bundleMain").mkdir(parents=True)
+    (bundle / "Manifest.plist").write_bytes(b"")          # what makes it a game folder
+    orig = (B / "MAP_FARM_00.model").read_bytes()
+    (bundle / "bundleMain" / "MAP_FARM_00.model").write_bytes(orig)
+    real_find = _gamepaths.find_bundle_dir
+    _gamepaths.find_bundle_dir = lambda refresh=False: bundle
+    real_ask = _mb.askyesno
+    asked = []
+    answer = [False]
+    _mb.askyesno = lambda title, msg, **k: (asked.append(msg), answer[0])[1]
+    box = _headless_dialogs()
+    _mb.askyesno = lambda title, msg, **k: (asked.append(msg), answer[0])[1]
+
+    def reader(fn):
+        for d in (bundle / "bundleMain", B):
+            if (d / fn).is_file():
+                return (d / fn).read_bytes()
+        return None
+    root, ed, errs = _headless_panel("MAP_FARM_00", B, reader=reader)
+    try:
+        target = bundle / "bundleMain" / "MAP_FARM_00.model"
+        no = ed.blank_overmodel()
+        _check("Make over-model empty asks first (naming the maps that share the file); No changes "
+               "nothing", not no and target.read_bytes() == orig and asked
+               and "SHARED" in asked[-1] and "MAP_FARM_01" in asked[-1]
+               and "bundleMain" in asked[-1], asked[-1:])
+        answer[0] = True
+        yes = ed.blank_overmodel()
+        backup = game / _gamepaths.BACKUP_DIR / "Bundle" / "bundleMain" / "MAP_FARM_00.model"
+        _check("Yes writes the game's empty over-model (all textures transparent) and keeps the "
+               "original in ModdingBackup", yes and _mg.overmodel_is_blank(target.read_bytes())
+               and backup.is_file() and backup.read_bytes() == orig)
+        again = ed.blank_overmodel()
+        _check("an over-model that is already empty is left alone (says so)",
+               not again and any("already empty" in m for _t, m in box["msgs"]))
+        answer[0] = False
+        ed.restore_overmodel()
+        kept = target.read_bytes() != orig
+        answer[0] = True
+        ok = ed.restore_overmodel()
+        _check("Restore… asks too; Yes copies the original back", kept and ok
+               and target.read_bytes() == orig)
+        _check("over-model buttons raised no callback errors", not errs, errs[:1])
+    finally:
+        _gamepaths.find_bundle_dir = real_find
+        _mb.askyesno = real_ask
+        root.destroy()
+        shutil.rmtree(game.parent, ignore_errors=True)
+
+
+def test_cutscene_install_leaves_no_temp():
+    """The cutscene editor's Install writes the edited files to Bundle/00_mods of the game copy
+    and leaves nothing behind in the temp folder (the staging folder is removed again).
+    Runs against a scratch game folder with a stand-in document."""
+    print("cutscene editor Install: no files left outside the toolkit / game:")
+    import importlib, shutil, tempfile, types
+    try:
+        from tkinter import messagebox as _mb
+        app_mod = importlib.import_module("cutscene_editor.app")
+    except Exception as e:  # noqa: BLE001
+        _skip("cutscene install", "no tkinter / cutscene editor: %s" % e); return
+    cls = next((c for c in vars(app_mod).values()
+                if isinstance(c, type) and "install" in vars(c) and "_refuse_broken_text" in dir(c)), None)
+    if cls is None:
+        _skip("cutscene install", "no Install method found"); return
+    game = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_ctest_"))
+    bundle = game / "Bundle"
+    bundle.mkdir()
+    (bundle / "Manifest.plist").write_bytes(b"")
+    before = {p.name for p in pathlib.Path(tempfile.gettempdir()).glob("rf4s_install_*")}
+    real_find, real_info = _gamepaths.find_bundle_dir, _mb.showinfo
+    _gamepaths.find_bundle_dir = lambda refresh=False: bundle
+    _mb.showinfo = lambda *a, **k: None
+    saved = {}
+    doc = types.SimpleNamespace(
+        container=types.SimpleNamespace(build=lambda: b"MC-bytes"),
+        arcs={"eng": types.SimpleNamespace(build=lambda: b"ENG-bytes")},
+        dirty_locales=lambda: ["eng"], em_dirty=lambda: True,
+        em=types.SimpleNamespace(build=lambda: b"EM-bytes"),
+        mark_saved=lambda **k: saved.update(k))
+    fake = types.SimpleNamespace(doc=doc, _refuse_broken_text=lambda what: False,
+                                 _chrome=lambda: None, status=lambda *a, **k: None)
+    try:
+        ok = cls.install(fake)
+        mods = bundle / "00_mods"
+        after = {p.name for p in pathlib.Path(tempfile.gettempdir()).glob("rf4s_install_*")}
+        _check("Install writes rf3.mc / its text / em.bin to Bundle/00_mods and leaves no "
+               "staging folder in %TEMP%",
+               ok is not False and (mods / "rf3.mc").read_bytes() == b"MC-bytes"
+               and (mods / "rf3mc.eng").read_bytes() == b"ENG-bytes"
+               and (mods / "em.bin").read_bytes() == b"EM-bytes" and after == before,
+               (ok, sorted(p.name for p in mods.glob("*")) if mods.exists() else None,
+                sorted(after - before)))
+    finally:
+        _gamepaths.find_bundle_dir, _mb.showinfo = real_find, real_info
+        shutil.rmtree(game, ignore_errors=True)
+
+
+def test_settings_stay_in_toolkit():
+    """The settings live only in the toolkit folder: nothing reads or removes a settings folder
+    under %APPDATA% (the old location is no longer migrated)."""
+    print("settings location:")
+    import inspect
+    src = inspect.getsource(_gamepaths)
+    _check("gamepaths reads settings.json from the toolkit folder only (no %APPDATA% lookups)",
+           "APPDATA" not in src and "rmtree" not in src
+           and _gamepaths.TOOLKIT.name == pathlib.Path(__file__).resolve().parent.name)
+
+
+def test_map_editor_place_and_delete():
+    """Placing from the Palette: quick repeated clicks each place an object (Tk turns every
+    second one into a double-click); an object whose layer is switched off turns that layer
+    on so it shows (a rune flower with 'forage / triggers' off used to be invisible and so
+    impossible to click and delete); the Objects tab deletes the selected row with Del, even
+    an object the map view does not show, and Ctrl+Z brings it back."""
+    print("map editor: place from the Palette, delete from the Objects tab:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("place and delete", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FIELD_47.rf4m").exists():
+        _skip("place and delete", "no extracted bundleMain"); return
+    me = _map_editor()
+    from map_editor import render as _render, tabs as _tabs
+    from rf4s_modkit import rf4m as _rf4m
+    root = tk.Tk()
+    root.geometry("1200x700+40+40")
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tk.Frame(root)
+        f.pack(fill="both", expand=True)
+        ed = me.MapEditorPanel(f, _rf4m.Rf4mMap.load(B / "MAP_FIELD_47.rf4m"), "MAP_FIELD_47")
+        c = ed.view.canvas
+        for _ in range(200):
+            root.update()
+            if c.winfo_ismapped() and c.winfo_width() > 200:
+                break
+        for k in ("trigger", "decoration"):             # as a user may have them
+            ed.viewtab.vars[k].set(False)
+            ed.set_layer(k, False)
+        d = ed.doc
+        n0 = len(d.map.mobj_records())
+        ed.show_tab("Palette")
+        placed = []
+        for tid in (1, 340, 223):                       # rune flower, a decoration, a rock
+            ed.palette.pick(tid)
+            root.update()
+            c.event_generate("<ButtonPress-1>", x=60, y=60)
+            c.event_generate("<ButtonRelease-1>", x=60, y=60)
+            root.update()
+            placed.append(len(d.map.mobj_records()))
+        _check("quick repeated clicks on the map each place an object (the second click of a "
+               "'double-click' is not lost)", placed == [n0 + 1, n0 + 2, n0 + 3], placed)
+        L = ed.view.st.layers
+        o = d.objs[n0]
+        _check("placing a rune flower / a decoration switches its hidden layer on, so the new "
+               "object shows (and can be clicked)",
+               L.get("trigger") and L.get("decoration") and _render.entity_visible(o, L)
+               and ed.viewtab.vars["trigger"].get() and ed.viewtab.vars["decoration"].get(), dict(L))
+        # hide the forage layer again: the rune flower is not drawn, but the Objects tab lists it
+        ed.viewtab.vars["trigger"].set(False)
+        ed.set_layer("trigger", False)
+        ed.show_tab("Objects")
+        ed.objects.rebuild()
+        root.update()
+        tree = ed.objects.tree
+        iid = _tabs.key_iid(("mobj", n0))
+        tree.selection_set(iid)
+        tree.focus_force()
+        root.update()
+        tree.event_generate("<Delete>")
+        root.update()
+        gone = len(d.map.mobj_records()) == n0 + 2 and (d.map.mobj_records()[n0][0] & 0xFFFF) != 1
+        ed.undo()
+        root.update()
+        back = len(d.map.mobj_records()) == n0 + 3 and (d.map.mobj_records()[n0][0] & 0xFFFF) == 1
+        _check("Objects tab: Del deletes the selected row's object (also one the map view hides); "
+               "Ctrl+Z brings it back", gone and back, (gone, back))
+        ed.objects.rebuild()
+        head_ok = not ed.objects.delete_row("mobj")      # a group heading
+        row_ok = ed.objects.delete_row(_tabs.key_iid(("mobj", n0 + 2)))
+        _check("Objects tab: the right-click Delete removes a row's object; group headings and "
+               "script NPCs are not deletable", head_ok and row_ok
+               and len(d.map.mobj_records()) == n0 + 2)
+        _check("place / delete raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_scene_flag_reference():
+    """Object / warp flags are zone-2 scene bits (game bit 4096 + the number), not the named
+    story flags: the flag index lists who sets / clears / reads each one on every map and in
+    the event scripts (ops 443 / 444 / 445 / 318); the Inspector spells a flag out with its role
+    and the other users; Flags… opens the zone-2 reference on it, and the emdeb list is the
+    separate 'Story / event flags (zone 1)'."""
+    print("scene flags (zone 2): who uses each one:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("scene flags", "no tkinter"); return
+    import time
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_B06.rf4m").exists():
+        _skip("scene flags", "no extracted bundleMain"); return
+    from map_editor import data as _data
+    from rf4s_modkit import flagusers as _fu, rf4m as _rf4m
+    m = _rf4m.Rf4mMap.load(B / "MAP_DUNG_B06.rf4m")
+    uses = _fu.index(_fu.object_uses("MAP_DUNG_B06", m.mobj_records(), m.mapj_records()))
+    roles = sorted(u["role"] for u in uses.get(158, []))
+    _check("MAP_DUNG_B06's flag 158: two seal doors set it when the room is cleared, the chest "
+           "appears once it is set", roles == ["set when the room is cleared"] * 2
+           + ["the chest appears once it is set"], roles)
+    idx = _data._build_flag_index()
+    bridge = [u for u in idx.get(70, [])]
+    _check("the index covers every map and the event scripts: flag 70 = the FIELD_19 bridge "
+           "(hidden while set) that event scripts clear (op 443)",
+           any(u["kind"] == "object" and u["map"] == "MAP_FIELD_19" and u["role"] == "hidden while set"
+               for u in bridge)
+           and any(u["kind"] == "script" and u["op"] == 443 and u["role"] == "clears it" for u in bridge)
+           and len(idx) > 700, (len(idx), [_fu.describe(u) for u in bridge][:3]))
+    root, ed, errs = _headless_panel("MAP_DUNG_B06", B)
+    try:
+        ed.select(("mobj", 0))
+        t0 = time.time()
+        _data.request_flag_index(root)
+        while _data.flag_index() is None and time.time() - t0 < 60:
+            root.update()
+            time.sleep(0.05)
+        form = ed.inspector.forms["mobj"]
+        rec = list(ed.doc.map.mobj_records()[0])
+        note = form._note(rec[0] & 0xFFFF, 13, 4, "flag", rec[13], rec)
+        _check("the Inspector spells the flag out: scene flag N = game bit 4096 + N, what it does "
+               "for this object, and who else uses it",
+               "scene flag 158 = game bit 4254" in note and "set when the room is cleared" in note
+               and "#1 seal door" in note and "#2 treasure chest" in note, note)
+        win = ed.open_flag_reference and __import__("map_editor.dialogs", fromlist=["x"]).scene_flag_reference(ed, 158)
+        for _ in range(20):
+            root.update()
+        tree = next(w for w in _walk(win) if isinstance(w, tk.ttk.Treeview))
+        lb = next(w for w in _walk(win) if isinstance(w, tk.Listbox))
+        _check("Flags… opens the zone-2 reference on the object's flag, with its uses listed",
+               tree.selection() == ("158",) and lb.size() == 3 and len(tree.get_children()) > 700,
+               (tree.selection(), lb.size(), len(tree.get_children())))
+        win.destroy()
+        story = __import__("map_editor.dialogs", fromlist=["x"]).flag_reference(ed)
+        _check("the emdeb list is the separate 'Story / event flags (zone 1)'",
+               story is None or story.title().startswith("Story / event flags (zone 1)"))
+        if story is not None:
+            story.destroy()
+        _check("scene flag reference raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_map_editor_hardcoded_warps():
+    """The game's own warps / walls (Map_SpawnProgressWarpsAndWalls) are explained as built into
+    the game: the Objects tab lists them read only under 'Built into the game'; Delete tells
+    why it cannot remove them instead of deleting anything; the map's hover text says the
+    same and what can be done instead."""
+    print("map editor: warps built into the game:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("hard-coded warps", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("hard-coded warps", "no extracted bundleMain"); return
+    from map_editor import render as _render, tabs as _tabs
+    box = _headless_dialogs()
+    root, ed, errs = _headless_panel("MAP_CITY_04", B)
+    try:
+        ed.objects.rebuild()
+        tree = ed.objects.tree
+        rows = [tree.item(i, "text") for i in tree.get_children("runtime")] if tree.exists("runtime") else []
+        _check("the Objects tab lists the Magic merchant warp under 'Built into the game'",
+               any("MAP_ROOM_12" in r or "House" in r for r in rows)
+               and any("Magic merchant" in r for r in rows), rows)
+        n_mobj, n_mapj = len(ed.doc.map.mobj_records()), len(ed.doc.map.mapj_records())
+        iid = tree.get_children("runtime")[0]
+        tree.selection_set(iid)
+        root.update()
+        before = len(box["msgs"])
+        ed.objects._delete_key()
+        told = box["msgs"][before:]
+        _check("Delete on it explains that it is built into the game and changes nothing",
+               told and "Built into the game" in told[0][0] and "RF4S.exe" in told[0][1]
+               and len(ed.doc.map.mobj_records()) == n_mobj
+               and len(ed.doc.map.mapj_records()) == n_mapj, told)
+        tip = _render.runtime_spawns(ed.doc)[0][2]
+        _check("the hover text says it is built into the game, when it appears and what to do "
+               "instead", "Built into the game (RF4S.exe)" in tip and "Magic merchant" in tip
+               and "paint walls" in tip, tip)
+        # the big built-in zones do not pop up by themselves: Shift shows them, the status line
+        # says so, and the View tab's option brings the automatic popup back; objects keep theirs
+        v = ed.view
+        shown = []
+        v.show_tip = lambda e, text: shown.append(text)
+        v.hide_tip = lambda: shown.append(None)
+        (x0, y0, x1, y1), _s, _t = _render.runtime_spawns(ed.doc)[0]
+        tx, ty = (x0 + x1) // 2, (y0 + y1) // 2
+        ev = type("E", (), {"x": int(tx * v.cp - v.canvas.canvasx(0) + v.cp // 2),
+                            "y": int(ty * v.cp - v.canvas.canvasy(0) + v.cp // 2),
+                            "x_root": 0, "y_root": 0})()
+        v._tip_at(ev, 0)
+        plain = shown[-1]
+        v._hover((tx, ty))
+        status = v.status.cget("text")
+        v._tip_at(ev, 0x0001)
+        shift = shown[-1]
+        ed.viewtab.rt_tips.set(True)
+        ed.set_runtime_tips(True)
+        v._tip_at(ev, 0)
+        auto = shown[-1]
+        ed.viewtab.rt_tips.set(False)
+        ed.set_runtime_tips(False)
+        _check("the built-in warp zone shows no popup on plain hover (the status line says Shift "
+               "shows it); Shift shows it; the View tab option makes it pop up by itself again",
+               plain is None and "hold Shift" in status and shift and "Built into the game" in shift
+               and auto and "Built into the game" in auto, (plain, status[-60:], bool(shift), bool(auto)))
+        chest = next((i for i, o in enumerate(ed.doc.objs) if (o["type_id"] & 0xFFFF) in (44, 53, 223)
+                      and ed.view.st.layers.get(o["category"], True)), None)
+        _check("objects still show their tooltip on plain hover",
+               chest is None or bool(v.describe_key(("mobj", chest))))
+        _check("hard-coded warps raised no callback errors", not errs, errs[:1])
     finally:
         root.destroy()
 
@@ -7316,7 +7733,7 @@ def test_map_editor_minimap_tab():
         mt = ed.minimap_panel
         _check("the sidebar tabs: Map is now Properties; the minimap is no tab but docked under "
                "them, shown whatever tab is open",
-               tabs == ["View", "Inspect", "Objects", "Properties", "Gates", "Problems"]
+               tabs == ["View", "Inspect", "Objects", "Palette", "Properties", "Gates", "Problems"]
                and mt.pic.winfo_ismapped(), tabs)
         ed.show_tab("Gates")
         root.update()
@@ -7861,7 +8278,7 @@ def test_map_editor_warps_and_saving():
                len(recs) == n0 + 1 and recs[-1][5] == 4, recs[-1])
         rt = med_render.runtime_spawns(p.doc)
         _check("the farm's runtime warps / walls are listed for the view with a 'spawned by the "
-               "game when' tip", rt and all("spawned by the game when" in t for _r, _s, t in rt), len(rt))
+               "game: appears when ...' tip", rt and all("Appears when" in t and "Built into the game" in t for _r, _s, t in rt), len(rt))
         root.destroy(); root = None
         _gp.find_bundle_dir = lambda refresh=False: game
         med.EXTRACTED, med._EXTRACTED_INDEX = game, None
@@ -11025,8 +11442,8 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_collision_stamp_modes, test_app_icon, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

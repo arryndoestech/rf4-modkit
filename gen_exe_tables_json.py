@@ -364,8 +364,8 @@ def _runtime_spawns():
         warp(m, 82 + 10 * f, 172, 290, 314, 56, 346, 86,
              f"the farm's right barn is built (packed flag {9013 + 6 * f})")
     # Selphia: Dragon Lake -> MAP_ROOM_12; Selphia Plain -> MAP_ROOM_19 (Prince Points unlocks)
-    warp(40, 146, 252, 345, 121, 312, 174, 351, "Prince Points unlock bit 0x20000 is bought")
-    warp(164, 153, 252, 343, 160, 60, 200, 100, "Prince Points unlock bit 0x4000 is bought")
+    warp(40, 146, 252, 345, 121, 312, 174, 351, "the Prince Points order Magic merchant (effect 20, unlocks bit 0x20000) is bought")
+    warp(164, 153, 252, 343, 160, 60, 200, 100, "the Prince Points order Clothing merchant (effect 17, unlocks bit 0x4000) is bought")
     # the farmhouse rooms 64..73, by the house upgrade level (packed flag 9205)
     hl = "house upgrade level (packed flag 9205)"
     wall(64, 0x3B74, 226, 102, 190, 120, 260, 136, f"{hl} = 0")

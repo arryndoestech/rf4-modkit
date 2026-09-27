@@ -11,9 +11,7 @@ the user did not mean.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
-import sys
 
 TOOLKIT = pathlib.Path(__file__).resolve().parent.parent      # the folder holding rf4mod.py
 # the placeholder returned while no game is chosen: '<' and '>' can't be in a Windows file
@@ -27,46 +25,11 @@ def settings_path() -> pathlib.Path:
     return TOOLKIT / "settings.json"
 
 
-def _old_settings_dir() -> pathlib.Path:
-    """Where the settings used to live (%APPDATA%\\RF4S Modding Toolkit, or
-    ~/.config/rf4s-modkit off Windows)."""
-    if sys.platform == "win32":
-        base = pathlib.Path(os.environ.get("APPDATA") or pathlib.Path.home() / "AppData" / "Roaming")
-        return base / "RF4S Modding Toolkit"
-    base = pathlib.Path(os.environ.get("XDG_CONFIG_HOME") or pathlib.Path.home() / ".config")
-    return base / "rf4s-modkit"
-
-
-_moved = False
-
-
-def _move_old_settings() -> None:
-    """Once per run: if the old settings folder exists, copy its settings.json into the
-    toolkit folder (unless the toolkit already has one) and remove the old folder."""
-    global _moved
-    if _moved:
-        return
-    _moved = True
-    import shutil
-    old_dir = _old_settings_dir()
-    old = old_dir / "settings.json"
-    try:
-        if old.is_file() and not settings_path().exists():
-            shutil.copy2(old, settings_path())
-        if old_dir.is_dir():
-            shutil.rmtree(old_dir)
-    except OSError:
-        pass                             # a read-only toolkit folder: keep reading the old one
-
-
 def _load_settings() -> dict:
-    _move_old_settings()
-    for p in (settings_path(), _old_settings_dir() / "settings.json"):
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-    return {}
+    try:
+        return json.loads(settings_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def _store_settings(d: dict) -> None:

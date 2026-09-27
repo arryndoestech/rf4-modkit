@@ -123,6 +123,7 @@ class MapEditorPanel:
         self.view.attr_alpha = self.viewtab.alpha.get()
         self.view.ground_dim = self.viewtab.dim.get()
         self.view.scenery = self.viewtab.scenery.get()
+        self.view.runtime_tips = self.viewtab.rt_tips.get()
         self._bind_canvas()
         self._bind_shortcuts()
 
@@ -600,8 +601,29 @@ class MapEditorPanel:
             self._update_chrome()
 
     def _double(self, e):
-        if self.doc is not None and self.tool.name == "select":
+        # Tk runs a <Double-Button-1> binding INSTEAD of the <ButtonPress-1> one, so for every
+        # tool but Select a quick second click must still be a click (placing two objects, or
+        # painting, in quick succession used to lose every second one)
+        if self.doc is None:
+            return None
+        if self.tool.name == "select":
             return self.tool.double(e)
+        return self._press(e)
+
+    def reveal_layer_for(self, type_id):
+        """Switch on the View layer that shows objects of `type_id` when it is off (a newly
+        placed object must not be invisible). The layer's name when switched on, else None."""
+        kind = mobj_types.mobj_kind(type_id & 0xFFFF)
+        if kind == "mapparam":                      # never drawn: nothing to switch on
+            return None
+        key = "trigger" if kind in ("forage", "trigger") else kind
+        var = self.viewtab.vars.get(key)
+        if var is None or var.get():
+            return None
+        var.set(True)
+        self.set_layer(key, True)
+        return {"trigger": "forage / triggers", "actor": "actors", "object": "objects",
+                "decoration": "decorations"}.get(key, key)
 
     def _right(self, e):
         if self.doc is not None and self.doc.grid:
@@ -1310,6 +1332,11 @@ class MapEditorPanel:
         d = self.doc
         return sum(flagstate.hidden(o, state) for o in d.objs) if d is not None else 0
 
+    def set_runtime_tips(self, on):
+        """The View tab's 'pop-up info on the game's built-in warps' option."""
+        self.view.runtime_tips = bool(on)
+        self.viewtab.remember()
+
     def set_scenery(self, on):
         self.view.scenery = bool(on)
         self.viewtab.remember()
@@ -1376,6 +1403,119 @@ class MapEditorPanel:
             (out / name).write_bytes(blob)
         return [n for n, _b in tiles]
 
+    # ---- the over-model (the scenery cards drawn over the ground) ------------------------ #
+    def _overmodel_target(self):
+        """(set name, file name, game-folder path) of this map's over-model, or an error text."""
+        from rf4s_modkit import gamepaths
+        d = self.doc
+        setname = mapground.overmodel_for(d.base) if d is not None and d.base else None
+        if not setname:
+            return "This map has no over-model (nothing is drawn over its ground)."
+        name = setname + ".model"
+        targets = gamepaths.game_targets([name])
+        if targets is None:
+            return "No game folder is set up, so there is nothing to change."
+        return setname, name, targets[name]
+
+    def blank_overmodel(self):
+        """Replace this map's over-model file with the game's own empty placeholder, after a
+        confirmation that lists every map sharing the file. True when written."""
+        from rf4s_modkit import gamepaths
+        got = self._overmodel_target()
+        if isinstance(got, str):
+            messagebox.showinfo("Empty over-model", got)
+            return False
+        setname, name, target = got
+        reader = self.tex_reader
+        cur = reader(name) if reader else None
+        if cur is not None and mapground.overmodel_is_blank(cur):
+            messagebox.showinfo("Empty over-model", f"{name} is already empty: this map draws no "
+                                                     "scenery over its ground.")
+            return False
+        blank = reader(mapground.BLANK_OVERMODEL + ".model") if reader else None
+        if blank is None or not mapground.overmodel_is_blank(blank):
+            messagebox.showerror("Empty over-model", f"Could not read the game's empty over-model "
+                                                     f"({mapground.BLANK_OVERMODEL}.model).")
+            return False
+        users = mapground.overmodel_users(setname)
+        others = [u for u in users if u != self.doc.base]
+        shown = ", ".join(others[:12]) + (f" (+{len(others) - 12} more)" if len(others) > 12 else "")
+        bdir = gamepaths.find_bundle_dir()
+        where = (str(target.relative_to(bdir.parent)) if bdir and bdir.parent in target.parents
+                 else str(target))
+        msg = (f"Replace {name} with an empty over-model?\n\n"
+               f"The over-model is the pre-rendered scenery the game draws over the ground "
+               f"(rooftops, railings, tree tops ...). After this, {self.doc.base} shows only its "
+               f"ground and its placed objects. Collision does not change: the over-model is "
+               f"drawn only.\n\n"
+               + (f"The file is SHARED: {len(others)} other map(s) use it and lose their scenery "
+                  f"too: {shown}\n\n" if others else "")
+               + f"It is written to {where}. The original is copied to "
+               f"{gamepaths.BACKUP_DIR} the first time, and Restore… puts it back.")
+        if not messagebox.askyesno("Empty over-model", msg, icon="warning", default="no"):
+            self.status("Over-model left unchanged")
+            return False
+        try:
+            gamepaths.write_game_file(target, blank)
+        except OSError as e:
+            messagebox.showerror("Empty over-model", f"Could not write {target}:\n{e}\n\n"
+                                                     "(Is the game running with the file open?)")
+            return False
+        self._overmodel_changed(setname)
+        kept = gamepaths.backup_path(target)
+        self.status(f"{name} is now empty ({len(users)} map(s) use it)"
+                    + (f"; the original is in {gamepaths.BACKUP_DIR}" if kept and kept.is_file() else "")
+                    + " -- " + reload_hint(False))
+        return True
+
+    def restore_overmodel(self):
+        """Put this map's original over-model back -- the ModdingBackup copy, or, for a file the
+        game only has packed, remove the Bundle\\00_mods override -- after a confirmation."""
+        import shutil
+        from rf4s_modkit import gamepaths, mbundle
+        got = self._overmodel_target()
+        if isinstance(got, str):
+            messagebox.showinfo("Restore over-model", got)
+            return False
+        setname, name, target = got
+        backup = gamepaths.backup_path(target)
+        users = mapground.overmodel_users(setname)
+        if backup is not None and backup.is_file():
+            how = f"copy the original back from {gamepaths.BACKUP_DIR}"
+        elif target.is_file() and target.parent.name == mbundle.MOD_FOLDER:
+            how = (f"delete the override {mbundle.MOD_FOLDER}\\{name}, so the packed original "
+                   f"loads again")
+            backup = None
+        else:
+            messagebox.showinfo("Restore over-model", f"No saved original of {name} was found: the "
+                                                      "file is the one the game shipped (or it was "
+                                                      "changed outside the toolkit).")
+            return False
+        if not messagebox.askyesno("Restore over-model",
+                                   f"Restore {name}? This will {how}.\n\n{len(users)} map(s) use "
+                                   f"this over-model and get their scenery back.",
+                                   icon="warning", default="no"):
+            self.status("Over-model left unchanged")
+            return False
+        try:
+            if backup is not None:
+                shutil.copy2(backup, target)
+            else:
+                target.unlink()
+        except OSError as e:
+            messagebox.showerror("Restore over-model", f"Could not restore {target}:\n{e}")
+            return False
+        self._overmodel_changed(setname)
+        self.status(f"{name} restored -- " + reload_hint(False))
+        return True
+
+    def _overmodel_changed(self, setname):
+        render._SCENERY.pop(setname, None)            # re-read the file
+        data._EXTRACTED_INDEX = None                  # a new Bundle\00_mods file is findable
+        self.view.ground.reset()
+        self.view.background.invalidate()
+        self.view.request_ground()
+
     def ground_export(self):
         layer, note = self.ground_layer_choice()
         if layer is None:
@@ -1435,8 +1575,33 @@ class MapEditorPanel:
         self._keep(dlg.win)
         return dlg
 
-    def open_flag_reference(self):
+    def open_flag_reference(self, focus=None):
+        """The scene-flag (zone 2) reference: the numbering of object and warp flags."""
+        self._keep(dialogs.scene_flag_reference(self, focus))
+
+    def open_story_flags(self):
+        """The named story / event flags (zone 1, emdeb)."""
         self._keep(dialogs.flag_reference(self))
+
+    def flag_uses_text(self, rel, skip=None, limit=4):
+        """'also: ...' lines for zone-2 flag `rel` from every map and the event scripts (the
+        open map's current records included), leaving out the use `skip` = (kind, index) on
+        this map. Starts the background scan the first time and refreshes the Inspector when
+        it is done; '' until then."""
+        from rf4s_modkit import flagusers
+        if data.flag_index() is None:
+            data.request_flag_index(self.frame, lambda _i: self.inspector.show_selection(self.sel))
+            return "(looking up who else uses this flag ...)"
+        d = self.doc
+        live = (d.base, d.map.mobj_records(), d.map.mapj_records()) if d and d.base else None
+        uses = [u for u in data.flag_users(rel, live)
+                if not (skip and live and u.get("map") == live[0]
+                        and (u["kind"], u["index"]) == skip)]
+        if not uses:
+            return "nothing else in the game uses this flag"
+        lines = [flagusers.describe(u) for u in uses[:limit]]
+        more = len(uses) - limit
+        return "also: " + "\n  ".join(lines) + (f"\n  (+{more} more -- Flags… lists them)" if more > 0 else "")
 
     # ------------------------------------------------------------------ #
     # validation + summaries

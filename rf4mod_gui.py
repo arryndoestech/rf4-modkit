@@ -1591,6 +1591,87 @@ class App:
             doc._tex_playing = False
             doc._anim_after = None
 
+    def _import_model_obj(self, name, obj_path=None, choose=None):
+        """Import OBJ… on a .model tab: pick the OBJ, map its objects onto the model's shapes
+        (same-named object preselected, 'keep' for the others) and replace those shapes'
+        geometry (modelwrite.import_obj, any vertex / triangle count). The result is the tab's
+        working copy (cur_data) like the other editors. `obj_path` / `choose(model, objects)
+        -> {shape index: object name}` skip the dialogs (tests)."""
+        from rf4s_modkit import model as _model, modelwrite as _mw
+        doc = self._doc
+        if doc.cur_data is None:
+            return False
+        f = obj_path or filedialog.askopenfilename(title="Import OBJ (geometry)",
+                                                   filetypes=[("Wavefront OBJ", "*.obj"), ("All files", "*.*")])
+        if not f:
+            return False
+        try:
+            text = pathlib.Path(f).read_text(encoding="utf-8", errors="replace")
+            objs = [o for o in _mw.parse_obj(text) if o.triangles]
+            m = _model.parse(doc.cur_data)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import OBJ", str(e))
+            return False
+        if not objs:
+            messagebox.showerror("Import OBJ", f"{pathlib.Path(f).name} has no faces.")
+            return False
+        plan = (choose or self._obj_import_dialog)(m, objs)
+        if not plan:
+            return False
+        blob = doc.cur_data
+        try:
+            for si, oname in sorted(plan.items()):
+                blob = _mw.import_obj(blob, si, text, object_name=oname)
+            _model.parse(blob)                     # the result must read back
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import OBJ", f"Nothing was changed:\n{e}")
+            return False
+        if blob == doc.cur_data:
+            self.status.config(text=f"{pathlib.Path(f).name}: the geometry is unchanged")
+            return True
+        before = len(doc.cur_data)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
+        self.status.config(text=f"Imported {len(plan)} shape(s) from {pathlib.Path(f).name} -> "
+                                f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
+        return True
+
+    def _obj_import_dialog(self, m, objs):
+        """{shape index: OBJ object name} chosen in a small dialog, or None when cancelled."""
+        names = [o.name for o in objs]
+        win = tk.Toplevel(self.root)
+        win.title("Import OBJ -- which object replaces which shape")
+        win.transient(self.root)
+        ttk.Label(win, text="Each shape keeps its geometry unless an OBJ object is chosen for it. "
+                            "Objects named like a shape (as Export OBJ names them) are preselected.",
+                  wraplength=520, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
+        grid = ttk.Frame(win)
+        grid.pack(fill="both", expand=True, padx=8)
+        KEEP = "(keep)"
+        choice = {}
+        for r, sh in enumerate(m.shapes):
+            sname = sh.name or f"shape{sh.index}"
+            ttk.Label(grid, text=f"{sh.index}  {sname}  ({len(sh.indices) // 3} triangles)").grid(
+                row=r, column=0, sticky="w", pady=1)
+            default = sname if sname in names else (names[0] if len(names) == 1 and len(m.shapes) == 1 else KEEP)
+            v = tk.StringVar(value=default)
+            ttk.Combobox(grid, textvariable=v, values=[KEEP] + names, state="readonly",
+                         width=max(20, min(48, max(map(len, names)) + 2))).grid(
+                row=r, column=1, sticky="w", padx=(8, 0), pady=1)
+            choice[sh.index] = v
+        out = {}
+
+        def ok():
+            out.update({si: v.get() for si, v in choice.items() if v.get() != KEEP})
+            win.destroy()
+        b = ttk.Frame(win)
+        b.pack(fill="x", padx=8, pady=8)
+        ttk.Button(b, text="Import", command=ok).pack(side="right")
+        ttk.Button(b, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+        win.grab_set()
+        win.wait_window()
+        return out or None
+
     def _replace_texture_png(self, name):
         """Re-skin the shown .texture from a PNG of the same size, re-encoded in the
         template frame's own format (BC7/BC3/BC1 at the same size, raw kept -- see
@@ -2236,6 +2317,15 @@ class App:
             except Exception as e:  # noqa: BLE001
                 messagebox.showerror("Export OBJ", str(e)); return
             self.status.config(text=f"exported {stem}.obj + {len(written) - 1} file(s) to {d}")
+        ib = ttk.Button(bar, text="Import OBJ…", command=lambda: self._import_model_obj(name))
+        ib.pack(side="right", padx=4)
+        from guiutil import Tip as _Tip
+        _Tip(ib, "Replace shapes' geometry from an OBJ -- the format Export OBJ writes, edited in "
+                 "Blender or any modeller (any vertex / triangle count; positions, normals and UVs "
+                 "come from the OBJ, bone weights from the nearest original vertex). Each OBJ "
+                 "object replaces the shape of the same name; the dialog lets you change that. "
+                 "Materials and textures stay as they are (Replace texture… changes those). "
+                 "The result becomes this tab's working copy: save it like any other edit.")
         ttk.Button(bar, text="Export OBJ…", command=export).pack(side="right", padx=4)
         body = ttk.Frame(frame); body.pack(fill="both", expand=True)
         txt = tk.Text(body, width=58, font=("Consolas", 9), wrap="none")

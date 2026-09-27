@@ -545,6 +545,9 @@ class AddTool(Tool):
                 note = f" -- {why}"
             with doc.edit(f"Add entity type {tid}", "mobj"):
                 i = doc.map.add_mobj_record(rec)
+            shown = ed.reveal_layer_for(tid)
+            if shown:
+                note += f" -- switched the '{shown}' layer on so it shows"
             ed.select(("mobj", i))
             ed.status(f"Added entity #{i} (type {tid}){note}")
         elif what == "spot":

@@ -180,8 +180,7 @@ python tools/modding/rf4mod.py selftest
 The toolkit needs the `Bundle/` directory of your game **copy** (the one containing
 `Manifest.plist` and the `bundle*.mbundle` archives). Every tool uses the one you chose
 (`rf4s_modkit/gamepaths.py`): the folder saved in the toolkit's settings (`settings.json` in
-the toolkit folder; an older `%APPDATA%\RF4S Modding Toolkit\settings.json` is moved there
-on the next start), set by the GUI's first-start window / **Game folder…** button or by
+the toolkit folder), set by the GUI's first-start window / **Game folder…** button or by
 `rf4mod.py game <copy>` (`rf4mod.py game --forget` drops it). Nothing is guessed from where
 the toolkit sits or from environment variables, so no tool picks up a game you didn't mean,
 not even the one the toolkit is unpacked inside.

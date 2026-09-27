@@ -943,7 +943,7 @@
    {"kind": "warp", "dest": 117, "arrive": [172, 290], "box": [150, 56, 186, 86], "when": "the farm's left barn is built (packed flag 9034)"},
    {"kind": "warp", "dest": 122, "arrive": [172, 290], "box": [314, 56, 346, 86], "when": "the farm's right barn is built (packed flag 9037)"}],
   "40": [
-   {"kind": "warp", "dest": 146, "arrive": [252, 345], "box": [121, 312, 174, 351], "when": "Prince Points unlock bit 0x20000 is bought"}],
+   {"kind": "warp", "dest": 146, "arrive": [252, 345], "box": [121, 312, 174, 351], "when": "the Prince Points order Magic merchant (effect 20, unlocks bit 0x20000) is bought"}],
   "64": [
    {"kind": "wall", "sprite": 15220, "at": [226, 102], "box": [190, 120, 260, 136], "when": "house upgrade level (packed flag 9205) = 0"},
    {"kind": "warp", "dest": 67, "arrive": [78, 228], "box": [388, 214, 440, 270], "when": "house upgrade level (packed flag 9205) >= 2"},
@@ -1421,6 +1421,6 @@
    {"kind": "wall", "sprite": 15282, "at": [88, 46], "box": [64, 64, 112, 80], "when": "always"},
    {"kind": "wall", "sprite": 15283, "at": [248, 46], "box": [224, 64, 272, 80], "when": "always"}],
   "164": [
-   {"kind": "warp", "dest": 153, "arrive": [252, 343], "box": [160, 60, 200, 100], "when": "Prince Points unlock bit 0x4000 is bought"}]
+   {"kind": "warp", "dest": 153, "arrive": [252, 343], "box": [160, 60, 200, 100], "when": "the Prince Points order Clothing merchant (effect 17, unlocks bit 0x4000) is bought"}]
  }}
 }

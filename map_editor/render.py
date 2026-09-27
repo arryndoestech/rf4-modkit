@@ -612,6 +612,13 @@ def warp_rect_px(rec, cp):
 RUNTIME_WALL_COLOR = "#ff7050"
 
 
+# what the editor tells a modder about the game's own warps / walls (tooltip, Objects tab)
+HARDCODED_NOTE = ("Built into the game (RF4S.exe), not stored in this map: its position, size, "
+                  "destination and the condition it appears on are fixed in the game's code, so "
+                  "the editor shows it but cannot move, resize or remove it (that would need a "
+                  "patched game).")
+
+
 def runtime_spawns(doc):
     """[(tile rect (x0, y0, x1, y1) exclusive, spawn dict, tip text)] of the warps and walls
     the game adds to this map at load (rf4s_modkit.mapres.runtime_spawns: the farm, its fields,
@@ -628,14 +635,16 @@ def runtime_spawns(doc):
             place = map_names.map_name(s["dest"])
             tip = (f"warp to {dest}" + (f" ({place})" if place else "")
                    + f", arriving at ({s['arrive'][0]}, {s['arrive'][1]})")
+            fix = ("To keep players out, paint walls (ATTR 0x2) over its zone; the room it leads "
+                   "to is an ordinary map you can edit; a warp of your own can go anywhere.")
         else:
             cells = mapres.wall_cells(s["box"])
             if cells is None:
                 continue
             rect = (cells[0], cells[1], cells[2] + 1, cells[3] + 1)
             tip = "wall: these tiles are set to blocked (ATTR 0x2) and a fence / door sprite is drawn"
-        out.append((rect, s, f"{tip}\nspawned by the game when {s['when']} -- not in this file, "
-                              f"read only"))
+            fix = "Paths around it can be painted; the wall itself stays."
+        out.append((rect, s, f"{tip}\nAppears when {s['when']}.\n{HARDCODED_NOTE}\n{fix}"))
     return out
 
 

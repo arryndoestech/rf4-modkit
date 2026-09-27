@@ -2047,10 +2047,13 @@ _M.update({
     674: ("GetRuneMedals", "query",
           "Read the player's rune-medal count into the VM output. Takes no arguments.",
           []),
-    678: ("ClearTileAttribsInRect", "effect",
-          "Clear the tile-attribute flags over a rectangle so the area becomes plain walkable "
-          "ground (no special attribute) — used to stage an area for a cutscene. arg0/arg1 = x/y, "
-          "arg2/arg3 = width/height, all in fine units (>>3 = tiles).",
+    678: ("WallOffTileRect", "effect",
+          "Turn every tile of a rectangle of the current map into WALL: each cell becomes "
+          "cell & 0xFFFEFE70 | 0x2 (the walking bits cleared, then 0x2 set -- the bit that "
+          "blocks the player, monsters and NPCs), clipped to the grid "
+          "(Script_VMOp_ResetTileAttribFlagsInRectTo2, re-read 2026-09-27). Lasts until the "
+          "map is loaded again. arg0/arg1 = x/y, arg2/arg3 = width/height, all in fine units "
+          "(sub-units, >>3 = tiles).",
           ["x (fine)", "y (fine)", "width (fine)", "height (fine)"]),
 })
 

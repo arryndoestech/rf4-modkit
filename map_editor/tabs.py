@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import tkinter as tk
-from tkinter import colorchooser, ttk
+from tkinter import colorchooser, messagebox, ttk
 
 from rf4s_modkit import areagroup, gamepaths, gen, map_names, mapground, minimap, mobj_types, rf4m, texture
 
@@ -26,6 +26,7 @@ class ObjectsTab(ttk.Frame):
     the map and scrolls it into view."""
 
     GROUPS = (("mobj", "Entities"), ("param", "Map parameters"), ("warp", "Warps"),
+              ("runtime", "Built into the game (read only)"),
               ("si", "Search spots"), ("gate", "Monster gates"), ("spawn", "Script NPCs"))
 
     def __init__(self, parent, ed):
@@ -51,10 +52,15 @@ class ObjectsTab(ttk.Frame):
         self.tree.pack(side="left", fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self._picked)
         self.tree.bind("<Double-Button-1>", lambda _e: ed.show_tab("Inspect"))
-        self._open = {"mobj": True, "warp": True, "si": True}
+        for k in ("<Delete>", "<BackSpace>"):
+            self.tree.bind(k, self._delete_key)
+        self.tree.bind("<Button-3>", self._menu)
+        self._open = {"mobj": True, "warp": True, "runtime": True, "si": True}
         self._syncing = False
-        hint(self, "Double-click opens the Inspector. Script NPCs appear once the 'script NPCs' "
-                   "layer is on (View tab); clicking one opens its script line.").pack(anchor="w", padx=4, pady=4)
+        hint(self, "Double-click opens the Inspector; Del or right-click > Delete removes the "
+                   "selected object (Ctrl+Z undoes it) -- also objects the map view does not show. "
+                   "Script NPCs appear once the 'script NPCs' layer is on (View tab); clicking one "
+                   "opens its script line.").pack(anchor="w", padx=4, pady=4)
 
     def rebuild(self):
         doc = self.ed.doc
@@ -81,6 +87,14 @@ class ObjectsTab(ttk.Frame):
         for j, rec in enumerate(doc.map.mapj_records()):
             dest = map_names.describe_destination(rec[5])[0] or data.rooms_by_id().get(rec[5], f"map {rec[5]}")
             rows["warp"].append((("warp", j), f"#{j}  → {dest}", f"({rec[1] >> 3}, {rec[2] >> 3})"))
+        for k, (rect, s, _tip) in enumerate(render.runtime_spawns(doc)):
+            if s["kind"] == "warp":
+                dest = map_names.describe_destination(s["dest"])[0] or data.rooms_by_id().get(
+                    s["dest"], f"map {s['dest']}")
+                text = f"warp → {dest}  (when {s['when']})"
+            else:
+                text = f"wall  (when {s['when']})"
+            rows["runtime"].append((("runtime", k), text, f"({rect[0]}, {rect[1]})"))
         if doc.si is not None:
             for i, sp in enumerate(doc.si.spots):
                 rows["si"].append((("si", i), f"#{i}  {len(sp.pool.entries)} drop(s)",
@@ -113,6 +127,59 @@ class ObjectsTab(ttk.Frame):
         finally:
             ui.later(self, lambda: setattr(self, "_syncing", False))
 
+    # the rows that can be deleted: placed objects, warps, search spots and gate / monster
+    # points (script NPCs live in the event script, group rows are headings)
+    DELETABLE = ("mobj", "warp", "si", "gpos", "mpos")
+
+    def _row_key(self, iid):
+        key = iid_key(iid) if iid else None
+        return tuple(key) if key is not None and key[0] in self.DELETABLE else None
+
+    def delete_row(self, iid):
+        """Delete the object behind a row (one undo step). True when something was deleted."""
+        key = self._row_key(iid)
+        if key is None:
+            return False
+        self.ed.delete(key)
+        return True
+
+    def _delete_key(self, _e=None):
+        s = self.tree.selection()
+        if s and not self.delete_row(s[0]):
+            self._explain_undeletable(s[0])
+        return "break"                  # the map's own Delete binding must not fire as well
+
+    def _explain_undeletable(self, iid):
+        key = iid_key(iid)
+        if key is not None and key[0] == "runtime":
+            messagebox.showinfo("Built into the game", render.HARDCODED_NOTE + "\n\n"
+                                "To keep players out of a warp, paint walls (ATTR 0x2) over its "
+                                "zone; the room it leads to is an ordinary map you can edit.",
+                                parent=self)
+        elif key is not None and key[0] == "spawn":
+            self.ed.status("Script NPCs are placed by the map's event script, not the map file")
+        else:
+            self.ed.status("Group headings cannot be deleted")
+
+    def _menu(self, e):
+        iid = self.tree.identify_row(e.y)
+        if not iid:
+            return
+        self.tree.selection_set(iid)
+        key = self._row_key(iid)
+        m = tk.Menu(self, tearoff=False)
+        m.add_command(label="Show on map", state="normal" if key else "disabled",
+                      command=lambda: self.ed.select(key, center=True))
+        m.add_command(label="Open in Inspector", state="normal" if key else "disabled",
+                      command=lambda: (self.ed.select(key, center=True), self.ed.show_tab("Inspect")))
+        m.add_separator()
+        m.add_command(label="Delete", command=lambda: (self.delete_row(iid)
+                                                        or self._explain_undeletable(iid)))
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+
     def _picked(self, _e=None):
         if self._syncing:
             return
@@ -125,6 +192,14 @@ class ObjectsTab(ttk.Frame):
                             # re-selecting would drop the rest of a multi-selection
         if key[0] == "spawn":
             self.ed.open_spawn(key[1])
+            return
+        if key[0] == "runtime":                 # the game's own warp / wall: show it, explain
+            rs = render.runtime_spawns(self.ed.doc)
+            if 0 <= key[1] < len(rs):
+                (x0, y0, x1, y1), _s, _tip = rs[key[1]]
+                self.ed.view.center_on((x0 + x1) // 2, (y0 + y1) // 2)
+            self.ed.status("Built into the game: shown, but it cannot be moved, resized or "
+                           "removed here (hover it on the map for details)")
             return
         self.ed.select(key, center=True)
 
@@ -1297,9 +1372,17 @@ class ViewTab(ui.ScrollFrame):
                "path over walls); grey = marked only, walking unchanged (a tree's canopy ring "
                "carries just the footprint marker 0x8000000). "
                "Shown for the flag state chosen below; Alt over a tile names the object.")
+        self.rt_tips = tk.BooleanVar(value=bool(self.saved.get("runtime_tips", False)))
+        rt = ttk.Checkbutton(L, text="pop-up info on the game's built-in warps",
+                             variable=self.rt_tips, command=lambda: ed.set_runtime_tips(self.rt_tips.get()))
+        rt.grid(row=11, column=0, columnspan=4, sticky="w")
+        ui.Tip(rt, "The dashed warps and walls the game adds by itself cover big areas, so their "
+                   "explanation no longer pops up whenever the mouse passes over them. Off (the "
+                   "default): hold Shift over one to see it -- the status line says when the "
+                   "pointer is on one. On: it pops up on hover like the objects' tooltips.")
         hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
                 "first time they are shown the script is scanned.", wrap=300).grid(
-            row=11, column=0, columnspan=4, sticky="w", pady=(2, 0))
+            row=12, column=0, columnspan=4, sticky="w", pady=(2, 0))
         # ---- flag state ----
         S = section(b, "Show objects as in")
         self.flagsrc = tk.StringVar(value=FLAGS_NONE)
@@ -1339,6 +1422,17 @@ class ViewTab(ui.ScrollFrame):
         sc_cb.grid(row=3, column=0, columnspan=2, sticky="w")
         ui.Tip(sc_cb, "The pre-rendered billboard cards (statues, railings, rooftops, trees) the "
                       "game draws over the ground, placed where the model's bones put them.")
+        om = ttk.Frame(G)
+        om.grid(row=5, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        b1 = ttk.Button(om, text="Make over-model empty…", command=ed.blank_overmodel)
+        b1.pack(side="left")
+        ui.Tip(b1, "Replace this map's over-model file with the game's own empty one "
+                   "(MAP_FIELD_43.model, which 164 maps already use), so no scenery is drawn over "
+                   "the ground. Asks first and lists every map that shares the file -- they all "
+                   "change. The original is kept in ModdingBackup.")
+        b2 = ttk.Button(om, text="Restore…", command=ed.restore_overmodel)
+        b2.pack(side="left", padx=(4, 0))
+        ui.Tip(b2, "Put this map's original over-model back (asks first).")
         ttk.Label(G, text="ATTR opacity").grid(row=1, column=0, sticky="w")
         self.alpha = tk.IntVar(value=int(self.saved.get("attr_alpha", 180)))
         sc = ttk.Scale(G, from_=0, to=255, orient="horizontal", length=150, variable=self.alpha)
@@ -1389,6 +1483,7 @@ class ViewTab(ui.ScrollFrame):
         """Store the layer toggles and ground display in settings.json, so the next map and
         the next start open the same way."""
         self.saved.update(layers=self.layers(), scenery=self.scenery.get(),
+                          runtime_tips=self.rt_tips.get(),
                           attr_alpha=self.alpha.get(), ground=self.ground.get(),
                           ground_dim=self.dim.get())
         try:

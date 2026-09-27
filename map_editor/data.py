@@ -740,3 +740,109 @@ def slot_saves():
     if not d.is_dir():
         return []
     return sorted((p for p in d.glob("rf4_s[0-9][0-9].sav") if p.is_file()), key=lambda p: p.name)
+
+
+# ---- zone-2 ("scene") flags: who uses each one --------------------------------- #
+# The placed objects and warps of every map are re-read each time (0.3 s); the event-script
+# uses take ~5 s to find, so they are cached in the toolkit's cache/ folder, keyed by the
+# rf3.mc file they came from.
+_FLAGS = {"idx": None, "thread": None, "result": None}
+
+
+def _script_flag_uses():
+    from rf4s_modkit import flagusers
+    hits = find_extracted_all("rf3.mc")
+    patch = [h for h in hits if "patch" in str(h).lower()]
+    path = (patch or hits)[0] if hits else None
+    if path is None:
+        return []
+    st = path.stat()
+    key = f"{path}|{st.st_size}|{st.st_mtime_ns}"
+    cache = gamepaths.TOOLKIT / "cache" / "flag_script_uses.json"
+    try:
+        got = json.loads(cache.read_text(encoding="utf-8"))
+        if got.get("key") == key:
+            return [(rel, u) for rel, u in got["uses"]]
+    except (OSError, ValueError, KeyError):
+        pass
+    cont = rf3mc_container()
+    if cont is None:
+        return []
+    uses = flagusers.script_uses(cont, map_file_for=lambda mid: rooms_by_id().get(mid))
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps({"key": key, "uses": uses}), encoding="utf-8")
+    except OSError:
+        pass                                    # a read-only toolkit folder: scan next time
+    return uses
+
+
+def _build_flag_index():
+    from rf4s_modkit import flagusers, rf4m
+    uses = []
+    for n, paths in extracted_index().items():
+        if n.startswith("map_") and n.endswith(".rf4m"):
+            try:
+                m = rf4m.Rf4mMap.load(paths[0])
+            except Exception:  # noqa: BLE001 - an unreadable map: skipped
+                continue
+            uses += flagusers.object_uses(paths[0].stem, m.mobj_records(), m.mapj_records())
+    uses += _script_flag_uses()
+    return flagusers.index(uses)
+
+
+def flag_index():
+    """{zone-2 id: [use]} over every map and the event scripts, or None while not built yet
+    (see request_flag_index)."""
+    return _FLAGS["idx"]
+
+
+def request_flag_index(widget, done=None):
+    """Build the flag index in the background (once); `done(index)` runs on the Tk thread
+    when it is ready -- at once if it already is."""
+    if _FLAGS["idx"] is not None:
+        if done:
+            done(_FLAGS["idx"])
+        return
+    waiters = _FLAGS.setdefault("waiters", [])
+    if done:
+        waiters.append(done)
+    if _FLAGS["thread"] is None:
+        import threading
+
+        def work():
+            try:
+                _FLAGS["result"] = _build_flag_index()
+            except Exception:  # noqa: BLE001 - nothing to show rather than a crash
+                _FLAGS["result"] = {}
+        _FLAGS["thread"] = threading.Thread(target=work, daemon=True)
+        _FLAGS["thread"].start()
+
+    def poll():
+        if _FLAGS["result"] is None:
+            try:
+                widget.after(150, poll)
+            except Exception:  # noqa: BLE001 - the widget is gone
+                pass
+            return
+        _FLAGS["idx"] = _FLAGS["result"]
+        for fn in _FLAGS.pop("waiters", []):
+            try:
+                fn(_FLAGS["idx"])
+            except Exception:  # noqa: BLE001
+                pass
+    try:
+        widget.after(150, poll)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def flag_users(rel, live=None):
+    """[use] of zone-2 id `rel` over every map and script. `live` = (map name, MOBJ records,
+    MAPJ records) of the map being edited: its current records replace the file's."""
+    from rf4s_modkit import flagusers
+    idx = _FLAGS["idx"] or {}
+    out = [u for u in idx.get(rel, ()) if live is None or u.get("map") != live[0]]
+    if live is not None:
+        out += [u for r, u in flagusers.object_uses(*live) if r == rel]
+    return out

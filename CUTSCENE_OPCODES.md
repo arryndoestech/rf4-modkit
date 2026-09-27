@@ -7586,10 +7586,10 @@ Args:
   0. x (tiles)
   1. y (tiles)
 
-### `op 678` — ClearTileAttribsInRect(x, y, width, height)
+### `op 678` — WallOffTileRect(x, y, width, height)
 *handler:* `Script_VMOp_ResetTileAttribFlagsInRectTo2`
 
-Clear the tile-attribute flags over a rectangle so the area becomes plain walkable ground (no special attribute) — used to stage an area for a cutscene. arg0/arg1 = x/y, arg2/arg3 = width/height, all in fine units (>>3 = tiles).
+Turn every tile of a rectangle of the current map into WALL: each cell becomes cell & 0xFFFEFE70 | 0x2 (the walking bits cleared, then 0x2 set -- the bit that blocks the player, monsters and NPCs), clipped to the grid (Script_VMOp_ResetTileAttribFlagsInRectTo2, re-read 2026-09-27). Lasts until the map is loaded again. arg0/arg1 = x/y, arg2/arg3 = width/height, all in fine units (sub-units, >>3 = tiles).
 
 Args:
   0. x (fine)
@@ -11289,7 +11289,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 667 | `SetSaveConfigBit0` | 668 | `QuerySaveConfigBit4` | 669 | `SetSaveConfigBit4` |
 | 670 | `QuerySaveConfigBit5` | 671 | `SetSaveConfigBit5` | 672 | `QuerySaveConfigBit2` |
 | 673 | `QuerySaveConfigBit3` | 674 | `GetRuneMedals` | 675 | `ConvertMedalsToGold` |
-| 676 | `GetMedalGoldRate` | 677 | `SpawnTileEffectObject` | 678 | `ClearTileAttribsInRect` |
+| 676 | `GetMedalGoldRate` | 677 | `SpawnTileEffectObject` | 678 | `WallOffTileRect` |
 | 679 | `IncrementPlayerSkillLevel` | 680 | `ApplyAttackToPlayer` | 681 | `RollBreadRecipe` |
 | 682 | `SetSceneFlag400` | 683 | `PlayCutsceneVideo` | 684 | `IsProjectorSceneUnlocked` |
 | 685 | `SetFreeLookCameraMode` | 686 | `GetFreeLookCameraMode` | 687 | `RebuildMinimap` |

@@ -66,6 +66,9 @@ class MapView(ttk.Frame):
         self.ground = render.GroundLoader(self, self._ground_ready)
         self.ground_sel = "all"                  # display: off / all / '<n> <name>'
         self.scenery = True                      # draw the over-model scenery on the ground
+        # the game's built-in warps / walls cover big areas: their tooltip pops up by itself
+        # only when this is on; otherwise Shift over one shows it (the status line says so)
+        self.runtime_tips = False
         self.attr_alpha = 180
         self.ground_dim = 25                 # % the ground is darkened (the View tab's slider)
         self.on_hover_tile = on_hover_tile       # fn(tile | None)
@@ -675,15 +678,22 @@ class MapView(ttk.Frame):
         if k is not None and k[0] == "warp":
             k = None                             # (warps show their destination on the map)
         text = self.describe_key(k) if k else None
-        if not text and t is not None and self.st.layers.get("mapj"):
-            # the game's runtime warps / walls (read-only, drawn dashed): under the pointer?
-            hits = [tip for (x0, y0, x1, y1), _s, tip in render.runtime_spawns(self.doc)
-                    if x0 <= t[0] < x1 and y0 <= t[1] < y1]
-            text = "\n\n".join(hits) or None
+        if not text and t is not None and (self.runtime_tips or state & 0x0001):
+            # the game's runtime warps / walls (read-only, drawn dashed; Shift or the View
+            # tab's option): under the pointer?
+            text = "\n\n".join(self.runtime_tips_at(t)) or None
         if text:
             self.show_tip(e, text)
         else:
             self.hide_tip()
+
+    def runtime_tips_at(self, t):
+        """Tooltips of the game's built-in warps / walls covering tile `t` (while the warps
+        layer is shown)."""
+        if t is None or self.doc is None or not self.st.layers.get("mapj"):
+            return []
+        return [tip for (x0, y0, x1, y1), _s, tip in render.runtime_spawns(self.doc)
+                if x0 <= t[0] < x1 and y0 <= t[1] < y1]
 
     def attr_tip(self, t):
         """The Alt tooltip: the cell's value and bits, who can walk on it, and the collision
@@ -708,8 +718,10 @@ class MapView(ttk.Frame):
             self.status.config(text=f"zoom {self.cp} px/tile" if d else "")
         else:
             v = d.cell(*t)
+            rt = "" if self.runtime_tips else (
+                "      built into the game: hold Shift for details" if self.runtime_tips_at(t) else "")
             self.status.config(text=f"tile ({t[0]}, {t[1]})   ATTR 0x{v:X}  {attrs.attr_notes(v)}"
-                                    f"      zoom {self.cp} px/tile")
+                                    f"{rt}      zoom {self.cp} px/tile")
         if self.on_hover_tile:
             self.on_hover_tile(t)
 

@@ -33,15 +33,16 @@ class PaletteTab(ttk.Frame):
     (the Add tool's defaults), else a marker in the type's category colour, with the id and
     name under it. Pictures are made a few at a time while the tab is shown."""
 
-    CELL_W, CELL_H, PIC = 92, 120, 72      # cell size, picture box (px)
-    NAME_LINES = 3                         # the name wraps onto up to this many lines
+    CELL_W, CELL_H, PIC = 112, 150, 72     # cell size, picture box (px)
+    FONT_SIZE = 9                          # the names under the pictures (pt)
+    NAME_LINES = 4                         # the name wraps onto up to this many lines
     UNUSED, USED = "#d8d8e0", "#9fe39f"    # name colour; green = already on this map
     BATCH = 6                              # pictures made per idle step
 
     def __init__(self, parent, ed):
         super().__init__(parent)
         self.ed = ed
-        self.font = tkfont.Font(family="Segoe UI", size=7)
+        self.font = tkfont.Font(family="Segoe UI", size=self.FONT_SIZE)
         top = ttk.Frame(self)
         top.pack(fill="x", padx=4, pady=(4, 2))
         ttk.Label(top, text="Find").pack(side="left")
@@ -208,7 +209,7 @@ class PaletteTab(ttk.Frame):
                                outline="#33333d", fill="#23232b", tags=(tag, "cell", f"cell{tid}"))
             name = mobj_types.mobj_display_name(tid) or f"type {tid}"
             c.create_text(x0 + self.CELL_W // 2, y0 + self.CELL_H - 4, anchor="s",
-                          text=self._fit(f"{tid}  {name}"), justify="center",
+                          text=self._fit(f"{tid} {name}"), justify="center",
                           fill=self.USED if tid in on_map else self.UNUSED,
                           font=self.font, tags=(tag, f"name{tid}", "name"))
             self._draw_pic(tid, x0, y0)
@@ -232,8 +233,8 @@ class PaletteTab(ttk.Frame):
         still does not fit is cut (with an ellipsis). Hover shows the full name."""
         room = self.CELL_W - 8
         lines, cur = [], ""
-        for word in re.sub(r"-(?=\w)", "- ", text).split(" "):
-            trial = (cur + word if cur.endswith("-") else f"{cur} {word}") if cur else word
+        for word in re.sub(r"([-_])(?=\w)", r"\1 ", text).split(" "):
+            trial = (cur + word if cur.endswith(("-", "_")) else f"{cur} {word}") if cur else word
             if self.font.measure(trial) <= room or not cur:
                 cur = trial
             else:

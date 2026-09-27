@@ -314,24 +314,23 @@ def unreadable_reason(m):
 
 # --------------------------------------------------------------------------- #
 def flag_reference(ed):
-    """Searchable emdeb GameFlag table (absolute bit ids)."""
+    """Searchable emdeb table: the named story / event flags (zone 1, absolute bit ids)."""
     t = mobj_params._emflag_table()
     if not t:
         messagebox.showinfo("Flag reference", "emdeb.bin not found — the named-flag table is unavailable.")
         return None
-    win = _toplevel(ed, "GameFlag reference", "580x500")
+    win = _toplevel(ed, "Story / event flags (zone 1)", "580x500")
     q = tk.StringVar()
     row = ttk.Frame(win)
     row.pack(fill="x", padx=6, pady=4)
     ttk.Label(row, text="Filter").pack(side="left")
     ent = ttk.Entry(row, textvariable=q)
     ent.pack(side="left", fill="x", expand=True, padx=4)
-    info = ui.hint(win, "Absolute GameFlags bit ids -- what GameFlags_ReadField and the em.bin "
-                        "conditions look up (0..3016 = these named flags, 4096..6655 = per-map scene "
-                        "bits). Other consumers use offsets:\n"
-                        "  MOBJ f13 and script ops 443/445 = absolute - 4096\n"
-                        "  script op 318 = absolute - 4096 - 1007\n"
-                        "Double-click a row to copy its id.", wrap=560)
+    info = ui.hint(win, "The named story / event flags (emdeb.bin): zone 1 of the flag array, "
+                        "by game bit number -- what the em.bin conditions and GameFlags_ReadField "
+                        "look up. Map objects and warps do NOT use these: their flags are zone-2 "
+                        "scene bits (game bit 4096 + the number), listed in the map editor's "
+                        "Flags… (Inspector). Double-click a row to copy its id.", wrap=560)
     info.pack(anchor="w", padx=8)
     lf = ttk.Frame(win)
     lf.pack(fill="both", expand=True, padx=6, pady=4)
@@ -360,5 +359,158 @@ def flag_reference(ed):
     q.trace_add("write", refill)
     lb.bind("<Double-Button-1>", copy)
     refill()
+    ent.focus_set()
+    return win
+
+
+# --------------------------------------------------------------------------- #
+def scene_flag_reference(ed, focus=None):
+    """The zone-2 ("scene") flags -- the numbering of MOBJ f13, warp disable flags and script
+    ops 443 / 444 / 445: every id with its known block and everything that sets, clears or
+    reads it, on every map and in the event scripts. `focus` = an id to show first."""
+    from rf4s_modkit import emflags, flagusers
+    from . import data
+    win = _toplevel(ed, "Scene flags (zone 2) -- object and warp flags", "820x600")
+    top = ttk.Frame(win)
+    top.pack(fill="x", padx=6, pady=4)
+    ttk.Label(top, text="Find").pack(side="left")
+    q = tk.StringVar()
+    ent = ttk.Entry(top, textvariable=q, width=24)
+    ent.pack(side="left", padx=4)
+    ui.Tip(ent, "A flag number, or words from the uses (a map name, 'chest', 'bank 132' ...).")
+    unused = tk.BooleanVar(value=False)
+    ttk.Checkbutton(top, text="show unused ids too", variable=unused,
+                    command=lambda: refill()).pack(side="left", padx=8)
+    ttk.Button(top, text="Story / event flags (zone 1)…",
+               command=ed.open_story_flags).pack(side="right")
+    ui.hint(win, "The game keeps all flags in one bit array. A map object's flag (f13), a warp's "
+                 "disable flag and script ops 443 / 444 / 445 all count in ZONE 2: the game adds "
+                 "4096 before it tests the bit, so flag 158 is game bit 4254. Zone-2 bits have "
+                 "no names in the game data -- what one means is who sets it and who reads it, "
+                 "listed below. The named story / event flags (emdeb) are zone 1, a different "
+                 "range: their numbers never match an object's flag.", wrap=800).pack(
+        anchor="w", padx=8)
+    pw = ttk.Panedwindow(win, orient="vertical")
+    pw.pack(fill="both", expand=True, padx=6, pady=4)
+    upper = ttk.Frame(pw)
+    tree = ttk.Treeview(upper, columns=("bit", "known", "uses"), show="headings", selectmode="browse")
+    for c, t, w in (("#0", "", 0), ("bit", "flag (game bit)", 120), ("known", "known block", 260),
+                    ("uses", "used by", 400)):
+        if c != "#0":
+            tree.heading(c, text=t)
+            tree.column(c, width=w, stretch=(c == "uses"))
+    sb = ttk.Scrollbar(upper, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=sb.set)
+    sb.pack(side="right", fill="y")
+    tree.pack(side="left", fill="both", expand=True)
+    pw.add(upper, weight=3)
+    lower = ttk.Frame(pw)
+    detail_title = ttk.Label(lower, font=ui.HINT_FONT)
+    detail_title.pack(anchor="w")
+    lb = tk.Listbox(lower, font=ui.MONO, height=8)
+    lsb = ttk.Scrollbar(lower, orient="vertical", command=lb.yview)
+    lb.config(yscrollcommand=lsb.set)
+    lsb.pack(side="right", fill="y")
+    lb.pack(side="left", fill="both", expand=True)
+    pw.add(lower, weight=2)
+    status = ui.hint(win, "Scanning every map and the event scripts ...", wrap=800)
+    status.pack(anchor="w", padx=8, pady=(0, 6))
+    state = {"uses": [], "rel": None}
+
+    def live():
+        d = ed.doc
+        return (d.base, d.map.mobj_records(), d.map.mapj_records()) if d is not None and d.base else None
+
+    def known(rel):
+        hit = emflags.zone2_label(rel)
+        if hit is None:
+            return ""
+        name, _detail, sub = hit
+        if sub is not None:
+            return f"{name.split(' (')[0]} {sub}"
+        return name
+
+    def summary(uses):
+        places = []
+        for u in uses:
+            p = u["owner"] if u["kind"] == "script" else u["map"]
+            if p not in places:
+                places.append(p)
+        head = f"{len(uses)}: " if uses else ""
+        return head + ", ".join(places[:4]) + (f" (+{len(places) - 4})" if len(places) > 4 else "")
+
+    def merged():
+        """{id: [use]} with the open map's current records in place of its file's."""
+        lv = live()
+        out = {}
+        for rel, uses in (data.flag_index() or {}).items():
+            keep = [u for u in uses if lv is None or u.get("map") != lv[0]]
+            if keep:
+                out[rel] = keep
+        if lv is not None:
+            for rel, u in flagusers.object_uses(*lv):
+                out.setdefault(rel, []).append(u)
+        state["merged"] = out
+        return out
+
+    def refill(*_a):
+        if data.flag_index() is None:
+            return
+        idx = merged()
+        ids = set(idx)
+        if unused.get():
+            ids |= set(range(flagusers.ZONE2_BITS))
+        words = q.get().strip().lower().split()
+        tree.delete(*tree.get_children())
+        shown = 0
+        for rel in sorted(ids):
+            uses = idx.get(rel, [])
+            text = f"{rel} {flagusers.ZONE2_BASE + rel} {known(rel)} " + " ".join(
+                flagusers.describe(u) for u in uses)
+            if words and not (len(words) == 1 and words[0].isdigit() and int(words[0]) == rel) \
+                    and not all(w in text.lower() for w in words):
+                continue
+            tree.insert("", "end", iid=str(rel),
+                        values=(f"{rel}  ({flagusers.ZONE2_BASE + rel})", known(rel), summary(uses)))
+            shown += 1
+        status.config(text=f"{shown} flag(s) shown. Double-click a use to go to it.")
+        if focus is not None and tree.exists(str(focus)) and state["rel"] is None:
+            tree.selection_set(str(focus))
+            tree.see(str(focus))
+
+    def show(_e=None):
+        s = tree.selection()
+        if not s:
+            return
+        rel = int(s[0])
+        state["rel"] = rel
+        state["uses"] = state.get("merged", {}).get(rel, [])
+        detail_title.config(text=f"Flag {rel} = game bit {flagusers.ZONE2_BASE + rel}"
+                                 + (f" -- {known(rel)}" if known(rel) else "")
+                                 + ("" if state["uses"] else ": nothing in the shipped game uses it"))
+        lb.delete(0, "end")
+        for u in state["uses"]:
+            lb.insert("end", flagusers.describe(u))
+
+    def go(_e=None):
+        s = lb.curselection()
+        if not s:
+            return
+        u = state["uses"][s[0]]
+        if u["kind"] == "script":
+            status.config(text=f"{u['owner']}: scene entry 0x{u['entry']:04x}, statement 0x{u['pc']:04x} "
+                               f"(open it in the cutscene editor to see the script)")
+            return
+        d = ed.doc
+        key = ("mobj" if u["kind"] == "object" else "warp", u["index"])
+        if d is not None and u["map"] == d.base:
+            ed.select(key, center=True)
+        else:
+            ed.open_map(u["map"], at=u["at"])
+
+    tree.bind("<<TreeviewSelect>>", show)
+    lb.bind("<Double-Button-1>", go)
+    q.trace_add("write", refill)
+    data.request_flag_index(win, lambda _idx: (refill(), show()))
     ent.focus_set()
     return win

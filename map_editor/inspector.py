@@ -135,7 +135,17 @@ class EntityForm(Form):
         ttk.Button(b, text="Center", width=7, command=lambda: ed.center_on(self.key)).pack(side="left")
         ttk.Button(b, text="Duplicate", width=9, command=lambda: ed.duplicate(self.key)).pack(side="left", padx=2)
         ttk.Button(b, text="Delete", width=7, command=lambda: ed.delete(self.key)).pack(side="left")
-        ttk.Button(b, text="Flags…", width=7, command=ed.open_flag_reference).pack(side="right")
+        fb = ttk.Button(b, text="Flags…", width=7, command=self._flags)
+        fb.pack(side="right")
+        ui.Tip(fb, "The scene flags (zone 2) -- the numbering of this object's flag: every flag "
+                   "with everything that sets, clears or reads it on every map and in the event "
+                   "scripts, starting at this object's flag.")
+
+    def _flags(self):
+        rec = self._rec() if self.key is not None else None
+        focus = rec[13] if rec is not None and mobj_params.reads_flag(rec[0] & 0xFFFF) \
+            and 0 <= rec[13] < mobj_params.MOBJ_FLAG_COUNT else None
+        self.ed.open_flag_reference(focus)
 
     # ---- values ---------------------------------------------------------- #
     def _rec(self):
@@ -267,16 +277,17 @@ class EntityForm(Form):
                              + (f", rare {data.item_name(rare) or rare}" if rare else ""))
         val = rec[fi]
         if fi == 13 and "flag" in meaning.lower() and val not in (0, -1):
+            from rf4s_modkit import flagusers
+            parts.append(f"scene flag {val} = game bit {flagusers.ZONE2_BASE + val} (zone 2 -- not "
+                         f"in the story-flag list)")
+            role = flagusers.object_role(rec)
+            if role:
+                parts.append(f"for this object: {role}")
             fl = mobj_params.flag_label(val)
-            if fl:
+            if fl and "no known block" not in fl and not fl.startswith("scene/event bit"):
                 parts.append(f"= {fl}")
-            shared = []
-            recs = self.doc.map.mobj_records()
-            for oi, orec in enumerate(recs):
-                if oi != self.key[1] and mobj_params.reads_flag(orec[0]) and orec[13] == val:
-                    shared.append(f"#{oi}")
-            if shared:
-                parts.append("same flag: " + ", ".join(shared[:6]))
+            if 0 <= val < mobj_params.MOBJ_FLAG_COUNT:
+                parts.append(self.ed.flag_uses_text(val, skip=("object", self.key[1])))
         if sz < 4 and (val & 0xFFFFFFFF) != eff:
             parts.append(f"(the game reads only the low {mobj_params.SIZE_NAME[sz]}: {eff})")
         return "\n".join(parts)
@@ -455,7 +466,14 @@ class WarpForm(Form):
         self.always.set(rec[0] == -1)
         self.vflag.set("" if rec[0] == -1 else str(rec[0]))
         self.flag_e.config(state="disabled" if rec[0] == -1 else "normal")
-        self.flag_lbl.config(text="" if rec[0] == -1 else emflags.zone2_text(rec[0]))
+        if rec[0] == -1:
+            self.flag_lbl.config(text="")
+        else:
+            txt = (f"scene flag {rec[0]} = game bit {4096 + rec[0]}; the warp is off while it is "
+                   f"set\n{emflags.zone2_text(rec[0])}")
+            if 0 <= rec[0] < 2560:
+                txt += "\n" + self.ed.flag_uses_text(rec[0], skip=("warp", self.key[1]))
+            self.flag_lbl.config(text=txt)
 
     def _toggle_always(self):
         rec = self._rec()

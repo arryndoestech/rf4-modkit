@@ -1179,16 +1179,18 @@ class CutsceneExplorer:
             if not root:
                 return False
         import tempfile
-        stage = pathlib.Path(tempfile.mkdtemp())
         files = {"rf3.mc": self.doc.container.build()}
         for loc in self.doc.dirty_locales():
             files["rf3mc.%s" % loc] = self.doc.arcs[loc].build()
         if self.doc.em_dirty():
             files["em.bin"] = self.doc.em.build()
         try:
-            for name, blob in files.items():
-                (stage / name).write_bytes(blob)
-                mbundle.install_loose(pathlib.Path(root), name, str(stage / name))
+            # staged in a temporary folder that is removed again, whatever happens
+            with tempfile.TemporaryDirectory(prefix="rf4s_install_") as tmp:
+                stage = pathlib.Path(tmp)
+                for name, blob in files.items():
+                    (stage / name).write_bytes(blob)
+                    mbundle.install_loose(pathlib.Path(root), name, str(stage / name))
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Install", str(e))
             return False

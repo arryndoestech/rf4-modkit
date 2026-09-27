@@ -248,6 +248,34 @@ def overmodel_for(map_name: str):
     return None
 
 
+# The game's own empty over-model: 9 cards whose embedded textures are fully transparent. 164
+# maps use this very file, and the game ships the same model under a dozen other names
+# (MAP_DUNG_E01/E03/H02, MAP_FIELD_23, ... -- identical but for their name offsets), so a copy
+# of it under another over-model's name is something the game already does.
+BLANK_OVERMODEL = "MAP_FIELD_43"
+
+
+def overmodel_users(set_name: str) -> list:
+    """Every map file (MAP_*, seasonal copies included) whose over-model is `set_name`: the
+    over-model is loaded by archive id from g_mapResourceTable[4*id+3], so replacing the file
+    changes all of them."""
+    return sorted(m for m, s in _overmodels().items() if s == set_name)
+
+
+def overmodel_is_blank(blob) -> bool:
+    """True when a .model draws nothing: every embedded texture fully transparent (or none)."""
+    from . import model, texture
+    try:
+        m = model.parse(blob)
+        for i in range(len(m.textures)):
+            im = texture.decode_bntx(blob, i)
+            if im is not None and im.convert("RGBA").getextrema()[3][1] > 0:
+                return False
+    except Exception:  # noqa: BLE001 - unreadable: not known to be blank
+        return False
+    return True
+
+
 def tile_name(map_name: str, layer: int, idx: int) -> str:
     """Filename of one atlas tile, e.g. ``MAP_FIELD_01_1003.texture``."""
     return "%s_%04d.texture" % (map_name, layer * 1000 + idx)
