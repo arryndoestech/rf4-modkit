@@ -16,7 +16,9 @@ so every gesture is exactly one undo step.
 """
 from __future__ import annotations
 
-from rf4s_modkit import search_items
+from rf4s_modkit import mobj_params, mobj_types, search_items
+
+from . import data
 
 DRAG_THRESHOLD_PX = 4          # the Windows drag threshold: less than this is a click
 
@@ -226,7 +228,9 @@ class SelectTool(Tool):
                 ((sy >> 3) - (self.anchor[1] >> 3)) * 8)
 
     def _clamped(self, key, origin, dx, dy):
-        """`origin` moved by (dx, dy), kept on the map."""
+        """`origin` moved by (dx, dy), kept on the map -- except an entity that already sits
+        off the grid (shipped maps put trees, rock walls and seal-door controllers there on
+        purpose): it keeps the plain offset."""
         ox, oy = origin[0], origin[1]
         nx, ny = ox + dx, oy + dy
         W, H, _ = self.doc.grid
@@ -236,6 +240,8 @@ class SelectTool(Tool):
             nx = max(min(0, ox), min(max(W * 8 - ow, ox), nx))
             ny = max(min(0, oy), min(max(H * 8 - oh, oy), ny))
             return (nx, ny, ow, oh)
+        if key[0] == "mobj" and not (0 <= ox >> 3 < W and 0 <= oy >> 3 < H):
+            return (nx, ny)
         return (max(0, min(W * 8 - 1, nx)), max(0, min(H * 8 - 1, ny)))
 
     def _moved_to(self, e):
@@ -512,12 +518,28 @@ class AddTool(Tool):
             if tid is None:
                 ed.status("Pick an entity type first (Inspector > Add).")
                 return
-            if 9 <= (tid & 0xFFFF) <= 19:
+            why = ed.room_for("mobj")
+            if why:
+                ed.status(f"Can't add: {why}")
+                return
+            if mobj_types.is_positionless(tid):
                 sx = sy = 0                  # map parameter records have no position
+            rec = [tid, -1, -1, -1, -1, -1, 4096, 0, 0, 0, 0, 0, 0, -1, sx, sy]
+            for f, v in mobj_params.ADD_DEFAULTS.get(tid & 0xFFFF, {}).items():
+                rec[f] = v
+            if (tid & 0xFFFF) == 52:
+                rec[8], rec[9] = sx, sy      # the knock-back target: its own spot to start with
+            note = ""
+            if mobj_params.flag_block(None, tid & 0xFFFF):
+                new, why = data.fresh_flag(doc.map.mobj_records(), doc.map.mapj_records(), rec,
+                                           new=True)
+                if new is not None:
+                    rec[13] = new
+                note = f" -- {why}"
             with doc.edit(f"Add entity type {tid}", "mobj"):
-                i = doc.map.add_mobj_record([tid, -1, -1, -1, -1, -1, 4096, 0,
-                                             0, 0, 0, 0, 0, -1, sx, sy])
+                i = doc.map.add_mobj_record(rec)
             ed.select(("mobj", i))
+            ed.status(f"Added entity #{i} (type {tid}){note}")
         elif what == "spot":
             with doc.edit("Add search spot", "si"):
                 si = doc.ensure_si()

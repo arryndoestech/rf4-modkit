@@ -191,8 +191,8 @@ class MapView(ttk.Frame):
     # ---- redraw scheduling -------------------------------------------------- #
     def invalidate(self, *groups):
         groups = groups or ("bg",) + render.GROUPS
-        if "ent" in groups:                     # the objects' sprites
-            groups += ("under", "lift")
+        if "ent" in groups:                     # the objects' sprites and their collision
+            groups += ("under", "lift", "stamp")
         if "sel" in groups:                     # the selected sprite above the ATTR fill
             groups += ("lift",)
         self._dirty.update(groups)
@@ -259,7 +259,8 @@ class MapView(ttk.Frame):
                                    dash=o.get("dash", ""), tags=tags)
             elif p.kind == "rect":
                 it = c.create_rectangle(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
-                                        width=o.get("width", 1), dash=o.get("dash", ""), tags=tags)
+                                        width=o.get("width", 1), dash=o.get("dash", ""),
+                                        stipple=o.get("stipple", ""), tags=tags)
             elif p.kind == "oval":
                 it = c.create_oval(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
                                    width=o.get("width", 1), dash=o.get("dash", ""), tags=tags)
@@ -667,8 +668,7 @@ class MapView(ttk.Frame):
     def _tip_at(self, e, state):
         t = self.tile_at(e)
         if state & (self.ALT_MASK | 0x0004) and t is not None:   # Alt / Ctrl: ATTR inspector
-            v = self.doc.cell(*t)
-            self.show_tip(e, f"tile ({t[0]}, {t[1]})   ATTR = 0x{v:X}\n{attrs.attr_notes(v)}")
+            self.show_tip(e, self.attr_tip(t))
             return
         cands = self.pick_candidates(e)
         k = cands[0] if cands else None          # what a click would select
@@ -684,6 +684,22 @@ class MapView(ttk.Frame):
             self.show_tip(e, text)
         else:
             self.hide_tip()
+
+    def attr_tip(self, t):
+        """The Alt tooltip: the cell's value and bits, who can walk on it, and the collision
+        the placed objects stamp onto it when the room loads (not in the file)."""
+        d = self.doc
+        v = d.cell(*t)
+        lines = [f"tile ({t[0]}, {t[1]})   ATTR = 0x{v:X}", attrs.attr_notes(v),
+                 attrs.walk_readout(v)]
+        for i, mode, bits in render.stamps_at(d, self.st.flags, t):
+            o = d.objs[i]
+            nm = mobj_types.mobj_display_name(o["type_id"] & 0xFFFF) or f"type {o['type_id']}"
+            what = (f"+0x{bits:X}" if mode == "template" else "made solid (| 0x2)")
+            lines.append(f"stamped by #{i} {nm} at load: {what}")
+            lines.append("  -> " + attrs.walk_readout(
+                (v & ~0x1018F | 0x2) if mode == "box" else (v | bits)))
+        return "\n".join(lines)
 
     def _hover(self, t):
         d = self.doc

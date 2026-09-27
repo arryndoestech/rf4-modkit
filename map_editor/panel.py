@@ -18,7 +18,8 @@ from tkinter import filedialog, messagebox, ttk
 
 from guiutil import shortcut_scope
 
-from rf4s_modkit import areagroup, flagstate, map_names, mapground, mobj_types, rf4m, search_items
+from rf4s_modkit import (areagroup, flagstate, map_names, mapground, mobj_params, mobj_types, rf4m,
+                         search_items)
 
 from . import data, dialogs, render, tools, ui
 from . import view as view_mod
@@ -767,6 +768,8 @@ class MapEditorPanel:
         kind, k = key
         if kind == "mobj":
             r = list(d.map.mobj_records()[k])
+            if (r[0] & 0xFFFF) == 52:           # the knock-back target moves with the vent
+                r[8], r[9] = r[8] + pos[0] - r[14], r[9] + pos[1] - r[15]
             r[14], r[15] = pos
             d.map.set_mobj_record(k, r)
         elif kind == "warp":
@@ -784,7 +787,9 @@ class MapEditorPanel:
         self.apply(self.describe_move(key), self.aspect_of(key), lambda: self.set_position(key, pos))
 
     def nudge(self, dx, dy):
-        """Arrow keys: move the selection (every selected object) by (dx, dy) sub-units."""
+        """Arrow keys: move the selection (every selected object) by (dx, dy) sub-units.
+        Entities may go off the grid (shipped maps place trees and seal-door controllers
+        there on purpose); search spots and gate points may not go negative."""
         keys = self.selection or ([self.sel] if self.sel else [])
         if not keys or self.doc is None:
             return
@@ -794,7 +799,7 @@ class MapEditorPanel:
             if p is None:
                 return
             new = (p[0] + dx, p[1] + dy) + tuple(p[2:])
-            if min(new[0], new[1]) < 0 and s[0] != "warp":
+            if min(new[0], new[1]) < 0 and s[0] not in ("warp", "mobj"):
                 return                          # one would leave the map: none moves
             moves.append((s, new))
         if len(moves) == 1:
@@ -818,7 +823,7 @@ class MapEditorPanel:
         x, y = p[0], p[1]
         if key[0] == "warp":
             x, y = x + p[2] // 2, y + p[3] // 2
-        if key[0] == "mobj" and not (x or y):
+        if key[0] == "mobj" and mobj_types.is_positionless(self.doc.objs[key[1]]["type_id"]):
             return
         self.view.center_on(x >> 3, y >> 3)
 
@@ -891,6 +896,44 @@ class MapEditorPanel:
                     f"delete one first")
         return None
 
+    def copied_record(self, r, dx=0, dy=0, src=None):
+        """(record, notes) for an entity copied onto this map `dx`/`dy` sub-units from where
+        it was (src = the map it came from, None = this one): a chest / crate / herb pickup
+        gets an unused one-shot flag (data.fresh_flag), a knock-back vent's target moves with
+        it, a warp point from another map keeps its destination (f10 is relative to the map
+        id)."""
+        d = self.doc
+        r = list(r)
+        tid = r[0] & 0xFFFF
+        notes = []
+        if not mobj_types.is_positionless(tid):
+            r[14], r[15] = r[14] + dx, r[15] + dy
+        if tid == 52:
+            r[8], r[9] = r[8] + dx, r[9] + dy
+        if tid == 42 and src and data.map_base(src) != d.base:
+            a, b = data.map_id(src), self.this_map_id()
+            if a is not None and b is not None:
+                dest = a + r[10]
+                r[10] = dest - b
+                notes.append(f"the warp point still leads to map {dest} (f10 = {r[10]:+d} from here)")
+        if mobj_params.one_shot_flag(r) is not None:
+            new, why = data.fresh_flag(d.map.mobj_records(), d.map.mapj_records(), r)
+            if new is not None:
+                r[13] = new
+            notes.append(f"the {mobj_params.ONE_SHOT_FLAG_TYPES[tid]} {why}")
+        return r, notes
+
+    def shared_flag_note(self, i):
+        """' -- WARNING: it shares its one-shot flag N with #j ...' for entity `i`, else ''."""
+        recs = self.doc.map.mobj_records()
+        fl = mobj_params.one_shot_flag(recs[i])
+        if fl is None:
+            return ""
+        twins = [j for j, r in enumerate(recs) if j != i and mobj_params.one_shot_flag(r) == fl]
+        return (f" -- WARNING: it shares its one-shot flag {fl} with "
+                + ", ".join(f"#{j}" for j in twins) + " (whichever is used first sets it for "
+                "all; see Problems)") if twins else ""
+
     def duplicate(self, key):
         if key is None or self.doc is None:
             return
@@ -901,14 +944,14 @@ class MapEditorPanel:
             self.status(f"Can't duplicate: {why}")
             return
         out = {}
+        notes = []
+        rec = None
+        if kind == "mobj":
+            rec, notes = self.copied_record(d.map.mobj_records()[k], 8, 8)
 
         def do():
             if kind == "mobj":
-                r = list(d.map.mobj_records()[k])
-                if r[14] or r[15]:
-                    r[14] += 8
-                    r[15] += 8
-                out["k"] = ("mobj", d.map.add_mobj_record(r))
+                out["k"] = ("mobj", d.map.add_mobj_record(rec))
             elif kind == "warp":
                 r = list(d.map.mapj_records()[k])
                 r[1] += 8
@@ -921,9 +964,12 @@ class MapEditorPanel:
                                                       for e in sp.pool.entries])
                 d.si.spots.append(search_items.SearchSpot(x=sp.x + 8, y=sp.y + 8, pool=pool))
                 out["k"] = ("si", len(d.si.spots) - 1)
-        if kind in ("mobj", "warp", "si") and self.apply(f"Duplicate {_KIND_NAME[kind]} #{k}",
-                                                         self.aspect_of(key), do):
+        label = f"Duplicate {_KIND_NAME[kind]} #{k}"
+        if kind in ("mobj", "warp", "si") and self.apply(label, self.aspect_of(key), do):
             self.select(out.get("k"))
+            if kind == "mobj":
+                self.status(label + "".join(f"; {n}" for n in notes)
+                            + self.shared_flag_note(out["k"][1]))
 
     # ---- clipboard (across maps) ---------------------------------------- #
     def copy_object(self, key, cut=False):
@@ -1007,17 +1053,28 @@ class MapEditorPanel:
                 return
         W, H, _ = d.grid
         out = {}
+        notes = []
 
         def clamp(x, y, w=0, h=0):
             return (max(0, min(W * 8 - max(1, w), x)), max(0, min(H * 8 - max(1, h), y)))
 
-        def place(x, y, w=0, h=0):
+        def place(x, y, w=0, h=0, free=False):
             """Top-left for an object of size w x h (sub-units): centred on `at`, keeping
-            the object's own sub-tile offset; else its old spot, clamped."""
+            the object's own sub-tile offset; else its old spot -- clamped into this map,
+            unless `free` (an entity that sat off the grid stays where it was)."""
             if at is not None:
                 x = (at[0] - w // 2) // 8 * 8 + (x & 7)
                 y = (at[1] - h // 2) // 8 * 8 + (y & 7)
+            elif free and not (0 <= x >> 3 < W and 0 <= y >> 3 < H):
+                return x, y
             return clamp(x, y, w, h)
+        rec = None
+        if kind == "mobj":
+            r0 = clip["record"]
+            nx, ny = r0[14], r0[15]
+            if not mobj_types.is_positionless(r0[0]):
+                nx, ny = place(nx, ny, free=True)
+            rec, notes = self.copied_record(r0, nx - r0[14], ny - r0[15], clip.get("from"))
 
         def do():
             if kind in ("gpos", "mpos"):
@@ -1030,10 +1087,7 @@ class MapEditorPanel:
                     pts = d.gen.monster_positions_off(gate)
                 out["k"] = (kind, pts[-1][0])
             elif kind == "mobj":
-                r = list(clip["record"])
-                if r[14] or r[15]:                  # positionless map parameters stay 0, 0
-                    r[14], r[15] = place(r[14], r[15])
-                out["k"] = ("mobj", d.map.add_mobj_record(r))
+                out["k"] = ("mobj", d.map.add_mobj_record(rec))
             elif kind == "warp":
                 r = list(clip["record"])
                 r[1], r[2] = place(r[1], r[2], r[3], r[4])
@@ -1052,7 +1106,9 @@ class MapEditorPanel:
             k = out.get("k")
             ref = "(Gen record @0x%x)" % k[1] if k and kind in ("gpos", "mpos") else None
             bad = [m for _s, _w, m in (self._gate_point_issues() if ref else ()) if ref in m]
-            self.status(label + (" -- but " + bad[0].split(": ", 1)[-1] if bad else ""))
+            self.status(label + (" -- but " + bad[0].split(": ", 1)[-1] if bad else "")
+                        + "".join(f"; {n}" for n in notes)
+                        + (self.shared_flag_note(k[1]) if kind == "mobj" else ""))
 
     # ---- navigation ------------------------------------------------------- #
     def this_map_id(self):
@@ -1417,8 +1473,7 @@ class MapEditorPanel:
         d = self.doc
         W, H = (d.grid[0], d.grid[1]) if d.grid else (0, 0)
         params = sum(1 for o in d.objs if o["category"] == "mapparam")
-        unplaced = sum(1 for o in d.objs if o["category"] != "mapparam" and not (o["pos_x"] or o["pos_y"]))
-        return (f"{W}×{H} grid · {len(d.objs)} MOBJ records ({params} map parameters, {unplaced} unplaced) · "
+        return (f"{W}×{H} grid · {len(d.objs)} MOBJ records ({params} map parameters) · "
                 f"{len(d.map.mapj_records())} warps · {len(d.map.find(b'MTXN'))} display layer(s) · "
                 f"{len(d.si.spots) if d.si else 0} search spots · "
                 f"{sum(len(p) for p in d.gen.patterns) if d.gen else 0} gates")

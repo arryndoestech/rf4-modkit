@@ -573,9 +573,10 @@ class Rf4mMap:
 
         With `shift_entities` (default), MOBJ positions and MAPJ zone origins move with
         the content by `origin * 8` sub-units, so nothing drifts relative to the terrain.
-        MOBJ parameter records (types 9..19, which carry no position) and records sitting
-        at (0,0) are left alone, matching how `validate()` reads them. MAPJ *arrival*
-        coordinates are NOT touched: they are positions in the destination map.
+        MOBJ parameter records (types 9..19, which carry no position) are left alone; a
+        record at (0,0) is a real position and moves like any other. A knock-back vent's
+        (type 52) walk-to target f8/f9 moves with it. MAPJ *arrival* coordinates are NOT
+        touched: they are positions in the destination map.
 
         `ground_reader` + `map_name` (see `validate()`) let the report name the exact
         tiles that must be authored. `dry_run=True` computes the whole report and
@@ -623,8 +624,8 @@ class Rf4mMap:
         sx, sy = ox * 8, oy * 8
         for i, rec in enumerate(self.mobj_records()):
             tid = rec[0] & 0xFFFF
-            if 9 <= tid <= 19 or not (rec[14] or rec[15]):
-                continue                       # parameter record / positionless
+            if mobj_types.is_positionless(tid):
+                continue                       # parameter record: no position
             px, py = rec[14], rec[15]
             if shift_entities and (sx or sy):
                 px, py = px + sx, py + sy
@@ -632,6 +633,8 @@ class Rf4mMap:
                 if not dry_run:
                     vals = list(rec)
                     vals[14], vals[15] = px, py
+                    if tid == 52:              # the knock-back target is a spot on this map
+                        vals[8], vals[9] = vals[8] + sx, vals[9] + sy
                     self.set_mobj_record(i, vals)
             tx, ty = px >> 3, py >> 3
             if not (0 <= tx < new_w and 0 <= ty < new_h):
@@ -997,30 +1000,9 @@ class Rf4mMap:
         # 5. placed entities
         grid = self.attr_grid()
         W, H = (grid[0], grid[1]) if grid else (0, 0)
-        for i, rec in enumerate(self.mobj_records()):
-            tid = rec[0] & 0xFFFF
-            name = mobj_types.mobj_display_name(tid) or f"type {tid}"
-            if rec[0] != tid:
-                warns.append(f"MOBJ #{i}: type {rec[0]} has bits above 16 set; the spawner "
-                             f"dispatches on {tid}"
-                             + (", but Map_LoadById compares the FULL value for the load-time "
-                                "parameter records (types 9-13, 15, 29), so this record's "
-                                "parameter is ignored" if tid in (9, 10, 11, 12, 13, 15, 29) else ""))
-            if tid >= mobj_types.FIRST_MAP_OBJ_TYPE and tid > MAX_MAP_OBJ_TYPE_ID:
-                errs.append(f"MOBJ #{i}: type {tid} is past the map_obj sprite band "
-                            f"(max {MAX_MAP_OBJ_TYPE_ID}); archive {tid + 17542} is not a "
-                            f"map object")
-            # type-12 tint record: with f12 = 0 Map_LoadById writes RGB to
-            # work[230 + 3*f8 ..] with no bounds check -- only slots 0..2 exist
-            if tid == 12 and rec[12] == 0 and not (0 <= rec[8] <= 2):
-                errs.append(f"MOBJ #{i} (tint_color): slot f8 = {rec[8]} but only 0 day / "
-                            f"1 evening / 2 night exist; Map_LoadById indexes the tint array "
-                            f"with f8 unchecked and writes past it (memory corruption)")
-            if grid and not (9 <= tid <= 19) and (rec[14] or rec[15]):
-                tx, ty = rec[14] >> 3, rec[15] >> 3
-                if not (0 <= tx < W and 0 <= ty < H):
-                    warns.append(f"MOBJ #{i} ({name}) at tile ({tx},{ty}) is outside the "
-                                 f"{W}x{H} grid")
+        errs2, warns2 = self._entity_findings(W, H, bool(grid))
+        errs += errs2
+        warns += warns2
         # 6. warps
         maze = own_id in MAZE_MAP_IDS
         dest_maps = {}
@@ -1114,6 +1096,108 @@ class Rf4mMap:
             errs += errs2
             warns += warns2
         return [f"ERROR: {e}" for e in errs] + [f"WARN: {w}" for w in warns]
+
+    # the actor types a player has to reach (open, break, pick up, touch, step on): off the
+    # grid they can never be used. Other types sit off the grid in shipped maps on purpose
+    # (trees / rock walls whose sprite hangs into view, seal-door controllers at x <= 0).
+    _REACHED_TYPES = frozenset({24, 25, 35, 42, 44, 45, 46, 52, 53, 58, 63})
+
+    def _entity_findings(self, W: int, H: int, has_grid: bool):
+        """(errors, warnings) for the MOBJ records (validate() section 5)."""
+        from . import mobj_params as mp
+        errs, warns = [], []
+        recs = self.mobj_records()
+        forage = doors = 0
+        owners = {}                     # one-shot flag -> [record index]
+        for i, rec in enumerate(recs):
+            tid = rec[0] & 0xFFFF
+            name = mobj_types.mobj_display_name(tid) or f"type {tid}"
+            if rec[0] != tid:
+                warns.append(f"MOBJ #{i}: type {rec[0]} has bits above 16 set; the spawner "
+                             f"dispatches on {tid}"
+                             + (", but Map_LoadById compares the FULL value for the load-time "
+                                "parameter records (types 9-13, 15, 29), so this record's "
+                                "parameter is ignored" if tid in (9, 10, 11, 12, 13, 15, 29) else ""))
+            if tid >= mobj_types.FIRST_MAP_OBJ_TYPE and tid > MAX_MAP_OBJ_TYPE_ID:
+                errs.append(f"MOBJ #{i}: type {tid} is past the map_obj sprite band "
+                            f"(max {MAX_MAP_OBJ_TYPE_ID}); archive {tid + 17542} is not a "
+                            f"map object")
+            # type-12 tint record: with f12 = 0 Map_LoadById writes RGB to
+            # work[230 + 3*f8 ..] with no bounds check -- only slots 0..2 exist
+            if tid == 12 and rec[12] == 0 and not (0 <= rec[8] <= 2):
+                errs.append(f"MOBJ #{i} (tint_color): slot f8 = {rec[8]} but only 0 day / "
+                            f"1 evening / 2 night exist; Map_LoadById indexes the tint array "
+                            f"with f8 unchecked and writes past it (memory corruption)")
+            # flag ids: every reader adds f13 to the zone-2 base with no bound check
+            if mp.reads_flag(tid) and rec[13] != -1 and not 0 <= rec[13] < mp.MOBJ_FLAG_COUNT:
+                errs.append(f"MOBJ #{i} ({name}): flag f13 = {rec[13]} is not -1 or 0..2559; "
+                            f"the game adds it to the flag store's zone-2 base unchecked and "
+                            f"tests a bit past the 832-byte store (a garbage gate; a large "
+                            f"negative id reads a wild address and crashes)")
+            if tid == 44 and rec[9]:
+                off = (rec[9] & 0xFF) - 256 if rec[9] & 0x80 else rec[9] & 0xFF
+                if not -128 <= rec[9] <= 127:
+                    warns.append(f"MOBJ #{i} (chest): reveal offset f9 = {rec[9]} is kept as "
+                                 f"one signed byte ({off})")
+                if rec[13] != -1 and not 0 <= rec[13] + off < mp.MOBJ_FLAG_COUNT:
+                    errs.append(f"MOBJ #{i} (chest): its reveal flag f13 + f9 = "
+                                f"{rec[13] + off} is not 0..2559 (read past the flag store)")
+            if tid == 263 and rec[13] < 0:
+                errs.append(f"MOBJ #{i} ({name}): found flag f13 = {rec[13]}; this type has no "
+                            f"'no flag' value -- it reads the id as a signed 16-bit number, so "
+                            f"-1 tests the last zone-1 story bit. Give it a real id 0..2559")
+            if mobj_types.mobj_kind(tid) == "object" and tid != 263 and rec[12] & 4 and rec[13] <= 0:
+                warns.append(f"MOBJ #{i} ({name}): inverted flag gate (f12 bit 4) with no flag "
+                             f"(f13 = {rec[13]}): the game draws it but never stamps its "
+                             f"collision")
+            if tid <= 8:
+                forage += 1
+                r = rec[9]
+                if (rec[14] - r < 0 or rec[15] - r < 0 or rec[14] + r >= 2048
+                        or rec[15] + r >= 1024):
+                    errs.append(f"MOBJ #{i} ({name}): position ({rec[14]}, {rec[15]}) with "
+                                f"scatter {r} does not fit the forage registry's packed "
+                                f"coordinates (x 0..2047, y 0..1023 sub-units): the spawned "
+                                f"item lands at a wrapped position")
+                if tid == 0 and rec[11] == 0:
+                    if (rec[10] & 63) >= mp.MAPORE_RATE_ROWS:
+                        errs.append(f"MOBJ #{i} ({name}): ore config f10 = {rec[10]} (the "
+                                    f"game uses f10 & 63 = {rec[10] & 63}) is past the "
+                                    f"{mp.MAPORE_RATE_ROWS} rows of MapOre_Rate (reads "
+                                    f"unrelated data)")
+                    elif not 0 <= rec[10] <= 63:
+                        warns.append(f"MOBJ #{i} ({name}): ore config f10 = {rec[10]} keeps "
+                                     f"only its low 6 bits ({rec[10] & 63})")
+            if 82 <= tid <= 195:
+                doors += 1
+                if rec[13] == 0:
+                    warns.append(f"MOBJ #{i} ({name}): toggle flag f13 = 0 leaves its "
+                                 f"collision-registry slot free, so the next door / wall "
+                                 f"overwrites it")
+            fl = mp.one_shot_flag(rec)
+            if fl is not None:
+                owners.setdefault(fl, []).append(i)
+            if (has_grid and tid in self._REACHED_TYPES
+                    and not (0 <= rec[14] >> 3 < W and 0 <= rec[15] >> 3 < H)):
+                warns.append(f"MOBJ #{i} ({name}) at tile ({rec[14] >> 3},{rec[15] >> 3}) is "
+                             f"outside the {W}x{H} grid: the player can never reach it")
+        if forage > mp.FORAGE_MAX_SPAWNS:
+            errs.append(f"{forage} forage spawners (types 0..8): the game spawns at most "
+                        f"{mp.FORAGE_MAX_SPAWNS} per map, the rest never appear")
+        if doors > mp.DOOR_SLOTS:
+            warns.append(f"{doors} door / road / wall objects (types 82..195): the collision "
+                         f"registry has {mp.DOOR_SLOTS} slots, so the 5th and later ones get "
+                         f"none and toggle door #0's collision with door #0's flag instead")
+        for fl, idx in owners.items():
+            if len(idx) < 2:
+                continue
+            for i in idx:
+                others = ", ".join(f"#{j} ({mp.ONE_SHOT_FLAG_TYPES[recs[j][0] & 0xFFFF]})"
+                                   for j in idx if j != i)
+                warns.append(f"MOBJ #{i} ({mp.ONE_SHOT_FLAG_TYPES[recs[i][0] & 0xFFFF]}) "
+                             f"shares its one-shot flag {fl} with {others}: whichever is used "
+                             f"first sets it for all of them")
+        return errs, warns
 
     def _atlas_findings(self, W: int, H: int, ground_reader=None, map_name=None):
         """(errors, warnings) comparing the ground atlas to a W x H ATTR grid.

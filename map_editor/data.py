@@ -348,11 +348,76 @@ def map_summaries():
                           if (r[0] & 0xFFFF) == 44]
                 g = m.attr_grid()
                 hit = (key, (m.mgrp(), chests, (g[0], g[1]) if g else None))
+                _MAP_FLAGS[p.stem] = _flag_uses(m.mobj_records(), m.mapj_records())
             except Exception:  # noqa: BLE001 - a damaged map: left out
                 hit = (key, (None, [], None))
+                _MAP_FLAGS[p.stem] = (set(), [])
             _MAP_SUMMARY[str(p)] = hit
         out[p.stem] = hit[1]
     return out
+
+
+_MAP_FLAGS = {}         # MAP_* stem -> (zone-2 ids its objects / warps use, one-shot owners)
+
+
+def _flag_uses(recs, mapj=()):
+    """({every zone-2 id the records and warps use}, [(index, type, one-shot flag)])."""
+    from rf4s_modkit import mobj_params
+    used, owners = set(), []
+    for i, r in enumerate(recs):
+        tid = r[0] & 0xFFFF
+        if mobj_params.reads_flag(tid) and 0 <= r[13] < mobj_params.MOBJ_FLAG_COUNT:
+            used.add(r[13])
+            if tid == 44 and r[9] & 0xFF:                    # the chest's reveal flag
+                used.add(r[13] + ((r[9] & 0xFF) - 256 if r[9] & 0x80 else r[9] & 0xFF))
+        fl = mobj_params.one_shot_flag(r)
+        if fl is not None:
+            owners.append((i, tid, fl))
+    for w in mapj:
+        if 0 <= w[0] < mobj_params.MOBJ_FLAG_COUNT:
+            used.add(w[0])
+    return used, owners
+
+
+def map_flag_uses():
+    """{MAP_* stem: (zone-2 ids used, [(index, type, one-shot flag)])} for every map in the
+    game folder (read with map_summaries)."""
+    stems = set(map_summaries())
+    return {k: v for k, v in _MAP_FLAGS.items() if k in stems}
+
+
+def fresh_flag(recs, mapj, rec, new=False):
+    """(new f13, note) for a duplicated / pasted record whose one-shot flag must not be
+    shared -- or, `new`, for a record the Add tool creates: the lowest id of the block the
+    old flag belongs to (the type's block for a new record, mobj_params.DEFAULT_FLAG_BLOCK)
+    that no object or warp uses here (`recs` / `mapj`, unsaved edits included), in this
+    map's seasonal copies or on any other map of the game folder. (None, why) when the type
+    cannot take just any id (mobj_params.FRESH_FLAG_TYPES), the record has no flag, or the
+    block is full. Event scripts are not searched."""
+    from rf4s_modkit import mobj_params
+    tid = rec[0] & 0xFFFF
+    old = rec[13]
+    if new:
+        block = mobj_params.flag_block(None, tid)
+        if block is None:
+            return None, "has no flag of its own"
+    else:
+        if tid not in mobj_params.FRESH_FLAG_TYPES:
+            return None, f"keeps its flag {old}"
+        if tid == 44 and rec[9] & 0xFF:
+            return None, f"keeps its flag {old} (its reveal flag is f13 + f9)"
+        if old in (-1, 0):
+            return None, "has no flag"
+        block = mobj_params.flag_block(old, tid)
+        if block is None:
+            return None, f"keeps its flag {old} (not in a known flag block)"
+    used, _own = _flag_uses(recs, mapj)
+    for _stem, (u, _o) in map_flag_uses().items():
+        used |= u
+    for f in range(block[0], block[1] + 1):
+        if f not in used:
+            return f, f"got the unused flag {f}"
+    return None, f"keeps its flag: every id {block[0]}..{block[1]} is in use"
 
 
 def sibling_zones(name):
@@ -372,45 +437,61 @@ def sibling_zones(name):
 
 
 def chest_problems(name, recs):
-    """[(severity, entity index, message)] for the treasure chests (MOBJ 44) in `recs` (this
-    map's records, unsaved edits included): no collected flag, a flag shared with another
-    chest -- here, or on another map of the game folder (seasonal copies of this map share
-    theirs on purpose) -- an empty loot row, a row past the table."""
+    """[(severity, entity index, message)] for the flag-owning objects in `recs` (this map's
+    records, unsaved edits included): a chest with no collected flag, a chest waiting for a
+    reveal flag nothing on the map sets (INFO), a one-shot flag (mobj_params.
+    ONE_SHOT_FLAG_TYPES) another map of the game folder uses too (seasonal copies of this map
+    share theirs on purpose; flags shared within this map are rf4m.validate's), an empty loot
+    row, a row past the table."""
+    from rf4s_modkit import mobj_params
     out = []
-    mine = [(i, r[13], r[8]) for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44]
-    if not mine:
-        return out
     base = SEASON_RE.sub("", map_base(name)).upper() if name else None
-    others = {}
-    for stem, (_mg, chests, _wh) in map_summaries().items():
-        if base is not None and SEASON_RE.sub("", stem).upper() == base:
+    _used, mine = _flag_uses(recs)
+    if mine:
+        others = {}
+        for stem, (_u, owners) in map_flag_uses().items():
+            if base is not None and SEASON_RE.sub("", stem).upper() == base:
+                continue
+            fam = SEASON_RE.sub("", stem).upper()
+            for j, t, flag in owners:             # one entry per map family (seasons share)
+                others.setdefault(flag, {}).setdefault(
+                    (fam, j), f"{stem} #{j} ({mobj_params.ONE_SHOT_FLAG_TYPES[t]})")
+        others = {fl: sorted(v.values()) for fl, v in others.items()}
+        for i, t, flag in mine:
+            if flag in others:
+                what = mobj_params.ONE_SHOT_FLAG_TYPES[t]
+                out.append(("WARN", i, f"{what} #{i} shares its one-shot flag {flag} with "
+                                       + ", ".join(others[flag][:3])
+                                       + (" ..." if len(others[flag]) > 3 else "")
+                                       + ": whichever is used first sets it for all of them"))
+    for i, r in enumerate(recs):
+        if (r[0] & 0xFFFF) != 44:
             continue
-        for j, flag, _row in chests:
-            if flag != -1:
-                others.setdefault(flag, []).append(f"{stem} #{j}")
-    here = {}
-    for i, flag, _row in mine:
-        here.setdefault(flag, []).append(i)
-    for i, flag, row in mine:
+        flag, row = r[13], r[8]
         if flag == -1:
             out.append(("WARN", i, f"chest #{i} has no collected flag (f13 = -1): the game never "
                                    f"removes it, so it is back with the same loot on every visit"))
-        else:
-            twins = [j for j in here[flag] if j != i]
-            if twins:
-                out.append(("WARN", i, f"chest #{i} shares its collected flag {flag} with chest "
-                                       + ", ".join(f"#{j}" for j in twins)
-                                       + " on this map: opening one removes the other"))
-            if flag in others:
-                out.append(("WARN", i, f"chest #{i} shares its collected flag {flag} with "
-                                       + ", ".join(others[flag][:3])
-                                       + ": opening either chest removes the other"))
         if row >= chestloot.ROWS:
             out.append(("WARN", i, f"chest #{i}: loot row {row} is past the {chestloot.ROWS}-row "
                                    f"chest table -- the game reads unrelated data as its items"))
         elif row < 0 or not any(item for item, _v in (chestloot.row(row) or [])):
             out.append(("INFO", i, f"chest #{i} gives nothing (loot row {row} is empty)"))
     return out
+
+
+def chest_reveal(rec, recs):
+    """For a chest with a reveal offset: 'appears once flag N is set (the room-clear flag of
+    #j seal door)' -- which object on the map sets it, or that none does. None otherwise."""
+    from rf4s_modkit import mobj_params
+    if rec is None or (rec[0] & 0xFFFF) != 44 or not rec[9] & 0xFF:
+        return None
+    off = (rec[9] & 0xFF) - 256 if rec[9] & 0x80 else rec[9] & 0xFF
+    fl = rec[13] + off
+    setters = [f"#{j} ({mobj_params.ONE_SHOT_FLAG_TYPES.get(r[0] & 0xFFFF) or mobj_params.param_name(r[0], 13)})"
+               for j, r in enumerate(recs) if r[13] == fl and (r[0] & 0xFFFF) != 44]
+    who = (("set by " + ", ".join(setters[:3])) if setters
+           else "nothing on this map sets it (an event script may)")
+    return f"Hidden until flag {fl} (f13 + f9) is set, then it appears: {who}"
 
 
 def crate_loot(rec, mgrp):

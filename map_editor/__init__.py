@@ -26,15 +26,16 @@ _HERE = str(_pl.Path(__file__).resolve().parent.parent)
 if _HERE not in _sys.path:
     _sys.path.insert(0, _HERE)
 
-from .attrs import (ATTR_BIT_HELP, KNOWN_ATTR_VALUES, PAINT_FLAGS, SURFACE_CHOICES,  # noqa: E402,F401
-                    SURFACE_FIELD, attr_bit_help, attr_notes, surface_help)
+from .attrs import (ATTR_BIT_HELP, KNOWN_ATTR_VALUES, PAINT_FLAGS, STAIR_CHOICES,  # noqa: E402,F401
+                    STAIR_FIELD, SURFACE_CHOICES, SURFACE_FIELD, attr_bit_help, attr_notes,
+                    stairs_help, surface_help)
 from .data import (extracted_index, find_extracted, gen_file_for_map, load_rooms,  # noqa: E402,F401
                    si_file_for_map)
 from .panel import MapEditorPanel  # noqa: E402,F401
 from .app import MapExplorer, main  # noqa: E402,F401
 
-__all__ = ["ATTR_BIT_HELP", "KNOWN_ATTR_VALUES", "PAINT_FLAGS", "SURFACE_CHOICES", "SURFACE_FIELD",
-           "attr_bit_help", "attr_notes", "surface_help", "extracted_index", "find_extracted",
+__all__ = ["ATTR_BIT_HELP", "KNOWN_ATTR_VALUES", "PAINT_FLAGS", "STAIR_CHOICES", "STAIR_FIELD",
+           "SURFACE_CHOICES", "SURFACE_FIELD", "attr_bit_help", "attr_notes", "stairs_help", "surface_help", "extracted_index", "find_extracted",
            "gen_file_for_map", "load_rooms", "si_file_for_map", "MapEditorPanel", "MapExplorer",
            "main", "warm_caches"]
 

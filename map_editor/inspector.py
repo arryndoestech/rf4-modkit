@@ -172,10 +172,8 @@ class EntityForm(Form):
         for extra in (loot, crate):
             if extra:
                 lab += "\n" + extra
-        if loot:                                # this chest's flag / row problems
-            for sev, j, msg in data.chest_problems(self.doc.base, self.doc.map.mobj_records()):
-                if j == i:
-                    lab += "\n" + ("ⓘ " if sev == "INFO" else "⚠ ") + msg
+        for extra in self._object_notes(i, rec):
+            lab += "\n" + extra
         self.type_label.config(text=lab)
         raw = self.raw.get()
         if mapparam or raw:
@@ -213,7 +211,7 @@ class EntityForm(Form):
             lab_w.grid(row=r, column=0, sticky="w", padx=(0, 6))
             ent.grid(row=r, column=1, sticky="w", pady=1)
             eff = rec[fi] & ((1 << (8 * sz)) - 1)
-            var.set(str(eff if sz < 4 else rec[fi]))
+            var.set(str(rec[fi]))               # the whole stored value (typed as a full i32)
             head = f"word {fi}" + (f", read as {mobj_params.SIZE_NAME[sz]}" if sz != 4 else "")
             note = self._note(tid, fi, sz, m, eff, rec)
             self._meanings[fi] = head + ("\n" + note if note else "\n(the game doesn't read it)")
@@ -224,35 +222,63 @@ class EntityForm(Form):
             inter = ""
         self.role.config(text="\n".join(x for x in (role, f"interaction: {inter}" if inter else "", only) if x))
 
+    def _object_notes(self, i, rec):
+        """Lines under the type label: this entity's problems (chest / one-shot flag checks,
+        the map validator's lines about it) and what the game does with it that its fields
+        alone do not say."""
+        tid = rec[0] & 0xFFFF
+        recs = self.doc.map.mobj_records()
+        out = []
+        rv = data.chest_reveal(rec, recs)
+        if rv:
+            out.append(rv)
+        if tid == 47 and rec[14] <= 0:
+            out.append("Hidden controller (X <= 0): no barrier and nothing shown -- it only sets "
+                       "its flag when the room is cleared")
+        if 196 <= tid <= 335 and tid != 263 and rec[11]:
+            out.append(f"No collision template: a solid box of {(rec[9] >> 4) * 2 + 1 if rec[9] else 1}"
+                       f" x {(rec[10] >> 4) * 2 + 1 if rec[10] else 1} tiles is stamped "
+                       + ("around it" if rec[9] and rec[10] else "at the map's column / row 0 "
+                          "(f9 / f10 = 0)") + ", even while it is hidden")
+        for sev, j, msg in data.chest_problems(self.doc.base, recs):
+            if j == i:
+                out.append(("ⓘ " if sev == "INFO" else "⚠ ") + msg)
+        g = self.doc.grid
+        errs, warns = self.doc.map._entity_findings(g[0] if g else 0, g[1] if g else 0, bool(g))
+        tag = f"MOBJ #{i} "
+        for mark, lines in (("⛔ ", errs), ("⚠ ", warns)):
+            out += [mark + x[len(tag):] for x in lines if x.startswith(tag)]
+        return out
+
     def _note(self, tid, fi, sz, meaning, eff, rec):
         """What a field's value means: its description, flag names, ore config, and the
         other entities wired to the same flag."""
         parts = [meaning] if meaning else []
+        if fi == 13 and mobj_params.reads_flag(tid):
+            parts.append("valid: -1 (none) or 0..2559")
         if tid == 0 and fi == 10:
             cfg = data.ore_configs(self.ed.tex_reader)
+            parts.append(f"valid: 0..{mobj_params.MAPORE_RATE_ROWS - 1} (the game keeps f10 & 63)")
+            eff &= 63
             if 0 <= eff < len(cfg):
                 kind, _d, _s, iw, rare = cfg[eff]
                 ores = ", ".join(f"{data.item_name(it) or it}({w})" for it, w in iw if it)
                 parts.append(f"= kind {kind}: {ores or 'empty row'}"
                              + (f", rare {data.item_name(rare) or rare}" if rare else ""))
-        if "flag" in meaning.lower() and eff not in (0, 0xFFFF):
-            fl = mobj_params.flag_label(eff)
+        val = rec[fi]
+        if fi == 13 and "flag" in meaning.lower() and val not in (0, -1):
+            fl = mobj_params.flag_label(val)
             if fl:
                 parts.append(f"= {fl}")
             shared = []
             recs = self.doc.map.mobj_records()
             for oi, orec in enumerate(recs):
-                if oi == self.key[1]:
-                    continue
-                otid = orec[0] & 0xFFFF
-                for pf, _ps, pm in mobj_params.params_for(otid):
-                    if pf == 13 and "flag" in pm.lower() and (orec[13] & 0xFFFF) == eff:
-                        shared.append(f"#{oi}")
-                        break
+                if oi != self.key[1] and mobj_params.reads_flag(orec[0]) and orec[13] == val:
+                    shared.append(f"#{oi}")
             if shared:
                 parts.append("same flag: " + ", ".join(shared[:6]))
-        if (rec[fi] & 0xFFFFFFFF) != eff:
-            parts.append(f"(raw 0x{rec[fi] & 0xFFFFFFFF:X}, low {mobj_params.SIZE_NAME[sz]} used)")
+        if sz < 4 and (val & 0xFFFFFFFF) != eff:
+            parts.append(f"(the game reads only the low {mobj_params.SIZE_NAME[sz]}: {eff})")
         return "\n".join(parts)
 
     def _fmt(self, fi, raw):
@@ -271,6 +297,8 @@ class EntityForm(Form):
         x, y = ui.to_int(self.vx.get()), ui.to_int(self.vy.get())
         if rec is None or x is None or y is None or (x, y) == (rec[14], rec[15]):
             return
+        if (rec[0] & 0xFFFF) == 52:             # the knock-back target moves with the vent
+            rec[8], rec[9] = rec[8] + x - rec[14], rec[9] + y - rec[15]
         rec[14], rec[15] = x, y
         self._set(rec, f"Move entity #{self.key[1]}")
 
@@ -298,14 +326,9 @@ class EntityForm(Form):
         v = ui.to_int(self.rows[fi][2].get())
         if v is None:
             return
-        tid = rec[0] & 0xFFFF
-        sz = mobj_params.field_size(tid, fi) if not self.raw.get() else 4
-        sz = sz or 4
-        if sz < 4:
-            mask = (1 << (8 * sz)) - 1
-            new = (rec[fi] & ~mask) | (v & mask)
-        else:
-            new = v
+        # stored as typed, as a whole signed dword: keeping the old high bits of a narrow
+        # field turned -1 over 500 into 65535, and 500 over -1 into -65036
+        new = max(-0x80000000, min(0x7FFFFFFF, v))
         if new == rec[fi]:
             return
         rec[fi] = new
@@ -693,7 +716,8 @@ class TileForm(Form):
             return
         v = d.cell(*t)
         self._val = v
-        self.tile.config(text=f"tile ({t[0]}, {t[1]})\nATTR 0x{v:X}\n{attrs.attr_notes(v)}")
+        self.tile.config(text=f"tile ({t[0]}, {t[1]})\nATTR 0x{v:X}\n{attrs.attr_notes(v)}\n"
+                              f"{attrs.walk_readout(v)}")
 
     def _use(self):
         if self._val is not None:
@@ -750,7 +774,13 @@ class PaintOptions(ttk.Frame):
         sc.pack(side="left", padx=4)
         sc.bind("<<ComboboxSelected>>", lambda _e: self._from_controls())
         ui.Tip(sc, attrs.surface_help())
-        hint(sr, "one at most", wrap=120).pack(side="left")
+        ttk.Label(sr, text="stairs").pack(side="left", padx=(6, 0))
+        self.vstair = tk.StringVar(value="(none)")
+        tc = ttk.Combobox(sr, textvariable=self.vstair, values=[c[0] for c in attrs.STAIR_CHOICES],
+                          width=10, state="readonly")
+        tc.pack(side="left", padx=4)
+        tc.bind("<<ComboboxSelected>>", lambda _e: self._from_controls())
+        ui.Tip(tc, attrs.stairs_help())
         pr = ttk.Frame(self)
         pr.pack(fill="x", pady=(3, 0))
         for label, v in attrs.PAINT_PRESETS:
@@ -781,7 +811,8 @@ class PaintOptions(ttk.Frame):
         for mask, bv in self.bits.items():
             bv.set(bool(value & mask))
         self.vsurf.set(attrs.surface_label(value))
-        self.decode.config(text=attrs.attr_notes(value))
+        self.vstair.set(attrs.stair_label(value))
+        self.decode.config(text=attrs.attr_notes(value) + "\n" + attrs.walk_readout(value))
         rgb = colors.get(value)
         self.swatch.config(bg="#%02x%02x%02x" % rgb if rgb else "#000000")
 
@@ -795,7 +826,7 @@ class PaintOptions(ttk.Frame):
     def _from_controls(self):
         cur = self.ed.paint_value or 0
         flags = {m for m, bv in self.bits.items() if bv.get()}
-        self.ed.set_paint_value(attrs.compose_value(cur, flags, self.vsurf.get()))
+        self.ed.set_paint_value(attrs.compose_value(cur, flags, self.vsurf.get(), self.vstair.get()))
 
     def fill_values(self, doc, colors):
         """The value table for `doc` (rebuilt only when the grid changed)."""
