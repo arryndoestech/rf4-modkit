@@ -114,17 +114,17 @@ ENTRY_TYPES = {
         "notes": "The IDB name says 'hit filter' but field_54 is the current map id: the same '& ~3 below 0x40' canonicalisation Npc_OnTalkAction_QueueDialogueCascade applies to map ids, and the corpus keys are maps (64 Castle: Dragon Room, 65 Your Room, 66 Butler's Room ...). A -1 entry writes the event id but the scan continues, so an exact match later in the list overrides it.",
     },
     2: {
-        "name": "ActorKindScene",
-        "summary": "Scene keyed by an actor kind id (map objects / special actors); probed in the tail bank, then the primary bank, then the global bank.",
+        "name": "ActorInteractScene",
+        "summary": "Scene run when the player interacts with a spawned event actor (keyed by its EVENT KEY, the SpawnEventActor key) or with an unregistered special actor of id >= 254 (keyed by its id); probed in the tail bank, then the primary bank, then the global bank.",
         "bank": "tail (slot 2), primary (slot 1), global (slot 0) - probed in that order by NpcAi_ResolveMonsterBehavior",
         "keys": [
-            {"index": "0+", "name": "actor_kind", "meaning": "actor kind id (actor +8) of the thing interacted with, or the event descriptor's target word (+6) in NpcAi_TickEventMovementOrFinalize", "wildcard": False},
+            {"index": "0+", "name": "key", "meaning": "the interacted actor's event key when it is a registered event actor (CalendarEvent_GetKeyOfActor RF4S.exe+0x1D3540), else its id (actor +8); for NpcAi_TickEventMovementOrFinalize the event descriptor's word +6", "wildcard": False},
         ],
         "select": "first",
         "consumer": "NpcAi_ApplyMovement with the slot that matched (NpcAi_ResolveMonsterBehavior RF4S.exe+0x1F9610 returns the slot in *a3); NpcAi_TickEventMovementOrFinalize (RF4S.exe+0x1F3070) kicks slot 2 directly",
         "matcher": "NpcAi_FindActionEntryByTargetForType2 (RF4S.exe+0x221EC0)",
-        "confidence": "likely",
-        "notes": "Called for actors with kind >= 0xFE or status-blocked monsters (NpcAi_TickOne RF4S.exe+0x1F6930); kind 400 additionally routes through a type-27 lookup in bank 210. Corpus keys 100..2435 (global bank: 2373..2388) are not map or NPC ids; the exact id space is the actor '+8' kind field.",
+        "confidence": "verified",
+        "notes": "NpcAi_TickOne (RF4S.exe+0x1F6930) sends registered event actors (CalendarEvent_FindRecordByActor RF4S.exe+0x1D35C0 finds their g_calendarEventMng record; wild ones are refused earlier by the talk gate, see op 181 TurnEventActorIntoNpc) and actors of id >= 0xFE to NpcAi_ResolveMonsterBehavior (+0x1F9610), which takes the key described above; key 400 additionally routes through a type-27 lookup in bank 210. Verified 2026-09-28 in game: an event actor spawned with key 1000 in the Dragon Room runs tail bank 308's type-2 entry keyed 1000, one with key 200 (no entry) runs nothing. Corrected 2026-09-28: this was read as an 'actor kind id'.",
     },
     3: {
         "name": "PlayerRegionTrigger",
@@ -239,7 +239,7 @@ ENTRY_TYPES = {
     },
     13: {
         "name": "MonsterInteract",
-        "summary": "Global scene for interacting with an ordinary monster/pet actor (kind 0x30..0xFD, not status-blocked).",
+        "summary": "Global scene for interacting with an ordinary monster/pet actor (id 0x30..0xFD) that is not a spawned event actor (event actors use type 2, keyed by their event key).",
         "bank": "global (slot 0)",
         "keys": [],
         "select": "first",

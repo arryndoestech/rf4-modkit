@@ -15194,7 +15194,7 @@
     "pc": "0x0176",
     "lines": [
      "    SpawnEventActor(149, 216, 0, 0, 90)",
-     "    DisableEventActorCombat(216)",
+     "    TurnEventActorIntoNpc(216)",
      "    PlayEventActorAnim(216, 11, 0)",
      "    SkipEventActorAnimToEnd(216)    ; <--",
      "    SpawnEventActor(149, 216, reg0, reg1, 90)",
@@ -15692,7 +15692,7 @@
    "description": "Put a spawned event actor back into its idle state and idle animation, e.g. right after spawning or after a scripted pose.",
    "details": "Key lookup in g_calendarEventMng; on a hit with an actor: Actor_EnterIdleState_LoadAnimArchiveByEntityType(actor) (+0x163220), return 0. Returns 1 (retry) while the key is missing or has no actor; with an empty table returns 1 too.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x214DA0; corpus: 13 uses, all (key, 1), after SpawnEventActor/DisableEventActorCombat.",
+   "evidence": "RF4S.exe+0x214DA0; corpus: 13 uses, all (key, 1), after SpawnEventActor/TurnEventActorIntoNpc.",
    "alias_of": null,
    "handler": "ScriptVMOp_EnterActorIdleStateByCalendarEventKey",
    "handler_rva": "0x214DA0",
@@ -15716,10 +15716,10 @@
     "lines": [
      "L_013c:",
      "    SpawnEventActor(111, 100, 116, 210, 90)",
-     "    DisableEventActorCombat(100)",
+     "    TurnEventActorIntoNpc(100)",
      "    ResetEventActorToIdle(100, 1)    ; <--",
      "    SpawnEventActor(111, 101, 110, 230, 90)",
-     "    DisableEventActorCombat(101)",
+     "    TurnEventActorIntoNpc(101)",
      "    ResetEventActorToIdle(101, 1)"
     ]
    }
@@ -15896,10 +15896,10 @@
   "181": {
    "op": 181,
    "op_hex": "0x0B5",
-   "mnemonic": "DisableEventActorCombat",
+   "mnemonic": "TurnEventActorIntoNpc",
    "previous_mnemonic": "DismissEventActor",
    "category": "actor",
-   "prototype": "DisableEventActorCombat(event_key)",
+   "prototype": "TurnEventActorIntoNpc(event_key)",
    "args": [
     {
      "name": "event_key",
@@ -15912,12 +15912,12 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "yes: until an event actor with that key exists",
-   "description": "Make a spawned event actor stop fighting altogether and stay where it is: it no longer attacks the player, does not hit back when attacked and does not attack other monsters, but it keeps its idle animation. It is NOT removed and does not have to be in the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.",
+   "description": "Turn a spawned event actor into a peaceful, talkable NPC-like prop: it stops fighting altogether (no attacks on the player, no retaliation when hit, no attacks on other monsters), keeps its idle animation and stays where it is, and the player can now interact with it. Which scene talking runs is chosen by the actor's EVENT KEY: the type-2 entry with that key in the map's tail bank, then the primary bank, then the global bank (no entry = nothing happens). It is NOT removed, gets no villager features (schedule, gifts, friendship) and does not join the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.",
    "details": "RF4S.exe+0x215100: finds the g_calendarEventMng record by key (returns 1 = the statement waits while none exists); unless actor+16 bit 2 is already set (the reset's own mark, so a second call does nothing) it runs Actor_ResetToTameAndLeaveParty (+0x15B0F0), a general 'tame, not in the party' reset whose party-slot removal only happens when actor+16 bit 0x200 (party member) is set. For every actor it: sets actor+16 bit 2 and clears bits 0x4 (WILD monster: Actor_RecomputeAllStats uses it for the wild model and kill XP; the talk gate in Player_TickFieldInteraction refuses actors with it) and 0x200; rewrites control flags (clears 0x80 / 0x40000, sets 0x100, plus 0x10 | 0x400 for ids < 48); sets the collision volume bytes +0x8A/+0x8B = 4/5 and the attack-info bytes +0x8A/+0x8B = 8/1; recomputes stats (ids < 48 also lose their AI buffers and get full HP). The op then decrements the event manager's companion counter (dword 321, floor 0), sets task work+40 bit 0x40000000 and clears control flag 0x100. Which of these writes stops the attacks exactly was not traced: the monster AI hunts the party only while its AI-context flag 8 is set (Monster_PickClosestVisibleTargetFromParty +0x1C6A70), and no writer of that flag was found in this pass.",
-   "side_effects": "clears the wild-monster bit and resets the hit/collision group bytes; decrements the event manager's companion counter",
-   "evidence": "RF4S.exe+0x215100 and Actor_ResetToTameAndLeaveParty (+0x15B0F0), decompiled 2026-09-28; corpus: 23 uses, every one directly after SpawnEventActor with the actor used afterwards (bank 216 MountActor, bank 215 SetEventActorAlpha, bank 68); checked in game 2026-09-28 by the user: without it a spawned Ventuswill (char 235) attacks the player, with it she stays put, keeps idling, can be hit but never hits back, and ignores wild monsters.",
+   "side_effects": "clears the wild-monster bit (the talk gate then lets the player interact; the event key selects the type-2 scene) and resets the hit/collision group bytes; decrements the event manager's companion counter",
+   "evidence": "RF4S.exe+0x215100 and Actor_ResetToTameAndLeaveParty (+0x15B0F0), decompiled 2026-09-28; corpus: 23 uses, every one directly after SpawnEventActor with the actor used afterwards (bank 216 MountActor, bank 215 SetEventActorAlpha, bank 68); checked in game 2026-09-28 by the user: without it a spawned Ventuswill (char 235) attacks the player, with it she stays put, keeps idling, can be hit but never hits back, ignores wild monsters, and can be interacted with. The talk gate in Player_TickFieldInteraction refuses actors with actor+16 bit 0x4, which this op clears; for a registered event actor NpcAi_TickOne goes to NpcAi_ResolveMonsterBehavior (+0x1F9610), which looks up the type-2 entry keyed by the actor's event key (CalendarEvent_GetKeyOfActor +0x1D3540): in the user's test, key 1000 in the Dragon Room tail bank (308) runs @0x748a, key 200 has no entry and nothing happens.",
    "alias_of": null,
-   "handler": "ScriptVMOp_DisableEventActorCombat",
+   "handler": "ScriptVMOp_TurnEventActorIntoNpc",
    "handler_rva": "0x215100",
    "shares_handler_with": [],
    "size": [
@@ -15931,7 +15931,7 @@
    },
    "confidence": "high",
    "notes": "Corrected 2026-09-28 twice: it does not remove the actor (the 2026-09-27 review read task bit 0x40000000 as 'dispose'), and it is not limited to party companions — the routine's party removal is conditional; for a non-party monster the effect is losing the wild bit. The old note 'the player cannot be dismissed' rested on actor+16 bit 2, which is the reset's own mark.",
-   "change_reason": "2026-09-28, user's choice after in-game tests: the op does not dismiss or remove the actor; it switches off its combat (no attacks, no retaliation, no fighting other monsters) while it keeps idling. Was DismissEventActor.",
+   "change_reason": "2026-09-28, user's choice after in-game tests: the op neither dismisses nor removes the actor; it makes it a peaceful, talkable prop. Was DismissEventActor, then briefly DisableEventActorCombat.",
    "human_verified": true,
    "example": {
     "bank": 809,
@@ -15940,10 +15940,10 @@
      "    RET",
      "L_013c:",
      "    SpawnEventActor(111, 100, 116, 210, 90)",
-     "    DisableEventActorCombat(100)    ; <--",
+     "    TurnEventActorIntoNpc(100)    ; <--",
      "    ResetEventActorToIdle(100, 1)",
      "    SpawnEventActor(111, 101, 110, 230, 90)",
-     "    DisableEventActorCombat(101)"
+     "    TurnEventActorIntoNpc(101)"
     ]
    }
   },
@@ -21848,7 +21848,7 @@
     "pc": "0x0EE6",
     "lines": [
      "    SpawnEventActor(235, 200, -120, -120, 90)",
-     "    DisableEventActorCombat(200)",
+     "    TurnEventActorIntoNpc(200)",
      "    Wait(100)",
      "    MountActor(0, 200)    ; <--",
      "    MoveActorByOffsetFaceTravel(actor(player), reg8, reg9, 135, 1)",
@@ -26588,7 +26588,7 @@
      "    FadeScreenToClear(6000)",
      "    SetSceneStateBit1()    ; <--",
      "    SpawnEventActor(235, 200, -120, -120, 90)",
-     "    DisableEventActorCombat(200)",
+     "    TurnEventActorIntoNpc(200)",
      "    Wait(100)"
     ]
    }
@@ -42224,7 +42224,7 @@
      "L_0154:",
      "    GetSceneWordPair112()    ; <--",
      "    SpawnEventActor(149, 216, 0, 0, 90)",
-     "    DisableEventActorCombat(216)",
+     "    TurnEventActorIntoNpc(216)",
      "    PlayEventActorAnim(216, 11, 0)"
     ]
    }

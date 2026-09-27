@@ -180,7 +180,7 @@
  "178": "ScriptVMOp_SetCalendarEventActorTargetFacingDegrees",
  "179": "ScriptVMOp_QueryCalendarEventActorStillTurningTowardTarget",
  "180": "ScriptVMOp_CalendarEvent_KillActorWithDeathAnimAndKnockback",
- "181": "ScriptVMOp_DisableEventActorCombat",
+ "181": "ScriptVMOp_TurnEventActorIntoNpc",
  "182": "ScriptVMOp_QueryCalendarEventActorWorldXY_Tiles",
  "183": "ScriptVM_Op_SetEntityLevelAndSpawnMonster",
  "184": "ScriptVMOp_SetActorOrEventActorStatusEquipBit10000000",
