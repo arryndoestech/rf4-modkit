@@ -1,9 +1,31 @@
 """
 bankrelink.py -- rebuild an rf3.mc bank from a parsed model, recomputing every address.
 
-The editor's inserts append new code and trampoline into it; this module is the other
-way: parse the whole bank into a model, let edits change the model, and lay the bank out
-again from scratch, so every code address and expression offset is recomputed.
+Every structural script edit goes through here (script.Container._relink: the cutscene
+editor, the `rf4mod script` commands): parse the whole bank into a model, let the edit
+change the model, and lay the bank out again from scratch, so every code address and
+expression offset is recomputed and the edit sits in place -- no code appended after the
+pool, no jumps written over statements, no dead copies left behind. Edit results are
+reported as pcs in the rebuilt bank (BankModel.pc_of / pc_map).
+
+Older toolkit versions edited by TRAMPOLINING (append [new code][copy of the displaced
+statement][JMP back] at the bank's end and overwrite the statement with a JMP there;
+"delete" = a JMP over the statement; wider operands / new entry lists appended and
+repointed). Such a bank is not in the layout below, so BankModel.parse_any() reads it
+with parse_flow() (only what the engine can reach) and fold() moves every appended block
+back in place of its JMP; the rebuild is in the compiler layout again and executes the
+same (flow_signature() equal for every entry). Verified 2026-09-27: parse_flow + fold on
+all 1121 shipped banks folds nothing, keeps every entry's flow signature, and only drops
+15,250 bytes of unreachable code; on banks trampolined by the previous toolkit (insert
+before / after, nested insert, delete, rewrite, operand repoint, new entry) it folds
+exactly the trampolines and every entry's signature is unchanged.
+
+Limits (statically verified in RF4S.exe 2026-09-27, see script.Container._sync_max_bank_size):
+a bank is addressed with u16 offsets (Script_VMStep RF4S.exe+0x23EF60 reads the opcode at
+buf[LOWORD(pc)] and every target / operand offset with read_u16), so it cannot pass 64 KB;
+the engine's per-kind load buffer is sized from header words 4 / 12 / 13 once per session
+(MycfBankSlot_Create RF4S.exe+0x23F950) and filled without a bounds check
+(MycfBankSlot_LoadBank RF4S.exe+0x23F9C0), so every rebuild raises those words.
 
 Bank layout (all 1121 shipped banks):
 
@@ -36,6 +58,13 @@ import struct
 from . import script
 
 LEAF_TAGS = (3, 4, 5, 0x11, 0x12, 0x13)          # = scriptasm.LEAF_TAGS
+BANK_BYTES = 0x10000                              # = script.BANK_ADDRESS_LIMIT (u16 addressing)
+
+
+def too_big(n):
+    return ("the bank would be %d bytes; a bank is addressed with 16-bit offsets (Script_VMStep "
+            "RF4S.exe+0x23EF60), so it cannot pass 64 KB (%d bytes) -- edit in place, or move content "
+            "to a scene in a smaller bank" % (n, BANK_BYTES))
 
 
 class RelinkError(script.ScriptError):
@@ -459,7 +488,7 @@ class BankModel:
             raw = bytes(st.code)
             where = "line %d" % st.line_no if st is not term else "the terminator"
             if st.text.startswith(".raw"):
-                out.append(Raw(key, raw))
+                out += self._raw_items(raw, key, valid)
                 continue
             dec = script.decode_statement(raw, 0)
             if dec is None or dec.size != len(raw):
@@ -505,6 +534,34 @@ class BankModel:
                     else:
                         raise RelinkError("%s: expected an operand" % where)
             out.append(Stmt(key, raw, dec.op, flds, tg, ex, _falls(dec)))
+        return out
+
+    def _raw_items(self, raw, key, valid):
+        """A `.raw` line: when its bytes are whole statements, they become statements whose
+        address fields are read as this bank's pcs / operand offsets (so they relink like
+        any other); otherwise the bytes are carried verbatim (they must not hold addresses)."""
+        out, pc, k = [], 0, key
+        while pc < len(raw):
+            st = script.decode_statement(raw, pc)
+            if st is None or pc + st.size > len(raw):
+                return [Raw(key, raw)]
+            flds = fields(st)
+            tg, ex = [], []
+            for fo, kind in flds:
+                v = struct.unpack_from("<H", raw, pc + fo)[0]
+                if kind == "pc":
+                    v = self.resolve(v)
+                    if v not in valid:
+                        return [Raw(key, raw)]
+                    tg.append(v)
+                else:
+                    try:
+                        ex.append(self.src[v:v + expr_size(self.src, v)])
+                    except Exception:  # noqa: BLE001 - not an operand of this bank
+                        return [Raw(key, raw)]
+            out.append(Stmt(k, raw[pc:pc + st.size], st.op, flds, tg, ex, _falls(st)))
+            pc += st.size
+            k = self.new_key()
         return out
 
     # ---- edits ------------------------------------------------------------------------ #
@@ -653,13 +710,14 @@ class BankModel:
         for s in self.code:
             newpc[s.old_pc] = pc
             pc += len(s.raw)
-        if pc > 0xFFFF:
-            raise RelinkError("code runs past 64 KB")
         newlist = {}
         lp = pc
         for off, recs in self.lists:
             newlist[off] = lp
             lp += sum(4 + len(b) for _s, _e, b in recs)
+        total = lp + sum(len(x) for s in self.code if isinstance(s, Stmt) for x in s.exprs)
+        if total > BANK_BYTES:
+            raise RelinkError(too_big(total))
         pool = bytearray()
         pool0 = lp
 
@@ -682,8 +740,6 @@ class BankModel:
                     v = pool0 + len(pool)
                     pool += s.exprs[ei]
                     ei += 1
-                if v > 0xFFFF:
-                    raise RelinkError("address 0x%X past 64 KB" % v)
                 struct.pack_into("<H", raw, fo, v)
             out += raw
         for off, recs in self.lists:
@@ -693,8 +749,6 @@ class BankModel:
         out += pool
         for t, (cnt, off) in self.slots.items():
             struct.pack_into("<HH", out, 4 * t, cnt, newlist[off])
-        if len(out) > 0xFFFF + 1:
-            raise RelinkError("bank would be %d bytes (64 KB max)" % len(out))
         return bytes(out)
 
     def pc_of(self, key):

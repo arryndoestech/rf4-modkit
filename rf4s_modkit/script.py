@@ -891,7 +891,7 @@ ARG_HINTS = {
 
 def linearize(scene):
     """Return [(pc, Statement)] in execution order, following unconditional JMPs
-    transparently so trampoline-inserted beats read inline (in play order). Stops at
+    transparently so jumped-to blocks read inline (in play order). Stops at
     RET (0xFFFF) or a revisit; conditional branches are emitted and the fall-through path
     is followed."""
     out, seen = [], set()
@@ -1651,10 +1651,8 @@ class Container:
             bank = self.banks[bank]
         new = bytes(new)
         if len(new) > BANK_ADDRESS_LIMIT:
-            raise ScriptError("%s bank %d would be %d bytes; a bank is addressed with 16-bit offsets "
-                              "(Script_VMStep RF4S.exe+0x23EF60), so it cannot pass %d bytes -- edit in "
-                              "place, or move content to a scene in a smaller bank"
-                              % (bank.kind, bank.index, len(new), BANK_ADDRESS_LIMIT))
+            from . import bankrelink
+            raise ScriptError("%s bank %d: %s" % (bank.kind, bank.index, bankrelink.too_big(len(new))))
         start = bank.file_off
         end = start + len(bank.data)
         delta = len(new) - len(bank.data)
@@ -1682,7 +1680,7 @@ class Container:
         try:
             new = m.build()
         except bankrelink.RelinkError as e:
-            raise ScriptError("%s bank %d cannot be rebuilt: %s" % (bank.kind, bank.index, e))
+            raise ScriptError("%s bank %d: %s" % (bank.kind, bank.index, e))
         self.set_bank_bytes(bank, new)
         pos = next(i for i, b in enumerate(self.banks) if b is bank)
         if m.folded or m.mode != "canonical":          # an older toolkit's trampolines, undone

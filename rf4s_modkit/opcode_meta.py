@@ -63,7 +63,7 @@ CONTROL = {
     "CALL":      ("flow", "Call a subroutine: push the caller's frame base and the return PC "
                           "onto the operand stack, then jump. The subroutine comes back here "
                           "when it executes RET (the VM's return)."),
-    "JMP":       ("flow", "Unconditional jump (trampoline-inserted beats read inline)."),
+    "JMP":       ("flow", "Unconditional jump."),
     "BR_Z":      ("flow", "Branch if the guard expression is 0 (false)."),
     "BR_NZ":     ("flow", "Branch if the guard expression is non-zero (true)."),
     "BR_RET":    ("flow", "Conditional RET (early-exit guard): evaluate the guard expression -- "

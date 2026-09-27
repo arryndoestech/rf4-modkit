@@ -5457,6 +5457,179 @@ def test_bank_relink():
            not shift_bad and n_scenes > 0, str(shift_bad[:5]))
 
 
+def test_script_relink_edits():
+    """Structural script edits rebuild the bank (bankrelink) instead of trampolining: an insert
+    through the Container / CLI API re-parses in the compiler layout, adds no jump, decodes to
+    the listing it was given and keeps every other scene's entry pc, keys and flow; deleting it
+    restores the shipped bank byte for byte; a file trampolined the old way is detected and
+    folded back with the same execution; the 64 KB address limit and the header load-buffer
+    words are enforced."""
+    print("script edits rebuild the bank (no trampolines):")
+    from rf4s_modkit import script, bankrelink as br
+    p = _first("rf3.mc")
+    if not p:
+        _skip("relinked edits", "rf3.mc not extracted")
+        return
+    raw = p.read_bytes()
+    c0 = script.Container(raw)
+    res = c0.install_asm_resolver()
+
+    def entries(b):
+        return [(t, r.event_id, r.subs) for t in b.type_table_full() for r in b.entry_records(t)]
+
+    def jmps(b):
+        return sum(1 for s in br.BankModel.parse(b).code if isinstance(s, br.Stmt) and s.op == 0xFFFA)
+
+    # (a)-(d) on a spread of banks: insert before a DIALOG, then delete what was inserted
+    picked = []
+    for pos in range(0, len(c0.banks), 7 if QUICK else 3):
+        b = c0.banks[pos]
+        scs = [s for s in script.disassemble_bank(b, discover=False) if s.ok and s.action_type >= 0]
+        hit = next(((s, q) for s in scs for q, st in s.stmts.items() if st.mnem == "DIALOG"), None)
+        if hit and len(b.data) < 0xFF00:
+            picked.append((pos, hit[0], hit[1]))
+        if len(picked) >= (12 if QUICK else 40):
+            break
+    bad, n_other = [], 0
+    for pos, sc, dpc in picked:
+        c = script.Container(raw)
+        c.set_asm_resolver(res)
+        b = c.banks[pos]
+        ents0, j0 = entries(b), jmps(b)
+        sigs0 = [br.flow_signature(b, e) for _t, e, _s in ents0]
+        new = c.insert_before(b, dpc, "DIALOG #9001\nBR_Z (reg0 == 3) -> L\nDIALOG #9002\nL:")
+        pm = c.last_relink[pos]
+        try:
+            m = br.BankModel.parse(b)                 # (a) compiler layout again
+            ok_a = m.build() == bytes(b.data) and m.fold() == 0
+        except script.ScriptError:
+            ok_a = False
+        ok_b = jmps(b) == j0                          # (b) no trampoline jump
+        d = b.data
+        s1 = script.decode_statement(d, new)
+        s2 = s1 and script.decode_statement(d, new + s1.size)
+        s3 = s2 and script.decode_statement(d, new + s1.size + s2.size)
+        s4 = s3 and script.decode_statement(d, new + s1.size + s2.size + s3.size)
+        ok_c = (s1 and s1.dialog_id == 9001 and s2.mnem == "BR_Z" and s3.dialog_id == 9002
+                and s2.code_targets[0] == s4.pc and pm[dpc] == new      # jumps to dpc run it first
+                and s4.dialog_id == script.decode_statement(c0.banks[pos].data, dpc).dialog_id)
+        ents1 = entries(b)                            # (d) entries follow, other flows unchanged
+        ok_d = [(t, pm[e], k) for t, e, k in ents0] == ents1
+        for (t, e0, _k), (_t, e1, _k1), sg in zip(ents0, ents1, sigs0):
+            if dpc in script.disassemble_scene(c0.banks[pos], t, e0).stmts:
+                continue                              # a scene that runs the edited spot
+            n_other += 1
+            ok_d = ok_d and br.flow_signature(b, e1) == sg
+        c.delete_statement(b, new)
+        c.delete_statement(b, new)
+        c.delete_statement(b, new)
+        ok_e = bytes(b.data) == bytes(c0.banks[pos].data) and c.build() == raw
+        if not (ok_a and ok_b and ok_c and ok_d and ok_e):
+            bad.append((pos, ok_a, ok_b, bool(ok_c), ok_d, ok_e))
+    _check("insert through the API: bank re-parses in the compiler layout, no jump added, the new "
+           "statements decode as written, entries follow and %d other scenes keep their flow (%d banks)"
+           % (n_other, len(picked)), not bad and len(picked) >= 10, str(bad[:4]))
+    _check("deleting the inserted statements restores the shipped bank byte for byte", not bad)
+    # rewrite drops what only the old body used; other scenes unchanged
+    c = script.Container(raw)
+    c.set_asm_resolver(res)
+    pos, sc, _dpc = picked[0]
+    b = c.banks[pos]
+    ents0 = entries(b)
+    sigs0 = {e: br.flow_signature(b, e) for _t, e, _k in ents0}
+    n0 = len(b.data)
+    e_new = c.rewrite_scene(b, sc.entry_pc, "FRAME 0\nDIALOG #9003\nEND")
+    pm = c.last_relink[pos]
+    rsc = script.disassemble_scene(b, sc.action_type, e_new)
+    _check("rewrite_scene puts the new body in place, drops the old one and keeps other scenes",
+           [st.mnem for st in rsc.stmts.values()] == ["FRAME", "DIALOG", "RET"] and len(b.data) < n0
+           and all(br.flow_signature(b, pm[e]) == sg for e, sg in sigs0.items() if pm[e] != e_new)
+           and br.relink(b) == bytes(b.data))
+    # a file trampolined the old way (append [new][moved copy][JMP back] after the pool and
+    # overwrite the statement with a JMP; delete = JMP over the statement) is detected and folded
+    c = script.Container(raw)
+    c.set_asm_resolver(res)
+    pos, sc, dpc = next(x for x in picked if c.banks[x[0]].kind == "primary")
+    b = c.banks[pos]
+    st = script.decode_statement(b.data, dpc)
+    base = len(b.data) + (len(b.data) & 1)
+    region, _l = _asm_region("DIALOG #9004\n.raw " + bytes(b.data[dpc:dpc + st.size]).hex(),
+                                    base, res, dpc + st.size)
+    c.set_bank_bytes(b, bytes(b.data) + b"\0" * (len(b.data) & 1) + region)
+    struct.pack_into("<HH", b.data, dpc, 0xFFFA, base)
+    old_sigs = [(t, e, br.flow_signature(b, e)) for t, e, _k in entries(b)]
+    nxt = next((q for q, s2 in sc.stmts.items() if q > dpc + st.size and s2.op < 0xFFF0
+                and s2.size > 4), None)
+    if nxt is not None:                               # the old delete: a JMP over the statement
+        struct.pack_into("<HH", b.data, nxt, 0xFFFA, nxt + script.decode_statement(b.data, nxt).size)
+        old_sigs = [(t, e, br.flow_signature(b, e)) for t, e, _k in entries(b)]
+    found = c.trampolined_banks()
+    done = c.normalize_banks(found)
+    pm = c.last_relink[pos]
+    cn = script.Container(raw)
+    cn.set_asm_resolver(res)
+    cn.insert_before(pos, dpc, "DIALOG #9004")
+    if nxt is not None:
+        cn.delete_statement(pos, cn.last_relink[pos][nxt])
+    _check("an old trampolined bank is detected and folded back: compiler layout, same flow for every "
+           "entry, same scenes as the new insert/delete",
+           found == [pos] and done and done[0][1] == (2 if nxt is not None else 1)
+           and br.BankModel.parse(b).fold() == 0
+           and all(br.flow_signature(b, pm[e]) == sg for _t, e, sg in old_sigs)
+           and [br.flow_signature(b, e) for _t, e, _k in entries(b)]
+           == [br.flow_signature(cn.banks[pos], e) for _t, e, _k in entries(cn.banks[pos])],
+           "found %s done %s" % (found, done))
+    # shipped banks: the flow reader + folding change nothing (sample; every bank verified once)
+    sample = c0.banks[::97 if QUICK else 29]
+    fold_bad = []
+    for b in sample:
+        m = br.BankModel.parse_flow(b)
+        f = m.fold()
+        nb = script.Bank(b.index, b.kind, 0, bytearray(m.build()))
+        nb.slots_hint = b.slots_hint
+        if f or [br.flow_signature(b, e) for _t, e, _k in entries(b)] != \
+                [br.flow_signature(nb, e) for _t, e, _k in entries(nb)]:
+            fold_bad.append(b.index)
+    _check("the trampoline folder leaves shipped code alone (flow read + fold on %d banks)" % len(sample),
+           not fold_bad and not c0.trampolined_banks(), str(fold_bad[:5]))
+    # limits: 64 KB addressing refused cleanly; a growing bank raises its load-buffer word
+    c = script.Container(raw)
+    big = max((b for b in c.banks if b.kind == "tail"), key=lambda b: len(b.data))
+    gpos = c.banks.index(big)
+    bsc = next(s for s in script.disassemble_bank(big, discover=False) if s.ok and s.action_type >= 0)
+    before = bytes(c.data)
+    try:
+        c.insert_before(big, bsc.entry_pc, "\n".join(["DIALOG #1"] * 200))
+        refused = False
+    except script.ScriptError as e:
+        refused = "16-bit" in str(e) and bytes(c.data) == before
+    cap = c.max_bank_size("tail")
+    c.insert_before(big, bsc.entry_pc, "DIALOG #1")
+    _check("an edit past 64 KB is refused (container unchanged); growing the largest bank raises "
+           "the header's load-buffer word",
+           refused and c.max_bank_size("tail") == len(big.data) == cap + 6
+           and not c.validate_bank_sizes() and script.Container(c.build()).max_bank_size("tail") == cap + 6)
+    # the CLI writes the rebuilt bank too
+    import subprocess
+    import tempfile
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    pos, sc, dpc = picked[0]
+    r = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("rf4mod.py")), "script", "insert",
+                        str(p), "--bank", str(pos), "--pc", hex(dpc), "--before", "--stmt", "DIALOG #9005",
+                        "-o", str(tmp / "out.mc")], capture_output=True, text=True)
+    co = script.Container((tmp / "out.mc").read_bytes()) if (tmp / "out.mc").is_file() else None
+    _check("CLI `script insert` writes the rebuilt bank (DIALOG in place, compiler layout)",
+           r.returncode == 0 and co is not None
+           and script.decode_statement(co.banks[pos].data, dpc).dialog_id == 9005
+           and br.relink(co.banks[pos]) == bytes(co.banks[pos].data) and jmps(co.banks[pos]) == jmps(c0.banks[pos]),
+           (r.stdout + r.stderr)[-200:])
+
+
+def _asm_region(text, base, resolver, fallthrough_to):
+    from rf4s_modkit import scriptasm
+    return scriptasm.assemble(text, base, resolver=resolver, fallthrough_to=fallthrough_to)
+
+
 def test_emflags_extras():
     """Modder-defined game-flag variables (2026-09-20): the emdeb_extra.json sidecar,
     allocation in the free tail of the 4096-bit store, validation, and resolution by the
@@ -11792,7 +11965,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

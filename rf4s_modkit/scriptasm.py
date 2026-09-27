@@ -62,8 +62,9 @@ statements are keywords, with the condition or value in parentheses and targets 
 action written without the call brackets (`Name 1, 2`).
 
 Addresses printed by the disassembler (`0123:` after the label) are ignored, so a
-listing can be pasted back verbatim. `.raw <hex>` emits bytes verbatim (used for the
-displaced statement in trampolines).
+listing can be pasted back verbatim. `.raw <hex>` emits bytes verbatim (when they are
+whole statements, an rf3.mc edit relinks their addresses like any other statement's --
+bankrelink.BankModel.listing_items).
 """
 from __future__ import annotations
 
@@ -763,8 +764,8 @@ class Assembler:
         """Assemble `text` for in-bank offset `base`. Returns (bytes, labels{name: pc}).
         If the last statement can fall through, a `JMP fallthrough_to` (or END when
         `fallthrough_to` is None and `auto_end`) is appended so the region never runs
-        into the expression pool. (Used for checking a listing and by bankrelink's tests;
-        edits to rf3.mc go through `Container`, which relinks the whole bank.)"""
+        into the expression pool. This is the listing CHECK (sizes, labels, lint); edits to
+        rf3.mc go through `script.Container`, which relinks the whole bank."""
         stmts, labels, pending_labels = self.parse(text)
         off = 0
         for st in stmts:
@@ -1119,7 +1120,7 @@ def scene_signature(scene, buf):
     pcs = list(scene.stmts)
     # Leading unconditional jumps into the scene are plumbing, not content: the
     # `JMP ENTRY` scene_listing emits when the entry is not the lowest statement, and
-    # the trampoline `JMP` that rewrite_scene leaves at the old entry (possibly both,
+    # the `JMP` an older toolkit's rewrite_scene left at the old entry (possibly both,
     # chained). Drop them so a scene and its re-assembled copy compare equal.
     for _ in range(4):
         if not pcs:

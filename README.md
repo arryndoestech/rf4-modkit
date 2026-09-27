@@ -546,11 +546,32 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
   on it, and *What it does* repeats the explanation.
 
+Every structural edit — insert, delete, *Apply to scene*, a new scene, a wider argument, a
+changed trigger list — **rebuilds the whole bank** (`rf4s_modkit/bankrelink.py`): the new code
+sits where it belongs, and every branch target, entry pc and operand offset after it moves with
+it. Nothing is appended behind the bank's data and no jumps are patched in, so repeated edits
+never pile up dead code; the editor follows the open scene and the selection to their new
+addresses. Same-size edits (a line id, a number, a speaker, a branch target) are still patched
+in place. A bank can hold 64 KB (every address in it is 16-bit); an edit that would pass that is
+refused with a message. The game copies each bank into a buffer sized from the rf3.mc header,
+so the rebuild also raises those header sizes when a bank grows (statically verified in
+RF4S.exe: `MycfBankSlot_Create` +0x23F950 sizes the buffer once, `MycfBankSlot_LoadBank`
++0x23F9C0 fills it without a bounds check).
+
+Files edited by earlier toolkit versions, which inserted code by **trampolining** (new code
+appended at the bank's end, reached through a jump written over the original statement), still
+load and play as before. When such a file is saved again — from the editor, or by any `rf4mod
+script` command that writes rf3.mc — those banks are rebuilt in the new layout first: each
+appended block moves back in place of its jump, skipped statements and unreachable leftovers
+are dropped, and every scene still executes the same statements (`rf4mod script normalize
+rf3.mc -o out.mc` does only that).
+
 The **Source** tab shows the scene as a re-assemblable listing — labels,
 actions as calls (`GivePlayerItem(258, reg0 + 1, 0)`, `EndDialogue()`), control statements as
 keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `STORE (FLG_X = 1)`,
 `PROMPT_CHOICE CANCEL -> L2, #123 -> L3`, `JMP L1`); *Check* reports the failing line inline and *Apply to
-scene* re-assembles it (the scene's entry jumps to the new body, so nothing else moves). The
+scene* re-assembles it in place: the new body takes the old entry's place and statements only
+the old body used are dropped. The
 **Triggers** tab lists the bank's type table (every registration with its decoded keys) and mints
 **new scenes**: pick when it plays (the trigger catalogue supplies a recipe per type: which bank,
 which keys, the ordering caveat), its keys and a body; a note warns when a registration would
@@ -599,11 +620,14 @@ changes. *New lines in all locales* gives a new dialogue line the same id in eve
 (untranslated), so it shows in every language.
 
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
-set-val / set-target / set-speaker / entries / add-entry / remove-entry / set-entry`, `rf4mod em …`,
+delete / set-val / set-target / set-speaker / entries / add-entry / remove-entry / set-entry /
+normalize`, `rf4mod em …`,
 `rf4mod text add --pad-to N`). Corpus-verified: every operand in the shipped file compiles back to
 identical bytes-or-text, and the type tables are read count-exact (10,169 registered scenes).
-`selftest.py` covers the container round-trip, in-place and repointed argument edits, literal
-edits, trampoline insert/rewrite, dialogue rewrite, search, the explanation for every opcode, and a
+`selftest.py` covers the container round-trip, in-place and rebuilt argument edits, literal
+edits, relinked insert/delete/rewrite (every shipped bank rebuilds byte-exact; an edit keeps every
+other scene's flow), folding old trampolines, dialogue rewrite, search, the explanation for every
+opcode, and a
 headless drive of the editor (`test_cutscene_editor_authoring`, `test_cutscene_editor_workflows`).
 
 Code: `cutscene_editor/` — `document` (the files, one undo history, unsaved tracking), `render`
@@ -849,7 +873,7 @@ written as expressions (`DistanceToTarget <= 110`, `RandomChance(50)`, `ActorIsN
 `rf4mod ai ops <name-or-id>` explains any opcode.
 
 # Edit a cutscene / event script (rf3.mc): find a scene by its dialogue, read it, then
-# reword a line, retune an action arg, or insert a beat — every edit is byte-safe.
+# reword a line, retune an action arg, or insert a beat — inserts rebuild the bank in place.
 python rf4mod.py script find rf3.mc "about to call you" --text rf3mc.eng   # → bank + pc of matches
 python rf4mod.py script dev-menus rf3.mc --text rf3mc.eng --bank 18  # the devs' ＊ test menus: event / festival / date → routine pc
 python rf4mod.py script space rf3.mc [--bank N]                     # bytecode room left per bank (64 KiB each; fullest first)
@@ -861,6 +885,7 @@ python rf4mod.py script set-val rf3.mc --bank 1 --pc 0x3478 --index 0 --value 25
 python rf4mod.py script set-target rf3.mc --bank 1 --pc 0x400e --index 1 --target 0x4036 -o new.mc  # retarget a branch/choice destination (validated)
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --dialogue 66494 -o new.mc         # add a dialogue beat
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --stmt "BR_Z (FLG_X) -> L1 / DIALOG #5 / L1:" -o new.mc  # a conditional beat
+python rf4mod.py script delete rf3.mc --bank 1 --pc 0x3478 -o new.mc          # remove a statement (the bank is rebuilt)
 python rf4mod.py script listing rf3.mc --bank 1 --pc 0x3478 --text rf3mc.eng -o scene.txt   # scene as re-assemblable source…
 python rf4mod.py script asm rf3.mc --bank 1 --pc 0x3478 --listing scene.txt -o new.mc         # …edit, and put it back
 python rf4mod.py script entries rf3.mc --bank 248                                              # a map bank's triggers + keys
