@@ -37,7 +37,8 @@ GATE_COLOR = "#ff8c1a"
 MPOS_COLOR = "#ff5aa0"
 SPAWN_COLOR = "#c060ff"
 STAMP_COLOR = "#ff40c0"          # the collision the objects stamp into ATTR at load: blocks the player
-STAMP_WALK_COLOR = "#40e080"     # ... stamped, but the player can walk there (the airship gangway)
+STAMP_WALK_COLOR = "#40e080"     # ... the stamp makes the tile walkable (the airship gangway)
+STAMP_MARK_COLOR = "#a8a8b4"     # ... stamped, walking unchanged (a tree's canopy ring: marker only)
 HANDLES = ("nw", "n", "ne", "w", "e", "sw", "s", "se")
 
 
@@ -769,15 +770,17 @@ def overlay(group, st):
         # the collision the interactive objects stamp into ATTR when the room loads (not in
         # the file): a hatched fill per tile, outlined, for the flag snapshot shown
         if L.get("stamps", True):
-            # coloured by what the tile becomes for the player: magenta = blocked (trees,
-            # rocks, the invisible wall), green = walkable (the gangway lays a path)
+            # coloured by what the stamp does to the player's walking there: magenta = the
+            # object blocks it (tree trunks, rocks, the invisible wall), green = the object
+            # opens it (the gangway lays a path over walls), grey = marked only, walking
+            # unchanged (a tree's canopy ring: the 0x8000000 footprint marker)
             player = attrs.ACTOR_MASKS[0][1]
+            colour = {"blocks": STAMP_COLOR, "opens": STAMP_WALK_COLOR, "marks": STAMP_MARK_COLOR}
             for _i, mode, cells in object_stamps(doc, getattr(st, "flags", None)):
-                walk, block = {}, {}
+                parts = {"blocks": {}, "opens": {}, "marks": {}}
                 for t, bits in cells.items():
-                    after = collisionstamp.result(doc.cell(*t), mode, bits)
-                    (block if attrs.blocks(after, player) else walk)[t] = bits
-                for part, col in ((block, STAMP_COLOR), (walk, STAMP_WALK_COLOR)):
+                    parts[collisionstamp.effect(doc.cell(*t), mode, bits, player)][t] = bits
+                for part, col in ((parts[k], colour[k]) for k in ("marks", "blocks", "opens")):
                     for x0, x1, ty in stamp_runs(part) if part else ():
                         out.append(Prim("rect", (x0 * cp, ty * cp, (x1 + 1) * cp, (ty + 1) * cp),
                                         fill=col, stipple="gray25", outline=col,

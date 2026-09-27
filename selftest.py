@@ -6636,6 +6636,21 @@ def test_collision_stamp_modes():
         after = _cs.apply(cells, W, H, [rec])
         return mode, len(st), sum(1 for (x, y) in st if not _attrs.blocks(after[y * W + x], player))
 
+    def effects(name):
+        m = _rf4m.Rf4mMap.load(B / f"{name}.rf4m")
+        W, H, cells = m.attr_grid()
+        out = {}
+        for _i, mode, st in _cs.stamps(m.mobj_records(), W, H):
+            for (x, y), v in st.items():
+                k = _cs.effect(cells[y * W + x], mode, v, player)
+                out[k] = out.get(k, 0) + 1
+        return out
+
+    e47, e25, e04 = effects("MAP_FIELD_47"), effects("MAP_ROOM_25"), effects("MAP_CITY_04")
+    _check("the collision layer's three kinds: trees block at the trunk and only mark their canopy "
+           "ring (grey, walking unchanged); the gangway opens (green); the invisible wall blocks",
+           e47.get("blocks") and e47.get("marks") and not e47.get("opens")
+           and set(e25) == {"opens"} and set(e04) == {"blocks"}, (e47, e25, e04))
     g = walkable("MAP_ROOM_25", 294)
     w = walkable("MAP_CITY_04", 262)
     _check("the airship gangway (294) makes its tiles walkable; the invisible wall (262) "

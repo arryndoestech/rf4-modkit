@@ -1292,8 +1292,10 @@ class ViewTab(ui.ScrollFrame):
         ui.Tip(cb(L, "stamps", "object collision", 10, 0, render.STAMP_COLOR),
                "Hatched: the tiles the placed objects (trees, rocks, stones ...) stamp into the "
                "ATTR grid when the room loads -- collision the map file does not contain. "
-               "Magenta = the player cannot pass (trees, rocks, the invisible wall); green = "
-               "the stamp makes the tile walkable (the airship gangway lays a path over walls). "
+               "Magenta = the object blocks the player there (tree trunks, rocks, the invisible "
+               "wall); green = the object makes the tile walkable (the airship gangway lays a "
+               "path over walls); grey = marked only, walking unchanged (a tree's canopy ring "
+               "carries just the footprint marker 0x8000000). "
                "Shown for the flag state chosen below; Alt over a tile names the object.")
         hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
                 "first time they are shown the script is scanned.", wrap=300).grid(

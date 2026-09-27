@@ -77,6 +77,24 @@ def result(cell: int, mode: str, bits: int) -> int:
     return cell | bits
 
 
+MOVE_BITS = 0x1018F               # Actor_TryMoveWithTileSlide: blocked when cell & ~mask & this
+
+
+def effect(cell: int, mode: str, bits: int, mask: int) -> str:
+    """What one stamp does to walking on a tile, for an actor with ignore `mask`:
+    "blocks" -- the stamp itself makes the tile impassable (a solid template cell, the f11 box);
+    "opens"  -- the tile was impassable and the stamp makes it walkable (the gangway's merge);
+    "marks"  -- walking is unchanged: a footprint-marker-only cell (a tree's canopy ring,
+                0x8000000), or a stamp onto a tile the file already blocks without adding to it."""
+    before = cell & ~mask & MOVE_BITS
+    after = result(cell, mode, bits) & ~mask & MOVE_BITS
+    if before and not after:
+        return "opens"
+    if after and (mode == "box" or bits & ~mask & MOVE_BITS):
+        return "blocks"
+    return "marks"
+
+
 def _asr3(v: int) -> int:
     return v >> 3                 # Python >> floors like the game's arithmetic shift
 
