@@ -9566,6 +9566,615 @@ def test_model_import():
                    len(t) == len(d) and moved and touched <= allowed and not mw.validate(t) and inv_ok)
 
 
+def _posed_lbs_error(m, anim, frame, shape, expected):
+    """Largest distance (fraction of the model's size) between `shape`'s posed vertices and
+    `expected` = [(model-space bind position, {bone index: weight})] skinned by the plain rule
+    world(bone) * inverse(bind world(bone)); each expected vertex against its nearest result."""
+    import math
+    from rf4s_modkit import gltf as _gl, model as _model, modelwrite as _mw, skelanim as _sk
+    size = _gl._extent(m)
+    m.pose = _sk.pose_bones(m, anim, frame)
+    try:
+        world = _model.world_matrices(m.pose)
+        bind = _model.world_matrices(m.bones)
+        got = m.shape_vertices(m.shapes[shape])
+    finally:
+        m.pose = None
+    worst = 0.0
+    for p, w in expected:
+        q = [0.0, 0.0, 0.0]
+        for b, x in w.items():
+            r = _model._apply(_model._mul(world[b], _mw._inv4(bind[b])), p)
+            for k in range(3):
+                q[k] += x * r[k]
+        worst = max(worst, min(math.dist(q, g) for g in got))
+    return worst / size
+
+
+def test_model_glb_import():
+    """Import from Blender (rf4s_modkit.meshimport): Export for Blender -> import of an
+    unmodified .glb is byte-identical; edited meshes come back with the file's positions and
+    BONE WEIGHTS (posed like linear blend skinning of those weights), influences the shape
+    cannot store are dropped (heaviest kept) or moved to the nearest ancestor bone that has a
+    skinning matrix, the rebuilt file passes the loader walk, and a removed shape stays in the
+    file drawing nothing."""
+    print("model import from glTF (Import from Blender):")
+    import copy, math, tempfile, shutil
+    from rf4s_modkit import gltf as _gl, meshimport as _mi, model as _model, modelwrite as _mw, skelanim as _sk
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(p for p in pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files or not (B / "M09_0.model").exists():
+        _skip("glTF mesh import", "no extracted .model files / M09_0"); return
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        pick = ([B / x for x in ("M09_0.model", "NPC_TRAVELER_M.model", "M40_1.model", "BM_00.model",
+                                 "NPC_RF2_BULLET.model", "I_WeaponM05_L.model", "MAP_CITY_00.model")]
+                if QUICK else files)
+        n = same = 0
+        bad = []
+        for f in pick:
+            d = f.read_bytes() if f.is_file() else b""
+            if not _model.is_mesh(d):
+                continue
+            n += 1
+            g = tmp / "x.glb"
+            _gl.export_glb(_model.parse(d), g, None, f.stem)
+            out, rep = _mi.import_glb(d, g)
+            if out == d and not rep.changed and not rep.unmatched:
+                same += 1
+            else:
+                bad.append(f.name)
+        _check("Export for Blender -> Import from Blender of an unmodified .glb is byte-identical"
+               + (" (7 models)" if QUICK else " (every mesh .model)"), n and same == n,
+               f"{same}/{n} {bad[:4]}")
+
+        d = (B / "M09_0.model").read_bytes()
+        m = _model.parse(d)
+        g = tmp / "M09_0.glb"
+        _gl.export_glb(m, g, None, "M09_0")
+        meshes = _mi.read_meshes(g)
+        plan, rest = _mi.match_shapes(m, meshes)
+        _check("each mesh of the export matches its shape by name", sorted(plan) == [0, 1] and not rest,
+               (sorted(plan), [r.name for r in rest]))
+        # Blender's duplicate-name suffix is accepted when unambiguous
+        ren = copy.deepcopy(meshes)
+        ren[0].name = ren[0].name + ".001"
+        ren[0].mesh_name = ""
+        p2, r2 = _mi.match_shapes(m, ren)
+        _check("a Blender-renamed object ('X.001') still finds shape X", len(p2) == 2 and not r2,
+               [x.name for x in r2])
+
+        by = {b.name: b.index for b in m.bones}
+        s0, s1 = plan[0], plan[1]                         # skin 2 (smooth) / skin 1 (rigid)
+        # smooth shape: every vertex +5 in Y, weights repainted; half on a bone with no smooth
+        # matrix (end_Bone14 -> its parent leg_LD_Bone13), a few with five influences
+        ed = copy.deepcopy(s0)
+        ed.positions = [(x, y + 5.0, z) for x, y, z in ed.positions]
+        five = {"body_Bone02": 0.3, "head_Bone03": 0.25, "leg_LD_Bone11": 0.2, "leg_LM_Bone07": 0.15,
+                "leg_RU_Bone15": 0.1}
+        for k in range(len(ed.weights)):
+            ed.weights[k] = dict(five) if k % 5 == 0 else {"end_Bone14": 0.7, "head_Bone03": 0.3}
+        # rigid shape: unskinned mesh (no weights) moved -> bones from the nearest vertex
+        ed1 = copy.deepcopy(s1)
+        ed1.weights = None
+        ed1.positions = [(x + 2.0, y, z) for x, y, z in ed1.positions]
+        out, rep = _mi.import_glb(d, [ed, ed1])
+        m2 = _model.parse(out)
+        r0 = next(r for r in rep.shapes if r.shape == 0)
+        exp = []
+        for k, p in enumerate(ed.positions):
+            if k % 5 == 0:
+                w = {by["body_Bone02"]: 0.3 / 0.55, by["head_Bone03"]: 0.25 / 0.55}
+            else:
+                w = {by["leg_LD_Bone13"]: 0.7, by["head_Bone03"]: 0.3}
+            exp.append((p, w))
+        stored_ok = True
+        vb = m2.vertex_buffers[m2.shapes[0].vertex_buffer]
+        for k in range(len(ed.positions)):
+            want = exp[k][1]
+            j = min(range(vb.count), key=lambda i: math.dist(vb.data["_p0"][i], ed.positions[k]))
+            got = {}
+            for ix, w in zip(vb.data["_i0"][j], vb.data["_w0"][j]):
+                if w:
+                    got[m2.matrix_to_bone[ix]] = got.get(m2.matrix_to_bone[ix], 0.0) + w
+            stored_ok &= set(got) == set(want) and all(abs(got[b] - want[b]) < 1e-6 for b in want) \
+                and abs(sum(vb.data["_w0"][j]) - 1.0) < 1e-6
+        a = _sk.parse((B / "M09_0_00.bfskl").read_bytes()) if (B / "M09_0_00.bfskl").exists() else None
+        lbs = max(_posed_lbs_error(m2, a, f, 0, exp) for f in (0, 15, 30)) if a else 0.0
+        _check("repainted weights are stored as painted (2 heaviest, renormalised, sorted) and the "
+               "posed shape is their linear blend skinning (< 0.001 % of the model's size)",
+               stored_ok and lbs < 1e-5, f"lbs {lbs:.2e}")
+        _check("a bone without a smooth matrix hands its weight to its nearest ancestor with one; "
+               "five influences on a 2-influence shape are cut to the heaviest (both reported)",
+               r0.moved_influences == {"end_Bone14": "leg_LD_Bone13"}
+               and r0.dropped_influences == (len(ed.positions) + 4) // 5, (r0.moved_influences, r0.dropped_influences))
+        p_old = m.shape_vertices(m.shapes[1])
+        p_new = m2.shape_vertices(m2.shapes[1])
+        mv = max(math.dist((a_[0] + 2.0, a_[1], a_[2]), b_) for a_, b_ in zip(p_old, p_new)) if len(p_old) == len(p_new) else 1e9
+        _check("the rigid shape moved 2 units in X (bone frames kept: skin-1 vertices in their "
+               "bone's space) and the rebuilt file passes the loader walk",
+               mv < 1e-4 and not _mw.validate(out) and m2.vertex_buffers[m2.shapes[1].vertex_buffer].data["_i0"]
+               == m.vertex_buffers[m.shapes[1].vertex_buffer].data["_i0"], mv)
+        # the used-bone list (SHAP+0x28) follows the new weights
+        L2 = _mw.layout(out)
+        s = L2.shapes[0].shap
+        cnt = _mw._u16(out, s + 0x64)
+        lst = list(struct.unpack_from("<%dH" % cnt, out, _mw._u64(out, s + 0x28)))
+        _check("the shape's used-bone list is rewritten to the bones its vertices now use",
+               lst == sorted({by["body_Bone02"], by["head_Bone03"], by["leg_LD_Bone13"]}), lst)
+        # rest pose: head_Bone03 moved up 3 in the file (node translation + the inverse bind
+        # matrices a Blender export would write for it and its child)
+        gl, bufs = _gl.read_gltf(g)
+        hn = next(i for i, nd in enumerate(gl["nodes"]) if nd.get("name") == "head_Bone03")
+        wm_old = _model.world_matrices(m.bones)
+        hb = by["head_Bone03"]
+        R = [row[:3] for row in wm_old[m.bones[hb].parent][:3]]
+        # +3 in model Y, expressed in the parent's frame
+        Ri = _mw._inv3(R)
+        dl = _mw._mv3(Ri, (0.0, 3.0, 0.0))
+        gl["nodes"][hn]["translation"] = [a_ + b_ for a_, b_ in zip(gl["nodes"][hn]["translation"], dl)]
+        worlds, _par = _mi._node_worlds(gl)
+        skin = gl["skins"][0]
+        acc = gl["accessors"][skin["inverseBindMatrices"]]
+        bv = gl["bufferViews"][acc["bufferView"]]
+        buf = bytearray(bufs[0])
+        for k, j in enumerate(skin["joints"]):
+            inv = _mw._inv4(worlds[j])
+            struct.pack_into("<16f", buf, bv.get("byteOffset", 0) + acc.get("byteOffset", 0) + 64 * k,
+                             *[inv[r_][c_] for c_ in range(4) for r_ in range(4)])
+        g3 = tmp / "rest.glb"
+        g3.write_bytes(_gl._glb(gl, bytes(buf)))
+        keep, rep_k = _mi.import_glb(d, g3)
+        out, rep = _mi.import_glb(d, g3, bones=True)
+        m4 = _model.parse(out)
+        wm_new = _model.world_matrices(m4.bones)
+        dy = wm_new[hb][1][3] - wm_old[hb][1][3]
+        rest_same = max(max(abs(a_ - b_) for a_, b_ in zip(p_, q_)) for s_a, s_b in zip(m.shapes, m4.shapes)
+                        for p_, q_ in zip(m.shape_vertices(s_a), m4.shape_vertices(s_b)))
+        ibm_err = max(abs(_model._mul(wm_new[m4.matrix_to_bone[k]], inv)[r_][c_] - (r_ == c_))
+                      for k, inv in enumerate(m4.inverse_bind) for r_ in range(3) for c_ in range(4))
+        _check("rest pose (bones=True): the moved bone is 3 up in the model, its inverse bind matrix "
+               "follows (W * IBM = I), the model looks the same at rest, the file passes the walk",
+               abs(dy - 3.0) < 1e-4 and ibm_err < 1e-4 and rest_same < 1e-4 and not _mw.validate(out)
+               and "head_Bone03" in rep.bones_moved, (round(dy, 5), ibm_err, rest_same, rep.bones_moved))
+        _check("rest pose not taken (default): the file is unchanged and the report says the bones moved",
+               keep == d and any("rest pose" in x for x in rep_k.notes), rep_k.notes)
+        # a new part (a mesh with no shape of its name) added to shape 0, weighted to the head
+        cube = _mi.GltfMesh("NewPart", "NewPart", [], None, None, None, None, [])
+        hw = _model.world_matrices(m.bones)[by["head_Bone03"]]
+        for obj in _mw.parse_obj(_mw.cube_obj((hw[0][3], hw[1][3], hw[2][3]), 6.0)):
+            cube.positions = [v[0] for v in obj.vertices]
+            cube.uvs = [v[1] for v in obj.vertices]
+            cube.normals = [v[2] for v in obj.vertices]
+            cube.triangles = obj.triangles
+        cube.weights = [{"head_Bone03": 1.0}] * len(cube.positions)
+        out, rep = _mi.import_glb(d, meshes + [cube], add={"NewPart": 0})
+        m5 = _model.parse(out)
+        r5 = next(r for r in rep.shapes if r.shape == 0)
+        n0 = m.vertex_buffers[m.shapes[0].vertex_buffer].count
+        lbs = max(_posed_lbs_error(m5, a, f, 0, [(p_, {by["head_Bone03"]: 1.0}) for p_ in cube.positions])
+                  for f in (0, 30)) if a else 0.0
+        _check("a new part (--add NewPart=0) is appended to the shape: its original vertices keep "
+               "their bytes, the part follows its weights when posed, the file passes the walk",
+               r5.kept == n0 and r5.vertices == n0 + 24 and r5.triangles == len(m.shapes[0].indices) // 3 + 12
+               and lbs < 1e-5 and not _mw.validate(out) and not rep.unmatched,
+               (r5.kept, r5.vertices, r5.triangles, f"{lbs:.1e}"))
+        # removal: a shape deleted in Blender (remove_missing) is kept but drawn as nothing
+        out, rep = _mi.import_glb(d, [s0], remove_missing=True)
+        m3 = _model.parse(out)
+        again, _r = _mi.import_glb(out, [s0], remove_missing=True)
+        _check("remove_missing: the shape with no mesh keeps its record and numbers but becomes one "
+               "degenerate triangle (1 vertex, indices 0 0 0); the other shape is untouched; "
+               "removing it again changes nothing",
+               len(m3.shapes) == len(m.shapes) and m3.shapes[1].indices == [0, 0, 0]
+               and m3.vertex_buffers[m3.shapes[1].vertex_buffer].count == 1
+               and m3.vertex_buffers[m3.shapes[0].vertex_buffer].data == m.vertex_buffers[m.shapes[0].vertex_buffer].data
+               and not _mw.validate(out) and again == out and m3.shapes[1].name == m.shapes[1].name,
+               rep.text())
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_model_glb_blender():
+    """With Blender installed: Export for Blender -> Blender import -> Blender glTF export,
+    untouched, re-imports byte-identically (Blender moves positions by ~1e-5 and reorders
+    vertices; the original bytes are recovered); a Blender edit (a shape moved up 5, another
+    subdivided) comes back with the move exact, the subdivided shape posed as the linear blend
+    skinning of Blender's interpolated weights, and a file that passes the loader walk."""
+    print("model import from Blender (optional):")
+    import glob, subprocess, tempfile, shutil
+    exe = next(iter(sorted(glob.glob(r"C:\Program Files\Blender Foundation\Blender*\blender.exe"), reverse=True)), None) \
+        or shutil.which("blender")
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not exe or not (B / "M09_0.model").exists():
+        _skip("model import from Blender", "Blender not installed" if not exe else "no M09_0"); return
+    from rf4s_modkit import gltf as _gl, meshimport as _mi, model as _model, modelwrite as _mw, skelanim as _sk
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        script = tmp / "edit.py"
+        script.write_text(
+            "import bpy, bmesh, sys\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.gltf(filepath=a[0])\n"
+            "for o in bpy.context.scene.objects:\n"
+            "    if o.type == 'MESH' and o.name == a[2]:\n"
+            "        for v in o.data.vertices:\n"
+            "            v.co.z += 5.0\n"
+            "    if o.type == 'MESH' and o.name == a[3]:\n"
+            "        bm = bmesh.new(); bm.from_mesh(o.data)\n"
+            "        bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=1, use_grid_fill=True)\n"
+            "        bm.to_mesh(o.data); bm.free(); o.data.update()\n"
+            "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
+            encoding="utf-8")
+        rest_script = tmp / "rest.py"
+        rest_script.write_text(
+            "import bpy, sys\n"
+            "from mathutils import Vector\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.gltf(filepath=a[0])\n"
+            "arm = next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')\n"
+            "bpy.context.view_layer.objects.active = arm\n"
+            "bpy.ops.object.mode_set(mode='EDIT')\n"
+            "eb = arm.data.edit_bones[a[2]]\n"
+            "eb.head += Vector((0, 0, 3.0)); eb.tail += Vector((0, 0, 3.0))\n"
+            "bpy.ops.object.mode_set(mode='OBJECT')\n"
+            "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
+            encoding="utf-8")
+        results = {}
+        for stem, move, sub in (("M09_0", "-", "-"), ("NPC_TRAVELER_M", "-", "-"), ("wI_FistN07_R", "-", "-"),
+                                ("M09_0", "Nw4cRoot__M09_01", "Nw4cRoot__M09_02")):
+            d = (B / f"{stem}.model").read_bytes()
+            src, dst = tmp / f"{stem}.glb", tmp / f"{stem}_{move}.glb"
+            _gl.export_glb(_model.parse(d), src, None, stem)
+            r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(script), "--",
+                                str(src), str(dst), move, sub], capture_output=True, text=True, timeout=300)
+            if not dst.exists():
+                _check(f"Blender exported {stem}", False, (r.stdout or "")[-400:]); return
+            results[(stem, move)] = (d, dst)
+        ident = [_mi.import_glb(d, p)[0] == d for (stem, move), (d, p) in results.items() if move == "-"]
+        _check("untouched through Blender (import -> export): byte-identical (M09_0, NPC_TRAVELER_M, "
+               "wI_FistN07_R -- a mirrored bone Blender cannot keep in its rest pose)",
+               ident == [True, True, True], ident)
+        d, p = results[("M09_0", "Nw4cRoot__M09_01")]
+        out, rep = _mi.import_glb(d, p)
+        m, m2 = _model.parse(d), _model.parse(out)
+        si_mv = next(sh.index for sh in m.shapes if sh.name == "Nw4cRoot__M09_01")
+        si_sub = next(sh.index for sh in m.shapes if sh.name == "Nw4cRoot__M09_02")
+        a_ = m.shape_vertices(m.shapes[si_mv])
+        b_ = m2.shape_vertices(m2.shapes[si_mv])
+        moved = sorted((round(x, 3), round(y + 5.0, 3), round(z, 3)) for x, y, z in a_)
+        back = sorted({(round(x, 3), round(y, 3), round(z, 3)) for x, y, z in b_})
+        _check("the shape moved up 5 in Blender is up 5 in the model (every vertex)",
+               sorted(set(moved)) == back, (len(a_), len(b_)))
+        me = next(x for x in _mi.read_meshes(p) if x.name == "Nw4cRoot__M09_02")
+        by = {bn.name: bn.index for bn in m.bones}
+        exp = []
+        for pos, w in zip(me.positions, me.weights):
+            tot = sum(w.values())
+            exp.append((pos, {by[k]: v / tot for k, v in w.items()}))
+        anim = _sk.parse((B / "M09_0_00.bfskl").read_bytes())
+        lbs = max(_posed_lbs_error(m2, anim, f, si_sub, exp) for f in (0, 20))
+        r_sub = next(r for r in rep.shapes if r.shape == si_sub)
+        _check("the subdivided shape: more vertices, posed as the linear blend skinning of "
+               "Blender's weights (< 0.01 % of the model's size), the file passes the loader walk",
+               r_sub.vertices > len(m.shape_vertices(m.shapes[si_sub])) and lbs < 1e-4
+               and not _mw.validate(out), f"{r_sub.vertices} v, lbs {lbs:.2e}")
+        # a cube added in Blender, parented to the armature with automatic weights, added to shape 0
+        add_script = tmp / "add.py"
+        add_script.write_text(
+            "import bpy, sys\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.gltf(filepath=a[0])\n"
+            "arm = next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')\n"
+            "loc = arm.matrix_world @ arm.data.bones[a[2]].head_local\n"
+            "bpy.ops.mesh.primitive_cube_add(size=6.0, location=loc)\n"
+            "cube = bpy.context.active_object; cube.name = 'NewPart'\n"
+            "bpy.ops.object.select_all(action='DESELECT'); cube.select_set(True); arm.select_set(True)\n"
+            "bpy.context.view_layer.objects.active = arm\n"
+            "bpy.ops.object.parent_set(type='ARMATURE_AUTO')\n"
+            "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
+            encoding="utf-8")
+        src, dst = tmp / "M09_0.glb", tmp / "M09_0_add.glb"
+        r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(add_script), "--",
+                            str(src), str(dst), "head_Bone03"], capture_output=True, text=True, timeout=300)
+        if not dst.exists():
+            _check("Blender exported the added cube", False, (r.stdout or "")[-400:]); return
+        _plain, rep0 = _mi.import_glb(d, dst)
+        out, rep = _mi.import_glb(d, dst, add={"NewPart": si_sub})
+        m4 = _model.parse(out)
+        me = next(x for x in _mi.read_meshes(dst, m) if x.name == "NewPart")
+        exp = []
+        for pos, w in zip(me.positions, me.weights):
+            tot = sum(w.values())
+            exp.append((pos, {by[k]: v / tot for k, v in w.items()}))
+        # the shape keeps 2 influences: compare against the 2 heaviest, renormalised
+        exp2 = []
+        for pos, w in exp:
+            top = sorted(w.items(), key=lambda kv: -kv[1])[:2]
+            t = sum(x for _b, x in top)
+            exp2.append((pos, {b_: x / t for b_, x in top}))
+        lbs = max(_posed_lbs_error(m4, anim, f, si_sub, exp2) for f in (0, 20))
+        r_add = next(x for x in rep.shapes if x.shape == si_sub)
+        _check("a cube added in Blender (automatic weights) is ignored unless --add names a shape; "
+               "added, it joins that shape (original vertices kept) and is posed by its 2 heaviest "
+               "Blender weights", rep0.unmatched == ["NewPart"] and _plain == d and r_add.kept >= 74
+               and lbs < 1e-4 and not _mw.validate(out), (rep0.unmatched, r_add.kept, f"{lbs:.1e}"))
+        # a bone moved up 3 in Blender's edit mode (rest pose), bones=True
+        src, dst = tmp / "M09_0.glb", tmp / "M09_0_rest.glb"
+        r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(rest_script), "--",
+                            str(src), str(dst), "head_Bone03"], capture_output=True, text=True, timeout=300)
+        if not dst.exists():
+            _check("Blender exported the rest-pose edit", False, (r.stdout or "")[-400:]); return
+        out, rep = _mi.import_glb(d, dst, bones=True)
+        m3 = _model.parse(out)
+        hb = next(bn.index for bn in m.bones if bn.name == "head_Bone03")
+        dy = _model.world_matrices(m3.bones)[hb][1][3] - _model.world_matrices(m.bones)[hb][1][3]
+        size = _gl._extent(m)
+        rest_same = max(max(abs(a_ - b_) for a_, b_ in zip(p_, q_)) for s_a, s_b in zip(m.shapes, m3.shapes)
+                        for p_, q_ in zip(m.shape_vertices(s_a), m3.shape_vertices(s_b))) / size
+        _check("a bone moved in Blender's edit mode comes back with bones=True: 3 up in the model, "
+               "the rest shape unchanged (< 1e-5 of the size), only that bone and its child moved",
+               abs(dy - 3.0) < 1e-3 and rest_same < 1e-5 and rep.bones_moved == ["head_Bone03", "end_Bone04"]
+               and not _mw.validate(out), (round(dy, 4), rest_same, rep.bones_moved))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_model_grow():
+    """New shapes (rf4s_modkit.modelgrow): the _DIC builder regenerates every shipped name
+    dictionary byte for byte; add_shapes appends clones whose records match the template, keeps
+    every existing shape's data and number, passes the loader walk and survives a no-op rebuild;
+    a glTF mesh becomes a new shape posed by its own weights; more than 32 shapes is refused."""
+    print("model grow: new shapes:")
+    from rf4s_modkit import gltf as _gl, meshimport as _mi, model as _model, modelgrow as _mg, modelwrite as _mw, skelanim as _sk
+    import copy
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files or not (B / "M09_0.model").exists():
+        _skip("model grow", "no extracted .model files / M09_0"); return
+    n = same = 0
+    for f in (files[::8] if QUICK else files):
+        d = f.read_bytes()
+        if not _model.is_mesh(d):
+            continue
+        M = _mw._u64(d, 0x28)
+        S = _mw._u64(d, M + 0x20)
+        offs = [_mw._u64(d, 0x30), _mw._u64(d, 0xA0), _mw._u64(d, M + 0x38), _mw._u64(d, M + 0x48),
+                _mw._u64(d, S + 0x10)]
+        for off in offs:
+            if not off:
+                continue
+            nodes = _mg.read_dict(d, off)
+            n += 1
+            same += _mg.build_dict([k for _r, _l, _rr, k in nodes[1:]]) == nodes
+    _check("the dictionary builder reproduces the shipped model / shape / material / bone / "
+           "embedded-file dictionaries" + (" (every 8th file)" if QUICK else ""), n and same == n, f"{same}/{n}")
+    grown = bad = 0
+    badl = []
+    for f in (files[::16] if QUICK else files[::3]):
+        d = f.read_bytes()
+        if not _model.is_mesh(d):
+            continue
+        m = _model.parse(d)
+        k = min(2, 32 - len(m.shapes))
+        if k <= 0:
+            continue
+        grown += 1
+        out = _mg.add_shapes(d, [_mg.NewShape(f"ZZ_new{j}", j % len(m.shapes)) for j in range(k)])
+        m2 = _model.parse(out)
+        ok = not _mw.validate(out) and _mw.rebuild(out) == out and len(m2.shapes) == len(m.shapes) + k
+        for i, sh in enumerate(m.shapes):
+            ok &= (m2.shapes[i].name == sh.name and m2.shapes[i].indices == sh.indices
+                   and m2.vertex_buffers[m2.shapes[i].vertex_buffer].data == m.vertex_buffers[sh.vertex_buffer].data)
+        for j in range(k):
+            a_, b_ = m.shapes[j % len(m.shapes)], m2.shapes[len(m.shapes) + j]
+            ok &= (b_.indices == a_.indices and b_.skin == a_.skin and b_.material == a_.material
+                   and m2.vertex_buffers[b_.vertex_buffer].data == m.vertex_buffers[a_.vertex_buffer].data)
+        ok &= [x[3].decode() for x in _mg.read_dict(out, _mw._u64(out, _mw._u64(out, 0x28) + 0x38))[1:]] \
+            == [sh.name for sh in m2.shapes]
+        if not ok:
+            bad += 1
+            badl.append(f.name)
+    _check("add_shapes on shipped models: clones equal their template, existing shapes untouched, "
+           "names in the dictionary, loader walk clean, no-op rebuild stable"
+           + (" (every 16th file)" if QUICK else " (every 3rd file)"), grown and not bad, f"{grown - bad}/{grown} {badl[:3]}")
+
+    d = (B / "M09_0.model").read_bytes()
+    m = _model.parse(d)
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        g = tmp / "M09_0.glb"
+        _gl.export_glb(m, g, None, "M09_0")
+        meshes = _mi.read_meshes(g, m)
+        by = {b.name: b.index for b in m.bones}
+        cube = _mi.GltfMesh("Horn", "Horn", [], None, None, None, None, [])
+        hw = _model.world_matrices(m.bones)[by["head_Bone03"]]
+        obj = _mw.parse_obj(_mw.cube_obj((hw[0][3], hw[1][3] + 4.0, hw[2][3]), 5.0))[0]
+        cube.positions = [v[0] for v in obj.vertices]
+        cube.uvs = [v[1] for v in obj.vertices]
+        cube.normals = [v[2] for v in obj.vertices]
+        cube.triangles = obj.triangles
+        cube.weights = [{"head_Bone03": 0.75, "body_Bone02": 0.25}] * len(cube.positions)
+        out, rep = _mi.import_glb(d, meshes + [cube], new={"Horn": ("Nw4cRoot__M09_02", "M09_01")})
+        m2 = _model.parse(out)
+        hs = m2.shapes[-1]
+        a = _sk.parse((B / "M09_0_00.bfskl").read_bytes()) if (B / "M09_0_00.bfskl").exists() else None
+        exp = [(p_, {by["head_Bone03"]: 0.75, by["body_Bone02"]: 0.25}) for p_ in cube.positions]
+        lbs = max(_posed_lbs_error(m2, a, f, hs.index, exp) for f in (0, 30)) if a else 0.0
+        _check("a glTF mesh as a NEW shape: shape 2 'Horn', 24 v / 12 t, material M09_01, skinned by its "
+               "own weights when posed, the other shapes untouched, loader walk clean",
+               len(m2.shapes) == 3 and hs.name == "Horn" and len(hs.indices) == 36
+               and m2.materials[hs.material].name == "M09_01" and lbs < 1e-5 and not _mw.validate(out)
+               and all(m2.vertex_buffers[m2.shapes[i].vertex_buffer].data == m.vertex_buffers[m.shapes[i].vertex_buffer].data
+                       for i in range(2)), (rep.text()[-200:], f"{lbs:.1e}"))
+        again, rep2 = _mi.import_glb(out, meshes + [cube])
+        _check("importing the same file again into the grown model changes nothing (Horn matches its shape)",
+               again == out, rep2.text()[-200:])
+        many = [_mg.NewShape(f"N{j}", 0) for j in range(31)]
+        try:
+            _mg.add_shapes(d, many)
+            refused = False
+        except _mg.ModelGrowError:
+            refused = True
+        _check("more than 32 shapes is refused (the game's per-model arrays hold 32)", refused)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_model_material():
+    """Material settings (rf4s_modkit.matedit): every shipped material lists its wrap / user-data
+    settings; an edit changes exactly the bytes the loader reads (sampler bytes 0-1, the int /
+    float3 user-data values), keeps the file size, and refuses settings a material lacks."""
+    print("model material settings:")
+    from rf4s_modkit import matedit as _me, model as _model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files or not (B / "BM_00.model").exists():
+        _skip("model material", "no extracted .model files / BM_00"); return
+    n = one = 0
+    for f in (files[::8] if QUICK else files):
+        d = f.read_bytes()
+        if not _model.is_mesh(d):
+            continue
+        for s in _me.materials(d):
+            n += 1
+            one += s.wrap is None or all(0 <= x <= 4 for x in s.wrap)      # 1 shipped material has no sampler
+    _check("every material's sampler has wrap modes 0..4" + (" (every 8th file)" if QUICK else ""),
+           n and one == n, f"{one}/{n}")
+    d = (B / "BM_00.model").read_bytes()
+    out = _me.set_material(d, 0, wrap_u="mirror", wrap_v="clamp", blend=2, draw_order=3, combine=2)
+    s0 = _me.materials(out)[0]
+    diff = [k for k in range(len(d)) if d[k] != out[k]]
+    want = {s0.wrap_at, s0.wrap_at + 1} | {s0.user_at[k][0] for k in ("BlendType", "DrawOrder", "CombineType")}
+    m2 = _model.parse(out)
+    _check("an edit changes only the sampler / user-data bytes, in place, and reads back "
+           "(model.parse sees BlendType 2)",
+           len(out) == len(d) and set(diff) <= want and s0.wrap == (1, 2)
+           and s0.user == {"DrawOrder": 3, "BlendType": 2, "CombineType": 2} and m2.materials[0].blend_type == 2,
+           (s0.wrap, s0.user, len(diff)))
+    try:
+        _me.set_material((B / "M09_0.model").read_bytes(), 0, blend=2)
+        refused = False
+    except _me.MatEditError:
+        refused = True
+    _check("a user-data setting the material does not carry is refused (not added)", refused)
+
+
+def test_explorer_model_glb_import():
+    """rf4mod_gui model tab: Import from Blender… rebuilds shapes from a .glb (same-named mesh
+    preselected), makes the result the tab's working copy, and reports an unedited export as
+    unchanged; Materials… opens and edits a material's settings in place."""
+    print("asset explorer: Import from Blender on a model tab:")
+    import importlib.util, tempfile, shutil
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("model glb import", "no tkinter: %s" % e); return
+    from rf4s_modkit import gltf as _gl, meshimport as _mi, model as _model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    src = B / "M09_0.model"
+    if not src.exists():
+        _skip("model glb import", "no M09_0"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_glb", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tmp / src.name
+        shutil.copyfile(src, f)
+        app = gui.App(root, initial=str(B))
+        app.open_path(f)
+        root.update_idletasks()
+        doc = app._doc
+        orig = doc.cur_data
+        m = _model.parse(orig)
+        g = tmp / "exp.glb"
+        _gl.export_glb(m, g, None, "M09_0")
+        seen = {}
+
+        def take(mm, meshes, defaults):
+            seen.update(defaults)
+            return dict(defaults)
+        same = app._import_model_glb(doc.cur_name, str(g), choose=take)
+        _check("an unedited Export for Blender file re-imports as unchanged, same-named meshes "
+               "preselected", same and doc.cur_data == orig and "unchanged" in app.status.cget("text")
+               and seen == {sh.index: sh.name for sh in m.shapes}, (app.status.cget("text"), seen))
+        # move the first mesh up 5 by rewriting its POSITION accessor in the .glb
+        gl, bufs = _gl.read_gltf(g)
+        mesh0 = next(nd for nd in gl["nodes"] if nd.get("name") == m.shapes[0].name)
+        acc = gl["accessors"][gl["meshes"][mesh0["mesh"]]["primitives"][0]["attributes"]["POSITION"]]
+        bv = gl["bufferViews"][acc["bufferView"]]
+        buf = bytearray(bufs[0])
+        for k in range(acc["count"]):
+            o = bv.get("byteOffset", 0) + acc.get("byteOffset", 0) + 12 * k + 4
+            struct.pack_into("<f", buf, o, struct.unpack_from("<f", buf, o)[0] + 5.0)
+        acc["min"][1] += 5.0; acc["max"][1] += 5.0
+        g2 = tmp / "moved.glb"
+        g2.write_bytes(_gl._glb(gl, bytes(buf)))
+        ok = app._import_model_glb(doc.cur_name, str(g2), choose=lambda mm, meshes, dflt: dict(dflt))
+        m2 = _model.parse(doc.cur_data)
+        dy = [b[1] - a[1] for a, b in zip(m.shape_vertices(m.shapes[0]), m2.shape_vertices(m2.shapes[0]))]
+        _check("Import from Blender… rebuilds the edited shape into the working copy (moved up 5), "
+               "the other shape untouched",
+               ok and doc.cur_data != orig and dy and max(abs(x - 5.0) for x in dy) < 1e-3
+               and m2.vertex_buffers[m2.shapes[1].vertex_buffer].data == m.vertex_buffers[m.shapes[1].vertex_buffer].data
+               and "Rebuilt 1 shape" in app.status.cget("text") and not box["msgs"],
+               (app.status.cget("text"), box["msgs"][:1]))
+        # a new mesh in the file, appended to shape 1 through the add hook
+        gl, bufs = _gl.read_gltf(g)
+        nd = dict(next(x for x in gl["nodes"] if x.get("name") == m.shapes[1].name))
+        nd["name"] = "NewPart"
+        gl["nodes"].append(nd)
+        gl["scenes"][0]["nodes"].append(len(gl["nodes"]) - 1)
+        g4 = tmp / "added.glb"
+        g4.write_bytes(_gl._glb(gl, bufs[0]))
+        before = doc.cur_data
+        ok = app._import_model_glb(doc.cur_name, str(g4), choose=lambda mm, meshes, dflt: dict(dflt),
+                                   add={"NewPart": 1})
+        m3 = _model.parse(doc.cur_data)
+        n1 = _model.parse(before).vertex_buffers[m.shapes[1].vertex_buffer].count
+        _check("Import from Blender… appends a mesh with no shape to the chosen shape (add)",
+               ok and len(m3.shapes[1].indices) == 2 * len(m.shapes[1].indices), app.status.cget("text"))
+        ok = app._import_model_glb(doc.cur_name, str(g4), choose=lambda mm, meshes, dflt: dict(dflt),
+                                   new={"NewPart": 1})
+        m4 = _model.parse(doc.cur_data)
+        _check("Import from Blender… makes a mesh with no shape a new shape (new like shape 1)",
+               ok and len(m4.shapes) == 3 and m4.shapes[2].name == "NewPart"
+               and m4.shapes[2].indices == m.shapes[1].indices, app.status.cget("text"))
+        # Materials…: the dialog builds (Apply with nothing changed returns nothing), and a
+        # change goes into the working copy in place
+        def press_apply():
+            for w in root.winfo_children():
+                if isinstance(w, tk.Toplevel):
+                    for b in w.winfo_children():
+                        for x in b.winfo_children():
+                            if isinstance(x, gui.ttk.Button) and x.cget("text") == "Apply":
+                                x.invoke(); return
+        root.after(300, press_apply)
+        nothing = app._edit_model_materials(doc.cur_name)
+        before = doc.cur_data
+        ok = app._edit_model_materials(doc.cur_name, changes={0: {"wrap_u": "mirror", "wrap_v": "clamp"}})
+        from rf4s_modkit import matedit as _me
+        _check("Materials…: the dialog opens and applies nothing when nothing changed; a wrap change "
+               "lands in the working copy in place",
+               nothing is False and ok and len(doc.cur_data) == len(before)
+               and _me.materials(doc.cur_data)[0].wrap == (1, 2), _me.materials(doc.cur_data)[0].wrap)
+        _check("model glb import raised no callback errors", not errs, errs[:1])
+    finally:
+        try:
+            root.update()
+        except tk.TclError:
+            pass
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_attr_tooltips():
     """The Paint ATTR controls must cover every bit that occurs in a shipped map,
     describe each one honestly, and make an impossible tile impossible to paint."""
@@ -12036,7 +12645,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

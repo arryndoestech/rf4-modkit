@@ -2989,6 +2989,75 @@ def cmd_res_model_import(a):
               "the nearest original vertex")
 
 
+def cmd_res_model_import_glb(a):
+    from rf4s_modkit import model, modelwrite, meshimport, gltf
+    src = _resolve(a.file)
+    data = src.read_bytes()
+    mapping = {}
+    for item in a.map or []:
+        if "=" not in item:
+            sys.exit(f"error: --map takes SHAPE=MESH, got {item!r}")
+        k, v = item.split("=", 1)
+        mapping[k] = v
+    new = {}
+    for item in a.new or []:
+        if "=" not in item:
+            sys.exit(f"error: --new takes MESH=TEMPLATE[:MATERIAL], got {item!r}")
+        k, v = item.split("=", 1)
+        tpl, _c, mat = v.partition(":")
+        new[k] = (tpl, mat) if mat else tpl
+    add = {}
+    for item in a.add or []:
+        if "=" not in item:
+            sys.exit(f"error: --add takes MESH=SHAPE, got {item!r}")
+        k, v = item.split("=", 1)
+        add[k] = v
+    try:
+        out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None,
+                                         remove=a.remove or (), remove_missing=a.remove_missing,
+                                         bones=a.bones, add=add or None, new=new or None)
+    except (model.ModelError, modelwrite.ModelWriteError, meshimport.MeshImportError, gltf.GltfError) as e:
+        sys.exit(f"error: {e}")
+    print(rep.text())
+    if out == data:
+        print("nothing changed (every matched shape reproduces the original) -- no file written")
+        return
+    probs = modelwrite.validate(out)
+    if probs:
+        sys.exit("error: the rebuilt file does not check out: " + "; ".join(probs))
+    model.parse(out)
+    dst = pathlib.Path(a.out) if a.out else pathlib.Path(src.stem + "_glb.model")
+    dst.write_bytes(out)
+    print(f"{len(rep.changed)} shape(s) rebuilt" + (f", {len(rep.bones_moved)} bone(s) moved" if rep.bones_moved else "")
+          + f" -> {dst} ({_size_note(len(data), len(out))})")
+
+
+def cmd_res_model_material(a):
+    from rf4s_modkit import matedit
+    src = _resolve(a.file)
+    data = src.read_bytes()
+    try:
+        if a.material is None:
+            for s in matedit.materials(data):
+                print(s.text())
+            return
+        cc = _floats(a.combine_color, 3, "--combine-color") if a.combine_color else None
+        out = matedit.set_material(data, a.material, wrap_u=a.wrap_u, wrap_v=a.wrap_v,
+                                   draw_order=a.draw_order, blend=a.blend, combine=a.combine,
+                                   combine_color=cc)
+    except matedit.MatEditError as e:
+        sys.exit(f"error: {e}")
+    s = matedit.resolve_material(out, a.material)
+    print(s.text())
+    if out == data:
+        print("nothing changed")
+        return
+    if not a.out:
+        sys.exit("error: give -o OUT to write the edited model")
+    pathlib.Path(a.out).write_bytes(out)
+    print(f"-> {a.out} (same size: bundle patch-able in place)")
+
+
 def cmd_res_model_transform(a):
     from rf4s_modkit import model, modelwrite
     data = _resolve(a.file).read_bytes()
@@ -4326,6 +4395,50 @@ def build_parser():
                     "like the shape)")
     r7.add_argument("-o", "--out", required=True)
     r7.set_defaults(func=cmd_res_model_import)
+    rmg = rsub.add_parser("model-import-glb", help="Import from Blender: rebuild the shapes a "
+                          ".glb / .gltf has meshes for (matched by name, as model-glb names them) "
+                          "-- positions, normals, UVs AND bone weights; any vertex / triangle "
+                          "count. Unchanged meshes keep their bytes")
+    rmg.add_argument("file", help=".model")
+    rmg.add_argument("glb", help=".glb / .gltf (a model-glb export, edited in Blender and exported)")
+    rmg.add_argument("--map", action="append", metavar="SHAPE=MESH",
+                     help="put mesh MESH (the glTF node / Blender object name) on shape SHAPE "
+                          "(index or name) instead of matching by name; repeatable")
+    rmg.add_argument("--add", action="append", metavar="MESH=SHAPE",
+                     help="append mesh MESH (a new object in Blender, no shape of its name) to "
+                          "shape SHAPE: it takes that shape's material and vertex format and "
+                          "keeps its own weights; repeatable")
+    rmg.add_argument("--new", action="append", metavar="MESH=TEMPLATE[:MATERIAL]",
+                     help="make mesh MESH a NEW shape (named like the mesh), its records cloned from "
+                          "shape TEMPLATE (vertex format, skin type, bone) with TEMPLATE's material or "
+                          "the existing MATERIAL (index or name); at most 32 shapes; repeatable")
+    rmg.add_argument("--remove", action="append", metavar="SHAPE",
+                     help="hide shape SHAPE (index or name): it stays in the file as one "
+                          "degenerate triangle that draws nothing; repeatable")
+    rmg.add_argument("--remove-missing", action="store_true",
+                     help="hide every shape the file has no mesh for (objects deleted in Blender)")
+    rmg.add_argument("--bones", action="store_true",
+                     help="also take the skeleton's rest pose (bones moved / turned in Blender's "
+                          "edit mode; inverse bind matrices and rigid parts follow so the model "
+                          "looks the same at rest). Without it a moved rest pose is only reported")
+    rmg.add_argument("-o", "--out", help="output .model (default: <model>_glb.model here)")
+    rmg.set_defaults(func=cmd_res_model_import_glb)
+    rmm = rsub.add_parser("model-material", help="list the material settings the game reads "
+                          "(texture wrap, DrawOrder, BlendType, CombineType, CombineColor00), or "
+                          "change one material's in place (same file size). Models a map spawns "
+                          "always wrap mirrored (the game overrides the file there)")
+    rmm.add_argument("file", help=".model")
+    rmm.add_argument("material", nargs="?", help="material index or name (omit to list them)")
+    rmm.add_argument("--wrap-u", choices=("repeat", "mirror", "clamp", "border", "mirror-clamp"))
+    rmm.add_argument("--wrap-v", choices=("repeat", "mirror", "clamp", "border", "mirror-clamp"))
+    rmm.add_argument("--draw-order", type=int, choices=range(4), help="draw pass 0..3 (drawn in that order)")
+    rmm.add_argument("--blend", type=int, choices=range(5),
+                     help="0 off, 1 alpha, 2 additive (SrcAlpha, One), 3 One/One, 4 One/Zero")
+    rmm.add_argument("--combine", type=int, choices=range(5),
+                     help="0 texture, 1 texture lit, 2/3 flat colour (CombineColor00), 4 texture")
+    rmm.add_argument("--combine-color", metavar="R,G,B", help="the flat colour (0..1 each)")
+    rmm.add_argument("-o", "--out", help="output .model (required when changing)")
+    rmm.set_defaults(func=cmd_res_model_material)
     r8 = rsub.add_parser("model-transform", help="move / scale / rotate one shape's vertices in "
                          "place (model space; file size unchanged)")
     r8.add_argument("file"); r8.add_argument("shape", help="shape index or name, or 'all'")

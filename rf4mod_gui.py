@@ -1642,14 +1642,245 @@ class App:
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
 
-    def _obj_import_dialog(self, m, objs):
-        """{shape index: OBJ object name} chosen in a small dialog, or None when cancelled."""
+    def _import_model_glb(self, name, glb_path=None, choose=None, bones=None, add=None, new=None):
+        """Import from Blender… on a .model tab: read a .glb / .gltf (Export for Blender,
+        edited and exported by Blender), put each mesh on the shape of the same name (a dialog
+        shows the pairing; `choose(model, meshes, defaults) -> {shape index: mesh name}` skips
+        it in tests) and rebuild those shapes with the file's positions, normals, UVs and bone
+        weights (meshimport.import_glb). "(remove)" hides a shape (kept in the file as one degenerate
+        triangle, so shape numbers do not shift); meshes with no shape can be appended to one
+        (`add` = {mesh name: shape index} skips that dialog); a moved rest pose is offered
+        (`bones` answers it). The result is the tab's working copy."""
+        from rf4s_modkit import model as _model, meshimport as _mi, gltf as _gltf
+        REMOVE = "(remove)"
+        doc = self._doc
+        if doc.cur_data is None:
+            return False
+        f = glb_path or filedialog.askopenfilename(title="Import from Blender (glTF .glb)",
+                                                   filetypes=[("glTF", "*.glb *.gltf"), ("All files", "*.*")])
+        if not f:
+            return False
+        try:
+            m = _model.parse(doc.cur_data)
+            meshes = _mi.read_meshes(f, m)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import from Blender", str(e))
+            return False
+        if not meshes:
+            messagebox.showerror("Import from Blender", f"{pathlib.Path(f).name} has no triangle meshes.")
+            return False
+        auto, _rest = _mi.match_shapes(m, meshes)
+        defaults = {si: me.name for si, me in auto.items()}
+        if choose is not None:
+            plan = choose(m, meshes, defaults)
+        else:
+            plan = self._obj_import_dialog(
+                m, meshes, title="Import from Blender -- which mesh replaces which shape",
+                what="a mesh of the file", named="Export for Blender", defaults=defaults,
+                extra=(REMOVE,))
+        if not plan:
+            return False
+        remove = [si for si, v in plan.items() if v == REMOVE]
+        plan = {si: v for si, v in plan.items() if v != REMOVE}
+        loose = [me for me in meshes if me.name not in plan.values()]
+        if add is None and new is None and loose and choose is None:
+            add, new = self._glb_add_dialog(m, loose)
+        add = {k: v for k, v in (add or {}).items()}
+        new = {k: v for k, v in (new or {}).items()}
+        try:
+            gl = _gltf.read_gltf(f)
+            moved, _notes = _mi.rest_pose_changes(m, gl)
+            take = bool(moved) and (bones if bones is not None else messagebox.askyesno(
+                "Import from Blender",
+                f"The file moves the rest pose of {len(moved)} bone(s) ("
+                + ", ".join(m.bones[i].name for i in sorted(moved)[:6]) + ("…" if len(moved) > 6 else "")
+                + ").\n\nMove them in the model too? The inverse bind matrices and the rigid parts "
+                  "follow, so the model looks the same at rest; animations then turn the parts "
+                  "about the new pivots.\n\nNo: keep the game's skeleton."))
+            if moved:
+                blob, rep = _mi.import_glb(doc.cur_data, gl, mapping={si: v for si, v in plan.items()},
+                                           remove=remove, bones=take, add=add or None, new=new or None)
+            else:
+                blob, rep = _mi.import_glb(doc.cur_data, meshes, mapping=plan, remove=remove,
+                                           add=add or None, new=new or None)
+            _model.parse(blob)                     # the result must read back
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import from Blender", f"Nothing was changed:\n{e}")
+            return False
+        doc._glb_report = rep
+        if blob == doc.cur_data:
+            self.status.config(text=f"{pathlib.Path(f).name}: the geometry is unchanged")
+            return True
+        before = len(doc.cur_data)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
+        changed = rep.changed
+        if any(r.moved_influences or r.dropped_influences or r.ignored_weights or r.notes for r in changed):
+            messagebox.showinfo("Import from Blender", rep.text())
+        self.status.config(text=f"Rebuilt {len(changed)} shape(s)"
+                                + (f", moved {len(rep.bones_moved)} bone(s)" if rep.bones_moved else "")
+                                + f" from {pathlib.Path(f).name} -> "
+                                f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
+        return True
+
+    def _glb_add_dialog(self, m, meshes):
+        """({mesh name: shape index} to append to, {mesh name: template shape index} to make new
+        shapes of) for meshes of the file that have no shape (new parts made in Blender)."""
+        win = tk.Toplevel(self.root)
+        win.title("Import from Blender -- new meshes")
+        win.transient(self.root)
+        ttk.Label(win, text="These meshes have no shape of their name. A new part can be added to an "
+                            "existing shape ('add to'), or become a NEW shape ('new like') that copies "
+                            "an existing shape's vertex format and material. Either way it keeps its "
+                            "own bone weights. A model holds at most 32 shapes.",
+                  wraplength=520, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
+        grid = ttk.Frame(win)
+        grid.pack(fill="both", expand=True, padx=8)
+        IGNORE = "(ignore)"
+        shapes = [f"add to {sh.index} {sh.name or 'shape%d' % sh.index}" for sh in m.shapes] + \
+                 [f"new like {sh.index} {sh.name or 'shape%d' % sh.index}" for sh in m.shapes]
+        vars_ = {}
+        for r, me in enumerate(meshes):
+            ttk.Label(grid, text=f"{me.name}  ({len(me.triangles)} triangles)").grid(row=r, column=0, sticky="w")
+            v = tk.StringVar(value=IGNORE)
+            ttk.Combobox(grid, textvariable=v, values=[IGNORE] + shapes, state="readonly",
+                         width=max(24, min(48, max(map(len, shapes)) + 2))).grid(row=r, column=1, padx=(8, 0), pady=1)
+            vars_[me.name] = v
+        add, new = {}, {}
+
+        def ok():
+            for k, v in vars_.items():
+                t = v.get().split()
+                if t[0] == "add":
+                    add[k] = int(t[2])
+                elif t[0] == "new":
+                    new[k] = int(t[2])
+            win.destroy()
+        b = ttk.Frame(win)
+        b.pack(fill="x", padx=8, pady=8)
+        ttk.Button(b, text="OK", command=ok).pack(side="right")
+        ttk.Button(b, text="Skip", command=win.destroy).pack(side="right", padx=4)
+        win.grab_set()
+        win.wait_window()
+        return add, new
+
+    def _edit_model_materials(self, name, changes=None):
+        """Materials… on a .model tab: the settings the game reads from each material (texture
+        wrap U / V, and DrawOrder / BlendType / CombineType / CombineColor00 where the material
+        carries them -- rf4s_modkit.matedit), edited in place into the tab's working copy.
+        `changes` ({material index: set_material keyword arguments}) skips the dialog (tests)."""
+        from rf4s_modkit import matedit as _me
+        doc = self._doc
+        if doc.cur_data is None:
+            return False
+        try:
+            mats = _me.materials(doc.cur_data)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Materials", str(e))
+            return False
+        if changes is None:
+            changes = self._material_dialog(mats)
+        if not changes:
+            return False
+        blob = doc.cur_data
+        try:
+            for mi, kw in sorted(changes.items()):
+                blob = _me.set_material(blob, mi, **kw)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Materials", f"Nothing was changed:\n{e}")
+            return False
+        if blob == doc.cur_data:
+            self.status.config(text="materials unchanged")
+            return True
+        doc.cur_data = blob
+        self._show(name, blob, doc)
+        self.status.config(text=f"Changed {len(changes)} material(s) in place (same size); "
+                                f"Extract to save the working copy")
+        return True
+
+    def _material_dialog(self, mats):
+        """{material index: set_material kwargs} of the settings changed in a dialog, or None."""
+        from rf4s_modkit import matedit as _me
+        win = tk.Toplevel(self.root)
+        win.title("Materials -- what the game reads")
+        win.transient(self.root)
+        ttk.Label(win, text="Texture wrap applies to every material. DrawOrder (pass 0-3, drawn in "
+                            "order), BlendType (0 off, 1 alpha, 2 additive, 3 One/One, 4 One/Zero) and "
+                            "CombineType (0 texture, 1 texture lit, 2/3 flat CombineColor) can only be "
+                            "changed where the material already has them. Models a map places "
+                            "always wrap mirrored (the game overrides the file there).",
+                  wraplength=620, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
+        grid = ttk.Frame(win)
+        grid.pack(fill="both", expand=True, padx=8)
+        heads = ("material", "texture", "wrap U", "wrap V", "DrawOrder", "BlendType", "CombineType", "CombineColor00")
+        for c, h in enumerate(heads):
+            ttk.Label(grid, text=h).grid(row=0, column=c, sticky="w", padx=3)
+        rows = {}
+        for r, mt in enumerate(mats, start=1):
+            ttk.Label(grid, text=f"{mt.index} {mt.name}").grid(row=r, column=0, sticky="w", padx=3)
+            ttk.Label(grid, text=mt.texture or "-").grid(row=r, column=1, sticky="w", padx=3)
+            v = {}
+            for c, k in ((2, 0), (3, 1)):
+                var = tk.StringVar(value=_me.WRAP_MODES[mt.wrap[k]] if mt.wrap and mt.wrap[k] < 5 else "")
+                ttk.Combobox(grid, textvariable=var, values=_me.WRAP_MODES, width=11,
+                             state="readonly" if mt.wrap else "disabled").grid(row=r, column=c, padx=3)
+                v["wrap_u" if k == 0 else "wrap_v"] = var
+            for c, key, kw in ((4, "DrawOrder", "draw_order"), (5, "BlendType", "blend"), (6, "CombineType", "combine")):
+                has = key in mt.user
+                var = tk.StringVar(value=str(mt.user[key]) if has else "")
+                ttk.Combobox(grid, textvariable=var, values=[str(i) for i in range(_me.USER_INTS[key] + 1)],
+                             width=4, state="readonly" if has else "disabled").grid(row=r, column=c, padx=3)
+                v[kw] = var
+            cc = mt.user.get("CombineColor00")
+            var = tk.StringVar(value=", ".join(f"{x:g}" for x in cc) if cc else "")
+            ttk.Entry(grid, textvariable=var, width=18, state="normal" if cc else "disabled").grid(row=r, column=7, padx=3)
+            v["combine_color"] = var
+            rows[mt.index] = (mt, v)
+        out = {}
+
+        def ok():
+            for mi, (mt, v) in rows.items():
+                kw = {}
+                for key in ("wrap_u", "wrap_v"):
+                    k = 0 if key == "wrap_u" else 1
+                    if mt.wrap and v[key].get() and v[key].get() != _me.WRAP_MODES[min(4, mt.wrap[k])]:
+                        kw[key] = v[key].get()
+                for key, kwn in (("DrawOrder", "draw_order"), ("BlendType", "blend"), ("CombineType", "combine")):
+                    if key in mt.user and v[kwn].get() != str(mt.user[key]):
+                        kw[kwn] = int(v[kwn].get())
+                cc = mt.user.get("CombineColor00")
+                if cc:
+                    try:
+                        new = tuple(float(x) for x in v["combine_color"].get().replace(" ", "").split(","))
+                    except ValueError:
+                        new = ()
+                    if len(new) != 3:
+                        messagebox.showerror("Materials", f"{mt.name}: CombineColor00 takes r, g, b")
+                        return
+                    if any(abs(a - b) > 1e-6 for a, b in zip(new, cc)):
+                        kw["combine_color"] = new
+                if kw:
+                    out[mi] = kw
+            win.destroy()
+        b = ttk.Frame(win)
+        b.pack(fill="x", padx=8, pady=8)
+        ttk.Button(b, text="Apply", command=ok).pack(side="right")
+        ttk.Button(b, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+        win.grab_set()
+        win.wait_window()
+        return out or None
+
+    def _obj_import_dialog(self, m, objs, *, title="Import OBJ -- which object replaces which shape",
+                           what="an OBJ object", named="Export OBJ", defaults=None, extra=()):
+        """{shape index: object / mesh name} chosen in a small dialog, or None when cancelled.
+        `defaults` ({shape index: name}) preselects; else same-named objects are. `extra` adds
+        choices after the names (e.g. "(remove)")."""
         names = [o.name for o in objs]
         win = tk.Toplevel(self.root)
-        win.title("Import OBJ -- which object replaces which shape")
+        win.title(title)
         win.transient(self.root)
-        ttk.Label(win, text="Each shape keeps its geometry unless an OBJ object is chosen for it. "
-                            "Objects named like a shape (as Export OBJ names them) are preselected.",
+        ttk.Label(win, text=f"Each shape keeps its geometry unless {what} is chosen for it. "
+                            f"Ones named like a shape (as {named} names them) are preselected.",
                   wraplength=520, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
         grid = ttk.Frame(win)
         grid.pack(fill="both", expand=True, padx=8)
@@ -1659,9 +1890,12 @@ class App:
             sname = sh.name or f"shape{sh.index}"
             ttk.Label(grid, text=f"{sh.index}  {sname}  ({len(sh.indices) // 3} triangles)").grid(
                 row=r, column=0, sticky="w", pady=1)
-            default = sname if sname in names else (names[0] if len(names) == 1 and len(m.shapes) == 1 else KEEP)
+            if defaults is not None:
+                default = defaults.get(sh.index, KEEP)
+            else:
+                default = sname if sname in names else (names[0] if len(names) == 1 and len(m.shapes) == 1 else KEEP)
             v = tk.StringVar(value=default)
-            ttk.Combobox(grid, textvariable=v, values=[KEEP] + names, state="readonly",
+            ttk.Combobox(grid, textvariable=v, values=[KEEP] + names + list(extra), state="readonly",
                          width=max(20, min(48, max(map(len, names)) + 2))).grid(
                 row=r, column=1, sticky="w", padx=(8, 0), pady=1)
             choice[sh.index] = v
@@ -2346,6 +2580,16 @@ class App:
                  "its rest pose with bones, skin and textures, plus the motion picked in the "
                  "'motion' row as an animation (or none). Animate it in Blender, export a .glb, "
                  "then bring it back with Import motion…. " + BLENDER_HINT)
+        bb = ttk.Button(bar, text="Import from Blender…", command=lambda: self._import_model_glb(name))
+        bb.pack(side="right", padx=4)
+        from guiutil import Tip as _Tip
+        _Tip(bb, "Bring meshes edited in Blender back: open the .glb Blender exported (File > "
+                 "Export > glTF 2.0, from an Export for Blender file). Each mesh replaces the shape "
+                 "of the same name with its positions, normals, UVs AND bone weights (weight "
+                 "painting reaches the game; any vertex / triangle count). Meshes you did not "
+                 "touch keep their exact bytes. A shape stores a fixed number of bone influences "
+                 "per vertex (1 for rigid parts, 2-4 for skinned ones): extra ones are dropped, "
+                 "the heaviest kept. The result becomes this tab's working copy.")
         ib = ttk.Button(bar, text="Import OBJ…", command=lambda: self._import_model_obj(name))
         ib.pack(side="right", padx=4)
         from guiutil import Tip as _Tip
@@ -2356,6 +2600,11 @@ class App:
                  "Materials and textures stay as they are (Replace texture… changes those). "
                  "The result becomes this tab's working copy: save it like any other edit.")
         ttk.Button(bar, text="Export OBJ…", command=export).pack(side="right", padx=4)
+        mb = ttk.Button(bar, text="Materials…", command=lambda: self._edit_model_materials(name))
+        mb.pack(side="right", padx=4)
+        _Tip(mb, "The material settings the game reads: texture wrap (repeat / mirror / clamp …) "
+                 "for every material, and draw pass, blend mode and colour combine where the "
+                 "material has them. Changed in place (same file size) in this tab's working copy.")
         # the model view on top, the info pane (shapes, materials) under it; the divider moves
         body = ttk.Panedwindow(frame, orient="vertical"); body.pack(fill="both", expand=True)
         cv = tk.Canvas(body, bg="#202024", highlightthickness=0)
@@ -2370,9 +2619,16 @@ class App:
         txt.pack(side="left", fill="both", expand=True)
         body.add(infof, weight=1)
         lines = [_model.summary(m), "", "materials:"]
+        from rf4s_modkit import matedit as _me
+        try:
+            wraps = {s.index: s.wrap for s in _me.materials(data)}
+        except Exception:  # noqa: BLE001
+            wraps = {}
         for mt in m.materials:
             ud = _model.user_data_text(mt)
-            lines.append(f"  {mt.name}: {', '.join(mt.textures) or '(no texture)'}" + (f"  [{ud}]" if ud else ""))
+            w = wraps.get(mt.index)
+            wt = (f"  wrap {_me.WRAP_MODES[min(4, w[0])]}/{_me.WRAP_MODES[min(4, w[1])]}") if w else ""
+            lines.append(f"  {mt.name}: {', '.join(mt.textures) or '(no texture)'}{wt}" + (f"  [{ud}]" if ud else ""))
         txt.insert("end", "\n".join(lines)); txt.config(state="disabled")
         state = {"photo": None, "frame": 0.0, "textures": {}}
         anim = self._model_material_anim(name, m)

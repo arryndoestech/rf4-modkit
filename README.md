@@ -681,6 +681,41 @@ added; changing a motion's length can put attack hitboxes / sounds (timed by fra
 At 24 fps Blender smooths fast moves away -- the toolkit warns when a file was exported at
 another rate.
 
+**Editing the mesh itself** (shape, UVs, weight painting) goes the same way back:
+
+1. **Export for Blender…** and import the .glb into Blender (the add-on or File > Import >
+   glTF 2.0).
+2. **Edit** the meshes: move / add / delete vertices, subdivide, re-UV, repaint weights. Keep
+   each object's name (Blender's `.001` suffix on a lone copy is fine) and the bone names.
+3. **Export** File > Export > glTF 2.0 (.glb) -- or the add-on's RF4S export, same file.
+4. **Import from Blender…** in the Model tab (command line `res model-import-glb MODEL FILE.glb
+   [-o OUT]`, `--map SHAPE=MESH` to pair them by hand). Each mesh replaces the shape of its
+   name with its positions, normals, UVs **and bone weights**, any vertex / triangle count.
+   Meshes you did not touch keep their exact bytes: an untouched round trip through Blender
+   gives back the original file byte for byte (for a few models Blender re-splits some
+   triangles; those come back drawing the same).
+
+What a shape can store is fixed by its vertex format: rigid shapes (skin 0) follow their one
+bone whatever the weights say; skin-1 shapes keep each vertex's heaviest bone; skinned shapes
+keep their 2 / 3 / 4 heaviest influences, renormalised. A bone the game has no skinning matrix
+for passes its weight to its nearest parent that has one. The import names every such case.
+To **remove** a part, delete its object in Blender and import with `--remove-missing` (or pick
+"(remove)" for that shape in the dialog, `--remove SHAPE`): the shape stays in the file (shape
+numbers do not shift) but draws nothing. To **add** a part, model it as a new object
+(parented to the armature with weights). The import asks what to do with it: *add to* an
+existing shape (command line `--add NewPart=SHAPE`: it joins that shape and its material), or
+make it a **new shape** *like* an existing one (`--new NewPart=SHAPE[:MATERIAL]`: the shape's
+vertex format and skin type are copied, the material is that shape's or any other existing
+one, so map the UVs onto that texture). A model holds at most 32 shapes (the game's limit).
+Not possible yet: new materials or textures, changing a shape's skin type, adding or
+re-parenting bones.
+
+**Moving bones** (the rest pose): move or turn bones in Blender's edit mode, export, and answer
+Yes when the import asks (command line `--bones`). The model keeps its look at rest (inverse
+bind matrices and rigid parts follow); motions then turn the parts about the new pivots.
+Blender cannot keep a bone's rest *scale* (36 shipped bones have one), so scale is never taken
+from Blender.
+
 ## What can be modded, and how
 
 | Format | Extensions | Tool | Round-trip |
@@ -701,7 +736,7 @@ another rate.
 | Monster taming foods | `rf3MonsterPresent.bin` | `rf4mod gift monster-set` / `monster-clear` | ✅ the 4 per-species (item, tame bonus) slots |
 | NPC daily schedules | `rf3Schedule.bin` + `rf3ScheduleID.bin` | `rf4mod schedule` | ✅ per-(NPC, state) itineraries: set / add / remove stops, JSON decode → edit → encode (index sections recomputed; stock re-encodes byte-exact); spot kinds resolved to rooms |
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
-| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.model` meshes written** (`rf4s_modkit.modelwrite`, statically verified, not yet tried in game): `res model-import MODEL SHAPE mesh.obj` replaces one shape's geometry with any vertex / triangle count (memory pool, buffer sizes, submesh, bounds and every relocated pointer rebuilt; an unmodified export re-imports byte-identically; skin weights copied from the nearest original vertex), `res model-transform` moves / scales / rotates a shape in place; ✅ **`.bfmat` material animations played and written** (all 59 rebuild byte for byte): `res model-gif` and Play in the GUI's Model tab show texsrt UV scroll, texture patterns (BM_* eye blinks / emblem swaps, anim_com* frame flips) and opacity fades; the `.bfmat` is found by stem or by material name (SYS_MENU_ANIME_09 -> anim_com09); `res bfmat-info` lists curves (`--json` dumps an editable file), `res bfmat-build JSON OUT` encodes it, `res bfmat-set IN OUT --speed 2` retimes; ✅ **`.bfskl` skeletal animations played** (all 2,001 parse): `res anim-info` (`--json` dump, `--model` binding) / `res anim-gif MODEL ANIM out.gif`, and the Model tab's motion row — bones bind by name, skinned meshes blended through the inverse bind matrices; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture in its own format — **in place** at the same size (file size and every container field unchanged), or **at any other size** (model UVs are normalised): the embedded BNTX is rebuilt and the `.model`'s embedded files, file table, relocated pointers and outer `_RLT` move with it (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game) |
+| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.model` meshes written** (`rf4s_modkit.modelwrite`, statically verified, not yet tried in game): `res model-import MODEL SHAPE mesh.obj` replaces one shape's geometry with any vertex / triangle count (memory pool, buffer sizes, submesh, bounds and every relocated pointer rebuilt; an unmodified export re-imports byte-identically; skin weights copied from the nearest original vertex), `res model-transform` moves / scales / rotates a shape in place; ✅ **Import from Blender** (`rf4s_modkit.meshimport`, statically verified): `res model-import-glb MODEL FILE.glb` / the Model tab rebuild every shape a glTF has a same-named mesh for, **with its bone weights** (kept to the shape's influence count, bones without a skinning matrix folded into their parent); new parts appended to a shape (`--add`) or made **new shapes** (`--new`, `rf4s_modkit.modelgrow`: SHAP / VRTX arrays, name dictionary and relocation table grown), shapes hidden (`--remove`), bones' rest pose moved (`--bones`); unmodified Export for Blender files re-import byte-identically (all 912 mesh files), untouched Blender round trips too (55 of 61 sampled; the other 6 render identically); ✅ **material settings** (`rf4s_modkit.matedit`, what the loader reads, in place): `res model-material MODEL` lists them, `res model-material MODEL MAT --wrap-u clamp --blend 2 -o OUT` changes texture wrap (every material) and DrawOrder / BlendType / CombineType / CombineColor00 (where the material carries them); GUI Model tab > Materials…; ✅ **`.bfmat` material animations played and written** (all 59 rebuild byte for byte): `res model-gif` and Play in the GUI's Model tab show texsrt UV scroll, texture patterns (BM_* eye blinks / emblem swaps, anim_com* frame flips) and opacity fades; the `.bfmat` is found by stem or by material name (SYS_MENU_ANIME_09 -> anim_com09); `res bfmat-info` lists curves (`--json` dumps an editable file), `res bfmat-build JSON OUT` encodes it, `res bfmat-set IN OUT --speed 2` retimes; ✅ **`.bfskl` skeletal animations played** (all 2,001 parse): `res anim-info` (`--json` dump, `--model` binding) / `res anim-gif MODEL ANIM out.gif`, and the Model tab's motion row — bones bind by name, skinned meshes blended through the inverse bind matrices; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture in its own format — **in place** at the same size (file size and every container field unchanged), or **at any other size** (model UVs are normalised): the embedded BNTX is rebuilt and the `.model`'s embedded files, file table, relocated pointers and outer `_RLT` move with it (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game) |
 | Emote / portraits | `.psbData` (loaded) `.emtbytes` (never loaded by the PC exe) | `rf4mod psb` | ✅ full E-mote PSB v4 reader (all 130 parse; `.emtbytes` header decrypted): `psb info` (atlas, face-frame timelines 0-5 = 通常/怒り/哀しみ/笑顔/驚き/照れ, variables), `psb dump -o DIR [--resources]` (whole tree → JSON), `psb textures -o DIR [--parts]` (RGBA8 / ASTC atlas → PNG, plus every named part crop); ✅ **repaint a portrait**: `psb replace-texture X.psbData edited.png -o out/` (same size; only the atlas bytes change, re-parsed and checked). Keep part outlines where they are — the mesh/part rectangles are absolute atlas pixels |
 | Sound-id table | `common_audio_data.bdat`, `voice_en_audio_data.bdat` (`voice_jp_…` ships but is never loaded) | `rf4mod sound` | ✅ `list` / `show` / `find` (all three tables) / `set` volume · priority · flags / point an id at another file / `add` a brand-new id / `remove`; byte-exact rebuild of all 3 stock tables; PlaySound / PlayVoicedSound listings show the file name. New sound: drop `SE_MYMOD.ogg` (or .wav/.flac/.mp3, sniffed by magic) under `Bundle\00_mods\`, `rf4mod sound add common_audio_data.bdat auto SE_MYMOD.ogg -o my.bdat`, `rf4mod install <game> common_audio_data.bdat my.bdat`, restart, `PlaySound(<id>)` |
 | Audio | `.ogg` `.wav` `.flac` `.mp3` | `rf4mod ident` | ➡️ swap (standard formats; the loader sniffs OggS / RIFF / fLaC / else MP3 — AIFF is not decoded; the one shipped `UISelect.aif` is referenced nowhere in the exe) |
@@ -800,6 +835,7 @@ python rf4mod.py res bfmat-info BM_05.bfmat                          # materials
 python rf4mod.py res bfmat-set ANIM_DUNG_B01.bfmat fast.bfmat --speed 2   # scroll twice as fast
 python rf4mod.py res anim-gif NPC_A_CLORICA.model 00W_002_walk.bfskl walk.gif --view side   # a .bfskl on a character
 python rf4mod.py res model-import NPC_C_BADO.model 1 part.obj -o out.model   # replace shape 1 from an OBJ (any vertex count; pool + pointers rebuilt)
+python rf4mod.py res model-import-glb NPC_C_BADO.model edited.glb -o out.model   # shapes + bone weights from Blender's glTF export
 python rf4mod.py res model-transform NPC_C_BADO.model 0 --scale 1.2 --rotate 0,45,0 -o out.model   # move / scale / rotate a shape in place
 
 # Textures inside a .model (map over-model scenery cards, character/monster/weapon/effect models)
