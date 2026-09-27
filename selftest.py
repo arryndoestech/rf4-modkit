@@ -1426,6 +1426,25 @@ def test_search_items():
     _check("NLCL footer xref-table valid", nl_ok == nl_total, f"{nl_ok}/{nl_total} NLCL files")
 
 
+def test_search_item_chances():
+    """The pool 'chance' shown by the toolkit is what SearchItem_RollSpotsAndSpawnFromArchive
+    (RF4S.exe+0x231FF0) picks: both the total and the running sum are bytes, and a total that
+    wraps to 0 rolls 0."""
+    print("search_items pool chances (byte sums, as the game picks):")
+    from rf4s_modkit.search_items import DropEntry, DropPool
+
+    def ch(*ws):
+        c, n = DropPool([DropEntry(1, w) for w in ws]).engine_chances()
+        return [round(x, 3) for x in c], round(n, 3)
+    _check("up to 255 the chance is weight / total", ch(10, 10, 5, 5, 20, 30, 55)
+           == ([round(100 * w / 135, 3) for w in (10, 10, 5, 5, 20, 30, 55)], 0.0))
+    _check("above 255 the wrapped sums decide: 30 + 250 -> total 24, the 1st entry always wins",
+           ch(30, 250) == ([100.0, 0.0], 0.0), ch(30, 250))
+    _check("a total that wraps to 0 rolls 0: 128 + 128 -> the 1st entry always wins",
+           ch(128, 128) == ([100.0, 0.0], 0.0), ch(128, 128))
+    _check("all-zero weights never yield an item", ch(0, 0) == ([0.0, 0.0], 100.0), ch(0, 0))
+
+
 def test_mobj_types():
     print("mobj_types (MOBJ type_id -> map_obj sprite identity):")
     # Spot-check IDA-dumped anchors across all four dispatch ranges.
@@ -12849,7 +12868,7 @@ def run() -> int:
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_mapground,
-              test_search_items, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_search_items, test_search_item_chances, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,

@@ -580,16 +580,17 @@ class SpotForm(Form):
         self.pool.delete(*self.pool.get_children())
         ents = sp.pool.entries
         total = sum(e.effective_weight for e in ents)
-        for k, e in enumerate(ents):
+        chances, _nothing = sp.pool.engine_chances()      # as the game picks (byte sums)
+        for k, (e, pct) in enumerate(zip(ents, chances)):
             iid = e.effective_item_id
-            pct = 100.0 * e.effective_weight / total if total else 0
             self.pool.insert("", "end", iid=str(k), values=(iid, data.item_name(iid) or "?",
                                                             e.effective_weight, f"{pct:.1f}%"))
         if keep and self.pool.exists(keep[0]):
             self.pool.selection_set(keep[0])
         warn = ""
         if total > 255:
-            warn = f"  ⚠ the game sums weights in one byte: {total} wraps to {total & 0xFF}"
+            warn = (f"  ⚠ the game sums weights in one byte: {total} wraps to {total & 0xFF}; "
+                    f"the chances shown are what the game actually picks")
         self.total.config(text=f"{len(ents)} item(s), total weight {total}{warn}",
                           foreground="#c60" if warn else "")
 

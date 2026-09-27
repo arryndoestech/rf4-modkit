@@ -4094,9 +4094,8 @@ class App:
             if k is None or k >= len(pools):
                 return
             p = pools[k]
-            total = p.engine_total_weight()
-            for j, e in enumerate(p.entries):
-                pct = (100.0 * e.effective_weight / total) if total else 0.0
+            chances, _nothing = p.engine_chances()          # as the game picks (byte sums)
+            for j, (e, pct) in enumerate(zip(p.entries, chances)):
                 en_tv.insert("", "end", iid=str(j),
                              values=(e.effective_item_id,
                                      item_names.get(e.effective_item_id, ""),

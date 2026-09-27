@@ -3831,9 +3831,9 @@ Args:
   0. event_key (the key the event actor was spawned with)
 
 ### `op 181` — DismissEventActor(event_key)
-*handler:* `ScriptVMOp_CalendarEvent_DismissActorAndDecrementCount`
+*handler:* `ScriptVMOp_DismissEventActor`
 
-Remove a spawned event actor quietly (no death animation) and free its event slot count. The player cannot be dismissed.
+Make a spawned event actor harmless and passive: it stops being a wild (hostile) monster and stays where it is; it is NOT removed and does not have to be in the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.
 
 Args:
   0. event_key (key given to SpawnEventActor)

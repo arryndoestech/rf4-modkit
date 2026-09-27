@@ -178,6 +178,32 @@ class DropPool:
         """Total as the engine computes it -- a u8 sum that wraps mod 256."""
         return self.total_weight() & 0xFF
 
+    def engine_chances(self) -> tuple[list[float], float]:
+        """(percent per entry, percent of 'nothing spawns') exactly as the game picks.
+
+        SearchItem_RollSpotsAndSpawnFromArchive (RF4S.exe+0x231FF0) keeps BOTH sums in a
+        byte: total = sum(weights) & 0xFF, roll = DailyRand(total) (uniform 0..total-1;
+        Calendar_DerivedDailyRandStream +0x2321D0 returns 0 for a range of 0), then the
+        running sum (also & 0xFF) picks the first entry with roll < running. Up to a total
+        of 255 this is weight / total; above it, entries past the wrap can get 0 % and the
+        rest shift. 'Nothing' happens only when no running sum ever exceeds the roll."""
+        n = len(self.entries)
+        total = self.engine_total_weight()
+        rolls = range(total) if total else (0,)
+        hits = [0] * n
+        none = 0
+        for roll in rolls:
+            run = 0
+            for k, e in enumerate(self.entries):
+                run = (run + e.effective_weight) & 0xFF
+                if roll < run:
+                    hits[k] += 1
+                    break
+            else:
+                none += 1
+        m = len(rolls)
+        return [100.0 * h / m for h in hits], 100.0 * none / m
+
 
 @dataclass
 class SearchSpot:
@@ -364,9 +390,15 @@ class SearchItemFile:
             if raw > WEIGHT_SUM_LIMIT:
                 warns.append(f"{tag}: weight bytes sum to {raw}; the engine sums in a u8 "
                              f"({raw & 0xFF}), which skews or breaks the pick -- keep <= 255")
-            if pool.engine_total_weight() == 0:
-                warns.append(f"{tag}: engine weight total is 0, so this pool never yields an "
-                             f"item")
+            chances, nothing = pool.engine_chances()
+            if nothing >= 100.0:
+                warns.append(f"{tag}: no entry can ever be picked (every running weight sum "
+                             f"is 0), so this pool never yields an item")
+            elif raw > WEIGHT_SUM_LIMIT:
+                dead = [k for k, c in enumerate(chances) if c == 0.0]
+                if dead:
+                    warns.append(f"{tag}: with the wrapped sums, entr{'y' if len(dead) == 1 else 'ies'} "
+                                 f"{', '.join(map(str, dead))} can never drop")
             for k, e in enumerate(pool.entries):
                 if e.item_id > 0x7FF:
                     warns.append(f"{tag} entry {k}: item id {e.item_id} -- the engine keeps "
@@ -399,8 +431,8 @@ class SearchItemFile:
             if raw_total > WEIGHT_SUM_LIMIT:
                 lines.append(f"      !! weight sum {raw_total} exceeds 255 -- engine "
                              f"wraps to {total}, distribution is skewed")
-            for e in spot.pool.entries:
-                pct = (100.0 * e.effective_weight / total) if total else 0.0
+            chances, _nothing = spot.pool.engine_chances()
+            for e, pct in zip(spot.pool.entries, chances):
                 nm = item_names.get(e.effective_item_id, f"item_{e.effective_item_id}")
                 lines.append(f"      {nm:<24}  w={e.effective_weight:3d}  (~{pct:4.1f}%)")
         lines += [f"  ! {m}" for m in self.validate() if m.startswith("ERROR")]
