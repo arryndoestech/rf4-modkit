@@ -20,20 +20,20 @@ SOURCE_SYNTAX_HELP = (
     "`0123:` address prefixes the disassembler prints are ignored (paste listings back verbatim):\n"
     "  FRAME 0                          frame setup (reserve N operand slots; scenes start with it)\n"
     "  DIALOG #8709                     show rf3mc line 8709 (speaker = the last SetSpeaker*)\n"
-    "  SetSpeakerNancy(3, 0)            action: name(args) -- mnemonic | technical name | opN\n"
+    "  SetSpeakerNancyLeft(3, 0)            action: name(args) -- mnemonic | technical name | opN\n"
     "  GivePlayerItem(258, reg0 + 1, 0) args: int, expression, enum name, regN, arr[N], @0xOFF (reuse)\n"
     "  BR_Z (REG_WIFE_ID == 11) -> L1   jump when the condition is FALSE (BR_NZ: when TRUE)\n"
-    "  STORE (FLG_EV_DONE = 1)          write a flag / register / arr[N]  (= += -= *= /= %= &&= ||=)\n"
+    "  EVAL (FLG_EV_DONE = 1)          write a flag / register / arr[N]  (= += -= *= /= %= &&= ||=)\n"
     "  CALL L2  /  JMP L2  /  CALL 0x1234    labels in the listing; 0xPC = existing code in the bank\n"
     "  PROMPT_CHOICE CANCEL -> L2, #123 -> L3, #124 -> L4   choice menu (PROMPT_CHOICE_FORCED: no cancel)\n"
-    "  SWITCH_EQ (reg1) -> L1, L2, L3  /  RAND_BR (3) -> L1, (1) -> L2  /  JMP_IND L1, L2\n"
+    "  SWITCH (reg1) -> L1, L2, L3  /  JMP_WEIGHTED (3) -> L1, (1) -> L2  /  JMP_RAND L1, L2\n"
     "  BR_END (cond)  /  .raw <hex>  /  END     -- a listing that can fall off its end gets END added"
 )
 
 INSERT_PROMPT = ("Statements to insert AFTER the selected one (full listing syntax, one per line):\n"
-                 "  GivePlayerItem(258, 1, 0)    STORE (FLG_EV_DONE = 1)\n"
+                 "  GivePlayerItem(258, 1, 0)    EVAL (FLG_EV_DONE = 1)\n"
                  "  BR_Z (REG_WIFE_ID == 11) -> L1  /  DIALOG #5  /  L1:\n"
-                 "Names: an opcode mnemonic (GivePlayerItem, SetSpeakerMC) or a number; FLG_/REG_ variable "
+                 "Names: an opcode mnemonic (GivePlayerItem, SetSpeakerMCLeft) or a number; FLG_/REG_ variable "
                  "names come from emdeb.bin. Ctrl-Enter = OK.")
 
 def entry_keys_text(subs):

@@ -15,13 +15,13 @@ Model (matches docs/18-cutscene-scripts.md and the shipped-corpus statement size
   0xFFF1 FRAME n        4  fall-through (frame setup)
   0xFFFE CALL t         4  call bankbase+t
   0xFFFA JMP t          4  goto bankbase+t
-  0xFFFB STORE e        4  fall-through
-  0xFFFD BR_RET e       4  conditional return
+  0xFFFB EVAL e        4  fall-through
+  0xFFFD RET_NZ e       4  conditional return
   0xFFFC DIALOG id32    6  fall-through
   0xFFF8/9 BR_Z/BR_NZ   6  cbranch bankbase+t
-  0xFFF7/6 SWITCH_EQ/GE 6  header (expr,n), indirect-jump flow (table = data tail)
+  0xFFF7/6 SWITCH/GE 6  header (expr,n), indirect-jump flow (table = data tail)
   0xFFF5/4 PROMPT_*     4  header (n), indirect-jump flow (table = data tail)
-  0xFFF3/2 JMP_IND/RAND_BR 4  header (n), indirect-jump flow
+  0xFFF3/2 JMP_RAND/JMP_WEIGHTED 4  header (n), indirect-jump flow
 
 Bank-local u16 targets resolve through the `bankbase` context register, which the
 apply script sets over each bank's byte range before disassembling.
@@ -86,17 +86,17 @@ dest: reloc is a16 [ reloc = bankbase + a16; ] { export *[ram]:4 reloc; }
 :FRAME cnt16 is op16=0xfff1; cnt16 { }
 :CALL dest is op16=0xfffe; dest { call dest; }
 :JMP dest is op16=0xfffa; dest { goto dest; }
-:STORE a16 is op16=0xfffb; a16 { }
-:BR_RET a16 is op16=0xfffd; a16 { if (r0 == 0) goto <skip>; tmp:4=0; return [tmp]; <skip> }
+:EVAL a16 is op16=0xfffb; a16 { }
+:RET_NZ a16 is op16=0xfffd; a16 { if (r0 == 0) goto <skip>; tmp:4=0; return [tmp]; <skip> }
 :DIALOG d32 is op16=0xfffc; d32 { }
 :BR_Z a16,dest is op16=0xfff8; a16; dest { if (r0 == 0) goto dest; }
 :BR_NZ a16,dest is op16=0xfff9; a16; dest { if (r0 != 0) goto dest; }
-:SWITCH_EQ a16,cnt16 is op16=0xfff7; a16; cnt16 { tmp:4=0; goto [tmp]; }
-:SWITCH_GE a16,cnt16 is op16=0xfff6; a16; cnt16 { tmp:4=0; goto [tmp]; }
+:SWITCH a16,cnt16 is op16=0xfff7; a16; cnt16 { tmp:4=0; goto [tmp]; }
+:SWITCH_CLAMP a16,cnt16 is op16=0xfff6; a16; cnt16 { tmp:4=0; goto [tmp]; }
 :PROMPT_CHOICE_FORCED cnt16 is op16=0xfff5; cnt16 { tmp:4=0; goto [tmp]; }
 :PROMPT_CHOICE cnt16 is op16=0xfff4; cnt16 { tmp:4=0; goto [tmp]; }
-:JMP_IND cnt16 is op16=0xfff3; cnt16 { tmp:4=0; goto [tmp]; }
-:RAND_BR cnt16 is op16=0xfff2; cnt16 { tmp:4=0; goto [tmp]; }
+:JMP_RAND cnt16 is op16=0xfff3; cnt16 { tmp:4=0; goto [tmp]; }
+:JMP_WEIGHTED cnt16 is op16=0xfff2; cnt16 { tmp:4=0; goto [tmp]; }
 
 @include "rf4mc_ops.sinc"
 

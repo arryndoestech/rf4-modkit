@@ -156,7 +156,7 @@ public class ApplyRF4Cutscenes extends GhidraScript {
                 String text = row.get(2).getAsString();
                 setEOLComment(a, text);
                 boolean tableOp = text.startsWith("SWITCH_") || text.startsWith("PROMPT_")
-                                  || text.startsWith("JMP_IND") || text.startsWith("RAND_BR");
+                                  || text.startsWith("JMP_RAND") || text.startsWith("JMP_WEIGHTED");
                 if (!rf4mc || tableOp) {
                     for (JsonElement rr : row.get(3).getAsJsonArray()) {
                         JsonArray pair = rr.getAsJsonArray();

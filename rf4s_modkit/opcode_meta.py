@@ -66,13 +66,13 @@ CONTROL = {
     "JMP":       ("flow", "Unconditional jump."),
     "BR_Z":      ("flow", "Branch if the guard expression is 0 (false)."),
     "BR_NZ":     ("flow", "Branch if the guard expression is non-zero (true)."),
-    "BR_RET":    ("flow", "Conditional RET (early-exit guard): evaluate the guard expression -- "
+    "RET_NZ":    ("flow", "Conditional RET (early-exit guard): evaluate the guard expression -- "
                           "if it is nonzero/true, do exactly what RET does (return from a CALLed "
                           "subroutine, or end the scene at top level); otherwise fall through to "
                           "the next statement. Never emitted in shipped scripts. IDA-verified "
                           "(Script_VMStep case 0xFFFD -> Script_EvalExpressionOrVar, then "
                           "Script_Opcode_FFFF_EndAndCleanup when true)."),
-    "STORE":     ("flag", "Evaluate an expression and store it into a variable."),
+    "EVAL":     ("flag", "Evaluate an expression and store it into a variable."),
     "DIALOG":    ("dialogue", "Show a dialogue line (by text id). The current SPEAKER (set by a "
                           "SetSpeaker* portrait op, SetSpeakerVoice op 10, or nothing = "
                           "narration) PERSISTS across consecutive DIALOG lines until the next "
@@ -80,28 +80,28 @@ CONTROL = {
                           "back-to-back lines under one speaker. If an ArmChoiceOption (op 615) "
                           "precedes this line, it does NOT display: it queues as a choice "
                           "option for a later PROMPT_CHOICE instead."),
-    "SWITCH_EQ": ("flow", "Indexed jump table: evaluate the selector expression, then jump to "
+    "SWITCH": ("flow", "Indexed jump table: evaluate the selector expression, then jump to "
                           "targets[value] when 0 <= value < N -- a DENSE 0..N-1 index, not a set of "
                           "per-case compare values. The comparison is UNSIGNED, so a negative "
                           "selector (like reg0 = -1 after a cancelled prompt) falls through to the "
                           "next statement, same as any >= N value. The canonical use is dispatching "
-                          "a choice result: `SWITCH_EQ (reg0)` after a staged PROMPT_CHOICE jumps "
+                          "a choice result: `SWITCH (reg0)` after a staged PROMPT_CHOICE jumps "
                           "to the picked option's branch. Layout: [op][selector-expr][N]"
                           "[N u16 targets]. IDA-verified (Script_VMStep case 0xFFF7, "
                           "RF4S.exe+0x23EF60)."),
-    "SWITCH_GE": ("flow", "Indexed jump table, always-branch variant of SWITCH_EQ: jump to "
+    "SWITCH_CLAMP": ("flow", "Indexed jump table, always-branch variant of SWITCH: jump to "
                           "targets[value] when value < N, and CLAMP an out-of-range value (>= N, "
                           "including negatives -- the compare is unsigned) to the last target "
                           "(targets[N-1]) rather than falling through -- so it never falls "
                           "through. Same [op][selector-expr][N][N u16 targets] layout as "
-                          "SWITCH_EQ. Used exactly once in the whole game. IDA-verified "
+                          "SWITCH. Used exactly once in the whole game. IDA-verified "
                           "(Script_VMStep case 0xFFF6)."),
-    "JMP_IND":   ("flow", "Uniform-random jump: pick one of the N targets at random (each 1/N) and "
-                          "jump to it -- the UNWEIGHTED sibling of RAND_BR. Takes no operand (the "
+    "JMP_RAND":   ("flow", "Uniform-random jump: pick one of the N targets at random (each 1/N) and "
+                          "jump to it -- the UNWEIGHTED sibling of JMP_WEIGHTED. Takes no operand (the "
                           "target table is the only data); the pick is an RNG roll in [0, N) via the "
-                          "same VM RNG (reader-vtable +56) that RAND_BR rolls its weighted pick with. "
+                          "same VM RNG (reader-vtable +56) that JMP_WEIGHTED rolls its weighted pick with. "
                           "Layout: [op][N][N u16 targets]. IDA-verified (Script_VMStep case 0xFFF3)."),
-    "RAND_BR":   ("flow", "Weighted-random branch: pick one of N targets at random, each weighted by "
+    "JMP_WEIGHTED":   ("flow", "Weighted-random branch: pick one of N targets at random, each weighted by "
                           "an expression. Every case's weight is evaluated fresh (so a weight can "
                           "depend on game state), the weights are summed, then an RNG roll in "
                           "[0, total) selects a target -- case i fires with probability "
@@ -121,7 +121,7 @@ CONTROL = {
                           "ROW]. reg0 is written ONLY when a visibility mask is set (ops "
                           "610/611/612): then only flagged options appear, reg0 = the picked "
                           "option's ORIGINAL index, the mask is cleared, and the shipped "
-                          "idiom is all targets -> one label + SWITCH_EQ on reg0. A mask "
+                          "idiom is all targets -> one label + SWITCH on reg0. A mask "
                           "whose set bits all lie past option N-1 opens an EMPTY menu that "
                           "crashes on confirm (divide by zero); an all-zero mask shows every "
                           "option. An unmasked prompt leaves reg0 UNTOUCHED -- shipped scenes "
@@ -1352,7 +1352,7 @@ _M.update({
           "Set the game DIFFICULTY (the Special-edition Easy/Normal/Hard/Hell option; the old "
           "'SetDevMode' name was wrong). arg0 = mode: 0 = Easy (g_globalGameStateFlags bit "
           "0x4000), 1 = Normal (clears 0xC000), 2 = Hard AND Hell (bit 0x8000 — the script "
-          "distinguishes Hell with a separate packed-flag STORE, the engine bit is the same). "
+          "distinguishes Hell with a separate packed-flag EVAL, the engine bit is the same). "
           "Modes 0/1 also write packed GameFlag 3005 = 0. Bit 0x8000 gates monster bonus-level "
           "tiers, extra per-level stat gains, and lethal status/environment damage; 0x4000 "
           "skips a faint penalty. Used by the difficulty-change dialog (bank 71 tail @0x12a6).",
@@ -1536,7 +1536,7 @@ _M.update({
     628: ("SetRegisters", "flag",
           "Load the VM REGISTER FILE reg0..reg9 (ctx+64..+100) from up to 10 argument values "
           "— reg[i] = arg[i]. These are the registers expressions read back via the reg "
-          "tokens, SWITCH_EQ selectors dispatch on, and camera/position ops consume "
+          "tokens, SWITCH selectors dispatch on, and camera/position ops consume "
           "(GetPlayerPosition writes reg0/reg1; a staged PROMPT_CHOICE writes the pick to "
           "reg0). This op is how a script seeds them explicitly (1,825 uses). Registers are "
           "flat scratch — NOT saved across CALL — so consume them before the next op that "
@@ -1563,7 +1563,7 @@ _M.update({
           "dword 0 (choices 0..31; dwords 1-3 are untouched), then sets bit i when arg i is "
           "non-zero. Each bit gates whether option i appears in the next PROMPT_CHOICE, and "
           "the picked VISIBLE ROW maps back through the set bits to the option's ORIGINAL "
-          "index in reg0 (that's what the SWITCH_EQ after a staged prompt dispatches on). "
+          "index in reg0 (that's what the SWITCH after a staged prompt dispatches on). "
           "Sets reg0 = 1 if any of the 128 mask bits is set, else 0. Only 32 args are "
           "meaningful: arg i >= 32 wraps onto bit i-32 (the shift is mod 32). IDA-verified "
           "2026-08-17 / 2026-09-24 (Script_VMOp_SetSceneChoiceVisibleMaskFromArgs).",
@@ -3146,7 +3146,7 @@ _M.update({
         "Move the calendar to a random date in the current year: keeps the time of day (seconds/minute/hour) and the year, sets day = random 1..30 and season = random 0..3, normalizes, then runs Calendar_FastForwardForSleep to the new target with the per-minute callbacks suppressed. Afterwards clears the player's field_B4 and sets game-main work+8 bit 1. No args.",
         []),
     629: ('SetRegisters', 'flag',
-        'Load the VM REGISTER FILE reg0..reg9 (ctx+64..+100) from up to 10 argument values — reg[i] = arg[i]. These are the registers expressions read back via the reg tokens, SWITCH_EQ selectors dispatch on, and camera/position ops consume (GetPlayerPosition writes reg0/reg1; a staged PROMPT_CHOICE writes the pick to reg0). This op is how a script seeds them explicitly (1,825 uses). Registers are flat scratch — NOT saved across CALL — so consume them before the next op that writes reg0.',
+        'Load the VM REGISTER FILE reg0..reg9 (ctx+64..+100) from up to 10 argument values — reg[i] = arg[i]. These are the registers expressions read back via the reg tokens, SWITCH selectors dispatch on, and camera/position ops consume (GetPlayerPosition writes reg0/reg1; a staged PROMPT_CHOICE writes the pick to reg0). This op is how a script seeds them explicitly (1,825 uses). Registers are flat scratch — NOT saved across CALL — so consume them before the next op that writes reg0.',
         ['reg0 value', 'reg1 value', '…up to reg9']),
     630: ('nop', 'noop',
         'No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.',
@@ -3722,7 +3722,7 @@ SHOPKEEPER_NPCS = {
 }
 
 # Festival IDs from bank 292 @0x0840's `＊ｏBean Festival` dev menu (33 choices, one
-# STORE per branch reveals the exact id going into reg0 or reg2).
+# EVAL per branch reveals the exact id going into reg0 or reg2).
 #
 # reg0 (competitive festival "wins" -- 7 IDs, victory-flag toggle):
 COMPETITIVE_FESTIVALS = {
@@ -3876,7 +3876,7 @@ def cooking_recipe_category(item_id):
 
 # NPC IDs (bank 4 tail44 pc@0x5788 Vishnal-story-arc menu confirmed these match
 # the PORTRAIT_SPEAKERS slot numbers -- previously suspected but now definitive:
-# each NPC branch fires `STORE var:0x40C6 = <slot>` matching PORTRAIT_SPEAKERS).
+# each NPC branch fires `EVAL var:0x40C6 = <slot>` matching PORTRAIT_SPEAKERS).
 # So var:0x40C6 is a GENERIC 'currently-focused NPC' variable, not
 # monster-dex-specific; renamed accordingly.
 #
@@ -3916,7 +3916,7 @@ NPC_SETTLEMENT_EVENT_IDS = {
 
 
 # NPC / player MOTION animation-id ranges. From bank 252 tail44 pc@0x6b04's
-# `＊M_AMAZE〜M_FLOWER02` motion-sampler menu. Each STORE-range is (reg0, reg1)
+# `＊M_AMAZE〜M_FLOWER02` motion-sampler menu. Each EVAL-range is (reg0, reg1)
 # = [start_anim, end_anim) for a run of consecutive anim ids the QA menu will
 # cycle through. Also cross-checked against bank 308 tail's Motion Categories.
 #
@@ -4094,9 +4094,9 @@ def story_checkpoint_name(v):
     return STORY_CHECKPOINTS.get(v)
 
 
-# Named game-state variables (STORE var:0xNNNN) discovered from the QA menus.
+# Named game-state variables (EVAL var:0xNNNN) discovered from the QA menus.
 # These aren't opcodes; they're the meanings of specific `var:` addresses used
-# by the script's STORE / conditional-branch machinery. Recorded here so a
+# by the script's EVAL / conditional-branch machinery. Recorded here so a
 # script editor can auto-annotate `var:0x8000 = 511` as `MAIN_STORY_CHECKPOINT
 # = "After All Clear"` and so on. From bank 252 tail44 menus + bank 292.
 NAMED_SCRIPT_VARS = {
@@ -4136,7 +4136,7 @@ NAMED_SCRIPT_VARS = {
     0x80A2: "side_events_unlock_flag",   # 'Unlock Side Events' -> 0
     0x8103: "post_marriage_flow_flag",   # written by After All Clear branch
     0x8620: "current_date_event_id",     # written by bank 21 NPC-debug ＊Date branch
-                                         # (STORE var:0x8620 = 500 = 'Date active')
+                                         # (EVAL var:0x8620 = 500 = 'Date active')
                                          # High 0x8XXX range like 0x8000 = MAIN_STORY_CHECKPOINT
                                          # -- looks like a peer 'date sub-plot state' tracker
 }
@@ -4585,14 +4585,13 @@ def render_action(op, arg_strs):
                 sid = _lit_int(arg_strs[1]) if code == 104 else code
             except (ValueError, IndexError, TypeError):
                 sid = code
-            return "QueryPlayerVariable(Skill, %s)" % skill_name(sid)
-        return "QueryPlayerVariable(%s)" % PLAYER_VAR_BY_CHARCODE.get(code, "code%d" % code)
-    # Portrait / SetSpeaker ops (16..75): prepend `side` (from opcode parity: even=left,
-    # odd=right) and resolve face-frame + emote-id numerics to canonical mood names. So
-    # `SetSpeakerVishnal(1, 189)` on op 19 renders as `SetSpeakerVishnal(right, angry, angry)`.
+            return "%s(Skill, %s)" % (mnemonic(op), skill_name(sid))
+        return "%s(%s)" % (mnemonic(op), PLAYER_VAR_BY_CHARCODE.get(code, "code%d" % code))
+    # Portrait / SetSpeaker ops (16..75): resolve face-frame + emote-id numerics to canonical
+    # mood names (the side is in the name: even ops ...Left, odd ...Right). So
+    # `SetSpeakerVishnalRight(1, 189)` (op 19) renders as `SetSpeakerVishnalRight(angry, angry)`.
     if 16 <= op <= 75:
-        side = "left" if (op & 1) == 0 else "right"
-        decorated = [side]
+        decorated = []
         for i, raw in enumerate(arg_strs):
             try:
                 v = _lit_int(raw)
@@ -4975,3 +4974,50 @@ for _k in ((226, 0), (261, 0), (268, 0), (269, 0), (274, 0)):
 # a raw u16 stored at record+6 (291)
 for _k in ((470, 0), (471, 0), (472, 0), (528, 0), (291, 1)):
     ENUM_ARG_VALUES.pop(_k, None)
+
+
+# ---- opcode table (review 2026-09-27) ------------------------------------------------------
+# opcode_table.json is the single source for every action op's mnemonic, category,
+# description and argument labels, and for the control instructions' names: all 702 handlers
+# re-read against RF4S.exe and the shipped rf3.mc, then a naming pass (Get = register query,
+# Is/Has = boolean query, Wait = blocks, verb first; true aliases share a name). It is applied
+# LAST so it wins over the text above; the pickers wired above stay keyed by (op, arg index).
+# Each row also carries returns / blocking / details / evidence and the human_verified flag
+# (OPCODE_TABLE.md is generated from it by gen_opcode_table.py).
+with open(os.path.join(_HERE, "opcode_table.json"), encoding="utf-8") as _f:
+    TABLE = json.load(_f)
+
+
+def _arg_label(a):
+    v = (a.get("values") or "").strip()
+    return "%s (%s)" % (a["name"], v) if v and v.lower() not in ("any", "-") else a["name"]
+
+
+for _k, _r in TABLE["actions"].items():
+    META[int(_k)] = {"m": _r["mnemonic"], "c": _r["category"], "d": _r["description"],
+                     "a": [_arg_label(_a) for _a in _r["args"]]}
+_OP_BY_MNEMONIC = None
+CONTROL_NAMES = {int(_r["code"]): _r["mnemonic"] for _r in TABLE["control"].values()}
+CONTROL = {_r["mnemonic"]: (_r["category"], _r["description"]) for _r in TABLE["control"].values()}
+
+
+def table_row(op):
+    """The opcode_table.json row of an action op (dict), or None."""
+    return TABLE["actions"].get(str(op))
+
+
+def returns(op):
+    """What an action op writes to the VM registers (text), or None."""
+    r = table_row(op)
+    return r["returns"] if r else None
+
+
+def blocking(op):
+    """Whether / until when an action op blocks the script (text)."""
+    r = table_row(op)
+    return r["blocking"] if r else None
+
+
+def human_verified(op):
+    r = table_row(op)
+    return bool(r and r.get("human_verified"))

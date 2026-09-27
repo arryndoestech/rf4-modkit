@@ -676,7 +676,7 @@ class EventManagerWindow:
                 out.append({"a": "Condition A: true when any one way holds (CondScript_EvalEntry).",
                             "b": "Condition B: a second test scenes can ask for ('is B true').",
                             "main": "Run by rf3.mc's DispatchCondScriptEntry (op 373).",
-                            "alt": "Run by rf3.mc's CondScriptDispatchAltAction (op 374)."}[key[1]])
+                            "alt": "Run by rf3.mc's RunEmEntryAltAction (op 374)."}[key[1]])
             elif key[0] == "use":
                 out.append("Double-click to open this scene at the statement.")
             elif key[0] == "ref":
@@ -802,7 +802,7 @@ class EventManagerWindow:
              "Add an action scenes run with DispatchCondScriptEntry (op 373). It starts as 'run entry "
              "#0', which does nothing, until you pick what it changes."),
             ("Add an alt action", lambda: self.add_action_to("alt"),
-             "Add an action to the alt stream (run by CondScriptDispatchAltAction, op 374)."),
+             "Add an action to the alt stream (run by RunEmEntryAltAction, op 374)."),
             ("Add its other test (B)", lambda: self.add_way("b"),
              "Add a way for condition B, the second test scenes can ask for."),
         ])

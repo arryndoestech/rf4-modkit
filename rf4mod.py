@@ -1988,7 +1988,7 @@ def cmd_script_set_val(a):
         pathlib.Path(a.out).write_bytes(c.build())
         return
     if st is not None and st.op >= 0xFFF0:
-        # control-op guard/value literal (BR_Z threshold, STORE value, RAND_BR weight, ...):
+        # control-op guard/value literal (BR_Z threshold, EVAL value, JMP_WEIGHTED weight, ...):
         # --index picks which editable literal in the op's guard/value expression (reading order).
         lits = []
         for e in (getattr(st, "expr_refs", None) or []):
@@ -2420,7 +2420,7 @@ def cmd_em_new_var(a):
     t.save_extras(extra)
     print(f"{v.name}: bits {v.bit_offset}..{v.bit_offset + v.bit_width - 1} (width {v.bit_width}); "
           f"{t.free_bits} free bits left; wrote {extra}")
-    print("use it as `FLG_X == 1` in em conditions, `STORE (FLG_X = 1)` / `BR_Z (FLG_X)` in cutscene "
+    print("use it as `FLG_X == 1` in em conditions, `EVAL (FLG_X = 1)` / `BR_Z (FLG_X)` in cutscene "
           "listings; the game never reads the name, only the bits")
 
 
@@ -4125,13 +4125,13 @@ def build_parser():
     sc4.add_argument("-o", "--out", required=True); sc4.set_defaults(func=cmd_script_set_arg)
     sc6 = scsub.add_parser("set-val", help="set an immediate VALUE in place: an action arg, OR (for "
                            "a control op) the --index-th literal of its guard/value expr "
-                           "(STORE value, BR_Z threshold, RAND_BR weight)")
+                           "(EVAL value, BR_Z threshold, JMP_WEIGHTED weight)")
     sc6.add_argument("file"); sc6.add_argument("--bank", type=int, required=True)
     sc6.add_argument("--pc", required=True); sc6.add_argument("--index", type=int, required=True)
     sc6.add_argument("--value", type=int, required=True)
     sc6.add_argument("-o", "--out", required=True); sc6.set_defaults(func=cmd_script_set_val)
     sc6t = scsub.add_parser("set-target", help="retarget a branch/jump/choice destination to "
-                            "another statement pc (BR_Z/BR_NZ/JMP/SWITCH/RAND_BR/PROMPT_CHOICE)")
+                            "another statement pc (BR_Z/BR_NZ/JMP/SWITCH/JMP_WEIGHTED/PROMPT_CHOICE)")
     sc6t.add_argument("file"); sc6t.add_argument("--bank", type=int, required=True)
     sc6t.add_argument("--pc", required=True, help="the branch statement's PC (hex ok)")
     sc6t.add_argument("--index", type=int, required=True,
@@ -4170,7 +4170,7 @@ def build_parser():
     sc5.add_argument("-o", "--out", required=True); sc5.set_defaults(func=cmd_script_set_text)
     # authoring layer (rf4s_modkit.scriptasm): listings, assembler, triggers
     sc7.add_argument("--stmt", help="listing text to insert (statements separated by ' / ' or "
-                     "'\\n'; full syntax: expressions, BR_Z/STORE, labels)")
+                     "'\\n'; full syntax: expressions, BR_Z/EVAL, labels)")
     sc7.add_argument("--listing", help="file with listing text to insert")
     sc9.add_argument("--listing", help="file with the new body as listing text (instead of --beats)")
     sc9._actions[[i for i, x in enumerate(sc9._actions) if "--beats" in x.option_strings][0]].required = False

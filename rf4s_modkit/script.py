@@ -23,6 +23,7 @@ DISPATCHABLE_ACTION_OPS; names in script_opcodes.json).
 from __future__ import annotations
 import json
 import os
+import re
 import struct
 from collections import OrderedDict
 
@@ -68,7 +69,7 @@ def opcode_mnemonic(op):
 def scene_summary(sc):
     """A short one-line summary of a scene by its first meaningful op, for the editor's scene
     list when the scene carries no dialogue (so a control/action-only scene isn't a blank row).
-    Returns e.g. '-> FadeScreen', '-> SWITCH_EQ', '(FRAME)', or '' for an empty scene."""
+    Returns e.g. '-> FadeScreen', '-> SWITCH', '(FRAME)', or '' for an empty scene."""
     stmts = list(sc.stmts.values())
     act = next((s for s in stmts if s.op < 0xFFF0), None)
     if act is not None:
@@ -94,7 +95,7 @@ def find_ops(query, limit=12):
 
 
 def render_action(op, arg_strs):
-    """Value-decoded 'Name(decoded args)' for enum-arg opcodes (e.g. QueryPlayerVariable),
+    """Value-decoded 'Name(decoded args)' for enum-arg opcodes (e.g. GetPlayerVariable),
     or None to use the default name(args) rendering. See opcode_meta.render_action."""
     return meta.render_action(op, arg_strs)
 
@@ -111,7 +112,7 @@ def opcode_tooltip(op, arg_values=None):
 
 
 def opcode_prototype(op):
-    """C-style signature string, e.g. 'SetSpeakerDylas(face frame, emote/mood, target)'."""
+    """C-style signature string, e.g. 'SetSpeakerDylasLeft(face frame, emote/mood, target)'."""
     return meta.prototype(op)
 
 
@@ -200,10 +201,10 @@ def control_tooltip(mnem):
 
 # control opcodes (>= 0xFFF0) handled inline by Script_VMStep
 CONTROL = {
-    0xFFFF: "RET", 0xFFFE: "CALL", 0xFFFD: "BR_RET", 0xFFFC: "DIALOG",
-    0xFFFB: "STORE", 0xFFFA: "JMP", 0xFFF9: "BR_NZ", 0xFFF8: "BR_Z",
-    0xFFF7: "SWITCH_EQ", 0xFFF6: "SWITCH_GE", 0xFFF5: "PROMPT_CHOICE_FORCED", 0xFFF4: "PROMPT_CHOICE",
-    0xFFF3: "JMP_IND", 0xFFF2: "RAND_BR", 0xFFF1: "FRAME",
+    0xFFFF: "RET", 0xFFFE: "CALL", 0xFFFD: "RET_NZ", 0xFFFC: "DIALOG",
+    0xFFFB: "EVAL", 0xFFFA: "JMP", 0xFFF9: "BR_NZ", 0xFFF8: "BR_Z",
+    0xFFF7: "SWITCH", 0xFFF6: "SWITCH_CLAMP", 0xFFF5: "PROMPT_CHOICE_FORCED", 0xFFF4: "PROMPT_CHOICE",
+    0xFFF3: "JMP_RAND", 0xFFF2: "JMP_WEIGHTED", 0xFFF1: "FRAME",
 }
 
 
@@ -641,7 +642,7 @@ def expr_literals(buf, off, _maxtok=512):
     (0/-1/1), variables, VM registers and array loads carry no range-editable literal and
     are skipped. The walk mirrors `disasm_expr` exactly, so the offsets it yields line up
     with the literals shown in the disassembly -- this is what lets the editor expose a
-    control-op guard/value expression (a BR_Z threshold, a STORE value) for editing, not
+    control-op guard/value expression (a BR_Z threshold, an EVAL value) for editing, not
     just display."""
     n = len(buf)
     out = []
@@ -739,6 +740,22 @@ _NOT_ACTOR_WORDS = ("count", "item", "line", "content", "flag", "index", "kind",
                     "child", "monster", "event")
 
 
+def _table_arg(op, ai):
+    """opcode_table.json's entry for argument `ai` of `op` (trailing variadic args repeat the
+    last one), or None when the op has no table row or no such argument."""
+    row = meta.table_row(op)
+    if not row or not row["args"]:
+        return None
+    args = row["args"]
+    if ai < len(args):
+        return args[ai]
+    last = args[-1]
+    txt = " ".join(str(last.get(k) or "") for k in ("name", "type", "values")).lower()
+    if "..." in txt or "…" in txt or re.search(r"one or more|zero or more|variable|argc", txt):
+        return last
+    return None
+
+
 def leaf_slot_kind(op, ai):
     """'actor', 'map' or None: what a tag-3 / tag-4 constant in argument `ai` of opcode
     `op` means. None = unknown slot (rendered as the neutral localvar/globalvar form)."""
@@ -751,6 +768,16 @@ def leaf_slot_kind(op, ai):
     reg = meta.ENUM_ARG_VALUES.get((op, ai))
     if reg is not None and (reg is meta.CHAR_IDS or reg is meta._CHAR_IDS_NPC):
         return "actor"
+    arg = _table_arg(op, ai)
+    if arg is not None:                          # opcode_table.json: decide by the arg's type
+        typ = (arg.get("type") or "").lower()
+        if re.search(r"\bmap ids?\b", typ):
+            return "map"
+        what = typ + " " + (arg.get("name") or "").lower()
+        if "char id" in typ or (any(w in what for w in _ACTOR_LABEL_WORDS + ("character", "speaker", "villager"))
+                                and not any(w in typ for w in _NOT_ACTOR_WORDS)):
+            return "actor"
+        return None
     names = opcode_arg_names(op) or []
     if ai < len(names):
         label = names[ai]
@@ -769,6 +796,10 @@ def _zero_is_not_player(op, ai):
     the current one, ...): the no-0 char registry, or a '0 = all'-style label."""
     if meta.ENUM_ARG_VALUES.get((op, ai)) is meta._CHAR_IDS_NPC:
         return True
+    arg = _table_arg(op, ai)
+    if arg is not None:
+        return bool(re.search(r"\b0\s*=\s*(all|every|the current|current|count|input|any|none)",
+                              (arg.get("values") or "").lower()))
     names = opcode_arg_names(op) or []
     low = (names[ai] if ai < len(names) else (names[-1] if names else "")).lower().replace(" ", "")
     return any(z in low for z in ("0=all", "0=current", "0=count", "0=input", "0=any", "0=none"))
@@ -884,7 +915,7 @@ ARG_HINTS = {
     83:  ["sfx id"],                            # PlaySfxById
     91:  ["freeze (0/1)"],                      # SetPlayerScriptedFreeze
     92:  ["tile x", "tile y"],                  # TeleportPlayerToTile
-    93:  ["facing deg", "pose"],                # SetPlayerFacingAndPose
+    93:  ["facing deg", "pose"],                # TurnPlayerToAngle
     144: ["weather id"],                        # Script_Action_SetWeather
 }
 
@@ -960,9 +991,9 @@ def decode_statement(buf, pc):
         return Statement(pc, op, "JMP", 4, code_targets=[t] if t is not None else [],
                          falls_through=False)
     if op == 0xFFFD:                                  # cond-end: expr ref
-        return Statement(pc, op, "BR_RET", 4, expr_refs=[_u16(buf, pc + 2)])
-    if op == 0xFFFB:                                  # STORE var: expr ref
-        return Statement(pc, op, "STORE", 4, expr_refs=[_u16(buf, pc + 2)])
+        return Statement(pc, op, "RET_NZ", 4, expr_refs=[_u16(buf, pc + 2)])
+    if op == 0xFFFB:                                  # EVAL var: expr ref
+        return Statement(pc, op, "EVAL", 4, expr_refs=[_u16(buf, pc + 2)])
     if op == 0xFFFC:                                  # show dialogue line (u32 id)
         return Statement(pc, op, "DIALOG", 6, dialog_id=_u32(buf, pc + 2))
     if op in (0xFFF8, 0xFFF9):                        # BR_Z / BR_NZ: expr@+2 target@+4
@@ -974,27 +1005,27 @@ def decode_statement(buf, pc):
             return None
         tg = [_u16(buf, pc + 6 + 2 * k) for k in range(cnt)]
         size = 2 * (cnt + 3)
-        if op == 0xFFF6:                              # SWITCH_GE: always jumps (never falls
+        if op == 0xFFF6:                              # SWITCH_CLAMP: always jumps (never falls
             # through). IDA-verified (Script_VMStep 0xFFF6): selector>=n jumps to the word
             # at pc+2*(n+2), which is exactly target[n-1] -- there is NO separate default
-            # slot, so the n case targets are the whole table (same layout as SWITCH_EQ).
-            return Statement(pc, op, "SWITCH_GE", size, expr_refs=[_u16(buf, pc + 2)],
+            # slot, so the n case targets are the whole table (same layout as SWITCH).
+            return Statement(pc, op, "SWITCH_CLAMP", size, expr_refs=[_u16(buf, pc + 2)],
                              code_targets=tg, falls_through=False)
-        return Statement(pc, op, "SWITCH_EQ", size, expr_refs=[_u16(buf, pc + 2)],
+        return Statement(pc, op, "SWITCH", size, expr_refs=[_u16(buf, pc + 2)],
                          code_targets=tg)
-    if op == 0xFFF3:                                  # JMP_IND (random of N targets)
+    if op == 0xFFF3:                                  # JMP_RAND (random of N targets)
         cnt = _u16(buf, pc + 2)
         if cnt is None or cnt > 256:
             return None
         tg = [_u16(buf, pc + 4 + 2 * k) for k in range(cnt)]
-        return Statement(pc, op, "JMP_IND", 4 + 2 * cnt, code_targets=tg, falls_through=False)
+        return Statement(pc, op, "JMP_RAND", 4 + 2 * cnt, code_targets=tg, falls_through=False)
     if op == 0xFFF2:                                  # weighted-random branch
         n = _u16(buf, pc + 2)
         if n is None or n > 256:
             return None
         tg = [_u16(buf, pc + 4 + 2 * k) for k in range(n)]
         er = [_u16(buf, pc + 4 + 2 * n + 2 * k) for k in range(n)]
-        return Statement(pc, op, "RAND_BR", 4 + 4 * n, code_targets=tg, expr_refs=er,
+        return Statement(pc, op, "JMP_WEIGHTED", 4 + 4 * n, code_targets=tg, expr_refs=er,
                          falls_through=False)
     if op in (0xFFF4, 0xFFF5):                        # PROMPT_CHOICE / PROMPT_CHOICE_FORCED
         # Layout (IDA-verified from Script_VMStep case 0xFFF4/0xFFF5):
@@ -1312,19 +1343,19 @@ class Bank:
     # Offset (from the statement pc) of the FIRST u16 branch target, per control op. The target
     # block is then target[k] @ base + 2*k. Derived directly from decode_statement's layouts:
     # CALL/JMP have one target right after the op; BR_Z/BR_NZ put it after the guard-expr ref@+2;
-    # SWITCH after selector@+2 and count@+4; JMP_IND/RAND_BR/PROMPT_CHOICE after count@+2.
+    # SWITCH after selector@+2 and count@+4; JMP_RAND/JMP_WEIGHTED/PROMPT_CHOICE after count@+2.
     _BRANCH_TARGET_BASE = {
         0xFFFE: 2, 0xFFFA: 2,           # CALL, JMP        (single target @ +2)
         0xFFF8: 4, 0xFFF9: 4,           # BR_Z, BR_NZ      (@ +4, after expr@+2)
-        0xFFF6: 6, 0xFFF7: 6,           # SWITCH_GE/EQ     (@ +6, after selector@+2 + count@+4)
-        0xFFF3: 4, 0xFFF2: 4,           # JMP_IND, RAND_BR (@ +4, after count@+2)
+        0xFFF6: 6, 0xFFF7: 6,           # SWITCH_CLAMP/EQ     (@ +6, after selector@+2 + count@+4)
+        0xFFF3: 4, 0xFFF2: 4,           # JMP_RAND, JMP_WEIGHTED (@ +4, after count@+2)
         0xFFF4: 4, 0xFFF5: 4,           # PROMPT_CHOICE(+cancel[0]) / _FORCED (@ +4)
     }
 
     def set_branch_target(self, pc, index, new_target, valid_targets=None):
         """Repoint branch/jump/choice target `index` to another statement pc (u16, in place) --
         the flow-control analog of set_choice_item (which retargets a choice's TEXT; this retargets
-        where it GOES). Works on CALL/JMP/BR_Z/BR_NZ/SWITCH_EQ/SWITCH_GE/JMP_IND/RAND_BR/
+        where it GOES). Works on CALL/JMP/BR_Z/BR_NZ/SWITCH/SWITCH_CLAMP/JMP_RAND/JMP_WEIGHTED/
         PROMPT_CHOICE[_FORCED]. For PROMPT_CHOICE (0xFFF4) target[0] = the CANCEL branch and
         target[1..N] = the per-option branches. If `valid_targets` is given (the set of real
         statement pcs in the scene), the new target MUST be one of them -- this is what keeps the
@@ -2470,7 +2501,7 @@ def choice_problems(buf, stmts, text_count=None):
             out.append((st.pc, "warning", "masked menu with per-option targets: with a mask "
                         "the game jumps to target[visible row], not target[option] (reg0 = the "
                         "original option index). Point every option at one label and "
-                        "SWITCH_EQ on reg0 (the shipped idiom)"))
+                        "SWITCH on reg0 (the shipped idiom)"))
     return out
 
 
@@ -2577,7 +2608,7 @@ def format_scene(scene, dialog=None, show_addr=True, buf=None, friendly=False):
                             note += "   ; %s" % nm
                     except (ValueError, TypeError):
                         pass
-            # value-decoded display (e.g. QueryPlayerVariable(Skill, Mining)); values need buf
+            # value-decoded display (e.g. GetPlayerVariable(Skill, Mining)); values need buf
             special = render_action(st.op, arg_strs) if (friendly and buf is not None) else None
             body = special if special else "%s(%s)" % (name, ", ".join(arg_strs))
             lines.append("%s   %s%s" % (addr, body, note))

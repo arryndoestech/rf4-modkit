@@ -2033,7 +2033,7 @@ class App:
 
     def _open_scene_editor(self, bank_index, entry_pc, pc=None):
         """Map-editor NPC-spawn marker click -> open the Cutscene Editor focused on the exact
-        EventSpawnNpc line (bank = the map's event bank, scene = entry_pc, statement = pc)."""
+        SpawnEventActor line (bank = the map's event bank, scene = entry_pc, statement = pc)."""
         win = tk.Toplevel(self.root)
         win.title(f"Cutscene Editor — event bank {bank_index} @0x{(entry_pc or 0):04x}")
         win.geometry("1200x820")

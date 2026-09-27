@@ -12,12 +12,12 @@ from . import catalog
 CONTROL_PROTOS = {
     "CALL": "CALL(target)", "JMP": "JMP(target)",
     "BR_Z": "BR_Z(cond_expr, target)", "BR_NZ": "BR_NZ(cond_expr, target)",
-    "BR_RET": "BR_RET(cond_expr)", "STORE": "STORE(var_expr)",
+    "RET_NZ": "RET_NZ(cond_expr)", "EVAL": "EVAL(var_expr)",
     "FRAME": "FRAME(local_slots)", "RET": "RET()",
-    "SWITCH_EQ": "SWITCH_EQ(sel, n, target[n])", "SWITCH_GE": "SWITCH_GE(sel, n, target[n])",
+    "SWITCH": "SWITCH(sel, n, target[n])", "SWITCH_CLAMP": "SWITCH_CLAMP(sel, n, target[n])",
     "PROMPT_CHOICE_FORCED": "PROMPT_CHOICE_FORCED(n, target[n], items[n])",
     "PROMPT_CHOICE": "PROMPT_CHOICE(n, cancel_target, target[n], items[n])",
-    "JMP_IND": "JMP_IND(n, target[n])", "RAND_BR": "RAND_BR(n, target[n], weight[n])",
+    "JMP_RAND": "JMP_RAND(n, target[n])", "JMP_WEIGHTED": "JMP_WEIGHTED(n, target[n], weight[n])",
 }
 FLAG_OPS = {318: "SetPackedGameFlag", 443: "SetGameFlagBit",
             444: "SetGameFlagBitIfCond", 445: "QueryGameFlagBit"}
@@ -90,7 +90,7 @@ class SceneText:
             body = script.render_action(st.op, args) or f"{script.opcode_mnemonic(st.op)}({', '.join(args)})"
             return f"{head}{body}" + (f"   ; {nm}" if nm else "")
         exprs = self.expr_texts(st)
-        cond = f"  {'val' if st.mnem == 'STORE' else 'cond'}=({', '.join(exprs)})" if exprs else ""
+        cond = f"  {'val' if st.mnem == 'EVAL' else 'cond'}=({', '.join(exprs)})" if exprs else ""
         if st.mnem in CHOICE_OPS and st.items:
             parts = []
             if st.mnem == "PROMPT_CHOICE" and st.code_targets:
@@ -249,7 +249,7 @@ class SceneText:
             segs = [("call %s" % ", ".join(tg), "flow")]
         elif m == "RET":
             segs = [("return", "flow")]
-        elif m == "STORE":
+        elif m == "EVAL":
             segs = [("set ", "flow"), (cond, "cond")]
         elif m in CHOICE_OPS:
             head = "choice"
@@ -263,10 +263,10 @@ class SceneText:
                                                    ("  → %s" % self.target(tgt), "flow")],
                                 (pc, k), st))
             return speaker
-        elif m in ("SWITCH_EQ", "SWITCH_GE"):
+        elif m in ("SWITCH", "SWITCH_CLAMP"):
             segs = [("switch ", "flow"), ("(%s)" % cond, "cond"),
                     (": " + ", ".join("%d → %s" % (k, t) for k, t in enumerate(tg)), "flow")]
-        elif m == "RAND_BR":
+        elif m == "JMP_WEIGHTED":
             w = st.items or []
             segs = [("random: " + ", ".join("%s → %s" % (w[k] if k < len(w) else "?", t)
                                             for k, t in enumerate(tg)), "flow")]
@@ -397,7 +397,7 @@ class SceneText:
             for e in st.expr_refs or ():
                 if e is None:
                     continue
-                out += ["", "%s (expr @0x%04x):" % ("value" if st.mnem == "STORE" else "condition", e),
+                out += ["", "%s (expr @0x%04x):" % ("value" if st.mnem == "EVAL" else "condition", e),
                         "    " + script.disasm_expr(self.bank.data, e)[0]]
                 legend += self.expr_vars(e)
             if legend:

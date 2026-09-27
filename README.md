@@ -415,8 +415,8 @@ grid** (below) -- the same checks as `rf4mod map validate` -- plus the encounter
 (weights vs. spawn points, empty tables, ids outside the gate / monster ranges) and the
 search spots (empty pools, one-byte weight wrap, spots off the grid).
 
-**Script NPCs:** actors the map's *event script* places (`EventSpawnNpc`, `EventSpawnNpcVariant` or
-`EventSpawnNpcEx` in the map's `rf3.mc` bank -- NPCs, monsters such as the hungry Silver Wolf
+**Script NPCs:** actors the map's *event script* places (`SpawnEventActor`, `SpawnEventActorVariant` or
+`SpawnEventActorEx` in the map's `rf3.mc` bank -- NPCs, monsters such as the hungry Silver Wolf
 in Sechs Territory (MAP_DUNG_L13), and interactibles such as char 269 "Search") are not in the `.rf4m`;
 the *script NPCs* layer shows them, and clicking one opens its script line in the
 Cutscene editor.
@@ -529,7 +529,7 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
   jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked.
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
-  `Nancy: “…”` in the speaker's colour, actions by name (`▸ GiveItem(reg1, 1, reg3)`),
+  `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
   **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly; *addresses*
   adds byte offsets. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
@@ -540,7 +540,7 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   *As new line* (a fresh id in every locale) and *Show other locales*; a **speaker** picker with
   the portrait side; each **action argument** in listing syntax (`actor(Forte)`,
   `map(MAP_CITY_00)`, `FLG_X + 1`, `@0xNNNN` for an existing expression) with a named-value
-  picker where the argument has one; the **numbers in a condition or STORE** (branch targets and
+  picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
   every other offset are untouched); each **choice option**'s text, line id and destination.
   *Add after* inserts a spoken line (speaker + text) or any statements in listing syntax,
   *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
@@ -568,7 +568,7 @@ rf3.mc -o out.mc` does only that).
 
 The **Source** tab shows the scene as a re-assemblable listing — labels,
 actions as calls (`GivePlayerItem(258, reg0 + 1, 0)`, `EndDialogue()`), control statements as
-keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `STORE (FLG_X = 1)`,
+keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `EVAL (FLG_X = 1)`,
 `PROMPT_CHOICE CANCEL -> L2, #123 -> L3`, `JMP L1`); *Check* reports the failing line inline and *Apply to
 scene* re-assembles it in place: the new body takes the old entry's place and statements only
 the old body used are dropped. The
@@ -651,7 +651,7 @@ from `RF4S.exe` into `refdata/portrait_faces.json`):
   what it shows there. Ids of 1000 and up (face × gesture) only exist in Newlywed mode.
 
 The outfit (swimsuit, pajama, wedding) follows the character's state; the script doesn't
-choose it. The listing names the shared moods (`SetSpeakerVolkanon(right, angry, …)`) and
+choose it. The listing names the shared moods (`SetSpeakerVolkanonRight(angry, …)`) and
 numbers the rest (`face 29`).
 
 **Box style.** `SetBoxNormal`, `SetBoxShout`, `SetBoxThought`, `SetBoxTrembling` (ops 94–97) and
@@ -752,6 +752,10 @@ from Blender.
 | Maps | `.rf4m` | `rf4mod map` | ✅ chunk-level; `map validate` checks the game loader's rules **and the ground atlas against the ATTR grid**; `map resize-attr` resizes the tile grid and lists every derived artefact it invalidates |
 | Monster/NPC AI | `AI_*.bin` (AIBN) | `rf4mod ai` | ✅ full (token + text); `disasm --annotate` adds the verified operand meanings, `ai ops` / `ai actions` print the opcode and scripted-action references (every handler re-read 2026-09-17) |
 | Attack move timelines | `as_atk_*.bin` (690) | `rf4mod asatk` | ✅ decode (`show`/`summary`) + **assembler/editor**: `dump` → edit listing → `asm`, or point edits `set` / `insert --frame` / `delete`; byte-exact on every stock file; GUI Edit tab |
+| Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-entry` / the editor's New scene…); opcode names from `rf4s_modkit/opcode_table.json` |
+| Search-item spots | `SI_*.bin` (288) | GUI table editor, map editor | ✅ daily ground-pickup spots, item pools and weights (footer rebuilt) |
+| Monster / character templates | `rf3NpcParam.bin` | `rf4mod monster`, GUI monster editor | ✅ stats, drops, elements, AI; `monster clone` / `new` mint templates |
+| Saves | `rf4_sNN.sav` | `rf4mod save`, [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py) | ✅ named GameFlags, field get / set, CRC fix-up |
 | Event Manager triggers | `em.bin`, `emdeb.bin` | `rf4mod em` | ✅ conditions/actions decode; in-place edit; **structural**: add / remove entries, condition terms and actions from a readable spec (`em add / remove / add-cond / remove-cond / add-action / remove-action`; the container is rebuilt, stock re-serialises byte-exact) |
 | Skill XP curves | `rf3ParamSkillExp*.bin` | `rf4mod skill` | ✅ decode + `skill set FILE LEVEL XP` / `--scale PCT` (every level) |
 | Monster encounter tables | `Gen*.bin` (NLCL) | `rf4mod gen` | ✅ full: gates / weights / rosters / positions, add & remove gates and monsters (rebuilds the file + footer; all 690 stock files round-trip byte-exact) |
@@ -762,7 +766,7 @@ from Blender.
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
 | Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.model` meshes written** (`rf4s_modkit.modelwrite`, statically verified, not yet tried in game): `res model-import MODEL SHAPE mesh.obj` replaces one shape's geometry with any vertex / triangle count (memory pool, buffer sizes, submesh, bounds and every relocated pointer rebuilt; an unmodified export re-imports byte-identically; skin weights copied from the nearest original vertex), `res model-transform` moves / scales / rotates a shape in place; ✅ **Import from Blender** (`rf4s_modkit.meshimport`, statically verified): `res model-import-glb MODEL FILE.glb` / the Model tab rebuild every shape a glTF has a same-named mesh for, **with its bone weights** (kept to the shape's influence count, bones without a skinning matrix folded into their parent); new parts appended to a shape (`--add`) or made **new shapes** (`--new`, `rf4s_modkit.modelgrow`: SHAP / VRTX arrays, name dictionary and relocation table grown), shapes hidden (`--remove`), bones' rest pose moved (`--bones`); unmodified Export for Blender files re-import byte-identically (all 912 mesh files), untouched Blender round trips too (55 of 61 sampled; the other 6 render identically); ✅ **material settings** (`rf4s_modkit.matedit`, what the loader reads, in place): `res model-material MODEL` lists them, `res model-material MODEL MAT --wrap-u clamp --blend 2 -o OUT` changes texture wrap (every material) and DrawOrder / BlendType / CombineType / CombineColor00 (where the material carries them); GUI Model tab > Materials…; ✅ **`.bfmat` material animations played and written** (all 59 rebuild byte for byte): `res model-gif` and Play in the GUI's Model tab show texsrt UV scroll, texture patterns (BM_* eye blinks / emblem swaps, anim_com* frame flips) and opacity fades; the `.bfmat` is found by stem or by material name (SYS_MENU_ANIME_09 -> anim_com09); `res bfmat-info` lists curves (`--json` dumps an editable file), `res bfmat-build JSON OUT` encodes it, `res bfmat-set IN OUT --speed 2` retimes; ✅ **`.bfskl` skeletal animations played** (all 2,001 parse): `res anim-info` (`--json` dump, `--model` binding) / `res anim-gif MODEL ANIM out.gif`, and the Model tab's motion row — bones bind by name, skinned meshes blended through the inverse bind matrices; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture in its own format — **in place** at the same size (file size and every container field unchanged), or **at any other size** (model UVs are normalised): the embedded BNTX is rebuilt and the `.model`'s embedded files, file table, relocated pointers and outer `_RLT` move with it (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game) |
 | Emote / portraits | `.psbData` (loaded) `.emtbytes` (never loaded by the PC exe) | `rf4mod psb` | ✅ full E-mote PSB v4 reader (all 130 parse; `.emtbytes` header decrypted): `psb info` (atlas, face-frame timelines 0-5 = 通常/怒り/哀しみ/笑顔/驚き/照れ, variables), `psb dump -o DIR [--resources]` (whole tree → JSON), `psb textures -o DIR [--parts]` (RGBA8 / ASTC atlas → PNG, plus every named part crop); ✅ **repaint a portrait**: `psb replace-texture X.psbData edited.png -o out/` (same size; only the atlas bytes change, re-parsed and checked). Keep part outlines where they are — the mesh/part rectangles are absolute atlas pixels |
-| Sound-id table | `common_audio_data.bdat`, `voice_en_audio_data.bdat` (`voice_jp_…` ships but is never loaded) | `rf4mod sound` | ✅ `list` / `show` / `find` (all three tables) / `set` volume · priority · flags / point an id at another file / `add` a brand-new id / `remove`; byte-exact rebuild of all 3 stock tables; PlaySound / PlayVoicedSound listings show the file name. New sound: drop `SE_MYMOD.ogg` (or .wav/.flac/.mp3, sniffed by magic) under `Bundle\00_mods\`, `rf4mod sound add common_audio_data.bdat auto SE_MYMOD.ogg -o my.bdat`, `rf4mod install <game> common_audio_data.bdat my.bdat`, restart, `PlaySound(<id>)` |
+| Sound-id table | `common_audio_data.bdat`, `voice_en_audio_data.bdat` (`voice_jp_…` ships but is never loaded) | `rf4mod sound` | ✅ `list` / `show` / `find` (all three tables) / `set` volume · priority · flags / point an id at another file / `add` a brand-new id / `remove`; byte-exact rebuild of all 3 stock tables; PlaySound / PlaySoundOnFreeVoice listings show the file name. New sound: drop `SE_MYMOD.ogg` (or .wav/.flac/.mp3, sniffed by magic) under `Bundle\00_mods\`, `rf4mod sound add common_audio_data.bdat auto SE_MYMOD.ogg -o my.bdat`, `rf4mod install <game> common_audio_data.bdat my.bdat`, restart, `PlaySound(<id>)` |
 | Audio | `.ogg` `.wav` `.flac` `.mp3` | `rf4mod ident` | ➡️ swap (standard formats; the loader sniffs OggS / RIFF / fLaC / else MP3 — AIFF is not decoded; the one shipped `UISelect.aif` is referenced nowhere in the exe) |
 | Video | `.webm` | `rf4mod ident` | ➡️ swap (re-encode w/ ffmpeg) |
 | Images / fonts | `.png` `.ttf` `.ttc` | `rf4mod ident` | ➡️ edit directly |
@@ -920,7 +924,7 @@ python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng --friendly # rea
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)
 python rf4mod.py script set-speaker rf3.mc --bank 1 --pc 0x08c2 --speaker Vishnal --side right -o new.mc  # change who speaks
-python rf4mod.py script set-val rf3.mc --bank 1 --pc 0x3478 --index 0 --value 258 -o new.mc  # change an arg value / STORE value / choice option's line id
+python rf4mod.py script set-val rf3.mc --bank 1 --pc 0x3478 --index 0 --value 258 -o new.mc  # change an arg value / EVAL value / choice option's line id
 python rf4mod.py script set-target rf3.mc --bank 1 --pc 0x400e --index 1 --target 0x4036 -o new.mc  # retarget a branch/choice destination (validated)
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --dialogue 66494 -o new.mc         # add a dialogue beat
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --stmt "BR_Z (FLG_X) -> L1 / DIALOG #5 / L1:" -o new.mc  # a conditional beat
@@ -1046,25 +1050,34 @@ print(man.find_file("rf3.mc"))            # -> ('bundlePatch1.mbundle', {'size':
 - **Block-compressed encoders** (`rf4s_modkit/bcenc.py`, pure Python, numpy-accelerated
   when numpy is installed): `rf4mod texture encode` / `map ground-import` / `res
   texture-encode` re-encode BC7 (mode 6, plus mode 5 for alpha edges and for flat blocks,
-  which round-trip exactly), BC3 and BC1 (1-bit alpha only when a block needs it) at the
-  source's own size, so the result can go back with `rf4mod bundle patch`. Quality on a
+  which round-trip exactly), BC3 and BC1 (1-bit alpha only when a block needs it); at the
+  source's own size the result can go back with `rf4mod bundle patch`. Quality on a
   512² ground tile: BC7 ≈ 46 dB PSNR (mean error < 1/255), BC3/BC1 ≈ 37 dB; a 512² tile
   takes ≈ 2.5 s (BC7) / 1 s (BC3) / 0.7 s (BC1) with numpy, ≈ 30 s / 6 s / 5 s without.
   `--fmt RGBA8` keeps the old lossless path (4 B/px: a 512² tile grows from 264 KB to 1 MB
   and needs a loose override or bundle repack; the container's DESC size, `_RLT` offset and
-  per-frame pointers are patched — docs/09 §3). The PNG must have the template frame's
-  dimensions (the sprite UV/quad user data is per-sprite and is left untouched). No shipped
-  texture has mipmaps and the loader uploads level 0 only, so replacements are single-level.
+  per-frame pointers are patched — docs/09 §3). **The PNG may have another size**: the loader
+  reads only format / width / height / level 0 (the graphics driver builds the mipmaps), so
+  the container is rebuilt around the new size and the tools say what the change does in
+  game — a sprite with its own quad data keeps its on-screen size (a new aspect ratio
+  stretches), one without grows with the texture, and **map ground tiles must keep their
+  size** (fixed 512-px grid). Block formats need multiples of 4 (BC1 a square block grid);
+  otherwise use `--fmt RGBA8`. Replacements are single-level.
   BC2 / ASTC (not shipped) have no encoder and fall back to RGBA8.
-- **Textures inside `.model`** are replaced strictly in place (`texture.bntx_replace`):
-  the PNG must match the texture's size and the format must keep the payload size (its
-  own format, or BC3 ↔ BC7). The embedded BNTX is loaded by the same code as `.texture`
+- **Textures inside `.model`**: at the same size they are replaced in place
+  (`texture.bntx_replace`, its own format or BC3 ↔ BC7); at **another size** the embedded
+  BNTX is rebuilt and everything after it in the `.model` moves with it
+  (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game). The embedded BNTX is loaded by the same code as `.texture`
   (`GfxCTR_Model_BuildFromResource` hands it to `SpriteResourceRegistry_AcquireSlotForBfres`,
   RF4S.exe+0x1B5595), which reads only each BRTI's format / width / height / mip-0 pointer,
   so nothing else in the container needs touching — docs/09 §4.
-- **Mesh editing**: `.model` geometry is read (export to OBJ, preview renders, the map
-  editor's scenery layer) but not written back. It is not stock BFRES -- the blocks are
-  renamed and shifted -- so generic BFRES tools do not open it (docs/09 §4).
-- **Save files** (`.sav`) are handled by the existing
-  [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py); the bundled `AS_*`/`JM_*`
-  `.sav` presets are raw save images, not runtime saves.
+- **Mesh editing**: `.model` geometry is read (OBJ / glTF export, preview renders, the map
+  editor's scenery layer) **and written back** — shape geometry from OBJ (skin weights
+  copied from the nearest original vertex) or from Blender's glTF (with the painted bone
+  weights), new shapes (up to 32), hidden shapes, bone rest-pose moves and material
+  settings (statically verified, not yet tried in game). Not possible: new materials or
+  textures, a different skin type, new or re-parented bones. The format is not stock
+  BFRES -- the blocks are renamed and shifted -- so generic BFRES tools do not open it
+  (docs/09 §4).
+- **Save files** (`rf4_sNN.sav`) are handled by `rf4mod save` and the existing
+  [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py).

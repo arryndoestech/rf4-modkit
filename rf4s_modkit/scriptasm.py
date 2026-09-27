@@ -10,15 +10,15 @@ Engine ground truth (IDB, RF4S.exe; all verified 2026-09-19):
 * `Script_VMStep` (+0x23EF60) executes one statement per call. Control opcodes
   (> 0xFFF0) are inline: END 0xFFFF (the real return; `Script_Opcode_FFFF_EndAndCleanup`
   +0x23EBA0), FRAME 0xFFF1 `[op][n]` (frame setup: reserves n operand slots), CALL 0xFFFE
-  `[op][pc]`, BR_END 0xFFFD `[op][expr]`, DIALOG 0xFFFC `[op][line:u32]`, STORE 0xFFFB
+  `[op][pc]`, BR_END 0xFFFD `[op][expr]`, DIALOG 0xFFFC `[op][line:u32]`, EVAL 0xFFFB
   `[op][expr]` (just evaluates the expression -- the assignment operator inside it does
-  the store), JMP 0xFFFA, BR_NZ 0xFFF9 / BR_Z 0xFFF8 `[op][expr][pc]`, SWITCH_EQ 0xFFF7 /
-  SWITCH_GE 0xFFF6 `[op][expr][n][n pcs]`, PROMPT_CHOICE_FORCED 0xFFF5 `[op][n][n pcs]
+  the store), JMP 0xFFFA, BR_NZ 0xFFF9 / BR_Z 0xFFF8 `[op][expr][pc]`, SWITCH 0xFFF7 /
+  SWITCH_CLAMP 0xFFF6 `[op][expr][n][n pcs]`, PROMPT_CHOICE_FORCED 0xFFF5 `[op][n][n pcs]
   [n u32 items]`, PROMPT_CHOICE 0xFFF4 `[op][n][n+1 pcs][n u32 items]` (pc[0] = the
   CANCEL slot, taken only for a negative pick -- the UI's cancel key instead moves the
   cursor to the last option, so shipped menus repeat the last target there; at most
   `script.MAX_CHOICE_OPTIONS` = 128 options, 4 rows on screen; see script.choice_problems),
-  JMP_IND 0xFFF3 `[op][n][n pcs]`, RAND_BR 0xFFF2 `[op][n][n pcs][n weight exprs]`.
+  JMP_RAND 0xFFF3 `[op][n][n pcs]`, JMP_WEIGHTED 0xFFF2 `[op][n][n pcs][n weight exprs]`.
   Everything <= 0xFFF0 is an action: `[op][argc][argc x u16 expr offset]`, and
   `Script_PrepActionArgs` (+0x23EE10) evaluates each offset with
   `Script_EvalExpressionOrVar` and pushes (value, kind) pairs.
@@ -43,22 +43,22 @@ The listing language (one statement per line, `;` comments, labels `name:`):
 
     L0:                                  ; label on its own line or before a statement
         FRAME 2
-        SetSpeakerNancy(3, 0)            ; action: name(args) -- mnemonic | technical name | opN
+        SetSpeakerNancyLeft(3, 0)            ; action: name(args) -- mnemonic | technical name | opN
         DIALOG #8709
         BR_Z (REG_WIFE_ID == 11) -> L1   ; condition in parentheses, target label or 0xPC
-        STORE (FLG_EV_DONE = 1)          ; write a game flag
+        EVAL (FLG_EV_DONE = 1)          ; write a game flag
         GivePlayerItem(258, reg0 + 1, 0) ; args: int, expression, name, regN, arr[N], @0xOFF
         CALL 0x1234                      ; absolute targets address existing code in the bank
         PROMPT_CHOICE CANCEL -> L2, #123 -> L3, #124 -> L4
-        RAND_BR (3) -> L1, (1) -> L2
-        SWITCH_EQ (reg1) -> L1, L2, L3
-        JMP_IND L1, L2, L3
+        JMP_WEIGHTED (3) -> L1, (1) -> L2
+        SWITCH (reg1) -> L1, L2, L3
+        JMP_RAND L1, L2, L3
     L1:
         END
 
 Actions are always written `Name(arg, ...)` (`Name()` without arguments); control
 statements are keywords, with the condition or value in parentheses and targets after `->`
-(the plain `JMP`, `CALL` and `JMP_IND` list theirs directly). The assembler also reads an
+(the plain `JMP`, `CALL` and `JMP_RAND` list theirs directly). The assembler also reads an
 action written without the call brackets (`Name 1, 2`).
 
 Addresses printed by the disassembler (`0123:` after the label) are ignored, so a
@@ -372,10 +372,10 @@ def make_resolver(container, emf_table=None, extra=None):
 
 # ---- listing assembler ------------------------------------------------------------------
 _CONTROL_NAMES = {"END": 0xFFFF, "RET": 0xFFFF, "FRAME": 0xFFF1, "CALL": 0xFFFE,
-                  "BR_RET": 0xFFFD, "BR_END": 0xFFFD, "DIALOG": 0xFFFC, "STORE": 0xFFFB,
-                  "JMP": 0xFFFA, "BR_NZ": 0xFFF9, "BR_Z": 0xFFF8, "SWITCH_EQ": 0xFFF7,
-                  "SWITCH_GE": 0xFFF6, "PROMPT_CHOICE_FORCED": 0xFFF5, "PROMPT_CHOICE": 0xFFF4,
-                  "JMP_IND": 0xFFF3, "RAND_BR": 0xFFF2}
+                  "RET_NZ": 0xFFFD, "BR_END": 0xFFFD, "DIALOG": 0xFFFC, "EVAL": 0xFFFB,
+                  "JMP": 0xFFFA, "BR_NZ": 0xFFF9, "BR_Z": 0xFFF8, "SWITCH": 0xFFF7,
+                  "SWITCH_CLAMP": 0xFFF6, "PROMPT_CHOICE_FORCED": 0xFFF5, "PROMPT_CHOICE": 0xFFF4,
+                  "JMP_RAND": 0xFFF3, "JMP_WEIGHTED": 0xFFF2}
 
 _TECH_BY_NAME = None
 
@@ -600,7 +600,7 @@ class Assembler:
             if op == 0xFFF6 and not tg:
                 # Script_VMStep 0xFFF6 jumps to the word at pc+2*(n+2) when the selector is
                 # >= n: with n = 0 that is the count word itself (a jump to pc 0).
-                raise AsmError("line %d: SWITCH_GE needs at least one target" % line_no)
+                raise AsmError("line %d: SWITCH_CLAMP needs at least one target" % line_no)
             self._expr_fixup(st, self.operand(inner))
             st.code += struct.pack("<H", len(tg))
             for t in tg:
@@ -610,7 +610,7 @@ class Assembler:
             if not tg:
                 # Script_VMStep 0xFFF3: n <= 1 always takes the word at pc+4 -- with n = 0
                 # that is the next statement's opcode, used as a pc.
-                raise AsmError("line %d: JMP_IND needs at least one target" % line_no)
+                raise AsmError("line %d: JMP_RAND needs at least one target" % line_no)
             st.code += struct.pack("<H", len(tg))
             for t in tg:
                 self._target_fixup(st, t)
@@ -620,12 +620,12 @@ class Assembler:
             for it in items:
                 inner, tail = _take_paren(it)
                 if not tail.startswith("->"):
-                    raise AsmError("line %d: RAND_BR items look like '(weight) -> target'" % line_no)
+                    raise AsmError("line %d: JMP_WEIGHTED items look like '(weight) -> target'" % line_no)
                 pairs.append((inner, tail[2:].strip()))
             if not pairs:
                 # Script_Opcode_FFF2_ExecPrim always jumps to the word at pc+4+2*pick; with
                 # no cases that is past the statement.
-                raise AsmError("line %d: RAND_BR needs at least one (weight) -> target" % line_no)
+                raise AsmError("line %d: JMP_WEIGHTED needs at least one (weight) -> target" % line_no)
             st.code += struct.pack("<H", len(pairs))
             for _, t in pairs:
                 self._target_fixup(st, t)
@@ -1034,24 +1034,22 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 note = "  ".join(bits)
         else:
             mn = st.mnem
-            if mn == "RET":
-                mn = "END"
             if mn == "FRAME":
                 body = "FRAME %d" % (st.items[0] if st.items else 0)
             elif mn in ("CALL", "JMP"):
                 body = "%s %s" % (mn, tgt(st.code_targets[0] if st.code_targets else None))
-            elif mn in ("STORE", "BR_RET"):
+            elif mn in ("EVAL", "RET_NZ"):
                 body = "%s %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None))
             elif mn in ("BR_Z", "BR_NZ"):
                 body = "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
                                         tgt(st.code_targets[0] if st.code_targets else None))
-            elif mn in ("SWITCH_EQ", "SWITCH_GE"):
+            elif mn in ("SWITCH", "SWITCH_CLAMP"):
                 body = "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
                                         ", ".join(tgt(t) for t in st.code_targets))
-            elif mn == "JMP_IND":
-                body = "JMP_IND %s" % ", ".join(tgt(t) for t in st.code_targets)
-            elif mn == "RAND_BR":
-                body = "RAND_BR " + ", ".join("%s -> %s" % (_cond_text(buf, e), tgt(t))
+            elif mn == "JMP_RAND":
+                body = "JMP_RAND %s" % ", ".join(tgt(t) for t in st.code_targets)
+            elif mn == "JMP_WEIGHTED":
+                body = "JMP_WEIGHTED " + ", ".join("%s -> %s" % (_cond_text(buf, e), tgt(t))
                                               for t, e in zip(st.code_targets, st.expr_refs))
             elif mn == "PROMPT_CHOICE":
                 parts = ["CANCEL -> %s" % tgt(st.code_targets[0] if st.code_targets else None)]

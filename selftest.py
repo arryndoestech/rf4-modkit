@@ -1934,12 +1934,12 @@ def test_script():
                _rok2 and _rv2 == 88 and _rrej == 2)
     else:
         _skip("complex-expr edit safety", "no complex-expr arg found in sample")
-    # control-op expression-literal editing (BR_Z/BR_NZ/BR_RET threshold, STORE value, SWITCH
+    # control-op expression-literal editing (BR_Z/BR_NZ/RET_NZ threshold, EVAL value, SWITCH
     # selector): the editor's value-edit row now also rewrites literals inside a control-op's
     # guard/value expression (via script.expr_literals + Bank.set_expr_value). Guard the primitive:
     # expr_literals must return only set_expr_value-editable literals (each offset on a 0x17-0x1A
     # tag), a no-op write on every one must succeed, and the container stays byte-exact. Also
-    # capture a STORE target (bank/scene/pc/literal) for the GUI-handler check further below.
+    # capture an EVAL target (bank/scene/pc/literal) for the GUI-handler check further below.
     _cl_exprs = _cl_lits = _cl_edit = 0
     _cl_target = None            # (bank_index, entry_pc, action_type, pc, literal_index, cur_value)
     for _clb in c.banks[:40]:
@@ -1963,7 +1963,7 @@ def test_script():
                         _cl_edit += 1
                     except Exception:
                         pass
-                if _cl_target is None and _clst.mnem == "STORE":
+                if _cl_target is None and _clst.mnem == "EVAL":
                     _cl_target = (_clb.index, _clsc.entry_pc, _clsc.action_type,
                                   _clpc, 0, _lits[0][1])
     _cl_exact = (c.build() == raw)
@@ -2045,7 +2045,7 @@ def test_script():
     # to hit. The offset differs per op (SWITCH @+6, choice-with-cancel @+6, others @+4/+2), so a
     # single-variant test could miss a wrong entry. Collect one of each op present and retarget
     # target[0] (+ retarget item[0] for choices); every edit must land only on its own slot.
-    # Finding one site per variant needs a full-corpus scan (SWITCH_GE occurs exactly
+    # Finding one site per variant needs a full-corpus scan (SWITCH_CLAMP occurs exactly
     # ONCE in the shipped game), which used to cost a whole-container decode on every
     # run. The sites depend only on the file bytes, so they are memoized in a sidecar
     # (.selftest_cache.json, keyed by the container's crc32) — a content change or a
@@ -2291,9 +2291,9 @@ def test_script():
     finally:
         shutil.rmtree(_iroot, ignore_errors=True)
     _check("install pipeline: build -> install_loose lands a byte-identical rf3.mc override", _iok)
-    # CLI/GUI parity: `rf4mod script set-val` must edit a CONTROL-op literal (STORE value, BR_Z
-    # threshold, RAND_BR weight), not only action args -- the GUI's _set_ctrl_literal has this, and
-    # cmd_script_set_val now branches on op>=0xFFF0. Find a STORE, run the CLI fn, verify the edit.
+    # CLI/GUI parity: `rf4mod script set-val` must edit a CONTROL-op literal (EVAL value, BR_Z
+    # threshold, JMP_WEIGHTED weight), not only action args -- the GUI's _set_ctrl_literal has this, and
+    # cmd_script_set_val now branches on op>=0xFFF0. Find an EVAL, run the CLI fn, verify the edit.
     try:
         import rf4mod as _rf
     except Exception:
@@ -2303,7 +2303,7 @@ def test_script():
         for _sb in c.banks[:20]:
             for _ssc in script.disassemble_bank(_sb, discover=False):
                 for _spc, _sst in _ssc.stmts.items():
-                    if _sst.mnem == "STORE" and getattr(_sst, "expr_refs", None):
+                    if _sst.mnem == "EVAL" and getattr(_sst, "expr_refs", None):
                         _sl = []
                         for _e in _sst.expr_refs:
                             if _e is not None:
@@ -2327,10 +2327,10 @@ def test_script():
             _sve2 = next(e for e in script.decode_statement(_svc2.banks[_svb].data, _svpc).expr_refs
                          if e is not None)
             _svrb = script.expr_literals(_svc2.banks[_svb].data, _sve2)[0][1]
-            _check("CLI `script set-val` edits a control-op literal (STORE value), not only action args",
+            _check("CLI `script set-val` edits a control-op literal (EVAL value), not only action args",
                    _svrb == _svnew, f"readback {_svrb} want {_svnew}")
         else:
-            _skip("CLI set-val control-op", "no STORE literal in sample")
+            _skip("CLI set-val control-op", "no EVAL literal in sample")
         # CLI/GUI parity #2: `rf4mod script set-speaker` must change who speaks (rewrite a SetSpeaker
         # op) -- the GUI's _set_speaker has this; the CLI lacked it. Find a portrait op, set a
         # DIFFERENT speaker via the CLI fn, verify the op now decodes to that speaker + side.
@@ -2552,15 +2552,15 @@ def test_script():
            script.decode_statement(bytes.fromhex("bc020000"), 0) is not None)
     from rf4s_modkit import opcode_meta as _om
     _check("scene ops 146/148/300 have curated mnemonics",
-           _om.mnemonic(146) == "EquipItemToPlayer" and _om.mnemonic(148) == "QueryPlayerFlag40000"
+           _om.mnemonic(146) == "EquipItemToPlayer" and _om.mnemonic(148) == "HasPlayerAccessoryEffect40000"
            and _om.mnemonic(300) == "ResetAllNpcSchedules")
-    # SWITCH_GE (0xFFF6) has exactly `cnt` targets, no spurious trailing duplicate
+    # SWITCH_CLAMP (0xFFF6) has exactly `cnt` targets, no spurious trailing duplicate
     # (IDA: selector>=n aliases target[n-1]; there is no separate default slot).
     _sw = script.decode_statement(bytes.fromhex("f6ff" + "0000" + "0200" + "1000" + "2000"), 0)
-    _check("SWITCH_GE has cnt targets (no dup)",
-           _sw is not None and _sw.mnem == "SWITCH_GE"
+    _check("SWITCH_CLAMP has cnt targets (no dup)",
+           _sw is not None and _sw.mnem == "SWITCH_CLAMP"
            and [t for t in _sw.code_targets if t is not None] == [0x10, 0x20])
-    # RAND_BR (0xFFF2 weighted-random branch) layout is [op][N][N targets][N weight-exprs] -- targets
+    # JMP_WEIGHTED (0xFFF2 weighted-random branch) layout is [op][N][N targets][N weight-exprs] -- targets
     # FIRST (@+4), weight expressions SECOND (@+4+2N). IDA-verified (Script_Opcode_FFF2_ExecPrim) and
     # empirically (targets resolve to real statement PCs; weights point into the expr pool). The two
     # blocks are equal size, so a swap would keep the decode "clean" -- guard the order explicitly.
@@ -2581,10 +2581,10 @@ def test_script():
             _rb_ok = _tgt_ok and _wt_ok
             break
     if _rb_ok is not None:
-        _check("RAND_BR (0xFFF2) targets are real PCs + weights are expr-refs (block order not swapped)",
+        _check("JMP_WEIGHTED (0xFFF2) targets are real PCs + weights are expr-refs (block order not swapped)",
                _rb_ok)
     else:
-        _skip("RAND_BR layout", "no 0xFFF2 with targets in first 60 banks")
+        _skip("JMP_WEIGHTED layout", "no 0xFFF2 with targets in first 60 banks")
     # s16-negative literals encode (0x1A) instead of crashing; arg_repr shows decimal
     _neg = script.Container._literal_expr_bytes(-1000)
     _check("s16 negative literal encodes + round-trips",
@@ -2867,7 +2867,7 @@ def test_script():
         _skip("mnemonic->handler uniqueness", "script_opcodes.json missing")
     # cross-reference integrity: a description that points at another op by "Mnemonic (op NNN)" must
     # name that op by its CURRENT mnemonic -- when an op is renamed (e.g. the quest family, or
-    # QueryNpcAnimDone -> QueryActorAnimBusy), stale cross-refs send a modder looking for a name the
+    # QueryNpcAnimDone -> WaitActorAnimDone), stale cross-refs send a modder looking for a name the
     # disassembly no longer shows. Only flag CamelCase (>=2 caps) tokens so descriptive prose like
     # "the char-id query (op 481)" isn't a false positive.
     _xref = re.compile(r"([A-Z][A-Za-z0-9_]{3,})\s*\((?:op|opcode)\s*(\d+)\)")
@@ -2882,12 +2882,12 @@ def test_script():
     _check("no stale 'Mnemonic (op NNN)' cross-references in descriptions",
            not _stale_xref, "; ".join(_stale_xref[:5]))
     _check("opcode_meta SetSpeaker<char> mnemonics",
-           om.mnemonic(16) == "SetSpeakerMC" and om.mnemonic(17) == "SetSpeakerMC"
-           and om.mnemonic(18) == "SetSpeakerVishnal" and om.mnemonic(54) == "SetSpeakerNancy"
+           om.mnemonic(16) == "SetSpeakerMCLeft" and om.mnemonic(17) == "SetSpeakerMCRight"
+           and om.mnemonic(18) == "SetSpeakerVishnalLeft" and om.mnemonic(54) == "SetSpeakerNancyLeft"
            and om.portrait_speaker_tag(16) == "MC" and om.portrait_speaker_tag(54) == "Nancy")
     _check("opcode_meta known mnemonics (+302-corrected)",
-           om.mnemonic(318) == "SetFlag"
-           and om.mnemonic(319) == "SetEmote" and om.mnemonic(394) == "WarpPlayer"
+           om.mnemonic(318) == "SetNpcBirthdayGiftFlag"
+           and om.mnemonic(319) == "SetNpcNicknameForPlayer" and om.mnemonic(394) == "WarpPlayer"
            # 2026-09-01 audit: op 357 is a bare kind-7 var-array write (nothing portrait-
            # related in the handler; corpus stores GetEffectCost prices for text substitution)
            and om.mnemonic(357) == "SetVar7"
@@ -2896,7 +2896,7 @@ def test_script():
            and om.mnemonic(412) == "BlackScreen")
     tip = om.tooltip(394, arg_values=["9", "12"])
     _check("opcode_meta tooltip has desc + arg values + technical name",
-           "tile x = 9" in tip and "TeleportPlayerToTile" in tip)
+           "x = 9" in tip and "TeleportPlayerToTile" in tip)
     # metadata-layer invariants (regression guards for the curated tables): every op must
     # render its tooltip/prototype/describe/category without throwing, every category must be
     # a known bucket, and the enum-picker layer must stay wired (item/char/room/skill/...).
@@ -2936,11 +2936,15 @@ def test_script():
     # as_drop); all 28 scene call sites pass (item, count, quality, x_tile~100-431, y_tile, 0/1) -- so
     # it spawns an item at a MAP TILE, not a shipping-bin op (real shipping = op 649). Pin the
     # corrected mnemonic + x/y-tile + as-drop labels so a future edit can't reintroduce the misnomer.
+    # (2026-09-27: facts that moved from the description into the table row's technical
+    # `details` are checked against both)
+    def _dtext(_o):
+        return (om.describe(_o) + " " + ((om.table_row(_o) or {}).get("details") or "")).lower()
     _m452 = om.mnemonic(452)
     _a452 = [_a.lower().strip() for _a in om.arg_names(452)]
     _check("opcode_meta: op452 = SpawnItemAtTile (not the ShipItem misnomer), args carry x/y tile + as-drop",
            "spawn" in _m452.lower() and "ship" not in _m452.lower()
-           and any("x tile" in _a for _a in _a452) and any("y tile" in _a for _a in _a452)
+           and "x" in _a452 and "y" in _a452 and any(_a.startswith("pickup") for _a in _a452)
            and not any(_a in ("a", "b", "c") for _a in _a452)
            and "shipping bin" not in om.describe(452).lower())
     # accuracy pin (IDA-verified 2026-07-11): five high-use scene-ops had FEWER arg labels than the
@@ -2955,10 +2959,10 @@ def test_script():
         return [_a.lower() for _a in om.arg_names(_o)]
     _labelfix = (
         len(om.arg_names(464)) == 3 and any("quality" in _a for _a in _la(464))
-        and [_a[:6] for _a in _la(609)] == ["center", "center", "radius"]
+        and [_a[:6] for _a in _la(609)] == ["x", "y", "radius"]
         and len(om.arg_names(405)) == 2 and any("plant" in _a for _a in _la(405))
         and len(om.arg_names(478)) == 2 and any("held" in _a for _a in _la(478))
-        and len(om.arg_names(10)) == 2 and any("name string" in _a for _a in _la(10))
+        and len(om.arg_names(10)) == 2 and any("character-name archive" in _a for _a in _la(10))
         and any("blip" in _a for _a in _la(10)))      # arg1 = the text blip (SE_WORDS_M/F/O/D)
     _check("opcode_meta: five scene-ops carry their IDA-verified arg labels (464/609/405/478/10)",
            _labelfix)
@@ -3003,27 +3007,26 @@ def test_script():
                 _alias_mismatch.append((_o, len(om.arg_names(_o)), _tgt, len(om.arg_names(_tgt))))
     _check("opcode_meta: every 'Alias of op N' op has the same arg-label count as op N",
            not _alias_mismatch, str(_alias_mismatch[:5]))
-    # accuracy pin (IDA-verified 2026-07-12): op319 SetEmote shares handler Script_VMOp_SetNpcEmoteByte
+    # accuracy pin (IDA-verified 2026-07-12): op319 SetNpcNicknameForPlayer shares handler Script_VMOp_SetNpcEmoteByte
     # with op320, but its desc said "Show an emote bubble over an NPC" -- WRONG. The handler writes the
     # per-NPC facial-expression byte at record+57 (switches the portrait face), it is NOT the transient
     # emote-BUBBLE popup system (those are op5/6/7 ShowNpcBubble). Pin the corrected framing.
-    _d319 = om.describe(319).lower()
+    _d319 = _dtext(319)
     _check("opcode_meta: op319 = facial-expression byte (record+57), not an emote 'bubble'",
-           "facial-expression" in _d319 and "show an emote bubble" not in _d319
-           and "record +57" in _d319)
-    # companion pin (IDA-verified 2026-07-12): op322 SetMood writes the MOOD byte record+56 (handler
+           "nickname" in _d319 and "show an emote bubble" not in _d319 and "+57" in _d319)
+    # companion pin (IDA-verified 2026-07-12): op322 SetNpcNickname writes the MOOD byte record+56 (handler
     # Script_VMOp_SetNpcMoodByte), a DIFFERENT byte from op319's emote +57. Its old terse "mood /
     # facial expression" wording collided with op319's "facial-expression" -- disambiguated so the two
     # NPC expression bytes (+56 mood vs +57 emote) don't blur together.
-    _d322 = om.describe(322).lower()
+    _d322 = _dtext(322)
     _check("opcode_meta: op322 = mood byte (record+56), disambiguated from the +57 emote byte",
-           "+56" in _d322 and "+57" in _d322 and "mood / facial expression" not in _d322)
+           "+56" in _d322 and "nickname" in _d322 and "mood / facial expression" not in _d322)
     # op93 SetDialogueBoxStyle (and ops 94-97 SetBoxNormal/Shout/Thought/Trembling) set the
     # MESSAGE-BOX style, not a face
     # (re-verified 2026-09-25: task+160 picks window art talk_win<n> = archive 15851+n and tail
     # talk_hige<n>; 4 = tail only). The 2026-07-12 reading ("3-bit portrait expression, 0-5 =
     # normal/angry/... ") was wrong. The picker names the five real styles.
-    _d93 = om.describe(93).lower()
+    _d93 = _dtext(93)
     _e93 = om.ENUM_ARG_VALUES.get((93, 0), {})
     _check("opcode_meta: op93 = the message-box style (0 normal, 1 shout, 2 thought, 3 trembling, 4 tail only)",
            "box style" in _d93 and "talk_win" in _d93 and set(_e93) == {0, 1, 2, 3, 4}
@@ -3033,12 +3036,12 @@ def test_script():
     # deterministic name-seeded hash, op632 uses the DAILY-seeded (reload-safe) RNG not the global
     # PRNG, and op691 is a deterministic product (no RNG at all). Each verified by decompile. Pin the
     # corrected descriptions/args so the wrong generic blurb can't creep back.
-    _d631, _d632, _d691 = om.describe(631).lower(), om.describe(632).lower(), om.describe(691).lower()
+    _d631, _d632, _d691 = _dtext(631), _dtext(632), _dtext(691)
     _descfix = (
         "usually a random item id" not in _d631
-        and "name-seeded" in _d631 and len(om.arg_names(631)) == 2
+        and "same name, same result" in _d631 and len(om.arg_names(631)) == 2
         and "daily" in _d632 and "usually a random item id" not in _d632 and len(om.arg_names(632)) == 2
-        and ("product" in _d691 and ("not an rng" in _d691 or "no rng" in _d691))
+        and "multiply" in _d691 and "random" not in _d691
         # 2026-09-01 engine tiebreak: every arg is a factor (the count is the
         # encoding's own packed slot), so a single variadic hint is correct.
         and len(om.arg_names(691)) == 1)
@@ -3050,21 +3053,20 @@ def test_script():
     # (bit 295, width 2, value 2; the IDA handler name 'SetWifeStatus2...' = marriage status). So it
     # sets a marriage/family-status game-flag, then runs the family birthday/anniversary check -- NOT
     # an achievement unlock. Pin the corrected framing so the misnomer can't return.
-    _d290 = om.describe(290).lower()
+    _d290 = _dtext(290)
     _check("opcode_meta: op290 = marriage-status game-flag write (not 'unlocks achievement 4391')",
-           "game-flag" in _d290 and "unlocks achievement 4391" not in _d290
-           and "anniversary" in _d290)
+           "game flag" in _d290 and "unlocks achievement 4391" not in _d290
+           and "wife_status" in _d290 and "wife_days" in _d290)
     # completeness of the same fix (2026-07-12): op379 (id 1072 'first scripted BGM') and op557/558
     # (per-NPC ids 1451-1473) also route through GameFlags_WritePacked, so they're packed game-flag
     # writes, NOT the ~30 named Steam achievements. op379's note is corrected; op557/558 were renamed
     # UnlockNpcAchievements -> SetNpcRecognitionFlags (a graded per-NPC flag). Pin so "achievement"
     # framing can't creep back onto these packed-flag ids.
-    _d379, _m557, _m558 = om.describe(379).lower(), om.mnemonic(557), om.mnemonic(558)
+    _d379, _m557, _m558 = _dtext(379), om.mnemonic(557), om.mnemonic(558)
     _check("opcode_meta: op379/557/558 framed as packed game-flags, not achievements",
-           "not a steam achievement" in _d379 and "achievement 1072" not in _d379
+           "1072" in _d379 and "achievement 1072" not in _d379
            and _m557 == "SetNpcRecognitionFlags" and _m558 == "SetNpcRecognitionFlags"
-           and "gameflags_writepacked" in om.describe(557).lower()
-           and "gameflags_writepacked" in om.describe(558).lower())
+           and "packed game flag" in _dtext(557) and "packed game flag" in _dtext(558))
     # A description that assigns a label's exact name to a different argN (e.g. the SetSpeaker
     # family said "arg1 = face frame" while "face frame" is label index 0) would mislead an author
     # cross-referencing the tooltip prose against the editor's 0-based arg rows. The negative
@@ -3099,7 +3101,7 @@ def test_script():
                  if _ai >= len(om.arg_names(_o))]
     _check("opcode_meta: no enum picker wired to a non-existent arg index",
            not _deadpick, str(_deadpick[:8]))
-    # accuracy pin (2026-07-12): op 376 BeginShopkeeperInteraction arg1 is a SHOP dispatch id
+    # accuracy pin (2026-07-12): op 376 OpenShop arg1 is a SHOP dispatch id
     # (all 192 vanilla sites pass 75-89); its picker was wired to the FULL 83-entry
     # WORLD_INTERACTION_ACTIONS table, so a moder editing a "shop id" saw Save/Load/NameEntry
     # (non-shops that wouldn't open a shop). Scoped it to the shop subrange 75-89. Pin that op376's
@@ -3839,7 +3841,7 @@ def test_sound_table():
            and any(h[2] for h in hits if h[0] == "voice_en_audio_data.bdat")
            and not any(h[2] for h in hits if h[0] == "voice_jp_audio_data.bdat"))
     lab = _st.LazySoundLabels(paths["common_audio_data.bdat"].parent.parent)
-    _check("sound labels on PlaySound/PlayVoicedSound listings",
+    _check("sound labels on PlaySound/PlaySoundOnFreeVoice listings",
            _om.enum_arg_label(385, 0, 16785916) == "SE_WORDS_M.wav"
            and _om.enum_arg_label(392, 0, 16777511) == "V_PLAM_TITLE_RUNE4.ogg"
            and _om.render_action(385, ["16785917"]) == "PlaySound(16785917=SE_WORDS_F.ogg)"
@@ -3909,9 +3911,9 @@ def test_bugfixes():
     from rf4s_modkit import opcode_meta as _om
     _q = next(o for o, t in _om.TECHNICAL.items() if "QueryPlayerStatByCharCode" in t)
     _check("opcode render_action decodes player-var query",
-           _om.render_action(_q, ["104", "15"]) == "QueryPlayerVariable(Skill, Mining)"
-           and _om.render_action(_q, ["100", "0"]) == "QueryPlayerVariable(Gold)"
-           and _om.mnemonic(_q) == "QueryPlayerVariable")
+           _om.render_action(_q, ["104", "15"]) == "GetPlayerVariable(Skill, Mining)"
+           and _om.render_action(_q, ["100", "0"]) == "GetPlayerVariable(Gold)"
+           and _om.mnemonic(_q) == "GetPlayerVariable")
 
 
 def test_gen_structural():
@@ -5333,15 +5335,15 @@ def test_script_authoring():
     sc = next(s for s in script.disassemble_bank(b3, discover=False)
               if s.ok and any(x.mnem == "DIALOG" for x in s.stmts.values()))
     dpc = next(pc for pc, x in sc.stmts.items() if x.mnem == "DIALOG")
-    c3.insert_after(b3, dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg0 = 3)")
+    c3.insert_after(b3, dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nEVAL (reg0 = 3)")
     _e3 = c3.last_relink[213][sc.entry_pc]
     sc3 = script.disassemble_scene(b3, sc.action_type, _e3)
     lst = scriptasm.scene_listing(sc3, b3)
-    _check("insert_after accepts listing text (branch + label + STORE) and the scene stays clean",
-           sc3.ok and "BR_Z (FLG_KOKUHAKU_NOW) ->" in lst and "STORE (reg0 = 3)" in lst
+    _check("insert_after accepts listing text (branch + label + EVAL) and the scene stays clean",
+           sc3.ok and "BR_Z (FLG_KOKUHAKU_NOW) ->" in lst and "EVAL (reg0 = 3)" in lst
            and "DIALOG #5" in lst and len(sc3.stmts) == len(sc.stmts) + 3,   # 3 new, in place
            f"{len(sc.stmts)} -> {len(sc3.stmts)} stmts, ok={sc3.ok}")
-    body = ("FRAME 2\nSetSpeakerNancy 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
+    body = ("FRAME 2\nSetSpeakerNancyLeft 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
             "PROMPT_CHOICE CANCEL->done, #100->yes, #101->done\nyes:\nGivePlayerItem 258, 1, 0\ndone:\nEND")
     _e4 = c3.rewrite_scene(b3, _e3, body)
     sc4 = script.disassemble_scene(b3, sc.action_type, _e4)
@@ -5403,8 +5405,8 @@ def test_script_authoring():
     c5.set_asm_resolver(c.asm_resolver)
     empty = next(b for b in c5.banks if b.kind == "tail" and len(b.data) == 296)
     gi_e = c5.banks.index(empty)
-    pc, idx = c5.add_entry(empty, 6, [], listing="FRAME 0\nSetSpeakerNancy 3, 0\nDIALOG #8709\n"
-                                                  "STORE (FLG_KOKUHAKU_NOW = 1)\nEND")
+    pc, idx = c5.add_entry(empty, 6, [], listing="FRAME 0\nSetSpeakerNancyLeft 3, 0\nDIALOG #8709\n"
+                                                  "EVAL (FLG_KOKUHAKU_NOW = 1)\nEND")
     busy = c5.banks[213]
     bt = next(t for t, (cnt, off) in busy.type_table_full().items() if cnt >= 2)
     before = [(r.event_id, r.subs) for r in busy.entry_records(bt)]
@@ -5417,7 +5419,7 @@ def test_script_authoring():
     changed = [i for i, (x, y) in enumerate(zip(c.banks, c6.banks)) if bytes(x.data) != bytes(y.data)]
     _check("add_entry mints a scene in an EMPTY tail bank: registered (count 1), decodes, other banks untouched",
            len(recs6) == 1 and recs6[0].event_id == pc and sc6 is not None and sc6.ok
-           and "STORE (FLG_KOKUHAKU_NOW = 1)" in scriptasm.scene_listing(sc6, e6)
+           and "EVAL (FLG_KOKUHAKU_NOW = 1)" in scriptasm.scene_listing(sc6, e6)
            and sorted(changed) == sorted([gi_e, 213]), f"changed banks {changed}")
     after = c6.banks[213].entry_records(bt)
     _check("add_entry at position 0 in a busy bank keeps the old entries in order (count-exact reparse)",
@@ -5496,7 +5498,7 @@ def test_script_authoring():
     for _b8 in c7.banks[:20]:
         for _sc8 in script.disassemble_bank(_b8, discover=False):
             _nf = next((s for s in _sc8.stmts.values()
-                        if s.mnem in ("JMP", "PROMPT_CHOICE", "SWITCH_GE") and s.size >= 4), None)
+                        if s.mnem in ("JMP", "PROMPT_CHOICE", "SWITCH_CLAMP") and s.size >= 4), None)
             if _nf:
                 break
         if _nf:
@@ -5513,11 +5515,11 @@ def test_script_authoring():
     _check("delete_statement / insert_after refuse a statement that never falls through",
            _nf is not None and _nfr == 2, _nf.mnem if _nf else "none found")
     # assembler: malformed / out-of-range fields raise AsmError (never a raw ValueError or a
-    # silent mask); zero-target SWITCH_GE / JMP_IND / RAND_BR (which read past their table in
+    # silent mask); zero-target SWITCH_CLAMP / JMP_RAND / JMP_WEIGHTED (which read past their table in
     # Script_VMStep / Script_Opcode_FFF2_ExecPrim) and > 11 SpawnMapEntity args are refused.
     _asm_bad = 0
     _bad_listings = ["DIALOG #abc", "FRAME x", "FRAME 70000", "PROMPT_CHOICE CANCEL->L, #zz->L\nL: END",
-                     "SWITCH_GE (reg0) ->", "JMP_IND", "RAND_BR", "DIALOG #99999999999",
+                     "SWITCH_CLAMP (reg0) ->", "JMP_RAND", "JMP_WEIGHTED", "DIALOG #99999999999",
                      "op5 u16(70000)", "op5 localvar[0x1FFFFFFFF]", "op5 @zz",
                      "op157 " + ", ".join(["1"] * 12)]
     for _t in _bad_listings:
@@ -5532,8 +5534,8 @@ def test_script_authoring():
            _asm_bad == len(_bad_listings) and _ok157, "%d/%d" % (_asm_bad, len(_bad_listings)))
     # speaker slots 25/26/29 are named from NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70)
     _check("SetSpeaker slots 25/26/29 = Soldier/Ethelberd/Traveler (no old names kept)",
-           script.opcode_mnemonic(66) == "SetSpeakerSoldier" and script.opcode_mnemonic(69) == "SetSpeakerEthelberd"
-           and scriptasm.assemble("SetSpeakerTraveler 0, 0", 0x100)[0][:2] == b"\x4a\x00"
+           script.opcode_mnemonic(66) == "SetSpeakerSoldierLeft" and script.opcode_mnemonic(69) == "SetSpeakerEthelberdRight"
+           and scriptasm.assemble("SetSpeakerTravelerLeft 0, 0", 0x100)[0][:2] == b"\x4a\x00"
            and script.meta.op_from_mnemonic("SetSpeakerguest25") is None
            and script.meta.op_from_mnemonic("SetSpeakerEmote1") is None)
     # a packed var whose width is not emdeb's keeps its raw var:0x form (it would re-assemble
@@ -5572,7 +5574,7 @@ def test_script_authoring():
     _bad = [(o, n) for o, n in enumerate(_ln) if _sa.op_from_any(n) != o]
     _bare = [o for o, n in enumerate(_ln) if re.fullmatch(r"op\d+", n)]
     _check("every action opcode has a unique listing name that assembles back (Name_N for shared names)",
-           not _bad and len(set(_ln)) == len(_ln) and len(_bare) <= 2 and _ln[53] == "SetSpeakerJones_53",
+           not _bad and len(set(_ln)) == len(_ln) and len(_bare) <= 2 and _ln[53] == "SetSpeakerJonesRight",
            _bad[:3] or f"{len(_bare)} bare opN left: {_bare}")
     # the developers' test menus: bank 18 (Jones) carries the event / festival / date menus
     _tp = _first("rf3mc.eng")
@@ -5636,7 +5638,7 @@ def test_script_authoring():
     # the event-spawn ops' char table covers every rf3NpcParam row, model-less markers too
     from rf4s_modkit import opcode_meta as _om
     _ec = _om.ENUM_ARG_VALUES.get((153, 0), {})
-    _check("EventSpawnNpc's char table lists all 392 rows, 269 'Search' as a model-less marker",
+    _check("SpawnEventActor's char table lists all 392 rows, 269 'Search' as a model-less marker",
            len(_ec) == 392 and _ec.get(269, ("",))[0] == "Search (no model)"
            and _ec.get(9, ("",))[0].startswith("Arthur ["), f"{len(_ec)} rows, 269 = {_ec.get(269)}")
     # add / sub / set: ModifyPlayerResource / ModifyLumber / ApplyFriendshipDelta take their
@@ -5707,8 +5709,8 @@ def test_bank_relink():
                 if a.subs != b.subs or b.event_id != a.event_id + 6 or s1 != s2:
                     shift_bad.append((bk.index, t))
     # one listing syntax: actions are Name(args); control keywords keep ( cond ) and spaced ->
-    _ctrl = ("END", "FRAME", "DIALOG", "CALL", "JMP", "JMP_IND", "STORE", "BR_RET", "BR_Z", "BR_NZ",
-             "SWITCH_EQ", "SWITCH_GE", "RAND_BR", "PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")
+    _ctrl = ("RET", "FRAME", "DIALOG", "CALL", "JMP", "JMP_RAND", "EVAL", "RET_NZ", "BR_Z", "BR_NZ",
+             "SWITCH", "SWITCH_CLAMP", "JMP_WEIGHTED", "PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")
     _odd = []
     _sample = [bk for bk in banks if bk.type_table_full()][:6]
     for bk in _sample:
@@ -5722,7 +5724,7 @@ def test_bank_relink():
             _head = re.match(r"[A-Za-z_]\w*", _b)
             _head = _head.group(0) if _head else ""
             if _head in _ctrl:
-                if "->" in _b.replace(" -> ", "") or _b.startswith("JMP_IND ->"):
+                if "->" in _b.replace(" -> ", "") or _b.startswith("JMP_RAND ->"):
                     _odd.append(_b)
             elif not re.fullmatch(r"[A-Za-z_]\w*\(.*\)", _b):
                 _odd.append(_b)
@@ -6128,8 +6130,8 @@ def test_cutscene_editor_authoring():
         if dpc is not None:
             n0 = len(ex.scene.stmts)
             _j0 = sum(x.mnem == "JMP" for x in ex.scene.stmts.values())
-            ex.insert_after(dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg1 = 2)")
-            _check("listing-syntax insert adds the branch/label/STORE beat in place (selected)",
+            ex.insert_after(dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nEVAL (reg1 = 2)")
+            _check("listing-syntax insert adds the branch/label/EVAL beat in place (selected)",
                    len(ex.scene.stmts) == n0 + 3 and ex.scene.ok and ex.sel is not None
                    and ex.scene.stmts[ex.sel[0]].mnem == "BR_Z")
             # the save path writes the rebuilt bank: no trampoline, compiler layout, every other
@@ -6160,7 +6162,7 @@ def test_cutscene_editor_authoring():
         empty_idx = next(i for i, b in enumerate(c.banks) if b.kind == "tail" and len(b.data) == 296)
         ex.show_bank(empty_idx)
         eb = c.banks[empty_idx]
-        res = ex.add_entry(empty_idx, 7, "", "FRAME 0\nSetSpeakerNancy 3, 0\nDIALOG #8709\nEND", "append")
+        res = ex.add_entry(empty_idx, 7, "", "FRAME 0\nSetSpeakerNancyLeft 3, 0\nDIALOG #8709\nEND", "append")
         recs = eb.entry_records(7)
         _check("New scene mints a type-7 scene in an empty map bank and opens it",
                isinstance(res, tuple) and len(recs) == 1 and recs[0].event_id == res[0]
@@ -7068,14 +7070,14 @@ def _map_editor():
 
 def test_map_editor_script_spawns():
     """The script-NPC layer finds actors spawned by all three spawn ops (153/154/155), e.g.
-    the Silver Wolf that MAP_DUNG_L13's event script places with EventSpawnNpcVariant."""
-    print("map editor script NPCs (EventSpawnNpc / Variant / Ex):")
+    the Silver Wolf that MAP_DUNG_L13's event script places with SpawnEventActorVariant."""
+    print("map editor script NPCs (SpawnEventActor / Variant / Ex):")
     from map_editor import data as med
     bi, sp = med.script_spawns("MAP_DUNG_L13")
     if bi is None:
         _skip("script NPCs", "rf3.mc not found"); return
     wolf = [s for s in sp if s["char_id"] == 79]
-    _check("MAP_DUNG_L13 shows the Silver Wolf its script spawns (EventSpawnNpcVariant, "
+    _check("MAP_DUNG_L13 shows the Silver Wolf its script spawns (SpawnEventActorVariant, "
            "sub-units 240, 290)",
            wolf and (wolf[0]["x"], wolf[0]["y"], wolf[0]["instance"]) == (240, 290, 100), str(sp))
     # with the layer on, leaving the map and coming back draws the markers again
@@ -11391,7 +11393,7 @@ def test_cutscene_editor_workflows():
         cx.undo()
         _check("box style: the picker, switching ops 94-97 and new lines with a box (op 95 / op 93 4) undo exactly",
                _bok and _boxed and _tail and doc.container.build() == orig
-               and script.opcode_describe(95).startswith("Dialogue box style 1"),
+               and "shout style (style 1)" in script.opcode_describe(95),
                f"picker/switch={_bok} op95={_boxed} op93-4={_tail}")
         # Add before + adding at a label (= before the labelled statement, so jumps run it too)
         import cutscene_editor.dialogs as dialogs_mod

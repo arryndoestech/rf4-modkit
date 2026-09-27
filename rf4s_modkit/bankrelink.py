@@ -38,7 +38,7 @@ Bank layout (all 1121 shipped banks):
 
 Every code address in a bank lives in one of these fields (checked against RF4S.exe):
 
-  * control-flow targets: CALL/JMP, BR_Z/BR_NZ, SWITCH_EQ/GE, JMP_IND, RAND_BR,
+  * control-flow targets: CALL/JMP, BR_Z/BR_NZ, SWITCH/GE, JMP_RAND, JMP_WEIGHTED,
     PROMPT_CHOICE(_FORCED) (Script_VMStep, RF4S.exe+0x23EF60);
   * the type table's list offsets and each entry's event_pc (Npc_FindNextActionEntryOfType,
     RF4S.exe+0x23DE30; the pc is copied into the VM's pc field when the scene starts).
@@ -803,8 +803,10 @@ def _paren(t):
     return t if t.startswith("(") and scriptasm._outer_parens(t) else "(%s)" % t
 
 
-def bank_listing(bank, resolver=None):
-    """The whole bank as text (see above); assemble_bank(text) rebuilds it."""
+def bank_listing(bank, resolver=None, with_pcs=False):
+    """The whole bank as text (see above); assemble_bank(text) rebuilds it. with_pcs=True
+    returns (text, pcs): pcs[i] is the statement pc of output line i (None for directives,
+    labels and entry lists)."""
     from . import scriptasm
     d = bytes(bank.data)
     m = BankModel.parse(bank)
@@ -817,6 +819,7 @@ def bank_listing(bank, resolver=None):
         targets |= set(e for _s, e, _b in recs)
     lab = lambda pc: "L_%04x" % pc           # noqa: E731
     out = [".table %d" % (len(m.table) // 4)]
+    pcs = []
     used = bytearray(m.table)
     for t, (cnt, off) in m.slots.items():
         out.append(".slot %d %d list_%04x" % (t, cnt, off))
@@ -827,6 +830,7 @@ def bank_listing(bank, resolver=None):
     for s in m.code:
         if s.old_pc in targets:
             out.append("%s:" % lab(s.old_pc))
+        pcs += [None] * (len(out) - len(pcs))
         if isinstance(s, Raw):
             out.append(".raw %s" % s.raw.hex())
             continue
@@ -838,7 +842,7 @@ def bank_listing(bank, resolver=None):
             args = [_operand_text(asm, d, o, w, op, i) for i, (o, w) in enumerate(ex)]
             line = scriptasm.action_text(scriptasm.listing_name(op), args)
         elif op == 0xFFFF:
-            line = "END"
+            line = "RET"
         elif op == 0xFFF1:
             line = "FRAME %d" % st.items[0]
         elif op == 0xFFFC:
@@ -855,10 +859,10 @@ def bank_listing(bank, resolver=None):
             o, w = next(ex)
             line = "%s %s -> %s" % (st.mnem, _paren(_operand_text(asm, d, o, w)), ", ".join(tg))
         elif op == 0xFFF3:
-            line = "JMP_IND %s" % ", ".join(tg)
+            line = "JMP_RAND %s" % ", ".join(tg)
         elif op == 0xFFF2:
             ws = [_paren(_operand_text(asm, d, o, w)) for o, w in ex]
-            line = "RAND_BR " + ", ".join("%s -> %s" % (w, t) for w, t in zip(ws, tg))
+            line = "JMP_WEIGHTED " + ", ".join("%s -> %s" % (w, t) for w, t in zip(ws, tg))
         elif op == 0xFFF4:
             line = "PROMPT_CHOICE CANCEL -> %s" % tg[0] + "".join(
                 ", #%d -> %s" % (it, t) for it, t in zip(st.items, tg[1:]))
@@ -867,13 +871,17 @@ def bank_listing(bank, resolver=None):
         else:
             raise RelinkError("no listing form for 0x%04x" % op)
         out.append("    " + line)
+        pcs.append(s.old_pc)
     for off, recs in m.lists:
         out.append("list_%04x:" % off)
         for size, eid, subs in recs:
             keys = " ".join("%d:%d" % (subs[5 * k], struct.unpack_from("<i", subs, 5 * k + 1)[0])
                             for k in range(size))
             out.append(".entry %s%s" % (lab(eid), (" " + keys) if keys else ""))
-    return "\n".join(out) + "\n"
+    text = "\n".join(out) + "\n"
+    if with_pcs:
+        return text, pcs + [None] * (len(out) - len(pcs))
+    return text
 
 
 def assemble_bank(text, resolver=None, strict=False):

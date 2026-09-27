@@ -668,10 +668,10 @@ def ore_configs(reader):
     return out
 
 
-# ---- script-spawned actors (EventSpawnNpc* in the map's event bank) -------- #
-# ops 153 EventSpawnNpc, 154 EventSpawnNpcVariant, 155 EventSpawnNpcEx: all start with
+# ---- script-spawned actors (SpawnEventActor* in the map's event bank) -------- #
+# ops 153 SpawnEventActor, 154 SpawnEventActorVariant, 155 SpawnEventActorEx: all start with
 # (char id, event key, x, y)
-SPAWN_OPS = ("EventSpawnNpc", "EventSpawnNpcVariant", "EventSpawnNpcEx")
+SPAWN_OPS = ("SpawnEventActor", "SpawnEventActorVariant", "SpawnEventActorEx")
 _RF3MC = {"c": False}          # False = not tried yet; None = tried and missing
 
 
@@ -694,7 +694,7 @@ def rf3mc_container():
 
 def script_spawns(name):
     """(bank index | None, [spawn dict]) for the actors this map's EVENT SCRIPT places with
-    EventSpawnNpc / EventSpawnNpcVariant / EventSpawnNpcEx: NPCs, monsters such as the Silver
+    SpawnEventActor / SpawnEventActorVariant / SpawnEventActorEx: NPCs, monsters such as the Silver
     Wolf in Sechs Territory (MAP_DUNG_L13), and interactibles such as char 269 'Search'. They are not in the
     .rf4m. Coordinates are sub-units (8 per tile), like MOBJ positions."""
     mid = map_id(name)

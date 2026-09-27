@@ -365,16 +365,16 @@ class Inspector(ScrollFrame):
         app, f = self.app, self.form
         words = {"BR_Z": "Jump when the condition is FALSE", "BR_NZ": "Jump when the condition is TRUE",
                  "JMP": "Jump", "CALL": "Call a subroutine, then continue here",
-                 "STORE": "Write a flag, register or variable", "FRAME": "Scene setup",
-                 "SWITCH_EQ": "Jump by value", "SWITCH_GE": "Jump by threshold",
-                 "RAND_BR": "Jump to a random target", "RET": "Return"}
+                 "EVAL": "Write a flag, register or variable", "FRAME": "Scene setup",
+                 "SWITCH": "Jump by value", "SWITCH_CLAMP": "Jump by threshold",
+                 "JMP_WEIGHTED": "Jump to a random target", "RET": "Return"}
         desc = script.control_tooltip(st.mnem) or ""
         desc = desc.split("\n", 1)[1] if "\n" in desc else desc
         self._header(words.get(st.mnem, st.mnem), st, desc)
         exprs = txt.expr_texts(st)
         self.primary = None
         if exprs:
-            box = section(f, "Value" if st.mnem == "STORE" else "Condition")
+            box = section(f, "Value" if st.mnem == "EVAL" else "Condition")
             for x in exprs:
                 ttk.Label(box, text=x, font=("Consolas", 9), wraplength=320, justify="left").pack(anchor="w")
             lits = []

@@ -1,7 +1,7 @@
 r"""
 soundtable.py -- the RF4S sound table (`*_audio_data.bdat`): parse, rebuild, edit, add.
 
-Every sound the engine plays by number -- script ops PlaySound / PlayVoicedSound /
+Every sound the engine plays by number -- script ops PlaySound / PlaySoundOnFreeVoice /
 PlaySfxWithNpcRemap / StopVoiceId, the dialogue text blips, menu and battle SFX, music
 streams, voice lines -- is a u32 SOUND ID looked up in this table. Three copies ship in
 bundleMain: common_audio_data.bdat (541 rows: SE_/SEQ_/STRM_ music + effects),
