@@ -2989,7 +2989,8 @@ def cmd_res_model_import_glb(a):
         mapping[k] = v
     try:
         out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None,
-                                         remove=a.remove or (), remove_missing=a.remove_missing)
+                                         remove=a.remove or (), remove_missing=a.remove_missing,
+                                         bones=a.bones)
     except (model.ModelError, modelwrite.ModelWriteError, meshimport.MeshImportError, gltf.GltfError) as e:
         sys.exit(f"error: {e}")
     print(rep.text())
@@ -3002,7 +3003,8 @@ def cmd_res_model_import_glb(a):
     model.parse(out)
     dst = pathlib.Path(a.out) if a.out else pathlib.Path(src.stem + "_glb.model")
     dst.write_bytes(out)
-    print(f"{len(rep.changed)} shape(s) rebuilt -> {dst} ({_size_note(len(data), len(out))})")
+    print(f"{len(rep.changed)} shape(s) rebuilt" + (f", {len(rep.bones_moved)} bone(s) moved" if rep.bones_moved else "")
+          + f" -> {dst} ({_size_note(len(data), len(out))})")
 
 
 def cmd_res_model_material(a):
@@ -4380,6 +4382,10 @@ def build_parser():
                           "degenerate triangle that draws nothing; repeatable")
     rmg.add_argument("--remove-missing", action="store_true",
                      help="hide every shape the file has no mesh for (objects deleted in Blender)")
+    rmg.add_argument("--bones", action="store_true",
+                     help="also take the skeleton's rest pose (bones moved / turned in Blender's "
+                          "edit mode; inverse bind matrices and rigid parts follow so the model "
+                          "looks the same at rest). Without it a moved rest pose is only reported")
     rmg.add_argument("-o", "--out", help="output .model (default: <model>_glb.model here)")
     rmg.set_defaults(func=cmd_res_model_import_glb)
     rmm = rsub.add_parser("model-material", help="list the material settings the game reads "

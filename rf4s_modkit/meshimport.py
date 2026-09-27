@@ -62,6 +62,16 @@ are pixel-identical (selftest test_model_glb_import / test_model_glb_blender). O
 attributes (`_c0`) copied from the nearest original vertex, then position / normal / UV /
 weights from the file. Identical records are shared (the index buffer references them once).
 
+Removing a shape (empty_geometry) keeps its records and gives it one degenerate triangle.
+
+Skeleton rest pose (import_glb(bones=True), rest_pose_changes / set_rest_pose): a bone whose
+node TRS in the file differs from its bind values (beyond Blender's float noise) takes the
+file's translation / rotation; the bone flags, the inverse bind matrices and the vertices
+stored in that bone's space follow so the model looks the same at rest. SkeletonObj init
+(RF4S.exe+0x3D8E40) reads each bone's flags & 0xF870000, scale +0x38, Euler (or quaternion)
+rotation +0x44 and translation +0x54; nothing else in the file caches the rest pose. Bones are
+never added, removed or re-parented.
+
 Statically verified only (no in-game test): see modelwrite.py for the loader's pool / buffer
 rules this relies on.
 """
@@ -168,16 +178,18 @@ def _prim_triangles(prim, idx, n):
     return None
 
 
-def read_meshes(path, model=None):
+def read_meshes(path, model=None, file_joints=()):
     """[GltfMesh] of every mesh node of a glTF / GLB (a path, or read_gltf's (json, buffers)).
     With `model`, a joint named like one of its bones is placed by that bone's bind world
     matrix instead of the file's rest pose (see the module notes: Blender cannot keep a
-    bone's rest scale)."""
+    bone's rest scale). Joints named in `file_joints` keep the file's own placement (bones
+    whose rest pose the file moved, when that move is not taken: the mesh stays where
+    Blender shows it)."""
     gl, bufs = path if isinstance(path, tuple) else _gltf.read_gltf(path)
     game = {}
     if model is not None:
         wm = _model.world_matrices(model.bones)
-        game = {b.name: wm[b.index] for b in model.bones}
+        game = {b.name: wm[b.index] for b in model.bones if b.name not in set(file_joints)}
     worlds, parent = _node_worlds(gl)
     nodes = gl.get("nodes", [])
     skins = gl.get("skins", [])
@@ -626,14 +638,177 @@ def _update_skin_bones(out, sh, shp, g, attrs, stride, m, smooth, rigid):
     return True
 
 
+# --------------------------------------------------------------------------- #
+# skeleton rest pose
+# --------------------------------------------------------------------------- #
+REST_T_REL = 1e-4             # translation change that counts as an edit (of the model's size)
+REST_R_DEG = 0.1              # rotation change that counts as an edit (Blender's noise: < 0.04)
+_FLAG_BITS = ((24, "uniform"), (25, "volume_one"), (26, "rot_zero"), (27, "trans_zero"))
+
+
+def _bone_flags(flags, scale, rot, trans):
+    """Bone flags with the four transform bits SkeletonObj init copies (RF4S.exe+0x3D8E40:
+    flags & 0xF870000) recomputed from the values -- bit 24 uniform scale, 25 scale volume 1,
+    26 rotation zero, 27 translation zero (the rule every one of the 7,935 shipped bones
+    follows)."""
+    val = {"uniform": scale[0] == scale[1] == scale[2],
+           "volume_one": abs(scale[0] * scale[1] * scale[2] - 1.0) < 1e-6,
+           "rot_zero": all(x == 0.0 for x in rot[:3]),
+           "trans_zero": all(x == 0.0 for x in trans)}
+    for bit, k in _FLAG_BITS:
+        flags = (flags | (1 << bit)) if val[k] else (flags & ~(1 << bit))
+    return flags & 0xFFFFFFFF
+
+
+def rest_pose_changes(model, path):
+    """({bone index: (scale, rotation, translation)}, [notes]) for the bones whose rest pose a
+    glTF / GLB moved (node of the bone's name, its local TRS against the model's bind values;
+    edits below REST_T_REL of the model's size / REST_R_DEG are Blender's float noise).
+    Blender cannot give a bone a rest scale, so a file scale of 1 on a scaled bone means
+    'unchanged'; a mirrored bone (negative scale) comes back from Blender as a 180-degree
+    turn, so its rotation is not taken."""
+    gl, _bufs = path if isinstance(path, tuple) else _gltf.read_gltf(path)
+    nodes = {nd.get("name"): i for i, nd in enumerate(gl.get("nodes", []))}
+    parent = {}
+    for i, nd in enumerate(gl.get("nodes", [])):
+        for c in nd.get("children", []):
+            parent[c] = i
+    saved, model.pose = model.pose, None
+    try:
+        size = _gltf._extent(model)
+    finally:
+        model.pose = saved
+    out, notes = {}, []
+    for b in model.bones:
+        ni = nodes.get(b.name)
+        if ni is None:
+            continue
+        nd = gl["nodes"][ni]
+        pn = gl["nodes"][parent[ni]].get("name") if ni in parent else None
+        want_parent = model.bones[b.parent].name if 0 <= b.parent < len(model.bones) else None
+        t = tuple(float(x) for x in nd.get("translation", (0.0, 0.0, 0.0)))
+        q = tuple(float(x) for x in nd.get("rotation", (0.0, 0.0, 0.0, 1.0)))
+        sc = tuple(float(x) for x in nd.get("scale", (1.0, 1.0, 1.0)))
+        if "matrix" in nd:
+            notes.append(f"bone {b.name}: a matrix node, its rest pose is not read")
+            continue
+        qg = _gltf.euler_to_quat(*b.rotation[:3]) if b.euler else tuple(b.rotation[:4])
+        dr = 2.0 * math.degrees(math.acos(min(1.0, abs(sum(x * y for x, y in zip(q, qg))))))
+        dt = max(abs(x - y) for x, y in zip(t, b.translation))
+        new_s, new_r, new_t = tuple(b.scale), tuple(b.rotation), tuple(b.translation)
+        changed = False
+        if dt > REST_T_REL * size:
+            new_t, changed = t, True
+        if dr > REST_R_DEG:
+            if any(x < 0 for x in b.scale):
+                if abs(dr - 180.0) > REST_R_DEG:  # 180 = Blender's stand-in for the mirror
+                    notes.append(f"bone {b.name}: mirrored (negative scale) -- its rotation is not taken")
+            else:
+                new_r = (_gltf.quat_to_euler(q, tuple(b.rotation[:3])) if b.euler else q)
+                changed = True
+        if any(abs(x - 1.0) > 1e-4 for x in sc) and max(abs(x - y) for x, y in zip(sc, b.scale)) > 1e-4:
+            new_s, changed = sc, True
+        if changed:
+            if pn != want_parent and not (pn is not None and want_parent is None):
+                notes.append(f"bone {b.name}: its parent in the file is {pn!r}, not {want_parent!r} "
+                             f"(bones cannot be re-parented); its rest pose is not taken")
+                continue
+            out[b.index] = (new_s, new_r, new_t)
+    return out, notes
+
+
+def set_rest_pose(data, changes):
+    """New file bytes with bones' rest pose (local scale, rotation, translation) replaced IN
+    PLACE: {bone index: (scale xyz, rotation (Euler XYZ radians, or a quaternion for a
+    quaternion bone), translation xyz)}. Also, so that the model looks the same at rest:
+      * the bone flags' transform bits (see _bone_flags),
+      * every inverse bind matrix (SKEL+0x28) of a smooth matrix whose bone's bind world moved:
+        IBM' = W'^-1 * W * IBM, which keeps the skinned rest shape (and is W'^-1 wherever
+        IBM = W^-1, true for all 2,636 shipped IBMs within 8e-5),
+      * the vertices stored in a moved bone's space (skin 0 on its shape bone, skin 1 on its
+        `_i0` bone): raw' = W'^-1 * W * raw (normals by the inverse transpose), bounds redone.
+    The loader reads all of these: SkeletonObj init (RF4S.exe+0x3D8E40) takes each bone's
+    flags & 0xF870000, scale (+0x38), Euler or quaternion rotation (+0x44) and translation
+    (+0x54); the skin-matrix builder (+0x3D8650) multiplies by the IBMs."""
+    m = _model.parse(data)
+    old = _model.world_matrices(m.bones)
+    out = bytearray(data)
+    M = _mw._u64(data, 0x28)
+    S = _mw._u64(data, M + 0x20)
+    if data[S:S + 4] != b"SKEL":
+        raise MeshImportError("the model has no skeleton")
+    base = _mw._u64(data, S + 0x18)
+    bones = list(m.bones)
+    for bi, (sc, rot, tr) in changes.items():
+        b = bones[bi]
+        o = base + 0x60 * bi
+        struct.pack_into("<3f", out, o + 0x38, *sc)
+        if b.euler:
+            struct.pack_into("<3f", out, o + 0x44, *rot[:3])
+        else:
+            struct.pack_into("<4f", out, o + 0x44, *rot[:4])
+        struct.pack_into("<3f", out, o + 0x54, *tr)
+        fl = _mw._u32(data, o + 0x34)
+        struct.pack_into("<I", out, o + 0x34, _bone_flags(fl, sc, rot, tr))
+    m2 = _model.parse(bytes(out), decode_vertices=False)
+    new = _model.world_matrices(m2.bones)
+    moved = {i for i in range(len(bones))
+             if any(abs(old[i][r][c] - new[i][r][c]) > 1e-9 for r in range(3) for c in range(4))}
+    fix = {i: _model._mul(_mw._inv4(new[i]), old[i]) for i in moved}
+    ibm = _mw._u64(data, S + 0x28)
+    for k, inv in enumerate(m.inverse_bind):
+        b = m.matrix_to_bone[k]
+        if b in fix:
+            n = _model._mul(fix[b], inv)
+            struct.pack_into("<12f", out, ibm + 0x30 * k, *[n[r][c] for r in range(3) for c in range(4)])
+    L = _mw.layout(data)
+    for shp, sh in zip(m.shapes, L.shapes):
+        if shp.skin >= 2:
+            continue
+        attrs, stride = _mw._vertex_format(data, sh)
+        names = {a[0] for a in attrs}
+        if "_p0" not in names:
+            continue
+        a0 = L.pool + sh.vertex_offset
+        raw, touched = [], False
+        for k, rec in enumerate(_mw._records(data, L, sh)):
+            if shp.skin == 0:
+                b = shp.bone
+            else:
+                ix = _mw._get(rec, attrs, "_i0")
+                b = m.matrix_to_bone[ix[0]] if ix and ix[0] < len(m.matrix_to_bone) else -1
+            r = bytearray(rec)
+            if b in fix:
+                F = fix[b]
+                p = _mw._get(rec, attrs, "_p0")[:3]
+                _mw._put(r, attrs, "_p0", _model._apply(F, p))
+                n = _mw._get(rec, attrs, "_n0")
+                if n is not None:
+                    _mw._put(r, attrs, "_n0", _mw._norm(_mw._mv3(_mw._t3(_mw._inv3(_mw._lin(F))), n[:3])))
+                out[a0 + k * stride:a0 + (k + 1) * stride] = r
+                touched = True
+            raw.append(_mw._get(bytes(r), attrs, "_p0")[:3])
+        if touched:
+            (c, e), rad = _mw._shape_bounds(data, sh, raw)
+            for k in range(1 + sh.n_submesh):
+                struct.pack_into("<6f", out, sh.bbox + 0x18 * k, *c, *e)
+            struct.pack_into("<f", out, sh.radius, rad)
+    return bytes(out)
+
+
 @dataclass
 class ImportReport:
     shapes: list                # [ShapeReport] of the matched shapes
     unmatched: list             # names of meshes that match no shape
     kept_shapes: list           # names of shapes the file has no mesh for
+    bones_moved: list = field(default_factory=list)     # bones whose rest pose was taken
+    notes: list = field(default_factory=list)
 
     def text(self):
         lines = [r.text() for r in self.shapes]
+        if self.bones_moved:
+            lines.append("rest pose taken for: " + ", ".join(self.bones_moved))
+        lines += self.notes
         if self.unmatched:
             lines.append("meshes with no shape of that name (ignored): " + ", ".join(self.unmatched))
         if self.kept_shapes:
@@ -643,6 +818,10 @@ class ImportReport:
     @property
     def changed(self):
         return [r for r in self.shapes if not r.unchanged]
+
+    @property
+    def anything(self):
+        return bool(self.changed or self.bones_moved)
 
 
 def empty_geometry(data, shape, L=None):
@@ -664,16 +843,33 @@ def empty_geometry(data, shape, L=None):
     return _mw.ShapeGeometry(bytes(recs[0]), [0, 0, 0], box, rad)
 
 
-def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False):
+def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bones=False):
     """(new .model bytes, ImportReport): the shapes a glTF / GLB's meshes match (by name, see
     match_shapes; `mapping` = {shape index or name: mesh node name} overrides) rebuilt from
     those meshes with their bone weights. `remove` (shape indices / names) and, with
     `remove_missing`, every shape the file has no mesh for (deleted in Blender) are emptied
     (empty_geometry: kept in the file, drawn as nothing). The result equals `data` byte for byte
-    when nothing changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh."""
+    when nothing changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh.
+    `bones` also takes the skeleton's rest pose from the file (rest_pose_changes /
+    set_rest_pose) before the meshes; without it a moved rest pose is only reported."""
     m = _model.parse(data)
+    rest_notes, rest_moved, keep_file = [], [], ()
+    if not isinstance(path, list):
+        gl = _gltf.read_gltf(path)
+        changes, rest_notes = rest_pose_changes(m, gl)
+        if changes and bones:
+            data = set_rest_pose(data, changes)
+            m = _model.parse(data)
+            rest_moved = [m.bones[i].name for i in sorted(changes)]
+        elif changes:
+            keep_file = [m.bones[i].name for i in changes]
+            rest_notes.append(f"the file moves the rest pose of {len(changes)} bone(s) ("
+                              + ", ".join(m.bones[i].name for i in sorted(changes)[:6])
+                              + ("…" if len(changes) > 6 else "") + "); not taken (import with bones "
+                              "to move them). The meshes are taken as Blender shows them.")
+        path = gl
     L = _mw.layout(data)
-    meshes = list(path) if isinstance(path, list) else read_meshes(path, m)
+    meshes = list(path) if isinstance(path, list) else read_meshes(path, m, keep_file)
     if mapping is not None:                     # {} = import nothing (e.g. only removals)
         by = {me.name: me for me in meshes}
         plan = {}
@@ -712,7 +908,7 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False):
         reps.append(rep)
     reps.sort(key=lambda r: r.shape)
     kept = [(sh.name or f"shape{sh.index}") for sh in m.shapes if sh.index not in plan and sh.index not in drop]
-    report = ImportReport(reps, [me.name for me in rest], kept)
+    report = ImportReport(reps, [me.name for me in rest], kept, rest_moved, rest_notes)
     if not geo:
         return bytes(data), report
     out = bytearray(_mw.rebuild(data, geo))

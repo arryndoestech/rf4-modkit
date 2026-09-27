@@ -9425,6 +9425,43 @@ def test_model_glb_import():
         lst = list(struct.unpack_from("<%dH" % cnt, out, _mw._u64(out, s + 0x28)))
         _check("the shape's used-bone list is rewritten to the bones its vertices now use",
                lst == sorted({by["body_Bone02"], by["head_Bone03"], by["leg_LD_Bone13"]}), lst)
+        # rest pose: head_Bone03 moved up 3 in the file (node translation + the inverse bind
+        # matrices a Blender export would write for it and its child)
+        gl, bufs = _gl.read_gltf(g)
+        hn = next(i for i, nd in enumerate(gl["nodes"]) if nd.get("name") == "head_Bone03")
+        wm_old = _model.world_matrices(m.bones)
+        hb = by["head_Bone03"]
+        R = [row[:3] for row in wm_old[m.bones[hb].parent][:3]]
+        # +3 in model Y, expressed in the parent's frame
+        Ri = _mw._inv3(R)
+        dl = _mw._mv3(Ri, (0.0, 3.0, 0.0))
+        gl["nodes"][hn]["translation"] = [a_ + b_ for a_, b_ in zip(gl["nodes"][hn]["translation"], dl)]
+        worlds, _par = _mi._node_worlds(gl)
+        skin = gl["skins"][0]
+        acc = gl["accessors"][skin["inverseBindMatrices"]]
+        bv = gl["bufferViews"][acc["bufferView"]]
+        buf = bytearray(bufs[0])
+        for k, j in enumerate(skin["joints"]):
+            inv = _mw._inv4(worlds[j])
+            struct.pack_into("<16f", buf, bv.get("byteOffset", 0) + acc.get("byteOffset", 0) + 64 * k,
+                             *[inv[r_][c_] for c_ in range(4) for r_ in range(4)])
+        g3 = tmp / "rest.glb"
+        g3.write_bytes(_gl._glb(gl, bytes(buf)))
+        keep, rep_k = _mi.import_glb(d, g3)
+        out, rep = _mi.import_glb(d, g3, bones=True)
+        m4 = _model.parse(out)
+        wm_new = _model.world_matrices(m4.bones)
+        dy = wm_new[hb][1][3] - wm_old[hb][1][3]
+        rest_same = max(max(abs(a_ - b_) for a_, b_ in zip(p_, q_)) for s_a, s_b in zip(m.shapes, m4.shapes)
+                        for p_, q_ in zip(m.shape_vertices(s_a), m4.shape_vertices(s_b)))
+        ibm_err = max(abs(_model._mul(wm_new[m4.matrix_to_bone[k]], inv)[r_][c_] - (r_ == c_))
+                      for k, inv in enumerate(m4.inverse_bind) for r_ in range(3) for c_ in range(4))
+        _check("rest pose (bones=True): the moved bone is 3 up in the model, its inverse bind matrix "
+               "follows (W * IBM = I), the model looks the same at rest, the file passes the walk",
+               abs(dy - 3.0) < 1e-4 and ibm_err < 1e-4 and rest_same < 1e-4 and not _mw.validate(out)
+               and "head_Bone03" in rep.bones_moved, (round(dy, 5), ibm_err, rest_same, rep.bones_moved))
+        _check("rest pose not taken (default): the file is unchanged and the report says the bones moved",
+               keep == d and any("rest pose" in x for x in rep_k.notes), rep_k.notes)
         # removal: a shape deleted in Blender (remove_missing) is kept but drawn as nothing
         out, rep = _mi.import_glb(d, [s0], remove_missing=True)
         m3 = _model.parse(out)
@@ -9473,6 +9510,21 @@ def test_model_glb_blender():
             "        bm.to_mesh(o.data); bm.free(); o.data.update()\n"
             "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
             encoding="utf-8")
+        rest_script = tmp / "rest.py"
+        rest_script.write_text(
+            "import bpy, sys\n"
+            "from mathutils import Vector\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.gltf(filepath=a[0])\n"
+            "arm = next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')\n"
+            "bpy.context.view_layer.objects.active = arm\n"
+            "bpy.ops.object.mode_set(mode='EDIT')\n"
+            "eb = arm.data.edit_bones[a[2]]\n"
+            "eb.head += Vector((0, 0, 3.0)); eb.tail += Vector((0, 0, 3.0))\n"
+            "bpy.ops.object.mode_set(mode='OBJECT')\n"
+            "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
+            encoding="utf-8")
         results = {}
         for stem, move, sub in (("M09_0", "-", "-"), ("NPC_TRAVELER_M", "-", "-"), ("wI_FistN07_R", "-", "-"),
                                 ("M09_0", "Nw4cRoot__M09_01", "Nw4cRoot__M09_02")):
@@ -9512,6 +9564,23 @@ def test_model_glb_blender():
                "Blender's weights (< 0.01 % of the model's size), the file passes the loader walk",
                r_sub.vertices > len(m.shape_vertices(m.shapes[si_sub])) and lbs < 1e-4
                and not _mw.validate(out), f"{r_sub.vertices} v, lbs {lbs:.2e}")
+        # a bone moved up 3 in Blender's edit mode (rest pose), bones=True
+        src, dst = tmp / "M09_0.glb", tmp / "M09_0_rest.glb"
+        r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(rest_script), "--",
+                            str(src), str(dst), "head_Bone03"], capture_output=True, text=True, timeout=300)
+        if not dst.exists():
+            _check("Blender exported the rest-pose edit", False, (r.stdout or "")[-400:]); return
+        out, rep = _mi.import_glb(d, dst, bones=True)
+        m3 = _model.parse(out)
+        hb = next(bn.index for bn in m.bones if bn.name == "head_Bone03")
+        dy = _model.world_matrices(m3.bones)[hb][1][3] - _model.world_matrices(m.bones)[hb][1][3]
+        size = _gl._extent(m)
+        rest_same = max(max(abs(a_ - b_) for a_, b_ in zip(p_, q_)) for s_a, s_b in zip(m.shapes, m3.shapes)
+                        for p_, q_ in zip(m.shape_vertices(s_a), m3.shape_vertices(s_b))) / size
+        _check("a bone moved in Blender's edit mode comes back with bones=True: 3 up in the model, "
+               "the rest shape unchanged (< 1e-5 of the size), only that bone and its child moved",
+               abs(dy - 3.0) < 1e-3 and rest_same < 1e-5 and rep.bones_moved == ["head_Bone03", "end_Bone04"]
+               and not _mw.validate(out), (round(dy, 4), rest_same, rep.bones_moved))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

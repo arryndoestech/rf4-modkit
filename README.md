@@ -702,7 +702,13 @@ for passes its weight to its nearest parent that has one. The import names every
 To **remove** a part, delete its object in Blender and import with `--remove-missing` (or pick
 "(remove)" for that shape in the dialog, `--remove SHAPE`): the shape stays in the file (shape
 numbers do not shift) but draws nothing. Not possible yet: new shapes or materials, changing a
-shape's skin type, moving bones.
+shape's skin type, adding or re-parenting bones.
+
+**Moving bones** (the rest pose): move or turn bones in Blender's edit mode, export, and answer
+Yes when the import asks (command line `--bones`). The model keeps its look at rest (inverse
+bind matrices and rigid parts follow); motions then turn the parts about the new pivots.
+Blender cannot keep a bone's rest *scale* (36 shipped bones have one), so scale is never taken
+from Blender.
 
 ## What can be modded, and how
 

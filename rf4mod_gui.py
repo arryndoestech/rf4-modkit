@@ -1642,14 +1642,14 @@ class App:
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
 
-    def _import_model_glb(self, name, glb_path=None, choose=None):
+    def _import_model_glb(self, name, glb_path=None, choose=None, bones=None):
         """Import from Blender… on a .model tab: read a .glb / .gltf (Export for Blender,
         edited and exported by Blender), put each mesh on the shape of the same name (a dialog
         shows the pairing; `choose(model, meshes, defaults) -> {shape index: mesh name}` skips
         it in tests) and rebuild those shapes with the file's positions, normals, UVs and bone
         weights (meshimport.import_glb). "(remove)" hides a shape (kept in the file as one degenerate
         triangle, so shape numbers do not shift). The result is the tab's working copy."""
-        from rf4s_modkit import model as _model, meshimport as _mi
+        from rf4s_modkit import model as _model, meshimport as _mi, gltf as _gltf
         REMOVE = "(remove)"
         doc = self._doc
         if doc.cur_data is None:
@@ -1681,7 +1681,20 @@ class App:
         remove = [si for si, v in plan.items() if v == REMOVE]
         plan = {si: v for si, v in plan.items() if v != REMOVE}
         try:
-            blob, rep = _mi.import_glb(doc.cur_data, meshes, mapping=plan, remove=remove)
+            gl = _gltf.read_gltf(f)
+            moved, _notes = _mi.rest_pose_changes(m, gl)
+            take = bool(moved) and (bones if bones is not None else messagebox.askyesno(
+                "Import from Blender",
+                f"The file moves the rest pose of {len(moved)} bone(s) ("
+                + ", ".join(m.bones[i].name for i in sorted(moved)[:6]) + ("…" if len(moved) > 6 else "")
+                + ").\n\nMove them in the model too? The inverse bind matrices and the rigid parts "
+                  "follow, so the model looks the same at rest; animations then turn the parts "
+                  "about the new pivots.\n\nNo: keep the game's skeleton."))
+            if moved:
+                blob, rep = _mi.import_glb(doc.cur_data, gl, mapping={si: v for si, v in plan.items()},
+                                           remove=remove, bones=take)
+            else:
+                blob, rep = _mi.import_glb(doc.cur_data, meshes, mapping=plan, remove=remove)
             _model.parse(blob)                     # the result must read back
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Import from Blender", f"Nothing was changed:\n{e}")
@@ -1696,7 +1709,9 @@ class App:
         changed = rep.changed
         if any(r.moved_influences or r.dropped_influences or r.ignored_weights or r.notes for r in changed):
             messagebox.showinfo("Import from Blender", rep.text())
-        self.status.config(text=f"Rebuilt {len(changed)} shape(s) from {pathlib.Path(f).name} -> "
+        self.status.config(text=f"Rebuilt {len(changed)} shape(s)"
+                                + (f", moved {len(rep.bones_moved)} bone(s)" if rep.bones_moved else "")
+                                + f" from {pathlib.Path(f).name} -> "
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
 
