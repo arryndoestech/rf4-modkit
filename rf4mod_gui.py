@@ -2301,7 +2301,10 @@ class App:
         frame = ttk.Frame(nb); nb.add(frame, text="Model")
         bar = ttk.Frame(frame); bar.pack(fill="x")
         stem = pathlib.PurePosixPath(name).stem
-        view = tk.StringVar(value="top" if stem.upper().startswith("MAP_") else "front")
+        # map over-models are flat cards on the ground: top. Everything else opens in the field
+        # camera's view (the front, looked down on at ~25 degrees) -- a straight front view
+        # shows ground-flat parts edge-on, so some models looked empty
+        view = tk.StringVar(value="top" if stem.upper().startswith("MAP_") else "field")
         ttk.Label(bar, text="view").pack(side="left", padx=(6, 2))
         vc = ttk.Combobox(bar, textvariable=view, values=list(_model.VIEWS), width=7, state="readonly")
         vc.pack(side="left")

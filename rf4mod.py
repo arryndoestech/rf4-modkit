@@ -4183,7 +4183,7 @@ def build_parser():
                           "BM_* eye / emblem texture patterns, opacity fades) into a looping GIF")
     r5g.add_argument("file"); r5g.add_argument("out", help="output .gif")
     r5g.add_argument("--anim", help=".bfmat to use (default: the one next to the model)")
-    r5g.add_argument("--view", default="top", choices=("front", "back", "side", "top"))
+    r5g.add_argument("--view", default="top", choices=("field", "front", "back", "side", "top"))
     r5g.add_argument("--size", type=int, default=320, help="longer side in px (default 320)")
     r5g.add_argument("--step", type=int, default=2,
                      help="game frames per GIF frame (the game runs 60/s; default 2 = 30 fps)")
@@ -4206,8 +4206,9 @@ def build_parser():
     r5s.set_defaults(func=cmd_res_bfmat_set)
     r6 = rsub.add_parser("model-render", help="render a textured preview PNG of a .model")
     r6.add_argument("file")
-    r6.add_argument("--view", default="front", choices=("front", "back", "side", "top"),
-                    help="top is the one for map over-models")
+    r6.add_argument("--view", default="field", choices=("field", "front", "back", "side", "top"),
+                    help="field = the game's camera (front, looked down on at ~25 degrees; the "
+                         "default); top is the one for map over-models")
     r6.add_argument("--size", type=int, default=512)
     r6.add_argument("-o", "--out", help="default <model>_<view>.png")
     r6.set_defaults(func=cmd_res_model_render)
@@ -4238,7 +4239,7 @@ def build_parser():
     r8 = rsub.add_parser("anim-gif", help="play a .bfskl on a .model (bones bound by name, "
                          "skinned meshes blended) into a GIF")
     r8.add_argument("model"); r8.add_argument("anim"); r8.add_argument("out", help="output .gif")
-    r8.add_argument("--view", default="front", choices=("front", "back", "side", "top"))
+    r8.add_argument("--view", default="field", choices=("field", "front", "back", "side", "top"))
     r8.add_argument("--size", type=int, default=320, help="longer side in px (default 320)")
     r8.add_argument("--step", type=int, default=2,
                     help="game frames per GIF frame (1 animation frame per tick at 60/s; default 2)")
