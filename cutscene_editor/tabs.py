@@ -72,8 +72,8 @@ class SourceTab(ttk.Frame):
         self.msg.config(text=s, foreground={"ok": "#1d7a3a", "err": "#b02020"}.get(kind, "#0d5f8f"))
 
     def listing(self):
-        """The scene as a re-assemblable listing; a leading JMP to the very next label (left
-        by an earlier Apply) is dropped so round trips don't stack trampolines."""
+        """The scene as a re-assemblable listing; a leading JMP to the very next label (a
+        file an older toolkit trampolined) is dropped, it is plumbing, not content."""
         app = self.app
         txt = scriptasm.scene_listing(app.scene, app.bank, dialog=app.doc.text, bank_no=app.bank_pos)
         lines = txt.split("\n")
@@ -169,8 +169,8 @@ class SourceTab(ttk.Frame):
                        lambda: box.update(base=app.doc.container.rewrite_scene(app.bank, entry, text)))
         if ok:
             self.load(force=True)
-            self.set_msg("applied: %d bytes at 0x%04x; the scene's entry now jumps there"
-                         % (len(region), box.get("base", 0)), "ok")
+            self.set_msg("applied: the bank was rebuilt with the new body in place; the scene now "
+                         "starts at 0x%04x" % box.get("base", 0), "ok")
         return ok
 
     def toggle_help(self):

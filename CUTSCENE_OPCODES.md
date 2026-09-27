@@ -10969,7 +10969,7 @@ Evaluate an expression and store it into a variable.
 
 ### `0xFFFA` — JMP
 
-Unconditional jump (trampoline-inserted beats read inline).
+Unconditional jump.
 
 ### `0xFFF9` — BR_NZ
 

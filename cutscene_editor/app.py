@@ -371,14 +371,35 @@ class CutsceneExplorer:
         `view` = (bank pos, scene entry) that undo reopens (default: what is open now)."""
         if view is None:
             view = (self.bank_pos, self.scene.entry_pc if self.scene else None)
+        steps = list(self.doc.undo_stack)
+
+        def run():
+            if self.doc.container is not None:
+                self.doc.container.last_relink = None
+            fn()
+            self._follow_relink()
         try:
             with self.doc.edit(label, view):
-                fn()
+                run()
         except Exception as e:  # noqa: BLE001 - the document rolled back; say why
             messagebox.showerror("Not applied", "%s:\n%s" % (label, e))
             return False
+        if self.doc.undo_stack and (not steps or self.doc.undo_stack[-1] is not steps[-1]):
+            self.doc.undo_stack[-1]["view_after"] = (self.bank_pos, self.scene.entry_pc if self.scene else None)
         self.status(label)
         return True
+
+    def _follow_relink(self):
+        """A structural edit rebuilt the open bank (Container.last_relink): move the open
+        scene and the selection to their new pcs before the views re-read them."""
+        c = self.doc.container
+        pm = (getattr(c, "last_relink", None) or {}).get(self.bank_pos) if c is not None else None
+        if pm is None:
+            return
+        if self.scene is not None and self.scene.entry_pc in pm:
+            self.scene.entry_pc = pm[self.scene.entry_pc]
+        if self.sel is not None:
+            self.sel = (pm[self.sel[0]], self.sel[1]) if self.sel[0] in pm else None
 
     def _doc_changed(self, what):
         self._em_uses = None
@@ -523,7 +544,7 @@ class CutsceneExplorer:
     def set_arg(self, pc, index, text):
         """Set one action argument from listing syntax. A plain 16-bit number keeps a typed
         constant (actor(..) / map(..)) typed and is patched in place when it fits; other
-        text (and wider numbers) is assembled and patched in place or appended and repointed."""
+        text (and wider numbers) is assembled and patched in place, or the bank is rebuilt around it."""
         st = self.stmt(pc)
         if st is None or index >= len(st.args):
             return False
@@ -537,7 +558,7 @@ class CutsceneExplorer:
             num = None
         if num is not None and -0x8000 <= num <= 0xFFFF:     # one literal token (wider: assembled)
             def do():
-                self.doc.container.set_action_arg_value_or_repoint(self.bank, pc, index, num)
+                self.doc.container.set_arg_value(self.bank, pc, index, num)
             return self.apply("Set %s arg %d" % (script.opcode_mnemonic(st.op), index), do)
         asm = scriptasm.Assembler(resolver=getattr(self.doc.container, "asm_resolver", None))
         try:
@@ -548,17 +569,13 @@ class CutsceneExplorer:
 
         def do():
             b = self.bank
-            off = st.args[index]
-            if kind == "abs":
+            expr = val
+            if kind == "abs":                       # @0xOFF: a copy of that expression
                 if not (0 <= val < len(b.data)) or script.disasm_expr(b.data, val)[0] in ("?", ""):
                     raise ValueError("@0x%04x is not an expression in this bank" % val)
-                b.set_action_arg(pc, index, val)
-            elif bytes(b.data[off:off + len(val)]) == val:
-                return
-            elif bankrelink.expr_size(b.data, off) == len(val):
-                b.data[off:off + len(val)] = val
-            else:
-                b.set_action_arg(pc, index, self.doc.container.grow_bank(b, val))
+                expr = bytes(b.data[val:val + bankrelink.expr_size(b.data, val)])
+            # same size: patched in place; otherwise the bank is rebuilt around it
+            self.doc.container.set_action_arg_expr(b, pc, index, expr)
         return self.apply("Set %s arg %d" % (script.opcode_mnemonic(st.op), index), do)
 
     def set_literal(self, pc, k, value):
@@ -579,9 +596,10 @@ class CutsceneExplorer:
 
     # ---- structure ----------------------------------------------------------------- #
     def assemble_check(self, text, base=None):
-        """(region, labels, None) or (None, None, error) without applying anything."""
+        """(region, labels, None) or (None, None, error) without applying anything. The
+        region is laid out at a nominal `base`; the real edit relinks the whole bank."""
         if base is None:
-            base = len(self.bank.data) if self.bank is not None else 0
+            base = 4 * script.TYPE_TABLE_SLOTS
         resolver = self.doc.container.asm_resolver if self.doc.container is not None else None
         try:
             region, labels = scriptasm.assemble(text, base, resolver=resolver)
@@ -624,11 +642,12 @@ class CutsceneExplorer:
             return False
         n = count_statements(listing)
         ins = self.doc.container.insert_before if before else self.doc.container.insert_after
+        box = {}
         ok = self.apply("Insert %d statement%s %s @0x%04x" % (n, "" if n == 1 else "s",
                                                              "before" if before else "after", pc),
-                        lambda: ins(self.bank, pc, listing))
+                        lambda: box.update(pc=ins(self.bank, pc, listing)))
         if ok:
-            self._select_after(pc)
+            self._select_new(box.get("pc"))
         return ok
 
     def set_opcode(self, pc, op):
@@ -666,21 +685,17 @@ class CutsceneExplorer:
                 specs.append("op%d" % (94 + box_style) if 0 <= box_style <= 3 else "op93 %d" % box_style)
             specs.append("DIALOG #%d" % nid)
             ins = self.doc.container.insert_before if before else self.doc.container.insert_after
-            ins(self.bank, pc, "\n".join(specs))
+            box["pc"] = ins(self.bank, pc, "\n".join(specs))
         if self.apply("Add dialogue %s @0x%04x" % ("before" if before else "after", pc), do):
             self._edited_lines.add((self.doc.locale, box["id"]))
-            self._select_after(pc)
+            self._select_new(box.get("pc"))
             return box["id"]
         return None
 
-    def _select_after(self, pc):
-        """After an insert: select the start of the new code (the statement at `pc` now jumps
-        to it)."""
-        st = self.stmt(pc)
-        if st is not None and st.mnem == "JMP" and st.code_targets:
-            tgt = st.code_targets[0]
-            if self.stmt(tgt) is not None:
-                self.select((tgt, None))
+    def _select_new(self, pc):
+        """After an insert: select the first new statement (its pc in the rebuilt bank)."""
+        if pc is not None and self.stmt(pc) is not None:
+            self.select((pc, None))
 
     # a selected label row is (pc, LABEL): adding "after" a label = before its statement
     LABEL = "label"
@@ -733,7 +748,8 @@ class CutsceneExplorer:
             return False
         pc = self.sel[0]
         st = self.stmt(pc)
-        if not messagebox.askyesno("Delete", "Skip %s @0x%04x? (the scene jumps over it)"
+        if not messagebox.askyesno("Delete", "Delete %s @0x%04x? (whatever jumped to it goes to the "
+                                   "next statement)"
                                    % (script.opcode_mnemonic(st.op) if st.op < 0xFFF0 else st.mnem, pc)):
             return False
         return self.apply("Delete statement @0x%04x" % pc,
@@ -803,7 +819,7 @@ class CutsceneExplorer:
         except ValueError as e:
             messagebox.showinfo("New scene", str(e))
             return None
-        err = self.assemble_check(body, base=len(bank.data))[2] if (body or "").strip() else \
+        err = self.assemble_check(body)[2] if (body or "").strip() else \
             "the body needs at least one statement (FRAME 0 / DIALOG #id / END)"
         if err:
             messagebox.showinfo("New scene", err)
@@ -935,7 +951,7 @@ class CutsceneExplorer:
         if step is None:
             self.status("Nothing to undo" if verb == "Undid" else "Nothing to redo")
             return
-        view = step.get("view")
+        view = step.get("view_after", step.get("view")) if verb == "Redid" else step.get("view")
         c = self.doc.container
         if view and view[0] is not None and c is not None and 0 <= view[0] < len(c.banks):
             here = (self.bank_pos, self.scene.entry_pc if self.scene else None)
@@ -1051,6 +1067,7 @@ class CutsceneExplorer:
             return self.save_all()
         blobs = {}
         if self.doc.script_dirty():
+            self.rebuild_trampolined_banks()
             blobs["rf3.mc"] = self.doc.container.build()
         for loc in self.doc.dirty_locales():
             blobs["rf3mc.%s" % loc] = self.doc.arcs[loc].build()
@@ -1107,6 +1124,7 @@ class CutsceneExplorer:
         f = filedialog.asksaveasfilename(title="Save rf3.mc", defaultextension=".mc", initialfile="rf3.mc")
         if not f:
             return False
+        self.rebuild_trampolined_banks()
         try:
             pathlib.Path(f).write_bytes(self.doc.container.build())
         except Exception as e:  # noqa: BLE001
@@ -1116,6 +1134,22 @@ class CutsceneExplorer:
         self._chrome()
         self.status("Saved %s" % f)
         return True
+
+    def rebuild_trampolined_banks(self):
+        """Before rf3.mc is written: banks an older toolkit edited by trampolining (code
+        appended past the pool, jumps written over statements) are rebuilt in place --
+        same execution, no dead code (Container.normalize_banks) -- as one undoable edit.
+        Checked once per opened file (~2 s); edits made in this editor never trampoline."""
+        c = self.doc.container
+        if c is None or getattr(self.doc, "trampolines_checked", None) is c:
+            return []
+        self.doc.trampolines_checked = c
+        found = c.trampolined_banks()
+        if found:
+            self.apply("Rebuild %d bank%s edited by an older toolkit (trampolines put back in place)"
+                       % (len(found), "" if len(found) == 1 else "s"), lambda: c.normalize_banks(found))
+            self.doc.trampolines_checked = self.doc.container
+        return found
 
     def save_text(self):
         """Save the shown locale's dialogue; every other edited locale is written next to it

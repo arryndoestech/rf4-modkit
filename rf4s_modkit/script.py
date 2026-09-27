@@ -891,7 +891,7 @@ ARG_HINTS = {
 
 def linearize(scene):
     """Return [(pc, Statement)] in execution order, following unconditional JMPs
-    transparently so trampoline-inserted beats read inline (in play order). Stops at
+    transparently so jumped-to blocks read inline (in play order). Stops at
     RET (0xFFFF) or a revisit; conditional branches are emitted and the fall-through path
     is followed."""
     out, seen = [], set()
@@ -1532,52 +1532,33 @@ class Container:
         # The "global" / opening-cutscene bank: addressed directly by header [3]=off,
         # [4]=size (a (u32 off, u32 size) pair at byte 12), NOT via a section table.
         # It holds the game's earliest content (dialogue line ids 0..~1305). Treat it
-        # as a normal bank (slot = byte 12 so grow_bank's table fixup handles it too).
+        # as a normal bank (slot = byte 12 so set_bank_bytes' table fixup handles it too).
         goff, gsz = struct.unpack_from("<II", d, 12)
         if goff and gsz and goff + gsz <= len(d):
             gb = Bank(len(self.banks), "global", goff, d[goff:goff + gsz])
             gb.slot = 12
             self.banks.append(gb)
 
-    def grow_bank(self, bank, extra):
-        """Append `extra` (bytes) to the end of `bank`'s region and repack the
-        container: shift every later bank's file offset and fix up BOTH section
-        tables. `bank` may be a Bank or a global index. Returns the byte offset
-        (within the bank) at which the appended region starts. Banks are capped at
-        64 KB (the PC is a u16) -- raises if the grow would exceed that."""
-        if isinstance(bank, int):
-            bank = self.banks[bank]
-        extra = bytes(extra)
-        delta = len(extra)
-        start_in_bank = len(bank.data)
-        if start_in_bank + delta > BANK_ADDRESS_LIMIT:
-            raise ScriptError("bank would exceed 64 KB (%d + %d); a new bank is needed"
-                              % (start_in_bank, delta))
-        ins_at = bank.file_off + len(bank.data)        # physical insertion point
-        # 1) splice the bytes into the file image
-        self.data[ins_at:ins_at] = extra
-        # 2) fix up both section tables: grown bank's size += delta; every bank whose
-        #    region starts at/after the insertion point shifts by +delta.
-        for b in self.banks:
-            # `b is not bank`: a zero-length bank starts AT the insertion point and must keep
-            # its offset (the new bytes are its data), not shift past them.
-            new_off = b.file_off + (delta if (b.file_off >= ins_at and b is not bank) else 0)
-            new_sz = len(b.data) + (delta if b is bank else 0)
-            struct.pack_into("<II", self.data, b.slot, new_off, new_sz)
-            b.file_off = new_off
-        bank.data.extend(extra)
-        self._sync_max_bank_size(bank)
-        return start_in_bank
-
     # MYCF header words 12 (byte 48) and 13 (byte 52) are the LARGEST primary / tail bank
-    # in the file, and word 4 (byte 16) is the global bank's size. They are not statistics:
-    # ScriptTask_FirstTimeInit (RF4S.exe+0x1EE060) passes them to the bank-slot constructor
-    # (RF4S.exe+0x23F950), which allocates ONE reusable buffer of `max_size + 32` per bank
-    # kind, and the loader (RF4S.exe+0x23F9C0) then copies each bank's section-table size
-    # into that buffer. Growing a bank past the recorded maximum without raising it makes
-    # the engine copy more bytes than the buffer holds -- a heap overflow, not a clean
-    # failure. So every grow re-derives them. (Verified against the shipped file: word 12 ==
-    # max primary bank == 60651, word 13 == max tail bank == 65318, word 4 == 54681.)
+    # in the file, and word 4 (byte 16) is the global bank's size. They are not statistics
+    # (statically re-verified in RF4S.exe 2026-09-27):
+    #   * SceneState_ParseMycfHeaderAndInstallReaders (RF4S.exe+0x23DAB0) keeps them at
+    #     SceneState +124 / +140 / +156;
+    #   * ScriptTask_FirstTimeInit (RF4S.exe+0x1EE060) passes them to MycfBankSlot_Create
+    #     (RF4S.exe+0x23F950) -- its only caller -- which allocates ONE buffer of
+    #     `max_size + 32` per bank kind for the whole session (SceneState_AlignedAllocWith-
+    #     Semaphore RF4S.exe+0x1F4240: aligned_malloc, no cap of its own);
+    #   * MycfBankSlot_LoadBank (RF4S.exe+0x23F9C0) reads the bank's (offset, size) pair
+    #     from the section table (the header pair at byte 12 for the global bank) and
+    #     copies `size` bytes into that buffer through SceneState_CopyFromArchive15209
+    #     (RF4S.exe+0x1F42B0: memcpy out of the whole loaded rf3.mc, archive id 15209) --
+    #     no check against the buffer anywhere.
+    # Growing a bank past the recorded maximum without raising it makes the engine copy
+    # more bytes than the buffer holds -- a heap overflow, not a clean failure. So every
+    # rebuild re-derives them (set_bank_bytes), and build() refuses a file that would
+    # overflow. The only hard limit is then the u16 addressing (BANK_ADDRESS_LIMIT).
+    # (Verified against the shipped file: word 12 == max primary bank == 60651, word 13 ==
+    # max tail bank == 65318, word 4 == 54681.)
     _MAX_SIZE_WORD = {"primary": 48, "tail": 52}
 
     def _sync_max_bank_size(self, bank=None):
@@ -1610,9 +1591,9 @@ class Container:
         """Room left in one bank: {'used', 'limit', 'free', 'buffer'}. The hard limit is
         BANK_ADDRESS_LIMIT (65,536 bytes): every branch / CALL target and expression offset
         in the bytecode is a u16 (Script_VMStep RF4S.exe+0x23EF60, Script_EvalExpressionOrVar
-        +0x23EA10 index the bank with 16-bit offsets), and grow_bank refuses to pass it.
+        +0x23EA10 index the bank with 16-bit offsets), and set_bank_bytes refuses to pass it.
         'buffer' is the header's load-buffer size for the bank's kind (MycfBankSlot_LoadBank
-        +0x23F9C0 copies into it); grow_bank raises it automatically, so it is not a limit.
+        +0x23F9C0 copies into it); set_bank_bytes raises it automatically, so it is not a limit.
         Dialogue text is not counted: it lives in rf3mc.<locale>, not in the bank."""
         if isinstance(bank, int):
             bank = self.banks[bank]
@@ -1637,7 +1618,118 @@ class Container:
                                % (kind, b.index, len(b.data), kind, cap))
         return out
 
-    # ---- structural editing (trampoline: append + redirect, no relocation) ------
+    # ---- structural editing: every edit rebuilds the bank (bankrelink) ---------------
+    #
+    # Structural edits (insert / delete / replace a scene / wider operands / entry lists)
+    # parse the whole bank into a bankrelink.BankModel, change the model and lay the bank
+    # out again, so the edit sits in place: every branch target, entry pc, list offset and
+    # operand offset is recomputed, nothing is appended after the pool, and replaced code
+    # does not linger as dead bytes. Same-length patches (Bank.set_dialog_id,
+    # set_expr_value, set_branch_target, ...) stay in place and keep the layout.
+    #
+    # The bank's pcs change with every such edit: `last_relink` = {container bank
+    # position: {pc before: pc after}} of the last edit (composed when one call relinks
+    # the same bank twice) lets a viewer follow its scene and selection; edit methods
+    # return pcs in the rebuilt bank.
+    #
+    # Limits (statically verified in RF4S.exe, 2026-09-27): a bank is addressed with u16
+    # offsets -- Script_VMStep (RF4S.exe+0x23EF60) reads the opcode at buf[LOWORD(pc)] and
+    # every branch target / operand offset with read_u16, and the type table's list offsets
+    # and entry pcs are u16 too -- so a bank must stay within BANK_ADDRESS_LIMIT (65,536
+    # bytes); set_bank_bytes refuses more. The load buffers are not a limit: see
+    # _sync_max_bank_size.
+    last_relink = None
+    untrampolined = None             # {position: folds} of banks an edit or normalize_banks
+                                     # rebuilt out of an older toolkit's trampolines
+
+    def set_bank_bytes(self, bank, new):
+        """Replace `bank`'s bytes with `new` (any length) and repack the container: the
+        banks after it move, both section tables and the global bank's header pair are
+        rewritten, and the header's load-buffer words are raised when needed. The Bank
+        object stays the same (its data is replaced in place)."""
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        new = bytes(new)
+        if len(new) > BANK_ADDRESS_LIMIT:
+            from . import bankrelink
+            raise ScriptError("%s bank %d: %s" % (bank.kind, bank.index, bankrelink.too_big(len(new))))
+        start = bank.file_off
+        end = start + len(bank.data)
+        delta = len(new) - len(bank.data)
+        self.data[start:end] = new
+        for b in self.banks:
+            # `b is not bank`: a zero-length bank at the splice point keeps its place when it
+            # is the one being written; other banks at or after the old end move by delta.
+            if b is not bank and b.file_off >= end and delta:
+                b.file_off += delta
+                struct.pack_into("<II", self.data, b.slot, b.file_off, len(b.data))
+        struct.pack_into("<II", self.data, bank.slot, start, len(new))
+        bank.data[:] = new
+        if hasattr(bank, "_table_end"):
+            del bank._table_end
+        self._sync_max_bank_size(bank)
+
+    def _relink(self, bank, edit):
+        """Run `edit(model)` on `bank`'s BankModel and write the rebuilt bank back. Returns
+        (model, edit's result); `model.pc_of(key)` gives a key's pc in the new bank."""
+        from . import bankrelink
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        m = bankrelink.BankModel.parse_any(bank)
+        result = edit(m)
+        try:
+            new = m.build()
+        except bankrelink.RelinkError as e:
+            raise ScriptError("%s bank %d: %s" % (bank.kind, bank.index, e))
+        self.set_bank_bytes(bank, new)
+        pos = next(i for i, b in enumerate(self.banks) if b is bank)
+        if m.folded or m.mode != "canonical":          # an older toolkit's trampolines, undone
+            self.untrampolined = dict(self.untrampolined or {})
+            self.untrampolined[pos] = self.untrampolined.get(pos, 0) + m.folded
+        pm = m.pc_map()
+        lr = self.last_relink if isinstance(self.last_relink, dict) else {}
+        if pos in lr:                                  # compose with an earlier relink
+            pm = {a: pm[b] for a, b in lr[pos].items() if b in pm}
+        lr = dict(lr)
+        lr[pos] = pm
+        self.last_relink = lr
+        return m, result
+
+    def _pc(self, m, key):
+        pc = m.pc_of(key) if key is not None else None
+        if pc is None and key is not None:
+            raise ScriptError("internal: statement 0x%x vanished in the rebuild" % key)
+        return pc
+
+    def trampolined_banks(self):
+        """Container positions of the banks an earlier toolkit version edited by
+        trampolining (not in the compiler layout, or holding a jump-over-a-deleted-
+        statement); normalize_banks() rebuilds them. Parses every bank (~2 s)."""
+        from . import bankrelink
+        out = []
+        for i, b in enumerate(self.banks):
+            try:
+                m = bankrelink.BankModel.parse(b)
+            except bankrelink.RelinkError:
+                out.append(i)
+                continue
+            if m.fold():
+                out.append(i)
+        return out
+
+    def normalize_banks(self, positions=None):
+        """Rebuild trampolined banks in place (default: every one trampolined_banks()
+        finds). Execution is unchanged: the appended blocks move back where their jumps
+        were, skipped statements and code / operands / lists nothing reaches are dropped.
+        Returns [(position, folds, mode)]."""
+        if positions is None:
+            positions = self.trampolined_banks()
+        out = []
+        for pos in positions:
+            m, _r = self._relink(pos, lambda m: None)
+            out.append((pos, m.folded, m.mode))
+        return out
+
     @staticmethod
     def _literal_expr_bytes(v):
         """Bytes of an RPN expression that evaluates to the integer `v` (+terminator),
@@ -1647,92 +1739,98 @@ class Container:
         from . import scriptasm
         return scriptasm.int_literal_bytes(v) + b"\x00"
 
-    def _assemble_region(self, base, specs, fallthrough_to):
-        """Assemble `specs` into a self-contained region that will live at in-bank
-        offset `base`, ending with a JMP to `fallthrough_to` (or END when None).
-        `specs` is listing TEXT (see scriptasm: the full statement language with
-        expressions, branches, labels, and `.raw` for verbatim bytes). Returns bytes."""
-        try:
-            from . import scriptasm
-        except ImportError:
-            import scriptasm
-        text = _listing_of(specs)
-        region, _labels = scriptasm.assemble(text, base, resolver=self.asm_resolver,
-                                             fallthrough_to=fallthrough_to)
-        return region
-
-    @staticmethod
-    def _code_base(bank):
-        """In-bank pc at which a new code region will be appended: the bank's end rounded
-        up to an even offset. The engine reads u16 words at any pc, but the shipped
-        compiler starts every statement on an even offset (no entry pc in rf3.mc is odd,
-        yet 263 banks have an odd size because the expression pool is byte-granular), and
-        the tooling relies on it: add_entry/set_entry refuse odd event pcs and the scene
-        discovery walks even offsets. `_append_code` writes the (dead) pad byte."""
-        return len(bank.data) + (len(bank.data) & 1)
-
-    def _append_code(self, bank, region):
-        """grow_bank(`region`) at `_code_base` (pad byte first when the bank size is odd).
-        Returns the region's start pc."""
-        pad = b"\x00" * (len(bank.data) & 1)
-        return self.grow_bank(bank, pad + bytes(region)) + len(pad)
-
     def assemble(self, bank, text, fallthrough_to=None):
-        """Append a freshly assembled region (listing `text`) to `bank` and return its
-        start pc. Nothing existing moves; the region ends with END, or with a JMP to
-        `fallthrough_to`. Use `add_entry(..., listing=text)` to also register it as a
-        scene, or `rewrite_scene` / `insert_after` to splice it into an existing one."""
-        if isinstance(bank, int):
-            bank = self.banks[bank]
-        base = self._code_base(bank)
-        region = self._assemble_region(base, text, fallthrough_to)
-        self._append_code(bank, region)
-        return base
+        """Assemble listing `text` after the bank's last statement and return its pc in
+        the rebuilt bank. It ends with END, or with a JMP to `fallthrough_to` (a pc).
+        Nothing references it until `add_entry(..., event_pc=)` / a branch does; use
+        `add_entry(..., listing=text)` to register it in one step."""
+        m, key = self._relink(bank, lambda m: m.append_code(text, self.asm_resolver, fallthrough_to))
+        return self._pc(m, key)
 
     def insert_before(self, bank, pc, specs):
-        """Insert new statements (a 'beat') just before the statement at `pc`.
-        Trampoline: append [new statements][copy of the statement at pc][JMP back] to
-        the bank, then overwrite the statement at pc with a JMP into the appended
-        region. Nothing existing moves, so all other offsets stay valid."""
+        """Insert statements (listing text) just before the statement at `pc`: every path
+        that reached `pc` -- the statement above falling through, every branch, call and
+        entry to it -- runs them first. Returns the new statements' first pc."""
+        m, key = self._relink(bank, lambda m: m.insert_before(pc, _listing_of(specs), self.asm_resolver))
+        return self._pc(m, key)
+
+    def insert_after(self, bank, pc, specs):
+        """Insert statements right after the statement at `pc` (which must fall through);
+        branches to the statement that followed it still skip them. Returns the new
+        statements' first pc."""
+        m, key = self._relink(bank, lambda m: m.insert_after(pc, _listing_of(specs), self.asm_resolver))
+        return self._pc(m, key)
+
+    def rewrite_scene(self, bank, entry_pc, specs):
+        """Replace the scene at `entry_pc` with `specs` (listing text; END is added when it
+        can fall off its end). The trigger is unchanged: the new body sits where the old
+        entry was and everything that pointed at the entry points at it; old statements
+        nothing reaches any more are dropped, ones shared with other scenes stay. This is
+        how you author a 'new' cutscene by repurposing an existing trigger. Returns the
+        scene's new entry pc."""
+        m, key = self._relink(bank, lambda m: m.replace_scene(entry_pc, _listing_of(specs), self.asm_resolver))
+        return self._pc(m, key)
+
+    def delete_statement(self, bank, pc):
+        """Remove the statement at `pc` (it must fall through); whatever pointed at it now
+        points at the statement after it. Returns that statement's new pc."""
         if isinstance(bank, int):
             bank = self.banks[bank]
         st = decode_statement(bank.data, pc)
         if st is None:
-            raise ScriptError("no decodable statement at 0x%04x" % pc)
-        if st.size < 4:
-            raise ScriptError("statement at 0x%04x is %d bytes; need >=4 to trampoline "
-                              "(insert before the preceding statement instead)" % (pc, st.size))
-        moved = bytes(bank.data[pc:pc + st.size])
-        successor = pc + st.size
-        base = self._code_base(bank)
-        region = self._assemble_region(base, _listing_of(specs) + "\n.raw " + moved.hex(), successor)
-        self._append_code(bank, region)
-        struct.pack_into("<HH", bank.data, pc, 0xFFFA, base & 0xFFFF)   # B -> region
-        return base
+            raise ScriptError("no statement at 0x%04x" % pc)
+        if not st.falls_through or st.terminator:
+            # Removing a statement that never falls through would send the VM into whatever
+            # statement follows it (another branch's code, the next scene).
+            raise ScriptError("%s at 0x%04x never falls through; deleting it would run the "
+                              "statement after it -- retarget it (set_branch_target) instead" % (st.mnem, pc))
+        m, _r = self._relink(bank, lambda m: m.delete(pc))
+        return m.pc_of(pc)
 
-    def set_action_arg_value_or_repoint(self, bank, pc, index, value):
-        """Set the value that action arg `index` yields at statement `pc`.
+    def set_action_arg_expr(self, bank, pc, index, expr):
+        """Action arg `index` at `pc` evaluates the expression bytes `expr` (terminator
+        included; the unread 00 after a leaf too). Patched in place when the old
+        expression has the same size, else the bank is rebuilt around the new one.
+        Returns ('unchanged' | 'in_place' | 'rebuilt', the arg's expression offset)."""
+        from . import bankrelink
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        expr = bytes(expr)
+        op, cnt = _u16(bank.data, pc), _u16(bank.data, pc + 2)
+        if op is None or op >= 0xFFF0:
+            raise ScriptError("not an action statement at 0x%04x" % pc)
+        if cnt is None or not 0 <= index < cnt:
+            raise ScriptError("arg %d out of range (argcount %s) at 0x%04x" % (index, cnt, pc))
+        off = _u16(bank.data, pc + 4 + 2 * index)
+        try:
+            size = bankrelink.expr_size(bank.data, off)
+        except Exception:  # noqa: BLE001 - an operand that does not decode
+            size = None
+        if size is not None and bytes(bank.data[off:off + size]) == expr:
+            return ("unchanged", off)
+        if size == len(expr):
+            bank.data[off:off + size] = expr
+            return ("in_place", off)
+        m, _r = self._relink(bank, lambda m: m.set_operand(pc, index, expr))
+        npc = m.pc_of(pc)
+        return ("rebuilt", _u16(bank.data, npc + 4 + 2 * index))
 
-        Tries the in-place patch first (`Bank.set_action_arg_value`). If the
-        current expression is a fixed 0/-1/1 push (tokens 0x14/0x15/0x16) or a
-        u8 expression that can't hold `value`, appends a fresh literal
-        expression via `grow_bank` and rewrites the arg's u16 offset word to
-        point at it. Same effect for the caller, no error thrown.
+    def set_arg_value(self, bank, pc, index, value):
+        """Set the value that action arg `index` yields at statement `pc`: the literal is
+        patched in place when its width allows (`Bank.set_action_arg_value`), otherwise the
+        arg gets a fresh literal expression and the bank is rebuilt around it.
 
         Returns one of:
           * ('unchanged', off)  - the arg already yields `value`; nothing was written
-            (a fixed 0/1/-1 push used to be repointed at a fresh copy of itself)
-          * ('in_place', off)   - existing expression was patched at `off`
-          * ('repointed', new_off, old_off) - fresh expression appended at
-            `new_off`; the arg used to point at `old_off`
+          * ('in_place', off)   - the existing expression at `off` was patched
+          * ('rebuilt', off)    - the arg now has its own literal at `off` in the rebuilt bank
         """
         if isinstance(bank, int):
             bank = self.banks[bank]
         cnt = _u16(bank.data, pc + 2)
         if cnt is None or index >= cnt:
             raise ScriptError("arg %d out of range" % index)
-        arg_off_field = pc + 4 + 2 * index
-        old_off = _u16(bank.data, arg_off_field)
+        old_off = _u16(bank.data, pc + 4 + 2 * index)
         if old_off is not None:
             cur, ok = arg_constant(bank.data, old_off)
             if ok and cur == value:
@@ -1741,120 +1839,51 @@ class Container:
             bank.set_action_arg_value(pc, index, value)
             return ("in_place", old_off)
         except ScriptError:
-            # Fall through to auto-repoint. Any expression tag that can't be
-            # widened in place (fixed 0/-1/1, u8 too small, non-literal, ...)
-            # ends up here.
+            # a fixed 0/-1/1 push, a u8 too small, a variable, ...: give the arg its own literal
             pass
-        new_expr = self._literal_expr_bytes(value)
-        new_off = self.grow_bank(bank, new_expr)
-        struct.pack_into("<H", bank.data, arg_off_field, new_off & 0xFFFF)
-        return ("repointed", new_off, old_off)
-
-    def insert_after(self, bank, pc, specs):
-        """Insert new statements right AFTER the statement at `pc` (trampoline)."""
-        if isinstance(bank, int):
-            bank = self.banks[bank]
-        st = decode_statement(bank.data, pc)
-        if st is None:
-            raise ScriptError("no decodable statement at 0x%04x" % pc)
-        if st.size < 4:
-            raise ScriptError("statement at 0x%04x is %d bytes; need >=4 to trampoline" % (pc, st.size))
-        if not st.falls_through or st.terminator:
-            # JMP / SWITCH_GE / PROMPT_CHOICE* / JMP_IND / RAND_BR always leave: the VM would
-            # never reach statements placed after them (Script_VMStep sets pc from a target).
-            raise ScriptError("%s at 0x%04x never falls through, so statements inserted after it "
-                              "would never run -- insert before it, or at the branch target"
-                              % (st.mnem, pc))
-        moved = bytes(bank.data[pc:pc + st.size])
-        successor = pc + st.size
-        base = self._code_base(bank)
-        region = self._assemble_region(base, ".raw " + moved.hex() + "\n" + _listing_of(specs), successor)
-        self._append_code(bank, region)
-        struct.pack_into("<HH", bank.data, pc, 0xFFFA, base & 0xFFFF)
-        return base
-
-    def rewrite_scene(self, bank, entry_pc, specs):
-        """Replace a scene's body with `specs` (a fresh statement list ending in RET).
-        Trampolines the scene's entry statement to a new appended region, so the
-        trigger is unchanged but the scene now plays the new content. The old body is
-        left as dead code. This is how you author a 'new' cutscene by repurposing an
-        existing trigger (e.g. a minor NPC event)."""
-        if isinstance(bank, int):
-            bank = self.banks[bank]
-        st = decode_statement(bank.data, entry_pc)
-        if st is None or st.size < 4:
-            raise ScriptError("entry @0x%04x is not trampoline-able" % entry_pc)
-        base = self._code_base(bank)
-        region = self._assemble_region(base, _listing_of(specs), None)   # ends in END
-        self._append_code(bank, region)
-        struct.pack_into("<HH", bank.data, entry_pc, 0xFFFA, base & 0xFFFF)
-        return base
-
-    def delete_statement(self, bank, pc):
-        """Remove the statement at `pc` by overwriting it with a JMP over itself."""
-        if isinstance(bank, int):
-            bank = self.banks[bank]
-        st = decode_statement(bank.data, pc)
-        if st is None:
-            raise ScriptError("no statement at 0x%04x" % pc)
-        if st.size < 4:
-            raise ScriptError("statement at 0x%04x is only %d bytes; cannot skip in place" % (pc, st.size))
-        if not st.falls_through or st.terminator:
-            # Skipping a statement that never falls through would send the VM into whatever
-            # bytes follow it (another branch's code, the expression pool, the next scene).
-            raise ScriptError("%s at 0x%04x never falls through; skipping it would run the bytes "
-                              "after it -- retarget it (set_branch_target) instead" % (st.mnem, pc))
-        struct.pack_into("<HH", bank.data, pc, 0xFFFA, (pc + st.size) & 0xFFFF)
+        return self.set_action_arg_expr(bank, pc, index, self._literal_expr_bytes(value))
 
     # ---- type-table entries (triggers): mint / remove / re-key a scene registration ----
-    def _rewrite_entry_list(self, bank, type_id, records):
-        """Replace the entry list of `type_id` with `records` ([(event_id, subs)]):
-        the new list is APPENDED to the bank and the type's (count, offset) slot is
-        repointed, so no existing code or list moves (the old list becomes dead
-        bytes). Returns the new list offset."""
+    def _set_entry_list(self, bank, type_id, records, listing=None):
+        """Replace the entry list of `type_id` with `records` ([(event pc or key, subs)]),
+        rebuilding the bank; with `listing`, that text is assembled first and a record
+        whose event is None points at it. Returns the model."""
         if isinstance(bank, int):
             bank = self.banks[bank]
         if type_id < 0 or type_id >= bank.table_slots:
             raise ScriptError("%s bank %d's type table has %d slots (types 0..%d); type %d cannot "
                               "be registered here" % (bank.kind, bank.index, bank.table_slots,
                                                       bank.table_slots - 1, type_id))
-        blob = b"".join(encode_entry(eid, subs) for (eid, subs) in records)
-        if not blob:
-            struct.pack_into("<HH", bank.data, 4 * type_id, 0, 0)
-            bank.type_table_full()
-            return 0
-        new_off = self.grow_bank(bank, blob)
-        struct.pack_into("<HH", bank.data, 4 * type_id, len(records), new_off & 0xFFFF)
-        bank.type_table_full()                            # refresh the cached bound
-        return new_off
+        blobs = [(eid, encode_entry(0, subs)[4:]) for eid, subs in records]
+
+        def edit(m):
+            key = m.append_code(listing, self.asm_resolver) if listing is not None else None
+            m.set_records(type_id, [(key if eid is None else eid, b) for eid, b in blobs])
+            return key
+        return self._relink(bank, edit)
 
     def add_entry(self, bank, type_id, subs=(), event_pc=None, listing=None, position=None):
-        """Register a NEW scene trigger: append an entry to the bank's `type_id` list.
+        """Register a NEW scene trigger: add an entry to the bank's `type_id` list.
 
         `subs` = the entry's keys (ints, or (tag, value) pairs; -1 = wildcard), matched
         by that type's engine matcher (entry_types.py / docs 18 section 3). The scene
         body is either an existing pc (`event_pc`) or assembled from `listing` text
-        (appended to the bank; it must end in END). `position` = index in the list
-        (default: append; matchers take the FIRST match in list order, the type-6/7
-        tick dispatchers take the LAST entry). Returns (event_pc, index)."""
+        (placed after the bank's last statement; END is added when it can fall off its
+        end). `position` = index in the list (default: append; matchers take the FIRST
+        match in list order, the type-6/7 tick dispatchers take the LAST entry).
+        Returns (event_pc in the rebuilt bank, index)."""
         if isinstance(bank, int):
             bank = self.banks[bank]
         if (event_pc is None) == (listing is None):
             raise ScriptError("add_entry needs exactly one of event_pc / listing")
-        if type_id < 0 or type_id >= bank.table_slots:
-            raise ScriptError("%s bank %d's type table has %d slots (types 0..%d); type %d cannot "
-                              "be registered here" % (bank.kind, bank.index, bank.table_slots,
-                                                      bank.table_slots - 1, type_id))
-        if listing is not None:
-            event_pc = self.assemble(bank, listing, None)
-        else:
-            if event_pc % 2 or decode_statement(bank.data, event_pc) is None:
-                raise ScriptError("event_pc 0x%04x is not a decodable statement" % event_pc)
-        recs = [(r.event_id, r.subs) for r in bank.entry_records(type_id)]
+        if listing is None and (event_pc % 2 or decode_statement(bank.data, event_pc) is None):
+            raise ScriptError("event_pc 0x%04x is not a decodable statement" % event_pc)
+        recs = [(r.event_id, r.subs) for r in bank.entry_records(type_id)] if type_id in \
+            bank.type_table_full() else []
         idx = len(recs) if position is None else max(0, min(int(position), len(recs)))
         recs.insert(idx, (event_pc, list(subs)))
-        self._rewrite_entry_list(bank, type_id, recs)
-        return event_pc, idx
+        m, key = self._set_entry_list(bank, type_id, recs, listing)
+        return self._pc(m, key if listing is not None else event_pc), idx
 
     def entry_shadow_note(self, bank, type_id, position=None):
         """Advice string (or None) for registering a new `type_id` entry at `position`
@@ -1886,19 +1915,21 @@ class Container:
         return None
 
     def remove_entry(self, bank, type_id, index):
-        """Unregister the `index`-th entry of `type_id` (the scene's code stays as dead
-        bytes; other entries keep their order)."""
+        """Unregister the `index`-th entry of `type_id` (other entries keep their order;
+        the scene's code stays -- other code may still use it). Returns (event pc, subs)
+        as they were."""
         if isinstance(bank, int):
             bank = self.banks[bank]
         recs = [(r.event_id, r.subs) for r in bank.entry_records(type_id)]
         if not (0 <= index < len(recs)):
             raise ScriptError("type %d has %d entries; no index %d" % (type_id, len(recs), index))
         removed = recs.pop(index)
-        self._rewrite_entry_list(bank, type_id, recs)
+        self._set_entry_list(bank, type_id, recs)
         return removed
 
     def set_entry(self, bank, type_id, index, subs=None, event_pc=None):
-        """Re-key an entry (new `subs`) and/or repoint it at another scene pc."""
+        """Re-key an entry (new `subs`) and/or repoint it at another scene pc. A same-size
+        record is patched in place; otherwise the bank is rebuilt."""
         if isinstance(bank, int):
             bank = self.banks[bank]
         recs = [(r.event_id, r.subs) for r in bank.entry_records(type_id)]
@@ -1914,14 +1945,13 @@ class Container:
         new_rec = (eid, old_subs)
         if encode_entry(*new_rec) == encode_entry(*recs[index]):
             return
-        # same-length re-key can be patched in place (byte-exact elsewhere)
         rec = bank.entry_records(type_id)[index]
         blob = encode_entry(*new_rec)
         if len(blob) == rec.size:
             bank.data[rec.offset:rec.offset + rec.size] = blob
             return
         recs[index] = new_rec
-        self._rewrite_entry_list(bank, type_id, recs)
+        self._set_entry_list(bank, type_id, recs)
 
     def build(self):
         """Re-emit the file. Bank data is written back at its recorded offset so any
