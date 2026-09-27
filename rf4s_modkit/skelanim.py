@@ -140,6 +140,8 @@ class SkelAnimFile:
     baked_size: int
     bones: list = field(default_factory=list)
     data: bytes = field(repr=False, default=b"")
+    file_name: str = ""                                       # FRES +0x20 (the file's stem)
+    strings: list = field(default_factory=list)               # string-pool order (kept on rebuild)
 
     @property
     def loops(self):
@@ -226,7 +228,166 @@ def parse(data):
             raise SkelAnimError(f"bone anim {i}: {e}") from None
         out.bones.append(BoneAnim(i, name(u64(o)), bf, bs, br, bt, curves,
                                   u8(o + 0x1C), u8(o + 0x1D), u32(o + 0x20)))
+    out.file_name = name(u64(0x20))
+    st = a + u32(a + 4)                       # FSKA +0x04 = the distance to the string pool
+    if not (0 < st < n - 0x14 and data[st:st + 4] == b"_STR"):
+        st = data.find(b"_STR")
+    if st >= 0:
+        cnt, o, strs = u32(st + 0x10), st + 0x14, []
+        for _ in range(cnt + 1):
+            ln = u16(o)
+            strs.append(data[o + 2:o + 2 + ln].decode("utf-8", "replace"))
+            o += 2 + ln + 1
+            o += o & 1
+        out.strings = strs[1:]
     return out
+
+
+# --------------------------------------------------------------------------- #
+# writing
+# --------------------------------------------------------------------------- #
+FRES_VERSION = bytes.fromhex("01020800fffe0300")      # every shipped .bfskl
+
+
+def build(anim):
+    """Encode a SkelAnimFile as .bfskl bytes in the shipped layout (a parsed shipped file
+    comes back byte for byte -- verified on all 2,001, selftest test_skelanim_write):
+
+        FRES header (0xD0): +0x10 u32 -> file-name chars, +0x16 u16 0xD0, +0x18 u32 _RLT,
+            +0x1C u32 size, +0x20 -> file name, +0x38 -> FSKA, +0x40 -> FSKA dict,
+            +0xB0 -> "", +0xB8 u32 pool size, +0xBE u16 FSKA count (1)
+        FSKA (0x60): +0x04 / +0x08 u32 distance to _STR, +0x10 name, +0x18 path, +0x28 ->
+            bind table, +0x30 -> bone anims, +0x48 flags, +0x4C frames, +0x50 curves,
+            +0x54 baked size, +0x58 u16 bone anims
+        a one-entry name dict, the u16 bind table (0xFFFF), the bone anims (0x28 each:
+            name, -> curves, -> base values, flags, u8 3S / 3S+3R / curves / 3S+4R -- the
+            float index of the base rotate / translate --, u32 first curve), then per bone its
+            base values, curve records (0x30, as .bfmat) and each curve's frames and keys
+            (8-aligned), the _STR pool and the _RLT (the .bfmat writer's parts)."""
+    from . import matanim as _ma
+    for b in anim.bones:
+        for c in b.curves:
+            if not _ma._fits(c):
+                c.flags &= ~3                       # promote the frames to f32
+    w = _ma._Writer()
+    regions = {}
+    fname = anim.file_name or anim.name
+    used = [fname, anim.name, anim.path] + [b.name for b in anim.bones]
+    seen, order = set(), []
+    used_set = set(used)
+    for s in list(anim.strings) + used:
+        if s and s in used_set and s not in seen:
+            seen.add(s)
+            order.append(s)
+    # --- FRES header ---
+    w.raw(b"FRES    " + FRES_VERSION)
+    w.raw(b"\0" * 16)                                # +0x10..+0x1F patched at the end
+    for k in range(19):                              # +0x20..+0xB0: 19 pointer slots
+        w.ptr({0: ("str", fname), 3: "fska", 4: "fdict", 18: ("str", "")}.get(k))
+    w.raw(b"\0" * 8)                                 # +0xB8 pool size (patched), +0xBE count
+    w.raw(b"\0" * 16)
+    struct.pack_into("<H", w.buf, 0xBE, 1)
+    # --- FSKA ---
+    regions["fska"] = fska = w.at()
+    w.raw(b"FSKA" + b"\0" * 12)                      # +0x04 / +0x08 patched
+    w.ptr(("str", anim.name))
+    w.ptr(("str", anim.path))
+    w.ptr(None)                                      # bind skeleton (runtime)
+    w.ptr("bind")
+    w.ptr("bones")
+    w.ptr(None)                                      # user data
+    w.ptr(None)                                      # user-data dict
+    all_curves = [c for b in anim.bones for c in b.curves]
+    baked = sum(_ma._baked_size(c) for c in all_curves)
+    w.raw(struct.pack("<IIIIHHI", anim.flags, int(anim.frame_count), len(all_curves), baked,
+                      len(anim.bones), 0, 0))
+    # --- FSKA dict (one entry) ---
+    regions["fdict"] = w.at()
+    w.raw(struct.pack("<II", 0, 1))
+    w.raw(struct.pack("<IHH", 0xFFFFFFFF, 1, 0))
+    w.ptr(("str", ""))
+    w.raw(struct.pack("<IHH", _ma._dict_bit(anim.name), 0, 1))
+    w.ptr(("str", anim.name))
+    # --- bind table, bone anims ---
+    regions["bind"] = w.at()
+    w.raw(b"\xff\xff" * len(anim.bones))
+    w.pad()
+    regions["bones"] = w.at()
+    first = 0
+    for i, b in enumerate(anim.bones):
+        S, R = bool(b.flags & BASE_SCALE), bool(b.flags & BASE_ROTATE)
+        w.ptr(("str", b.name))
+        w.ptr(("curves", i) if b.curves else None)
+        w.ptr(("base", i) if b.flags & (BASE_SCALE | BASE_ROTATE | BASE_TRANSLATE) else None)
+        w.raw(struct.pack("<IBBBBII", b.flags, 3 * S, 3 * S + 3 * R, len(b.curves), 3 * S + 4 * R,
+                          first, 0))
+        first += len(b.curves)
+    # --- per bone: base values, curve records, frames + keys ---
+    for i, b in enumerate(anim.bones):
+        vals = []
+        if b.flags & BASE_SCALE:
+            vals += list(b.base_scale)
+        if b.flags & BASE_ROTATE:
+            vals += list(b.base_rotate)
+        if b.flags & BASE_TRANSLATE:
+            vals += list(b.base_translate)
+        if vals:
+            w.pad()
+            regions[("base", i)] = w.at()
+            w.raw(struct.pack("<%df" % len(vals), *vals))
+        if b.curves:
+            w.pad()
+            regions[("curves", i)] = w.at()
+            for j, c in enumerate(b.curves):
+                w.ptr(("frames", i, j))
+                w.ptr(("keys", i, j))
+                w.raw(struct.pack("<HHI", c.flags, len(c.frames), c.target))
+                w.raw(struct.pack("<ff", c.start, c.end))
+                w.raw(struct.pack("<fffI", c.scale, c.offset, c.delta, c.pad))
+            for j, c in enumerate(b.curves):
+                w.pad()
+                regions[("frames", i, j)] = w.at()
+                w.raw(_ma._encode_frames(c))
+                w.pad()
+                regions[("keys", i, j)] = w.at()
+                w.raw(_ma._encode_keys(c))
+    # --- string pool ---
+    w.pad()
+    st = w.at()
+    w.raw(b"_STR" + b"\0" * 12 + struct.pack("<I", len(order)))
+    sref = {"": w.at()}
+    w.raw(b"\0\0\0\0")
+    for s in order:
+        sref[s] = w.at()
+        bb = s.encode("utf-8")
+        w.raw(struct.pack("<H", len(bb)) + bb + b"\0")
+        w.pad(2)
+    str_end = w.at()
+    w.pad()
+    rlt = w.at()
+    for slot, tgt in w.ptrs:
+        if tgt is None:
+            continue
+        v = sref[tgt[1]] if isinstance(tgt, tuple) and tgt[0] == "str" else regions[tgt]
+        struct.pack_into("<Q", w.buf, slot, v)
+    struct.pack_into("<Q", w.buf, st + 8, rlt - st)
+    struct.pack_into("<II", w.buf, fska + 4, st - fska, st - fska)
+    struct.pack_into("<I", w.buf, 0xB8, str_end - st)
+    # --- relocation table ---
+    ents = _ma._rlt_entries(w.slots)
+    w.raw(b"_RLT" + struct.pack("<III", rlt, 5, 0))
+    w.raw(struct.pack("<QIIII", 0, 0, str_end, 0, len(ents)))
+    for _ in range(4):
+        w.raw(struct.pack("<QIIII", 0, str_end, 0, len(ents), 0))
+    for pos, sc, oc, pc in ents:
+        w.raw(struct.pack("<IHBB", pos, sc, oc, pc))
+    struct.pack_into("<IHHII", w.buf, 0x10, sref[fname] + 2, 0, 0xD0, rlt, len(w.buf))
+    return bytes(w.buf)
+
+
+def save(anim, path):
+    with open(path, "wb") as fh:
+        fh.write(build(anim))
 
 
 def load(path):

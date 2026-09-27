@@ -660,7 +660,7 @@ def material_uv_matrices(model, anim, frame):
 
 
 def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=None,
-           anim=None, frame=0.0, box=None):
+           anim=None, frame=0.0, box=None, fast=False):
     """A textured preview of the whole model (orthographic, painter's-sorted triangles,
     no lighting) as a PIL RGBA image of at most `size` px on its longer side. Views:
     front / back / side / top. Map over-models are best seen from the top. `anim` (a
@@ -672,7 +672,12 @@ def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=N
     costume materials punch alpha out at 0.5, and each material blends the way its
     BlendType tells the game to (see the module notes): 2 and 3 are additive, everything
     else is drawn over. Vertex colour is ignored, as in the game. Without numpy it falls
-    back to a per-triangle affine paste that wraps UVs and punches out, but does not blend."""
+    back to a per-triangle affine paste that wraps UVs and punches out, but does not blend.
+
+    `fast` samples the textures at the nearest texel instead of bilinearly (one lookup per
+    pixel instead of four) -- for live playback, where a frame is on screen for 1/60 s.
+    `textures` (a dict kept by the caller across frames) also caches the textures' float
+    arrays, so an animation does not convert them again for every frame."""
     from PIL import Image
     proj = VIEWS[view]
     textures = {} if textures is None else textures
@@ -697,7 +702,7 @@ def render(model, view="front", size=512, *, background=(0, 0, 0, 0), textures=N
         import numpy as np
     except ImportError:
         return _render_affine(model, tris, place, w, h, background, textures, mstate)
-    return _render_raster(np, model, tris, place, w, h, background, textures, mstate)
+    return _render_raster(np, model, tris, place, w, h, background, textures, mstate, fast)
 
 
 def render_animation(model, anim, view="front", size=320, *, step=2, background=(32, 32, 36, 255),
@@ -760,11 +765,13 @@ def save_gif(frames, path, *, step=2):
                 loop=0, optimize=False)
 
 
-def _render_raster(np, model, tris, place, w, h, background, textures, mstate=None):
+def _render_raster(np, model, tris, place, w, h, background, textures, mstate=None, fast=False):
     from PIL import Image
     out = np.empty((h, w, 4), np.float32)           # straight (non-premultiplied) RGBA
     out[...] = np.asarray(background, np.float32) / 255.0
-    arrays = {}
+    # float copies of the textures, kept in the caller's texture cache across frames
+    arrays = textures.setdefault(("__float_arrays__",), {})
+    sample = _sample_nearest if fast else _sample_repeat
     grey = np.array([150, 150, 160, 255], np.float32) / 255.0
     for _d, pts, uvs, cols, mat in tris:
         (ax, ay), (bx, by), (cx, cy) = place(pts)
@@ -775,10 +782,11 @@ def _render_raster(np, model, tris, place, w, h, background, textures, mstate=No
         ix1, iy1 = min(w, int(math.ceil(max(ax, bx, cx))) + 1), min(h, int(math.ceil(max(ay, by, cy))) + 1)
         if ix1 <= ix0 or iy1 <= iy0:
             continue
-        gx, gy = np.meshgrid(np.arange(ix0, ix1, dtype=np.float32) + 0.5,
-                             np.arange(iy0, iy1, dtype=np.float32) + 0.5)
-        l1 = ((gx - ax) * (cy - ay) - (cx - ax) * (gy - ay)) / det
-        l2 = ((bx - ax) * (gy - ay) - (gx - ax) * (by - ay)) / det
+        # pixel centres as a row and a column that broadcast (no full meshgrid per triangle)
+        gx = np.arange(ix0, ix1, dtype=np.float32)[None, :] + (0.5 - ax)
+        gy = np.arange(iy0, iy1, dtype=np.float32)[:, None] + (0.5 - ay)
+        l1 = (gx * (cy - ay) - (cx - ax) * gy) / det
+        l2 = ((bx - ax) * gy - gx * (by - ay)) / det
         l0 = 1.0 - l1 - l2
         inside = (l0 >= -1e-4) & (l1 >= -1e-4) & (l2 >= -1e-4)
         if not inside.any():
@@ -790,8 +798,8 @@ def _render_raster(np, model, tris, place, w, h, background, textures, mstate=No
             arr = arrays.get(id(tex))
             if arr is None:
                 arr = arrays[id(tex)] = np.asarray(tex, np.float32) / 255.0
-            src = _sample_repeat(np, arr, sum(l * uvs[i][0] for i, l in enumerate(lam)),
-                                 sum(l * uvs[i][1] for i, l in enumerate(lam)))
+            src = sample(np, arr, sum(l * uvs[i][0] for i, l in enumerate(lam)),
+                         sum(l * uvs[i][1] for i, l in enumerate(lam)))
         else:
             src = np.tile(grey, (len(lam[0]), 1))
         if "opacity" in st:
@@ -848,6 +856,15 @@ def _sample_repeat(np, arr, u, v):
     top = arr[y0, x0] * (1 - fx) + arr[y0, x1] * fx
     bot = arr[y1, x0] * (1 - fx) + arr[y1, x1] * fx
     return top * (1 - fy) + bot * fy
+
+
+def _sample_nearest(np, arr, u, v):
+    """Nearest-texel samples of `arr` (H, W, 4 floats) at UVs with REPEAT wrap -- the cheap
+    sampler render(fast=True) uses for live playback (a copy, so callers may modify it)."""
+    th, tw = arr.shape[:2]
+    x = (np.mod(u, 1.0) * tw).astype(np.int64) % tw
+    y = (np.mod(v, 1.0) * th).astype(np.int64) % th
+    return arr[y, x]
 
 
 def _render_affine(model, tris, place, w, h, background, textures, mstate=None):

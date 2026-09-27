@@ -2320,6 +2320,16 @@ class App:
             except Exception as e:  # noqa: BLE001
                 messagebox.showerror("Export OBJ", str(e)); return
             self.status.config(text=f"exported {stem}.obj + {len(written) - 1} file(s) to {d}")
+        gb = ttk.Button(bar, text="Export for Blender…",
+                        command=lambda: self._export_model_glb(m, stem, state.get("skel")))
+        gb.pack(side="right", padx=4)
+        from guiutil import Tip as _Tip
+        _Tip(gb, "Write a .glb that Blender opens with the skeleton ready to pose: the model in "
+                 "its rest pose with bones, skin and textures, plus the motion picked in the "
+                 "'motion' row as an animation (or none). In Blender set Output > Frame Rate to "
+                 "60 first (the game's speed; 24 works but smooths the motion slightly), import "
+                 "it (File > Import > glTF 2.0), animate, export as glTF 2.0 (.glb), then bring it "
+                 "back with Import motion….")
         ib = ttk.Button(bar, text="Import OBJ…", command=lambda: self._import_model_obj(name))
         ib.pack(side="right", padx=4)
         from guiutil import Tip as _Tip
@@ -2330,16 +2340,24 @@ class App:
                  "Materials and textures stay as they are (Replace texture… changes those). "
                  "The result becomes this tab's working copy: save it like any other edit.")
         ttk.Button(bar, text="Export OBJ…", command=export).pack(side="right", padx=4)
-        body = ttk.Frame(frame); body.pack(fill="both", expand=True)
-        txt = tk.Text(body, width=58, font=("Consolas", 9), wrap="none")
-        txt.pack(side="left", fill="y")
+        # the model view on top, the info pane (shapes, materials) under it; the divider moves
+        body = ttk.Panedwindow(frame, orient="vertical"); body.pack(fill="both", expand=True)
+        cv = tk.Canvas(body, bg="#202024", highlightthickness=0)
+        body.add(cv, weight=4)
+        infof = ttk.Frame(body)
+        txt = tk.Text(infof, height=9, font=("Consolas", 9), wrap="none")
+        ys = ttk.Scrollbar(infof, orient="vertical", command=txt.yview)
+        xs = ttk.Scrollbar(infof, orient="horizontal", command=txt.xview)
+        txt.configure(yscrollcommand=ys.set, xscrollcommand=xs.set)
+        ys.pack(side="right", fill="y")
+        xs.pack(side="bottom", fill="x")
+        txt.pack(side="left", fill="both", expand=True)
+        body.add(infof, weight=1)
         lines = [_model.summary(m), "", "materials:"]
         for mt in m.materials:
             ud = _model.user_data_text(mt)
             lines.append(f"  {mt.name}: {', '.join(mt.textures) or '(no texture)'}" + (f"  [{ud}]" if ud else ""))
         txt.insert("end", "\n".join(lines)); txt.config(state="disabled")
-        cv = tk.Canvas(body, bg="#202024", highlightthickness=0)
-        cv.pack(side="left", fill="both", expand=True)
         state = {"photo": None, "frame": 0.0, "textures": {}}
         anim = self._model_material_anim(name, m)
         if anim is not None:
@@ -2368,6 +2386,8 @@ class App:
                 pb.config(text="Stop" if doc._model_playing else "Play")
                 if doc._model_playing and getattr(doc, "_anim_after", None) is None:
                     tick()
+                elif not doc._model_playing:
+                    draw()                 # the paused frame at full quality
             pb.config(command=toggle)
         else:
             fl = None
@@ -2378,8 +2398,25 @@ class App:
             if not cv.winfo_exists():
                 return                         # another file was opened meanwhile
             size = max(160, min(cv.winfo_width(), cv.winfo_height()) - 8) if cv.winfo_width() > 1 else 480
+            playing = bool(state.get("splaying") or getattr(doc, "_model_playing", False))
+            # a playing animation loops over the same frames: keep each rendered frame (up to
+            # PLAY_CACHE_FRAMES) and show it again on the next loop instead of re-rendering
+            sk = state.get("skel")
+            ckey = (id(sk), id(anim), view.get(), size,
+                    int(state["sframe"]) if sk is not None else None,
+                    int(state["frame"]) if anim is not None else None)
+            cache = state.setdefault("fcache", {})
+            if playing and ckey in cache:
+                state["photo"], im = cache[ckey]
+                cv.delete("all")
+                cv.create_image(4, 4, anchor="nw", image=state["photo"])
+                doc._pil = im
+                if skel_bar is not None:
+                    skel_bar(state)
+                if fl is not None:
+                    fl.config(text=f"frame {int(state['frame']):3}/{anim.frame_count}")
+                return
             try:
-                sk = state.get("skel")
                 if sk is not None:             # skeletal animation selected: pose + fixed box
                     from rf4s_modkit import skelanim as _sk
                     m.pose = _sk.pose_bones(m, sk, state["sframe"])
@@ -2389,8 +2426,15 @@ class App:
                         m.pose = _sk.pose_bones(m, sk, state["sframe"])
                 else:
                     m.pose, box = None, None
-                im = _model.render(m, view.get(), size, textures=state["textures"], anim=anim,
-                                   frame=state["frame"], box=box)
+                # while a motion / material animation plays, render smaller with the cheap
+                # sampler and scale up for display (~3x faster); a still frame stays sharp
+                rsize = min(size, self.PLAY_RENDER_PX) if playing else size
+                im = _model.render(m, view.get(), rsize, textures=state["textures"], anim=anim,
+                                   frame=state["frame"], box=box, fast=playing)
+                if rsize < size:
+                    k = size / rsize
+                    im = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))),
+                                   Image.BILINEAR)
             except Exception as e:  # noqa: BLE001
                 info.config(text=f"render failed: {e}"); return
             finally:
@@ -2398,6 +2442,10 @@ class App:
             if skel_bar is not None:
                 skel_bar(state)
             state["photo"] = ImageTk.PhotoImage(im)
+            if playing:
+                if len(cache) >= self.PLAY_CACHE_FRAMES:
+                    cache.clear()
+                cache[ckey] = (state["photo"], im)
             cv.delete("all")
             cv.create_image(4, 4, anchor="nw", image=state["photo"])
             doc._pil = im
@@ -2408,7 +2456,163 @@ class App:
             info.config(text=f"{sum(len(s.indices) // 3 for s in m.shapes)} triangles · "
                              f"{len(m.bones)} bones · {view.get()} view")
         vc.bind("<<ComboboxSelected>>", draw)
+
+        def resized(_e=None):
+            # re-fit the picture when the view is resized (window, or the info-pane divider)
+            if state.get("redraw"):
+                cv.after_cancel(state["redraw"])
+            state["redraw"] = cv.after(150, lambda: (state.update(redraw=None), draw()))
+        cv.bind("<Configure>", resized)
         self.root.after_idle(draw)
+
+    def _export_model_glb(self, m, stem, anim=None, path=None):
+        """Export for Blender…: the model (rest pose, skeleton, skin, textures) and `anim` as a
+        .glb (rf4s_modkit.gltf). `path` skips the dialog (tests). Returns the path or None."""
+        from rf4s_modkit import gltf as _gltf
+        tag = f"_{anim.name}" if anim is not None else ""
+        f = path or filedialog.asksaveasfilename(
+            title="Export for Blender (glTF .glb)", defaultextension=".glb",
+            initialfile=f"{stem}{tag}.glb", filetypes=[("glTF binary", "*.glb")])
+        if not f:
+            return None
+        try:
+            _gltf.export_glb(m, f, anim, stem)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Export for Blender", str(e)); return None
+        what = f" with the motion {anim.name}" if anim is not None else " (rest pose, no motion)"
+        self.status.config(text=f"Exported {pathlib.Path(f).name}{what}. In Blender: set Output > Frame "
+                                f"Rate to 60 (the game's), File > Import > glTF 2.0, animate, File > "
+                                f"Export > glTF 2.0 (.glb), then Import motion…")
+        return f
+
+    def _export_all_motions(self, m, stem, names, src, path=None):
+        """Export all motions…: `m` and every motion in `names` (read from `src`) in one .glb,
+        one animation each. `path` skips the dialog (tests). Returns (path, exported, skipped)
+        or None."""
+        from rf4s_modkit import gltf as _gltf, skelanim as _sk
+        f = path or filedialog.asksaveasfilename(
+            title="Export for Blender -- all motions (glTF .glb)", defaultextension=".glb",
+            initialfile=f"{stem}_all_motions.glb", filetypes=[("glTF binary", "*.glb")])
+        if not f:
+            return None
+        anims, skipped = [], []
+        self.root.config(cursor="watch"); self.root.update_idletasks()
+        try:
+            for n in names:
+                try:
+                    a = _sk.parse(src.read_named(n) or b"")
+                except Exception:  # noqa: BLE001
+                    skipped.append(n); continue
+                if not _sk.bound_bones(m, a)[0]:
+                    skipped.append(n); continue
+                a.name = pathlib.PurePosixPath(n).stem     # the action name = the file it replaces
+                anims.append(a)
+            if not anims:
+                messagebox.showerror("Export all motions", "None of the motions drive this model's bones.")
+                return None
+            _gltf.export_glb(m, f, anims, stem)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Export all motions", str(e)); return None
+        finally:
+            self.root.config(cursor="")
+        size = pathlib.Path(f).stat().st_size
+        self.status.config(text=f"Exported {pathlib.Path(f).name}: {len(anims)} motions ({size / 1e6:.1f} MB)"
+                                + (f", skipped {len(skipped)} that drive none of its bones" if skipped else "")
+                                + ". In Blender set Output > Frame Rate to 60, then File > Import > glTF 2.0")
+        return f, len(anims), skipped
+
+    def _import_motion_file(self, m, template, path=None, pick=None):
+        """The SkelAnimFile made from a glTF / .glb animation for model `m`, replacing
+        `template` (its name, file name and loop flag are kept), or None. `path` / `pick(list)
+        -> index` skip the dialogs (tests)."""
+        from rf4s_modkit import gltf as _gltf
+        f = path or filedialog.askopenfilename(title="Import motion (glTF / .glb from Blender)",
+                                               filetypes=[("glTF", "*.glb *.gltf"), ("All files", "*.*")])
+        if not f:
+            return None
+        try:
+            anims = _gltf.list_animations(f)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import motion", f"cannot read {pathlib.Path(f).name}:\n{e}")
+            return None
+        if not anims:
+            messagebox.showerror("Import motion", f"{pathlib.Path(f).name} has no animation.")
+            return None
+        k = 0
+        if len(anims) > 1:
+            want = template.name if template is not None else None
+            k = (pick or (lambda a: self._pick_animation(a, want)))(anims)
+            if k is None:
+                return None
+        try:
+            return _gltf.import_animation(f, m, template=template, animation=anims[k][0])
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import motion", str(e))
+            return None
+
+    def _pick_animation(self, anims, want=None):
+        """Index into `anims` ([(index, name, seconds, channels)]) chosen in a small list; the
+        one named `want` (the motion being replaced) is preselected."""
+        win = tk.Toplevel(self.root)
+        win.title("Import motion -- which animation?")
+        win.transient(self.root)
+        lb = tk.Listbox(win, width=60, height=min(12, len(anims)))
+        for _i, nm, dur, nch in anims:
+            lb.insert("end", f"{nm}   ({dur:.2f} s = {round(dur * 60)} frames, {nch} channels)")
+        lb.pack(fill="both", expand=True, padx=8, pady=8)
+        first = next((i for i, a in enumerate(anims) if want and a[1] == want), 0)
+        lb.selection_set(first)
+        lb.see(first)
+        out = {}
+
+        def ok(_e=None):
+            s = lb.curselection()
+            out["k"] = s[0] if s else None
+            win.destroy()
+        lb.bind("<Double-Button-1>", ok)
+        ttk.Button(win, text="Import", command=ok).pack(side="right", padx=8, pady=(0, 8))
+        ttk.Button(win, text="Cancel", command=win.destroy).pack(side="right", pady=(0, 8))
+        win.grab_set()
+        win.wait_window()
+        return out.get("k")
+
+    def _install_motion(self, file_name, anim, answer=None):
+        """Offer to install an imported motion into the game as `file_name` (backup kept) or
+        save it elsewhere. `answer` (True install / False save as / None keep the preview)
+        skips the question (tests). Returns the written path or None."""
+        from rf4s_modkit import skelanim as _sk
+        blob = _sk.build(anim)
+        if answer is None and not getattr(self, "_testing", False):
+            answer = messagebox.askyesnocancel(
+                "Import motion",
+                f"The new motion plays in the preview now.\n\nInstall it into your game as "
+                f"{file_name}? (Yes = install, the original is kept in ModdingBackup; No = save "
+                f"the .bfskl somewhere else; Cancel = only preview it.)")
+        if answer is None:
+            self.status.config(text=f"Previewing the imported motion (not saved) -- {file_name}")
+            return None
+        if answer:
+            targets = gamepaths.game_targets([file_name])
+            if targets is None:
+                messagebox.showerror("Import motion", "No game folder is set up."); return None
+            try:
+                gamepaths.write_game_file(targets[file_name], blob)
+            except OSError as e:
+                messagebox.showerror("Import motion", f"Could not write {targets[file_name]}:\n{e}")
+                return None
+            self.status.config(text=f"Installed {file_name} ({len(blob):,} bytes) -- restart the game "
+                                    f"to see it")
+            return targets[file_name]
+        f = filedialog.asksaveasfilename(title="Save the motion", initialfile=file_name,
+                                         defaultextension=".bfskl", filetypes=[("motion", "*.bfskl")])
+        if not f:
+            return None
+        pathlib.Path(f).write_bytes(blob)
+        self.status.config(text=f"Saved {f} ({len(blob):,} bytes)")
+        return pathlib.Path(f)
+
+    PLAY_RENDER_PX = 360        # the longer side a model is rendered at while it plays
+    PLAY_CACHE_FRAMES = 240     # rendered playback frames kept per model tab (one loop, usually)
 
     def _model_skel_controls(self, frame, name, m, state, view, redraw):
         """A 'motion' row under the Model tab listing the .bfskl skeletal animations that
@@ -2465,6 +2669,8 @@ class App:
             pb.config(text="Stop" if state["splaying"] else "Play")
             if state["splaying"] and getattr(doc, "_skel_after", None) is None:
                 tick(_time.monotonic())
+            elif not state["splaying"]:
+                redraw()                   # the paused frame at full quality
         pb.config(command=toggle)
 
         def gif():
@@ -2486,6 +2692,44 @@ class App:
                 self.root.config(cursor="")
             self.status.config(text=f"wrote {f} ({len(frames)} frames of {a.name})")
         ttk.Button(row, text="GIF…", width=5, command=gif).pack(side="left")
+
+        def export_all():
+            self._export_all_motions(m, stem, names, src)
+        ea_b = ttk.Button(row, text="Export all motions…", command=export_all)
+        ea_b.pack(side="left", padx=(8, 0))
+        from guiutil import Tip as _Tip
+        _Tip(ea_b, f"Write one .glb for Blender with the model and all {len(names)} of its motions, "
+                   f"each as its own action named after the motion file (Blender's Action editor / "
+                   f"NLA lists them). Set Output > Frame Rate to 60 in Blender first. To bring one "
+                   f"back, pick that motion here and use Import motion… -- the list preselects the "
+                   f"animation with the same name.")
+
+        def import_motion():
+            n = choice.get()
+            if n not in names:
+                messagebox.showinfo("Import motion", "First pick, in the motion list, the motion the "
+                                                     "new animation should replace. The game plays "
+                                                     "motions by file name, so a new one always takes "
+                                                     "the place of an existing one.")
+                return
+            try:
+                template = _sk.parse(src.read_named(n) or b"")
+            except Exception as e:  # noqa: BLE001
+                messagebox.showerror("Import motion", f"cannot read {n}: {e}"); return
+            new = self._import_motion_file(m, template)
+            if new is None:
+                return
+            state.update(skel=new, sframe=0.0, boxes={}, fcache={})
+            lab.config(text=f"imported: {new.frame_count} frames")
+            redraw()
+            self._install_motion(n, new)
+        im_b = ttk.Button(row, text="Import motion…", command=import_motion)
+        im_b.pack(side="left", padx=(8, 0))
+        from guiutil import Tip as _Tip
+        _Tip(im_b, "Replace the motion picked here with an animation from a glTF / .glb file -- "
+                   "made in Blender from Export for Blender… (the bone names must stay the same). "
+                   "It is previewed on the model at once, then installed into your game under this "
+                   "motion's file name (the original is kept in ModdingBackup) or saved elsewhere.")
         cb.bind("<<ComboboxSelected>>", select)
 
         def update(st):

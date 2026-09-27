@@ -5907,6 +5907,196 @@ def test_explorer_model_obj_import():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_model_fast_render():
+    """model.render(fast=True), the playback path: nearest-texel sampling covers exactly the
+    same pixels as the full render, and the textures' float arrays are kept in the caller's
+    texture cache, so the next frame does not convert them again."""
+    print("model render: the fast playback path:")
+    from rf4s_modkit import model as _model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    p = B / "M02_0.model"
+    if not p.exists():
+        _skip("fast render", "no M02_0.model"); return
+    m = _model.parse(p.read_bytes())
+    tex = {}
+    full = _model.render(m, "field", 200, textures=tex)
+    fast = _model.render(m, "field", 200, textures=tex, fast=True)
+    cached = tex.get(("__float_arrays__",), {})
+    same_cover = full.size == fast.size and full.getchannel("A").getbbox() == fast.getchannel("A").getbbox()
+    _check("fast render: same size and coverage as the full render, texture arrays cached",
+           same_cover and len(cached) >= 1, (full.size, fast.size, len(cached)))
+
+
+def test_skelanim_write():
+    """skelanim.build writes the shipped .bfskl layout: every shipped motion parses and
+    rebuilds byte for byte."""
+    print("skeletal animation writer (.bfskl):")
+    from rf4s_modkit import skelanim as _sk
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.bfskl"))
+    if not files:
+        _skip("bfskl writer", "no extracted .bfskl"); return
+    seen, bad = set(), []
+    for p in files:
+        if p.name in seen:
+            continue
+        seen.add(p.name)
+        d = p.read_bytes()
+        try:
+            if _sk.build(_sk.parse(d)) != d:
+                bad.append(p.name)
+        except Exception as e:  # noqa: BLE001
+            bad.append(f"{p.name}: {e}")
+    _check(f"all {len(seen)} shipped .bfskl rebuild byte for byte", not bad, bad[:3])
+
+
+def test_gltf_motion_roundtrip():
+    """Export for Blender / Import motion: a model and a motion go out as a .glb (skeleton,
+    skin, textures, the motion sampled per frame) and the animation comes back as a .bfskl
+    that poses the model like the original (within 0.05 % of the model's size; exact with no
+    key reduction); bones of the replaced file the model lacks keep their motion; the GUI
+    exports, previews and installs into the game folder (a scratch one here)."""
+    print("glTF motion round trip (Export for Blender / Import motion):")
+    import importlib.util, tempfile, shutil
+    from rf4s_modkit import gltf as _gl, model as _model, skelanim as _sk
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "M02_0.model").exists() or not (B / "M02_0_00.bfskl").exists():
+        _skip("glTF motion", "no M02_0 model / motion"); return
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        worst_rel, exact, glb_ok = 0.0, True, True
+        for stem, motion in (("M02_0", "M02_0_00.bfskl"), ("NPC_TRAVELER_M", "00W_002_walk.bfskl"),
+                             ("BM_00", "BM_00_00_1.bfskl")):
+            if not (B / f"{stem}.model").exists() or not (B / motion).exists():
+                continue
+            m = _model.parse((B / f"{stem}.model").read_bytes())
+            a = _sk.parse((B / motion).read_bytes())
+            g = tmp / f"{stem}.glb"
+            _gl.export_glb(m, g, a, stem)
+            gj, bufs = _gl.read_gltf(g)
+            glb_ok &= (len(gj["nodes"]) >= len(m.bones) and gj["skins"][0]["joints"] == list(range(len(m.bones)))
+                       and len(gj["animations"]) == 1 and bool(gj.get("images")))
+            b2 = _sk.parse(_sk.build(_gl.import_animation(g, m, template=a)))
+            size = _gl._extent(m)
+            for f in range(int(a.frame_count) + 1):
+                for x, y in zip(_model.world_matrices(_sk.pose_bones(m, a, f)),
+                                _model.world_matrices(_sk.pose_bones(m, b2, f))):
+                    worst_rel = max(worst_rel, max(abs(x[r][c] - y[r][c]) for r in range(3) for c in range(4)) / size)
+            if stem == "M02_0":
+                keep = dict(_gl.TOL)
+                _gl.TOL.update(r=0.0, s=0.0, t_rel=0.0)
+                try:
+                    b3 = _gl.import_animation(g, m, template=a)
+                finally:
+                    _gl.TOL.update(keep)
+                for f in range(0, int(a.frame_count) + 1, 7):
+                    for x, y in zip(_model.world_matrices(_sk.pose_bones(m, a, f)),
+                                    _model.world_matrices(_sk.pose_bones(m, b3, f))):
+                        exact &= max(abs(x[r][c] - y[r][c]) for r in range(3) for c in range(4)) < 1e-3
+                kept = {bb.name for bb in b2.bones} >= {bb.name for bb in a.bones}
+                meta_ok = b2.frame_count == a.frame_count and b2.loops == a.loops and b2.name == a.name
+        _check("the .glb carries the skeleton (one joint per bone), the skin, the textures and the motion",
+               glb_ok)
+        _check("round trip: the imported motion poses the model like the original (within 0.05 % of "
+               "its size), frame count / loop / name kept", worst_rel < 0.0005 and meta_ok,
+               f"{100 * worst_rel:.4f} %")
+        _check("round trip without key reduction is exact", exact)
+        _check("bones of the replaced file that the model lacks keep their motion", kept)
+        # --- the GUI: export, import, install into a scratch game folder ---
+        try:
+            import tkinter as tk
+        except Exception:
+            _skip("glTF motion GUI", "no tkinter"); return
+        spec = importlib.util.spec_from_file_location("rf4mod_gui_gltf", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+        gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+        _headless_dialogs()
+        game = tmp / "Game"
+        bundle = game / "Bundle"
+        (bundle / "bundleMain").mkdir(parents=True)
+        (bundle / "Manifest.plist").write_bytes(b"")
+        shutil.copyfile(B / "M02_0_00.bfskl", bundle / "bundleMain" / "M02_0_00.bfskl")
+        real_find = _gamepaths.find_bundle_dir
+        _gamepaths.find_bundle_dir = lambda refresh=False: bundle
+        root = tk.Tk(); root.withdraw()
+        errs = []
+        root.report_callback_exception = lambda *a_: errs.append(a_)
+        try:
+            app = gui.App(root, initial=str(B))
+            m = _model.parse((B / "M02_0.model").read_bytes())
+            a = _sk.parse((B / "M02_0_00.bfskl").read_bytes())
+            out = app._export_model_glb(m, "M02_0", a, path=str(tmp / "gui.glb"))
+            new = app._import_motion_file(m, a, path=str(tmp / "gui.glb"))
+            wrote = app._install_motion("M02_0_00.bfskl", new, answer=True)
+            target = bundle / "bundleMain" / "M02_0_00.bfskl"
+            backup = game / _gamepaths.BACKUP_DIR / "Bundle" / "bundleMain" / "M02_0_00.bfskl"
+            _check("GUI: Export for Blender writes the .glb; Import motion builds the motion; install "
+                   "writes it over the game's file and keeps the original in ModdingBackup",
+                   out and new is not None and wrote == target and target.read_bytes() == _sk.build(new)
+                   and backup.read_bytes() == (B / "M02_0_00.bfskl").read_bytes(), (out, wrote))
+            _check("glTF motion GUI raised no callback errors", not errs, errs[:1])
+        finally:
+            _gamepaths.find_bundle_dir = real_find
+            root.destroy()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_gltf_blender_roundtrip():
+    """With Blender installed: Blender imports the Export for Blender .glb (armature + the
+    motion), a bone is rotated by 30 degrees on one frame and Blender exports it; Import motion
+    brings the change back at the right game frame, the motion's length is kept, and the rest of
+    the motion stays within 0.3 % of the model's size (Blender's 24 fps resampling)."""
+    print("glTF motion through Blender (optional):")
+    import glob, math, subprocess, tempfile, shutil
+    exe = next(iter(sorted(glob.glob(r"C:\Program Files\Blender Foundation\Blender*\blender.exe"), reverse=True)), None) \
+        or shutil.which("blender")
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not exe or not (B / "M02_0.model").exists():
+        _skip("glTF through Blender", "Blender not installed" if not exe else "no M02_0"); return
+    from rf4s_modkit import gltf as _gl, model as _model, skelanim as _sk
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        m = _model.parse((B / "M02_0.model").read_bytes())
+        a = _sk.parse((B / "M02_0_00.bfskl").read_bytes())
+        src, dst = tmp / "in.glb", tmp / "out.glb"
+        _gl.export_glb(m, src, a, "M02_0")
+        script = tmp / "edit.py"
+        script.write_text(
+            "import bpy, math, sys\n"
+            "from mathutils import Quaternion\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.gltf(filepath=a[0])\n"
+            "arm = next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')\n"
+            "bpy.context.view_layer.objects.active = arm\n"
+            "bpy.ops.object.mode_set(mode='POSE')\n"
+            "pb = arm.pose.bones['Bip01_Head']\n"
+            "bpy.context.scene.frame_set(20)\n"
+            "pb.rotation_mode = 'QUATERNION'\n"
+            "pb.rotation_quaternion = pb.rotation_quaternion @ Quaternion((1, 0, 0), math.radians(30))\n"
+            "pb.keyframe_insert('rotation_quaternion', frame=20)\n"
+            "bpy.ops.object.mode_set(mode='OBJECT')\n"
+            "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=True)\n",
+            encoding="utf-8")
+        r = subprocess.run([exe, "--background", "--python", str(script), "--", str(src), str(dst)],
+                           capture_output=True, text=True, timeout=300)
+        if not dst.exists():
+            _check("Blender exported the edited .glb", False, (r.stdout or "")[-400:]); return
+        b = _sk.parse(_sk.build(_gl.import_animation(dst, m, template=a)))
+        head = next(i for i, bn in enumerate(m.bones) if bn.name == "Bip01_Head")
+        d_head = (_sk.pose_bones(m, b, 50)[head].rotation[0] - _sk.pose_bones(m, a, 50)[head].rotation[0])
+        size, worst = _gl._extent(m), 0.0
+        for f in list(range(0, 36)) + list(range(66, 73)):       # away from the edit
+            for x, y in zip(_model.world_matrices(_sk.pose_bones(m, a, f)),
+                            _model.world_matrices(_sk.pose_bones(m, b, f))):
+                worst = max(worst, max(abs(x[r_][c] - y[r_][c]) for r_ in range(3) for c in range(4)))
+        _check("Blender round trip: the 30-degree head tilt arrives at game frame 50, the length is "
+               "kept and the untouched frames stay within 0.3 % of the model's size",
+               abs(d_head - math.radians(30)) < 0.02 and b.frame_count == a.frame_count
+               and worst / size < 0.003, (round(d_head, 4), b.frame_count, f"{100 * worst / size:.3f} %"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_explorer_tabs():
     """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
     state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
@@ -11443,7 +11633,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_blender_roundtrip, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

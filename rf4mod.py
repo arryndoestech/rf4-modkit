@@ -3007,6 +3007,43 @@ def cmd_res_model_render(a):
     print(f"rendered {a.file} ({a.view} view, {im.width}x{im.height}) -> {out}")
 
 
+def cmd_res_model_glb(a):
+    """Export for Blender: the model (rest pose, skeleton, skin, textures) and an optional
+    motion as one .glb."""
+    from rf4s_modkit import gltf
+    _model_mod, m = _load_model(a.file)
+    anims = [_load_skelanim(p) for p in a.anim or ()]
+    for p, x in zip(a.anim or (), anims):
+        x.name = pathlib.Path(p).stem                     # the action name = the motion file
+    out = a.out or f"{pathlib.Path(a.file).stem}.glb"
+    gltf.export_glb(m, out, anims, pathlib.Path(a.file).stem)
+    print(f"wrote {out}" + (f" with {len(anims)} motion(s): {', '.join(x.name for x in anims)}" if anims else "") +
+          " -- in Blender set Output > Frame Rate to 60 before File > Import > glTF 2.0")
+
+
+def cmd_res_motion_import(a):
+    """Import motion: a glTF / .glb animation (from Blender) -> a .bfskl for the model."""
+    from rf4s_modkit import gltf, skelanim
+    _model_mod, m = _load_model(a.model)
+    template = _load_skelanim(a.template) if a.template else None
+    anims = gltf.list_animations(_resolve(a.gltf))
+    if not anims:
+        sys.exit(f"error: {a.gltf} has no animation")
+    pick = a.animation if a.animation is not None else 0
+    if isinstance(pick, str) and pick.isdigit():
+        pick = int(pick)
+    try:
+        anim = gltf.import_animation(_resolve(a.gltf), m, template=template, animation=pick,
+                                     name=a.name, loop={"on": True, "off": False}.get(a.loop))
+    except gltf.GltfError as e:
+        sys.exit(f"error: {e}")
+    blob = skelanim.build(anim)
+    pathlib.Path(a.out).write_bytes(blob)
+    keys = sum(len(c.frames) for b in anim.bones for c in b.curves)
+    print(f"wrote {a.out}: {anim.name}, {anim.frame_count} frames, {'loop' if anim.loops else 'once'}, "
+          f"{len(anim.bones)} bones, {keys} keys, {len(blob):,} bytes")
+
+
 def _load_skelanim(path):
     from rf4s_modkit import skelanim
     try:
@@ -4212,6 +4249,24 @@ def build_parser():
     r6.add_argument("--size", type=int, default=512)
     r6.add_argument("-o", "--out", help="default <model>_<view>.png")
     r6.set_defaults(func=cmd_res_model_render)
+    rg = rsub.add_parser("model-glb", help="Export for Blender: the model (rest pose, skeleton, "
+                         "skin, textures) and optionally a motion as one glTF .glb")
+    rg.add_argument("file", help=".model")
+    rg.add_argument("--anim", nargs="+", help=".bfskl motion(s) to include, each as its own "
+                    "animation (Blender action) named after the file")
+    rg.add_argument("-o", "--out", help="default <model>.glb")
+    rg.set_defaults(func=cmd_res_model_glb)
+    rmi = rsub.add_parser("motion-import", help="Import motion: build a .bfskl from a glTF / .glb "
+                          "animation (Blender's glTF export) for a model's skeleton")
+    rmi.add_argument("model", help=".model the animation is for (bones matched by name)")
+    rmi.add_argument("gltf", help=".glb / .gltf")
+    rmi.add_argument("--template", help="the .bfskl it replaces (keeps its name, loop flag and "
+                     "the motion of bones this model lacks)")
+    rmi.add_argument("--animation", help="animation index or name (default: the first)")
+    rmi.add_argument("--name", help="animation name (default: the template's)")
+    rmi.add_argument("--loop", choices=("on", "off"), help="default: the template's")
+    rmi.add_argument("-o", "--out", required=True, help="output .bfskl")
+    rmi.set_defaults(func=cmd_res_motion_import)
     r7 = rsub.add_parser("model-import", help="replace one shape's geometry from an OBJ (the "
                          "model-export format; any vertex/triangle count -- the memory pool and "
                          "every pointer behind it are rebuilt)")
