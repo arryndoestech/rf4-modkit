@@ -2987,10 +2987,16 @@ def cmd_res_model_import_glb(a):
             sys.exit(f"error: --map takes SHAPE=MESH, got {item!r}")
         k, v = item.split("=", 1)
         mapping[k] = v
+    add = {}
+    for item in a.add or []:
+        if "=" not in item:
+            sys.exit(f"error: --add takes MESH=SHAPE, got {item!r}")
+        k, v = item.split("=", 1)
+        add[k] = v
     try:
         out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None,
                                          remove=a.remove or (), remove_missing=a.remove_missing,
-                                         bones=a.bones)
+                                         bones=a.bones, add=add or None)
     except (model.ModelError, modelwrite.ModelWriteError, meshimport.MeshImportError, gltf.GltfError) as e:
         sys.exit(f"error: {e}")
     print(rep.text())
@@ -4377,6 +4383,10 @@ def build_parser():
     rmg.add_argument("--map", action="append", metavar="SHAPE=MESH",
                      help="put mesh MESH (the glTF node / Blender object name) on shape SHAPE "
                           "(index or name) instead of matching by name; repeatable")
+    rmg.add_argument("--add", action="append", metavar="MESH=SHAPE",
+                     help="append mesh MESH (a new object in Blender, no shape of its name) to "
+                          "shape SHAPE: it takes that shape's material and vertex format and "
+                          "keeps its own weights; repeatable")
     rmg.add_argument("--remove", action="append", metavar="SHAPE",
                      help="hide shape SHAPE (index or name): it stays in the file as one "
                           "degenerate triangle that draws nothing; repeatable")

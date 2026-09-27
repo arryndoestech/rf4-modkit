@@ -9462,6 +9462,26 @@ def test_model_glb_import():
                and "head_Bone03" in rep.bones_moved, (round(dy, 5), ibm_err, rest_same, rep.bones_moved))
         _check("rest pose not taken (default): the file is unchanged and the report says the bones moved",
                keep == d and any("rest pose" in x for x in rep_k.notes), rep_k.notes)
+        # a new part (a mesh with no shape of its name) added to shape 0, weighted to the head
+        cube = _mi.GltfMesh("NewPart", "NewPart", [], None, None, None, None, [])
+        hw = _model.world_matrices(m.bones)[by["head_Bone03"]]
+        for obj in _mw.parse_obj(_mw.cube_obj((hw[0][3], hw[1][3], hw[2][3]), 6.0)):
+            cube.positions = [v[0] for v in obj.vertices]
+            cube.uvs = [v[1] for v in obj.vertices]
+            cube.normals = [v[2] for v in obj.vertices]
+            cube.triangles = obj.triangles
+        cube.weights = [{"head_Bone03": 1.0}] * len(cube.positions)
+        out, rep = _mi.import_glb(d, meshes + [cube], add={"NewPart": 0})
+        m5 = _model.parse(out)
+        r5 = next(r for r in rep.shapes if r.shape == 0)
+        n0 = m.vertex_buffers[m.shapes[0].vertex_buffer].count
+        lbs = max(_posed_lbs_error(m5, a, f, 0, [(p_, {by["head_Bone03"]: 1.0}) for p_ in cube.positions])
+                  for f in (0, 30)) if a else 0.0
+        _check("a new part (--add NewPart=0) is appended to the shape: its original vertices keep "
+               "their bytes, the part follows its weights when posed, the file passes the walk",
+               r5.kept == n0 and r5.vertices == n0 + 24 and r5.triangles == len(m.shapes[0].indices) // 3 + 12
+               and lbs < 1e-5 and not _mw.validate(out) and not rep.unmatched,
+               (r5.kept, r5.vertices, r5.triangles, f"{lbs:.1e}"))
         # removal: a shape deleted in Blender (remove_missing) is kept but drawn as nothing
         out, rep = _mi.import_glb(d, [s0], remove_missing=True)
         m3 = _model.parse(out)
@@ -9564,6 +9584,47 @@ def test_model_glb_blender():
                "Blender's weights (< 0.01 % of the model's size), the file passes the loader walk",
                r_sub.vertices > len(m.shape_vertices(m.shapes[si_sub])) and lbs < 1e-4
                and not _mw.validate(out), f"{r_sub.vertices} v, lbs {lbs:.2e}")
+        # a cube added in Blender, parented to the armature with automatic weights, added to shape 0
+        add_script = tmp / "add.py"
+        add_script.write_text(
+            "import bpy, sys\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "bpy.ops.import_scene.gltf(filepath=a[0])\n"
+            "arm = next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')\n"
+            "loc = arm.matrix_world @ arm.data.bones[a[2]].head_local\n"
+            "bpy.ops.mesh.primitive_cube_add(size=6.0, location=loc)\n"
+            "cube = bpy.context.active_object; cube.name = 'NewPart'\n"
+            "bpy.ops.object.select_all(action='DESELECT'); cube.select_set(True); arm.select_set(True)\n"
+            "bpy.context.view_layer.objects.active = arm\n"
+            "bpy.ops.object.parent_set(type='ARMATURE_AUTO')\n"
+            "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
+            encoding="utf-8")
+        src, dst = tmp / "M09_0.glb", tmp / "M09_0_add.glb"
+        r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(add_script), "--",
+                            str(src), str(dst), "head_Bone03"], capture_output=True, text=True, timeout=300)
+        if not dst.exists():
+            _check("Blender exported the added cube", False, (r.stdout or "")[-400:]); return
+        _plain, rep0 = _mi.import_glb(d, dst)
+        out, rep = _mi.import_glb(d, dst, add={"NewPart": si_sub})
+        m4 = _model.parse(out)
+        me = next(x for x in _mi.read_meshes(dst, m) if x.name == "NewPart")
+        exp = []
+        for pos, w in zip(me.positions, me.weights):
+            tot = sum(w.values())
+            exp.append((pos, {by[k]: v / tot for k, v in w.items()}))
+        # the shape keeps 2 influences: compare against the 2 heaviest, renormalised
+        exp2 = []
+        for pos, w in exp:
+            top = sorted(w.items(), key=lambda kv: -kv[1])[:2]
+            t = sum(x for _b, x in top)
+            exp2.append((pos, {b_: x / t for b_, x in top}))
+        lbs = max(_posed_lbs_error(m4, anim, f, si_sub, exp2) for f in (0, 20))
+        r_add = next(x for x in rep.shapes if x.shape == si_sub)
+        _check("a cube added in Blender (automatic weights) is ignored unless --add names a shape; "
+               "added, it joins that shape (original vertices kept) and is posed by its 2 heaviest "
+               "Blender weights", rep0.unmatched == ["NewPart"] and _plain == d and r_add.kept >= 74
+               and lbs < 1e-4 and not _mw.validate(out), (rep0.unmatched, r_add.kept, f"{lbs:.1e}"))
         # a bone moved up 3 in Blender's edit mode (rest pose), bones=True
         src, dst = tmp / "M09_0.glb", tmp / "M09_0_rest.glb"
         r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(rest_script), "--",
@@ -9687,6 +9748,21 @@ def test_explorer_model_glb_import():
                and m2.vertex_buffers[m2.shapes[1].vertex_buffer].data == m.vertex_buffers[m.shapes[1].vertex_buffer].data
                and "Rebuilt 1 shape" in app.status.cget("text") and not box["msgs"],
                (app.status.cget("text"), box["msgs"][:1]))
+        # a new mesh in the file, appended to shape 1 through the add hook
+        gl, bufs = _gl.read_gltf(g)
+        nd = dict(next(x for x in gl["nodes"] if x.get("name") == m.shapes[1].name))
+        nd["name"] = "NewPart"
+        gl["nodes"].append(nd)
+        gl["scenes"][0]["nodes"].append(len(gl["nodes"]) - 1)
+        g4 = tmp / "added.glb"
+        g4.write_bytes(_gl._glb(gl, bufs[0]))
+        before = doc.cur_data
+        ok = app._import_model_glb(doc.cur_name, str(g4), choose=lambda mm, meshes, dflt: dict(dflt),
+                                   add={"NewPart": 1})
+        m3 = _model.parse(doc.cur_data)
+        n1 = _model.parse(before).vertex_buffers[m.shapes[1].vertex_buffer].count
+        _check("Import from Blender… appends a mesh with no shape to the chosen shape (add)",
+               ok and len(m3.shapes[1].indices) == 2 * len(m.shapes[1].indices), app.status.cget("text"))
         # Materials…: the dialog builds (Apply with nothing changed returns nothing), and a
         # change goes into the working copy in place
         def press_apply():

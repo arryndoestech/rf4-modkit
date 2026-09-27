@@ -1642,13 +1642,15 @@ class App:
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
 
-    def _import_model_glb(self, name, glb_path=None, choose=None, bones=None):
+    def _import_model_glb(self, name, glb_path=None, choose=None, bones=None, add=None):
         """Import from Blender… on a .model tab: read a .glb / .gltf (Export for Blender,
         edited and exported by Blender), put each mesh on the shape of the same name (a dialog
         shows the pairing; `choose(model, meshes, defaults) -> {shape index: mesh name}` skips
         it in tests) and rebuild those shapes with the file's positions, normals, UVs and bone
         weights (meshimport.import_glb). "(remove)" hides a shape (kept in the file as one degenerate
-        triangle, so shape numbers do not shift). The result is the tab's working copy."""
+        triangle, so shape numbers do not shift); meshes with no shape can be appended to one
+        (`add` = {mesh name: shape index} skips that dialog); a moved rest pose is offered
+        (`bones` answers it). The result is the tab's working copy."""
         from rf4s_modkit import model as _model, meshimport as _mi, gltf as _gltf
         REMOVE = "(remove)"
         doc = self._doc
@@ -1680,6 +1682,10 @@ class App:
             return False
         remove = [si for si, v in plan.items() if v == REMOVE]
         plan = {si: v for si, v in plan.items() if v != REMOVE}
+        loose = [me for me in meshes if me.name not in plan.values()]
+        if add is None and loose and choose is None:
+            add = self._glb_add_dialog(m, loose)
+        add = {k: v for k, v in (add or {}).items()}
         try:
             gl = _gltf.read_gltf(f)
             moved, _notes = _mi.rest_pose_changes(m, gl)
@@ -1692,9 +1698,9 @@ class App:
                   "about the new pivots.\n\nNo: keep the game's skeleton."))
             if moved:
                 blob, rep = _mi.import_glb(doc.cur_data, gl, mapping={si: v for si, v in plan.items()},
-                                           remove=remove, bones=take)
+                                           remove=remove, bones=take, add=add or None)
             else:
-                blob, rep = _mi.import_glb(doc.cur_data, meshes, mapping=plan, remove=remove)
+                blob, rep = _mi.import_glb(doc.cur_data, meshes, mapping=plan, remove=remove, add=add or None)
             _model.parse(blob)                     # the result must read back
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Import from Blender", f"Nothing was changed:\n{e}")
@@ -1714,6 +1720,40 @@ class App:
                                 + f" from {pathlib.Path(f).name} -> "
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
+
+    def _glb_add_dialog(self, m, meshes):
+        """{mesh name: shape index} for meshes of the file that have no shape (new parts made
+        in Blender), each optionally appended to an existing shape; {} when none is."""
+        win = tk.Toplevel(self.root)
+        win.title("Import from Blender -- new meshes")
+        win.transient(self.root)
+        ttk.Label(win, text="These meshes have no shape of their name. A new part can be added to an "
+                            "existing shape: it then uses that shape's material (texture) and keeps "
+                            "its own bone weights. The model cannot get new shapes or materials.",
+                  wraplength=520, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
+        grid = ttk.Frame(win)
+        grid.pack(fill="both", expand=True, padx=8)
+        IGNORE = "(ignore)"
+        shapes = [f"{sh.index} {sh.name or 'shape%d' % sh.index}" for sh in m.shapes]
+        vars_ = {}
+        for r, me in enumerate(meshes):
+            ttk.Label(grid, text=f"{me.name}  ({len(me.triangles)} triangles)").grid(row=r, column=0, sticky="w")
+            v = tk.StringVar(value=IGNORE)
+            ttk.Combobox(grid, textvariable=v, values=[IGNORE] + shapes, state="readonly",
+                         width=max(24, min(48, max(map(len, shapes)) + 2))).grid(row=r, column=1, padx=(8, 0), pady=1)
+            vars_[me.name] = v
+        out = {}
+
+        def ok():
+            out.update({k: int(v.get().split()[0]) for k, v in vars_.items() if v.get() != IGNORE})
+            win.destroy()
+        b = ttk.Frame(win)
+        b.pack(fill="x", padx=8, pady=8)
+        ttk.Button(b, text="OK", command=ok).pack(side="right")
+        ttk.Button(b, text="Skip", command=win.destroy).pack(side="right", padx=4)
+        win.grab_set()
+        win.wait_window()
+        return out
 
     def _edit_model_materials(self, name, changes=None):
         """Materials… on a .model tab: the settings the game reads from each material (texture

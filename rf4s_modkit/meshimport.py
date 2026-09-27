@@ -572,10 +572,58 @@ def shape_geometry_from_mesh(data, shape, mesh, m=None, L=None):
     box, rad = _mw._shape_bounds(data, sh, raw)
     g = _mw.ShapeGeometry(bytes(blob), idx, box, rad)
     rep.vertices, rep.triangles = len(raw), len(idx) // 3
-    if len(set(mesh.materials)) > 1:
-        rep.notes.append(f"the mesh has {len(set(mesh.materials))} materials; the shape draws all of it "
+    named = {x for x in mesh.materials if x}
+    if len(named) > 1:
+        rep.notes.append(f"the mesh has {len(named)} materials; the shape draws all of it "
                          f"with its own material")
     return g, rep
+
+
+def shape_as_mesh(m, shape):
+    """The GltfMesh Export for Blender writes for one shape (model space, float32 values,
+    weights by bone name) -- the shape's own geometry, e.g. to add new parts to it."""
+    sh = m.shapes[shape]
+    vb = m.vertex_buffers[sh.vertex_buffer]
+    saved, m.pose = m.pose, None
+    try:
+        pos = [_f32(p[:3]) for p in m.shape_vertices(sh)]
+    finally:
+        m.pose = saved
+    nrm = _model._model_space_normals(m, sh, vb.data.get("_n0"))
+    uv = vb.data.get("_u0")
+    wts = []
+    for js, ws in _gltf._vertex_joints(m, sh, vb):
+        d = {}
+        for j, w in zip(js, ws):
+            if w > 0:
+                d[m.bones[j].name] = d.get(m.bones[j].name, 0.0) + w
+        wts.append(d)
+    tris = [tuple(sh.indices[k:k + 3]) for k in range(0, len(sh.indices) - 2, 3)]
+    return GltfMesh(sh.name or f"shape{shape}", sh.name, pos,
+                    [_f32(n[:3]) for n in nrm] if nrm else None,
+                    [_f32(t[:2]) for t in uv] if uv else None, None, wts if m.bones else None, tris)
+
+
+def join_meshes(name, parts):
+    """One GltfMesh of several (vertices appended, triangles re-indexed). A part without
+    normals gets face normals, one without UVs (0, 0), one without weights None per vertex
+    (-> the nearest original vertex's bones)."""
+    pos, nrm, uv, col, wts, tris, mats = [], [], [], [], [], [], []
+    any_col = any(p.colors is not None for p in parts)
+    for p in parts:
+        base = len(pos)
+        pos += p.positions
+        if p.normals is not None:
+            nrm += p.normals
+        else:
+            nrm += _mw._face_normals([(q, None, None) for q in p.positions], p.triangles)
+        uv += p.uvs if p.uvs is not None else [(0.0, 0.0)] * len(p.positions)
+        col += p.colors if p.colors is not None else [(1.0, 1.0, 1.0, 1.0)] * len(p.positions)
+        wts += p.weights if p.weights is not None else [None] * len(p.positions)
+        tris += [(a + base, b + base, c + base) for a, b, c in p.triangles]
+        mats += p.materials
+    has_w = any(p.weights is not None for p in parts)
+    return GltfMesh(name, name, pos, nrm, uv, col if any_col else None, wts if has_w else None, tris, mats)
 
 
 def _f32(t):
@@ -843,7 +891,7 @@ def empty_geometry(data, shape, L=None):
     return _mw.ShapeGeometry(bytes(recs[0]), [0, 0, 0], box, rad)
 
 
-def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bones=False):
+def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bones=False, add=None):
     """(new .model bytes, ImportReport): the shapes a glTF / GLB's meshes match (by name, see
     match_shapes; `mapping` = {shape index or name: mesh node name} overrides) rebuilt from
     those meshes with their bone weights. `remove` (shape indices / names) and, with
@@ -851,7 +899,10 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
     (empty_geometry: kept in the file, drawn as nothing). The result equals `data` byte for byte
     when nothing changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh.
     `bones` also takes the skeleton's rest pose from the file (rest_pose_changes /
-    set_rest_pose) before the meshes; without it a moved rest pose is only reported."""
+    set_rest_pose) before the meshes; without it a moved rest pose is only reported.
+    `add` = {mesh node name: shape index or name} appends meshes that have no shape of their
+    own (a new part) to an existing shape: they take its material, vertex format and bone
+    frame rules, and keep their own weights (new SHAP / VRTX / MATL records are not made)."""
     m = _model.parse(data)
     rest_notes, rest_moved, keep_file = [], [], ()
     if not isinstance(path, list):
@@ -881,9 +932,24 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
         rest = [me for me in meshes if id(me) not in used]
     else:
         plan, rest = match_shapes(m, meshes)
+    extra = {}
+    if add:
+        by = {me.name: me for me in meshes}
+        for mn, sh in add.items():
+            if mn not in by:
+                raise MeshImportError(f"no mesh {mn!r} in the file (has: {sorted(by)})")
+            if any(me is by[mn] for me in plan.values()):
+                raise MeshImportError(f"mesh {mn!r} already replaces a shape; it cannot also be added")
+            extra.setdefault(_mw.resolve_shape(m, sh), []).append(by[mn])
+        rest = [me for me in rest if me.name not in add]
     drop = {_mw.resolve_shape(m, x) for x in remove}
     if remove_missing:
-        drop |= {sh.index for sh in m.shapes if sh.index not in plan}
+        drop |= {sh.index for sh in m.shapes if sh.index not in plan and sh.index not in extra}
+    if drop & set(extra):
+        raise MeshImportError("a shape cannot be removed and receive added meshes")
+    for si, parts in extra.items():
+        base = plan.get(si) or shape_as_mesh(m, si)
+        plan[si] = join_meshes(base.name, [base] + parts)
     for si in drop:                             # an explicit removal wins over a same-named mesh
         plan.pop(si, None)
     geo, reps = {}, []
