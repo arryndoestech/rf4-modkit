@@ -9502,6 +9502,45 @@ def test_model_glb_blender():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_model_material():
+    """Material settings (rf4s_modkit.matedit): every shipped material lists its wrap / user-data
+    settings; an edit changes exactly the bytes the loader reads (sampler bytes 0-1, the int /
+    float3 user-data values), keeps the file size, and refuses settings a material lacks."""
+    print("model material settings:")
+    from rf4s_modkit import matedit as _me, model as _model
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files or not (B / "BM_00.model").exists():
+        _skip("model material", "no extracted .model files / BM_00"); return
+    n = one = 0
+    for f in (files[::8] if QUICK else files):
+        d = f.read_bytes()
+        if not _model.is_mesh(d):
+            continue
+        for s in _me.materials(d):
+            n += 1
+            one += s.wrap is None or all(0 <= x <= 4 for x in s.wrap)      # 1 shipped material has no sampler
+    _check("every material's sampler has wrap modes 0..4" + (" (every 8th file)" if QUICK else ""),
+           n and one == n, f"{one}/{n}")
+    d = (B / "BM_00.model").read_bytes()
+    out = _me.set_material(d, 0, wrap_u="mirror", wrap_v="clamp", blend=2, draw_order=3, combine=2)
+    s0 = _me.materials(out)[0]
+    diff = [k for k in range(len(d)) if d[k] != out[k]]
+    want = {s0.wrap_at, s0.wrap_at + 1} | {s0.user_at[k][0] for k in ("BlendType", "DrawOrder", "CombineType")}
+    m2 = _model.parse(out)
+    _check("an edit changes only the sampler / user-data bytes, in place, and reads back "
+           "(model.parse sees BlendType 2)",
+           len(out) == len(d) and set(diff) <= want and s0.wrap == (1, 2)
+           and s0.user == {"DrawOrder": 3, "BlendType": 2, "CombineType": 2} and m2.materials[0].blend_type == 2,
+           (s0.wrap, s0.user, len(diff)))
+    try:
+        _me.set_material((B / "M09_0.model").read_bytes(), 0, blend=2)
+        refused = False
+    except _me.MatEditError:
+        refused = True
+    _check("a user-data setting the material does not carry is refused (not added)", refused)
+
+
 def test_explorer_model_glb_import():
     """rf4mod_gui model tab: Import from Blender… rebuilds shapes from a .glb (same-named mesh
     preselected), makes the result the tab's working copy, and reports an unedited export as
@@ -12044,7 +12083,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

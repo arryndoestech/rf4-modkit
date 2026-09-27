@@ -3004,6 +3004,32 @@ def cmd_res_model_import_glb(a):
     print(f"{len(rep.changed)} shape(s) rebuilt -> {dst} ({_size_note(len(data), len(out))})")
 
 
+def cmd_res_model_material(a):
+    from rf4s_modkit import matedit
+    src = _resolve(a.file)
+    data = src.read_bytes()
+    try:
+        if a.material is None:
+            for s in matedit.materials(data):
+                print(s.text())
+            return
+        cc = _floats(a.combine_color, 3, "--combine-color") if a.combine_color else None
+        out = matedit.set_material(data, a.material, wrap_u=a.wrap_u, wrap_v=a.wrap_v,
+                                   draw_order=a.draw_order, blend=a.blend, combine=a.combine,
+                                   combine_color=cc)
+    except matedit.MatEditError as e:
+        sys.exit(f"error: {e}")
+    s = matedit.resolve_material(out, a.material)
+    print(s.text())
+    if out == data:
+        print("nothing changed")
+        return
+    if not a.out:
+        sys.exit("error: give -o OUT to write the edited model")
+    pathlib.Path(a.out).write_bytes(out)
+    print(f"-> {a.out} (same size: bundle patch-able in place)")
+
+
 def cmd_res_model_transform(a):
     from rf4s_modkit import model, modelwrite
     data = _resolve(a.file).read_bytes()
@@ -4350,6 +4376,21 @@ def build_parser():
                           "(index or name) instead of matching by name; repeatable")
     rmg.add_argument("-o", "--out", help="output .model (default: <model>_glb.model here)")
     rmg.set_defaults(func=cmd_res_model_import_glb)
+    rmm = rsub.add_parser("model-material", help="list the material settings the game reads "
+                          "(texture wrap, DrawOrder, BlendType, CombineType, CombineColor00), or "
+                          "change one material's in place (same file size)")
+    rmm.add_argument("file", help=".model")
+    rmm.add_argument("material", nargs="?", help="material index or name (omit to list them)")
+    rmm.add_argument("--wrap-u", choices=("repeat", "mirror", "clamp", "border", "mirror-clamp"))
+    rmm.add_argument("--wrap-v", choices=("repeat", "mirror", "clamp", "border", "mirror-clamp"))
+    rmm.add_argument("--draw-order", type=int, choices=range(4), help="draw pass 0..3 (drawn in that order)")
+    rmm.add_argument("--blend", type=int, choices=range(5),
+                     help="0 off, 1 alpha, 2 additive (SrcAlpha, One), 3 One/One, 4 One/Zero")
+    rmm.add_argument("--combine", type=int, choices=range(5),
+                     help="0 texture, 1 texture lit, 2/3 flat colour (CombineColor00), 4 texture")
+    rmm.add_argument("--combine-color", metavar="R,G,B", help="the flat colour (0..1 each)")
+    rmm.add_argument("-o", "--out", help="output .model (required when changing)")
+    rmm.set_defaults(func=cmd_res_model_material)
     r8 = rsub.add_parser("model-transform", help="move / scale / rotate one shape's vertices in "
                          "place (model space; file size unchanged)")
     r8.add_argument("file"); r8.add_argument("shape", help="shape index or name, or 'all'")
