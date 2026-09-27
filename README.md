@@ -655,6 +655,32 @@ follow one. The Inspector says where the tail will point, or why it won't show.
   slot that no `SetVar` opcode in the scene sets.
 
 Save and Install refuse to write while an edited line would crash the game.
+## Animating in Blender
+
+Models and their motions (`.bfskl`) round-trip through Blender as glTF (`.glb`):
+
+1. **Install the add-on once** (optional, recommended): Blender > Edit > Preferences > Add-ons >
+   the drop-down arrow at the top right > **Install from Disk…** > `blender/rf4s_blender.py`.
+   It adds **File > Import > RF4S model / motions** (switches the scene to the game's 60 fps
+   first, so every game frame is a Blender frame), keeps the **timeline fitted** to the motion
+   you are editing (frame 0 .. its last frame; frame N = game frame N), and **File > Export >
+   RF4S motions** (refuses at any rate but 60). Without the add-on: set Output > Frame Rate to
+   60 *before* File > Import > glTF 2.0, and set the frame range yourself.
+2. **Export** from the Model tab: **Export for Blender…** (the model + the motion picked in the
+   motion row) or **Export all motions…** (every motion of the model, one Blender action each,
+   named after its file).
+3. **Animate** in Blender. Keep the bone and action names: an action's name decides which
+   motion file it replaces. Export the .glb (every action; untouched ones are fine).
+4. **Import** in the Model tab: **Import all motions…** lists only the actions that differ from
+   the game's motions and installs the ones you tick (originals kept in ModdingBackup), or
+   **Import motion…** replaces the motion picked in the list. Command line: `res model-glb`,
+   `res motion-import`, `res motion-import-all`.
+
+Limits: motions are replaced, not added (the game plays them by file name); bones cannot be
+added; changing a motion's length can put attack hitboxes / sounds (timed by frame) out of step.
+At 24 fps Blender smooths fast moves away -- the toolkit warns when a file was exported at
+another rate.
+
 ## What can be modded, and how
 
 | Format | Extensions | Tool | Round-trip |

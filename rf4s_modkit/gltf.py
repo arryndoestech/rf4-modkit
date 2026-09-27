@@ -288,11 +288,21 @@ def _export(model, path, anim, name):
     return blob
 
 
+def _frame_time(f):
+    """f / 60 as the smallest float32 whose value times 60 is not below f. A plain float32 can
+    land a hair short (frame 126 -> 2.0999999 s = frame 125.99999), and Blender's importer then
+    drops that last frame from the action."""
+    t = struct.unpack("<f", struct.pack("<f", f / FPS))[0]
+    while t * FPS < f:
+        t = struct.unpack("<f", struct.pack("<I", struct.unpack("<I", struct.pack("<f", t))[0] + 1))[0]
+    return t
+
+
 def _animation_json(b, model, anim):
     """A glTF animation of `anim`: every bone it drives, sampled at every game frame."""
     n = int(anim.frame_count)
     frames = list(range(n + 1)) if n > 0 else [0]
-    times = b.accessor([f / FPS for f in frames], "SCALAR", minmax=True)
+    times = b.accessor([_frame_time(f) for f in frames], "SCALAR", minmax=True)
     channels, samplers = [], []
     for i, bn in enumerate(model.bones):
         ba = anim.bone(bn.name)
@@ -386,8 +396,9 @@ def read_accessor(gl, buffers, idx):
 
 
 def list_animations(path):
-    """[(index, name, duration in seconds, channel count)] of a glTF / GLB file."""
-    gl, bufs = read_gltf(path)
+    """[(index, name, duration in seconds, channel count)] of a glTF / GLB file (a path, or
+    read_gltf's (json, buffers))."""
+    gl, bufs = path if isinstance(path, tuple) else read_gltf(path)
     out = []
     for i, a in enumerate(gl.get("animations", [])):
         dur = 0.0
@@ -509,12 +520,97 @@ def _fit_curve(vals, tol):
     return keys
 
 
+def frame_rate_note(path, animation=0):
+    """None when animation `animation` (index or name) keys sit on the game's 60-per-second
+    frames, else a warning with the rate they were exported at. Blender samples at ITS frame
+    rate (24 by default): moves faster than that are lost, and it cannot be undone here."""
+    gl, bufs = path if isinstance(path, tuple) else read_gltf(path)
+    anims = gl.get("animations", [])
+    an = (next((a for a in anims if a.get("name") == animation), None) if isinstance(animation, str)
+          else anims[animation] if 0 <= animation < len(anims) else None)
+    if an is None:
+        return None
+    times = set()
+    for acc in {s["input"] for s in an.get("samplers", [])}:
+        t = read_accessor(gl, bufs, acc)
+        if len(t) > 2:
+            times.update(round(x, 6) for x in t)
+    if len(times) < 3:
+        return None
+    on = sum(1 for x in times if abs(x * FPS - round(x * FPS)) < 0.01)
+    if on >= 0.9 * len(times):
+        return None
+    ts = sorted(times)
+    steps = sorted(b - a for a, b in zip(ts, ts[1:]) if b - a > 1e-6)
+    fps = round(1.0 / steps[len(steps) // 2]) if steps else 0
+    return (f"its keys are {fps} per second, not the game's 60 -- Blender's frame rate was "
+            f"{fps}, so moves faster than that were smoothed away. Set Output > Frame Rate to "
+            f"60 in Blender and export again for the exact motion.")
+
+
+def motion_difference(model, a, b):
+    """(largest local bone rotation difference in degrees, largest local translation
+    difference / model size) between motions `a` and `b` over every frame of both."""
+    size = _extent(model) or 1.0
+
+    def q(bone):
+        return euler_to_quat(*bone.rotation[:3]) if bone.euler else tuple(bone.rotation[:4])
+    wr = wt = 0.0
+    for f in range(int(max(a.frame_count, b.frame_count)) + 1):
+        for x, y in zip(skelanim.pose_bones(model, a, f), skelanim.pose_bones(model, b, f)):
+            d = min(1.0, abs(sum(i * j for i, j in zip(q(x), q(y)))))
+            wr = max(wr, 2.0 * math.acos(d))
+            wt = max(wt, max(abs(i - j) for i, j in zip(x.translation[:3], y.translation[:3])))
+    return math.degrees(wr), wt / size
+
+
+CHANGED_DEG, CHANGED_T_REL = 0.5, 0.002     # an untouched motion through Blender at 60 fps
+                                            # moves < 0.03 deg / 0.03 %
+
+
+def import_all_animations(path, model, templates, progress=None):
+    """Every animation of a glTF / GLB file whose name is one of `templates` ({motion name:
+    SkelAnimFile it replaces}, e.g. from Export all motions), imported for `model`. Returns
+    {"changed": [(name, SkelAnimFile, deg, t_rel)], "unchanged": [names], "unmatched":
+    [animation names of the file with no template], "failed": [(name, error)], "notes":
+    {name: frame-rate warning}}. A motion counts as changed when some bone differs from the
+    template by more than CHANGED_DEG / CHANGED_T_REL of the model's size on some frame, or
+    its frame count or loop flag differ."""
+    g = read_gltf(path)
+    out = {"changed": [], "unchanged": [], "unmatched": [], "failed": [], "notes": {}}
+    anims = g[0].get("animations", [])
+    for k, an in enumerate(anims):
+        nm = an.get("name") or f"animation{k}"
+        tpl = templates.get(nm)
+        if tpl is None:
+            out["unmatched"].append(nm)
+            continue
+        if progress:
+            progress(k, len(anims), nm)
+        try:
+            new = import_animation(g, model, template=tpl, animation=k)
+            note = frame_rate_note(g, k)
+            if note:
+                out["notes"][nm] = note
+            deg, trel = motion_difference(model, tpl, new)
+        except Exception as e:  # noqa: BLE001
+            out["failed"].append((nm, str(e)))
+            continue
+        if (deg > CHANGED_DEG or trel > CHANGED_T_REL or new.frame_count != tpl.frame_count
+                or new.loops != tpl.loops):
+            out["changed"].append((nm, new, deg, trel))
+        else:
+            out["unchanged"].append(nm)
+    return out
+
+
 def import_animation(path, model, template=None, animation=0, name=None, loop=None):
     """A skelanim.SkelAnimFile built from animation `animation` (index or name) of a glTF /
     GLB file, for `model`'s skeleton. `template` (the .bfskl it replaces) supplies the name,
-    file name and loop flag unless `name` / `loop` are given."""
+    file name and loop flag unless `name` / `loop` are given. `path` may also be read_gltf's
+    (json, buffers), to import many animations from one file without re-reading it."""
     from .matanim import Curve
-    gl, bufs = read_gltf(path)
+    gl, bufs = path if isinstance(path, tuple) else read_gltf(path)
     anims = gl.get("animations", [])
     if not anims:
         raise GltfError("the file has no animation")

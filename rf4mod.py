@@ -3037,11 +3037,40 @@ def cmd_res_motion_import(a):
                                      name=a.name, loop={"on": True, "off": False}.get(a.loop))
     except gltf.GltfError as e:
         sys.exit(f"error: {e}")
+    note = gltf.frame_rate_note(_resolve(a.gltf), pick)
+    if note:
+        print(f"warning: {note}", file=sys.stderr)
     blob = skelanim.build(anim)
     pathlib.Path(a.out).write_bytes(blob)
     keys = sum(len(c.frames) for b in anim.bones for c in b.curves)
     print(f"wrote {a.out}: {anim.name}, {anim.frame_count} frames, {'loop' if anim.loops else 'once'}, "
           f"{len(anim.bones)} bones, {keys} keys, {len(blob):,} bytes")
+
+
+def cmd_res_motion_import_all(a):
+    """Import all motions: every animation of a glTF / .glb named like a .bfskl in --motions
+    (e.g. an edited Export all motions file) -> the changed ones as .bfskl files in -o."""
+    from rf4s_modkit import gltf, skelanim
+    _model_mod, m = _load_model(a.model)
+    mdir = pathlib.Path(_resolve(a.motions))
+    templates = {}
+    for nm in {x[1] for x in gltf.list_animations(_resolve(a.gltf))}:
+        p = mdir / f"{nm}.bfskl"
+        if p.exists():
+            templates[nm] = _load_skelanim(str(p))
+    res = gltf.import_all_animations(_resolve(a.gltf), m, templates)
+    out = pathlib.Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    write = res["changed"]
+    for nm, anim, deg, trel in write:
+        (out / f"{nm}.bfskl").write_bytes(skelanim.build(anim))
+        print(f"  {nm}.bfskl  {anim.frame_count} frames, up to {deg:.1f} deg / {100 * trel:.2f} % moved")
+    print(f"wrote {len(write)} changed motion(s) to {out}; {len(res['unchanged'])} unchanged, "
+          f"{len(res['unmatched'])} not in {mdir}, {len(res['failed'])} failed")
+    for nm, e in res["failed"]:
+        print(f"  failed {nm}: {e}", file=sys.stderr)
+    if res["notes"]:
+        print(f"warning: {next(iter(res['notes'].values()))}", file=sys.stderr)
 
 
 def _load_skelanim(path):
@@ -4267,6 +4296,13 @@ def build_parser():
     rmi.add_argument("--loop", choices=("on", "off"), help="default: the template's")
     rmi.add_argument("-o", "--out", required=True, help="output .bfskl")
     rmi.set_defaults(func=cmd_res_motion_import)
+    rma = rsub.add_parser("motion-import-all", help="Import all motions: every animation of a glTF / "
+                          ".glb named like a .bfskl in --motions; writes the changed ones")
+    rma.add_argument("model", help=".model the animations are for")
+    rma.add_argument("gltf", help=".glb / .gltf (e.g. an edited model-glb export with every motion)")
+    rma.add_argument("--motions", required=True, help="folder with the original .bfskl files")
+    rma.add_argument("-o", "--out", required=True, help="output folder")
+    rma.set_defaults(func=cmd_res_motion_import_all)
     r7 = rsub.add_parser("model-import", help="replace one shape's geometry from an OBJ (the "
                          "model-export format; any vertex/triangle count -- the memory pool and "
                          "every pointer behind it are rebuilt)")

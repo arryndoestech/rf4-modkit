@@ -6040,6 +6040,69 @@ def test_gltf_motion_roundtrip():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_gltf_import_all_motions():
+    """Export all motions / Import all motions: every motion of a model goes out in one .glb
+    (one animation each, named after its file, timestamps never short of their frame) and
+    comes back with nothing flagged as changed; a motion edited in the file is the only one
+    flagged, and the GUI installs just that one (backup kept)."""
+    print("glTF: export / import all motions:")
+    import importlib.util, tempfile, shutil, struct as _st
+    from rf4s_modkit import gltf as _gl, model as _model, skelanim as _sk
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "M02_0.model").exists():
+        _skip("import all motions", "no M02_0"); return
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("import all motions", "no tkinter"); return
+    _check("glTF timestamps never fall short of their game frame (Blender would drop the frame)",
+           all(_st.unpack("<f", _st.pack("<f", _gl._frame_time(f)))[0] * 60 >= f for f in range(4000)))
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_all", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    _headless_dialogs()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    game = tmp / "Game"; bundle = game / "Bundle"
+    (bundle / "bundleMain").mkdir(parents=True); (bundle / "Manifest.plist").write_bytes(b"")
+    real_find = _gamepaths.find_bundle_dir
+    _gamepaths.find_bundle_dir = lambda refresh=False: bundle
+    root = tk.Tk(); root.withdraw()
+    try:
+        app = gui.App(root, initial=str(B))
+        src = app.source
+        m = _model.parse((B / "M02_0.model").read_bytes())
+        names = _sk.anim_candidates("M02_0", [n for n, _g, _l in src.entries])
+        g = tmp / "all.glb"
+        r = app._export_all_motions(m, "M02_0", names, src, path=str(g))
+        anims = _gl.list_animations(g)
+        _check("Export all motions: one animation per motion, named after the file",
+               r and r[1] == len(names) and sorted(a[1] + ".bfskl" for a in anims) == sorted(names), (r and r[1], len(names)))
+        templates = {pathlib.Path(n).stem: _sk.parse(src.read_named(n)) for n in names}
+        res = _gl.import_all_animations(g, m, templates)
+        _check("importing them all back flags nothing as changed", not res["changed"] and not res["failed"]
+               and len(res["unchanged"]) == len(names) and not res["notes"], [c[0] for c in res["changed"]][:3])
+        # edit one motion in the templates' place: the file now differs from it
+        target = "M02_0_03"
+        other = next(n for n in templates if n != target and templates[n].frame_count != templates[target].frame_count)
+        fake = dict(templates); fake[target] = templates[other]
+        res2 = _gl.import_all_animations(g, m, fake)
+        _check("a motion that differs is the only one flagged as changed",
+               [c[0] for c in res2["changed"]] == [target], [c[0] for c in res2["changed"]])
+        shutil.copyfile(B / f"{target}.bfskl", bundle / "bundleMain" / f"{target}.bfskl")
+        orig = src.read_named
+        src.read_named = lambda n, _o=orig: (B / f"{other}.bfskl").read_bytes() if n == f"{target}.bfskl" else _o(n)
+        try:
+            w = app._import_all_motions(m, names, src, path=str(g), answer="install")
+        finally:
+            src.read_named = orig
+        backup = game / _gamepaths.BACKUP_DIR / "Bundle" / "bundleMain" / f"{target}.bfskl"
+        _check("GUI Import all motions installs only the changed motion, original kept in ModdingBackup",
+               w and [fn for fn, _a in w] == [f"{target}.bfskl"] and backup.exists(), w and [fn for fn, _a in w])
+    finally:
+        _gamepaths.find_bundle_dir = real_find
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_gltf_blender_roundtrip():
     """With Blender installed: Blender imports the Export for Blender .glb (armature + the
     motion), a bone is rotated by 30 degrees on one frame and Blender exports it; Import motion
@@ -6093,6 +6156,68 @@ def test_gltf_blender_roundtrip():
                "kept and the untouched frames stay within 0.3 % of the model's size",
                abs(d_head - math.radians(30)) < 0.02 and b.frame_count == a.frame_count
                and worst / size < 0.003, (round(d_head, 4), b.frame_count, f"{100 * worst / size:.3f} %"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_blender_addon():
+    """With Blender installed: the add-on blender/rf4s_blender.py registers; File > Import >
+    RF4S model / motions switches a 24 fps scene to 60 and fits the timeline to the active
+    motion (0 .. its frame count); picking another action refits it; the export refuses at 24
+    fps and at 60 writes a .glb whose motions all come back unchanged."""
+    print("Blender add-on (optional):")
+    import glob, subprocess, tempfile, shutil
+    exe = next(iter(sorted(glob.glob(r"C:\Program Files\Blender Foundation\Blender*\blender.exe"), reverse=True)), None) \
+        or shutil.which("blender")
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    addon = pathlib.Path(__file__).with_name("blender") / "rf4s_blender.py"
+    if not exe or not (B / "M02_0.model").exists():
+        _skip("Blender add-on", "Blender not installed" if not exe else "no M02_0"); return
+    from rf4s_modkit import gltf as _gl, model as _model, skelanim as _sk
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        m = _model.parse((B / "M02_0.model").read_bytes())
+        names = ["M02_0_00", "M02_0_01"]
+        tpl = {n: _sk.parse((B / f"{n}.bfskl").read_bytes()) for n in names}
+        src, dst = tmp / "in.glb", tmp / "out.glb"
+        _gl.export_glb(m, src, [tpl[n] for n in names], "M02_0")
+        script = tmp / "t.py"
+        script.write_text(
+            "import bpy, sys, importlib.util\n"
+            "a = sys.argv[sys.argv.index('--') + 1:]\n"
+            "spec = importlib.util.spec_from_file_location('rf4s_blender', a[0])\n"
+            "mod = importlib.util.module_from_spec(spec); sys.modules['rf4s_blender'] = mod\n"
+            "spec.loader.exec_module(mod)\n"
+            "bpy.ops.wm.read_factory_settings(use_empty=True)\n"
+            "mod.register()\n"
+            "sc = bpy.context.scene\n"
+            "bpy.ops.import_scene.rf4s_glb(filepath=a[1])\n"
+            "arm = next(o for o in sc.objects if o.type == 'ARMATURE')\n"
+            "print('R1', sc.render.fps, sc.frame_start, sc.frame_end, arm.animation_data.action.name)\n"
+            "arm.animation_data.action = bpy.data.actions['M02_0_01']\n"
+            "bpy.context.view_layer.update()\n"
+            "print('R2', sc.frame_start, sc.frame_end)\n"
+            "sc.render.fps = 24\n"
+            "try:\n"
+            "    bpy.ops.export_scene.rf4s_glb(filepath=a[2]); print('R3 exported')\n"
+            "except RuntimeError:\n"
+            "    print('R3 refused')\n"
+            "sc.render.fps = 60\n"
+            "bpy.ops.export_scene.rf4s_glb(filepath=a[2])\n"
+            "mod.unregister()\n",
+            encoding="utf-8")
+        r = subprocess.run([exe, "--background", "--factory-startup", "--python", str(script), "--",
+                            str(addon), str(src), str(dst)], capture_output=True, text=True, timeout=300)
+        got = {ln[:2]: ln[3:] for ln in r.stdout.splitlines() if ln[:2] in ("R1", "R2", "R3")}
+        _check("add-on import: 60 fps, timeline 0..72 on the first motion; another action refits "
+               "it to 0..120; export refused at 24 fps",
+               got.get("R1") == "60 0 72 M02_0_00" and got.get("R2") == "0 120" and got.get("R3") == "refused",
+               got or (r.stdout + r.stderr)[-400:])
+        if not dst.exists():
+            _check("add-on export wrote the .glb", False); return
+        res = _gl.import_all_animations(dst, m, tpl)
+        _check("add-on export at 60 fps: every motion comes back unchanged", sorted(res["unchanged"]) == names
+               and not res["changed"] and not res["notes"], [c[0] for c in res["changed"]])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -11633,7 +11758,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_blender_roundtrip, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

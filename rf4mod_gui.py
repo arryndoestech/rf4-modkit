@@ -627,6 +627,12 @@ class _Doc:
             fn()
 
 
+BLENDER_HINT = ("With the toolkit's Blender add-on (blender/rf4s_blender.py, installed once) use "
+                "File > Import / Export > RF4S model / motions: it sets 60 fps and fits the "
+                "timeline for you. Without it: set Output > Frame Rate to 60 BEFORE File > "
+                "Import > glTF 2.0.")
+
+
 class App:
     # Each open file is a tab (_Doc) that owns its view state: viewers build into
     # `doc = self._doc` (the shown tab) and keep everything on it, never on the App.
@@ -2326,10 +2332,8 @@ class App:
         from guiutil import Tip as _Tip
         _Tip(gb, "Write a .glb that Blender opens with the skeleton ready to pose: the model in "
                  "its rest pose with bones, skin and textures, plus the motion picked in the "
-                 "'motion' row as an animation (or none). In Blender set Output > Frame Rate to "
-                 "60 first (the game's speed; 24 works but smooths the motion slightly), import "
-                 "it (File > Import > glTF 2.0), animate, export as glTF 2.0 (.glb), then bring it "
-                 "back with Import motion….")
+                 "'motion' row as an animation (or none). Animate it in Blender, export a .glb, "
+                 "then bring it back with Import motion…. " + BLENDER_HINT)
         ib = ttk.Button(bar, text="Import OBJ…", command=lambda: self._import_model_obj(name))
         ib.pack(side="right", padx=4)
         from guiutil import Tip as _Tip
@@ -2480,9 +2484,9 @@ class App:
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Export for Blender", str(e)); return None
         what = f" with the motion {anim.name}" if anim is not None else " (rest pose, no motion)"
-        self.status.config(text=f"Exported {pathlib.Path(f).name}{what}. In Blender: set Output > Frame "
-                                f"Rate to 60 (the game's), File > Import > glTF 2.0, animate, File > "
-                                f"Export > glTF 2.0 (.glb), then Import motion…")
+        self.status.config(text=f"Exported {pathlib.Path(f).name}{what}. In Blender: File > Import > RF4S "
+                                f"model / motions (the add-on in blender/), animate, File > Export > RF4S "
+                                f"motions, then Import motion…")
         return f
 
     def _export_all_motions(self, m, stem, names, src, path=None):
@@ -2518,8 +2522,118 @@ class App:
         size = pathlib.Path(f).stat().st_size
         self.status.config(text=f"Exported {pathlib.Path(f).name}: {len(anims)} motions ({size / 1e6:.1f} MB)"
                                 + (f", skipped {len(skipped)} that drive none of its bones" if skipped else "")
-                                + ". In Blender set Output > Frame Rate to 60, then File > Import > glTF 2.0")
+                                + ". In Blender: File > Import > RF4S model / motions (the add-on in "
+                                  "blender/), or set Frame Rate 60 before importing as glTF")
         return f, len(anims), skipped
+
+    def _import_all_motions(self, m, names, src, path=None, answer=None):
+        """Import all motions…: every animation of a glTF / .glb named like one of `names`
+        (motion files of this model) is imported (gltf.import_all_animations); the changed ones
+        are offered to install into the game or save to a folder. `path` / `answer` ("install",
+        a folder path, or None = cancel) skip the dialogs (tests). Returns [(file name,
+        SkelAnimFile)] written, or None."""
+        from rf4s_modkit import gltf as _gltf, skelanim as _sk
+        f = path or filedialog.askopenfilename(title="Import all motions (glTF / .glb from Blender)",
+                                               filetypes=[("glTF", "*.glb *.gltf"), ("All files", "*.*")])
+        if not f:
+            return None
+        templates, stems = {}, {pathlib.PurePosixPath(n).stem: n for n in names}
+        self.root.config(cursor="watch")
+        try:
+            try:
+                file_names = {a[1] for a in _gltf.list_animations(f)}
+            except Exception as e:  # noqa: BLE001
+                messagebox.showerror("Import all motions", f"cannot read {pathlib.Path(f).name}:\n{e}")
+                return None
+            for stem_ in file_names & set(stems):
+                try:
+                    templates[stem_] = _sk.parse(src.read_named(stems[stem_]) or b"")
+                except Exception:  # noqa: BLE001
+                    pass
+
+            def progress(k, total, nm):
+                self.status.config(text=f"Importing motions… {k + 1}/{total} {nm}")
+                self.root.update_idletasks()
+            res = _gltf.import_all_animations(f, m, templates, progress)
+        finally:
+            self.root.config(cursor="")
+        lines = [f"{len(res['changed'])} changed, {len(res['unchanged'])} unchanged (left alone)"]
+        if res["unmatched"]:
+            lines.append(f"{len(res['unmatched'])} not named like a motion of this model (ignored): "
+                         + ", ".join(res["unmatched"][:6]) + (" …" if len(res["unmatched"]) > 6 else ""))
+        if res["failed"]:
+            lines.append("failed: " + "; ".join(f"{n}: {e}" for n, e in res["failed"][:4]))
+        if res["notes"]:
+            lines.insert(0, f"WARNING ({len(res['notes'])} animation(s)): " + next(iter(res["notes"].values()))
+                         + " Until then, motions you did not touch show up as changed too.\n")
+        summary = "\n".join(lines)
+        if not res["changed"]:
+            self.status.config(text=f"Import all motions: {lines[0]}")
+            messagebox.showinfo("Import all motions", "Nothing to install.\n\n" + summary)
+            return None
+        chosen = res["changed"]
+        if answer is None and not getattr(self, "_testing", False):
+            got = self._import_all_dialog(res["changed"], summary)
+            if got is None:
+                return None
+            answer, keep = got
+            chosen = [c for c in res["changed"] if c[0] in keep]
+        if not answer or not chosen:
+            return None
+        blobs = {stems[n]: (_sk.build(a), a) for n, a, _d, _t in chosen}
+        written = []
+        if answer == "install":
+            targets = gamepaths.game_targets(list(blobs))
+            if targets is None:
+                messagebox.showerror("Import all motions", "No game folder is set up."); return None
+            for fn, (blob, a) in blobs.items():
+                try:
+                    gamepaths.write_game_file(targets[fn], blob)
+                except OSError as e:
+                    messagebox.showerror("Import all motions", f"Could not write {targets[fn]}:\n{e}")
+                    break
+                written.append((fn, a))
+            self.status.config(text=f"Installed {len(written)} motion(s) (originals in ModdingBackup) -- "
+                                    f"restart the game to see them")
+        else:
+            d = pathlib.Path(answer)
+            d.mkdir(parents=True, exist_ok=True)
+            for fn, (blob, a) in blobs.items():
+                (d / fn).write_bytes(blob)
+                written.append((fn, a))
+            self.status.config(text=f"Saved {len(written)} motion(s) to {d}")
+        return written
+
+    def _import_all_dialog(self, changed, summary):
+        """("install" | folder, {names to write}) or None: the changed motions with a check each."""
+        win = tk.Toplevel(self.root)
+        win.title("Import all motions")
+        win.transient(self.root)
+        ttk.Label(win, text=summary, justify="left", wraplength=560).pack(anchor="w", padx=8, pady=(8, 4))
+        ttk.Label(win, text="Changed motions (select the ones to write):").pack(anchor="w", padx=8)
+        lb = tk.Listbox(win, width=72, height=min(16, len(changed)), selectmode="extended")
+        for n, a, deg, trel in changed:
+            lb.insert("end", f"{n}   {a.frame_count} frames, up to {deg:.1f}° / {100 * trel:.2f} % moved")
+        lb.pack(fill="both", expand=True, padx=8, pady=4)
+        lb.selection_set(0, "end")
+        out = {}
+
+        def done(kind):
+            keep = {changed[i][0] for i in lb.curselection()}
+            if kind == "folder":
+                d = filedialog.askdirectory(parent=win, title="Save the motions to")
+                if not d:
+                    return
+                kind = d
+            out["r"] = (kind, keep)
+            win.destroy()
+        bar = ttk.Frame(win); bar.pack(fill="x", padx=8, pady=8)
+        ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bar, text="Save to folder…", command=lambda: done("folder")).pack(side="right", padx=4)
+        ttk.Button(bar, text="Install into game", command=lambda: done("install")).pack(side="right")
+        win.grab_set()
+        win.wait_window()
+        return out.get("r")
 
     def _import_motion_file(self, m, template, path=None, pick=None):
         """The SkelAnimFile made from a glTF / .glb animation for model `m`, replacing
@@ -2545,10 +2659,14 @@ class App:
             if k is None:
                 return None
         try:
-            return _gltf.import_animation(f, m, template=template, animation=anims[k][0])
+            new = _gltf.import_animation(f, m, template=template, animation=anims[k][0])
+            note = _gltf.frame_rate_note(f, anims[k][0])
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Import motion", str(e))
             return None
+        if note and not getattr(self, "_testing", False) and path is None:
+            messagebox.showwarning("Import motion", f"{anims[k][1]}: {note}")
+        return new
 
     def _pick_animation(self, anims, want=None):
         """Index into `anims` ([(index, name, seconds, channels)]) chosen in a small list; the
@@ -2700,9 +2818,8 @@ class App:
         from guiutil import Tip as _Tip
         _Tip(ea_b, f"Write one .glb for Blender with the model and all {len(names)} of its motions, "
                    f"each as its own action named after the motion file (Blender's Action editor / "
-                   f"NLA lists them). Set Output > Frame Rate to 60 in Blender first. To bring one "
-                   f"back, pick that motion here and use Import motion… -- the list preselects the "
-                   f"animation with the same name.")
+                   f"NLA lists them). Bring them back with Import all motions… (only the changed "
+                   f"ones), or one with Import motion…. " + BLENDER_HINT)
 
         def import_motion():
             n = choice.get()
@@ -2730,6 +2847,23 @@ class App:
                    "made in Blender from Export for Blender… (the bone names must stay the same). "
                    "It is previewed on the model at once, then installed into your game under this "
                    "motion's file name (the original is kept in ModdingBackup) or saved elsewhere.")
+
+        def import_all():
+            res = self._import_all_motions(m, names, src)
+            cur = choice.get()
+            if res and cur in names:            # show the new version of the picked motion
+                new = dict((f"{n}.bfskl", a) for n, a in res).get(cur)
+                if new is not None:
+                    state.update(skel=new, sframe=0.0, boxes={}, fcache={})
+                    lab.config(text=f"imported: {new.frame_count} frames")
+                    redraw()
+        ia_b = ttk.Button(row, text="Import all motions…", command=import_all)
+        ia_b.pack(side="left", padx=(4, 0))
+        _Tip(ia_b, "Bring back every edited motion from one glTF / .glb (e.g. Export all motions… "
+                   "edited in Blender): each animation named like one of this model's motion "
+                   "files replaces that file. Only the ones you changed are listed to install "
+                   "(untouched ones are left alone); you choose which to install into the game "
+                   "(originals kept in ModdingBackup) or save to a folder.")
         cb.bind("<<ComboboxSelected>>", select)
 
         def update(st):
