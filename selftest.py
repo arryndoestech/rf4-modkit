@@ -9646,6 +9646,107 @@ def test_model_glb_blender():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_model_grow():
+    """New shapes (rf4s_modkit.modelgrow): the _DIC builder regenerates every shipped name
+    dictionary byte for byte; add_shapes appends clones whose records match the template, keeps
+    every existing shape's data and number, passes the loader walk and survives a no-op rebuild;
+    a glTF mesh becomes a new shape posed by its own weights; more than 32 shapes is refused."""
+    print("model grow: new shapes:")
+    from rf4s_modkit import gltf as _gl, meshimport as _mi, model as _model, modelgrow as _mg, modelwrite as _mw, skelanim as _sk
+    import copy
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(pathlib.Path(BUNDLE_DIR).rglob("*.model"))
+    if not files or not (B / "M09_0.model").exists():
+        _skip("model grow", "no extracted .model files / M09_0"); return
+    n = same = 0
+    for f in (files[::8] if QUICK else files):
+        d = f.read_bytes()
+        if not _model.is_mesh(d):
+            continue
+        M = _mw._u64(d, 0x28)
+        S = _mw._u64(d, M + 0x20)
+        offs = [_mw._u64(d, 0x30), _mw._u64(d, 0xA0), _mw._u64(d, M + 0x38), _mw._u64(d, M + 0x48),
+                _mw._u64(d, S + 0x10)]
+        for off in offs:
+            if not off:
+                continue
+            nodes = _mg.read_dict(d, off)
+            n += 1
+            same += _mg.build_dict([k for _r, _l, _rr, k in nodes[1:]]) == nodes
+    _check("the dictionary builder reproduces the shipped model / shape / material / bone / "
+           "embedded-file dictionaries" + (" (every 8th file)" if QUICK else ""), n and same == n, f"{same}/{n}")
+    grown = bad = 0
+    badl = []
+    for f in (files[::16] if QUICK else files[::3]):
+        d = f.read_bytes()
+        if not _model.is_mesh(d):
+            continue
+        m = _model.parse(d)
+        k = min(2, 32 - len(m.shapes))
+        if k <= 0:
+            continue
+        grown += 1
+        out = _mg.add_shapes(d, [_mg.NewShape(f"ZZ_new{j}", j % len(m.shapes)) for j in range(k)])
+        m2 = _model.parse(out)
+        ok = not _mw.validate(out) and _mw.rebuild(out) == out and len(m2.shapes) == len(m.shapes) + k
+        for i, sh in enumerate(m.shapes):
+            ok &= (m2.shapes[i].name == sh.name and m2.shapes[i].indices == sh.indices
+                   and m2.vertex_buffers[m2.shapes[i].vertex_buffer].data == m.vertex_buffers[sh.vertex_buffer].data)
+        for j in range(k):
+            a_, b_ = m.shapes[j % len(m.shapes)], m2.shapes[len(m.shapes) + j]
+            ok &= (b_.indices == a_.indices and b_.skin == a_.skin and b_.material == a_.material
+                   and m2.vertex_buffers[b_.vertex_buffer].data == m.vertex_buffers[a_.vertex_buffer].data)
+        ok &= [x[3].decode() for x in _mg.read_dict(out, _mw._u64(out, _mw._u64(out, 0x28) + 0x38))[1:]] \
+            == [sh.name for sh in m2.shapes]
+        if not ok:
+            bad += 1
+            badl.append(f.name)
+    _check("add_shapes on shipped models: clones equal their template, existing shapes untouched, "
+           "names in the dictionary, loader walk clean, no-op rebuild stable"
+           + (" (every 16th file)" if QUICK else " (every 3rd file)"), grown and not bad, f"{grown - bad}/{grown} {badl[:3]}")
+
+    d = (B / "M09_0.model").read_bytes()
+    m = _model.parse(d)
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        g = tmp / "M09_0.glb"
+        _gl.export_glb(m, g, None, "M09_0")
+        meshes = _mi.read_meshes(g, m)
+        by = {b.name: b.index for b in m.bones}
+        cube = _mi.GltfMesh("Horn", "Horn", [], None, None, None, None, [])
+        hw = _model.world_matrices(m.bones)[by["head_Bone03"]]
+        obj = _mw.parse_obj(_mw.cube_obj((hw[0][3], hw[1][3] + 4.0, hw[2][3]), 5.0))[0]
+        cube.positions = [v[0] for v in obj.vertices]
+        cube.uvs = [v[1] for v in obj.vertices]
+        cube.normals = [v[2] for v in obj.vertices]
+        cube.triangles = obj.triangles
+        cube.weights = [{"head_Bone03": 0.75, "body_Bone02": 0.25}] * len(cube.positions)
+        out, rep = _mi.import_glb(d, meshes + [cube], new={"Horn": ("Nw4cRoot__M09_02", "M09_01")})
+        m2 = _model.parse(out)
+        hs = m2.shapes[-1]
+        a = _sk.parse((B / "M09_0_00.bfskl").read_bytes()) if (B / "M09_0_00.bfskl").exists() else None
+        exp = [(p_, {by["head_Bone03"]: 0.75, by["body_Bone02"]: 0.25}) for p_ in cube.positions]
+        lbs = max(_posed_lbs_error(m2, a, f, hs.index, exp) for f in (0, 30)) if a else 0.0
+        _check("a glTF mesh as a NEW shape: shape 2 'Horn', 24 v / 12 t, material M09_01, skinned by its "
+               "own weights when posed, the other shapes untouched, loader walk clean",
+               len(m2.shapes) == 3 and hs.name == "Horn" and len(hs.indices) == 36
+               and m2.materials[hs.material].name == "M09_01" and lbs < 1e-5 and not _mw.validate(out)
+               and all(m2.vertex_buffers[m2.shapes[i].vertex_buffer].data == m.vertex_buffers[m.shapes[i].vertex_buffer].data
+                       for i in range(2)), (rep.text()[-200:], f"{lbs:.1e}"))
+        again, rep2 = _mi.import_glb(out, meshes + [cube])
+        _check("importing the same file again into the grown model changes nothing (Horn matches its shape)",
+               again == out, rep2.text()[-200:])
+        many = [_mg.NewShape(f"N{j}", 0) for j in range(31)]
+        try:
+            _mg.add_shapes(d, many)
+            refused = False
+        except _mg.ModelGrowError:
+            refused = True
+        _check("more than 32 shapes is refused (the game's per-model arrays hold 32)", refused)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_model_material():
     """Material settings (rf4s_modkit.matedit): every shipped material lists its wrap / user-data
     settings; an edit changes exactly the bytes the loader reads (sampler bytes 0-1, the int /
@@ -9763,6 +9864,12 @@ def test_explorer_model_glb_import():
         n1 = _model.parse(before).vertex_buffers[m.shapes[1].vertex_buffer].count
         _check("Import from Blender… appends a mesh with no shape to the chosen shape (add)",
                ok and len(m3.shapes[1].indices) == 2 * len(m.shapes[1].indices), app.status.cget("text"))
+        ok = app._import_model_glb(doc.cur_name, str(g4), choose=lambda mm, meshes, dflt: dict(dflt),
+                                   new={"NewPart": 1})
+        m4 = _model.parse(doc.cur_data)
+        _check("Import from Blender… makes a mesh with no shape a new shape (new like shape 1)",
+               ok and len(m4.shapes) == 3 and m4.shapes[2].name == "NewPart"
+               and m4.shapes[2].indices == m.shapes[1].indices, app.status.cget("text"))
         # Materials…: the dialog builds (Apply with nothing changed returns nothing), and a
         # change goes into the working copy in place
         def press_apply():
@@ -12260,7 +12367,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

@@ -891,7 +891,8 @@ def empty_geometry(data, shape, L=None):
     return _mw.ShapeGeometry(bytes(recs[0]), [0, 0, 0], box, rad)
 
 
-def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bones=False, add=None):
+def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bones=False, add=None,
+               new=None):
     """(new .model bytes, ImportReport): the shapes a glTF / GLB's meshes match (by name, see
     match_shapes; `mapping` = {shape index or name: mesh node name} overrides) rebuilt from
     those meshes with their bone weights. `remove` (shape indices / names) and, with
@@ -902,7 +903,11 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
     set_rest_pose) before the meshes; without it a moved rest pose is only reported.
     `add` = {mesh node name: shape index or name} appends meshes that have no shape of their
     own (a new part) to an existing shape: they take its material, vertex format and bone
-    frame rules, and keep their own weights (new SHAP / VRTX / MATL records are not made)."""
+    frame rules, and keep their own weights. `new` = {mesh node name: template shape, or
+    (template, material)} makes such a mesh a NEW shape named like the mesh
+    (modelgrow.add_shapes: a clone of the template's records -- vertex format, skin type,
+    material unless another existing one is given; a rigid template's clone rides the one bone
+    the mesh is weighted to, if it is weighted to one)."""
     m = _model.parse(data)
     rest_notes, rest_moved, keep_file = [], [], ()
     if not isinstance(path, list):
@@ -921,6 +926,38 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
         path = gl
     L = _mw.layout(data)
     meshes = list(path) if isinstance(path, list) else read_meshes(path, m, keep_file)
+    new_plan, new_tpl = {}, {}
+    if new:
+        from . import modelgrow as _mg
+        by = {me.name: me for me in meshes}
+        specs = []
+        for mn, spec in new.items():
+            if mn not in by:
+                raise MeshImportError(f"no mesh {mn!r} in the file (has: {sorted(by)})")
+            tpl, mat = spec if isinstance(spec, tuple) else (spec, None)
+            ti = _mw.resolve_shape(m, tpl)
+            mi = None
+            if mat is not None:
+                hits = [mt.index for mt in m.materials if mt.name == mat or str(mt.index) == str(mat)]
+                if not hits:
+                    raise MeshImportError(f"no material {mat!r}")
+                mi = hits[0]
+            bone = None
+            me = by[mn]
+            if m.shapes[ti].skin == 0 and me.weights:
+                tops = {max(w, key=w.get) for w in me.weights if w}
+                if len(tops) == 1:
+                    bone = next((b.index for b in m.bones if b.name == next(iter(tops))), None)
+            specs.append(_mg.NewShape(_SUFFIX.sub("", mn), ti, mi, bone))
+            new_plan[len(m.shapes) + len(specs) - 1] = me
+            new_tpl[len(m.shapes) + len(specs) - 1] = m.shapes[ti].name
+        try:
+            data = _mg.add_shapes(data, specs)
+        except _mg.ModelGrowError as e:
+            raise MeshImportError(str(e)) from None
+        m = _model.parse(data)
+        L = _mw.layout(data)
+        meshes = [me for me in meshes if me.name not in new]
     if mapping is not None:                     # {} = import nothing (e.g. only removals)
         by = {me.name: me for me in meshes}
         plan = {}
@@ -952,6 +989,7 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
         plan[si] = join_meshes(base.name, [base] + parts)
     for si in drop:                             # an explicit removal wins over a same-named mesh
         plan.pop(si, None)
+    plan.update(new_plan)
     geo, reps = {}, []
     for si in sorted(plan):
         g, rep = shape_geometry_from_mesh(data, si, plan[si], m, L)
@@ -975,6 +1013,12 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
     reps.sort(key=lambda r: r.shape)
     kept = [(sh.name or f"shape{sh.index}") for sh in m.shapes if sh.index not in plan and sh.index not in drop]
     report = ImportReport(reps, [me.name for me in rest], kept, rest_moved, rest_notes)
+    for si in new_plan:
+        r = next((x for x in reps if x.shape == si), None)
+        if r is not None:
+            r.unchanged = False
+            r.notes.append(f"new shape {si}: records cloned from shape {new_tpl[si]}, material "
+                           f"{m.materials[m.shapes[si].material].name}")
     if not geo:
         return bytes(data), report
     out = bytearray(_mw.rebuild(data, geo))

@@ -2987,6 +2987,13 @@ def cmd_res_model_import_glb(a):
             sys.exit(f"error: --map takes SHAPE=MESH, got {item!r}")
         k, v = item.split("=", 1)
         mapping[k] = v
+    new = {}
+    for item in a.new or []:
+        if "=" not in item:
+            sys.exit(f"error: --new takes MESH=TEMPLATE[:MATERIAL], got {item!r}")
+        k, v = item.split("=", 1)
+        tpl, _c, mat = v.partition(":")
+        new[k] = (tpl, mat) if mat else tpl
     add = {}
     for item in a.add or []:
         if "=" not in item:
@@ -2996,7 +3003,7 @@ def cmd_res_model_import_glb(a):
     try:
         out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None,
                                          remove=a.remove or (), remove_missing=a.remove_missing,
-                                         bones=a.bones, add=add or None)
+                                         bones=a.bones, add=add or None, new=new or None)
     except (model.ModelError, modelwrite.ModelWriteError, meshimport.MeshImportError, gltf.GltfError) as e:
         sys.exit(f"error: {e}")
     print(rep.text())
@@ -4387,6 +4394,10 @@ def build_parser():
                      help="append mesh MESH (a new object in Blender, no shape of its name) to "
                           "shape SHAPE: it takes that shape's material and vertex format and "
                           "keeps its own weights; repeatable")
+    rmg.add_argument("--new", action="append", metavar="MESH=TEMPLATE[:MATERIAL]",
+                     help="make mesh MESH a NEW shape (named like the mesh), its records cloned from "
+                          "shape TEMPLATE (vertex format, skin type, bone) with TEMPLATE's material or "
+                          "the existing MATERIAL (index or name); at most 32 shapes; repeatable")
     rmg.add_argument("--remove", action="append", metavar="SHAPE",
                      help="hide shape SHAPE (index or name): it stays in the file as one "
                           "degenerate triangle that draws nothing; repeatable")
