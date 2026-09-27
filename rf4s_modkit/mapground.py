@@ -13,7 +13,18 @@ which is **usually NOT the same-named set** — it comes from the game's
 * layer ``0`` (``00xx``) = the **ground/floor** — a fully opaque top-down render.
 * layer ``1`` (``10xx``) = an **overlay drawn on top** of the ground (tree canopy
   / foliage / tall objects that occlude the player) — mostly transparent, with
-  content only where things overhang.  Higher layers (``2xxx``…) stack the same way.
+  content only where things overhang.  There is no layer 2: the game builds at most
+  two display layers (Map_SpawnEntity, RF4S.exe+0x194140, loads the first MTXN chunk's
+  layer from ``g_mapResourceTable[4*mapId + 1]`` and every later chunk's from ``[+2]``),
+  and no shipped tile has a layer digit above 1.
+
+The overlay is its OWN archive id (``[+2]``, 0 = no overlay), shipped per map in
+``refdata/rf4s_exe_map_resources.json`` (:mod:`rf4s_modkit.mapres`). It is often not the
+ground set's ``_1000`` tiles: ``MAP_FIELD_01``'s ground is ``MAP_FIELD_201`` but its overlay
+is ``MAP_FIELD_01_1000``, ``MAP_FIELD_03``..``05`` draw ``MAP_FIELD_07_1000`` (121 maps
+differ), and ``MAP_DUNG_I04`` / ``I08`` draw no overlay although their ground sets ship one.
+:func:`overlay_for` resolves it; only a map name the game's table does not list falls back
+to the ground set's ``_1000`` tiles.
 
 The in-game look is layers alpha-composited bottom-up (:func:`stitch_composite`).
 NOTE: the layer digit is **not** a season — seasons are separate ``.rf4m`` files
@@ -68,7 +79,7 @@ from collections import OrderedDict
 
 from . import texture as _tex
 
-MAX_LAYERS = 4
+LAYERS = (0, 1)          # ground, overlay: the only display layers the game builds
 FULL_TILE = 512
 PX_PER_ATTR_TILE = 24    # Map_SpawnEntity: NROWS = ceil(24 * ATTR_W / 512) → 24 px / ATTR tile
 # Hard ceiling on cols*rows. Map_SpawnEntity keeps ONE widget pointer per atlas tile
@@ -279,32 +290,51 @@ def resolve_base(reader, map_name: str) -> str:
 
 
 def _sets_for(reader, map_name: str):
-    """``(tiled_base_set, uv_set_or_None)`` for a map.
+    """``(ground_set, uv_set_or_None)`` for a map's layer 0.
 
-    **Static "_UV" maps** (Floating Empire E*, Delirium Lava Ruins H*, …) are the
-    important case: the game remaps the ``+1`` base id to a full-screen ``<base>_UV``
-    skybox, but the *aligned* tiled STAGE (the platform you walk on) lives in **layers
-    1+ of the un-remapped ``<base>`` set** (the ``+2`` id, e.g. E01 → ``MAP_DUNG_E02_1000``).
-    So we must stitch BOTH: the ``_UV`` as the layer-0 background AND ``<base>``'s tiled
-    layers as the stage. (Verified: E01's ATTR lands exactly on ``MAP_DUNG_E02`` layer 1.)
-    For normal maps the base set carries every layer and there's no ``_UV``."""
+    **Static "_UV" maps** (Floating Empire E*, Delirium Lava Ruins H*, …): the game remaps
+    the ``+1`` ground id to a full-screen ``<set>_UV`` skybox, so layer 0 is that one sprite;
+    the *aligned* tiled STAGE (the platform you walk on) is the overlay layer, the ``+2`` id
+    (e.g. E01 → ``MAP_DUNG_E02_1000``; see :func:`overlay_for`). (Verified: E01's ATTR lands
+    exactly on ``MAP_DUNG_E02`` layer 1.) For normal maps there is no ``_UV``."""
     rb = resolve_base(reader, map_name)
     if rb.endswith("_UV"):
         return rb[:-3], rb
     return rb, None
 
 
+def overlay_for(reader, map_name: str):
+    """Texture set whose ``_1NNN`` tiles are the map's overlay (layer 1), or None when the
+    game draws no overlay on it. From the game's table (:func:`rf4s_modkit.mapres.overlay_set`,
+    g_mapResourceTable ``[+2]``); a map name the table does not list (a renamed copy) falls
+    back to the ground set's own ``_1000`` tiles."""
+    from . import mapres
+    known, ovl = mapres.overlay_set(map_name)
+    if known:
+        return ovl
+    base, _uv = _sets_for(reader, map_name)
+    return base if reader(tile_name(base, 1, 0)) is not None else None
+
+
+def layer_set(reader, map_name: str, layer: int):
+    """The texture set a layer's tiles come from: layer 0 = the ground set, layer 1 =
+    :func:`overlay_for`; None for a layer the game never builds."""
+    if layer == 0:
+        return _sets_for(reader, map_name)[0]
+    return overlay_for(reader, map_name) if layer == 1 else None
+
+
 def available_layers(reader, map_name: str) -> list[int]:
-    """Draw layers that exist for ``map_name`` (probes tile 0 of each).
-    For a static map, layer 0 = the ``_UV`` skybox and layers 1+ = the tiled stage."""
+    """Draw layers that exist for ``map_name`` (probes tile 0 of each): 0 = ground (for a
+    static map the ``_UV`` skybox), 1 = the overlay the game draws (see :func:`overlay_for`)."""
     base, uv = _sets_for(reader, map_name)
+    ovl = overlay_for(reader, map_name)
+    top = [1] if ovl is not None and reader(tile_name(ovl, 1, 0)) is not None else []
     if uv is not None:
-        layers = [0] if reader(single_name(uv)) is not None else []
-        layers += [ly for ly in range(1, MAX_LAYERS) if reader(tile_name(base, ly, 0))]
-        if layers:
-            return layers
-        return [0] if reader(single_name(base)) is not None else []
-    return [ly for ly in range(MAX_LAYERS) if reader(tile_name(base, ly, 0))]
+        if reader(single_name(uv)) is not None or reader(single_name(base)) is not None:
+            return [0] + top
+        return top
+    return ([0] if reader(tile_name(base, 0, 0)) else []) + top
 
 
 def _infer_cols(sizes, aspect=None):
@@ -403,14 +433,12 @@ def atlas_audit(reader, map_name: str, attr_w: int, attr_h: int, layers=None) ->
     ``kind == "single"`` is a static ``_UV`` map: the engine forces a 1x1 grid for that
     layer, so it needs exactly one sprite and the geometry checks do not apply.
 
-    Swept over the whole shipped corpus (872 maps = 1270 tiled + 139 single layers,
-    2026-09-23): **no shipped map is missing a tile**, so a `missing` entry always means
-    the map was edited. Exactly four layer-1 atlases ship MORE tiles than the formula
-    spawns -- ``MAP_DUNG_A01`` (12/9), ``MAP_DUNG_B01`` (25/20), ``MAP_DUNG_D06``
-    (21/9) and ``MAP_DUNG_I04`` (12/9, sharing A01's set) -- which is the same set of
-    four that docs/47 flags as not matching the grid formula; three of those overlays
-    (``MAP_CITY_07``, ``MAP_DUNG_A01``, ``MAP_DUNG_I04``) consequently report interior
-    gaps. Overlay layers are mostly transparent, so a gap in one is usually harmless.
+    Layer 1 is audited against the overlay set the game really loads (:func:`overlay_for`).
+    Over the shipped corpus **no map is missing a tile**, so a `missing` entry always means
+    the map was edited. Exactly three overlay atlases ship MORE tiles than the formula
+    spawns -- ``MAP_DUNG_A01`` (12/9), ``MAP_DUNG_B01`` (25/20) and ``MAP_DUNG_D06`` (21/9)
+    (MAP_DUNG_I04 shares A01's ground set but the game draws no overlay on it). Overlay
+    layers are mostly transparent, so a gap in one is usually harmless.
     """
     base, uv = _sets_for(reader, map_name)
     cols, rows = grid_dims(attr_w, attr_h)
@@ -426,7 +454,10 @@ def atlas_audit(reader, map_name: str, attr_w: int, attr_h: int, layers=None) ->
                         "missing": [] if have else [0], "extra": [],
                         "gap_x": [], "gap_y": [], "short_x": 0, "short_y": 0})
             continue
-        names = tile_files(reader, base, ly)
+        st = layer_set(reader, map_name, ly)
+        if st is None:
+            continue
+        names = tile_files(reader, st, ly)
         if not names:
             if ly == 0 and reader(single_name(base)) is not None:
                 out.append({"layer": ly, "set": base, "kind": "single",
@@ -461,7 +492,7 @@ def atlas_audit(reader, map_name: str, attr_w: int, attr_h: int, layers=None) ->
             elif 0 < h < FULL_TILE:
                 gap_y.append(i)
         out.append({
-            "layer": ly, "set": base, "kind": "grid", "cols": cols, "rows": rows,
+            "layer": ly, "set": st, "kind": "grid", "cols": cols, "rows": rows,
             "need": need, "have": have,
             "missing": list(range(have, need)) if have < need else [],
             "extra": list(range(need, have)) if have > need else [],
@@ -490,15 +521,18 @@ def stitch(reader, map_name: str, layer: int = 0, aspect=None):
     base, uv = _sets_for(reader, map_name)
 
     # Static maps: layer 0 is the full-screen <base>_UV skybox (one non-tiled sprite).
-    # The walkable STAGE is the tiled atlas in layers 1+ of `base` (handled below).
+    # The walkable STAGE is the overlay layer (layer 1, handled below).
     if uv is not None and layer == 0:
         im = _decode_tile_cached(reader, single_name(uv)) or _decode_tile_cached(reader, single_name(base))
         return (im, 1, 1) if im is not None else None
 
+    st = layer_set(reader, map_name, layer)
+    if st is None:
+        return None
     names = []
     idx = 0
     while True:
-        fn = tile_name(base, layer, idx)
+        fn = tile_name(st, layer, idx)
         with _TILE_LOCK:
             cached = fn in _TILE_CACHE
         if not cached and reader(fn) is None:
@@ -592,10 +626,13 @@ def tile_layout(reader, map_name: str, layer: int = 0, aspect=None):
                         "canvas": (w, h), "crop": None,
                         "tiles": [{"index": 0, "name": fn, "x": 0, "y": 0, "w": w, "h": h}]}
         return None
+    st = layer_set(reader, map_name, layer)
+    if st is None:
+        return None
     sizes, names = [], []
     idx = 0
     while True:
-        fn = tile_name(base, layer, idx)
+        fn = tile_name(st, layer, idx)
         b = reader(fn)
         if b is None:
             break
@@ -638,7 +675,7 @@ def tile_layout(reader, map_name: str, layer: int = 0, aspect=None):
         th = aspect[1] * PX_PER_ATTR_TILE
         if 0 <= W - tw < FULL_TILE and 0 <= H - th < FULL_TILE and (tw, th) != (W, H):
             crop = (tw, th)
-    return {"set": base, "kind": "grid", "cols": cols, "rows": rows,
+    return {"set": st, "kind": "grid", "cols": cols, "rows": rows,
             "canvas": (W, H), "crop": crop, "tiles": tiles}
 
 
@@ -690,7 +727,7 @@ def unstitch(reader, map_name: str, image, layer: int = 0, aspect=None, *, fmt=N
 def stitch_composite(reader, map_name: str, aspect=None, layers=None):
     """Full in-game ground = all draw layers alpha-composited bottom-up.
 
-    ``layers`` defaults to every layer that exists (0=ground, 1=overlay, …).  Pass
+    ``layers`` defaults to every layer that exists (0 = ground, 1 = overlay).  Pass
     e.g. ``layers=[0]`` for the bare floor or ``[1]`` for the overlay alone.
 
     Returns ``(PIL.Image RGBA, cols, rows)`` or ``None`` if no atlas resolves.

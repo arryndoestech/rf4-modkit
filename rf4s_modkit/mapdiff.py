@@ -13,7 +13,8 @@ each season look like itself).
 
 `apply(changes, target)` replays it on another map: an edited or removed record is found in
 `target` by its exact original content (so it only lands where that season has the same
-object), added records are appended, cells are set when the grid has the same size. Anything
+object), added records are appended (up to the game's 40 objects / 10 warps per map), cells
+are set when the grid has the same size. Anything
 that cannot be matched is skipped and reported, never guessed. Returns a Report.
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ import difflib
 from dataclasses import dataclass, field
 
 from . import map_names, mobj_types
+from .rf4m import ENGINE_MAX_CHUNKS
 
 KINDS = (("objects", b"MOBJ", 64), ("warps", b"MAPJ", 36))
 REPLAYED = {b"MOBJ", b"MAPJ", b"ATTR"}
@@ -127,7 +129,13 @@ def apply(ch: Changes, target) -> Report:
         for i, old in sorted(gone, reverse=True):
             target.delete_record(tag, i, stride)
             rep.done.append(f"removed {describe(kind, old)}")
+        cap = ENGINE_MAX_CHUNKS[tag]
         for new in ch.added[kind]:
+            if len(target.find(tag)) >= cap:
+                # the loader's pointer array for the tag is not bounds-checked
+                rep.skipped.append(f"added {describe(kind, new)}: that season already has "
+                                   f"{cap} {kind}, the most the game can load")
+                continue
             target.add_record(tag, new, stride)
             rep.done.append(f"added {describe(kind, new)}")
     if ch.cells:

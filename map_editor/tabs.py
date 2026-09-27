@@ -76,7 +76,7 @@ class ObjectsTab(ttk.Frame):
             if o["category"] == "mapparam":
                 rows["param"].append((("mobj", i), nm, "map-wide"))
             else:
-                where = "unplaced" if not (o["pos_x"] or o["pos_y"]) else f"({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
+                where = f"({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
                 rows["mobj"].append((("mobj", i), f"{nm}  [{o['category']}]", where))
         for j, rec in enumerate(doc.map.mapj_records()):
             dest = map_names.describe_destination(rec[5])[0] or data.rooms_by_id().get(rec[5], f"map {rec[5]}")
@@ -206,6 +206,11 @@ class MapTab(ui.ScrollFrame):
                             command=lambda i=i: self._commit_tint_default(i)).grid(row=i, column=1, sticky="w")
             sw = tk.Button(t, width=3, relief="solid", bd=1, command=lambda i=i: self._pick_tint(i))
             sw.grid(row=i, column=2, padx=4, pady=1)
+            if slot == "night":
+                ui.Tip(sw, "With 'default' ticked the game uses 148,214,247 at night, or "
+                           "181,214,214 on maps the game's map table marks for it (bit 0x10 of "
+                           "the map's entry: indoor rooms, barns, caves and most dungeons); the "
+                           "swatch shows the one this map gets.")
             en = commit_entry(t, tv, lambda i=i: self._commit_tint_text(i), width=12)
             en.grid(row=i, column=3, sticky="w")
             self.tints.append((dv, tv, sw, en))
@@ -251,7 +256,7 @@ class MapTab(ui.ScrollFrame):
         for i, (dv, tv, sw, en) in enumerate(self.tints):
             c = cols[i]
             dv.set(c is None)
-            shown = c or rf4m.MLIG_DEFAULTS[i]
+            shown = c or self._tint_defaults()[i]
             tv.set("" if c is None else "%d,%d,%d" % c)
             en.config(state="disabled" if c is None else "normal")
             sw.config(bg="#%02x%02x%02x" % shown)
@@ -303,7 +308,7 @@ class MapTab(ui.ScrollFrame):
         eff = areagroup.effects(g, doc.base + ".rf4m" if doc.base else None, data.gen_name_for_id)
         self.mgrp_note.config(text="\n".join(f"{k}: {v}" for k, v in eff))
         probs = areagroup.problems(g, doc.base + ".rf4m" if doc.base else None,
-                                   gen_entries=data.gen_entry_count(doc.gen),
+                                   gen_entries=data.own_gen_entries(doc),
                                    gen_name_for=data.gen_name_for_id, gen_entries_for=data.gen_entries,
                                    sibling_zones=data.sibling_zones(doc.base) if doc.base else None)
         self.mgrp_warn.config(text="\n".join(("ⓘ " if sev == "INFO" else "⚠ ") + msg
@@ -334,6 +339,12 @@ class MapTab(ui.ScrollFrame):
                 v |= 1 << new
         self._set_mgrp(v)
 
+    def _tint_defaults(self):
+        """The engine's default tints for this map (the night one depends on the map id:
+        rf4m.mlig_defaults)."""
+        d = self.ed.doc
+        return rf4m.mlig_defaults(data.base_map_id(d.base) if d is not None and d.base else None)
+
     def _set_tints(self, cols, label):
         if cols == self.ed.doc.map.mlig_colors():
             return
@@ -341,7 +352,7 @@ class MapTab(ui.ScrollFrame):
 
     def _commit_tint_default(self, i):
         cols = self.ed.doc.map.mlig_colors()
-        cols[i] = None if self.tints[i][0].get() else rf4m.MLIG_DEFAULTS[i]
+        cols[i] = None if self.tints[i][0].get() else self._tint_defaults()[i]
         self._set_tints(cols, f"Set {rf4m.MLIG_SLOTS[i]} tint")
 
     def _commit_tint_text(self, i):
@@ -360,7 +371,7 @@ class MapTab(ui.ScrollFrame):
 
     def _pick_tint(self, i):
         cols = self.ed.doc.map.mlig_colors()
-        cur = cols[i] or rf4m.MLIG_DEFAULTS[i]
+        cur = cols[i] or self._tint_defaults()[i]
         res = colorchooser.askcolor(color="#%02x%02x%02x" % cur, title=f"{rf4m.MLIG_SLOTS[i]} tint")
         if res and res[0]:
             cols[i] = tuple(int(c) for c in res[0])
@@ -370,8 +381,8 @@ class MapTab(ui.ScrollFrame):
         m = self.ed.doc.map
         idxs = [i for i, c in enumerate(m.chunks) if c.tag == b"MTXN"]
         if delta > 0 and len(idxs) >= 2:
-            # the game draws layer 0 (ground) and 1 (overlay) only; past 6 chunks the loader
-            # overwrites the next pointer array (no bounds check)
+            # the game draws layer 0 (ground) and 1 (overlay) only; a 3rd chunk makes the loader
+            # overwrite the pointers after the two layer slots (rf4m.ENGINE_MAX_CHUNKS)
             self.ed.status("Two display layers is the most the game uses (ground + overlay)")
             return
         if delta > 0:
@@ -390,14 +401,15 @@ def minimap_details(doc):
     """(details, note) text about the open map's HUD minimap for the Properties tab: the sheet,
     blank / maze pictures, fog of war, where an interior's NPC icons go, the other maps on the
     picture, and the save-state picture swaps."""
-    mid = data.map_id(doc.base) if doc is not None and doc.base else None
+    # the game reads rf3MapMiniPos by the BASE id (a seasonal copy's own row is never used)
+    mid = data.base_map_id(doc.base) if doc is not None and doc.base else None
     rec = minimap.record(mid) if mid is not None else None
     if rec is None:
         return "No minimap record for this map (not one of the game's map ids).", ""
     tex = minimap.texture(mid)
     blank = minimap.is_blank(mid) or minimap.is_composed(mid)
-    others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid))
-                               if m != mid]
+    others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid),
+                                                                base_only=True) if m != mid]
     names = [map_names.map_file(m) or str(m) for m in others]
     lines = [f"Sheet {rec['sheet']} (resource {minimap.archive_id(mid)}); drawn: {tex}"]
     if minimap.is_blank(mid):
@@ -488,8 +500,10 @@ class MinimapPanel(ttk.Frame):
 
     # ---- data --------------------------------------------------------------------------- #
     def _map_id(self):
+        """The id whose minimap record the game uses: the base id (a seasonal copy's own
+        rf3MapMiniPos row is never read)."""
         d = self.ed.doc
-        return data.map_id(d.base) if d is not None and d.base else None
+        return data.base_map_id(d.base) if d is not None and d.base else None
 
     def _to_canvas(self, mid, x, y):
         """Canvas px of a map position in sub-units (minimap.pos_to_sheet: drawn half-scale
@@ -565,27 +579,23 @@ class MinimapPanel(ttk.Frame):
 
     def _other_rooms(self, mid):
         """[(MAP_* name, canvas rect)] of the other maps drawn on this picture (one per
-        placement; a seasonal family shows as the copy of the open map's season)."""
+        placement, from the base ids' records -- the ones the game reads; a seasonal family
+        opens as the copy of the open map's season)."""
         if minimap.is_blank(mid) or minimap.is_composed(mid):
             return []
-        me_base = data.SEASON_RE.sub("", data.map_base(self.ed.doc.base)).upper()
-        suffix = data.SEASON_RE.search(data.map_base(self.ed.doc.base))
-        suffix = suffix.group(0).upper() if suffix else ""
+        own = data.map_id(self.ed.doc.base)
+        season = own - mid if own is not None and 4 <= mid < 64 else 0
         sums = data.map_summaries()
         by_place = {}
-        for m in minimap.maps_on_sheet(minimap.effective_sheet(mid)):
+        for m in minimap.maps_on_sheet(minimap.effective_sheet(mid), base_only=True):
             r = minimap.raw_record(m)
-            name = map_names.map_file(m)
-            if not r or not r[7] or not r[8] or not name:
-                continue
-            if data.SEASON_RE.sub("", name).upper() == me_base:
-                continue                        # the open map (any season)
+            name = map_names.map_file(m + season if 4 <= m < 64 else m)
+            if not r or not r[7] or not r[8] or not name or m == mid:
+                continue                        # no placement, or the open map
             by_place.setdefault(tuple(r[1:9]), []).append((m, name))
         out = []
         for group in by_place.values():
-            pick = next(((m, n) for m, n in group if n.upper().endswith(suffix) and suffix), None) \
-                or next(((m, n) for m, n in group if not data.SEASON_RE.search(n)), group[0])
-            m, name = pick
+            m, name = group[0]
             wh = (sums.get(name) or (None, None, None))[2]
             if not wh:
                 continue
@@ -721,6 +731,11 @@ class EncountersTab(ui.ScrollFrame):
         b = self.body
         self.file_lbl = ttk.Label(b, font=ui.HINT_FONT, wraplength=320, justify="left")
         self.file_lbl.pack(anchor="w", padx=4, pady=(4, 0))
+        # another room loads this Gen file too (areagroup: the game picks it by zone, not name)
+        self.shared_file_lbl = ttk.Label(b, font=ui.HINT_FONT, foreground="#c60", wraplength=320,
+                                         justify="left")
+        self.shared_file_lbl.pack(anchor="w", padx=4)
+        self._shared_cache = {}
         g = section(b, "Gates")
         self.gates = ttk.Treeview(g, columns=("kind", "w", "mon"), show="headings", height=6,
                                   selectmode="browse")
@@ -734,11 +749,28 @@ class EncountersTab(ui.ScrollFrame):
         ttk.Label(f, text="kind").grid(row=0, column=0, sticky="w")
         self.kind = ui.FilterCombo(f, data.gate_choices(), lambda _t: self._commit_gate(), width=24)
         self.kind.grid(row=0, column=1, columnspan=3, sticky="we")
-        self.v = {k: tk.StringVar() for k in ("weight", "cmin", "cmax", "delay")}
-        for r, c, lab, k, tip in ((1, 0, "weight", "weight", "Chance of this gate among the pattern's gates."),
-                                  (1, 2, "delay", "delay", "Frames between spawns."),
-                                  (2, 0, "min", "cmin", "Fewest monsters alive at once."),
-                                  (2, 2, "max", "cmax", "Most monsters alive at once.")):
+        self.v = {k: tk.StringVar() for k in ("weight", "cmin", "cmax", "delay", "level")}
+        for r, c, lab, k, tip in (
+                (1, 0, "weight", "weight", "Chance of this gate among its pattern's gates: each "
+                                           "pattern spawns one gate when you enter the map."),
+                (1, 2, "delay", "delay", "Respawn timer base in frames (60 = 1 s): the first wave "
+                                         "comes after delay + 0..127 frames (32 less when that is "
+                                         "over 32), later waves after (delay + 0..63) / 2 frames, "
+                                         "at least 48."),
+                (2, 0, "min", "cmin", "Wave size, lower end: the gate's first wave spawns min..max "
+                                      "monsters at random; later waves add 1-2 at a time. No wave "
+                                      "starts while fewer than min of the gate's 10 slots are "
+                                      "free. Hard mode clips it to max."),
+                (2, 2, "max", "cmax", "Most of this gate's monsters alive at once (and the largest "
+                                      "wave). All the map's gates together hold at most 10 live "
+                                      "monsters. Hard mode turns 4 into 3 and anything above 4 "
+                                      "into 4."),
+                (6, 0, "level", "level", "Gate level (header param_a): the gate is set to this "
+                                         "level when it spawns (0 = keep its own), and its "
+                                         "monsters that are 16 or more levels below the gate are "
+                                         "raised to it. Each Prince 'Stronger Monsters' step "
+                                         "scales it: level × (n + 1) + 100 × n. Shipped gates use "
+                                         "60-280.")):
             ttk.Label(f, text=lab).grid(row=r, column=c, sticky="w")
             en = commit_entry(f, self.v[k], self._commit_gate, width=7)
             en.grid(row=r, column=c + 1, sticky="w", pady=1)
@@ -765,6 +797,14 @@ class EncountersTab(ui.ScrollFrame):
         self.visible = tk.BooleanVar(value=False)
         vis = ttk.Checkbutton(f, text="visible gate", variable=self.visible, command=self._commit_gate)
         vis.grid(row=5, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        self.alt_lbl = ttk.Label(f, font=ui.HINT_FONT, wraplength=300, justify="left")
+        self.alt_lbl.grid(row=7, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        ui.Tip(self.alt_lbl, "Each monster a gate spawns comes from its roster or its alternate "
+                             "roster, by the time of day: the roster 70 % of the time from 5:00 "
+                             "to 10:59, 55 % 11:00-16:59, 45 % 17:00-22:59 and 30 % at night, "
+                             "the alternate roster otherwise. Every shipped gate uses one block "
+                             "for both, so the time of day changes nothing; this tab edits the "
+                             "roster.")
         ui.Tip(vis, "Ticked: a gate you can see and break (header flag low byte 0).\n"
                     "Unticked: an invisible spawner -- the game spawns the gate hidden and "
                     "unhittable, and its monsters just appear (low byte 1; 700 of the game's "
@@ -772,6 +812,12 @@ class EncountersTab(ui.ScrollFrame):
         gb = ttk.Frame(g)
         gb.pack(fill="x", pady=(4, 0))
         ttk.Button(gb, text="Add (copy)", command=self._add_gate).pack(side="left")
+        nb = ttk.Button(gb, text="New", command=self._new_gate)
+        nb.pack(side="left", padx=(2, 0))
+        ui.Tip(nb, "Add a gate with its own settings -- also to an empty table: a visible Gate in "
+                   "the middle of the map (type x / y or drag it), one monster spawn point there "
+                   "and one monster (the one picked in the roster box below, else an Orc), 2-4 "
+                   "monsters per wave.")
         ttk.Button(gb, text="Remove", command=self._remove_gate).pack(side="left", padx=2)
         self.unshare_btn = ttk.Button(gb, text="Make private", command=self._unshare)
         self.unshare_btn.pack(side="left")
@@ -789,6 +835,23 @@ class EncountersTab(ui.ScrollFrame):
         b2 = ttk.Button(pf, text="+ spawn", width=7, command=lambda: ed.start_add("mpos"))
         b2.pack(side="right", padx=2)
         ui.Tip(b2, "Click the map to add a monster spawn point to the selected gate.")
+        self.mpts = ttk.Treeview(g, columns=("i", "tile", "r"), show="headings", height=3,
+                                 selectmode="browse")
+        for c, t, w in (("i", "spawn point", 90), ("tile", "tile", 80), ("r", "radius", 60)):
+            self.mpts.heading(c, text=t)
+            self.mpts.column(c, width=w, anchor="w" if c != "r" else "e", stretch=(c == "tile"))
+        self.mpts.pack(fill="x", pady=(4, 0))
+        self.mpts.bind("<<TreeviewSelect>>", self._mpt_picked)
+        rf = ttk.Frame(g)
+        rf.pack(fill="x", pady=(2, 0))
+        ttk.Label(rf, text="radius").pack(side="left")
+        self.vrad = tk.StringVar()
+        ren = commit_entry(rf, self.vrad, self._commit_radius, width=7)
+        ren.pack(side="left", padx=(4, 0))
+        ui.Tip(ren, "Scatter radius of the selected spawn point, in sub-units (8 per tile): each "
+                    "monster appears at a random angle and distance below this from the point, "
+                    "on a walkable tile (up to 63 random samples, then on the point itself). 0 = "
+                    "always on the point. Only the low 16 bits are read.")
         r = section(b, "Roster of the selected gate")
         self.roster = ttk.Treeview(r, columns=("mon", "lv", "w"), show="headings", height=6, selectmode="browse")
         for c, t, w in (("mon", "monster", 170), ("lv", "pick wt", 52), ("w", "weights", 80)):
@@ -826,15 +889,20 @@ class EncountersTab(ui.ScrollFrame):
         t = self.gates
         t.delete(*t.get_children())
         if doc is None or doc.gen is None:
-            self.file_lbl.config(text="This map has no encounter table (only dungeon and field maps "
-                                      "have one).")
+            self.file_lbl.config(text="The game spawns no monster gates on this map: with its "
+                                      "area group (MGRP, Map tab) it loads no encounter table "
+                                      "here -- only dungeon and field rooms have one.")
+            self.shared_file_lbl.config(text="")
             self.roster.delete(*self.roster.get_children())
+            self.mpts.delete(*self.mpts.get_children())
             self.share_lbl.config(text="")
             self.pts_lbl.config(text="")
             return
+        n = sum(len(p) for p in doc.gen.patterns)
         self.file_lbl.config(text=f"{doc.gen_path.name if doc.gen_path else 'Gen*.bin'} · "
-                                  f"{sum(len(p) for p in doc.gen.patterns)} gate(s) in "
-                                  f"{len(doc.gen.patterns)} pattern(s)")
+                                  f"{n} gate(s) in {len(doc.gen.patterns)} pattern(s)"
+                                  + ("" if n else " -- empty: 'New' adds a first gate"))
+        self.shared_file_lbl.config(text=self._shared_text(doc))
         for pi, ei, e in doc.gen.all_entries():
             nmon = sum(1 for s in e.spawns if gen.MONSTER_LO <= s.monster_id <= gen.MONSTER_HI)
             hidden = "  (hidden)" if e.hdr.flag & 0xFF else ""
@@ -847,11 +915,36 @@ class EncountersTab(ui.ScrollFrame):
             t.see(f"{gi[0]}:{gi[1]}")
         self._show_gate()
 
+    def _shared_text(self, doc):
+        """'Also used by …' for a Gen file the game loads for other rooms too (cached per file)."""
+        base = getattr(doc, "base", None)           # (None: a Gen file open on its own)
+        fn = doc.gen_path.name if getattr(doc, "gen_path", None) else None
+        if not base or not fn:
+            return ""
+        key = (fn.lower(), base)
+        if key not in self._shared_cache:
+            try:
+                others = data.also_used_by("gen", fn, base)
+                own = data.gen_name_for_id(areagroup.base_map_id(base))
+            except Exception:  # noqa: BLE001
+                others, own = [], fn
+            txt = ""
+            if own is None or own.lower() != fn.lower():
+                txt = (f"This room has no gate table of its own: with its area group the game "
+                       f"loads {fn} here. ")
+            if others:
+                txt += (f"Also used by: {', '.join(others)} -- the game loads this file for "
+                        f"{'that room' if len(others) == 1 else 'those rooms'} too, so edits "
+                        f"here change {'its' if len(others) == 1 else 'their'} gates as well.")
+            self._shared_cache[key] = txt.strip()
+        return self._shared_cache[key]
+
     def _show_gate(self):
         e = self._entry()
         r = self.roster
         keep = r.selection()
         r.delete(*r.get_children())
+        self._show_mpts(e)
         if e is None:
             for v in self.v.values():
                 v.set("")
@@ -859,6 +952,7 @@ class EncountersTab(ui.ScrollFrame):
             self.kind.var.set("")
             self.share_lbl.config(text="Select a gate.")
             self.pts_lbl.config(text="")
+            self.alt_lbl.config(text="")
             self._show_gpos(None)
             return
         self.kind.var.set(f"{e.gate_kind}  {data.actor_name(e.gate_kind)}".strip())
@@ -866,7 +960,13 @@ class EncountersTab(ui.ScrollFrame):
         self.v["cmin"].set(str(e.hdr.count_min))
         self.v["cmax"].set(str(e.hdr.count_max))
         self.v["delay"].set(str(e.hdr.spawn_delay))
+        self.v["level"].set(str(e.hdr.param_a))
         self.visible.set(not e.hdr.flag & 0xFF)
+        if e.roster_alt is e.roster:
+            self.alt_lbl.config(text="Alternate roster: the same as the roster.", foreground="")
+        else:
+            alt = ", ".join(f"{data.actor_name(s.monster_id) or s.monster_id}" for s in e.roster_alt.spawns)
+            self.alt_lbl.config(text=f"Alternate roster (differs): {alt or '(empty)'}", foreground="#c60")
         for k, s in enumerate(e.spawns):
             ok = gen.MONSTER_LO <= s.monster_id <= gen.MONSTER_HI
             r.insert("", "end", iid=str(k), values=(f"{s.monster_id}  {data.actor_name(s.monster_id) or '?'}"
@@ -882,6 +982,54 @@ class EncountersTab(ui.ScrollFrame):
         self.pts_lbl.config(text=f"{len(e.gate_pos.points)} gate position(s), "
                                  f"{len(e.mon_pos.points)} monster point(s)")
         self._show_gpos(e)
+
+    def _show_mpts(self, e):
+        """The selected gate's monster spawn points with their scatter radius."""
+        t = self.mpts
+        keep = t.selection()
+        t.delete(*t.get_children())
+        if e is None or self.ed.doc is None or self.ed.doc.gen is None:
+            self.vrad.set("")
+            return
+        for i, (off, x, y) in enumerate(self.ed.doc.gen.monster_positions_off(e)):
+            t.insert("", "end", iid=str(off), values=(f"#{i + 1}", f"({x >> 3}, {y >> 3})",
+                                                      e.mon_pos.points[i][2] & 0xFFFF))
+        sel = getattr(self.ed, "sel", None)
+        pick = str(sel[1]) if sel and sel[0] == "mpos" and t.exists(str(sel[1])) else (
+            keep[0] if keep and t.exists(keep[0]) else None)
+        if pick is None and t.get_children():
+            pick = t.get_children()[0]
+        if pick is not None:
+            t.selection_set(pick)
+            self.vrad.set(str(t.set(pick, "r")))
+        else:
+            self.vrad.set("")
+
+    def _mpt_index(self):
+        """(entry, index) of the spawn point selected in the list, or (None, None)."""
+        e, s = self._entry(), self.mpts.selection()
+        if e is None or not s:
+            return None, None
+        offs = [off for off, _x, _y in self.ed.doc.gen.monster_positions_off(e)]
+        return (e, offs.index(int(s[0]))) if int(s[0]) in offs else (None, None)
+
+    def _mpt_picked(self, _e=None):
+        s = self.mpts.selection()
+        if not s:
+            return
+        self.vrad.set(str(self.mpts.set(s[0], "r")))
+        k = ("mpos", int(s[0]))
+        if hasattr(self.ed, "select") and getattr(self.ed, "sel", None) != k:
+            self.ed.select(k)
+
+    def _commit_radius(self):
+        e, i = self._mpt_index()
+        r = ui.to_int(self.vrad.get())
+        if e is None or r is None or not 0 <= r <= 0xFFFF or (e.mon_pos.points[i][2] & 0xFFFF) == r:
+            return
+        pi, ei = self.ed.gate_index
+        self.ed.apply(f"Set spawn point radius {r}", "gen",
+                      lambda: self.ed.doc.gen.set_monster_radius(self.ed.doc.gen.patterns[pi][ei], i, r))
 
     def _gpos_list(self, e=None):
         """[(offset, x, y)] of the gate's positions ([] without a gate)."""
@@ -965,9 +1113,10 @@ class EncountersTab(ui.ScrollFrame):
         # visible = flag low byte 0; hidden keeps its own non-zero low byte (else 1)
         low = e.hdr.flag & 0xFF
         flag = (e.hdr.flag & 0xFF00) | (0 if self.visible.get() else (low or 1))
-        cur = (e.gate_kind, e.weight, e.hdr.count_min, e.hdr.count_max, e.hdr.spawn_delay, e.hdr.flag)
+        cur = (e.gate_kind, e.weight, e.hdr.count_min, e.hdr.count_max, e.hdr.spawn_delay, e.hdr.flag,
+               e.hdr.param_a)
         new = (kind & 0xFFFF, vals["weight"] & 0xFFFF, vals["cmin"] & 0xFF, vals["cmax"] & 0xFF,
-               vals["delay"] & 0xFFFF, flag)
+               vals["delay"] & 0xFFFF, flag, vals["level"] & 0xFFFF)
         if cur == new:
             return
         pi, ei = self.ed.gate_index
@@ -977,8 +1126,25 @@ class EncountersTab(ui.ScrollFrame):
             ent = g.patterns[pi][ei]
             g.set_gate_kind(pi, ei, new[0])
             g.set_weight(pi, ei, new[1])
-            g.set_hdr(ent, count_min=new[2], count_max=new[3], spawn_delay=new[4], flag=new[5])
+            g.set_hdr(ent, count_min=new[2], count_max=new[3], spawn_delay=new[4], flag=new[5],
+                      param_a=new[6])
         self.ed.apply(f"Edit gate {pi}:{ei}", "gen", do)
+
+    def _new_gate(self):
+        """A gate with fresh blocks (gen.GenTable.new_gate): the first one of an empty table, or
+        one more that shares nothing. Pattern 0 (every shipped file has at most one)."""
+        doc = self.ed.doc
+        if doc is None or doc.gen is None:
+            self.ed.status("This map has no encounter table to add a gate to.")
+            return
+        grid = getattr(doc, "grid", None)
+        x, y = ((grid[0] // 2) * 8 + 4, (grid[1] // 2) * 8 + 4) if grid else (64, 64)
+        mid = data.leading_int(self.mon.var.get())
+        mid = mid if mid is not None and gen.MONSTER_LO <= mid <= gen.MONSTER_HI else gen.MONSTER_LO
+        if self.ed.apply("New gate", "gen", lambda: doc.gen.new_gate(x, y, mid)):
+            self.ed.set_active_gate((0, len(self.ed.doc.gen.patterns[0]) - 1))
+            self.ed.status(f"Added a gate at tile ({x >> 3}, {y >> 3}) with "
+                           f"{data.actor_name(mid) or mid} -- move it and its spawn point into place")
 
     def _add_gate(self):
         gi = self.ed.gate_index
@@ -1069,10 +1235,11 @@ class EncountersTab(ui.ScrollFrame):
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": True, "labels": False,
                   "sprite_borders": True, "gate_art": True, "mapj": True, "dest": True, "si": True,
-                  "gates": True, "spawns": False}
+                  "gates": True, "spawns": False, "stamps": True}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
-                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
+                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn",
+                "stamps": "stamp"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
 VIEW_SETTING = "map_view"      # settings.json key: the View tab's choices, kept across maps and runs
 FLAGS_NONE = "(all objects)"
@@ -1122,9 +1289,13 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "gates", "monster gates", 8, 1, render.GATE_COLOR)
         cb(L, "spawns", "script NPCs", 9, 0, render.SPAWN_COLOR)
         cb(L, "grid", "tile grid lines", 9, 1)
+        ui.Tip(cb(L, "stamps", "object collision", 10, 0, render.STAMP_COLOR),
+               "Hatched: the tiles the placed objects (trees, rocks, stones ...) stamp into the "
+               "ATTR grid when the room loads -- collision the map file does not contain. Shown "
+               "for the flag state chosen below; Alt over a tile names the object.")
         hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
                 "first time they are shown the script is scanned.", wrap=300).grid(
-            row=10, column=0, columnspan=4, sticky="w", pady=(2, 0))
+            row=11, column=0, columnspan=4, sticky="w", pady=(2, 0))
         # ---- flag state ----
         S = section(b, "Show objects as in")
         self.flagsrc = tk.StringVar(value=FLAGS_NONE)
@@ -1146,8 +1317,10 @@ class ViewTab(ui.ScrollFrame):
         ui.Tip(b_br, "Pick a slot save (rf4_sNN.sav) from anywhere.")
         self.flagstatus = ttk.Label(S, font=ui.HINT_FONT, wraplength=300, justify="left")
         self.flagstatus.grid(row=1, column=0, columnspan=2, sticky="w")
-        hint(S, "The game checks these flags when a map loads, so in game a change shows on the "
-                "next visit.", wrap=300).grid(row=2, column=0, columnspan=2, sticky="w")
+        hint(S, "Scenery and objects (bridges, walls, trees) follow their flag every frame, so "
+                "they appear or vanish in game the moment a script sets it; chests, crates and "
+                "other actors check theirs when the room loads.", wrap=300).grid(
+            row=2, column=0, columnspan=2, sticky="w")
         # ---- ground display ----
         G = section(b, "Ground texture")
         ttk.Label(G, text="show").grid(row=0, column=0, sticky="w")

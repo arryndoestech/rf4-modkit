@@ -10,7 +10,7 @@ import queue
 import threading
 from collections import OrderedDict
 
-from rf4s_modkit import (flagstate, map_names, mapground, mobj_meshes, mobj_types, model,
+from rf4s_modkit import (collisionstamp, flagstate, map_names, mapground, mobj_meshes, mobj_types, model,
                          spritequad, texture)
 
 from . import attrs, ui
@@ -22,7 +22,7 @@ except ImportError:           # the editor still runs, with a plain-rectangle AT
     HAS_PIL = False
 
 # Overlay groups, bottom to top.
-GROUPS = ("under", "lift", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
+GROUPS = ("under", "lift", "stamp", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
 # canvas stacking, bottom to top: the ground texture ("bg"), the sprites ("under",
 # drawn as the game draws them, so they sit on the ground), the ATTR fill + cell edges
 # ("attr"), the selected object's sprite again ("lift", so it shines through the fill), then
@@ -36,6 +36,7 @@ SI_COLOR = "#ffe000"
 GATE_COLOR = "#ff8c1a"
 MPOS_COLOR = "#ff5aa0"
 SPAWN_COLOR = "#c060ff"
+STAMP_COLOR = "#ff40c0"          # the collision the objects stamp into ATTR at load
 HANDLES = ("nw", "n", "ne", "w", "e", "sw", "s", "se")
 
 
@@ -597,6 +598,36 @@ def warp_rect_px(rec, cp):
     return x0, y0, max(x1, x0 + cp), max(y1, y0 + cp)
 
 
+RUNTIME_WALL_COLOR = "#ff7050"
+
+
+def runtime_spawns(doc):
+    """[(tile rect (x0, y0, x1, y1) exclusive, spawn dict, tip text)] of the warps and walls
+    the game adds to this map at load (rf4s_modkit.mapres.runtime_spawns: the farm, its fields,
+    the farmhouse, the barns and two town maps) -- not in the .rf4m, drawn read-only."""
+    from rf4s_modkit import mapres
+    from . import data
+    mid = data.base_map_id(doc.base) if doc is not None and doc.base else None
+    out = []
+    for s in mapres.runtime_spawns(mid) if mid is not None else ():
+        if s["kind"] == "warp":
+            x0, y0, x1, y1 = s["box"]
+            rect = (x0 >> 3, y0 >> 3, max((x1 >> 3), (x0 >> 3) + 1), max((y1 >> 3), (y0 >> 3) + 1))
+            dest = map_names.map_file(s["dest"]) or f"map {s['dest']}"
+            place = map_names.map_name(s["dest"])
+            tip = (f"warp to {dest}" + (f" ({place})" if place else "")
+                   + f", arriving at ({s['arrive'][0]}, {s['arrive'][1]})")
+        else:
+            cells = mapres.wall_cells(s["box"])
+            if cells is None:
+                continue
+            rect = (cells[0], cells[1], cells[2] + 1, cells[3] + 1)
+            tip = "wall: these tiles are set to blocked (ATTR 0x2) and a fence / door sprite is drawn"
+        out.append((rect, s, f"{tip}\nspawned by the game when {s['when']} -- not in this file, "
+                              f"read only"))
+    return out
+
+
 def handle_points(rect):
     x0, y0, x1, y1 = rect
     mx, my = (x0 + x1) // 2, (y0 + y1) // 2
@@ -605,9 +636,49 @@ def handle_points(rect):
 
 
 def entity_visible(o, layers):
+    """Whether the layers show this record: every placed record, (0, 0) included (the game
+    spawns it there); only the positionless map parameters 9..19 are never drawn."""
     cat = o["category"]
     key = "trigger" if cat in attrs.TRIGGER_KINDS else cat
-    return layers.get(key, True) and not (o["pos_x"] == 0 and o["pos_y"] == 0) and cat != "mapparam"
+    return layers.get(key, True) and cat != "mapparam"
+
+
+_STAMPS = [None, None]          # [key, stamps] for the last document / flag snapshot asked
+
+
+def object_stamps(doc, flags):
+    """collisionstamp.stamps for the document's MOBJ records and grid, cached until the
+    records, the grid or the flag snapshot change."""
+    key = (id(doc), id(doc.objs), doc.attr_version, id(flags))
+    if _STAMPS[0] != key:
+        W, H, _ = doc.grid
+        _STAMPS[:] = [key, collisionstamp.stamps(doc.map.mobj_records(), W, H, flags)]
+    return _STAMPS[1]
+
+
+def stamps_at(doc, flags, t):
+    """[(record index, mode, bits)] of the stamps covering tile `t`."""
+    return [(i, mode, cells[t]) for i, mode, cells in object_stamps(doc, flags) if t in cells]
+
+
+def stamp_runs(cells):
+    """{(tx, ty): bits} -> [(tx0, tx1, ty)] horizontal runs of stamped tiles (fewer canvas
+    items than one per tile)."""
+    rows = {}
+    for tx, ty in cells:
+        rows.setdefault(ty, []).append(tx)
+    out = []
+    for ty, xs in rows.items():
+        xs.sort()
+        a = b = xs[0]
+        for x in xs[1:]:
+            if x == b + 1:
+                b = x
+                continue
+            out.append((a, b, ty))
+            a = b = x
+        out.append((a, b, ty))
+    return out
 
 
 def _sprite_rect(o, src, cp):
@@ -684,8 +755,23 @@ def overlay(group, st):
                 out.append(Prim("line", (x * cp, 0, x * cp, H * cp), fill="#2a2a30"))
             for y in range(H + 1):
                 out.append(Prim("line", (0, y * cp, W * cp, y * cp), fill="#2a2a30"))
+    elif group == "stamp":
+        # the collision the interactive objects stamp into ATTR when the room loads (not in
+        # the file): a hatched fill per tile, outlined, for the flag snapshot shown
+        if L.get("stamps", True):
+            for _i, _mode, cells in object_stamps(doc, getattr(st, "flags", None)):
+                for x0, x1, ty in stamp_runs(cells):
+                    out.append(Prim("rect", (x0 * cp, ty * cp, (x1 + 1) * cp, (ty + 1) * cp),
+                                    fill=STAMP_COLOR, stipple="gray25", outline=STAMP_COLOR,
+                                    width=1 if cp >= 6 else 0))
     elif group == "warp":
         if L.get("mapj"):
+            # the game's own runtime warps / walls first (dashed, no key: never selected)
+            for (x0, y0, x1, y1), s, _tip in runtime_spawns(doc):
+                warp = s["kind"] == "warp"
+                out.append(Prim("rect", (x0 * cp, y0 * cp, x1 * cp, y1 * cp),
+                                outline=WARP_COLOR if warp else RUNTIME_WALL_COLOR, width=2,
+                                dash=(6, 4) if warp else (2, 3)))
             for j, rec in enumerate(doc.map.mapj_records()):
                 out.append(Prim("rect", warp_rect_px(rec, cp), key=("warp", j),
                                 outline=WARP_COLOR, width=2))
@@ -732,7 +818,7 @@ def overlay(group, st):
                 continue
             cx, cy = (o["pos_x"] >> 3) * cp, (o["pos_y"] >> 3) * cp
             tid = o["type_id"] & 0xFFFF
-            gone = flagstate.hidden(o, flags)
+            gone = flagstate.hidden_reason(o, flags)
             src = st.sprites.source(o) if sprites_on else None
             if src is not None:             # the sprite itself is in the "under" group
                 rect = _sprite_rect(o, src, cp)
@@ -745,7 +831,7 @@ def overlay(group, st):
                     nm = mobj_types.mobj_display_name(tid) or o["category"]
                     mx = (rect[0] + rect[2]) // 2
                     out.append(label(mx, rect[1] - 1, (mx, rect[3] + 1),
-                                     nm + (" (hidden by flag)" if gone else ""), "#ffe000", lsize))
+                                     nm + (f" ({gone})" if gone else ""), "#ffe000", lsize))
                 continue
             if gone:
                 out.append(Prim("oval", (cx - r, cy - r, cx + r, cy + r), key=("mobj", i),
@@ -755,7 +841,8 @@ def overlay(group, st):
                                 fill=attrs.CAT_COLOR.get(o["category"], "#fff"), outline="#000"))
             if labels_on:
                 nm = mobj_types.mobj_display_name(tid) or o["category"]
-                out.append(label(cx, cy - r - 1, (cx, cy + r + 1), nm, "#ffe000", lsize))
+                out.append(label(cx, cy - r - 1, (cx, cy + r + 1),
+                                 nm + (f" ({gone})" if gone else ""), "#ffe000", lsize))
     elif group == "si":
         if L.get("si") and doc.si is not None:
             sr = max(5, cp // 2 + 3)
@@ -841,7 +928,7 @@ def _selection_one(st, sel, handles=True):
             x0, y0, x1, y1 = _sprite_rect(o, src, cp)
             out.append(Prim("rect", (x0 - 3, y0 - 3, x1 + 3, y1 + 3), outline="#002b33", width=1))
             out.append(Prim("rect", (x0 - 1, y0 - 1, x1 + 1, y1 + 1), outline=SEL_COLOR, width=3))
-        elif o["pos_x"] or o["pos_y"]:
+        elif o["category"] != "mapparam":
             cx, cy = (o["pos_x"] >> 3) * cp, (o["pos_y"] >> 3) * cp
             rr = max(6, cp // 2 + 4)
             out.append(Prim("oval", (cx - rr, cy - rr, cx + rr, cy + rr), outline=SEL_COLOR, width=3))
@@ -932,6 +1019,14 @@ def draw_prims(img, prims, sprites=None):
         wd = o.get("width", 1)
         if p.kind == "line":
             dr.line(p.xy, fill=fill, width=wd)
+        elif p.kind == "rect" and o.get("stipple"):
+            # a hatched canvas fill: a see-through fill here, then the outline
+            layer = Image.new("RGBA", img.size)
+            ImageDraw.Draw(layer).rectangle(p.xy, fill=fill + (80,))
+            img.alpha_composite(layer)
+            dr = ImageDraw.Draw(img)
+            if wd:
+                dr.rectangle(p.xy, outline=outline, width=wd)
         elif p.kind == "rect":
             dr.rectangle(p.xy, fill=fill, outline=outline, width=wd)
         elif p.kind == "oval":

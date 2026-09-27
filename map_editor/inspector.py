@@ -11,7 +11,7 @@ import tkinter as tk
 from collections import Counter
 from tkinter import ttk
 
-from rf4s_modkit import map_names, mobj_params, mobj_types
+from rf4s_modkit import emflags, map_names, mobj_params, mobj_types, rf4m
 
 from . import attrs, data, ui
 from .ui import commit_entry, hint, section
@@ -172,10 +172,8 @@ class EntityForm(Form):
         for extra in (loot, crate):
             if extra:
                 lab += "\n" + extra
-        if loot:                                # this chest's flag / row problems
-            for sev, j, msg in data.chest_problems(self.doc.base, self.doc.map.mobj_records()):
-                if j == i:
-                    lab += "\n" + ("ⓘ " if sev == "INFO" else "⚠ ") + msg
+        for extra in self._object_notes(i, rec):
+            lab += "\n" + extra
         self.type_label.config(text=lab)
         raw = self.raw.get()
         if mapparam or raw:
@@ -213,7 +211,7 @@ class EntityForm(Form):
             lab_w.grid(row=r, column=0, sticky="w", padx=(0, 6))
             ent.grid(row=r, column=1, sticky="w", pady=1)
             eff = rec[fi] & ((1 << (8 * sz)) - 1)
-            var.set(str(eff if sz < 4 else rec[fi]))
+            var.set(str(rec[fi]))               # the whole stored value (typed as a full i32)
             head = f"word {fi}" + (f", read as {mobj_params.SIZE_NAME[sz]}" if sz != 4 else "")
             note = self._note(tid, fi, sz, m, eff, rec)
             self._meanings[fi] = head + ("\n" + note if note else "\n(the game doesn't read it)")
@@ -224,35 +222,63 @@ class EntityForm(Form):
             inter = ""
         self.role.config(text="\n".join(x for x in (role, f"interaction: {inter}" if inter else "", only) if x))
 
+    def _object_notes(self, i, rec):
+        """Lines under the type label: this entity's problems (chest / one-shot flag checks,
+        the map validator's lines about it) and what the game does with it that its fields
+        alone do not say."""
+        tid = rec[0] & 0xFFFF
+        recs = self.doc.map.mobj_records()
+        out = []
+        rv = data.chest_reveal(rec, recs)
+        if rv:
+            out.append(rv)
+        if tid == 47 and rec[14] <= 0:
+            out.append("Hidden controller (X <= 0): no barrier and nothing shown -- it only sets "
+                       "its flag when the room is cleared")
+        if 196 <= tid <= 335 and tid != 263 and rec[11]:
+            out.append(f"No collision template: a solid box of {(rec[9] >> 4) * 2 + 1 if rec[9] else 1}"
+                       f" x {(rec[10] >> 4) * 2 + 1 if rec[10] else 1} tiles is stamped "
+                       + ("around it" if rec[9] and rec[10] else "at the map's column / row 0 "
+                          "(f9 / f10 = 0)") + ", even while it is hidden")
+        for sev, j, msg in data.chest_problems(self.doc.base, recs):
+            if j == i:
+                out.append(("ⓘ " if sev == "INFO" else "⚠ ") + msg)
+        g = self.doc.grid
+        errs, warns = self.doc.map._entity_findings(g[0] if g else 0, g[1] if g else 0, bool(g))
+        tag = f"MOBJ #{i} "
+        for mark, lines in (("⛔ ", errs), ("⚠ ", warns)):
+            out += [mark + x[len(tag):] for x in lines if x.startswith(tag)]
+        return out
+
     def _note(self, tid, fi, sz, meaning, eff, rec):
         """What a field's value means: its description, flag names, ore config, and the
         other entities wired to the same flag."""
         parts = [meaning] if meaning else []
+        if fi == 13 and mobj_params.reads_flag(tid):
+            parts.append("valid: -1 (none) or 0..2559")
         if tid == 0 and fi == 10:
             cfg = data.ore_configs(self.ed.tex_reader)
+            parts.append(f"valid: 0..{mobj_params.MAPORE_RATE_ROWS - 1} (the game keeps f10 & 63)")
+            eff &= 63
             if 0 <= eff < len(cfg):
                 kind, _d, _s, iw, rare = cfg[eff]
                 ores = ", ".join(f"{data.item_name(it) or it}({w})" for it, w in iw if it)
                 parts.append(f"= kind {kind}: {ores or 'empty row'}"
                              + (f", rare {data.item_name(rare) or rare}" if rare else ""))
-        if "flag" in meaning.lower() and eff not in (0, 0xFFFF):
-            fl = mobj_params.flag_label(eff)
+        val = rec[fi]
+        if fi == 13 and "flag" in meaning.lower() and val not in (0, -1):
+            fl = mobj_params.flag_label(val)
             if fl:
                 parts.append(f"= {fl}")
             shared = []
             recs = self.doc.map.mobj_records()
             for oi, orec in enumerate(recs):
-                if oi == self.key[1]:
-                    continue
-                otid = orec[0] & 0xFFFF
-                for pf, _ps, pm in mobj_params.params_for(otid):
-                    if pf == 13 and "flag" in pm.lower() and (orec[13] & 0xFFFF) == eff:
-                        shared.append(f"#{oi}")
-                        break
+                if oi != self.key[1] and mobj_params.reads_flag(orec[0]) and orec[13] == val:
+                    shared.append(f"#{oi}")
             if shared:
                 parts.append("same flag: " + ", ".join(shared[:6]))
-        if (rec[fi] & 0xFFFFFFFF) != eff:
-            parts.append(f"(raw 0x{rec[fi] & 0xFFFFFFFF:X}, low {mobj_params.SIZE_NAME[sz]} used)")
+        if sz < 4 and (val & 0xFFFFFFFF) != eff:
+            parts.append(f"(the game reads only the low {mobj_params.SIZE_NAME[sz]}: {eff})")
         return "\n".join(parts)
 
     def _fmt(self, fi, raw):
@@ -271,6 +297,8 @@ class EntityForm(Form):
         x, y = ui.to_int(self.vx.get()), ui.to_int(self.vy.get())
         if rec is None or x is None or y is None or (x, y) == (rec[14], rec[15]):
             return
+        if (rec[0] & 0xFFFF) == 52:             # the knock-back target moves with the vent
+            rec[8], rec[9] = rec[8] + x - rec[14], rec[9] + y - rec[15]
         rec[14], rec[15] = x, y
         self._set(rec, f"Move entity #{self.key[1]}")
 
@@ -298,14 +326,9 @@ class EntityForm(Form):
         v = ui.to_int(self.rows[fi][2].get())
         if v is None:
             return
-        tid = rec[0] & 0xFFFF
-        sz = mobj_params.field_size(tid, fi) if not self.raw.get() else 4
-        sz = sz or 4
-        if sz < 4:
-            mask = (1 << (8 * sz)) - 1
-            new = (rec[fi] & ~mask) | (v & mask)
-        else:
-            new = v
+        # stored as typed, as a whole signed dword: keeping the old high bits of a narrow
+        # field turned -1 over 500 into 65535, and 500 over -1 into -65036
+        new = max(-0x80000000, min(0x7FFFFFFF, v))
         if new == rec[fi]:
             return
         rec[fi] = new
@@ -323,6 +346,18 @@ class EntityForm(Form):
 # --------------------------------------------------------------------------- #
 # warp
 # --------------------------------------------------------------------------- #
+def facing_text(deg):
+    """What an arrival facing does: 0 keeps the facing, else degrees clockwise from down
+    (Cutscene_StartDeathSequence stores 182 * deg; the facing vector is (sin, cos), so 0 deg
+    points down the grid)."""
+    if deg == 0:
+        return "keeps the current facing"
+    names = {0: "down", 90: "right", 180: "up", 270: "left"}
+    d = deg % 360
+    near = min(names, key=lambda a: min(abs(d - a), 360 - abs(d - a)))
+    return f"faces {names[near]}" if min(abs(d - near), 360 - abs(d - near)) <= 22 else f"{d}°"
+
+
 class WarpForm(Form):
     FIELDS = (("x", 1), ("y", 2), ("w", 3), ("h", 4), ("ax", 6), ("ay", 7), ("face", 8))
 
@@ -343,16 +378,25 @@ class WarpForm(Form):
         self.zone_lbl.grid(row=2, column=0, columnspan=4, sticky="w")
         d = ttk.LabelFrame(self, text="Destination", padding=4)
         d.pack(fill="x", pady=(4, 0))
-        self.dest = ui.FilterCombo(d, data.map_choices(), lambda _t: self._commit(), width=34)
+        self.dest = ui.FilterCombo(d, data.warp_choices(), lambda _t: self._commit(), width=34)
         self.dest.grid(row=0, column=0, columnspan=4, sticky="we", pady=(0, 2))
-        ui.Tip(self.dest, "Type part of a map name or id to filter; a bare id works too.")
+        ui.Tip(self.dest, "Type part of a map name or id to filter; a bare id works too. The farm, "
+                          "fields, Selphia's streets and the farmhouse are listed once: the game "
+                          "loads the copy of the current season, so a warp names the base map.")
         self.dest.bind("<FocusOut>", lambda _e: self._commit(), add="+")
         self.dest._commit = self._commit
         self.row(d, "arrive x", self.v["ax"], self._commit, 1, 0, 6,
-                 tip="Arrival position in the destination map, sub-units.")
+                 tip="Arrival position in the destination map, sub-units (8 per tile).")
         self.row(d, "arrive y", self.v["ay"], self._commit, 1, 2, 6)
-        self.row(d, "facing °", self.v["face"], self._commit, 2, 0, 6,
-                 tip="Arrival facing in degrees; 0 keeps the current facing.")
+        face_tip = ("Arrival facing in degrees, clockwise from down: 1 = down, 90 = right, "
+                    "180 = up, 270 = left. 0 keeps the facing the player had, so 'down' is "
+                    "written as 1 (the game's own warps do that).")
+        self.row(d, "facing °", self.v["face"], self._commit, 2, 0, 6, tip=face_tip)
+        self.face_lbl = ttk.Label(d, font=ui.HINT_FONT, foreground=ui.MUTED)
+        self.face_lbl.grid(row=2, column=2, columnspan=2, sticky="w")
+        ui.Tip(self.face_lbl, face_tip)
+        self.maze_lbl = ttk.Label(d, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=300)
+        self.maze_lbl.grid(row=3, column=0, columnspan=4, sticky="w")
         f = ttk.Frame(self)
         f.pack(fill="x", pady=(4, 0))
         self.always = tk.BooleanVar()
@@ -362,8 +406,15 @@ class WarpForm(Form):
         self.vflag = tk.StringVar()
         self.flag_e = commit_entry(f, self.vflag, self._commit, width=6)
         self.flag_e.pack(side="left", padx=2)
-        ui.Tip(self.flag_e, "Per-map scene flag (absolute 4096 + id) that DISABLES the warp while "
-                            "it is set. The castle exits use 632, for example.")
+        flag_tip = ("Scene flag 0..2559 (GameFlags zone 2, absolute bit 4096 + id) that DISABLES "
+                    "the warp while it is set. The castle exits use 632, for example. Two "
+                    "exceptions: in some global game states (flags 0x401000) the flag is not "
+                    "checked at all, and in state 0x1000 the warp instead stays off while any "
+                    "monster the game tracks is alive.")
+        ui.Tip(self.flag_e, flag_tip)
+        self.flag_lbl = ttk.Label(self, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=300)
+        self.flag_lbl.pack(anchor="w")
+        ui.Tip(self.flag_lbl, flag_tip)
         b = ttk.Frame(self)
         b.pack(fill="x", pady=(6, 2))
         ttk.Button(b, text="Open destination", command=lambda: ed.goto_warp(self.key[1])).pack(side="left")
@@ -383,15 +434,28 @@ class WarpForm(Form):
         j = self.key[1]
         place = map_names.describe_destination(rec[5])[0]
         self.title.config(text=f"Warp #{j} → {place or data.rooms_by_id().get(rec[5], f'map {rec[5]}')}")
-        self.sub.config(text=data.map_choice(rec[5]))
+        sub = data.map_choice(rec[5])
+        if 0 < rec[5] < 64 and rec[5] % 4:
+            sub += (f"\n⚠ a seasonal copy: the game adds the season to ids below 64 and loads the "
+                    f"wrong map -- pick {data.map_choice(rec[5] - rec[5] % 4)}")
+        self.sub.config(text=sub)
         for k, idx in self.FIELDS:
             self.v[k].set(str(rec[idx]))
         self.zone_lbl.config(text=f"tiles ({rec[1] >> 3}, {rec[2] >> 3}) .. "
                                   f"({(rec[1] + rec[3]) >> 3}, {(rec[2] + rec[4]) >> 3})")
         self.dest.var.set(data.map_choice(rec[5]) if rec[5] in data.rooms_by_id() else str(rec[5]))
+        self.face_lbl.config(text=facing_text(rec[8]))
+        here = data.base_map_id(self.doc.base) if self.doc.base else None
+        self.maze_lbl.config(text=(
+            "Sharance Maze floor: the arrival is a direction code, not a spot. An arrival x "
+            "within 160 sub-units (20 tiles) of the left edge moves the maze one column one "
+            "way, within 160 of the right edge the other way; y does the same for rows. The "
+            "game then rebuilds the floor, so keep the arrival near the edge it stands for."
+            if here in rf4m.MAZE_MAP_IDS else ""))
         self.always.set(rec[0] == -1)
         self.vflag.set("" if rec[0] == -1 else str(rec[0]))
         self.flag_e.config(state="disabled" if rec[0] == -1 else "normal")
+        self.flag_lbl.config(text="" if rec[0] == -1 else emflags.zone2_text(rec[0]))
 
     def _toggle_always(self):
         rec = self._rec()
@@ -472,9 +536,13 @@ class SpotForm(Form):
         ttk.Button(b2, text="Center", width=7, command=lambda: ed.center_on(self.key)).pack(side="left")
         ttk.Button(b2, text="Duplicate", width=9, command=lambda: ed.duplicate(self.key)).pack(side="left", padx=2)
         ttk.Button(b2, text="Delete spot", command=lambda: ed.delete(self.key)).pack(side="left")
-        hint(self, "Daily ground pickups: up to two spots spawn per day (sleeping rerolls). "
-                   "item = entry & 0x7FF, weight = one byte. Stock files share one pool between "
-                   "spots; editing a spot here gives it its own copy.").pack(anchor="w", pady=(4, 0))
+        hint(self, "Daily ground pickups: at most two items per map per day (sleeping rerolls "
+                   "them). They only appear once the story has reached step 39, and only on "
+                   "about half of your visits: the game rolls a coin on each map entry, and a "
+                   "lost roll means nothing that visit and at most one item on a later visit "
+                   "that day -- so test by re-entering a few times. item = entry & 0x7FF, "
+                   "weight = one byte (keep a pool's total <= 255). Stock files share one pool "
+                   "between spots; editing a spot here gives it its own copy.").pack(anchor="w", pady=(4, 0))
 
     def _spot(self):
         si = self.doc.si
@@ -652,7 +720,8 @@ class TileForm(Form):
             return
         v = d.cell(*t)
         self._val = v
-        self.tile.config(text=f"tile ({t[0]}, {t[1]})\nATTR 0x{v:X}\n{attrs.attr_notes(v)}")
+        self.tile.config(text=f"tile ({t[0]}, {t[1]})\nATTR 0x{v:X}\n{attrs.attr_notes(v)}\n"
+                              f"{attrs.walk_readout(v)}")
 
     def _use(self):
         if self._val is not None:
@@ -709,7 +778,13 @@ class PaintOptions(ttk.Frame):
         sc.pack(side="left", padx=4)
         sc.bind("<<ComboboxSelected>>", lambda _e: self._from_controls())
         ui.Tip(sc, attrs.surface_help())
-        hint(sr, "one at most", wrap=120).pack(side="left")
+        ttk.Label(sr, text="stairs").pack(side="left", padx=(6, 0))
+        self.vstair = tk.StringVar(value="(none)")
+        tc = ttk.Combobox(sr, textvariable=self.vstair, values=[c[0] for c in attrs.STAIR_CHOICES],
+                          width=10, state="readonly")
+        tc.pack(side="left", padx=4)
+        tc.bind("<<ComboboxSelected>>", lambda _e: self._from_controls())
+        ui.Tip(tc, attrs.stairs_help())
         pr = ttk.Frame(self)
         pr.pack(fill="x", pady=(3, 0))
         for label, v in attrs.PAINT_PRESETS:
@@ -740,7 +815,8 @@ class PaintOptions(ttk.Frame):
         for mask, bv in self.bits.items():
             bv.set(bool(value & mask))
         self.vsurf.set(attrs.surface_label(value))
-        self.decode.config(text=attrs.attr_notes(value))
+        self.vstair.set(attrs.stair_label(value))
+        self.decode.config(text=attrs.attr_notes(value) + "\n" + attrs.walk_readout(value))
         rgb = colors.get(value)
         self.swatch.config(bg="#%02x%02x%02x" % rgb if rgb else "#000000")
 
@@ -754,7 +830,7 @@ class PaintOptions(ttk.Frame):
     def _from_controls(self):
         cur = self.ed.paint_value or 0
         flags = {m for m, bv in self.bits.items() if bv.get()}
-        self.ed.set_paint_value(attrs.compose_value(cur, flags, self.vsurf.get()))
+        self.ed.set_paint_value(attrs.compose_value(cur, flags, self.vsurf.get(), self.vstair.get()))
 
     def fill_values(self, doc, colors):
         """The value table for `doc` (rebuilt only when the grid changed)."""
@@ -824,8 +900,11 @@ class AddOptions(ttk.Frame):
                                    "to that gate."))
             self.note.pack(anchor="w", pady=(4, 0))
         else:
-            self.note.config(text="Adds a spot with an empty drop pool to this map's SI file "
-                                  "(created if the map has none).")
+            doc = getattr(self.ed, "doc", None)
+            why = doc.si_block_reason() if doc is not None else None
+            self.note.config(text=why or "Adds a spot with an empty drop pool to this map's SI "
+                                         "file (created if the game has a slot for it but the "
+                                         "file is missing).")
             self.note.pack(anchor="w", pady=(4, 0))
 
 

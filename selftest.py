@@ -6275,7 +6275,9 @@ def test_map_editor_clipboard():
     """Map editor clipboard: an entity, a warp, a search spot, a gate position and a monster
     spawn point copied on one map paste into
     another (records equal but for the position, at the pointer), cut removes the source,
-    paste is one undo step, and a map at the engine's chunk cap refuses a paste."""
+    paste is one undo step, and a map at the engine's chunk cap refuses a paste. A search spot
+    pasted into a map the game never rolls search items on (MAP_FIELD_01) is refused with the
+    reason; into a map with an SI file it lands with its drops."""
     print("map editor clipboard (copy / cut / paste across maps):")
     try:
         import tkinter as tk
@@ -6287,6 +6289,7 @@ def test_map_editor_clipboard():
     me = _map_editor()
     from map_editor import panel as mpanel
     from rf4s_modkit import rf4m as _rf4m
+    box = _headless_dialogs()                       # no real message boxes
     root, src, errs = _headless_panel("MAP_CITY_04", B)
     try:
         try:
@@ -6319,16 +6322,23 @@ def test_map_editor_clipboard():
         wnew = list(d1.map.mapj_records()[-1])
         ok.append(("warp", wnew[3:] == wrec[3:] and wnew[0] == wrec[0]
                    and 0 <= wnew[1] and 0 <= wnew[2]))
-        # search spot into a map without an SI file: the file is created, drops copied
+        # search spot into a map the game never rolls search items on: refused, with the reason
         sp = d0.si.spots[0]
         drops = [(e.effective_item_id, e.effective_weight) for e in sp.pool.entries]
         src.copy_object(("si", 0))
-        had_si = d1.si is not None
+        n_msgs = len(box["msgs"])
         dst.paste_object(None)
-        got = d1.si.spots[-1] if d1.si else None
-        ok.append(("search spot", not had_si and got is not None
+        told = [m for _t, m in box["msgs"][n_msgs:]]
+        ok.append(("search spot refused", d1.si is None
+                   and any("never rolls search items on MAP_FIELD_01" in m for m in told)))
+        # ... and into a map with an SI file: one more spot, drops copied
+        sd = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_00.rf4m"), "MAP_CITY_00")
+        n_si = len(sd.doc.si.spots)
+        sd.paste_object(None)
+        got = sd.doc.si.spots[-1]
+        ok.append(("search spot", len(sd.doc.si.spots) == n_si + 1
                    and [(e.effective_item_id, e.effective_weight) for e in got.pool.entries] == drops
-                   and (got.x, got.y) == (sp.x, sp.y)))
+                   and got.x == sp.x))                  # (y kept inside CITY_00's smaller grid)
         # cut removes the source (one undo step on the source map)
         n0 = len(d0.map.mobj_records())
         src.copy_object(("mobj", k), cut=True)
@@ -6796,14 +6806,17 @@ def test_mgrp_panel_and_conflicts():
     maps = sorted(B.glob("MAP_*.rf4m"))
     if not maps:
         _skip("MGRP conflicts", "no extracted bundleMain"); return
-    flagged = []
+    flagged, borrow = [], []
     for p in maps:
         m = _rf4m.Rf4mMap.load(p)
-        own = _md.gen_name_for_map(p.stem)
-        flagged += [(p.stem, msg) for _sv, msg in ag.problems(
-            m.mgrp(), p.name, gen_entries=_md.gen_entries(own) if own else None,
-            gen_name_for=_md.gen_name_for_id, gen_entries_for=_md.gen_entries)]
-    _check(f"no shipped map is flagged ({len(maps)} maps)", not flagged, flagged[:3])
+        own = _md.gen_name_for_id(ag.base_map_id(p.stem))
+        for sv, msg in ag.problems(m.mgrp(), p.name, gen_entries=_md.gen_entries(own) if own else None,
+                                   gen_name_for=_md.gen_name_for_id, gen_entries_for=_md.gen_entries):
+            (borrow if sv == "INFO" and "no gates of its own" in msg else flagged).append((p.stem, msg))
+    _check(f"no shipped map gets a warning ({len(maps)} maps); only MAP_DUNG_I14 / N42 / N43 are "
+           f"noted: they have no gates of their own and load GenJ02 / GenO02 / GenO03",
+           not flagged and sorted(st for st, _m in borrow) == ["MAP_DUNG_I14", "MAP_DUNG_N42", "MAP_DUNG_N43"]
+           and "GenJ02.bin" in dict(borrow)["MAP_DUNG_I14"], (flagged[:3], borrow))
     gn, ent = _md.gen_name_for_id, (lambda fn: 5)
     town = ag.problems(0x21, "MAP_DUNG_B02.rf4m", gen_entries=7, gen_name_for=gn, gen_entries_for=ent)
     stray = ag.problems(0x400, "MAP_CITY_02.rf4m", gen_name_for=gn, gen_entries_for=ent)
@@ -6847,6 +6860,151 @@ def test_mgrp_panel_and_conflicts():
         root.destroy()
 
 
+def test_map_editor_sidecar_files():
+    """Which search-item / monster-gate file the map editor opens for a map, the way the game
+    picks it (rf4s_modkit.exesidecars, refdata/rf4s_exe_sidecars.json): SI by base map id from
+    g_searchItemArchiveByMapId (RF4S.exe+0x4DD260), Gen by zone (MGRP) and the zone's run of
+    archives -- with the exceptions the old by-name lookup got wrong. Maps that never roll
+    search items refuse new spots; the SI validation (253-spot limit) reaches Problems and gates
+    the saves; a Gen file other rooms load too says so (Gates tab, Problems, save); the Gates tab
+    adds a first gate to an empty table and edits the gate level and spawn radius; the wave
+    cap note; MGRP bits 26-31 and a missing area bit are explained."""
+    print("map editor: the game's SI / Gen file per map, sharing, new gate, MGRP 26-31:")
+    import hashlib
+    from rf4s_modkit import areagroup as ag, exesidecars as xs, exetables as _ext, gen as _gen
+    from rf4s_modkit import rf4m as _rf4m, search_items as _si
+    from map_editor import data as _md
+    exe = _ext.default_exe()
+    if exe is None or hashlib.sha256(exe.read_bytes()).hexdigest() != xs.tables()["source"]["sha256"]:
+        _skip("rf4s_exe_sidecars.json vs RF4S.exe", "no RF4S.exe, or a different build")
+    else:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "gen_exe_tables_json", pathlib.Path(__file__).with_name("gen_exe_tables_json.py"))
+        gm = importlib.util.module_from_spec(spec); spec.loader.exec_module(gm)
+        _check("refdata/rf4s_exe_sidecars.json matches this RF4S.exe (SI table, Gen archive "
+               "names, the rows read past the encounter / BGM tables)",
+               gm.build_sidecars(exe) == xs.tables())
+    si = {n: _md.si_name_for_map(n) for n in ("MAP_CITY_05", "MAP_CITY_05_WINTER", "MAP_CITY_06",
+                                              "MAP_FIELD_A0", "MAP_FIELD_A2", "MAP_FIELD_A3",
+                                              "MAP_DUNG_E45", "MAP_CITY_00_SUMMER")}
+    _check("SI by map id: CITY_05 -> SI_CITY_06, CITY_06 none, FIELD_A0/A2/A3 -> SI_FIELD_101/"
+           "103/104, E45 none (SI_DUNG_E45 is never loaded), seasons share the base's",
+           si == {"MAP_CITY_05": "SI_CITY_06.bin", "MAP_CITY_05_WINTER": "SI_CITY_06.bin",
+                  "MAP_CITY_06": None, "MAP_FIELD_A0": "SI_FIELD_101.bin",
+                  "MAP_FIELD_A2": "SI_FIELD_103.bin", "MAP_FIELD_A3": "SI_FIELD_104.bin",
+                  "MAP_DUNG_E45": None, "MAP_CITY_00_SUMMER": "SI_CITY_00.bin"}
+           and "SI_DUNG_E45.bin" not in xs.si_files() and len(xs.si_files()) == 287, si)
+    gn = {n: _md.gen_name_for_map(n) for n in ("MAP_DUNG_I14", "MAP_DUNG_N42", "MAP_DUNG_N43",
+                                               "MAP_DUNG_J02", "MAP_FIELD_A0", "MAP_FIELD_105",
+                                               "MAP_DUNG_B02")}
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    maps = sorted(p.stem for p in B.glob("MAP_*.rf4m"))
+    q10 = [m for m in maps if (_md.gen_name_for_map(m) or "").lower() == "genq10.bin"]
+    _check("Gen by zone: I14 -> GenJ02, N42 / N43 -> GenO02 / GenO03, FIELD_A0 / 105 -> "
+           "GenField99_101 / 105; GenQ10 is loaded for no map; GenJ02 lists J02 then I14",
+           gn == {"MAP_DUNG_I14": "GenJ02.bin", "MAP_DUNG_N42": "GenO02.bin",
+                  "MAP_DUNG_N43": "GenO03.bin", "MAP_DUNG_J02": "GenJ02.bin",
+                  "MAP_FIELD_A0": "GenField99_101.bin", "MAP_FIELD_105": "GenField99_105.bin",
+                  "MAP_DUNG_B02": "GenB02.bin"}
+           and not q10 and _md.maps_for_gen("GenJ02.bin", maps) == ["MAP_DUNG_J02", "MAP_DUNG_I14"]
+           and _md.also_used_by("gen", "GenJ02.bin", "MAP_DUNG_J02") == ["MAP_DUNG_I14"]
+           and _md.also_used_by("si", "SI_CITY_00.bin", "MAP_CITY_00_WINTER") == [], (gn, q10))
+    f = _si.SearchItemFile([_si.SearchSpot(8, 8, _si.DropPool([_si.DropEntry(1, 1)]))
+                            for _ in range(254)])
+    v254 = f.validate()
+    f.spots = f.spots[:253]
+    pool = _si.DropPool([_si.DropEntry(1, 1)] * 255)
+    ok255 = _si.SearchItemFile([_si.SearchSpot(8, 8, pool)]).validate()
+    _check("SI limits: 253 spots is fine, 254 is an ERROR (spot 253's item roll uses daily "
+           "stream 255, which never ends); 255 pool entries are fine",
+           any(m.startswith("ERROR") and "HANG" in m for m in v254) and not f.validate()
+           and not any(m.startswith("ERROR") for m in ok255), v254[:1])
+    g2 = _gen.GenTable.load(B / "GenA01.bin")
+    e0 = next(e for _p, _e, e in g2.all_entries())
+    g2.patterns.append([])
+    g2.add_entry(1, e0.gate_kind, 10, clone=e0, share=False)
+    for _p, _e, e in g2.all_entries():
+        e.hdr.count_max = 8
+    _check("gen validate: two patterns whose gates want more than the map's 10 live monsters "
+           "get an INFO note", any(m.startswith("INFO:") and "8 + 8 = 16" in m for m in g2.validate()))
+    w26 = ag.problems(1 << 26, "MAP_DUNG_B02.rf4m")
+    w0 = ag.problems(0x10, "MAP_DUNG_B02.rf4m")
+    quiet = ag.problems(0x10, "MAP_ROOM_25.rf4m") + ag.problems(0, "MAP_DUMMY_00.rf4m")
+    ex = _rf4m.mgrp_explain(1 << 26)
+    eff = dict(ag.effects(1 << 31, "MAP_DUNG_B02.rf4m"))
+    _check("MGRP bits 26-31 with no bit 5-25: zone 21+ (WARN: no area music, the Cluck-Cluck "
+           "Nest gate row); no area bit at all: WARN zone 0 (not on the shipped rooms / "
+           "placeholders that have none); explained in mgrp_explain / the panel",
+           any("zone 21" in m and "Cluck-Cluck Nest" in m for _s, m in w26)
+           and any("zone 0" in m for _s, m in w0) and not quiet
+           and any("zone 21" in x for x in ex) and not any("no reader" in x for x in ex)
+           and "0xFFFCFFFC" in eff.get("Music", ""), (w26, w0, quiet, ex, eff))
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor side files", "no tkinter"); return
+    box = _headless_dialogs()                       # no real message boxes
+    me = _map_editor()
+    root, ed, errs = _headless_panel("MAP_DUNG_I14", B)
+    try:
+        d = ed.doc
+        ed.encounters.refresh()
+        probs = ed.validate()
+        box["yesno"] = False
+        refused = ed.save_gen() is False
+        _check("MAP_DUNG_I14 opens GenJ02.bin (the game's), the Gates tab and Problems say "
+               "MAP_DUNG_J02 uses it too, and Save asks first",
+               d.gen_path is not None and d.gen_path.name == "GenJ02.bin"
+               and "Also used by: MAP_DUNG_J02" in ed.encounters.shared_file_lbl.cget("text")
+               and any(sv == "INFO" and "also used by MAP_DUNG_J02" in m for sv, _w, m in probs)
+               and not any(sv == "WARN" and "MGRP" in m for sv, _w, m in probs) and refused,
+               ([x for x in probs if x[0] != "INFO"][:3], ed.encounters.shared_file_lbl.cget("text")))
+        c6 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_06.rf4m"), "MAP_CITY_06")
+        why = c6.doc.si_block_reason()
+        try:
+            c6.doc.ensure_si(); raised = False
+        except _si.SearchItemError:
+            raised = True
+        c5 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_05.rf4m"), "MAP_CITY_05")
+        _check("MAP_CITY_06 (never rolls search items) has no spots and refuses new ones with the "
+               "reason; MAP_CITY_05 opens SI_CITY_06.bin",
+               c6.doc.si is None and why and "never rolls search items" in why and raised
+               and c5.doc.si_path is not None and c5.doc.si_path.name == "SI_CITY_06.bin", why)
+        sp0 = c5.doc.si.spots[0]
+        c5.doc.si.spots += [_si.SearchSpot(sp0.x, sp0.y, sp0.pool) for _ in range(260)]
+        sprobs = [m for sv, w, m in c5.validate() if sv == "ERROR" and w == "search items"]
+        box["yesno"] = False
+        _check("an SI file past 253 spots is an ERROR in Problems, and Save refuses it unless told "
+               "to save anyway", sprobs and c5.save_si() is False and c5.sidecar_saves_ok(["si"]) is False,
+               sprobs[:1])
+        b2 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_DUNG_B02.rf4m"), "MAP_DUNG_B02")
+        enc = b2.encounters
+        enc.refresh()
+        n0 = _md.gen_entry_count(b2.doc.gen)
+        enc._new_gate()
+        ent = b2.active_gate
+        enc.refresh()
+        enc.v["level"].set("150")
+        enc._commit_gate()
+        pts = enc.mpts.get_children()
+        if pts:
+            enc.mpts.selection_set(pts[0])
+        enc.vrad.set("48")
+        enc._commit_radius()
+        ent = b2.active_gate
+        _check("Gates tab on an empty table (MAP_DUNG_B02): New adds a first gate with a spawn "
+               "point and a monster, valid; the level field sets param_a, the radius field the "
+               "spawn point's radius",
+               n0 == 0 and ent is not None and _md.gen_entry_count(b2.doc.gen) == 1
+               and ent.hdr.param_a == 150 and ent.mon_pos.points[0][2] == 48
+               and len(ent.spawns) == 1 and not [m for m in b2.doc.gen.validate() if not m.startswith("INFO")],
+               (n0, b2.doc.gen.validate() if b2.doc.gen else None))
+        _check("side-file checks raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
 def test_map_editor_extra_warnings():
     """More Problems checks: a chest sharing its collected flag (with another chest here, or
     on another map -- a duplicate / pasted chest), a chest with no flag, an empty or
@@ -6862,13 +7020,19 @@ def test_map_editor_extra_warnings():
     if not maps:
         _skip("extra warnings", "no extracted bundleMain"); return
     sev = collections.Counter()
+    shared = 0
     for p in maps:
         m = _rf4m.Rf4mMap.load(p)
-        sev.update(sv for sv, _i, _m in _md.chest_problems(p.stem, m.mobj_records()))
+        for sv, _i, msg in _md.chest_problems(p.stem, m.mobj_records()):
+            if sv == "WARN" and "shares its one-shot flag" in msg:
+                shared += 1                 # reported on purpose, shipped maps included
+            else:
+                sev[sv] += 1
         sev.update(sv for sv, _m in ag.problems(m.mgrp(), p.name,
                                                 sibling_zones=_md.sibling_zones(p.stem)))
-    _check("shipped maps: no warning, only the chests that give nothing are noted",
-           set(sev) <= {"INFO"} and sev["INFO"] == 36, dict(sev))
+    _check("shipped maps: only the chests that give nothing are noted, and the one-shot flags "
+           "other maps reuse (crates, switches, seal doors) are warned about",
+           set(sev) <= {"INFO"} and sev["INFO"] == 36 and shared == 27, (dict(sev), shared))
     m = _rf4m.Rf4mMap.load(B / "MAP_DUNG_A03.rf4m")
     recs = [list(r) for r in m.mobj_records()]
     k = next(i for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44)
@@ -6878,11 +7042,15 @@ def test_map_editor_extra_warnings():
     foreign = list(recs[k]); foreign[13] = other[1][0][1]; recs.append(foreign)
     noflag = list(recs[k]); noflag[13] = -1; noflag[8] = 400; recs.append(noflag)
     msgs = [msg for _sv, _i, msg in _md.chest_problems("MAP_DUNG_A03", recs)]
-    _check("chests: a duplicate's shared flag, a flag another map's chest uses, no flag, a "
-           "row past the table are flagged",
-           any(f"with chest #{len(recs) - 3}" in x for x in msgs)
-           and any(other[0] in x for x in msgs) and any("never removes it" in x for x in msgs)
-           and any("past the 190-row" in x for x in msgs), msgs)
+    for r in recs[len(m.mobj_records()):]:
+        m.add_mobj_record(r)
+    here = [x for x in m.validate() if "one-shot flag" in x]
+    _check("chests: a duplicate's shared flag (validate), a flag another map's chest uses, no "
+           "flag, a row past the table are flagged",
+           any(f"MOBJ #{len(recs) - 3} (chest) shares its one-shot flag" in x for x in here)
+           and any(_md.SEASON_RE.sub("", other[0]) in x for x in msgs)
+           and any("never removes it" in x for x in msgs)
+           and any("past the 190-row" in x for x in msgs), (here, msgs))
     note = ag.problems(0x2000, "MAP_DUNG_B10.rf4m", sibling_zones=_md.sibling_zones("MAP_DUNG_B10"))
     _check("a Water Ruins room with the Floating Empire group gets a note (music, crates, minimap)",
            any(sv == "INFO" and "other MAP_DUNG_B rooms use area group bit 10" in x
@@ -7272,6 +7440,239 @@ def test_map_editor_copy_to_seasons():
         _check("mapdiff: a map compared with itself has no changes",
                mapdiff.diff(summer0, _rf4m.Rf4mMap.load(B / "MAP_CITY_00_SUMMER.rf4m")).empty())
         _check("copy to seasons raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        _gp.find_bundle_dir = old[0]
+        med.EXTRACTED, med._EXTRACTED_INDEX = old[1], old[2]
+        if root is not None:
+            root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_map_container_checks():
+    """Per-map exe tables (rf4s_modkit.mapres, refdata/rf4s_exe_map_resources.json): each map's
+    overlay layer comes from g_mapResourceTable +2 (not the ground set's own _1000 tiles), the
+    MTXN count is checked against it, short MLIG / MGRP chunks, warp destinations (base ids,
+    id 0, the flag range, zone size, the arrival against the destination map), the night tint
+    default, the runtime warps / walls, copy-to-seasons' chunk cap and the small-map camera."""
+    print("map container: overlay ids, MTXN / MLIG / MGRP / warp checks, runtime warps:")
+    import hashlib, struct
+    from rf4s_modkit import exetables as _ext, mapdiff, mapground, mapres, minimap, rf4m as _rf4m
+    rows = mapres.tables().get("map_resources", {}).get("rows", [])
+    _check("refdata/rf4s_exe_map_resources.json: 872 maps x [rf4m, ground, overlay, over-model], "
+           "216 without an overlay",
+           len(rows) == 872 and sum(1 for r in rows if r[2] is None) == 216
+           and rows[mapres.map_id("MAP_FIELD_01")][1:3] == ["MAP_FIELD_201_0000", "MAP_FIELD_01_1000"],
+           len(rows))
+    exe = _ext.default_exe()
+    if exe is None:
+        _skip("map resources vs RF4S.exe", "no RF4S.exe next to the game's Bundle folder")
+    elif hashlib.sha256(exe.read_bytes()).hexdigest() != mapres.tables()["source"]["sha256"]:
+        _skip("map resources vs RF4S.exe", "the game folder has a different RF4S.exe build")
+    else:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "gen_exe_tables_json", pathlib.Path(__file__).with_name("gen_exe_tables_json.py"))
+        gen_mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen_mod)
+        fresh = gen_mod.build_map_resources(exe)
+        _check("refdata/rf4s_exe_map_resources.json matches this RF4S.exe (resource ids, type "
+               "attributes, runtime warps)",
+               fresh == mapres.tables())
+    sp4 = mapres.runtime_spawns(6)                         # MAP_FARM_00_AUTUMN -> base 4
+    _check("runtime warps / walls: the farm gets its field warps + walls by expansion level and "
+           "the barn doors; the 50 barn rooms each get theirs; none on a dungeon",
+           {s["dest"] for s in sp4 if s["kind"] == "warp"} == {8, 12, 16, 20, 77, 82}
+           and sum(1 for s in sp4 if s["kind"] == "wall") == 4
+           and all(mapres.runtime_spawns(m) for m in range(77, 127))
+           and not mapres.runtime_spawns(mapres.map_id("MAP_DUNG_A01"))
+           and mapres.wall_cells([0, 320, 16, 400]) == (0, 40, 2, 50)
+           and mapres.wall_cells([0, 0, 0, 0]) is None)
+    _check("night tint default: 181,214,214 where g_mapTypeAttribTable has bit 0x10 (a barn "
+           "room), else 148,214,247; seasonal copies use the base id",
+           _rf4m.mlig_defaults(77)[2] == (181, 214, 214) and _rf4m.mlig_defaults(4)[2] == (148, 214, 247)
+           and _rf4m.mlig_defaults(7) == _rf4m.mlig_defaults(4)
+           and _rf4m.mlig_defaults(None) == _rf4m.MLIG_DEFAULTS)
+    _check("minimap: seasonal copies are left out of a sheet's maps with base_only",
+           all(not (4 <= m < 64 and m % 4) for m in minimap.maps_on_sheet(0, base_only=True))
+           and len(minimap.maps_on_sheet(0)) > len(minimap.maps_on_sheet(0, base_only=True)))
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FIELD_01.rf4m").exists():
+        _skip("map container checks", "no extracted bundleMain"); return
+    from map_editor import data as med
+
+    def reader(fn):
+        p = med.find_extracted(fn)
+        return p.read_bytes() if p else None
+    ov = {n: mapground.overlay_for(reader, n) for n in
+          ("MAP_FIELD_01", "MAP_FIELD_03", "MAP_CITY_07_SUMMER", "MAP_DUNG_I04", "MAP_DUNG_I08")}
+    _check("overlay layer = g_mapResourceTable +2: FIELD_01 draws MAP_FIELD_01 over ground "
+           "FIELD_201, FIELD_03 draws FIELD_07, CITY_07_SUMMER draws CITY_07, I04 / I08 none",
+           ov == {"MAP_FIELD_01": "MAP_FIELD_01", "MAP_FIELD_03": "MAP_FIELD_07",
+                  "MAP_CITY_07_SUMMER": "MAP_CITY_07", "MAP_DUNG_I04": None, "MAP_DUNG_I08": None}
+           and mapground.available_layers(reader, "MAP_DUNG_I04") == [0]
+           and mapground.available_layers(reader, "MAP_FIELD_01") == [0, 1]
+           and mapground.tile_layout(reader, "MAP_FIELD_01", 1)["set"] == "MAP_FIELD_01"
+           and mapground.tile_layout(reader, "MAP_DUNG_I04", 1) is None, ov)
+    extra = sorted(a["set"] for n in ("MAP_DUNG_A01", "MAP_DUNG_B01", "MAP_DUNG_D06", "MAP_DUNG_I04")
+                   for a in mapground.atlas_audit(reader, n, *_rf4m.Rf4mMap.load(
+                       med.find_extracted(n + ".rf4m")).attr_grid()[:2]) if a["extra"])
+    _check("three overlay atlases ship more tiles than spawned (A01, B01, D06; I04 has no overlay)",
+           extra == ["MAP_DUNG_A01", "MAP_DUNG_B01", "MAP_DUNG_D06"], extra)
+    known = set(med.rooms_by_id())
+
+    def val(m, name, loader=med.load_map_by_id):
+        return m.validate(known_maps=known, map_name=name, dest_loader=loader)
+
+    f01 = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    base_v = val(f01, "MAP_FIELD_01")
+    one = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    one.delete_chunk(max(i for i, c in enumerate(one.chunks) if c.tag == b"MTXN"))
+    three = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    three.add_chunk("MTXN", b"\0" * 4, at=[i for i, c in enumerate(three.chunks) if c.tag == b"MTXN"][-1] + 1)
+    i04 = _rf4m.Rf4mMap.load(B / "MAP_DUNG_I04.rf4m")
+    i04.add_chunk("MTXN", b"\0" * 4, at=[i for i, c in enumerate(i04.chunks) if c.tag == b"MTXN"][-1] + 1)
+    _check("MTXN count vs the overlay id: 1 chunk on an overlay map WARNs (not drawn), 2 on a "
+           "no-overlay map WARNs, 3 is an ERROR; the shipped map is clean",
+           not base_v
+           and any(s.startswith("WARN") and "will not be drawn" in s for s in val(one, "MAP_FIELD_01"))
+           and any(s.startswith("ERROR") and "3 MTXN" in s for s in val(three, "MAP_FIELD_01"))
+           and any(s.startswith("WARN") and "stays empty" in s for s in val(i04, "MAP_DUNG_I04")),
+           base_v[:2])
+    short = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    short.set_ints("MLIG", [0, 0], signed=False)
+    short.live_chunk(b"MGRP").payload = b"\0\0"
+    vs = val(short, "MAP_FIELD_01")
+    _check("an MLIG under 12 B and an MGRP under 4 B are ERRORs",
+           any("MLIG chunk is 8 B" in s and s.startswith("ERROR") for s in vs)
+           and any("MGRP chunk is 2 B" in s and s.startswith("ERROR") for s in vs), vs[:3])
+    rec = list(f01.mapj_records()[0])
+    dest = _rf4m.Rf4mMap.load(med.find_extracted(med.rooms_by_id()[rec[5]] + ".rf4m"))
+    dw, dh, dcells = dest.attr_grid()
+    wall = next((i for i, v in enumerate(dcells) if v == 0x2), None)
+    dz = dest.mapj_records()[0]
+    cases = {
+        "seasonal": ([rec[0], *rec[1:5], 5, *rec[6:]], "ERROR", "seasonal copy"),
+        "id 0": ([rec[0], *rec[1:5], 0, 0, rec[7], rec[8]], "ERROR", "never loads"),
+        "flag": ([2560, *rec[1:]], "ERROR", "disable flag 2560"),
+        "width": ([rec[0], rec[1], rec[2], 40000, *rec[4:]], "WARN", "zone width 40000"),
+        "outside": ([*rec[:6], dw * 8 + 40, rec[7], rec[8]], "ERROR", "is outside"),
+        "wall": ([*rec[:6], (wall % dw) * 8 + 4, (wall // dw) * 8 + 4, rec[8]]
+                 if wall is not None else rec, "WARN", "is a wall"),
+        "in zone": ([*rec[:6], dz[1] + dz[3] // 2, dz[2] + dz[4] // 2, rec[8]], "WARN", "lies inside"),
+    }
+    got = {}
+    for k, (r, sev, needle) in cases.items():
+        m = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+        m.set_mapj_record(0, r)
+        got[k] = any(s.startswith(sev) and needle in s for s in val(m, "MAP_FIELD_01"))
+    _check("warp checks: a seasonal-copy destination, dest 0 with a 0 arrival, a flag past 2559 are "
+           "ERRORs; a zone past 16 bits WARNs; the arrival outside the destination grid is an "
+           "ERROR, on a wall / inside a destination warp zone a WARN",
+           all(got.values()), got)
+    maze = _rf4m.Rf4mMap.load(med.find_extracted("MAP_DUNG_F01.rf4m"))
+    _check("Sharance Maze floors: their direction-code arrivals are not flagged",
+           not [s for s in val(maze, "MAP_DUNG_F01") if "warp #" in s])
+    # copy to seasons: an add past the 40-object cap is skipped
+    full = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    while len(full.find(b"MOBJ")) < 40:
+        full.add_mobj_record(full.mobj_records()[0])
+    ch = mapdiff.Changes()
+    ch.added["objects"] = [tuple(full.mobj_records()[0])]
+    rep = mapdiff.apply(ch, full)
+    _check("mapdiff.apply refuses an object past the game's 40 per map (reported as skipped)",
+           len(full.find(b"MOBJ")) == 40 and not rep.done and "the most the game can load" in rep.skipped[0],
+           rep.skipped)
+    r1 = f01.resize_attr_grid(40, 30, dry_run=True)
+    r2 = f01.resize_attr_grid(80, 60, dry_run=True)
+    _check("resize: a grid under 52 x 32 tiles gets the centred, zoomed camera and the report "
+           "says when a resize crosses that line",
+           _rf4m.camera_note(51, 40) and _rf4m.camera_note(60, 31) and _rf4m.camera_note(52, 32) is None
+           and any(t.startswith("camera:") for t in r1["todo"]) and r1["camera"]["new"]
+           and not any(t.startswith("camera:") for t in r2["todo"]))
+
+
+def test_map_editor_warps_and_saving():
+    """Map editor, W1: a new warp names the base map; the destination list offers seasonal
+    maps once; the minimap / MLIG default use the base id; Ctrl+S of a map opened under a
+    non-game name refuses and a lower-case name is saved under the game's exact name; copy to
+    seasons lists the targets' ERRORs; the runtime warps show in the view."""
+    print("map editor: warp defaults, base ids, canonical save names:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor warps and saving", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FARM_00_SUMMER.rf4m").exists():
+        _skip("map editor warps and saving", "no extracted bundleMain"); return
+    from rf4s_modkit import gamepaths as _gp
+    from map_editor import data as med, inspector as med_insp, render as med_render
+    box = _headless_dialogs()
+    ch = med.warp_choices()
+    _check("destination list: seasonal maps once, by base id, marked 'season follows the calendar'",
+           any(c.startswith("4 - MAP_FARM_00") and med.SEASON_FOLLOWS in c for c in ch)
+           and not any(c.startswith("5 - ") for c in ch) and not any(c.startswith("0 - ") for c in ch))
+    _check("facing names: 0 keeps, 1 down, 90 right, 180 up, 270 left",
+           [med_insp.facing_text(v) for v in (0, 1, 90, 180, 270)]
+           == ["keeps the current facing", "faces down", "faces right", "faces up", "faces left"])
+    root = None
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_w1_"))
+    game = tmp / "game" / "Bundle"
+    (game / "bundleMain").mkdir(parents=True)
+    (game / "Manifest.plist").write_bytes(b"")
+    shutil.copy2(B / "MAP_FARM_00.rf4m", game / "bundleMain" / "MAP_FARM_00.rf4m")
+    shutil.copy2(B / "MAP_FARM_00.rf4m", tmp / "map_farm_00.rf4m")
+    shutil.copy2(B / "MAP_FARM_00.rf4m", tmp / "MY_FARM.rf4m")
+    old = (_gp.find_bundle_dir, med.EXTRACTED, med._EXTRACTED_INDEX)
+    try:
+        root, p, errs = _headless_panel("MAP_FARM_00_SUMMER", B)
+        _check("the minimap panel and the Properties minimap use the base id (MAP_FARM_00_SUMMER -> 4)",
+               p.minimap_panel._map_id() == 4 and p.maptab._tint_defaults()[2] == (148, 214, 247))
+        n0 = len(p.doc.map.mapj_records())
+        from map_editor import tools as med_tools
+        wt = med_tools.WarpTool(p)
+        ev = object()
+        p.view.tile_at = lambda e, clamp=False: (3, 3)
+        wt.press(ev); wt.release(ev)
+        recs = p.doc.map.mapj_records()
+        _check("a new warp on a seasonal copy leads to the BASE id (4), arrival inside the grid",
+               len(recs) == n0 + 1 and recs[-1][5] == 4, recs[-1])
+        rt = med_render.runtime_spawns(p.doc)
+        _check("the farm's runtime warps / walls are listed for the view with a 'spawned by the "
+               "game when' tip", rt and all("spawned by the game when" in t for _r, _s, t in rt), len(rt))
+        root.destroy(); root = None
+        _gp.find_bundle_dir = lambda refresh=False: game
+        med.EXTRACTED, med._EXTRACTED_INDEX = game, None
+        root, p, errs = _headless_panel("map_farm_00", tmp)
+        p.maptab.msea.set("3 winter"); p.maptab._commit_msea()
+        ok = p.save_to_game()
+        saved = (game / "bundleMain" / "MAP_FARM_00.rf4m").read_bytes()
+        _check("Ctrl+S of 'map_farm_00' writes the game's exact name MAP_FARM_00.rf4m, no stray "
+               "lower-case file", ok and saved == p.doc._bytes("map")
+               and not (game / "00_mods").exists(), sorted(x.name for x in game.rglob("*.rf4m")))
+        root.destroy(); root = None
+        del box["msgs"][:]
+        root, p, errs = _headless_panel("MY_FARM", tmp)
+        p.maptab.msea.set("3 winter"); p.maptab._commit_msea()
+        ok2 = p.save_to_game()
+        _check("Ctrl+S of a map under a non-game name refuses with a clear message",
+               ok2 is False and any("not one of the game's map names" in m for _t, m in box["msgs"])
+               and not (game / "00_mods").exists())
+        root.destroy(); root = None
+        fam = ["MAP_CITY_00", "MAP_CITY_00_SUMMER", "MAP_CITY_00_AUTUMN", "MAP_CITY_00_WINTER"]
+        for f in fam:
+            shutil.copy2(B / (f + ".rf4m"), game / "bundleMain" / (f + ".rf4m"))
+        med._EXTRACTED_INDEX = None
+        from tkinter import messagebox as _mb
+        asked = []
+        _mb.askyesno = lambda t, m, **k: asked.append(m) or False
+        root, p, errs = _headless_panel("MAP_CITY_00", game / "bundleMain")
+        r0 = list(p.doc.map.mapj_records()[0])
+        r0[5] = 25                                  # a seasonal copy as the destination
+        p.doc.map.add_mapj_record(r0)
+        p.copy_to_seasons()
+        _check("copy to seasons lists each target season's ERRORs before writing",
+               asked and "would choke on" in asked[0] and "MAP_CITY_00_SUMMER: warp #" in asked[0]
+               and "seasonal copy" in asked[0], asked[:1])
+        _check("W1 map editor checks raised no callback errors", not errs, str(errs[:1]))
     finally:
         _gp.find_bundle_dir = old[0]
         med.EXTRACTED, med._EXTRACTED_INDEX = old[1], old[2]
@@ -7940,7 +8341,8 @@ def test_attr_tooltips():
 
     boxes = [b for _a, b in mx.PAINT_FLAGS]
     surf = [b for _a, b in mx.SURFACE_CHOICES if b]
-    controls = set(boxes) | set(surf)
+    stairs = [b for _a, b in mx.STAIR_CHOICES if b]
+    controls = set(boxes) | set(surf) | set(stairs)
 
     # the 24 bits that actually occur in the shipped maps, measured 2026-09-21
     OCCUR = {0x1, 0x2, 0x4, 0x8, 0x20, 0x40, 0x80, 0x100, 0x200, 0x400, 0x1000,
@@ -7948,8 +8350,12 @@ def test_attr_tooltips():
              0x200000, 0x400000, 0x8000000, 0x10000000, 0x20000000, 0x40000000}
     missing = [hex(b) for b in sorted(OCCUR - controls)]
     _check("every occurring bit is paintable", not missing,
-           missing or "%d bits: %d checkboxes + %d surface choices"
-           % (len(OCCUR), len(boxes), len(surf)))
+           missing or "%d bits: %d checkboxes + %d surface + %d stair choices"
+           % (len(OCCUR), len(boxes), len(surf), len(stairs)))
+    _check("stair choices match the loader's group B bits the maps use",
+           set(stairs) == set(mx.STAIR_FIELD) and not set(stairs) & set(boxes)
+           and all(b & 0x1C0E00 for b in stairs),
+           "stairs + 0x80000 are one dropdown, no checkbox")
 
     _check("surface choices match the loader's group D",
            set(surf) == set(mx.SURFACE_FIELD),
@@ -7970,7 +8376,7 @@ def test_attr_tooltips():
            "%d distinct values seen across all 872 maps" % len(mx.KNOWN_ATTR_VALUES))
 
     # bits whose meaning is not known must say so rather than invent one
-    UNKNOWN = (0x1000, 0x8000, 0x80000, 0x200000, 0x8000000, 0x10000000, 0x20000000)
+    UNKNOWN = (0x1000, 0x8000, 0x80000, 0x200000, 0x10000000)
     bad = [hex(b) for b in UNKNOWN if not mx.ATTR_BIT_HELP[b].startswith("UNKNOWN")]
     _check("unknown bits are labelled UNKNOWN", not bad,
            bad or "%d marked honestly" % len(UNKNOWN))
@@ -7986,18 +8392,257 @@ def test_attr_tooltips():
     bad = [hex(x) for x in mx.SURFACE_FIELD if "only ONE" not in mx.ATTR_BIT_HELP[x]]
     _check("surface bits warn about exclusivity", not bad, bad or "all 7 warn")
 
-    _check("0x10 explains it is runtime-stamped",
-           "no shipped map authors it" in mx.ATTR_BIT_HELP[0x10],
-           "water-fx flagged as entity-stamped, not paintable-in-map")
+    H = mx.ATTR_BIT_HELP
+    _check("0x10: never blocks walking, not in any object template, unused by shipped maps",
+           "Never blocks walking" in H[0x10] and "No shipped map authors it" in H[0x10]
+           and "template" in H[0x10])
+    _check("walking: 0x1 is not needed, 0x10000 stops only the knock-back, 0x8 blocks the "
+           "player, the mask formula is given",
+           "NOT needed for walking" in H[0x1] and "only the knock-back" in H[0x10000]
+           and "Blocks the player" in H[0x8] and "cell & ~mask & 0x1018F" in H[0x1]
+           and "0x101A1" in H[0x1] and "0x10021" in H[0x1] and "0x10121" in H[0x1])
+    _check("0x4000 is 'fishable water' everywhere (note, surface choice, help)",
+           "fishable-water" in mx.attr_notes(0x4000) and ("fishable water", 0x4000) in mx.SURFACE_CHOICES
+           and H[0x4000].startswith("Fishable water"))
+    _check("0x8000000 = object footprint marker, 0x20000000 = gangway, tilling needs a farm field",
+           H[0x8000000].startswith("Object footprint marker") and H[0x20000000].startswith("Gangway")
+           and "farm field" in H[0x20] and mx.attr_notes(0x8000002) == "block,footprint")
+    from map_editor import attrs as A
+    _check("walk readout from the actor masks",
+           A.walk_readout(0x8) == "walk: player no · boots yes · monsters no · NPCs no · knock-back no"
+           and A.walk_readout(0x10001) == "walk: player yes · boots yes · monsters yes · NPCs yes · knock-back no"
+           and A.walk_readout(0x80) == "walk: player yes · boots yes · monsters no · NPCs no · knock-back no"
+           and A.walk_readout(0x100) == "walk: player yes · boots yes · monsters no · NPCs yes · knock-back no"
+           and A.walk_readout(0x0) == A.walk_readout(0x1), A.walk_readout(0x100))
+    _check("value 0 is empty walkable ground with its own colour, not a void",
+           mx.attr_notes(0) == "empty (walkable)"
+           and A.assign_colors([0, 1, 1])[0] == A.ATTR_EMPTY != A.ATTR_FLOOR)
     _check("surface_help lists the whole field",
            all(("0x%X" % b) in mx.surface_help() for b in mx.SURFACE_FIELD),
            "dropdown tooltip names all 7")
     _check("attr_bit_help tolerates an unknown bit",
            "No description" in mx.attr_bit_help(0x80000000), "falls back cleanly")
-    from map_editor import attrs as A
     v = A.compose_value(0x80000001, {0x2}, "snow")
     _check("the flag controls keep bits they do not own and set one surface",
            v == 0x80020002 and A.surface_label(v) == "snow", hex(v))
+    v = A.compose_value(0x201, {0x1}, "(none)", "stairs↕")
+    _check("the stairs dropdown replaces the old stair direction",
+           v == 0x40001 and A.stair_label(v) == "stairs↕" and "stairs↕" in mx.stairs_help() + "stairs↕",
+           hex(v))
+
+
+def test_map_editor_placed_objects():
+    """Placed objects (MOBJ) vs RF4S.exe: flag fields stored as typed (no stale high bits),
+    flag ids / forage / door / type-263 / inverted-gate checks, off-grid only warned where the
+    player cannot reach, (0, 0) is a real position, the collision the objects stamp at load
+    (refdata/rf4s_exe_collision.json) drawn and named in the Alt tooltip, and duplicate /
+    paste / Add giving chests, crates and herb pickups an unused flag, warning about shared
+    ones, keeping a warp point's destination and moving a knock-back target."""
+    print("map editor: placed objects (flags, validation, collision stamps, copy rules):")
+    import types
+    from rf4s_modkit import collisionstamp, exetables, mobj_params as mp, rf4m as _rf4m
+    # --- field sizes / names -------------------------------------------------------
+    _check("f13 is a whole dword for objects, decorations, chests, seal doors; chest f9 a byte",
+           all(mp.field_size(t, 13) == 4 for t in (200, 400, 44, 47, 53))
+           and mp.field_size(44, 9) == 1 and mp.param_name(44, 9) == "reveal flag offset"
+           and mp.field_size(263, 13) == 2 and "reveal" in mp.field_meaning(44, 9)
+           and "every frame" in mp.field_meaning(200, 13))
+    # --- validate(): synthetic records -------------------------------------------
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_A03.rf4m").exists():
+        _skip("placed objects", "no extracted bundleMain"); return
+    base = _rf4m.Rf4mMap.load(B / "MAP_DUNG_A03.rf4m")
+    W, H, _ = base.attr_grid()
+
+    def findings(*recs):
+        m = _rf4m.Rf4mMap.parse(base.build())
+        for c in [c for c in m.chunks if c.tag == b"MOBJ"]:
+            m.chunks.remove(c)
+        for r in recs:
+            m.add_mobj_record(list(r))
+        return m.validate()
+
+    def rec(t, x=80, y=80, **f):
+        r = [t, -1, -1, -1, -1, -1, 4096, 0, 0, 0, 0, 0, 0, -1, x, y]
+        for k, v in f.items():
+            r[int(k[1:])] = v
+        return r
+    out = findings(rec(200, f13=2560), rec(44, f13=-5), rec(263, f13=-1), rec(44, f13=10, f9=-20),
+                   rec(0, f10=30), rec(1, x=4, y=4, f9=8), rec(210, f12=4, f13=0))
+    _check("flag ids outside -1 / 0..2559, a chest's reveal flag, type 263 with -1, ore row "
+           "past MapOre_Rate, forage scatter off the packed range: ERROR; inverted gate with no "
+           "flag: WARN",
+           sum("is not -1 or 0..2559" in x for x in out) == 2
+           and any("reveal flag f13 + f9 = -10" in x for x in out)
+           and any("found flag f13 = -1" in x for x in out)
+           and any("past the 25 rows" in x for x in out)
+           and any("does not fit the forage registry" in x for x in out)
+           and any(x.startswith("WARN") and "never stamps its collision" in x for x in out), out)
+    out = findings(*[rec(3, x=100 + i, y=100) for i in range(33)])
+    out2 = findings(*[rec(82 + i, f13=750) for i in range(5)])
+    _check("33 forage spawners ERROR, 5 door / wall objects WARN",
+           any(x.startswith("ERROR") and "at most 32" in x for x in out)
+           and any(x.startswith("WARN") and "5 door / road / wall" in x for x in out2))
+    out = findings(rec(44, x=-40, f13=200), rec(200, x=-40), rec(47, x=-240, y=0, f13=100),
+                   rec(53, f13=800), rec(53, x=160, f13=800), rec(46, f13=300, f9=1),
+                   rec(46, f13=300, f9=0))
+    _check("off the grid: warned for a chest the player cannot reach, not for a tree or a "
+           "seal-door controller; a shared crate flag is warned, a pressure plate is not "
+           "a one-shot",
+           any("MOBJ #0 (" in x and "outside the" in x for x in out)
+           and not any(("MOBJ #1 (" in x or "MOBJ #2 (" in x) and "outside" in x for x in out)
+           and sum("shares its one-shot flag 800" in x for x in out) == 2
+           and not any("flag 300" in x for x in out), out)
+    maps = sorted(B.glob("MAP_*.rf4m"))
+    outside = shared = 0
+    for p in maps:
+        for x in _rf4m.Rf4mMap.load(p).validate():
+            outside += "MOBJ" in x and "outside the" in x
+            shared += "shares its one-shot flag" in x
+    _check("shipped maps: no off-grid entity warning (was 228); the one-shot flags two records "
+           "of one map share are all warned (66: 63 seal doors, 3 crates)",
+           outside == 0 and shared == 66, (outside, shared))
+    # --- (0, 0) is a real position; resize moves it and a knock-back target ------------
+    m = _rf4m.Rf4mMap.parse(base.build())
+    i0 = m.add_mobj_record(rec(71, x=0, y=0))
+    i1 = m.add_mobj_record(rec(52, x=40, y=40, f8=100, f9=120))
+    m.resize_attr_grid(W + 2, H + 2, origin=(1, 1))
+    r0, r1 = m.mobj_records()[i0], m.mobj_records()[i1]
+    _check("resize moves a record at (0, 0) and a knock-back vent's target",
+           (r0[14], r0[15]) == (8, 8) and (r1[8], r1[9], r1[14]) == (108, 128, 48), (r0, r1))
+    # --- collision stamps -----------------------------------------------------------
+    tb = collisionstamp.table()
+    _check("collision templates shipped: 111 object types, 196 uses 197's, 294 = gangway",
+           len(tb["by_type"]) == 111 and tb["by_type"]["196"] == tb["by_type"]["197"]
+           and set(collisionstamp.template(294)["cells"]) - {0} == {0x20000001},
+           len(tb["by_type"]))
+    try:
+        fresh = __import__("gen_exe_tables_json").build_collision(None)
+        _check("collision templates match RF4S.exe", fresh["templates"] == tb["templates"]
+               and fresh["by_type"] == tb["by_type"])
+    except exetables.ExeTableError as e:
+        _skip("collision templates vs RF4S.exe", str(e))
+    tree = rec(211, x=200, y=200, f11=0)
+    mode, cells = collisionstamp.stamp(tree, 100, 100)
+    mir = collisionstamp.stamp([*tree[:6], -4096, *tree[7:]], 100, 100)[1]
+    box = collisionstamp.stamp(rec(202, f11=1), 100, 100)
+    _check("a tree stamps its 18x18 template around its tile (mirrored with f6 < 0); an f11 "
+           "record with f9 = f10 = 0 makes tile (0, 0) solid",
+           mode == "template" and len(cells) == 122 and (25, 25) in cells
+           and min(x for x, _y in cells) >= 25 - 9 and max(x for x, _y in cells) <= 25 + 8
+           and {(2 * 25 - 1 - x, y) for x, y in cells} == set(mir)
+           and box == ("box", {(0, 0): 2}), (mode, len(cells), box))
+    # --- editor: duplicate / paste / add / nudge / Alt tooltip -----------------------
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("placed objects: editor", "no tkinter"); return
+    me = _map_editor()
+    from map_editor import data as med, render as mrender
+    _headless_dialogs()
+    root, p, errs = _headless_panel("MAP_DUNG_A03", B)
+    try:
+        saved_clip = None
+        try:
+            saved_clip = root.clipboard_get()
+        except tk.TclError:
+            pass
+        d = p.doc
+        recs = d.map.mobj_records
+        k = next(i for i, r in enumerate(recs()) if (r[0] & 0xFFFF) == 44 and not r[9])
+        used = set()
+        for _s, (u, _o) in med.map_flag_uses().items():
+            used |= u
+        p.duplicate(("mobj", k))
+        new = recs()[-1]
+        _check("duplicating a chest gives the copy an unused scene flag (69..647)",
+               new[13] != recs()[k][13] and 69 <= new[13] <= 647 and new[13] not in used
+               and (new[14], new[15]) == (recs()[k][14] + 8, recs()[k][15] + 8), new)
+        # inspector: typing -1 over a flag gives -1, 500 over -1 gives 500
+        p.select(("mobj", k))
+        form = p.inspector.forms["mobj"]
+        form.rows[13][2].set("-1")
+        form._commit_param(13)
+        a = recs()[k][13]
+        form.rows[13][2].set("500")
+        form._commit_param(13)
+        _check("the Inspector stores a flag as typed (-1, then 500), no stale high bits",
+               a == -1 and recs()[k][13] == 500, (a, recs()[k][13]))
+        # a switch keeps its flag and the status warns; a crate from another map gets a new one
+        sw = rec(46, f13=recs()[k][13], f9=1)
+        d.map.add_mobj_record(sw)
+        d.notify({"mobj"})
+        msgs = []
+        p.status = msgs.append
+        p.duplicate(("mobj", len(recs()) - 1))
+        _check("duplicating a switch keeps its flag and the status line warns it is shared",
+               recs()[-1][13] == 500 and msgs and "WARNING: it shares its one-shot flag 500" in msgs[-1],
+               msgs[-1:])
+        e14 = _rf4m.Rf4mMap.load(B / "MAP_DUNG_E14.rf4m")
+        ci = next(i for i, r in enumerate(e14.mobj_records()) if (r[0] & 0xFFFF) == 53 and r[13] >= 752)
+        import json
+        root.clipboard_clear()
+        root.clipboard_append(me.panel.CLIP_TAG + json.dumps(
+            {"kind": "mobj", "from": "MAP_DUNG_E14", "record": list(e14.mobj_records()[ci])}))
+        p.paste_object((80, 80))
+        cr = recs()[-1]
+        _check("a pasted daily crate gets an unused flag in the daily-reset block (752..969)",
+               752 <= cr[13] <= 969 and cr[13] not in used and "got the unused flag" in msgs[-1],
+               (cr[13], msgs[-1:]))
+        a01 = _rf4m.Rf4mMap.load(B / "MAP_DUNG_A01.rf4m")
+        wp = list(a01.mobj_records()[6])
+        root.clipboard_clear()
+        root.clipboard_append(me.panel.CLIP_TAG + json.dumps(
+            {"kind": "mobj", "from": "MAP_DUNG_A01", "record": wp}))
+        p.paste_object((80, 80))
+        _check("a warp point pasted from another map keeps its destination (f10 is relative)",
+               med.map_id("MAP_DUNG_A03") + recs()[-1][10] == med.map_id("MAP_DUNG_A01") + wp[10],
+               (recs()[-1][10], wp[10]))
+        # nudge: an entity may go off the grid
+        j = len(recs()) - 1
+        p.select(("mobj", j))
+        x0 = recs()[j][14]
+        p.nudge(-(x0 + 16), 0)
+        _check("the arrow keys can move an entity off the grid", recs()[j][14] == -16, recs()[j][14])
+        # add: the 40-record cap, and an inscribed stone gets a real flag
+        p.add_kind, p.add_type = "entity", 263
+        ev = types.SimpleNamespace(x=40, y=40, state=0)
+        n = len(recs())
+        p.tools["add"].press(ev)
+        _check("Add: an inscribed stone (263) starts with an unused flag, not -1",
+               len(recs()) == n + 1 and 69 <= recs()[-1][13] <= 647, recs()[-1])
+        while sum(1 for ch in d.map.chunks if ch.tag == b"MOBJ") < 40:
+            d.map.add_mobj_record(rec(400))
+        d.notify({"mobj"})
+        n = len(recs())
+        p.tools["add"].press(ev)
+        _check("Add refuses a 41st MOBJ record", len(recs()) == n and "Can't add" in msgs[-1], msgs[-1:])
+        # (0, 0) drawn; the stamp layer and the Alt tooltip
+        o0 = {"category": "object", "pos_x": 0, "pos_y": 0, "type_id": 200}
+        _check("a record at (0, 0) is drawn; map parameters are not",
+               mrender.entity_visible(o0, {}) and not mrender.entity_visible(
+                   {"category": "mapparam", "pos_x": 0, "pos_y": 0}, {}))
+        rp, pp, _e = _headless_panel("MAP_FIELD_04", B)
+        try:
+            pp.view.st.layers["stamps"] = True
+            prims = mrender.overlay("stamp", pp.view.st)
+            i, _mode, cells = mrender.object_stamps(pp.doc, None)[0]
+            t = next(iter(cells))
+            tip = pp.view.attr_tip(t)
+            _check("the object-collision layer draws the stamps; the Alt tooltip names the object",
+                   prims and all(q.opt.get("stipple") for q in prims)
+                   and f"stamped by #{i}" in tip and "walk:" in tip, tip)
+        finally:
+            rp.destroy()
+        _check("no Tk errors", not errs, errs[:1])
+    finally:
+        try:
+            root.clipboard_clear()
+            if saved_clip is not None:
+                root.clipboard_append(saved_clip)
+        except Exception:
+            pass
+        root.destroy()
 
 
 def test_ground_texture_replacement():
@@ -9911,7 +10556,25 @@ def test_sprite_quads_and_flags():
     _check("object f12 bit 2 inverts the gate (shown only once the flag is set)",
            flagstate.hidden(inv, state()) and not flagstate.hidden(inv, state(74)))
     _check("ungated records never hide", not any(
-        flagstate.hidden(o, state(*range(1, 2560))) for o in objs if flagstate.gate(o) is None))
+        flagstate.hidden(o, state(*range(1, 2560))) for o in objs
+        if flagstate.gate(o) is None and (o["type_id"] & 0xFFFF) not in flagstate._ACTOR_GONE))
+    chest = {"type_id": 44, "params": [44] + [0] * 12 + [180, 0, 0]}
+    crate = {"type_id": 53, "params": [53] + [0] * 12 + [-1, 0, 0]}
+    rchest = {"type_id": 44, "params": [44] + [0] * 8 + [1, 0, 0, 0, 180, 0, 0]}
+    _check("chests / crates: gone once their flag is set, a -1 crate never; a reveal chest "
+           "waits for flag f13 + f9",
+           flagstate.hidden(chest, state(180)) and not flagstate.hidden(chest, state())
+           and not flagstate.hidden(crate, state(*range(0, 2560)))
+           and flagstate.actor_state(rchest, state()) == "unrevealed"
+           and flagstate.actor_state(rchest, state(181)) is None
+           and flagstate.hidden_reason(rchest, state()) == "not revealed yet: flag 181 is clear"
+           and flagstate.hidden_reason(chest, state(180)) == "removed: flag 180 is set")
+    noflag = dict(wall, params=list(wall["params"]))
+    noflag["params"][12], noflag["params"][13] = 4, -1
+    _check("an inverted gate with no flag is drawn (the tick skips flagless objects) but never "
+           "stamps its collision",
+           not flagstate.hidden(noflag, state()) and flagstate.no_flag_inverted(noflag)
+           and "every frame" in flagstate.__doc__)
     with tempfile.TemporaryDirectory() as td:
         sav = bytearray(SAVE_SIZE)
         a = flagstate.ZONE2_BASE + 73
@@ -10138,9 +10801,10 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
-              test_shader_archive):
+              test_shader_archive,
+              test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()
         try:
             t()

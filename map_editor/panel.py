@@ -18,7 +18,8 @@ from tkinter import filedialog, messagebox, ttk
 
 from guiutil import shortcut_scope
 
-from rf4s_modkit import areagroup, flagstate, map_names, mapground, mobj_types, rf4m, search_items
+from rf4s_modkit import (areagroup, flagstate, map_names, mapground, mobj_params, mobj_types, rf4m,
+                         search_items)
 
 from . import data, dialogs, render, tools, ui
 from . import view as view_mod
@@ -767,6 +768,8 @@ class MapEditorPanel:
         kind, k = key
         if kind == "mobj":
             r = list(d.map.mobj_records()[k])
+            if (r[0] & 0xFFFF) == 52:           # the knock-back target moves with the vent
+                r[8], r[9] = r[8] + pos[0] - r[14], r[9] + pos[1] - r[15]
             r[14], r[15] = pos
             d.map.set_mobj_record(k, r)
         elif kind == "warp":
@@ -784,7 +787,9 @@ class MapEditorPanel:
         self.apply(self.describe_move(key), self.aspect_of(key), lambda: self.set_position(key, pos))
 
     def nudge(self, dx, dy):
-        """Arrow keys: move the selection (every selected object) by (dx, dy) sub-units."""
+        """Arrow keys: move the selection (every selected object) by (dx, dy) sub-units.
+        Entities may go off the grid (shipped maps place trees and seal-door controllers
+        there on purpose); search spots and gate points may not go negative."""
         keys = self.selection or ([self.sel] if self.sel else [])
         if not keys or self.doc is None:
             return
@@ -794,7 +799,7 @@ class MapEditorPanel:
             if p is None:
                 return
             new = (p[0] + dx, p[1] + dy) + tuple(p[2:])
-            if min(new[0], new[1]) < 0 and s[0] != "warp":
+            if min(new[0], new[1]) < 0 and s[0] not in ("warp", "mobj"):
                 return                          # one would leave the map: none moves
             moves.append((s, new))
         if len(moves) == 1:
@@ -818,7 +823,7 @@ class MapEditorPanel:
         x, y = p[0], p[1]
         if key[0] == "warp":
             x, y = x + p[2] // 2, y + p[3] // 2
-        if key[0] == "mobj" and not (x or y):
+        if key[0] == "mobj" and mobj_types.is_positionless(self.doc.objs[key[1]]["type_id"]):
             return
         self.view.center_on(x >> 3, y >> 3)
 
@@ -891,6 +896,44 @@ class MapEditorPanel:
                     f"delete one first")
         return None
 
+    def copied_record(self, r, dx=0, dy=0, src=None):
+        """(record, notes) for an entity copied onto this map `dx`/`dy` sub-units from where
+        it was (src = the map it came from, None = this one): a chest / crate / herb pickup
+        gets an unused one-shot flag (data.fresh_flag), a knock-back vent's target moves with
+        it, a warp point from another map keeps its destination (f10 is relative to the map
+        id)."""
+        d = self.doc
+        r = list(r)
+        tid = r[0] & 0xFFFF
+        notes = []
+        if not mobj_types.is_positionless(tid):
+            r[14], r[15] = r[14] + dx, r[15] + dy
+        if tid == 52:
+            r[8], r[9] = r[8] + dx, r[9] + dy
+        if tid == 42 and src and data.map_base(src) != d.base:
+            a, b = data.map_id(src), self.this_map_id()
+            if a is not None and b is not None:
+                dest = a + r[10]
+                r[10] = dest - b
+                notes.append(f"the warp point still leads to map {dest} (f10 = {r[10]:+d} from here)")
+        if mobj_params.one_shot_flag(r) is not None:
+            new, why = data.fresh_flag(d.map.mobj_records(), d.map.mapj_records(), r)
+            if new is not None:
+                r[13] = new
+            notes.append(f"the {mobj_params.ONE_SHOT_FLAG_TYPES[tid]} {why}")
+        return r, notes
+
+    def shared_flag_note(self, i):
+        """' -- WARNING: it shares its one-shot flag N with #j ...' for entity `i`, else ''."""
+        recs = self.doc.map.mobj_records()
+        fl = mobj_params.one_shot_flag(recs[i])
+        if fl is None:
+            return ""
+        twins = [j for j, r in enumerate(recs) if j != i and mobj_params.one_shot_flag(r) == fl]
+        return (f" -- WARNING: it shares its one-shot flag {fl} with "
+                + ", ".join(f"#{j}" for j in twins) + " (whichever is used first sets it for "
+                "all; see Problems)") if twins else ""
+
     def duplicate(self, key):
         if key is None or self.doc is None:
             return
@@ -901,14 +944,14 @@ class MapEditorPanel:
             self.status(f"Can't duplicate: {why}")
             return
         out = {}
+        notes = []
+        rec = None
+        if kind == "mobj":
+            rec, notes = self.copied_record(d.map.mobj_records()[k], 8, 8)
 
         def do():
             if kind == "mobj":
-                r = list(d.map.mobj_records()[k])
-                if r[14] or r[15]:
-                    r[14] += 8
-                    r[15] += 8
-                out["k"] = ("mobj", d.map.add_mobj_record(r))
+                out["k"] = ("mobj", d.map.add_mobj_record(rec))
             elif kind == "warp":
                 r = list(d.map.mapj_records()[k])
                 r[1] += 8
@@ -921,9 +964,12 @@ class MapEditorPanel:
                                                       for e in sp.pool.entries])
                 d.si.spots.append(search_items.SearchSpot(x=sp.x + 8, y=sp.y + 8, pool=pool))
                 out["k"] = ("si", len(d.si.spots) - 1)
-        if kind in ("mobj", "warp", "si") and self.apply(f"Duplicate {_KIND_NAME[kind]} #{k}",
-                                                         self.aspect_of(key), do):
+        label = f"Duplicate {_KIND_NAME[kind]} #{k}"
+        if kind in ("mobj", "warp", "si") and self.apply(label, self.aspect_of(key), do):
             self.select(out.get("k"))
+            if kind == "mobj":
+                self.status(label + "".join(f"; {n}" for n in notes)
+                            + self.shared_flag_note(out["k"][1]))
 
     # ---- clipboard (across maps) ---------------------------------------- #
     def copy_object(self, key, cut=False):
@@ -1007,17 +1053,28 @@ class MapEditorPanel:
                 return
         W, H, _ = d.grid
         out = {}
+        notes = []
 
         def clamp(x, y, w=0, h=0):
             return (max(0, min(W * 8 - max(1, w), x)), max(0, min(H * 8 - max(1, h), y)))
 
-        def place(x, y, w=0, h=0):
+        def place(x, y, w=0, h=0, free=False):
             """Top-left for an object of size w x h (sub-units): centred on `at`, keeping
-            the object's own sub-tile offset; else its old spot, clamped."""
+            the object's own sub-tile offset; else its old spot -- clamped into this map,
+            unless `free` (an entity that sat off the grid stays where it was)."""
             if at is not None:
                 x = (at[0] - w // 2) // 8 * 8 + (x & 7)
                 y = (at[1] - h // 2) // 8 * 8 + (y & 7)
+            elif free and not (0 <= x >> 3 < W and 0 <= y >> 3 < H):
+                return x, y
             return clamp(x, y, w, h)
+        rec = None
+        if kind == "mobj":
+            r0 = clip["record"]
+            nx, ny = r0[14], r0[15]
+            if not mobj_types.is_positionless(r0[0]):
+                nx, ny = place(nx, ny, free=True)
+            rec, notes = self.copied_record(r0, nx - r0[14], ny - r0[15], clip.get("from"))
 
         def do():
             if kind in ("gpos", "mpos"):
@@ -1030,10 +1087,7 @@ class MapEditorPanel:
                     pts = d.gen.monster_positions_off(gate)
                 out["k"] = (kind, pts[-1][0])
             elif kind == "mobj":
-                r = list(clip["record"])
-                if r[14] or r[15]:                  # positionless map parameters stay 0, 0
-                    r[14], r[15] = place(r[14], r[15])
-                out["k"] = ("mobj", d.map.add_mobj_record(r))
+                out["k"] = ("mobj", d.map.add_mobj_record(rec))
             elif kind == "warp":
                 r = list(clip["record"])
                 r[1], r[2] = place(r[1], r[2], r[3], r[4])
@@ -1052,7 +1106,9 @@ class MapEditorPanel:
             k = out.get("k")
             ref = "(Gen record @0x%x)" % k[1] if k and kind in ("gpos", "mpos") else None
             bad = [m for _s, _w, m in (self._gate_point_issues() if ref else ()) if ref in m]
-            self.status(label + (" -- but " + bad[0].split(": ", 1)[-1] if bad else ""))
+            self.status(label + (" -- but " + bad[0].split(": ", 1)[-1] if bad else "")
+                        + "".join(f"; {n}" for n in notes)
+                        + (self.shared_flag_note(k[1]) if kind == "mobj" else ""))
 
     # ---- navigation ------------------------------------------------------- #
     def this_map_id(self):
@@ -1333,7 +1389,7 @@ class MapEditorPanel:
         out = []
         try:
             issues = d.map.validate(known_maps=set(data.rooms_by_id()), ground_reader=self.tex_reader,
-                                    map_name=d.base or None)
+                                    map_name=d.base or None, dest_loader=data.load_map_by_id)
         except Exception as e:  # noqa: BLE001
             issues = [f"ERROR: validation crashed: {e}"]
         for s in issues:
@@ -1342,7 +1398,7 @@ class MapEditorPanel:
         try:                                    # the MGRP value: season / area-group conflicts
             for sev, msg in areagroup.problems(
                     d.map.mgrp(), d.base + ".rf4m" if d.base else None,
-                    gen_entries=data.gen_entry_count(d.gen), gen_name_for=data.gen_name_for_id,
+                    gen_entries=data.own_gen_entries(d), gen_name_for=data.gen_name_for_id,
                     gen_entries_for=data.gen_entries,
                     sibling_zones=data.sibling_zones(d.base) if d.base else None):
                 out.append((sev, "map", "MGRP: " + msg))
@@ -1356,26 +1412,78 @@ class MapEditorPanel:
         if d.gen is not None:
             for s in d.gen.validate():
                 sev, _, msg = s.partition(": ")
-                out.append(("ERROR", "monster gates", msg) if sev == "ERROR" else ("WARN", "monster gates", s))
+                out.append((sev, "monster gates", msg) if sev in ("ERROR", "INFO")
+                           else ("WARN", "monster gates", s))
+            out += self._shared_note("gen")
         if d.gen is not None and d.grid:
             out += self._gate_point_issues()
+        if d.si is not None:
+            for s in d.si.validate():          # spot count, pool size, weights, item ids ...
+                sev, _, msg = s.partition(": ")
+                out.append((sev if sev in ("ERROR", "WARN") else "WARN", "search items", msg))
+            out += self._shared_note("si")
         if d.si is not None and d.grid:
             W, H, _ = d.grid
             for i, sp in enumerate(d.si.spots):
-                total = sum(e.effective_weight for e in sp.pool.entries)
-                if not sp.pool.entries:
-                    out.append(("WARN", "search items", f"search spot #{i} has an empty drop pool"))
-                elif total > 255:
-                    out.append(("WARN", "search items", f"search spot #{i}: drop weights sum to {total}, "
-                                                        f"which the game keeps in one byte ({total & 0xFF})"))
                 if not (0 <= sp.tile_x < W and 0 <= sp.tile_y < H):
                     out.append(("WARN", "search items", f"search spot #{i} at tile ({sp.tile_x}, "
                                                         f"{sp.tile_y}) is outside the {W}x{H} grid"))
         return out
 
-    # A monster appears at a random spot within its spawn point's radius: the game tries 64
-    # times for a tile whose ATTR value has bit 0x01 or 0x20 (walkable; off the map counts as
-    # blocked), then gives up and uses the point itself (Companion_TickAnimation). Gates are
+    def _shared_file(self, part):
+        """(file name, [other rooms]) for this map's SI / Gen file (part 'si' / 'gen'): the
+        rooms besides this map and its seasonal variants that the game loads it for too."""
+        d = self.doc
+        path = d.si_path if part == "si" else d.gen_path
+        fn = path.name if path else None
+        try:
+            return fn, data.also_used_by(part, fn, d.base)
+        except Exception:  # noqa: BLE001 - no table: nothing to say
+            return fn, []
+
+    def _shared_note(self, part):
+        """The INFO line for a side file other rooms load too (their gates / search items change
+        with it)."""
+        fn, others = self._shared_file(part)
+        if not others:
+            return []
+        what = "monster gates" if part == "gen" else "search items"
+        return [("INFO", what, f"{fn} is also used by {', '.join(others[:6])}"
+                 + (f" and {len(others) - 6} more" if len(others) > 6 else "")
+                 + f": the game loads it for {'that room' if len(others) == 1 else 'those rooms'} "
+                   f"too, so edits here change {'its' if len(others) == 1 else 'their'} {what}")]
+
+    def _shared_ok(self, part):
+        """Before saving a side file other rooms load too: ask, once per file and session."""
+        fn, others = self._shared_file(part)
+        if not others:
+            return True
+        seen = self.__dict__.setdefault("_shared_asked", set())
+        if fn in seen:
+            return True
+        what = "monster gates" if part == "gen" else "search items"
+        if not messagebox.askyesno(
+                "File shared with other rooms",
+                f"{fn} is also used by: {', '.join(others)}.\n\nThe game loads this file for "
+                f"{'that room' if len(others) == 1 else 'those rooms'} too, so saving your "
+                f"changes changes {'its' if len(others) == 1 else 'their'} {what} as well.\n\n"
+                f"Save anyway?"):
+            return False
+        seen.add(fn)
+        return True
+
+    def sidecar_saves_ok(self, parts):
+        """The search-item and monster-gate checks before writing those files (save_to_game):
+        fatal search-item problems, and files other rooms load too."""
+        if "si" in parts and not self._fatal_ok("search items", "Search items have fatal problems",
+                                                "The game would hang on this search-item table"):
+            return False
+        return all(self._shared_ok(p) for p in ("si", "gen") if p in parts)
+
+    # A monster appears at a random spot within its spawn point's radius: the game takes up
+    # to 63 random samples for a tile whose ATTR value has bit 0x01 or 0x20 (walkable; off the
+    # map counts as blocked), then gives up and uses the point itself (Companion_TickAnimation
+    # RF4S.exe+0x1E8A60: the sample counter starts at 1 and stops at 64). Gates are
     # placed as they are -- the game ships 100+ on non-walkable tiles -- so only a gate
     # outside the map is flagged.
     WALKABLE = 0x21
@@ -1408,8 +1516,9 @@ class MapEditorPanel:
             if not reach:
                 out.append(("WARN", "monster gates",
                             f"monster spawn point {ref} at tile ({tx}, {ty}): no walkable tile within "
-                            f"its radius ({r} sub-units) -- every monster appears on the point "
-                            f"itself, inside a blocked tile (walkable = ATTR bit 0x01 or 0x20); move "
+                            f"its radius ({r} sub-units) -- all 63 random samples miss, so every "
+                            f"monster appears on the point itself, inside a blocked tile (walkable = "
+                            f"ATTR bit 0x01 or 0x20); move "
                             f"it onto open ground or widen the radius"))
         return out
 
@@ -1417,8 +1526,7 @@ class MapEditorPanel:
         d = self.doc
         W, H = (d.grid[0], d.grid[1]) if d.grid else (0, 0)
         params = sum(1 for o in d.objs if o["category"] == "mapparam")
-        unplaced = sum(1 for o in d.objs if o["category"] != "mapparam" and not (o["pos_x"] or o["pos_y"]))
-        return (f"{W}×{H} grid · {len(d.objs)} MOBJ records ({params} map parameters, {unplaced} unplaced) · "
+        return (f"{W}×{H} grid · {len(d.objs)} MOBJ records ({params} map parameters) · "
                 f"{len(d.map.mapj_records())} warps · {len(d.map.find(b'MTXN'))} display layer(s) · "
                 f"{len(d.si.spots) if d.si else 0} search spots · "
                 f"{sum(len(p) for p in d.gen.patterns) if d.gen else 0} gates")
@@ -1499,7 +1607,13 @@ class MapEditorPanel:
         self.flush_edits()
         d = self.doc
         if d is None or d.si is None:
-            messagebox.showinfo("Save search items", "This map has no search spots.")
+            why = d.si_block_reason() if d is not None else None
+            messagebox.showinfo("Save search items", "This map has no search spots."
+                                + ("\n\n" + why if why else ""))
+            return False
+        if not (self._fatal_ok("search items", "Search items have fatal problems",
+                               "The game would hang on this search-item table")
+                and self._shared_ok("si")):
             return False
         p = self._ask_path("Save search items", d.si_path.name if d.si_path else
                            (data.si_name_for_map(d.base) or "SI_MAP.bin"), ".bin", "SI table")
@@ -1526,6 +1640,8 @@ class MapEditorPanel:
                 "Monster gates have fatal problems", "The game would crash or hang on this table:\n\n"
                 + "\n".join("• " + x for x in fatal[:6]) + ("\n…" if len(fatal) > 6 else "")
                 + "\n\nSave anyway?"):
+            return False
+        if not self._shared_ok("gen"):
             return False
         p = self._ask_path("Save monster gates", d.gen_path.name if d.gen_path else "Gen.bin", ".bin", "Gen table")
         if not p:
@@ -1569,6 +1685,8 @@ class MapEditorPanel:
         if "gen" in parts and not self._fatal_ok("monster gates", "Monster gates have fatal problems",
                                                  "The game would crash or hang on this table"):
             return False
+        if not self.sidecar_saves_ok(parts):
+            return False
         own = None
         if self.file_path is not None and "map" in parts:   # a map opened from disk: its own file
             try:
@@ -1583,7 +1701,20 @@ class MapEditorPanel:
                 self._update_chrome()
                 self.status(own)
                 return True
-        names = {"map": f"{d.base}.rf4m",
+        game_map = None
+        if "map" in parts:
+            # the game asks for a map by id -> g_mapResourceTable -> an EXACT-case file name, so
+            # the file must go under that name (a tab named after a renamed copy or a lower-case
+            # file would land somewhere the game never reads)
+            mid = map_names.map_id_for_file(d.base or "")
+            if mid is None:
+                messagebox.showerror(
+                    "Save", f"“{d.base}” is not one of the game's map names, so the game would "
+                            "never load a file saved under it. Use Save map as… in the Save menu "
+                            "to write it anywhere, or open the game's map of that name.")
+                return False
+            game_map = map_names.map_file(mid) + ".rf4m"
+        names = {"map": game_map,
                  "si": d.si_path.name if d.si_path else data.si_name_for_map(d.base),
                  "gen": d.gen_path.name if d.gen_path else data.gen_name_for_map(d.base)}
         targets = gamepaths.game_targets([names[p] for p in parts if names[p]])
@@ -1621,11 +1752,12 @@ class MapEditorPanel:
         others = {n: v for n, v in targets[None].items()}
         if others:
             messagebox.showwarning(
-                "Other copies", "Saved, but the game folder has other files with the same names. "
-                "The game loads only one file of each name, and an extra copy can hide your "
-                "change:\n\n"
-                + "\n".join(f"{n}:\n  " + "\n  ".join(str(o) for o in v) for n, v in others.items())
-                + "\n\nDelete the extra copies (left over from earlier saves or mods).")
+                "Other copies", "Saved. The game folder also has other copies of these files, "
+                "which the game ignores (it loads one file per exact name):\n\n"
+                + "\n".join(f"{n} -- the game loads {targets[n]}\n  ignored: "
+                            + "\n  ignored: ".join(str(o) for o in v) for n, v in others.items())
+                + "\n\nDelete the ignored copies (left over from earlier saves or mods) so they "
+                  "do not confuse you or another tool.")
         if "map" in parts:
             self._season_note()
         return True
@@ -1716,10 +1848,23 @@ class MapEditorPanel:
         if not todo:
             messagebox.showinfo(title, "\n".join(lines + ["", "Nothing could be copied."]))
             return False
-        lines += ["", "Write the other seasons over the game's files? (The originals are kept in "
-                      "ModdingBackup the first time.) A season open in another tab still shows "
-                      "the old map until you reopen it."]
-        if not messagebox.askyesno(title, "\n".join(lines)):
+        known = set(data.rooms_by_id())
+        fatal = []                              # each season's validation ERRORs after the copy
+        for _season, f, _t, m, _rep in todo:
+            try:
+                errs = [s[7:] for s in m.validate(known_maps=known, map_name=f,
+                                                  dest_loader=data.load_map_by_id)
+                        if s.startswith("ERROR: ")]
+            except Exception as e:  # noqa: BLE001
+                errs = [f"validation crashed: {e}"]
+            fatal += [f"{f}: {x}" for x in errs]
+        if fatal:
+            lines += ["", "After the copy the game would choke on:"]
+            lines += ["  • " + x for x in fatal[:8]] + (["  …"] if len(fatal) > 8 else [])
+        lines += ["", "Write the other seasons over the game's files" + (" anyway" if fatal else "")
+                  + "? (The originals are kept in ModdingBackup the first time.) A season open in "
+                    "another tab still shows the old map until you reopen it."]
+        if not messagebox.askyesno(title, "\n".join(lines), icon="warning" if fatal else "question"):
             return False
         written, new = [], False
         for season, f, t, m, _rep in todo:

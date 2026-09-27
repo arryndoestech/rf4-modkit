@@ -51,8 +51,9 @@ class MapDocument:
         self.base = data.map_base(name)
         self.si = self.si_path = self.gen = self.gen_path = None
         if load_sidecars:
+            # the files the GAME loads for this room (by map id and MGRP, not by name)
             self.si_path = si_path or data.si_file_for_map(self.base)
-            self.gen_path = gen_path or data.gen_file_for_map(self.base)
+            self.gen_path = gen_path or data.gen_file_for_map(self.base, mapobj.mgrp())
             if self.si_path:
                 try:
                     self.si = search_items.SearchItemFile.load(self.si_path)
@@ -213,9 +214,30 @@ class MapDocument:
         self._saved[part] = self._bytes(part)
 
     # ---- sidecar creation -------------------------------------------------- #
+    def si_block_reason(self):
+        """Why this map cannot get search spots (a plain sentence), or None when it can: the
+        game loads search items only for map ids that its table (RF4S.exe+0x4DD260) gives an
+        SI archive, and a map cannot be given one without patching the game."""
+        if self.si is not None:
+            return None
+        from rf4s_modkit import areagroup
+        if areagroup.base_map_id(self.base) is None:
+            return (f"{self.base or 'This map'} is not one of the game's map files, so the game "
+                    f"never loads search items for it.")
+        if data.si_name_for_map(self.base) is None:
+            return (f"The game never rolls search items on {self.base}: the game's search-item "
+                    f"table has no file for this map, and one cannot be added without patching "
+                    f"the game. Only maps that already have an SI file can get search spots.")
+        return None
+
     def ensure_si(self):
-        """This map's search-item file, created empty when it has none."""
+        """This map's search-item file, created empty when the game has a slot for it but the
+        file is missing. Raises search_items.SearchItemError (with si_block_reason()) on a map
+        that never rolls search items."""
         if self.si is None:
+            why = self.si_block_reason()
+            if why:
+                raise search_items.SearchItemError(why)
             self.si = search_items.SearchItemFile()
         return self.si
 

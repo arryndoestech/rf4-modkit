@@ -134,23 +134,65 @@ def map_id(name):
     return None
 
 
+def base_map_id(name):
+    """The id the game keeps for a map name: a seasonal copy's base (ids 4..63 come as base,
+    _SUMMER, _AUTUMN, _WINTER, and the game adds the calendar season at load), else the map's
+    own id; None when unknown. Warp destinations, the minimap record and the night tint
+    default are all looked up by this id."""
+    from rf4s_modkit import mapres
+    return mapres.base_id(map_id(name))
+
+
+_MAPS_BY_ID = {}
+
+
+def load_map_by_id(mid):
+    """The .rf4m of map id `mid` from the game folder (an Rf4mMap, cached until the file
+    changes), or None when it is not there or unreadable. Validation reads warp destinations
+    through this."""
+    from rf4s_modkit import rf4m
+    name = rooms_by_id().get(mid)
+    p = find_extracted(name + ".rf4m") if name else None
+    if p is None:
+        return None
+    try:
+        st = p.stat()
+        key = (str(p), st.st_mtime_ns, st.st_size)
+        if _MAPS_BY_ID.get(mid, (None,))[0] != key:
+            _MAPS_BY_ID[mid] = (key, rf4m.Rf4mMap.load(p))
+    except Exception:  # noqa: BLE001 - unreadable: no destination checks
+        return None
+    return _MAPS_BY_ID[mid][1]
+
+
+SEASON_FOLLOWS = "(season follows the calendar)"
+
+
 def map_choice(mid):
-    """Dropdown label for a map id: '31 - MAP_CITY_01_WINTER  (Selphia)'."""
+    """Dropdown label for a map id: '36 - MAP_CITY_03  (Selphia)  (season follows the calendar)'.
+    A seasonal family's base id (4, 8 .. 60) is marked: as a warp destination it loads the
+    copy of the current season."""
     name = rooms_by_id().get(mid)
     if name is None:
         return f"{mid} - <unknown map>"
     place, _bld = map_names.describe_destination(mid)
-    return f"{mid} - {name}" + (f"  ({place})" if place else "")
+    return (f"{mid} - {name}" + (f"  ({place})" if place else "")
+            + (f"  {SEASON_FOLLOWS}" if mid in map_names.SEASONAL_MAP_IDS and mid % 4 == 0 else ""))
 
 
-_MAP_CHOICES = None
+_WARP_CHOICES = None
 
 
-def map_choices():
-    global _MAP_CHOICES
-    if _MAP_CHOICES is None:
-        _MAP_CHOICES = [map_choice(i) for i in sorted(rooms_by_id())]
-    return _MAP_CHOICES
+def warp_choices():
+    """Warp-destination dropdown entries: every map id, except that a seasonal family is
+    offered once, by its base id (the game adds the calendar season to ids below 64, so a
+    warp must name the base; a seasonal copy's own id loads the wrong file), and the
+    MAP_NULL / DUMMY placeholders 0..3 are left out."""
+    global _WARP_CHOICES
+    if _WARP_CHOICES is None:
+        _WARP_CHOICES = [map_choice(i) for i in sorted(rooms_by_id())
+                         if i >= 4 and not (i < 64 and i % 4)]
+    return _WARP_CHOICES
 
 
 def leading_int(text):
@@ -165,25 +207,49 @@ def leading_int(text):
 
 
 # ---- sidecar files ------------------------------------------------------- #
-def gen_name_for_map(name):
-    """MAP_DUNG_X## -> GenX##.bin ; MAP_FIELD_## -> GenField##.bin (seasonal variants share
-    their base map's table), or None for maps without a monster generator."""
-    m = re.search(r"DUNG_([A-Z]+)(\d+)", str(name)) or re.search(r"(FIELD)_?(\d+)", str(name))
-    if not m:
+# The game never looks a map's search-item (SI_*.bin) or monster-gate (Gen*.bin) file up by
+# name: SI comes from a per-map-id table in RF4S.exe, Gen from the map's zone (its MGRP) and
+# the zone's run of archives (rf4s_modkit.exesidecars / areagroup, shipped in refdata). These
+# helpers apply the same rules, with the room's BASE map id (a seasonal variant shares its
+# base's files) and, for Gen, the MGRP of the file the game loads.
+def _mgrp_of(name):
+    """The MGRP of map file `name` as the game folder has it (map_summaries), or None."""
+    want = map_base(name).upper()
+    for stem, (mgrp, _ch, _wh) in map_summaries().items():
+        if stem.upper() == want:
+            return mgrp
+    return None
+
+
+def gen_name_for_map(name, mgrp=None):
+    """The Gen*.bin the game loads for map file `name`: its base id's slot in the zone its
+    MGRP picks (default: the MGRP of the game folder's copy; without one, the map's own
+    table). None when the game spawns no gates there. This can be ANOTHER room's table:
+    MAP_DUNG_I14 loads GenJ02.bin, MAP_FIELD_100 GenField99_100.bin."""
+    from rf4s_modkit import areagroup
+    mid = areagroup.base_map_id(name)
+    if mid is None:
         return None
-    area, num = m.group(1), int(m.group(2))
-    return f"GenField{num:02d}.bin" if area == "FIELD" else f"Gen{area}{num:02d}.bin"
+    if mgrp is None:
+        mgrp = _mgrp_of(name)
+    if mgrp is None and areagroup.gate_zone(mid, None) is not None:
+        mgrp = 0                                # maps 44 / 853..857 / 861..869: fixed zone
+    if mgrp is None:
+        return gen_name_for_id(mid)
+    return areagroup.gen_file(mid, mgrp) if areagroup.archive_owner(
+        areagroup.gen_archive(mid, mgrp)) is not None else None
 
 
-def gen_file_for_map(name):
-    fn = gen_name_for_map(name)
+def gen_file_for_map(name, mgrp=None):
+    fn = gen_name_for_map(name, mgrp)
     return find_extracted(fn) if fn else None
 
 
 def gen_name_for_id(map_id):
-    """GenX##.bin of a map id (by its MAP_* file), or None."""
-    f = map_names.map_file(map_id) if map_id is not None else None
-    return gen_name_for_map(f) if f else None
+    """The Gen*.bin that is map id `map_id`'s OWN table (its slot in its zone's run of
+    archives), or None."""
+    from rf4s_modkit import areagroup, exesidecars
+    return exesidecars.archive_name(areagroup.own_archive(map_id))
 
 
 def gen_entry_count(table):
@@ -213,24 +279,73 @@ def gen_entries(fn):
     return _GEN_COUNTS[key]
 
 
-def maps_for_gen(gen_name, map_names):
-    """The maps (from `map_names`) whose monster generator is `gen_name`, the base map first,
-    then its seasonal variants."""
+def own_gen_entries(doc):
+    """Gate entries in the OWN Gen table of the map open in `doc` (its unsaved edits when the
+    editor has that table open), for areagroup.problems; None without one."""
+    from rf4s_modkit import areagroup
+    own = gen_name_for_id(areagroup.base_map_id(doc.base)) if doc.base else None
+    if own is None:
+        return None
+    if doc.gen is not None and doc.gen_path is not None and doc.gen_path.name.lower() == own.lower():
+        return gen_entry_count(doc.gen)
+    return gen_entries(own)
+
+
+def _base_first(hits, owner=None):
+    """Map names sorted: the owner's base file first, then the other bases, each followed by
+    its seasonal variants."""
+    from rf4s_modkit import areagroup
+    return sorted(hits, key=lambda n: (areagroup.base_map_id(n) != owner,
+                                       SEASON_RE.sub("", map_base(n)),
+                                       SEASON_RE.search(map_base(n)) is not None, map_base(n)))
+
+
+def maps_for_gen(gen_name, candidates):
+    """The maps (from `candidates`, map file names) whose monster gates come from `gen_name`
+    by the game's rule (gen_name_for_map), the owner's base map first, then its seasonal
+    variants, then any other room that loads the same table."""
+    from rf4s_modkit import areagroup
     want = map_base(gen_name).rsplit(".", 1)[0].lower() + ".bin"
-    hits = [n for n in map_names if (gen_name_for_map(map_base(n)) or "").lower() == want]
-    return sorted(hits, key=lambda n: (SEASON_RE.search(map_base(n)) is not None, map_base(n)))
+    mgrps = {stem.upper(): mg for stem, (mg, _ch, _wh) in map_summaries().items()}
+    hits = [n for n in candidates
+            if (gen_name_for_map(n, mgrps.get(map_base(n).upper())) or "").lower() == want]
+    owner = next((m for m in map(areagroup.base_map_id, hits)
+                  if (gen_name_for_id(m) or "").lower() == want), None)
+    return _base_first(hits, owner)
 
 
 def si_name_for_map(name):
-    """SI_<rest>.bin for MAP_<rest> (seasonal variants share one file), or None."""
-    base = SEASON_RE.sub("", map_base(name))
-    m = re.match(r"^MAP_(.+)$", base, re.I)
-    return f"SI_{m.group(1)}.bin" if m else None
+    """The SI_*.bin the game loads for map file `name` (by its base map id, from the game's
+    table: MAP_CITY_05 -> SI_CITY_06.bin, MAP_FIELD_A0 -> SI_FIELD_101.bin), or None when
+    the game never rolls search items there (MAP_CITY_06, MAP_DUNG_E45, ...)."""
+    from rf4s_modkit import areagroup, exesidecars
+    return exesidecars.si_name(areagroup.base_map_id(name))
 
 
 def si_file_for_map(name):
     fn = si_name_for_map(name)
     return find_extracted(fn) if fn else None
+
+
+def maps_for_si(si_name, candidates):
+    """The maps (from `candidates`) whose search items come from `si_name`."""
+    want = map_base(si_name).lower()
+    return _base_first([n for n in candidates if (si_name_for_map(n) or "").lower() == want])
+
+
+def also_used_by(part, fn, name):
+    """The OTHER rooms (base map files, this map's own seasonal variants left out -- they
+    share on purpose) whose game-loaded side file is `fn`: part 'gen' by the gate rule over
+    the game folder's maps, 'si' from the search-item table."""
+    from rf4s_modkit import areagroup, exesidecars
+    if not fn:
+        return []
+    me = areagroup.base_map_id(name) if name else None
+    if part == "si":
+        ids = {areagroup.base_map_id(map_names.map_file(m) or "") for m in exesidecars.si_maps(fn)}
+    else:
+        ids = {areagroup.base_map_id(n) for n in maps_for_gen(fn, list(map_summaries()))}
+    return sorted({map_names.map_file(m) or f"map {m}" for m in ids if m is not None and m != me})
 
 
 # ---- names ----------------------------------------------------------------- #
@@ -306,11 +421,76 @@ def map_summaries():
                           if (r[0] & 0xFFFF) == 44]
                 g = m.attr_grid()
                 hit = (key, (m.mgrp(), chests, (g[0], g[1]) if g else None))
+                _MAP_FLAGS[p.stem] = _flag_uses(m.mobj_records(), m.mapj_records())
             except Exception:  # noqa: BLE001 - a damaged map: left out
                 hit = (key, (None, [], None))
+                _MAP_FLAGS[p.stem] = (set(), [])
             _MAP_SUMMARY[str(p)] = hit
         out[p.stem] = hit[1]
     return out
+
+
+_MAP_FLAGS = {}         # MAP_* stem -> (zone-2 ids its objects / warps use, one-shot owners)
+
+
+def _flag_uses(recs, mapj=()):
+    """({every zone-2 id the records and warps use}, [(index, type, one-shot flag)])."""
+    from rf4s_modkit import mobj_params
+    used, owners = set(), []
+    for i, r in enumerate(recs):
+        tid = r[0] & 0xFFFF
+        if mobj_params.reads_flag(tid) and 0 <= r[13] < mobj_params.MOBJ_FLAG_COUNT:
+            used.add(r[13])
+            if tid == 44 and r[9] & 0xFF:                    # the chest's reveal flag
+                used.add(r[13] + ((r[9] & 0xFF) - 256 if r[9] & 0x80 else r[9] & 0xFF))
+        fl = mobj_params.one_shot_flag(r)
+        if fl is not None:
+            owners.append((i, tid, fl))
+    for w in mapj:
+        if 0 <= w[0] < mobj_params.MOBJ_FLAG_COUNT:
+            used.add(w[0])
+    return used, owners
+
+
+def map_flag_uses():
+    """{MAP_* stem: (zone-2 ids used, [(index, type, one-shot flag)])} for every map in the
+    game folder (read with map_summaries)."""
+    stems = set(map_summaries())
+    return {k: v for k, v in _MAP_FLAGS.items() if k in stems}
+
+
+def fresh_flag(recs, mapj, rec, new=False):
+    """(new f13, note) for a duplicated / pasted record whose one-shot flag must not be
+    shared -- or, `new`, for a record the Add tool creates: the lowest id of the block the
+    old flag belongs to (the type's block for a new record, mobj_params.DEFAULT_FLAG_BLOCK)
+    that no object or warp uses here (`recs` / `mapj`, unsaved edits included), in this
+    map's seasonal copies or on any other map of the game folder. (None, why) when the type
+    cannot take just any id (mobj_params.FRESH_FLAG_TYPES), the record has no flag, or the
+    block is full. Event scripts are not searched."""
+    from rf4s_modkit import mobj_params
+    tid = rec[0] & 0xFFFF
+    old = rec[13]
+    if new:
+        block = mobj_params.flag_block(None, tid)
+        if block is None:
+            return None, "has no flag of its own"
+    else:
+        if tid not in mobj_params.FRESH_FLAG_TYPES:
+            return None, f"keeps its flag {old}"
+        if tid == 44 and rec[9] & 0xFF:
+            return None, f"keeps its flag {old} (its reveal flag is f13 + f9)"
+        if old in (-1, 0):
+            return None, "has no flag"
+        block = mobj_params.flag_block(old, tid)
+        if block is None:
+            return None, f"keeps its flag {old} (not in a known flag block)"
+    used, _own = _flag_uses(recs, mapj)
+    for _stem, (u, _o) in map_flag_uses().items():
+        used |= u
+    for f in range(block[0], block[1] + 1):
+        if f not in used:
+            return f, f"got the unused flag {f}"
+    return None, f"keeps its flag: every id {block[0]}..{block[1]} is in use"
 
 
 def sibling_zones(name):
@@ -330,45 +510,61 @@ def sibling_zones(name):
 
 
 def chest_problems(name, recs):
-    """[(severity, entity index, message)] for the treasure chests (MOBJ 44) in `recs` (this
-    map's records, unsaved edits included): no collected flag, a flag shared with another
-    chest -- here, or on another map of the game folder (seasonal copies of this map share
-    theirs on purpose) -- an empty loot row, a row past the table."""
+    """[(severity, entity index, message)] for the flag-owning objects in `recs` (this map's
+    records, unsaved edits included): a chest with no collected flag, a chest waiting for a
+    reveal flag nothing on the map sets (INFO), a one-shot flag (mobj_params.
+    ONE_SHOT_FLAG_TYPES) another map of the game folder uses too (seasonal copies of this map
+    share theirs on purpose; flags shared within this map are rf4m.validate's), an empty loot
+    row, a row past the table."""
+    from rf4s_modkit import mobj_params
     out = []
-    mine = [(i, r[13], r[8]) for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44]
-    if not mine:
-        return out
     base = SEASON_RE.sub("", map_base(name)).upper() if name else None
-    others = {}
-    for stem, (_mg, chests, _wh) in map_summaries().items():
-        if base is not None and SEASON_RE.sub("", stem).upper() == base:
+    _used, mine = _flag_uses(recs)
+    if mine:
+        others = {}
+        for stem, (_u, owners) in map_flag_uses().items():
+            if base is not None and SEASON_RE.sub("", stem).upper() == base:
+                continue
+            fam = SEASON_RE.sub("", stem).upper()
+            for j, t, flag in owners:             # one entry per map family (seasons share)
+                others.setdefault(flag, {}).setdefault(
+                    (fam, j), f"{stem} #{j} ({mobj_params.ONE_SHOT_FLAG_TYPES[t]})")
+        others = {fl: sorted(v.values()) for fl, v in others.items()}
+        for i, t, flag in mine:
+            if flag in others:
+                what = mobj_params.ONE_SHOT_FLAG_TYPES[t]
+                out.append(("WARN", i, f"{what} #{i} shares its one-shot flag {flag} with "
+                                       + ", ".join(others[flag][:3])
+                                       + (" ..." if len(others[flag]) > 3 else "")
+                                       + ": whichever is used first sets it for all of them"))
+    for i, r in enumerate(recs):
+        if (r[0] & 0xFFFF) != 44:
             continue
-        for j, flag, _row in chests:
-            if flag != -1:
-                others.setdefault(flag, []).append(f"{stem} #{j}")
-    here = {}
-    for i, flag, _row in mine:
-        here.setdefault(flag, []).append(i)
-    for i, flag, row in mine:
+        flag, row = r[13], r[8]
         if flag == -1:
             out.append(("WARN", i, f"chest #{i} has no collected flag (f13 = -1): the game never "
                                    f"removes it, so it is back with the same loot on every visit"))
-        else:
-            twins = [j for j in here[flag] if j != i]
-            if twins:
-                out.append(("WARN", i, f"chest #{i} shares its collected flag {flag} with chest "
-                                       + ", ".join(f"#{j}" for j in twins)
-                                       + " on this map: opening one removes the other"))
-            if flag in others:
-                out.append(("WARN", i, f"chest #{i} shares its collected flag {flag} with "
-                                       + ", ".join(others[flag][:3])
-                                       + ": opening either chest removes the other"))
         if row >= chestloot.ROWS:
             out.append(("WARN", i, f"chest #{i}: loot row {row} is past the {chestloot.ROWS}-row "
                                    f"chest table -- the game reads unrelated data as its items"))
         elif row < 0 or not any(item for item, _v in (chestloot.row(row) or [])):
             out.append(("INFO", i, f"chest #{i} gives nothing (loot row {row} is empty)"))
     return out
+
+
+def chest_reveal(rec, recs):
+    """For a chest with a reveal offset: 'appears once flag N is set (the room-clear flag of
+    #j seal door)' -- which object on the map sets it, or that none does. None otherwise."""
+    from rf4s_modkit import mobj_params
+    if rec is None or (rec[0] & 0xFFFF) != 44 or not rec[9] & 0xFF:
+        return None
+    off = (rec[9] & 0xFF) - 256 if rec[9] & 0x80 else rec[9] & 0xFF
+    fl = rec[13] + off
+    setters = [f"#{j} ({mobj_params.ONE_SHOT_FLAG_TYPES.get(r[0] & 0xFFFF) or mobj_params.param_name(r[0], 13)})"
+               for j, r in enumerate(recs) if r[13] == fl and (r[0] & 0xFFFF) != 44]
+    who = (("set by " + ", ".join(setters[:3])) if setters
+           else "nothing on this map sets it (an event script may)")
+    return f"Hidden until flag {fl} (f13 + f9) is set, then it appears: {who}"
 
 
 def crate_loot(rec, mgrp):
