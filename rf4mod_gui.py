@@ -1679,9 +1679,10 @@ class App:
         return out or None
 
     def _replace_texture_png(self, name):
-        """Re-skin the shown .texture from a PNG of the same size, re-encoded in the
-        template frame's own format (BC7/BC3/BC1 at the same size, raw kept -- see
-        texture.encode_into). For a flipbook only the frame being shown is replaced.
+        """Re-skin the shown .texture from a PNG, re-encoded in the template frame's own
+        format (BC7/BC3/BC1 at the same size, raw kept -- see texture.encode_into). A PNG of
+        another size is stored at that size after a confirm listing old -> new and what it
+        does in game (texture.size_warnings). For a flipbook only the frame being shown is replaced.
         Updates the working copy (cur_data) like the other editors; Extract writes it."""
         doc = self._doc
         if doc.cur_data is None:
@@ -1694,6 +1695,15 @@ class App:
         frame = getattr(doc, "_tex_fi", 0) if frames and len(frames) > 1 else None
         before = len(doc.cur_data)
         try:
+            # a PNG of another size is stored at that size (texture.encode_into); say what
+            # that does in game (texture.size_warnings) and let the user back out
+            changes = texture.size_changes(doc.cur_data, f, frame=frame)
+            if changes and not messagebox.askyesno(
+                    "Change the texture size?",
+                    "The PNG has another size than the texture:\n\n"
+                    + texture.size_change_text(changes, texture.size_warnings(doc.cur_data, changes, name=name))
+                    + "\n\nStore it at the new size?", icon="warning"):
+                return
             blob = texture.encode_into(doc.cur_data, f, frame=frame)
         except Exception as e:
             messagebox.showerror("Replace failed", str(e))
@@ -1702,6 +1712,8 @@ class App:
         self._show(name, blob, doc)
         which = f"frame {frame + 1} " if frame is not None else ""
         size = "same size, bundle patch-able" if len(blob) == before else f"was {before:,}"
+        if changes:
+            size += "; " + ", ".join("%dx%d -> %dx%d" % (c["old"] + c["new"]) for c in changes)
         self.status.config(text=f"Replaced {which}pixels from {pathlib.Path(f).name} -> "
                                 f"{len(blob):,} bytes ({size}; Extract to save the working copy)")
 
@@ -2979,9 +2991,10 @@ class App:
             tv.selection_set(str(lst[0]["index"])); on_sel()
 
     def _replace_bntx_png(self, name, tv):
-        """Replace the selected embedded texture of a .model from a PNG of the same size,
-        re-encoded IN PLACE in its own block format (texture.bntx_replace: the file size and
-        every container field stay as they are). Updates cur_data; Extract writes it."""
+        """Replace the selected embedded texture of a .model from a PNG, re-encoded in its own
+        format (texture.bntx_replace): IN PLACE at the same size (file size and every container
+        field unchanged), or -- after a confirm showing old -> new -- at another size, with the
+        BNTX and the .model rebuilt around it. Updates cur_data; Extract writes it."""
         doc = self._doc
         sel = tv.selection()
         if not sel or doc.cur_data is None:
@@ -2991,15 +3004,33 @@ class App:
                                        filetypes=[("PNG image", "*.png"), ("All images", "*.*")])
         if not f:
             return
+        before = len(doc.cur_data)
         try:
+            # another size is fine for a model (UVs are normalised): the BNTX and the .model
+            # are rebuilt around it (texture.bntx_replace); confirm the change first
+            t = texture.bntx_info(doc.cur_data)[idx]
+            with Image.open(f) as im:
+                new_size = im.size
+            old_size = (t["width"], t["height"])
+            if new_size != old_size:
+                msg = (f"Texture {idx} ({t['name']}): {old_size[0]}x{old_size[1]} -> "
+                       f"{new_size[0]}x{new_size[1]}\n\nModel UVs are normalised, so the model shows the "
+                       f"new image at the new resolution; the .model is rebuilt around the new size."
+                       + "".join(f"\n- {w}" for w in texture.bntx_size_warnings(t, new_size))
+                       + "\n\nStore it at the new size?")
+                if not messagebox.askyesno("Change the texture size?", msg, icon="warning"):
+                    return
             blob = texture.bntx_replace(doc.cur_data, idx, f)
         except Exception as e:  # noqa: BLE001 - surface any encode/size problem to the user
             messagebox.showerror("Replace failed", str(e))
             return
         doc.cur_data = blob
         self._show(name, blob, doc)
-        self.status.config(text=f"Replaced texture {idx} from {pathlib.Path(f).name} in place -> "
-                                f"{len(blob):,} bytes, size unchanged (Extract to save the working copy)")
+        how = (f"in place -> {len(blob):,} bytes, size unchanged" if len(blob) == before else
+               f"{old_size[0]}x{old_size[1]} -> {new_size[0]}x{new_size[1]}, .model rebuilt -> "
+               f"{len(blob):,} bytes (was {before:,})")
+        self.status.config(text=f"Replaced texture {idx} from {pathlib.Path(f).name} {how} "
+                                f"(Extract to save the working copy)")
 
     def _export_all_bntx(self, name, data, lst):
         d = filedialog.askdirectory(title="Export all textures to folder…")

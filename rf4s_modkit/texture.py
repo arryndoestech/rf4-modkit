@@ -926,7 +926,8 @@ def size_warnings(template: bytes, changes: list, *, name: str = "") -> list:
 
 def size_change_text(changes: list, warnings: list) -> str:
     """Multi-line 'old -> new' + warnings summary (CLI output / GUI confirm dialog)."""
-    lines = [f"{'frame %d: ' % c['frame'] if 'frame' in c else ''}{c['old'][0]}x{c['old'][1]} -> "
+    tag = len(changes) > 1 or any(c.get("frame") for c in changes)
+    lines = [f"{'frame %d: ' % c['frame'] if tag else ''}{c['old'][0]}x{c['old'][1]} -> "
              f"{c['new'][0]}x{c['new'][1]}" for c in changes]
     lines += ["", *[f"- {w}" for w in warnings]] if warnings else []
     return "\n".join(lines)

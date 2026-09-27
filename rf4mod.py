@@ -489,9 +489,14 @@ def cmd_texture_encode(a):
     tmpl = _resolve(a.template).read_bytes()
     pngs = a.png if len(a.png) > 1 else a.png[0]
     try:
+        changes = texture.size_changes(tmpl, pngs, frame=a.frame, strip=a.strip)
         blob = texture.encode_into(tmpl, pngs, frame=a.frame, strip=a.strip, fmt=a.fmt)
     except texture.TextureError as e:
         sys.exit(f"error: {e}")
+    if changes:     # another size is stored as that size; say what that does in game
+        print("size change: " + texture.size_change_text(
+            changes, texture.size_warnings(tmpl, changes, name=pathlib.Path(a.template).name))
+            .replace("\n", "\n  "))
     pathlib.Path(a.out).write_bytes(blob)
     info = texture.parse(blob)
     fmts = sorted({f["fmt_name"] for f in info["frame_list"]})
@@ -2824,14 +2829,21 @@ def cmd_res_texture_decode(a):
 def cmd_res_texture_encode(a):
     data = _resolve(a.file).read_bytes()
     try:
+        old = texture.bntx_info(data)[a.index] if 0 <= a.index < len(texture.bntx_info(data)) else None
         blob = texture.bntx_replace(data, a.index, a.png, fmt=a.fmt)
     except texture.TextureError as e:
         sys.exit(f"error: {e}")
     pathlib.Path(a.out).write_bytes(blob)
     t = texture.bntx_info(blob)[a.index]
+    resized = (t["width"], t["height"]) != (old["width"], old["height"])
+    if resized:     # model UVs are normalised: another size is fine, the .model was rebuilt
+        print(f"size change: {old['width']}x{old['height']} -> {t['width']}x{t['height']} "
+              f"(model UVs are normalised; BNTX and .model rebuilt around it)"
+              + "".join(f"\n  - {w}" for w in texture.bntx_size_warnings(old, (t["width"], t["height"]))))
+    how = "rewritten in place" if len(blob) == len(data) else "stored, container rebuilt"
     print(f"replaced texture {a.index} ({t['name']}) of {a.file} from {a.png} -> {a.out}  "
-          f"({t['fmt_name']} {t['width']}x{t['height']}, {t['image_size']:,} B payload rewritten "
-          f"in place; file {len(blob):,} B, {_size_note(len(data), len(blob))})")
+          f"({t['fmt_name']} {t['width']}x{t['height']}, {t['image_size']:,} B payload {how}; "
+          f"file {len(blob):,} B, {_size_note(len(data), len(blob))})")
 
 
 def _load_model(path):
@@ -3628,7 +3640,8 @@ def build_parser():
     x2 = xsub.add_parser("encode", help="replace a texture's pixels from PNG(s) -- ANY template; "
                          "by default re-encoded in the template's own format (BC7/BC3/BC1 at the "
                          "same size, raw kept), so the file can go back in place with bundle patch")
-    x2.add_argument("template", help="the shipped .texture to re-skin (dimensions must match)")
+    x2.add_argument("template", help="the shipped .texture to re-skin (a PNG of another size is "
+                    "stored at that size; what that does in game is printed)")
     x2.add_argument("png", nargs="+", help="one PNG, or one per flipbook frame (in frame order)")
     x2.add_argument("-o", "--out", required=True)
     x2.add_argument("--frame", type=int, help="replace only this flipbook frame (others keep their bytes)")
@@ -4228,13 +4241,14 @@ def build_parser():
     r2.add_argument("file"); r2.add_argument("index", type=int, help="from texture-list")
     r2.add_argument("-o", "--out", help="default <model>_<index>.png")
     r2.set_defaults(func=cmd_res_texture_decode)
-    r3 = rsub.add_parser("texture-encode", help="replace one embedded texture from a PNG of the same "
-                         "size, re-encoded IN PLACE in its own block format (file size unchanged)")
+    r3 = rsub.add_parser("texture-encode", help="replace one embedded texture from a PNG, re-encoded "
+                         "in its own format: in place at the same size (file size unchanged), or at "
+                         "any other size with the BNTX and the .model rebuilt around it")
     r3.add_argument("file"); r3.add_argument("index", type=int, help="from texture-list")
     r3.add_argument("png"); r3.add_argument("-o", "--out", required=True)
     r3.add_argument("--fmt", choices=texture.ENCODE_FORMATS,
-                    help="keep (default) = the texture's own format; another format only when its "
-                         "payload has the same size (BC3 <-> BC7)")
+                    help="keep (default) = the texture's own format; or force another (a payload of "
+                         "another size rebuilds the container, like another image size)")
     r3.set_defaults(func=cmd_res_texture_encode)
     r4 = rsub.add_parser("model-info", help="a .model's meshes, materials (textures, user data such "
                          "as the over-model 'po' depth) and optionally its skeleton")

@@ -4011,12 +4011,10 @@ def test_texture_encode():
                [s for s, _ in s0] == [s for s, _ in s1] and len(s1) > 0
                and all(t0 == t1 for (_, t0), (_, t1) in zip(s0, s1)),
                f"{len(s1)} slots")
-        # dimension mismatch is refused (the sprite UV/quad user data is per-sprite)
-        try:
-            texture.encode_into(tmpl, Image.new("RGBA", (w // 2, h // 2)))
-            _check("encode refuses a wrong-size image", False, "no error")
-        except texture.TextureError as e:
-            _check("encode refuses a wrong-size image", "dimensions must match" in str(e))
+        # another size is stored as that size (test_texture_resize covers it in depth)
+        half = texture.parse(texture.encode_into(tmpl, Image.new("RGBA", (w // 2, h // 2))))
+        _check("encode takes an image of another size (PIXL width/height rewritten)",
+               (half["width"], half["height"]) == (w // 2, h // 2) and half["fmt_name"] == "BC7")
         # raw template keeps its own format; --fmt can force another raw format
         raw = next(EXTRACTED.rglob("common_touchpocket_08.texture"), None)
         if raw:
@@ -4105,6 +4103,287 @@ def test_texture_encode():
     _check("re-stitch of the imported tiles equals the export",
            res2 is not None and res2[0].tobytes() == img.tobytes())
     mapground.tile_cache_clear()
+
+
+def test_texture_resize():
+    """Standalone .texture at ANY size (texture.encode_into rewrites the frame's PIXL width /
+    height; the loader reads only format / width / height + the level-0 pointer, RF4S.exe
+    +0x3C6000 / +0x3D2230 / +0x2A34F0) and the size_warnings survey (ground tiles on a fixed
+    512-px grid, sprite quads from PolygonVertexes, pixel-size sprites)."""
+    print("texture resize (standalone .texture):")
+    if not (texture.HAS_PIL and texture.HAS_BC):
+        _skip("texture resize", "Pillow/texture2ddecoder not installed")
+        return
+    from PIL import Image, ImageChops, ImageStat
+
+    def rms(a, b):
+        a, b = a.convert("RGBA"), b.convert("RGBA")
+        return max(ImageStat.Stat(ImageChops.difference(a, b)).rms) if a.size == b.size else 999.0
+
+    # 0. a no-op rebuild reproduces every shipped .texture byte for byte
+    paths = list(EXTRACTED.rglob("*.texture"))
+    if QUICK:
+        paths = paths[::20]
+    same = 0
+    for p in paths:
+        d = p.read_bytes()
+        info = texture.parse(d)
+        pl = [(f["fmt_code"], texture._slot_bytes(d, f)) for f in info["frame_list"]]
+        same += texture._rebuild(d, info, pl) == d
+    _check("container rebuild with unchanged payloads is byte-identical on every shipped .texture",
+           same == len(paths) > 0, f"{same}/{len(paths)}")
+
+    # 1. a ground tile at half size: BC7 kept, container consistent, the ground-grid warning
+    tile = _first("MAP_FIELD_01_0000.texture")
+    if tile is None:
+        _skip("texture resize", "MAP_FIELD_01_0000.texture not extracted")
+        return
+    d = tile.read_bytes()
+    im = texture.decode_to_image(d)
+    small = im.resize((im.width // 2, im.height // 2))
+    ch = texture.size_changes(d, small)
+    warns = texture.size_warnings(d, ch, name=tile.name)
+    n = texture.encode_into(d, small)
+    i1 = texture.parse(n)
+    fr = i1["frame_list"][0]
+    _check("half-size ground tile: BC7 at the new size, sizes / _RLT / DESC / mip pointer rewritten",
+           (i1["fmt_name"], i1["height"], i1["width"]) == ("BC7",) + small.size
+           and i1["file_size"] == len(n) and i1["rlt_ok"] and i1["desc_size"] == 0x10 + fr["size"]
+           and i1["rlt_off"] == i1["desc_off"] + i1["desc_size"] and fr["image_size"] == fr["size"]
+           and len(texture.relocation_slots(n)) == len(texture.relocation_slots(d))
+           and rms(texture.decode_to_image(n), small) < 4.0,
+           f"{len(d):,} -> {len(n):,} B, rms {rms(texture.decode_to_image(n), small):.2f}")
+    _check("size_changes / size_warnings: old -> new and the fixed 512-px ground grid",
+           ch == [{"frame": 0, "old": im.size, "new": small.size}]
+           and any("ground" in w and "512" in w for w in warns), warns[:1])
+    _check("same size -> no size change reported", texture.size_changes(d, im) == [])
+    # a resized output is itself a valid template (same size again -> same file size)
+    again = texture.encode_into(n, texture.decode_to_image(n))
+    _check("a resized .texture re-encodes at its new size without growing", len(again) == len(n))
+
+    # 2. block formats only at sizes the exe can upload; RGBA8 takes any size
+    try:
+        texture.encode_into(d, im.resize((30, 30)))
+        e30 = "no error"
+    except texture.TextureError as e:
+        e30 = str(e)
+    r30 = texture.parse(texture.encode_into(d, im.resize((30, 30)), fmt="RGBA8"))
+    _check("30x30 is refused as BC7 (exe passes w*h as the BC size) with the RGBA8 hint; RGBA8 takes it",
+           "multiples of 4" in e30 and "RGBA8" in e30 and (r30["width"], r30["height"]) == (30, 30), e30[:60])
+
+    # 3. flipbook: one frame at another size, the others keep their bytes; a 2x strip
+    conf = _first("confetti.texture")
+    if conf:
+        cb = conf.read_bytes()
+        frames = texture.decode_frames(cb)
+        big = frames[3].resize((16, 16), Image.NEAREST)
+        n = texture.encode_into(cb, big, frame=3)
+        fl, fl0 = texture.parse(n)["frame_list"], texture.parse(cb)["frame_list"]
+        ok = ((fl[3]["width"], fl[3]["height"]) == (16, 16) and fl[3]["fmt_name"] == "BC7"
+              and all(n[fl[k]["data_off"]:][:fl[k]["size"]] == cb[fl0[k]["data_off"]:][:fl0[k]["size"]]
+                      for k in range(15) if k != 3)
+              and rms(texture.decode_to_image(n, frame=3), big) < 3.0 and texture.relocation_slots(n))
+        _check("flipbook frame 3 at 16x16 (the other 14 frames byte-identical)", ok)
+        strip, _boxes = texture.decode_strip(cb)
+        s2 = strip.resize((strip.width * 2, strip.height * 2), Image.NEAREST)
+        n2 = texture.encode_into(cb, s2, strip=True)
+        _check("a 2x strip resizes every flipbook frame",
+               {(f["width"], f["height"]) for f in texture.parse(n2)["frame_list"]} == {(16, 16)}
+               and len(texture.size_changes(cb, s2, strip=True)) == 15)
+        try:
+            texture.encode_into(cb, strip.resize((strip.width + 3, strip.height)), strip=True)
+            eodd = "no error"
+        except texture.TextureError as e:
+            eodd = str(e)
+        _check("a strip that does not scale to whole-pixel frame boxes is refused", "whole pixels" in eodd)
+    else:
+        _skip("flipbook resize", "confetti.texture not extracted")
+
+    # 4. raw texture without quad data: exact at 2x, "drawn at its pixel size" warning;
+    #    a sprite with a quad: aspect change -> "stretched" warning
+    raw = _first("common_touchpocket_08.texture")
+    if raw:
+        rb = raw.read_bytes()
+        rim = texture.decode_to_image(rb)
+        big = rim.resize((rim.width * 2, rim.height * 2), Image.NEAREST)
+        n = texture.encode_into(rb, big)
+        w = texture.size_warnings(rb, texture.size_changes(rb, big))
+        _check("raw texture at 2x decodes exactly; no quad data -> pixel-size warning",
+               texture.decode_to_image(n).tobytes() == big.convert("RGBA").tobytes()
+               and any("pixel size" in x and "2x larger" in x for x in w), w[:1])
+    bed = _first("OBJ_BED_00.texture")
+    if bed:
+        bb = bed.read_bytes()
+        bim = texture.decode_to_image(bb)
+        wide = bim.resize((bim.width * 2, bim.height))
+        w = texture.size_warnings(bb, texture.size_changes(bb, wide), name=bed.name)
+        same_aspect = texture.size_warnings(bb, texture.size_changes(bb, bim.resize((bim.width * 2, bim.height * 2))))
+        _check("a quad sprite: aspect change warns 'stretched', a uniform 2x only notes the quad",
+               any("stretched" in x for x in w) and not any("stretched" in x for x in same_aspect)
+               and same_aspect, (w[:1], same_aspect[:1]))
+
+
+def test_model_texture_resize():
+    """Embedded .model textures at ANY size: texture.bntx_replace rebuilds the BNTX (same
+    container as a .texture) and modelwrite.replace_embedded_file moves section 4 (table size,
+    relocated pointers, outer _RLT). Checked with modelwrite.validate / validate_embedded,
+    model.parse, res_container and the untouched textures / shader bytes."""
+    print("texture resize (.model embedded BNTX):")
+    if not (texture.HAS_PIL and texture.HAS_BC):
+        _skip("model texture resize", "Pillow/texture2ddecoder not installed")
+        return
+    from PIL import ImageChops, ImageStat
+    from rf4s_modkit import modelwrite as mw, model
+
+    def rms(a, b):
+        a, b = a.convert("RGBA"), b.convert("RGBA")
+        return max(ImageStat.Stat(ImageChops.difference(a, b)).rms) if a.size == b.size else 999.0
+
+    # 0. every shipped mesh .model: section-4 layout check + no-op replace is byte-identical
+    seen, same, n_files, n_models, probs = set(), 0, 0, 0, []
+    paths = [p for p in EXTRACTED.rglob("*.model") if not (p.name in seen or seen.add(p.name))]
+    if QUICK:
+        paths = paths[::10]
+    for p in paths:
+        d = p.read_bytes()
+        files = mw.embedded_files(d)
+        if not files:
+            continue
+        n_models += 1
+        probs += mw.validate_embedded(d)
+        for k, (o, s) in enumerate(files):
+            n_files += 1
+            same += mw.replace_embedded_file(d, k, d[o:o + s]) == d
+    _check("embedded files: shipped layout holds and a no-op replace is byte-identical",
+           n_models > 0 and same == n_files and not probs, f"{same}/{n_files} files in {n_models} models {probs[:1]}")
+
+    pm = _first("MAP_CITY_00.model")
+    if pm is None:
+        _skip("model texture resize", "MAP_CITY_00.model not extracted")
+        return
+    m = pm.read_bytes()
+    infos = texture.bntx_info(m)
+    orig = [texture.decode_bntx(m, k) for k in range(len(infos))]
+    files0 = mw.embedded_files(m)
+    shader0 = m[files0[1][0]:files0[1][0] + files0[1][1]]
+    nshapes = len(model.parse(m).shapes)
+    nslots = len(mw.relocation_slots(m))
+    results = []
+    for size, fmt in (((768, 384), None), ((64, 32), None), ((100, 60), "RGBA8")):
+        src = orig[0].resize(size)
+        n = texture.bntx_replace(m, 0, src, fmt=fmt)
+        t = texture.bntx_info(n)[0]
+        files = mw.embedded_files(n)
+        ri = res_container.inspect(n)
+        rlt = ri["reloc_table_offset"]
+        ok = ((t["width"], t["height"]) == size and t["fmt_name"] == (fmt or infos[0]["fmt_name"])
+              and not mw.validate(n) and not mw.validate_embedded(n)
+              and len(model.parse(n).shapes) == nshapes and len(mw.relocation_slots(n)) == nslots
+              and n[rlt:rlt + 4] == b"_RLT" and rlt % 0x1000 == 0
+              and n[files[1][0]:files[1][0] + files[1][1]] == shader0
+              and all(texture.decode_bntx(n, k).tobytes() == orig[k].tobytes() for k in range(1, len(infos)))
+              and rms(texture.decode_bntx(n, 0), src) < (0.01 if fmt == "RGBA8" else 12.0))
+        results.append((size, fmt, ok, len(n)))
+    _check("MAP_CITY_00 texture 0 at 768x384 BC3 / 64x32 BC3 / 100x60 RGBA8: model validates, "
+           "shader + other 12 textures untouched", all(r[2] for r in results),
+           "; ".join(f"{s[0]}x{s[1]} {f or 'keep'} {n:,} B" for s, f, _ok, n in results))
+    # resize and back: the second replace works on the rebuilt file
+    n = texture.bntx_replace(m, 5, orig[5].resize((96, 96)))
+    back = texture.bntx_replace(n, 5, orig[5])
+    _check("resize then back to the original size: same file size, validates",
+           len(back) == len(m) and not mw.validate(back) and not mw.validate_embedded(back)
+           and texture.bntx_info(back)[5]["width"] == infos[5]["width"])
+    # a bare BNTX resizes too
+    o, s = files0[0]
+    nb = texture.bntx_replace(m[o:o + s], 2, orig[2].resize((52, 52)), fmt="RGBA8")
+    _check("a bare BNTX resizes on its own (own _RLT walks, size field = length)",
+           texture.bntx_info(nb)[2]["width"] == 52 and texture.relocation_slots(nb)
+           and struct.unpack_from("<I", nb, 0x1C)[0] == len(nb))
+
+
+def test_texture_resize_gui():
+    """GUI Replace texture… (texture viewer and a .model's Textures tab) with a PNG of another
+    size: a confirm shows old -> new (+ warnings); No keeps the working copy, Yes stores it."""
+    print("GUI Replace texture… at another size:")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("texture resize GUI", "no tkinter: %s" % e); return
+    if not (texture.HAS_PIL and texture.HAS_BC):
+        _skip("texture resize GUI", "Pillow/texture2ddecoder not installed"); return
+    tex, mod = _first("common_touchpocket_08.texture"), _first("MAP_CITY_00.model")
+    if tex is None or mod is None:
+        _skip("texture resize GUI", "common_touchpocket_08.texture / MAP_CITY_00.model not extracted"); return
+    from PIL import Image
+    from rf4s_modkit import modelwrite as mw
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_texresize", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    from tkinter import messagebox, filedialog
+    asked = []
+    messagebox.askyesno = lambda t, m, **k: (asked.append(m), box["yesno"])[1]
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        app = gui.App(root, initial=str(tex.parent))
+        # --- standalone texture
+        f = tmp / tex.name
+        shutil.copyfile(tex, f)
+        app.open_path(f); root.update_idletasks()
+        doc = app._doc
+        before = doc.cur_data
+        im = texture.decode_to_image(before)
+        png = tmp / "big.png"
+        im.resize((im.width * 2, im.height * 2), Image.NEAREST).save(png)
+        filedialog.askopenfilename = lambda *a, **k: str(png)
+        box["yesno"] = False
+        app._replace_texture_png(f.name)
+        declined = doc.cur_data == before and len(asked) == 1
+        msg = asked[-1] if asked else ""
+        box["yesno"] = True
+        app._replace_texture_png(f.name)
+        i = texture.parse(doc.cur_data)
+        _check("texture viewer: another size asks first (old -> new + warning); No keeps, Yes stores it",
+               declined and "%dx%d -> %dx%d" % (im.size + (im.width * 2, im.height * 2)) in msg
+               and "pixel size" in msg and (i["height"], i["width"]) == (im.width * 2, im.height * 2)
+               and "->" in app.status.cget("text") and not box["msgs"], msg.splitlines()[:1])
+        n_asked = len(asked)
+        cur = texture.decode_to_image(doc.cur_data)
+        cur.save(png)
+        app._replace_texture_png(f.name)
+        _check("a PNG of the texture's own (new) size replaces without asking", len(asked) == n_asked
+               and texture.decode_to_image(doc.cur_data).size == cur.size)
+        # --- a .model's Textures tab
+        g = tmp / mod.name
+        shutil.copyfile(mod, g)
+        app.open_path(g); root.update_idletasks()
+        doc = app._doc
+        before = doc.cur_data
+        t = texture.bntx_info(before)[1]
+        texture.decode_bntx(before, 1).resize((t["width"] * 2, t["height"] * 2)).save(png)
+
+        class _Sel:           # the Textures tab's tree, with texture 1 selected
+            def selection(self):
+                return ("1",)
+        box["yesno"] = False
+        app._replace_bntx_png(g.name, _Sel())
+        declined = doc.cur_data == before and len(asked) == n_asked + 1 and "normalised" in asked[-1]
+        box["yesno"] = True
+        app._replace_bntx_png(g.name, _Sel())
+        t2 = texture.bntx_info(doc.cur_data)[1]
+        _check("Model tab: another size asks first; Yes rebuilds the .model (validates)",
+               declined and (t2["width"], t2["height"]) == (t["width"] * 2, t["height"] * 2)
+               and len(doc.cur_data) != len(before) and not mw.validate(doc.cur_data)
+               and not mw.validate_embedded(doc.cur_data) and "rebuilt" in app.status.cget("text")
+               and not box["msgs"] and not errs,
+               (declined, (t2["width"], t2["height"]), mw.validate(doc.cur_data)[:1],
+                mw.validate_embedded(doc.cur_data)[:1], app.status.cget("text")[:60], box["msgs"][:1], errs[:1]))
+    finally:
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_behaviour_edits():
@@ -4730,18 +5009,16 @@ def test_bcenc_and_model_textures():
            and ident.identify(newm[:0x4000], filename=pm.name).fmt == "model",
            f"texture {k} {t['name']} {t['fmt_name']} {t['width']}x{t['height']} in {dtm:.2f}s, "
            f"mean err {meanm:.2f}, max {mxm}")
-    try:
-        texture.bntx_replace(mod, k, card.resize((max(4, t["width"] // 2), max(4, t["height"] // 2))))
-        bad1 = "no error"
-    except texture.TextureError as e:
-        bad1 = str(e)
-    try:
-        texture.bntx_replace(mod, k, card, fmt="BC1" if t["fmt_name"] != "BC1" else "RGBA8")
-        bad2 = "no error"
-    except texture.TextureError as e:
-        bad2 = str(e)
-    _check("bntx_replace refuses a wrong-size image and a format with another payload size",
-           "dimensions must match" in bad1 and "payload" in bad2)
+    # another size / a format with another payload size go through the BNTX rebuild
+    # (test_model_texture_resize covers it in depth)
+    from rf4s_modkit import modelwrite as _mw
+    half = (max(4, t["width"] // 2 // 4 * 4), max(4, t["height"] // 2 // 4 * 4))
+    r1 = texture.bntx_replace(mod, k, card.resize(half))
+    r2 = texture.bntx_replace(mod, k, card, fmt="BC1" if t["fmt_name"] != "BC1" else "RGBA8")
+    _check("bntx_replace takes another size and a format with another payload size (BNTX rebuilt)",
+           (texture.bntx_info(r1)[k]["width"], texture.bntx_info(r1)[k]["height"]) == half
+           and texture.bntx_info(r2)[k]["image_size"] != t["image_size"]
+           and not _mw.validate(r1) and not _mw.validate_embedded(r2))
     if t["fmt_name"] in ("BC3", "BC7"):
         other = "BC7" if t["fmt_name"] == "BC3" else "BC3"
         n2 = texture.bntx_replace(mod, k, card, fmt=other)
@@ -11747,7 +12024,8 @@ def run() -> int:
         if QUICK else "full"
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
-    for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode, test_rf4m,
+    for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_mapground,
               test_search_items, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
