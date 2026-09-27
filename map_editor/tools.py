@@ -566,10 +566,16 @@ class WarpTool(Tool):
         self.view.preview_rect(None)
         x0, y0 = min(a[0], b[0]), min(a[1], b[1])
         w, h = abs(a[0] - b[0]) + 1, abs(a[1] - b[1]) + 1
-        here = self.ed.this_map_id() or 0
+        # a new warp leads back into this map until a destination is picked: the BASE id, since
+        # the game adds the calendar season to ids below 64 (a seasonal id would load the
+        # wrong file); the arrival is the tile below the zone, kept inside the grid
+        from . import data
+        here = data.base_map_id(self.doc.base) or 0
+        W, H = (self.doc.grid[0], self.doc.grid[1]) if self.doc.grid else (x0 + w, y0 + h + 2)
+        ax, ay = min(x0 + w // 2, W - 1), min(y0 + h + 1, H - 1)
         with self.doc.edit("Add warp", "mapj"):
             j = self.doc.map.add_mapj_record([-1, x0 * 8, y0 * 8, w * 8, h * 8, here,
-                                              (x0 + w // 2) * 8 + 4, (y0 + h + 1) * 8 + 4, 0])
+                                              ax * 8 + 4, ay * 8 + 4, 0])
         self.ed.select(("warp", j))
         self.ed.status(f"Added warp #{j} ({w}x{h} tiles) -- pick its destination in the Inspector")
 

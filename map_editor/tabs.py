@@ -206,6 +206,11 @@ class MapTab(ui.ScrollFrame):
                             command=lambda i=i: self._commit_tint_default(i)).grid(row=i, column=1, sticky="w")
             sw = tk.Button(t, width=3, relief="solid", bd=1, command=lambda i=i: self._pick_tint(i))
             sw.grid(row=i, column=2, padx=4, pady=1)
+            if slot == "night":
+                ui.Tip(sw, "With 'default' ticked the game uses 148,214,247 at night, or "
+                           "181,214,214 on maps the game's map table marks for it (bit 0x10 of "
+                           "the map's entry: indoor rooms, barns, caves and most dungeons); the "
+                           "swatch shows the one this map gets.")
             en = commit_entry(t, tv, lambda i=i: self._commit_tint_text(i), width=12)
             en.grid(row=i, column=3, sticky="w")
             self.tints.append((dv, tv, sw, en))
@@ -251,7 +256,7 @@ class MapTab(ui.ScrollFrame):
         for i, (dv, tv, sw, en) in enumerate(self.tints):
             c = cols[i]
             dv.set(c is None)
-            shown = c or rf4m.MLIG_DEFAULTS[i]
+            shown = c or self._tint_defaults()[i]
             tv.set("" if c is None else "%d,%d,%d" % c)
             en.config(state="disabled" if c is None else "normal")
             sw.config(bg="#%02x%02x%02x" % shown)
@@ -334,6 +339,12 @@ class MapTab(ui.ScrollFrame):
                 v |= 1 << new
         self._set_mgrp(v)
 
+    def _tint_defaults(self):
+        """The engine's default tints for this map (the night one depends on the map id:
+        rf4m.mlig_defaults)."""
+        d = self.ed.doc
+        return rf4m.mlig_defaults(data.base_map_id(d.base) if d is not None and d.base else None)
+
     def _set_tints(self, cols, label):
         if cols == self.ed.doc.map.mlig_colors():
             return
@@ -341,7 +352,7 @@ class MapTab(ui.ScrollFrame):
 
     def _commit_tint_default(self, i):
         cols = self.ed.doc.map.mlig_colors()
-        cols[i] = None if self.tints[i][0].get() else rf4m.MLIG_DEFAULTS[i]
+        cols[i] = None if self.tints[i][0].get() else self._tint_defaults()[i]
         self._set_tints(cols, f"Set {rf4m.MLIG_SLOTS[i]} tint")
 
     def _commit_tint_text(self, i):
@@ -360,7 +371,7 @@ class MapTab(ui.ScrollFrame):
 
     def _pick_tint(self, i):
         cols = self.ed.doc.map.mlig_colors()
-        cur = cols[i] or rf4m.MLIG_DEFAULTS[i]
+        cur = cols[i] or self._tint_defaults()[i]
         res = colorchooser.askcolor(color="#%02x%02x%02x" % cur, title=f"{rf4m.MLIG_SLOTS[i]} tint")
         if res and res[0]:
             cols[i] = tuple(int(c) for c in res[0])
@@ -370,8 +381,8 @@ class MapTab(ui.ScrollFrame):
         m = self.ed.doc.map
         idxs = [i for i, c in enumerate(m.chunks) if c.tag == b"MTXN"]
         if delta > 0 and len(idxs) >= 2:
-            # the game draws layer 0 (ground) and 1 (overlay) only; past 6 chunks the loader
-            # overwrites the next pointer array (no bounds check)
+            # the game draws layer 0 (ground) and 1 (overlay) only; a 3rd chunk makes the loader
+            # overwrite the pointers after the two layer slots (rf4m.ENGINE_MAX_CHUNKS)
             self.ed.status("Two display layers is the most the game uses (ground + overlay)")
             return
         if delta > 0:
@@ -390,14 +401,15 @@ def minimap_details(doc):
     """(details, note) text about the open map's HUD minimap for the Properties tab: the sheet,
     blank / maze pictures, fog of war, where an interior's NPC icons go, the other maps on the
     picture, and the save-state picture swaps."""
-    mid = data.map_id(doc.base) if doc is not None and doc.base else None
+    # the game reads rf3MapMiniPos by the BASE id (a seasonal copy's own row is never used)
+    mid = data.base_map_id(doc.base) if doc is not None and doc.base else None
     rec = minimap.record(mid) if mid is not None else None
     if rec is None:
         return "No minimap record for this map (not one of the game's map ids).", ""
     tex = minimap.texture(mid)
     blank = minimap.is_blank(mid) or minimap.is_composed(mid)
-    others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid))
-                               if m != mid]
+    others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid),
+                                                                base_only=True) if m != mid]
     names = [map_names.map_file(m) or str(m) for m in others]
     lines = [f"Sheet {rec['sheet']} (resource {minimap.archive_id(mid)}); drawn: {tex}"]
     if minimap.is_blank(mid):
@@ -488,8 +500,10 @@ class MinimapPanel(ttk.Frame):
 
     # ---- data --------------------------------------------------------------------------- #
     def _map_id(self):
+        """The id whose minimap record the game uses: the base id (a seasonal copy's own
+        rf3MapMiniPos row is never read)."""
         d = self.ed.doc
-        return data.map_id(d.base) if d is not None and d.base else None
+        return data.base_map_id(d.base) if d is not None and d.base else None
 
     def _to_canvas(self, mid, x, y):
         """Canvas px of a map position in sub-units (minimap.pos_to_sheet: drawn half-scale
@@ -565,27 +579,23 @@ class MinimapPanel(ttk.Frame):
 
     def _other_rooms(self, mid):
         """[(MAP_* name, canvas rect)] of the other maps drawn on this picture (one per
-        placement; a seasonal family shows as the copy of the open map's season)."""
+        placement, from the base ids' records -- the ones the game reads; a seasonal family
+        opens as the copy of the open map's season)."""
         if minimap.is_blank(mid) or minimap.is_composed(mid):
             return []
-        me_base = data.SEASON_RE.sub("", data.map_base(self.ed.doc.base)).upper()
-        suffix = data.SEASON_RE.search(data.map_base(self.ed.doc.base))
-        suffix = suffix.group(0).upper() if suffix else ""
+        own = data.map_id(self.ed.doc.base)
+        season = own - mid if own is not None and 4 <= mid < 64 else 0
         sums = data.map_summaries()
         by_place = {}
-        for m in minimap.maps_on_sheet(minimap.effective_sheet(mid)):
+        for m in minimap.maps_on_sheet(minimap.effective_sheet(mid), base_only=True):
             r = minimap.raw_record(m)
-            name = map_names.map_file(m)
-            if not r or not r[7] or not r[8] or not name:
-                continue
-            if data.SEASON_RE.sub("", name).upper() == me_base:
-                continue                        # the open map (any season)
+            name = map_names.map_file(m + season if 4 <= m < 64 else m)
+            if not r or not r[7] or not r[8] or not name or m == mid:
+                continue                        # no placement, or the open map
             by_place.setdefault(tuple(r[1:9]), []).append((m, name))
         out = []
         for group in by_place.values():
-            pick = next(((m, n) for m, n in group if n.upper().endswith(suffix) and suffix), None) \
-                or next(((m, n) for m, n in group if not data.SEASON_RE.search(n)), group[0])
-            m, name = pick
+            m, name = group[0]
             wh = (sums.get(name) or (None, None, None))[2]
             if not wh:
                 continue

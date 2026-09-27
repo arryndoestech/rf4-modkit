@@ -43,7 +43,9 @@ class ResizeDialog:
             ("w", "Width (tiles)", W,
              f"The new width of the map in tiles (now {W}). The collision grid (ATTR) is what the "
              f"game sizes the map by: its world size, camera limits and the ground-texture tile "
-             f"grid all follow from it."),
+             f"grid all follow from it. A map under {rf4m.SMALL_MAP_TILES[0]} tiles wide or "
+             f"{rf4m.SMALL_MAP_TILES[1]} tall gets a centred, zoomed-in camera instead of a "
+             f"scrolling one."),
             ("h", "Height (tiles)", H, f"The new height of the map in tiles (now {H})."),
             ("ox", "Shift right", 0,
              "Moves the existing map this many tiles to the right inside the new grid, so "
@@ -146,7 +148,11 @@ class ResizeDialog:
                  + (f" ({c['dropped_nonzero']} of them had collision)" if c["dropped_nonzero"] else ""))
         o.insert("end", f"ATTR {w0}x{h0} -> {w1}x{h1}   ground tiles {a['old_grid'][0]}x{a['old_grid'][1]} -> "
                         f"{a['new_grid'][0]}x{a['new_grid'][1]}"
-                        + ("   (column count changes)" if a["reindexed"] else "") + "\n\n")
+                        + ("   (column count changes)" if a["reindexed"] else "") + "\n")
+        cam = rep.get("camera", {}).get("new")
+        o.insert("end", f"camera: {cam}\n\n" if cam else
+                 f"camera: scrolls over the map (at least {rf4m.SMALL_MAP_TILES[0]} x "
+                 f"{rf4m.SMALL_MAP_TILES[1]} tiles)\n\n")
         o.insert("end", "Derived artefacts to fix:\n" if rep["todo"] else "Nothing derived needs fixing.\n")
         for t in rep["todo"]:
             o.insert("end", f"  • {t}\n")

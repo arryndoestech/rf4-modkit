@@ -7280,6 +7280,239 @@ def test_map_editor_copy_to_seasons():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_map_container_checks():
+    """Per-map exe tables (rf4s_modkit.mapres, refdata/rf4s_exe_map_resources.json): each map's
+    overlay layer comes from g_mapResourceTable +2 (not the ground set's own _1000 tiles), the
+    MTXN count is checked against it, short MLIG / MGRP chunks, warp destinations (base ids,
+    id 0, the flag range, zone size, the arrival against the destination map), the night tint
+    default, the runtime warps / walls, copy-to-seasons' chunk cap and the small-map camera."""
+    print("map container: overlay ids, MTXN / MLIG / MGRP / warp checks, runtime warps:")
+    import hashlib, struct
+    from rf4s_modkit import exetables as _ext, mapdiff, mapground, mapres, minimap, rf4m as _rf4m
+    rows = mapres.tables().get("map_resources", {}).get("rows", [])
+    _check("refdata/rf4s_exe_map_resources.json: 872 maps x [rf4m, ground, overlay, over-model], "
+           "216 without an overlay",
+           len(rows) == 872 and sum(1 for r in rows if r[2] is None) == 216
+           and rows[mapres.map_id("MAP_FIELD_01")][1:3] == ["MAP_FIELD_201_0000", "MAP_FIELD_01_1000"],
+           len(rows))
+    exe = _ext.default_exe()
+    if exe is None:
+        _skip("map resources vs RF4S.exe", "no RF4S.exe next to the game's Bundle folder")
+    elif hashlib.sha256(exe.read_bytes()).hexdigest() != mapres.tables()["source"]["sha256"]:
+        _skip("map resources vs RF4S.exe", "the game folder has a different RF4S.exe build")
+    else:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "gen_exe_tables_json", pathlib.Path(__file__).with_name("gen_exe_tables_json.py"))
+        gen_mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen_mod)
+        fresh = gen_mod.build_map_resources(exe)
+        _check("refdata/rf4s_exe_map_resources.json matches this RF4S.exe (resource ids, type "
+               "attributes, runtime warps)",
+               fresh == mapres.tables())
+    sp4 = mapres.runtime_spawns(6)                         # MAP_FARM_00_AUTUMN -> base 4
+    _check("runtime warps / walls: the farm gets its field warps + walls by expansion level and "
+           "the barn doors; the 50 barn rooms each get theirs; none on a dungeon",
+           {s["dest"] for s in sp4 if s["kind"] == "warp"} == {8, 12, 16, 20, 77, 82}
+           and sum(1 for s in sp4 if s["kind"] == "wall") == 4
+           and all(mapres.runtime_spawns(m) for m in range(77, 127))
+           and not mapres.runtime_spawns(mapres.map_id("MAP_DUNG_A01"))
+           and mapres.wall_cells([0, 320, 16, 400]) == (0, 40, 2, 50)
+           and mapres.wall_cells([0, 0, 0, 0]) is None)
+    _check("night tint default: 181,214,214 where g_mapTypeAttribTable has bit 0x10 (a barn "
+           "room), else 148,214,247; seasonal copies use the base id",
+           _rf4m.mlig_defaults(77)[2] == (181, 214, 214) and _rf4m.mlig_defaults(4)[2] == (148, 214, 247)
+           and _rf4m.mlig_defaults(7) == _rf4m.mlig_defaults(4)
+           and _rf4m.mlig_defaults(None) == _rf4m.MLIG_DEFAULTS)
+    _check("minimap: seasonal copies are left out of a sheet's maps with base_only",
+           all(not (4 <= m < 64 and m % 4) for m in minimap.maps_on_sheet(0, base_only=True))
+           and len(minimap.maps_on_sheet(0)) > len(minimap.maps_on_sheet(0, base_only=True)))
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FIELD_01.rf4m").exists():
+        _skip("map container checks", "no extracted bundleMain"); return
+    from map_editor import data as med
+
+    def reader(fn):
+        p = med.find_extracted(fn)
+        return p.read_bytes() if p else None
+    ov = {n: mapground.overlay_for(reader, n) for n in
+          ("MAP_FIELD_01", "MAP_FIELD_03", "MAP_CITY_07_SUMMER", "MAP_DUNG_I04", "MAP_DUNG_I08")}
+    _check("overlay layer = g_mapResourceTable +2: FIELD_01 draws MAP_FIELD_01 over ground "
+           "FIELD_201, FIELD_03 draws FIELD_07, CITY_07_SUMMER draws CITY_07, I04 / I08 none",
+           ov == {"MAP_FIELD_01": "MAP_FIELD_01", "MAP_FIELD_03": "MAP_FIELD_07",
+                  "MAP_CITY_07_SUMMER": "MAP_CITY_07", "MAP_DUNG_I04": None, "MAP_DUNG_I08": None}
+           and mapground.available_layers(reader, "MAP_DUNG_I04") == [0]
+           and mapground.available_layers(reader, "MAP_FIELD_01") == [0, 1]
+           and mapground.tile_layout(reader, "MAP_FIELD_01", 1)["set"] == "MAP_FIELD_01"
+           and mapground.tile_layout(reader, "MAP_DUNG_I04", 1) is None, ov)
+    extra = sorted(a["set"] for n in ("MAP_DUNG_A01", "MAP_DUNG_B01", "MAP_DUNG_D06", "MAP_DUNG_I04")
+                   for a in mapground.atlas_audit(reader, n, *_rf4m.Rf4mMap.load(
+                       med.find_extracted(n + ".rf4m")).attr_grid()[:2]) if a["extra"])
+    _check("three overlay atlases ship more tiles than spawned (A01, B01, D06; I04 has no overlay)",
+           extra == ["MAP_DUNG_A01", "MAP_DUNG_B01", "MAP_DUNG_D06"], extra)
+    known = set(med.rooms_by_id())
+
+    def val(m, name, loader=med.load_map_by_id):
+        return m.validate(known_maps=known, map_name=name, dest_loader=loader)
+
+    f01 = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    base_v = val(f01, "MAP_FIELD_01")
+    one = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    one.delete_chunk(max(i for i, c in enumerate(one.chunks) if c.tag == b"MTXN"))
+    three = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    three.add_chunk("MTXN", b"\0" * 4, at=[i for i, c in enumerate(three.chunks) if c.tag == b"MTXN"][-1] + 1)
+    i04 = _rf4m.Rf4mMap.load(B / "MAP_DUNG_I04.rf4m")
+    i04.add_chunk("MTXN", b"\0" * 4, at=[i for i, c in enumerate(i04.chunks) if c.tag == b"MTXN"][-1] + 1)
+    _check("MTXN count vs the overlay id: 1 chunk on an overlay map WARNs (not drawn), 2 on a "
+           "no-overlay map WARNs, 3 is an ERROR; the shipped map is clean",
+           not base_v
+           and any(s.startswith("WARN") and "will not be drawn" in s for s in val(one, "MAP_FIELD_01"))
+           and any(s.startswith("ERROR") and "3 MTXN" in s for s in val(three, "MAP_FIELD_01"))
+           and any(s.startswith("WARN") and "stays empty" in s for s in val(i04, "MAP_DUNG_I04")),
+           base_v[:2])
+    short = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    short.set_ints("MLIG", [0, 0], signed=False)
+    short.live_chunk(b"MGRP").payload = b"\0\0"
+    vs = val(short, "MAP_FIELD_01")
+    _check("an MLIG under 12 B and an MGRP under 4 B are ERRORs",
+           any("MLIG chunk is 8 B" in s and s.startswith("ERROR") for s in vs)
+           and any("MGRP chunk is 2 B" in s and s.startswith("ERROR") for s in vs), vs[:3])
+    rec = list(f01.mapj_records()[0])
+    dest = _rf4m.Rf4mMap.load(med.find_extracted(med.rooms_by_id()[rec[5]] + ".rf4m"))
+    dw, dh, dcells = dest.attr_grid()
+    wall = next((i for i, v in enumerate(dcells) if v == 0x2), None)
+    dz = dest.mapj_records()[0]
+    cases = {
+        "seasonal": ([rec[0], *rec[1:5], 5, *rec[6:]], "ERROR", "seasonal copy"),
+        "id 0": ([rec[0], *rec[1:5], 0, 0, rec[7], rec[8]], "ERROR", "never loads"),
+        "flag": ([2560, *rec[1:]], "ERROR", "disable flag 2560"),
+        "width": ([rec[0], rec[1], rec[2], 40000, *rec[4:]], "WARN", "zone width 40000"),
+        "outside": ([*rec[:6], dw * 8 + 40, rec[7], rec[8]], "ERROR", "is outside"),
+        "wall": ([*rec[:6], (wall % dw) * 8 + 4, (wall // dw) * 8 + 4, rec[8]]
+                 if wall is not None else rec, "WARN", "is a wall"),
+        "in zone": ([*rec[:6], dz[1] + dz[3] // 2, dz[2] + dz[4] // 2, rec[8]], "WARN", "lies inside"),
+    }
+    got = {}
+    for k, (r, sev, needle) in cases.items():
+        m = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+        m.set_mapj_record(0, r)
+        got[k] = any(s.startswith(sev) and needle in s for s in val(m, "MAP_FIELD_01"))
+    _check("warp checks: a seasonal-copy destination, dest 0 with a 0 arrival, a flag past 2559 are "
+           "ERRORs; a zone past 16 bits WARNs; the arrival outside the destination grid is an "
+           "ERROR, on a wall / inside a destination warp zone a WARN",
+           all(got.values()), got)
+    maze = _rf4m.Rf4mMap.load(med.find_extracted("MAP_DUNG_F01.rf4m"))
+    _check("Sharance Maze floors: their direction-code arrivals are not flagged",
+           not [s for s in val(maze, "MAP_DUNG_F01") if "warp #" in s])
+    # copy to seasons: an add past the 40-object cap is skipped
+    full = _rf4m.Rf4mMap.load(B / "MAP_FIELD_01.rf4m")
+    while len(full.find(b"MOBJ")) < 40:
+        full.add_mobj_record(full.mobj_records()[0])
+    ch = mapdiff.Changes()
+    ch.added["objects"] = [tuple(full.mobj_records()[0])]
+    rep = mapdiff.apply(ch, full)
+    _check("mapdiff.apply refuses an object past the game's 40 per map (reported as skipped)",
+           len(full.find(b"MOBJ")) == 40 and not rep.done and "the most the game can load" in rep.skipped[0],
+           rep.skipped)
+    r1 = f01.resize_attr_grid(40, 30, dry_run=True)
+    r2 = f01.resize_attr_grid(80, 60, dry_run=True)
+    _check("resize: a grid under 52 x 32 tiles gets the centred, zoomed camera and the report "
+           "says when a resize crosses that line",
+           _rf4m.camera_note(51, 40) and _rf4m.camera_note(60, 31) and _rf4m.camera_note(52, 32) is None
+           and any(t.startswith("camera:") for t in r1["todo"]) and r1["camera"]["new"]
+           and not any(t.startswith("camera:") for t in r2["todo"]))
+
+
+def test_map_editor_warps_and_saving():
+    """Map editor, W1: a new warp names the base map; the destination list offers seasonal
+    maps once; the minimap / MLIG default use the base id; Ctrl+S of a map opened under a
+    non-game name refuses and a lower-case name is saved under the game's exact name; copy to
+    seasons lists the targets' ERRORs; the runtime warps show in the view."""
+    print("map editor: warp defaults, base ids, canonical save names:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor warps and saving", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FARM_00_SUMMER.rf4m").exists():
+        _skip("map editor warps and saving", "no extracted bundleMain"); return
+    from rf4s_modkit import gamepaths as _gp
+    from map_editor import data as med, inspector as med_insp, render as med_render
+    box = _headless_dialogs()
+    ch = med.warp_choices()
+    _check("destination list: seasonal maps once, by base id, marked 'season follows the calendar'",
+           any(c.startswith("4 - MAP_FARM_00") and med.SEASON_FOLLOWS in c for c in ch)
+           and not any(c.startswith("5 - ") for c in ch) and not any(c.startswith("0 - ") for c in ch))
+    _check("facing names: 0 keeps, 1 down, 90 right, 180 up, 270 left",
+           [med_insp.facing_text(v) for v in (0, 1, 90, 180, 270)]
+           == ["keeps the current facing", "faces down", "faces right", "faces up", "faces left"])
+    root = None
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_w1_"))
+    game = tmp / "game" / "Bundle"
+    (game / "bundleMain").mkdir(parents=True)
+    (game / "Manifest.plist").write_bytes(b"")
+    shutil.copy2(B / "MAP_FARM_00.rf4m", game / "bundleMain" / "MAP_FARM_00.rf4m")
+    shutil.copy2(B / "MAP_FARM_00.rf4m", tmp / "map_farm_00.rf4m")
+    shutil.copy2(B / "MAP_FARM_00.rf4m", tmp / "MY_FARM.rf4m")
+    old = (_gp.find_bundle_dir, med.EXTRACTED, med._EXTRACTED_INDEX)
+    try:
+        root, p, errs = _headless_panel("MAP_FARM_00_SUMMER", B)
+        _check("the minimap panel and the Properties minimap use the base id (MAP_FARM_00_SUMMER -> 4)",
+               p.minimap_panel._map_id() == 4 and p.maptab._tint_defaults()[2] == (148, 214, 247))
+        n0 = len(p.doc.map.mapj_records())
+        from map_editor import tools as med_tools
+        wt = med_tools.WarpTool(p)
+        ev = object()
+        p.view.tile_at = lambda e, clamp=False: (3, 3)
+        wt.press(ev); wt.release(ev)
+        recs = p.doc.map.mapj_records()
+        _check("a new warp on a seasonal copy leads to the BASE id (4), arrival inside the grid",
+               len(recs) == n0 + 1 and recs[-1][5] == 4, recs[-1])
+        rt = med_render.runtime_spawns(p.doc)
+        _check("the farm's runtime warps / walls are listed for the view with a 'spawned by the "
+               "game when' tip", rt and all("spawned by the game when" in t for _r, _s, t in rt), len(rt))
+        root.destroy(); root = None
+        _gp.find_bundle_dir = lambda refresh=False: game
+        med.EXTRACTED, med._EXTRACTED_INDEX = game, None
+        root, p, errs = _headless_panel("map_farm_00", tmp)
+        p.maptab.msea.set("3 winter"); p.maptab._commit_msea()
+        ok = p.save_to_game()
+        saved = (game / "bundleMain" / "MAP_FARM_00.rf4m").read_bytes()
+        _check("Ctrl+S of 'map_farm_00' writes the game's exact name MAP_FARM_00.rf4m, no stray "
+               "lower-case file", ok and saved == p.doc._bytes("map")
+               and not (game / "00_mods").exists(), sorted(x.name for x in game.rglob("*.rf4m")))
+        root.destroy(); root = None
+        del box["msgs"][:]
+        root, p, errs = _headless_panel("MY_FARM", tmp)
+        p.maptab.msea.set("3 winter"); p.maptab._commit_msea()
+        ok2 = p.save_to_game()
+        _check("Ctrl+S of a map under a non-game name refuses with a clear message",
+               ok2 is False and any("not one of the game's map names" in m for _t, m in box["msgs"])
+               and not (game / "00_mods").exists())
+        root.destroy(); root = None
+        fam = ["MAP_CITY_00", "MAP_CITY_00_SUMMER", "MAP_CITY_00_AUTUMN", "MAP_CITY_00_WINTER"]
+        for f in fam:
+            shutil.copy2(B / (f + ".rf4m"), game / "bundleMain" / (f + ".rf4m"))
+        med._EXTRACTED_INDEX = None
+        from tkinter import messagebox as _mb
+        asked = []
+        _mb.askyesno = lambda t, m, **k: asked.append(m) or False
+        root, p, errs = _headless_panel("MAP_CITY_00", game / "bundleMain")
+        r0 = list(p.doc.map.mapj_records()[0])
+        r0[5] = 25                                  # a seasonal copy as the destination
+        p.doc.map.add_mapj_record(r0)
+        p.copy_to_seasons()
+        _check("copy to seasons lists each target season's ERRORs before writing",
+               asked and "would choke on" in asked[0] and "MAP_CITY_00_SUMMER: warp #" in asked[0]
+               and "seasonal copy" in asked[0], asked[:1])
+        _check("W1 map editor checks raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        _gp.find_bundle_dir = old[0]
+        med.EXTRACTED, med._EXTRACTED_INDEX = old[1], old[2]
+        if root is not None:
+            root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_map_editor_labels():
     """Name labels (objects, script NPCs, warp destinations) stay on the map: one that would
     stick out above the top edge goes under its object, one past a side edge is shifted in;
@@ -10140,7 +10373,8 @@ def run() -> int:
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
-              test_shader_archive):
+              test_shader_archive,
+              test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()
         try:
             t()

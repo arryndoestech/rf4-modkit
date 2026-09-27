@@ -134,23 +134,65 @@ def map_id(name):
     return None
 
 
+def base_map_id(name):
+    """The id the game keeps for a map name: a seasonal copy's base (ids 4..63 come as base,
+    _SUMMER, _AUTUMN, _WINTER, and the game adds the calendar season at load), else the map's
+    own id; None when unknown. Warp destinations, the minimap record and the night tint
+    default are all looked up by this id."""
+    from rf4s_modkit import mapres
+    return mapres.base_id(map_id(name))
+
+
+_MAPS_BY_ID = {}
+
+
+def load_map_by_id(mid):
+    """The .rf4m of map id `mid` from the game folder (an Rf4mMap, cached until the file
+    changes), or None when it is not there or unreadable. Validation reads warp destinations
+    through this."""
+    from rf4s_modkit import rf4m
+    name = rooms_by_id().get(mid)
+    p = find_extracted(name + ".rf4m") if name else None
+    if p is None:
+        return None
+    try:
+        st = p.stat()
+        key = (str(p), st.st_mtime_ns, st.st_size)
+        if _MAPS_BY_ID.get(mid, (None,))[0] != key:
+            _MAPS_BY_ID[mid] = (key, rf4m.Rf4mMap.load(p))
+    except Exception:  # noqa: BLE001 - unreadable: no destination checks
+        return None
+    return _MAPS_BY_ID[mid][1]
+
+
+SEASON_FOLLOWS = "(season follows the calendar)"
+
+
 def map_choice(mid):
-    """Dropdown label for a map id: '31 - MAP_CITY_01_WINTER  (Selphia)'."""
+    """Dropdown label for a map id: '36 - MAP_CITY_03  (Selphia)  (season follows the calendar)'.
+    A seasonal family's base id (4, 8 .. 60) is marked: as a warp destination it loads the
+    copy of the current season."""
     name = rooms_by_id().get(mid)
     if name is None:
         return f"{mid} - <unknown map>"
     place, _bld = map_names.describe_destination(mid)
-    return f"{mid} - {name}" + (f"  ({place})" if place else "")
+    return (f"{mid} - {name}" + (f"  ({place})" if place else "")
+            + (f"  {SEASON_FOLLOWS}" if mid in map_names.SEASONAL_MAP_IDS and mid % 4 == 0 else ""))
 
 
-_MAP_CHOICES = None
+_WARP_CHOICES = None
 
 
-def map_choices():
-    global _MAP_CHOICES
-    if _MAP_CHOICES is None:
-        _MAP_CHOICES = [map_choice(i) for i in sorted(rooms_by_id())]
-    return _MAP_CHOICES
+def warp_choices():
+    """Warp-destination dropdown entries: every map id, except that a seasonal family is
+    offered once, by its base id (the game adds the calendar season to ids below 64, so a
+    warp must name the base; a seasonal copy's own id loads the wrong file), and the
+    MAP_NULL / DUMMY placeholders 0..3 are left out."""
+    global _WARP_CHOICES
+    if _WARP_CHOICES is None:
+        _WARP_CHOICES = [map_choice(i) for i in sorted(rooms_by_id())
+                         if i >= 4 and not (i < 64 and i % 4)]
+    return _WARP_CHOICES
 
 
 def leading_int(text):

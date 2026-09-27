@@ -11,7 +11,7 @@ import tkinter as tk
 from collections import Counter
 from tkinter import ttk
 
-from rf4s_modkit import map_names, mobj_params, mobj_types
+from rf4s_modkit import emflags, map_names, mobj_params, mobj_types, rf4m
 
 from . import attrs, data, ui
 from .ui import commit_entry, hint, section
@@ -323,6 +323,18 @@ class EntityForm(Form):
 # --------------------------------------------------------------------------- #
 # warp
 # --------------------------------------------------------------------------- #
+def facing_text(deg):
+    """What an arrival facing does: 0 keeps the facing, else degrees clockwise from down
+    (Cutscene_StartDeathSequence stores 182 * deg; the facing vector is (sin, cos), so 0 deg
+    points down the grid)."""
+    if deg == 0:
+        return "keeps the current facing"
+    names = {0: "down", 90: "right", 180: "up", 270: "left"}
+    d = deg % 360
+    near = min(names, key=lambda a: min(abs(d - a), 360 - abs(d - a)))
+    return f"faces {names[near]}" if min(abs(d - near), 360 - abs(d - near)) <= 22 else f"{d}°"
+
+
 class WarpForm(Form):
     FIELDS = (("x", 1), ("y", 2), ("w", 3), ("h", 4), ("ax", 6), ("ay", 7), ("face", 8))
 
@@ -343,16 +355,25 @@ class WarpForm(Form):
         self.zone_lbl.grid(row=2, column=0, columnspan=4, sticky="w")
         d = ttk.LabelFrame(self, text="Destination", padding=4)
         d.pack(fill="x", pady=(4, 0))
-        self.dest = ui.FilterCombo(d, data.map_choices(), lambda _t: self._commit(), width=34)
+        self.dest = ui.FilterCombo(d, data.warp_choices(), lambda _t: self._commit(), width=34)
         self.dest.grid(row=0, column=0, columnspan=4, sticky="we", pady=(0, 2))
-        ui.Tip(self.dest, "Type part of a map name or id to filter; a bare id works too.")
+        ui.Tip(self.dest, "Type part of a map name or id to filter; a bare id works too. The farm, "
+                          "fields, Selphia's streets and the farmhouse are listed once: the game "
+                          "loads the copy of the current season, so a warp names the base map.")
         self.dest.bind("<FocusOut>", lambda _e: self._commit(), add="+")
         self.dest._commit = self._commit
         self.row(d, "arrive x", self.v["ax"], self._commit, 1, 0, 6,
-                 tip="Arrival position in the destination map, sub-units.")
+                 tip="Arrival position in the destination map, sub-units (8 per tile).")
         self.row(d, "arrive y", self.v["ay"], self._commit, 1, 2, 6)
-        self.row(d, "facing °", self.v["face"], self._commit, 2, 0, 6,
-                 tip="Arrival facing in degrees; 0 keeps the current facing.")
+        face_tip = ("Arrival facing in degrees, clockwise from down: 1 = down, 90 = right, "
+                    "180 = up, 270 = left. 0 keeps the facing the player had, so 'down' is "
+                    "written as 1 (the game's own warps do that).")
+        self.row(d, "facing °", self.v["face"], self._commit, 2, 0, 6, tip=face_tip)
+        self.face_lbl = ttk.Label(d, font=ui.HINT_FONT, foreground=ui.MUTED)
+        self.face_lbl.grid(row=2, column=2, columnspan=2, sticky="w")
+        ui.Tip(self.face_lbl, face_tip)
+        self.maze_lbl = ttk.Label(d, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=300)
+        self.maze_lbl.grid(row=3, column=0, columnspan=4, sticky="w")
         f = ttk.Frame(self)
         f.pack(fill="x", pady=(4, 0))
         self.always = tk.BooleanVar()
@@ -362,8 +383,15 @@ class WarpForm(Form):
         self.vflag = tk.StringVar()
         self.flag_e = commit_entry(f, self.vflag, self._commit, width=6)
         self.flag_e.pack(side="left", padx=2)
-        ui.Tip(self.flag_e, "Per-map scene flag (absolute 4096 + id) that DISABLES the warp while "
-                            "it is set. The castle exits use 632, for example.")
+        flag_tip = ("Scene flag 0..2559 (GameFlags zone 2, absolute bit 4096 + id) that DISABLES "
+                    "the warp while it is set. The castle exits use 632, for example. Two "
+                    "exceptions: in some global game states (flags 0x401000) the flag is not "
+                    "checked at all, and in state 0x1000 the warp instead stays off while any "
+                    "monster the game tracks is alive.")
+        ui.Tip(self.flag_e, flag_tip)
+        self.flag_lbl = ttk.Label(self, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=300)
+        self.flag_lbl.pack(anchor="w")
+        ui.Tip(self.flag_lbl, flag_tip)
         b = ttk.Frame(self)
         b.pack(fill="x", pady=(6, 2))
         ttk.Button(b, text="Open destination", command=lambda: ed.goto_warp(self.key[1])).pack(side="left")
@@ -383,15 +411,28 @@ class WarpForm(Form):
         j = self.key[1]
         place = map_names.describe_destination(rec[5])[0]
         self.title.config(text=f"Warp #{j} → {place or data.rooms_by_id().get(rec[5], f'map {rec[5]}')}")
-        self.sub.config(text=data.map_choice(rec[5]))
+        sub = data.map_choice(rec[5])
+        if 0 < rec[5] < 64 and rec[5] % 4:
+            sub += (f"\n⚠ a seasonal copy: the game adds the season to ids below 64 and loads the "
+                    f"wrong map -- pick {data.map_choice(rec[5] - rec[5] % 4)}")
+        self.sub.config(text=sub)
         for k, idx in self.FIELDS:
             self.v[k].set(str(rec[idx]))
         self.zone_lbl.config(text=f"tiles ({rec[1] >> 3}, {rec[2] >> 3}) .. "
                                   f"({(rec[1] + rec[3]) >> 3}, {(rec[2] + rec[4]) >> 3})")
         self.dest.var.set(data.map_choice(rec[5]) if rec[5] in data.rooms_by_id() else str(rec[5]))
+        self.face_lbl.config(text=facing_text(rec[8]))
+        here = data.base_map_id(self.doc.base) if self.doc.base else None
+        self.maze_lbl.config(text=(
+            "Sharance Maze floor: the arrival is a direction code, not a spot. An arrival x "
+            "within 160 sub-units (20 tiles) of the left edge moves the maze one column one "
+            "way, within 160 of the right edge the other way; y does the same for rows. The "
+            "game then rebuilds the floor, so keep the arrival near the edge it stands for."
+            if here in rf4m.MAZE_MAP_IDS else ""))
         self.always.set(rec[0] == -1)
         self.vflag.set("" if rec[0] == -1 else str(rec[0]))
         self.flag_e.config(state="disabled" if rec[0] == -1 else "normal")
+        self.flag_lbl.config(text="" if rec[0] == -1 else emflags.zone2_text(rec[0]))
 
     def _toggle_always(self):
         rec = self._rec()

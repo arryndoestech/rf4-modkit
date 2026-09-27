@@ -275,9 +275,13 @@ def is_blank(map_id: int) -> bool:
     return effective_sheet(map_id) == DUMMY_SHEET and not is_composed(map_id)
 
 
-def maps_on_sheet(sheet_no: int) -> list[int]:
-    """Every map id whose raw table value is `sheet_no`."""
-    return [i for i, r in enumerate(_records()) if r[0] == sheet_no]
+def maps_on_sheet(sheet_no: int, base_only: bool = False) -> list[int]:
+    """Every map id whose raw table value is `sheet_no`. `base_only` leaves out the seasonal
+    copies (ids 4..63 that are not a multiple of 4): the game looks the record up by the base
+    id (Minimap_BuildForMap RF4S.exe+0x13B3F0 gets the transition's base id), so their rows
+    are never read -- 42 of them are all zero."""
+    return [i for i, r in enumerate(_records())
+            if r[0] == sheet_no and not (base_only and 4 <= i < 64 and i % 4)]
 
 
 def sheets_in_use() -> dict[int, list[int]]:

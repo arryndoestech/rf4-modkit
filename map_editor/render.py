@@ -597,6 +597,36 @@ def warp_rect_px(rec, cp):
     return x0, y0, max(x1, x0 + cp), max(y1, y0 + cp)
 
 
+RUNTIME_WALL_COLOR = "#ff7050"
+
+
+def runtime_spawns(doc):
+    """[(tile rect (x0, y0, x1, y1) exclusive, spawn dict, tip text)] of the warps and walls
+    the game adds to this map at load (rf4s_modkit.mapres.runtime_spawns: the farm, its fields,
+    the farmhouse, the barns and two town maps) -- not in the .rf4m, drawn read-only."""
+    from rf4s_modkit import mapres
+    from . import data
+    mid = data.base_map_id(doc.base) if doc is not None and doc.base else None
+    out = []
+    for s in mapres.runtime_spawns(mid) if mid is not None else ():
+        if s["kind"] == "warp":
+            x0, y0, x1, y1 = s["box"]
+            rect = (x0 >> 3, y0 >> 3, max((x1 >> 3), (x0 >> 3) + 1), max((y1 >> 3), (y0 >> 3) + 1))
+            dest = map_names.map_file(s["dest"]) or f"map {s['dest']}"
+            place = map_names.map_name(s["dest"])
+            tip = (f"warp to {dest}" + (f" ({place})" if place else "")
+                   + f", arriving at ({s['arrive'][0]}, {s['arrive'][1]})")
+        else:
+            cells = mapres.wall_cells(s["box"])
+            if cells is None:
+                continue
+            rect = (cells[0], cells[1], cells[2] + 1, cells[3] + 1)
+            tip = "wall: these tiles are set to blocked (ATTR 0x2) and a fence / door sprite is drawn"
+        out.append((rect, s, f"{tip}\nspawned by the game when {s['when']} -- not in this file, "
+                              f"read only"))
+    return out
+
+
 def handle_points(rect):
     x0, y0, x1, y1 = rect
     mx, my = (x0 + x1) // 2, (y0 + y1) // 2
@@ -686,6 +716,12 @@ def overlay(group, st):
                 out.append(Prim("line", (0, y * cp, W * cp, y * cp), fill="#2a2a30"))
     elif group == "warp":
         if L.get("mapj"):
+            # the game's own runtime warps / walls first (dashed, no key: never selected)
+            for (x0, y0, x1, y1), s, _tip in runtime_spawns(doc):
+                warp = s["kind"] == "warp"
+                out.append(Prim("rect", (x0 * cp, y0 * cp, x1 * cp, y1 * cp),
+                                outline=WARP_COLOR if warp else RUNTIME_WALL_COLOR, width=2,
+                                dash=(6, 4) if warp else (2, 3)))
             for j, rec in enumerate(doc.map.mapj_records()):
                 out.append(Prim("rect", warp_rect_px(rec, cp), key=("warp", j),
                                 outline=WARP_COLOR, width=2))

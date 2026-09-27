@@ -1333,7 +1333,7 @@ class MapEditorPanel:
         out = []
         try:
             issues = d.map.validate(known_maps=set(data.rooms_by_id()), ground_reader=self.tex_reader,
-                                    map_name=d.base or None)
+                                    map_name=d.base or None, dest_loader=data.load_map_by_id)
         except Exception as e:  # noqa: BLE001
             issues = [f"ERROR: validation crashed: {e}"]
         for s in issues:
@@ -1583,7 +1583,20 @@ class MapEditorPanel:
                 self._update_chrome()
                 self.status(own)
                 return True
-        names = {"map": f"{d.base}.rf4m",
+        game_map = None
+        if "map" in parts:
+            # the game asks for a map by id -> g_mapResourceTable -> an EXACT-case file name, so
+            # the file must go under that name (a tab named after a renamed copy or a lower-case
+            # file would land somewhere the game never reads)
+            mid = map_names.map_id_for_file(d.base or "")
+            if mid is None:
+                messagebox.showerror(
+                    "Save", f"“{d.base}” is not one of the game's map names, so the game would "
+                            "never load a file saved under it. Use Save map as… in the Save menu "
+                            "to write it anywhere, or open the game's map of that name.")
+                return False
+            game_map = map_names.map_file(mid) + ".rf4m"
+        names = {"map": game_map,
                  "si": d.si_path.name if d.si_path else data.si_name_for_map(d.base),
                  "gen": d.gen_path.name if d.gen_path else data.gen_name_for_map(d.base)}
         targets = gamepaths.game_targets([names[p] for p in parts if names[p]])
@@ -1621,11 +1634,12 @@ class MapEditorPanel:
         others = {n: v for n, v in targets[None].items()}
         if others:
             messagebox.showwarning(
-                "Other copies", "Saved, but the game folder has other files with the same names. "
-                "The game loads only one file of each name, and an extra copy can hide your "
-                "change:\n\n"
-                + "\n".join(f"{n}:\n  " + "\n  ".join(str(o) for o in v) for n, v in others.items())
-                + "\n\nDelete the extra copies (left over from earlier saves or mods).")
+                "Other copies", "Saved. The game folder also has other copies of these files, "
+                "which the game ignores (it loads one file per exact name):\n\n"
+                + "\n".join(f"{n} -- the game loads {targets[n]}\n  ignored: "
+                            + "\n  ignored: ".join(str(o) for o in v) for n, v in others.items())
+                + "\n\nDelete the ignored copies (left over from earlier saves or mods) so they "
+                  "do not confuse you or another tool.")
         if "map" in parts:
             self._season_note()
         return True
@@ -1716,10 +1730,23 @@ class MapEditorPanel:
         if not todo:
             messagebox.showinfo(title, "\n".join(lines + ["", "Nothing could be copied."]))
             return False
-        lines += ["", "Write the other seasons over the game's files? (The originals are kept in "
-                      "ModdingBackup the first time.) A season open in another tab still shows "
-                      "the old map until you reopen it."]
-        if not messagebox.askyesno(title, "\n".join(lines)):
+        known = set(data.rooms_by_id())
+        fatal = []                              # each season's validation ERRORs after the copy
+        for _season, f, _t, m, _rep in todo:
+            try:
+                errs = [s[7:] for s in m.validate(known_maps=known, map_name=f,
+                                                  dest_loader=data.load_map_by_id)
+                        if s.startswith("ERROR: ")]
+            except Exception as e:  # noqa: BLE001
+                errs = [f"validation crashed: {e}"]
+            fatal += [f"{f}: {x}" for x in errs]
+        if fatal:
+            lines += ["", "After the copy the game would choke on:"]
+            lines += ["  • " + x for x in fatal[:8]] + (["  …"] if len(fatal) > 8 else [])
+        lines += ["", "Write the other seasons over the game's files" + (" anyway" if fatal else "")
+                  + "? (The originals are kept in ModdingBackup the first time.) A season open in "
+                    "another tab still shows the old map until you reopen it."]
+        if not messagebox.askyesno(title, "\n".join(lines), icon="warning" if fatal else "question"):
             return False
         written, new = [], False
         for season, f, t, m, _rep in todo:

@@ -675,6 +675,11 @@ class MapView(ttk.Frame):
         if k is not None and k[0] == "warp":
             k = None                             # (warps show their destination on the map)
         text = self.describe_key(k) if k else None
+        if not text and t is not None and self.st.layers.get("mapj"):
+            # the game's runtime warps / walls (read-only, drawn dashed): under the pointer?
+            hits = [tip for (x0, y0, x1, y1), _s, tip in render.runtime_spawns(self.doc)
+                    if x0 <= t[0] < x1 and y0 <= t[1] < y1]
+            text = "\n\n".join(hits) or None
         if text:
             self.show_tip(e, text)
         else:
