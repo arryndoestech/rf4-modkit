@@ -39,6 +39,20 @@ mipCount, imageSize or the mip pointers beyond entry 0. Sprite_BindFrameTexture 
 indexes the same pointer array with the frame index and takes each frame's size from its own
 PIXL, so flipbook frames may differ in size (8x12d00.texture: 10x 64x32 + 32x16 + 64x32).
 
+Level 0 only, re-checked 2026-09-27 for textures of any size: MGTexture_LoadFromPIXL reads
+exactly format / access flags (+0x20; 0x80/0x100 = render-target branch, shipped 0x20) /
+width / height / name; MGTexture_LoadFromData (+0x2BFCA0) passes w, h, format and the pixel
+pointer to MCTexture::SetData; MCTexture_GLUpload issues ONE glTexImage2D /
+glCompressedTexImage2D for level 0 and then, when the renderer's flag byte is set, calls
+vtable slot 58 of MCTexture_OpenGL3 (vtable RF4S.exe+0x45A4D8, slot 53 = the upload itself),
+which is +0x2A33A0 = glGenerateMipmap(GL_TEXTURE_2D). So mip levels come from the driver, the
+file's mip count / mip pointers beyond entry 0 are never read, and no mip levels are
+generated here. No power-of-two, alignment or maximum-size check exists on the path (the
+GPU's GL_MAX_TEXTURE_SIZE is the only limit); the tile mode (+0x12) is not read either: the
+level-0 bytes go to GL as they are, i.e. LINEAR -- every shipped .texture is tileMode 1 except
+4 (tile 0, still decoded linearly and rebuilt byte-identically). A width/height change
+therefore needs only the PIXL size, the payload and the container sizes (_rebuild).
+
 Relocation: BFRES_FixupRelocationPointers (+0x3CAA00) computes the image base as
 `RLT - RLT[+4]` and adds it to every non-zero u64 slot listed by the entries (the DESC
 pointer at +0x30 and each frame's mip pointer are among them). Section position/size and
@@ -57,13 +71,46 @@ eligible for the in-place `rf4mod bundle patch`), raw formats natively; BC2 / AS
 (none shipped) fall back to RGBA8. fmt="BC7"|"BC3"|"BC1"|"RGBA8"|raw name forces a format
 (RGBA8 = code 0x0B01, 4 B/px, the same code the 112 shipped RGBA8 textures use -- 4x the
 size of BC7). The container is rebuilt around the payload: DESC size, file sizes, _RLT
-offset, the _RLT self-offset/section size, and every frame's format/imageSize/mip pointer.
-Frames not replaced keep their original bytes and format, so a flipbook can mix formats.
-Dimensions must match the template frame (the sprite UV/quad user data is per-sprite).
+offset, the _RLT self-offset/section size, and every frame's format/imageSize/mip pointer
+(+ width/height and tileMode 1 for a replaced frame). Frames not replaced keep their original
+bytes, format and size, so a flipbook can mix formats and sizes. An image may have ANY size
+(the frame is stored at it); a size a block format cannot be uploaded at is refused
+(upload_problem -- use a multiple of 4, or RGBA8). A no-op rebuild reproduces all 13,366
+shipped .texture files byte for byte (selftest test_texture_resize).
+
+Size in game (static survey of RF4S.exe, 2026-09-27; `size_warnings` turns it into warnings):
+  * Sprite UVs are normalised: TextureCoordinator (user data) is 0..1, copied as is by
+    Sprite_BindFrameTexture (+0x1B7D90); the half-texel fix (Sprite_ApplyHalfTexelUV
+    +0x1B8740) divides by the NEW size. The only pixel-unit UV setter,
+    Sprite_SetQuadVertsAndUVFromExtents (+0x1B85A0), is called with u = -1 (no UV change) by
+    the map-decoration variants and with the texture's own full extent by Map_SpawnEntity.
+  * The sprite QUAD (on-screen size) is either the frame's PolygonVertexes (user data, never
+    rewritten here) -- Sprite_BuildQuadVertices (+0x1B7900) reads it when the sprite's data-type
+    byte (+0x3D0) is 1 -- .text holds 77 immediate `mov byte [reg+0x3D0], 1` stores, map
+    decorations +0x142D30 / interactive objects +0x143760 among them -- or, with type 0 (MCSprite_Init +0x1B7190 default), the
+    PIXL width x height in PIXELS. 13,237 of 13,366 textures carry PolygonVertexes (every frame;
+    9,519 frames have a quad that is NOT their pixel size), 129 carry none (credits 'staff'
+    pages, a few MAP_/common_ sheets). So: with a quad, a new size shows at the old on-screen
+    size (only an aspect change distorts); without one, the sprite grows/shrinks with it.
+  * Map ground / overlay tiles (<set>_0NNN / _1NNN) are type-0 sprites that Map_SpawnEntity
+    (+0x194140) places through WidgetSlot_AllocLoadArchiveAndConfigure (+0x195A80) on a FIXED
+    512-px grid (x = col << 9, y = -(row << 9)): a resized tile overlaps or leaves gaps.
+  * Verified vs assumed: the three bullets above are read from the code; which OTHER callers
+    leave the type byte at 0 (UI widgets drawn at pixel size) was not surveyed per file, so
+    size_warnings says so. .minterface layouts (the PC menu layer) reference .png files with
+    explicit sizes, not .texture files. .model textures: see below.
 
 BNTX inside .model: `bntx_info` walks the embedded container's BRTI pointer array (all
 offsets relative to the BNTX start), `decode_bntx` decodes one texture, `bntx_replace`
-splices a same-size re-encoded payload over the original level-0 bytes (see docs/09 s4).
+splices a same-size re-encoded payload over the original level-0 bytes (see docs/09 s4) or,
+for another size / payload size, rebuilds the BNTX with `_rebuild` -- a bare BNTX is the same
+container (BRTI = PIXL, BRTD = DESC, same offsets; _RLT offset at +0x18, file size +0x1C,
++0x0C is the byte-order mark) -- and hands it to modelwrite.replace_embedded_file. 1,853 of
+1,853 embedded files (912 models) re-place byte-identically and 911 of 912 BNTX rebuild
+byte-identically (the block-linear SYS_MENU_FONT_SUCCESS_chn loses 3 KiB of BRTD tail padding).
+Model texture size is free: GfxCTR_Model_BuildFromResource (+0x1B52C0) uploads the embedded
+textures through the same SpriteResourceRegistry path, and meshes sample them with their
+float `_u0` UVs (normalised; no per-texture size is read on the draw path found).
 """
 from __future__ import annotations
 
@@ -917,10 +964,10 @@ def size_warnings(template: bytes, changes: list, *, name: str = "") -> list:
     ground = bool(_GROUND_TILE.match(stem or ""))
     if not ground and any(spritequad.frame_userdata(template, c["frame"]).get("PolygonVertexes")
                           for c in changes):
-        out.append("Sprites drawn from their quad data (map objects, most menus) show the new "
-                   "image at the old on-screen size. A sprite the game creates without that data "
-                   "is drawn at the texture's pixel size instead (verified for map ground tiles; "
-                   "other callers not surveyed).")
+        out.append("Sprites drawn from their quad data (map objects and other sprites whose spawner "
+                   "selects it) show the new image at the old on-screen size. A sprite the game "
+                   "creates without that data is drawn at the texture's pixel size instead (verified "
+                   "for map ground tiles; other callers not surveyed).")
     return out
 
 

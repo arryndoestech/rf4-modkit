@@ -5014,7 +5014,7 @@ def test_bcenc_and_model_textures():
     from rf4s_modkit import modelwrite as _mw
     half = (max(4, t["width"] // 2 // 4 * 4), max(4, t["height"] // 2 // 4 * 4))
     r1 = texture.bntx_replace(mod, k, card.resize(half))
-    r2 = texture.bntx_replace(mod, k, card, fmt="BC1" if t["fmt_name"] != "BC1" else "RGBA8")
+    r2 = texture.bntx_replace(mod, k, card, fmt="RGBA8" if t["fmt_name"] != "RGBA8" else "BC3")
     _check("bntx_replace takes another size and a format with another payload size (BNTX rebuilt)",
            (texture.bntx_info(r1)[k]["width"], texture.bntx_info(r1)[k]["height"]) == half
            and texture.bntx_info(r2)[k]["image_size"] != t["image_size"]
