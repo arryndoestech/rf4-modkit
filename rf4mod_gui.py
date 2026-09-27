@@ -1657,8 +1657,8 @@ class App:
         if not f:
             return False
         try:
-            meshes = _mi.read_meshes(f)
             m = _model.parse(doc.cur_data)
+            meshes = _mi.read_meshes(f, m)
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Import from Blender", str(e))
             return False

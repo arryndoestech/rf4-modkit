@@ -9461,7 +9461,7 @@ def test_model_glb_blender():
             "bpy.ops.export_scene.gltf(filepath=a[1], export_format='GLB', export_animations=False)\n",
             encoding="utf-8")
         results = {}
-        for stem, move, sub in (("M09_0", "-", "-"), ("NPC_TRAVELER_M", "-", "-"),
+        for stem, move, sub in (("M09_0", "-", "-"), ("NPC_TRAVELER_M", "-", "-"), ("wI_FistN07_R", "-", "-"),
                                 ("M09_0", "Nw4cRoot__M09_01", "Nw4cRoot__M09_02")):
             d = (B / f"{stem}.model").read_bytes()
             src, dst = tmp / f"{stem}.glb", tmp / f"{stem}_{move}.glb"
@@ -9472,8 +9472,9 @@ def test_model_glb_blender():
                 _check(f"Blender exported {stem}", False, (r.stdout or "")[-400:]); return
             results[(stem, move)] = (d, dst)
         ident = [_mi.import_glb(d, p)[0] == d for (stem, move), (d, p) in results.items() if move == "-"]
-        _check("untouched through Blender (import -> export): byte-identical (M09_0, NPC_TRAVELER_M)",
-               ident == [True, True], ident)
+        _check("untouched through Blender (import -> export): byte-identical (M09_0, NPC_TRAVELER_M, "
+               "wI_FistN07_R -- a mirrored bone Blender cannot keep in its rest pose)",
+               ident == [True, True, True], ident)
         d, p = results[("M09_0", "Nw4cRoot__M09_01")]
         out, rep = _mi.import_glb(d, p)
         m, m2 = _model.parse(d), _model.parse(out)

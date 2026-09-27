@@ -43,6 +43,11 @@ first: skinned meshes by their joints (sum w * inv(A) * world(joint) * inverseBi
 A = the node the skeleton hangs from -- Blender's armature object, identity in our own files;
 joint matrices within 1e-4 of identity are taken as identity, which they are whenever the rest
 pose was not edited), other meshes by their node's world matrix (relative to A as well).
+When the model is known, a joint named like one of its bones takes that BONE's bind world
+matrix instead of the file's node: Blender's armatures cannot hold a rest scale (36 shipped
+bones have one, e.g. efc_tornado's 1.25 / 0.8, wI_Fist*'s mirrored -0.674), so its glTF
+export writes those bones unscaled and the IBMs to match, and only the game's own matrix
+brings such a mesh back where Blender shows it (posed at the imported file's pose).
 
 Round trips. A vertex whose model-space position (within 1e-5 of the model's size), UV (1e-5),
 normal (dot >= 0.9995) and weights (same bones, within 2e-3) match an original vertex of the
@@ -161,9 +166,16 @@ def _prim_triangles(prim, idx, n):
     return None
 
 
-def read_meshes(path):
-    """[GltfMesh] of every mesh node of a glTF / GLB (a path, or read_gltf's (json, buffers))."""
+def read_meshes(path, model=None):
+    """[GltfMesh] of every mesh node of a glTF / GLB (a path, or read_gltf's (json, buffers)).
+    With `model`, a joint named like one of its bones is placed by that bone's bind world
+    matrix instead of the file's rest pose (see the module notes: Blender cannot keep a
+    bone's rest scale)."""
     gl, bufs = path if isinstance(path, tuple) else _gltf.read_gltf(path)
+    game = {}
+    if model is not None:
+        wm = _model.world_matrices(model.bones)
+        game = {b.name: wm[b.index] for b in model.bones}
     worlds, parent = _node_worlds(gl)
     nodes = gl.get("nodes", [])
     skins = gl.get("skins", [])
@@ -184,7 +196,9 @@ def read_meshes(path):
             jm, jname = [], []
             for j, b in zip(joints, ibm):
                 B = [[b[c * 4 + r] for c in range(4)] for r in range(4)] if b else _model._identity()
-                m = _model._mul(Ai, _model._mul(worlds[j], B))
+                nm = nodes[j].get("name")
+                W = game[nm] if nm in game else _model._mul(Ai, worlds[j])
+                m = _model._mul(W, B)
                 jm.append(None if _near_identity(m) else m)
                 jname.append(nodes[j].get("name") or f"node{j}")
         else:
@@ -636,7 +650,7 @@ def import_glb(data, path, *, mapping=None):
     changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh."""
     m = _model.parse(data)
     L = _mw.layout(data)
-    meshes = list(path) if isinstance(path, list) else read_meshes(path)
+    meshes = list(path) if isinstance(path, list) else read_meshes(path, m)
     if mapping:
         by = {me.name: me for me in meshes}
         plan = {}
