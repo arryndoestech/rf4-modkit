@@ -6275,7 +6275,9 @@ def test_map_editor_clipboard():
     """Map editor clipboard: an entity, a warp, a search spot, a gate position and a monster
     spawn point copied on one map paste into
     another (records equal but for the position, at the pointer), cut removes the source,
-    paste is one undo step, and a map at the engine's chunk cap refuses a paste."""
+    paste is one undo step, and a map at the engine's chunk cap refuses a paste. A search spot
+    pasted into a map the game never rolls search items on (MAP_FIELD_01) is refused with the
+    reason; into a map with an SI file it lands with its drops."""
     print("map editor clipboard (copy / cut / paste across maps):")
     try:
         import tkinter as tk
@@ -6287,6 +6289,7 @@ def test_map_editor_clipboard():
     me = _map_editor()
     from map_editor import panel as mpanel
     from rf4s_modkit import rf4m as _rf4m
+    box = _headless_dialogs()                       # no real message boxes
     root, src, errs = _headless_panel("MAP_CITY_04", B)
     try:
         try:
@@ -6319,16 +6322,23 @@ def test_map_editor_clipboard():
         wnew = list(d1.map.mapj_records()[-1])
         ok.append(("warp", wnew[3:] == wrec[3:] and wnew[0] == wrec[0]
                    and 0 <= wnew[1] and 0 <= wnew[2]))
-        # search spot into a map without an SI file: the file is created, drops copied
+        # search spot into a map the game never rolls search items on: refused, with the reason
         sp = d0.si.spots[0]
         drops = [(e.effective_item_id, e.effective_weight) for e in sp.pool.entries]
         src.copy_object(("si", 0))
-        had_si = d1.si is not None
+        n_msgs = len(box["msgs"])
         dst.paste_object(None)
-        got = d1.si.spots[-1] if d1.si else None
-        ok.append(("search spot", not had_si and got is not None
+        told = [m for _t, m in box["msgs"][n_msgs:]]
+        ok.append(("search spot refused", d1.si is None
+                   and any("never rolls search items on MAP_FIELD_01" in m for m in told)))
+        # ... and into a map with an SI file: one more spot, drops copied
+        sd = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_00.rf4m"), "MAP_CITY_00")
+        n_si = len(sd.doc.si.spots)
+        sd.paste_object(None)
+        got = sd.doc.si.spots[-1]
+        ok.append(("search spot", len(sd.doc.si.spots) == n_si + 1
                    and [(e.effective_item_id, e.effective_weight) for e in got.pool.entries] == drops
-                   and (got.x, got.y) == (sp.x, sp.y)))
+                   and got.x == sp.x))                  # (y kept inside CITY_00's smaller grid)
         # cut removes the source (one undo step on the source map)
         n0 = len(d0.map.mobj_records())
         src.copy_object(("mobj", k), cut=True)
@@ -6796,14 +6806,17 @@ def test_mgrp_panel_and_conflicts():
     maps = sorted(B.glob("MAP_*.rf4m"))
     if not maps:
         _skip("MGRP conflicts", "no extracted bundleMain"); return
-    flagged = []
+    flagged, borrow = [], []
     for p in maps:
         m = _rf4m.Rf4mMap.load(p)
-        own = _md.gen_name_for_map(p.stem)
-        flagged += [(p.stem, msg) for _sv, msg in ag.problems(
-            m.mgrp(), p.name, gen_entries=_md.gen_entries(own) if own else None,
-            gen_name_for=_md.gen_name_for_id, gen_entries_for=_md.gen_entries)]
-    _check(f"no shipped map is flagged ({len(maps)} maps)", not flagged, flagged[:3])
+        own = _md.gen_name_for_id(ag.base_map_id(p.stem))
+        for sv, msg in ag.problems(m.mgrp(), p.name, gen_entries=_md.gen_entries(own) if own else None,
+                                   gen_name_for=_md.gen_name_for_id, gen_entries_for=_md.gen_entries):
+            (borrow if sv == "INFO" and "no gates of its own" in msg else flagged).append((p.stem, msg))
+    _check(f"no shipped map gets a warning ({len(maps)} maps); only MAP_DUNG_I14 / N42 / N43 are "
+           f"noted: they have no gates of their own and load GenJ02 / GenO02 / GenO03",
+           not flagged and sorted(st for st, _m in borrow) == ["MAP_DUNG_I14", "MAP_DUNG_N42", "MAP_DUNG_N43"]
+           and "GenJ02.bin" in dict(borrow)["MAP_DUNG_I14"], (flagged[:3], borrow))
     gn, ent = _md.gen_name_for_id, (lambda fn: 5)
     town = ag.problems(0x21, "MAP_DUNG_B02.rf4m", gen_entries=7, gen_name_for=gn, gen_entries_for=ent)
     stray = ag.problems(0x400, "MAP_CITY_02.rf4m", gen_name_for=gn, gen_entries_for=ent)
@@ -6843,6 +6856,151 @@ def test_mgrp_panel_and_conflicts():
         _check("Weather / Season set only their own bits (rain on: bit 4 cleared; winter: bit 3)",
                ed.doc.map.mgrp() == 0x28, hex(ed.doc.map.mgrp()))
         _check("MGRP panel raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_map_editor_sidecar_files():
+    """Which search-item / monster-gate file the map editor opens for a map, the way the game
+    picks it (rf4s_modkit.exesidecars, refdata/rf4s_exe_sidecars.json): SI by base map id from
+    g_searchItemArchiveByMapId (RF4S.exe+0x4DD260), Gen by zone (MGRP) and the zone's run of
+    archives -- with the exceptions the old by-name lookup got wrong. Maps that never roll
+    search items refuse new spots; the SI validation (253-spot limit) reaches Problems and gates
+    the saves; a Gen file other rooms load too says so (Gates tab, Problems, save); the Gates tab
+    adds a first gate to an empty table and edits the gate level and spawn radius; the wave
+    cap note; MGRP bits 26-31 and a missing area bit are explained."""
+    print("map editor: the game's SI / Gen file per map, sharing, new gate, MGRP 26-31:")
+    import hashlib
+    from rf4s_modkit import areagroup as ag, exesidecars as xs, exetables as _ext, gen as _gen
+    from rf4s_modkit import rf4m as _rf4m, search_items as _si
+    from map_editor import data as _md
+    exe = _ext.default_exe()
+    if exe is None or hashlib.sha256(exe.read_bytes()).hexdigest() != xs.tables()["source"]["sha256"]:
+        _skip("rf4s_exe_sidecars.json vs RF4S.exe", "no RF4S.exe, or a different build")
+    else:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "gen_exe_tables_json", pathlib.Path(__file__).with_name("gen_exe_tables_json.py"))
+        gm = importlib.util.module_from_spec(spec); spec.loader.exec_module(gm)
+        _check("refdata/rf4s_exe_sidecars.json matches this RF4S.exe (SI table, Gen archive "
+               "names, the rows read past the encounter / BGM tables)",
+               gm.build_sidecars(exe) == xs.tables())
+    si = {n: _md.si_name_for_map(n) for n in ("MAP_CITY_05", "MAP_CITY_05_WINTER", "MAP_CITY_06",
+                                              "MAP_FIELD_A0", "MAP_FIELD_A2", "MAP_FIELD_A3",
+                                              "MAP_DUNG_E45", "MAP_CITY_00_SUMMER")}
+    _check("SI by map id: CITY_05 -> SI_CITY_06, CITY_06 none, FIELD_A0/A2/A3 -> SI_FIELD_101/"
+           "103/104, E45 none (SI_DUNG_E45 is never loaded), seasons share the base's",
+           si == {"MAP_CITY_05": "SI_CITY_06.bin", "MAP_CITY_05_WINTER": "SI_CITY_06.bin",
+                  "MAP_CITY_06": None, "MAP_FIELD_A0": "SI_FIELD_101.bin",
+                  "MAP_FIELD_A2": "SI_FIELD_103.bin", "MAP_FIELD_A3": "SI_FIELD_104.bin",
+                  "MAP_DUNG_E45": None, "MAP_CITY_00_SUMMER": "SI_CITY_00.bin"}
+           and "SI_DUNG_E45.bin" not in xs.si_files() and len(xs.si_files()) == 287, si)
+    gn = {n: _md.gen_name_for_map(n) for n in ("MAP_DUNG_I14", "MAP_DUNG_N42", "MAP_DUNG_N43",
+                                               "MAP_DUNG_J02", "MAP_FIELD_A0", "MAP_FIELD_105",
+                                               "MAP_DUNG_B02")}
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    maps = sorted(p.stem for p in B.glob("MAP_*.rf4m"))
+    q10 = [m for m in maps if (_md.gen_name_for_map(m) or "").lower() == "genq10.bin"]
+    _check("Gen by zone: I14 -> GenJ02, N42 / N43 -> GenO02 / GenO03, FIELD_A0 / 105 -> "
+           "GenField99_101 / 105; GenQ10 is loaded for no map; GenJ02 lists J02 then I14",
+           gn == {"MAP_DUNG_I14": "GenJ02.bin", "MAP_DUNG_N42": "GenO02.bin",
+                  "MAP_DUNG_N43": "GenO03.bin", "MAP_DUNG_J02": "GenJ02.bin",
+                  "MAP_FIELD_A0": "GenField99_101.bin", "MAP_FIELD_105": "GenField99_105.bin",
+                  "MAP_DUNG_B02": "GenB02.bin"}
+           and not q10 and _md.maps_for_gen("GenJ02.bin", maps) == ["MAP_DUNG_J02", "MAP_DUNG_I14"]
+           and _md.also_used_by("gen", "GenJ02.bin", "MAP_DUNG_J02") == ["MAP_DUNG_I14"]
+           and _md.also_used_by("si", "SI_CITY_00.bin", "MAP_CITY_00_WINTER") == [], (gn, q10))
+    f = _si.SearchItemFile([_si.SearchSpot(8, 8, _si.DropPool([_si.DropEntry(1, 1)]))
+                            for _ in range(254)])
+    v254 = f.validate()
+    f.spots = f.spots[:253]
+    pool = _si.DropPool([_si.DropEntry(1, 1)] * 255)
+    ok255 = _si.SearchItemFile([_si.SearchSpot(8, 8, pool)]).validate()
+    _check("SI limits: 253 spots is fine, 254 is an ERROR (spot 253's item roll uses daily "
+           "stream 255, which never ends); 255 pool entries are fine",
+           any(m.startswith("ERROR") and "HANG" in m for m in v254) and not f.validate()
+           and not any(m.startswith("ERROR") for m in ok255), v254[:1])
+    g2 = _gen.GenTable.load(B / "GenA01.bin")
+    e0 = next(e for _p, _e, e in g2.all_entries())
+    g2.patterns.append([])
+    g2.add_entry(1, e0.gate_kind, 10, clone=e0, share=False)
+    for _p, _e, e in g2.all_entries():
+        e.hdr.count_max = 8
+    _check("gen validate: two patterns whose gates want more than the map's 10 live monsters "
+           "get an INFO note", any(m.startswith("INFO:") and "8 + 8 = 16" in m for m in g2.validate()))
+    w26 = ag.problems(1 << 26, "MAP_DUNG_B02.rf4m")
+    w0 = ag.problems(0x10, "MAP_DUNG_B02.rf4m")
+    quiet = ag.problems(0x10, "MAP_ROOM_25.rf4m") + ag.problems(0, "MAP_DUMMY_00.rf4m")
+    ex = _rf4m.mgrp_explain(1 << 26)
+    eff = dict(ag.effects(1 << 31, "MAP_DUNG_B02.rf4m"))
+    _check("MGRP bits 26-31 with no bit 5-25: zone 21+ (WARN: no area music, the Cluck-Cluck "
+           "Nest gate row); no area bit at all: WARN zone 0 (not on the shipped rooms / "
+           "placeholders that have none); explained in mgrp_explain / the panel",
+           any("zone 21" in m and "Cluck-Cluck Nest" in m for _s, m in w26)
+           and any("zone 0" in m for _s, m in w0) and not quiet
+           and any("zone 21" in x for x in ex) and not any("no reader" in x for x in ex)
+           and "0xFFFCFFFC" in eff.get("Music", ""), (w26, w0, quiet, ex, eff))
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor side files", "no tkinter"); return
+    box = _headless_dialogs()                       # no real message boxes
+    me = _map_editor()
+    root, ed, errs = _headless_panel("MAP_DUNG_I14", B)
+    try:
+        d = ed.doc
+        ed.encounters.refresh()
+        probs = ed.validate()
+        box["yesno"] = False
+        refused = ed.save_gen() is False
+        _check("MAP_DUNG_I14 opens GenJ02.bin (the game's), the Gates tab and Problems say "
+               "MAP_DUNG_J02 uses it too, and Save asks first",
+               d.gen_path is not None and d.gen_path.name == "GenJ02.bin"
+               and "Also used by: MAP_DUNG_J02" in ed.encounters.shared_file_lbl.cget("text")
+               and any(sv == "INFO" and "also used by MAP_DUNG_J02" in m for sv, _w, m in probs)
+               and not any(sv == "WARN" and "MGRP" in m for sv, _w, m in probs) and refused,
+               ([x for x in probs if x[0] != "INFO"][:3], ed.encounters.shared_file_lbl.cget("text")))
+        c6 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_06.rf4m"), "MAP_CITY_06")
+        why = c6.doc.si_block_reason()
+        try:
+            c6.doc.ensure_si(); raised = False
+        except _si.SearchItemError:
+            raised = True
+        c5 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_05.rf4m"), "MAP_CITY_05")
+        _check("MAP_CITY_06 (never rolls search items) has no spots and refuses new ones with the "
+               "reason; MAP_CITY_05 opens SI_CITY_06.bin",
+               c6.doc.si is None and why and "never rolls search items" in why and raised
+               and c5.doc.si_path is not None and c5.doc.si_path.name == "SI_CITY_06.bin", why)
+        sp0 = c5.doc.si.spots[0]
+        c5.doc.si.spots += [_si.SearchSpot(sp0.x, sp0.y, sp0.pool) for _ in range(260)]
+        sprobs = [m for sv, w, m in c5.validate() if sv == "ERROR" and w == "search items"]
+        box["yesno"] = False
+        _check("an SI file past 253 spots is an ERROR in Problems, and Save refuses it unless told "
+               "to save anyway", sprobs and c5.save_si() is False and c5.sidecar_saves_ok(["si"]) is False,
+               sprobs[:1])
+        b2 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_DUNG_B02.rf4m"), "MAP_DUNG_B02")
+        enc = b2.encounters
+        enc.refresh()
+        n0 = _md.gen_entry_count(b2.doc.gen)
+        enc._new_gate()
+        ent = b2.active_gate
+        enc.refresh()
+        enc.v["level"].set("150")
+        enc._commit_gate()
+        pts = enc.mpts.get_children()
+        if pts:
+            enc.mpts.selection_set(pts[0])
+        enc.vrad.set("48")
+        enc._commit_radius()
+        ent = b2.active_gate
+        _check("Gates tab on an empty table (MAP_DUNG_B02): New adds a first gate with a spawn "
+               "point and a monster, valid; the level field sets param_a, the radius field the "
+               "spawn point's radius",
+               n0 == 0 and ent is not None and _md.gen_entry_count(b2.doc.gen) == 1
+               and ent.hdr.param_a == 150 and ent.mon_pos.points[0][2] == 48
+               and len(ent.spawns) == 1 and not [m for m in b2.doc.gen.validate() if not m.startswith("INFO")],
+               (n0, b2.doc.gen.validate() if b2.doc.gen else None))
+        _check("side-file checks raised no callback errors", not errs, errs[:1])
     finally:
         root.destroy()
 
@@ -10138,7 +10296,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive):
         t0 = time.perf_counter()

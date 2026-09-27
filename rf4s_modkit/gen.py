@@ -34,10 +34,17 @@ most ONE pattern (268 of the 690 are empty). Layout, offsets absolute from file 
                         (0 = leave the actor's own level), and Companion_AcquireTarget
                         levels each monster up to the gate when it is 16+ below. The
                         fallback builder stores the same formula's result here.
-                        count_min/count_max = monsters kept alive per gate (the tick
-                        spawns while fewer than count_max are engaged, at least
-                        count_min at once; the engaged array holds 10; hard mode caps
-                        max at 4). spawn_delay = the respawn timer base in frames: first
+                        count_min/count_max = the WAVE size (Companion_TickAI +0x1E7870):
+                        a wave spawns only while fewer than count_max of this gate's
+                        monsters are alive; the first wave rolls count_min..count_max
+                        monsters, later ones top up by 1-2, never past count_max alive
+                        (and none while count_min > 10 - alive). The WHOLE MAP holds at
+                        most 10 live gate monsters: the gate manager's byte +97 counts
+                        every gate's monsters, no wave starts at 10 and
+                        Companion_AcquireTarget (+0x1E8CE0) stops spawning at 10. Hard
+                        mode (game-state flag 0x4000) turns count_max 4 into 3 and
+                        anything above 4 into 4 (count_min is clipped to it).
+                        spawn_delay = the respawn timer base in frames: first
                         wave delay = spawn_delay + rand(0..127) (-32 above 32), between
                         waves (spawn_delay + rand(0..63)) / 2 with a floor of 48.
                         flag low byte != 0: the spawned gate gets actor state bits 0x24
@@ -50,9 +57,10 @@ most ONE pattern (268 of the 690 are empty). Layout, offsets absolute from file 
                         Encounter_TickMonsterSpawnSlots picks one at random for the gate
                         (n = 0 reads the dword after the count as a position)
     +12 u32 -> monster positions {u32 m; m x (u16 x, u16 y, u32 radius)}  the monster
-                        appears at (x, y) + a random offset up to `radius` sub-units
-                        (only the low u16 is read), retried up to 64 times until the
-                        ATTR cell has bit 0x01 or 0x20 (Companion_TickAnimation)
+                        appears at a random angle and distance 0..radius-1 sub-units from
+                        (x, y) (only the low u16 is read); up to 63 random samples until the
+                        ATTR cell has bit 0x01 or 0x20 (off the map counts as blocked),
+                        then the point itself (Companion_TickAnimation +0x1E8A60)
     +16 u32 -> roster   {u32 N; N x RECORD}   RECORD = {u16 monster_id; u16 pick_weight;
                         u32 K; u32 pos_weight[K]}
                         pick_weight = the monster's relative chance within the roster
@@ -109,7 +117,14 @@ GATE_KIND_LO, GATE_KIND_HI = 359, 390   # the Gate actor family
 # that writes the spawned actor through a NULL pointer -> crash on the first spawn.
 CRASH_KIND_LO, CRASH_KIND_HI = 48, 0x115
 MAX_PATTERNS = 2            # gate slots in the encounter spawn task
-MAX_ENGAGED = 10            # engaged-monster slots per gate (Companion_TickAI)
+MAX_ENGAGED = 10            # live gate monsters: per gate AND for the whole map (gate manager
+                            # byte +97; Companion_TickAI / Companion_AcquireTarget stop at 10)
+# a new gate on an empty table (new_gate): the corpus's usual values -- 2..4 monsters per wave
+# (the commonest count_min / count_max), a 120-frame respawn base, weight 10, a visible Gate,
+# a 32-sub-unit scatter radius, pick weight 5 and position weight 10 (1224 shipped gates)
+NEW_GATE = {"kind": GATE_KIND_LO, "weight": 10, "count_min": 2, "count_max": 4,
+            "spawn_delay": 120, "flag": 0, "param_a": 0, "radius": 32, "pick_weight": 5,
+            "pos_weight": 10}
 MAX_INDEX7 = 128            # roster / monster-position indices are kept in 7 bits
 
 
@@ -490,6 +505,26 @@ class GenTable:
         self._sync()
         return ent
 
+    def new_gate(self, x: int, y: int, monster_id: int, pi: int = 0) -> Entry:
+        """A first gate for an empty table (or one more, unshared): a visible Gate at (x, y)
+        with one monster spawn point there and a one-monster roster, using NEW_GATE's
+        corpus defaults. Returns the entry."""
+        d = NEW_GATE
+        ent = self.add_entry(pi, d["kind"], d["weight"], gate_pos=[(x, y)],
+                             mon_pos=[(x, y, d["radius"])])
+        ent.hdr = Hdr(count_min=d["count_min"], count_max=d["count_max"],
+                      spawn_delay=d["spawn_delay"], flag=d["flag"], param_a=d["param_a"])
+        ent.roster.spawns.append(Spawn(monster_id, d["pick_weight"], [d["pos_weight"]]))
+        self._sync()
+        return ent
+
+    def set_monster_radius(self, e: Entry, index: int, radius: int):
+        """Set monster spawn point `index`'s scatter radius (sub-units; the game reads the
+        low u16, the high u16 is kept)."""
+        x, y, extra = e.mon_pos.points[index]
+        e.mon_pos.points[index] = (x, y, (extra & 0xFFFF0000) | (int(radius) & 0xFFFF))
+        self._sync()
+
     def remove_entry(self, pi: int, ei: int) -> Entry:
         ent = self.patterns[pi].pop(ei)
         self._sync()
@@ -565,7 +600,7 @@ class GenTable:
         """Problems the game would trip over, checked against Encounter_TickMonster-
         SpawnSlots, Encounter_SpawnMonsterFromTemplate, Map_LoadAndUnpackMonsterSpawn-
         Tables and the Companion_* consumers. Lines starting 'ERROR: ' crash, hang or
-        corrupt memory; the rest load but misbehave."""
+        corrupt memory; lines starting 'INFO: ' are notes; the rest load but misbehave."""
         out = []
         err = lambda m: out.append("ERROR: " + m)
         if len(self.patterns) > MAX_PATTERNS:
@@ -589,12 +624,13 @@ class GenTable:
                     out.append(f"{tag}: kind {e.gate_kind} is not a Gate actor (359..390)")
                 h = e.hdr
                 if h.count_min > MAX_ENGAGED:
-                    out.append(f"{tag}: count_min {h.count_min} > {MAX_ENGAGED} (the engaged-"
-                               f"monster slots) -- the gate never spawns a wave")
+                    out.append(f"{tag}: count_min {h.count_min} > {MAX_ENGAGED} (the live "
+                               f"gate monsters a map can hold) -- the gate never spawns a wave")
                 elif h.count_min > h.count_max:
                     out.append(f"{tag}: count_min {h.count_min} > count_max {h.count_max}")
                 if h.count_max > MAX_ENGAGED:
-                    out.append(f"{tag}: count_max {h.count_max} is capped at {MAX_ENGAGED}")
+                    out.append(f"{tag}: count_max {h.count_max} -- a map holds at most "
+                               f"{MAX_ENGAGED} live gate monsters, so it acts as {MAX_ENGAGED}")
                 if not e.gate_pos.points:
                     out.append(f"{tag}: no gate positions -- the tick still picks index 0 and "
                                f"reads the dword after the count (the next block) as the gate "
@@ -609,6 +645,14 @@ class GenTable:
                     if rname == "alt roster" and ro is e.roster:
                         continue
                     self._validate_roster(f"{tag} {rname}", ro, m, err, out)
+        # one gate per pattern is alive at a time, and they share the map's 10 slots
+        most = [max(min(e.hdr.count_max, MAX_ENGAGED) for e in entries)
+                for entries in self.patterns if entries]
+        if len(most) > 1 and sum(most) > MAX_ENGAGED:
+            out.append(f"INFO: the {len(most)} patterns' gates can want {' + '.join(map(str, most))}"
+                       f" = {sum(most)} monsters at once, but a map holds at most {MAX_ENGAGED} "
+                       f"live gate monsters: whichever gate fills up first leaves the other "
+                       f"smaller waves")
         return out
 
     @staticmethod
@@ -736,7 +780,7 @@ class GenTable:
                 h = e.hdr
                 lines.append(f"    [{ei}] gate {e.gate_kind}"
                              f"{' ('+gk+')' if gk else ''}  weight {e.weight}  "
-                             f"keeps {h.count_min}-{h.count_max} alive, respawn base {h.spawn_delay} f"
+                             f"waves of {h.count_min}-{h.count_max}, respawn base {h.spawn_delay} f"
                              f"{', gate level ' + str(h.param_a) if h.param_a else ''}"
                              f"  ({len(e.gate_pos.points)} gate pos, "
                              f"{len(e.mon_pos.points)} monster pos)")

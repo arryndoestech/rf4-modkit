@@ -1342,7 +1342,7 @@ class MapEditorPanel:
         try:                                    # the MGRP value: season / area-group conflicts
             for sev, msg in areagroup.problems(
                     d.map.mgrp(), d.base + ".rf4m" if d.base else None,
-                    gen_entries=data.gen_entry_count(d.gen), gen_name_for=data.gen_name_for_id,
+                    gen_entries=data.own_gen_entries(d), gen_name_for=data.gen_name_for_id,
                     gen_entries_for=data.gen_entries,
                     sibling_zones=data.sibling_zones(d.base) if d.base else None):
                 out.append((sev, "map", "MGRP: " + msg))
@@ -1356,26 +1356,78 @@ class MapEditorPanel:
         if d.gen is not None:
             for s in d.gen.validate():
                 sev, _, msg = s.partition(": ")
-                out.append(("ERROR", "monster gates", msg) if sev == "ERROR" else ("WARN", "monster gates", s))
+                out.append((sev, "monster gates", msg) if sev in ("ERROR", "INFO")
+                           else ("WARN", "monster gates", s))
+            out += self._shared_note("gen")
         if d.gen is not None and d.grid:
             out += self._gate_point_issues()
+        if d.si is not None:
+            for s in d.si.validate():          # spot count, pool size, weights, item ids ...
+                sev, _, msg = s.partition(": ")
+                out.append((sev if sev in ("ERROR", "WARN") else "WARN", "search items", msg))
+            out += self._shared_note("si")
         if d.si is not None and d.grid:
             W, H, _ = d.grid
             for i, sp in enumerate(d.si.spots):
-                total = sum(e.effective_weight for e in sp.pool.entries)
-                if not sp.pool.entries:
-                    out.append(("WARN", "search items", f"search spot #{i} has an empty drop pool"))
-                elif total > 255:
-                    out.append(("WARN", "search items", f"search spot #{i}: drop weights sum to {total}, "
-                                                        f"which the game keeps in one byte ({total & 0xFF})"))
                 if not (0 <= sp.tile_x < W and 0 <= sp.tile_y < H):
                     out.append(("WARN", "search items", f"search spot #{i} at tile ({sp.tile_x}, "
                                                         f"{sp.tile_y}) is outside the {W}x{H} grid"))
         return out
 
-    # A monster appears at a random spot within its spawn point's radius: the game tries 64
-    # times for a tile whose ATTR value has bit 0x01 or 0x20 (walkable; off the map counts as
-    # blocked), then gives up and uses the point itself (Companion_TickAnimation). Gates are
+    def _shared_file(self, part):
+        """(file name, [other rooms]) for this map's SI / Gen file (part 'si' / 'gen'): the
+        rooms besides this map and its seasonal variants that the game loads it for too."""
+        d = self.doc
+        path = d.si_path if part == "si" else d.gen_path
+        fn = path.name if path else None
+        try:
+            return fn, data.also_used_by(part, fn, d.base)
+        except Exception:  # noqa: BLE001 - no table: nothing to say
+            return fn, []
+
+    def _shared_note(self, part):
+        """The INFO line for a side file other rooms load too (their gates / search items change
+        with it)."""
+        fn, others = self._shared_file(part)
+        if not others:
+            return []
+        what = "monster gates" if part == "gen" else "search items"
+        return [("INFO", what, f"{fn} is also used by {', '.join(others[:6])}"
+                 + (f" and {len(others) - 6} more" if len(others) > 6 else "")
+                 + f": the game loads it for {'that room' if len(others) == 1 else 'those rooms'} "
+                   f"too, so edits here change {'its' if len(others) == 1 else 'their'} {what}")]
+
+    def _shared_ok(self, part):
+        """Before saving a side file other rooms load too: ask, once per file and session."""
+        fn, others = self._shared_file(part)
+        if not others:
+            return True
+        seen = self.__dict__.setdefault("_shared_asked", set())
+        if fn in seen:
+            return True
+        what = "monster gates" if part == "gen" else "search items"
+        if not messagebox.askyesno(
+                "File shared with other rooms",
+                f"{fn} is also used by: {', '.join(others)}.\n\nThe game loads this file for "
+                f"{'that room' if len(others) == 1 else 'those rooms'} too, so saving your "
+                f"changes changes {'its' if len(others) == 1 else 'their'} {what} as well.\n\n"
+                f"Save anyway?"):
+            return False
+        seen.add(fn)
+        return True
+
+    def sidecar_saves_ok(self, parts):
+        """The search-item and monster-gate checks before writing those files (save_to_game):
+        fatal search-item problems, and files other rooms load too."""
+        if "si" in parts and not self._fatal_ok("search items", "Search items have fatal problems",
+                                                "The game would hang on this search-item table"):
+            return False
+        return all(self._shared_ok(p) for p in ("si", "gen") if p in parts)
+
+    # A monster appears at a random spot within its spawn point's radius: the game takes up
+    # to 63 random samples for a tile whose ATTR value has bit 0x01 or 0x20 (walkable; off the
+    # map counts as blocked), then gives up and uses the point itself (Companion_TickAnimation
+    # RF4S.exe+0x1E8A60: the sample counter starts at 1 and stops at 64). Gates are
     # placed as they are -- the game ships 100+ on non-walkable tiles -- so only a gate
     # outside the map is flagged.
     WALKABLE = 0x21
@@ -1408,8 +1460,9 @@ class MapEditorPanel:
             if not reach:
                 out.append(("WARN", "monster gates",
                             f"monster spawn point {ref} at tile ({tx}, {ty}): no walkable tile within "
-                            f"its radius ({r} sub-units) -- every monster appears on the point "
-                            f"itself, inside a blocked tile (walkable = ATTR bit 0x01 or 0x20); move "
+                            f"its radius ({r} sub-units) -- all 63 random samples miss, so every "
+                            f"monster appears on the point itself, inside a blocked tile (walkable = "
+                            f"ATTR bit 0x01 or 0x20); move "
                             f"it onto open ground or widen the radius"))
         return out
 
@@ -1499,7 +1552,13 @@ class MapEditorPanel:
         self.flush_edits()
         d = self.doc
         if d is None or d.si is None:
-            messagebox.showinfo("Save search items", "This map has no search spots.")
+            why = d.si_block_reason() if d is not None else None
+            messagebox.showinfo("Save search items", "This map has no search spots."
+                                + ("\n\n" + why if why else ""))
+            return False
+        if not (self._fatal_ok("search items", "Search items have fatal problems",
+                               "The game would hang on this search-item table")
+                and self._shared_ok("si")):
             return False
         p = self._ask_path("Save search items", d.si_path.name if d.si_path else
                            (data.si_name_for_map(d.base) or "SI_MAP.bin"), ".bin", "SI table")
@@ -1526,6 +1585,8 @@ class MapEditorPanel:
                 "Monster gates have fatal problems", "The game would crash or hang on this table:\n\n"
                 + "\n".join("• " + x for x in fatal[:6]) + ("\n…" if len(fatal) > 6 else "")
                 + "\n\nSave anyway?"):
+            return False
+        if not self._shared_ok("gen"):
             return False
         p = self._ask_path("Save monster gates", d.gen_path.name if d.gen_path else "Gen.bin", ".bin", "Gen table")
         if not p:
@@ -1568,6 +1629,8 @@ class MapEditorPanel:
             return False
         if "gen" in parts and not self._fatal_ok("monster gates", "Monster gates have fatal problems",
                                                  "The game would crash or hang on this table"):
+            return False
+        if not self.sidecar_saves_ok(parts):
             return False
         own = None
         if self.file_path is not None and "map" in parts:   # a map opened from disk: its own file

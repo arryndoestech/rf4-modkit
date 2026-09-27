@@ -137,7 +137,8 @@ MAPJ_FIELDS = ("disable_flag", "zone_x", "zone_y", "zone_w", "zone_h",
 MLIG_SLOTS = ("day", "evening", "night")
 MLIG_DEFAULTS = ((255, 255, 255), (247, 214, 197), (148, 214, 247))
 # MGRP bit meanings (Map_LoadById, WeatherTask_Tick, Scene_ApplyContextualBGM,
-# Minimap_BuildForMap). bits 5..25 are the one-hot area group.
+# Minimap_BuildForMap). bits 5..25 are the one-hot area group; bits 26..31 count only when
+# 5..25 are all clear (zones 21..26, past the end of the area tables -- see areagroup).
 MGRP_SEASON_BITS = {0x1: "spring", 0x2: "summer", 0x4: "autumn", 0x8: "winter"}
 MGRP_NO_WEATHER = 0x10
 MGRP_GROUP_NAMES = {
@@ -177,7 +178,12 @@ def mgrp_notes(value: int) -> str:
     groups = [b for b in range(5, 32) if v >> b & 1]
     for b in groups:
         parts.append(f"group bit {b} ({MGRP_GROUP_NAMES.get(b, 'unnamed')})")
-    if len(groups) > 1:
+    if not groups:
+        parts.append("no group bit (zone 0, as Selphia town)")
+    elif groups[0] >= 26:
+        parts.append(f"WARNING: only bits 26-31, so the game uses zone {groups[0] - 5} "
+                     f"(past the area tables: no area music)")
+    elif len(groups) > 1:
         parts.append("WARNING: more than one group bit (the game uses the lowest)")
     return ", ".join(parts)
 
@@ -223,16 +229,29 @@ def mgrp_explain(value) -> list[str]:
     if groups:
         b = groups[0]
         out.append(f"area group: bit {b} ({MGRP_GROUP_NAMES.get(b, 'unnamed')}) = zone {zone}")
+    elif zone >= 21:
+        # (MGRP & ~0x1F) >> 5, lowest set bit below 26, else 26 (Minimap_BuildForMap
+        # RF4S.exe+0x13B3F0, Scene_ApplyContextualBGM RF4S.exe+0x19AFB0)
+        out.append(f"no area-group bit 5-25, so bit {zone + 5} counts: zone {zone} -- past the "
+                   f"end of the area tables")
     else:
         out.append("no area-group bit: zone 0 (the Selphia town group)")
     bgm = mgrp_bgm(zone)
     if bgm:
         out.append(f"  base BGM {bgm} (then per-room, season, night and festival rules)")
+    elif zone >= 21:
+        from . import exesidecars
+        sid = exesidecars.area_bgm_overrun(zone)
+        out.append(f"  no area music: the game reads sound id 0x{(sid or 0):X} past the "
+                   f"21-entry BGM table")
     pools = chestloot.crate_pools(zone)
     out.append("  crates roll the " + " / ".join(
         f"{p['label']} ({p['share']:.0%})" if p["share"] < 1 else p["label"] for p in pools) + " pool")
-    out.append(f"  monster gates read zone {zone}'s entry of the encounter-archive table; the "
-               "minimap uses the group too")
+    rows = {21: " (the Cluck-Cluck Nest row: the spawner loads an unrelated archive)",
+            22: " (the Demon's Den row: the spawner loads an unrelated archive)"}
+    out.append(f"  monster gates read zone {zone}'s entry of the encounter-archive table"
+               + rows.get(zone, " (none there)" if zone >= 23 else "")
+               + "; the minimap uses the group too")
     extra = groups[1:]
     if extra:
         if zone == 1:
@@ -243,8 +262,9 @@ def mgrp_explain(value) -> list[str]:
         else:
             out.append(f"bits {', '.join(map(str, extra))} are also set; the game only uses the "
                        "lowest group bit")
-    if v >> 26:
-        out.append(f"bits 26-31 (0x{v & 0xFC000000:X}): no reader found")
+    if v >> 26 and groups:
+        out.append(f"bits 26-31 (0x{v & 0xFC000000:X}): ignored -- they count only when bits "
+                   f"5-25 are all clear")
     return out
 
 

@@ -165,25 +165,49 @@ def leading_int(text):
 
 
 # ---- sidecar files ------------------------------------------------------- #
-def gen_name_for_map(name):
-    """MAP_DUNG_X## -> GenX##.bin ; MAP_FIELD_## -> GenField##.bin (seasonal variants share
-    their base map's table), or None for maps without a monster generator."""
-    m = re.search(r"DUNG_([A-Z]+)(\d+)", str(name)) or re.search(r"(FIELD)_?(\d+)", str(name))
-    if not m:
+# The game never looks a map's search-item (SI_*.bin) or monster-gate (Gen*.bin) file up by
+# name: SI comes from a per-map-id table in RF4S.exe, Gen from the map's zone (its MGRP) and
+# the zone's run of archives (rf4s_modkit.exesidecars / areagroup, shipped in refdata). These
+# helpers apply the same rules, with the room's BASE map id (a seasonal variant shares its
+# base's files) and, for Gen, the MGRP of the file the game loads.
+def _mgrp_of(name):
+    """The MGRP of map file `name` as the game folder has it (map_summaries), or None."""
+    want = map_base(name).upper()
+    for stem, (mgrp, _ch, _wh) in map_summaries().items():
+        if stem.upper() == want:
+            return mgrp
+    return None
+
+
+def gen_name_for_map(name, mgrp=None):
+    """The Gen*.bin the game loads for map file `name`: its base id's slot in the zone its
+    MGRP picks (default: the MGRP of the game folder's copy; without one, the map's own
+    table). None when the game spawns no gates there. This can be ANOTHER room's table:
+    MAP_DUNG_I14 loads GenJ02.bin, MAP_FIELD_100 GenField99_100.bin."""
+    from rf4s_modkit import areagroup
+    mid = areagroup.base_map_id(name)
+    if mid is None:
         return None
-    area, num = m.group(1), int(m.group(2))
-    return f"GenField{num:02d}.bin" if area == "FIELD" else f"Gen{area}{num:02d}.bin"
+    if mgrp is None:
+        mgrp = _mgrp_of(name)
+    if mgrp is None and areagroup.gate_zone(mid, None) is not None:
+        mgrp = 0                                # maps 44 / 853..857 / 861..869: fixed zone
+    if mgrp is None:
+        return gen_name_for_id(mid)
+    return areagroup.gen_file(mid, mgrp) if areagroup.archive_owner(
+        areagroup.gen_archive(mid, mgrp)) is not None else None
 
 
-def gen_file_for_map(name):
-    fn = gen_name_for_map(name)
+def gen_file_for_map(name, mgrp=None):
+    fn = gen_name_for_map(name, mgrp)
     return find_extracted(fn) if fn else None
 
 
 def gen_name_for_id(map_id):
-    """GenX##.bin of a map id (by its MAP_* file), or None."""
-    f = map_names.map_file(map_id) if map_id is not None else None
-    return gen_name_for_map(f) if f else None
+    """The Gen*.bin that is map id `map_id`'s OWN table (its slot in its zone's run of
+    archives), or None."""
+    from rf4s_modkit import areagroup, exesidecars
+    return exesidecars.archive_name(areagroup.own_archive(map_id))
 
 
 def gen_entry_count(table):
@@ -213,24 +237,73 @@ def gen_entries(fn):
     return _GEN_COUNTS[key]
 
 
-def maps_for_gen(gen_name, map_names):
-    """The maps (from `map_names`) whose monster generator is `gen_name`, the base map first,
-    then its seasonal variants."""
+def own_gen_entries(doc):
+    """Gate entries in the OWN Gen table of the map open in `doc` (its unsaved edits when the
+    editor has that table open), for areagroup.problems; None without one."""
+    from rf4s_modkit import areagroup
+    own = gen_name_for_id(areagroup.base_map_id(doc.base)) if doc.base else None
+    if own is None:
+        return None
+    if doc.gen is not None and doc.gen_path is not None and doc.gen_path.name.lower() == own.lower():
+        return gen_entry_count(doc.gen)
+    return gen_entries(own)
+
+
+def _base_first(hits, owner=None):
+    """Map names sorted: the owner's base file first, then the other bases, each followed by
+    its seasonal variants."""
+    from rf4s_modkit import areagroup
+    return sorted(hits, key=lambda n: (areagroup.base_map_id(n) != owner,
+                                       SEASON_RE.sub("", map_base(n)),
+                                       SEASON_RE.search(map_base(n)) is not None, map_base(n)))
+
+
+def maps_for_gen(gen_name, candidates):
+    """The maps (from `candidates`, map file names) whose monster gates come from `gen_name`
+    by the game's rule (gen_name_for_map), the owner's base map first, then its seasonal
+    variants, then any other room that loads the same table."""
+    from rf4s_modkit import areagroup
     want = map_base(gen_name).rsplit(".", 1)[0].lower() + ".bin"
-    hits = [n for n in map_names if (gen_name_for_map(map_base(n)) or "").lower() == want]
-    return sorted(hits, key=lambda n: (SEASON_RE.search(map_base(n)) is not None, map_base(n)))
+    mgrps = {stem.upper(): mg for stem, (mg, _ch, _wh) in map_summaries().items()}
+    hits = [n for n in candidates
+            if (gen_name_for_map(n, mgrps.get(map_base(n).upper())) or "").lower() == want]
+    owner = next((m for m in map(areagroup.base_map_id, hits)
+                  if (gen_name_for_id(m) or "").lower() == want), None)
+    return _base_first(hits, owner)
 
 
 def si_name_for_map(name):
-    """SI_<rest>.bin for MAP_<rest> (seasonal variants share one file), or None."""
-    base = SEASON_RE.sub("", map_base(name))
-    m = re.match(r"^MAP_(.+)$", base, re.I)
-    return f"SI_{m.group(1)}.bin" if m else None
+    """The SI_*.bin the game loads for map file `name` (by its base map id, from the game's
+    table: MAP_CITY_05 -> SI_CITY_06.bin, MAP_FIELD_A0 -> SI_FIELD_101.bin), or None when
+    the game never rolls search items there (MAP_CITY_06, MAP_DUNG_E45, ...)."""
+    from rf4s_modkit import areagroup, exesidecars
+    return exesidecars.si_name(areagroup.base_map_id(name))
 
 
 def si_file_for_map(name):
     fn = si_name_for_map(name)
     return find_extracted(fn) if fn else None
+
+
+def maps_for_si(si_name, candidates):
+    """The maps (from `candidates`) whose search items come from `si_name`."""
+    want = map_base(si_name).lower()
+    return _base_first([n for n in candidates if (si_name_for_map(n) or "").lower() == want])
+
+
+def also_used_by(part, fn, name):
+    """The OTHER rooms (base map files, this map's own seasonal variants left out -- they
+    share on purpose) whose game-loaded side file is `fn`: part 'gen' by the gate rule over
+    the game folder's maps, 'si' from the search-item table."""
+    from rf4s_modkit import areagroup, exesidecars
+    if not fn:
+        return []
+    me = areagroup.base_map_id(name) if name else None
+    if part == "si":
+        ids = {areagroup.base_map_id(map_names.map_file(m) or "") for m in exesidecars.si_maps(fn)}
+    else:
+        ids = {areagroup.base_map_id(n) for n in maps_for_gen(fn, list(map_summaries()))}
+    return sorted({map_names.map_file(m) or f"map {m}" for m in ids if m is not None and m != me})
 
 
 # ---- names ----------------------------------------------------------------- #
