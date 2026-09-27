@@ -14,7 +14,17 @@ Map objects gate on a ZONE-2 bit in MOBJ f13 (params[13], read as a dword; > 0 =
 * interactive objects (types 196..335, Map_SpawnInteractiveObject +0x143760): hidden while
   (bit set) XOR (f12 & 4) -- f12 bit 2 inverts the gate ("shown only once set").
 
-Both tests run once, when the map loads, so in game a flag change shows on the next visit.
+The test is not a load-time one: Map_TickEntityArray (+0x143FB0) repeats it every frame, so
+an object appears or vanishes -- and a shown object's collision template is stamped into
+ATTR or restored -- the moment a script changes the flag. The preview shows the objects as
+they are for the flags of the chosen snapshot. An inverted gate with no flag (f12 & 4,
+f13 <= 0) is a special case: the spawner treats the object as hidden and never stamps its
+collision, but the per-frame tick skips objects with no flag and draws it anyway.
+
+Some actors (types 20..195) also check a flag when the room loads and are simply not
+created (actor_state): chests 44 and crates 53 once their flag is set (-1 = none), a chest
+with a reveal offset (f9 != 0) stays hidden until flag f13 + f9 is set, and the herb pickup
+35, seal door 47, traveler 58, decoration 60 and theatre furniture 64..66 once theirs is.
 Example: MAP_CITY_04 (Dragon Lake) bridge = decoration f13 73, its wall = object f13 74.
 """
 from __future__ import annotations
@@ -112,6 +122,33 @@ def from_running_game(exe_name: str = "RF4S.exe") -> FlagState:
         k32.CloseHandle(h)
 
 
+# actor types removed at spawn while their f13 flag is set (see the module docstring):
+# type -> the "no flag" test the handler uses
+_ACTOR_GONE = {35: "none", 44: "none", 53: "none", 47: "pos", 58: "pos", 60: "pos",
+               64: "pos", 65: "pos", 66: "pos"}
+
+
+def _signed8(v):
+    v &= 0xFF
+    return v - 256 if v >= 128 else v
+
+
+def actor_state(obj: dict, state: FlagState | None):
+    """For a flag-checked actor: "gone" (the room loads without it), "unrevealed" (a chest
+    waiting for its reveal flag) or None (it is there / not such a type / no snapshot)."""
+    p = obj.get("params", ())
+    tid = obj["type_id"] & 0xFFFF
+    if state is None or len(p) < 14 or tid not in _ACTOR_GONE:
+        return None
+    f13 = p[13]
+    has = f13 != -1 if _ACTOR_GONE[tid] == "none" else f13 > 0
+    if has and state.zone2(f13):
+        return "gone"
+    if tid == 44 and _signed8(p[9]) and not state.zone2(f13 + _signed8(p[9])):
+        return "unrevealed"
+    return None
+
+
 def gate(obj: dict):
     """(zone-2 flag, inverted) an object's visibility depends on, or None if ungated."""
     p = obj.get("params", ())
@@ -126,9 +163,34 @@ def gate(obj: dict):
 
 
 def hidden(obj: dict, state: FlagState | None) -> bool:
-    """True when the game would not draw this object with these flags."""
+    """True when the game would not draw this object with these flags (a decoration /
+    object behind its flag gate, or an actor the room loads without)."""
+    if actor_state(obj, state):
+        return True
     g = gate(obj)
     if g is None or state is None:
         return False
     flag, inverted = g
     return state.zone2(flag) != inverted
+
+
+def hidden_reason(obj: dict, state: FlagState | None) -> str | None:
+    """Why `hidden` is true, for a label ("hidden by flag 74"), else None."""
+    a = actor_state(obj, state)
+    p = obj.get("params", ())
+    if a == "gone":
+        return "removed: flag %d is set" % p[13]
+    if a == "unrevealed":
+        return "not revealed yet: flag %d is clear" % (p[13] + _signed8(p[9]))
+    if hidden(obj, state):
+        return "hidden by flag %d" % gate(obj)[0]
+    return None
+
+
+def no_flag_inverted(obj: dict) -> bool:
+    """An interactive object with an inverted gate but no flag (f12 & 4, f13 <= 0): drawn by
+    the per-frame tick, but its collision is never stamped (Map_SpawnInteractiveObject
+    treats it as hidden at load; Map_TickEntityArray skips flagless objects)."""
+    p = obj.get("params", ())
+    return (len(p) >= 14 and mobj_types.mobj_kind(obj["type_id"]) == "object"
+            and bool(p[12] & 4) and p[13] <= 0)

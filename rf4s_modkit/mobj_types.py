@@ -689,6 +689,14 @@ def mobj_kind(type_id: int) -> str:
     return "decoration"       # MapDecoration_Spawn
 
 
+def is_positionless(type_id: int) -> bool:
+    """True for the map-parameter records 9..19, whose f14/f15 nothing reads. Every other
+    type is placed at (f14, f15) -- (0, 0) included: the game spawns a record there like
+    anywhere else (129 shipped records sit exactly at the map origin, among them 33 water /
+    light-shaft meshes anchored there)."""
+    return 9 <= (type_id & 0xFFFF) <= 19
+
+
 def mobj_archive_id(type_id: int) -> int:
     """map_obj archive id loaded for this type_id (type_id + 17542).
 

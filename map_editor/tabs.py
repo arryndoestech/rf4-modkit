@@ -76,7 +76,7 @@ class ObjectsTab(ttk.Frame):
             if o["category"] == "mapparam":
                 rows["param"].append((("mobj", i), nm, "map-wide"))
             else:
-                where = "unplaced" if not (o["pos_x"] or o["pos_y"]) else f"({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
+                where = f"({o['pos_x'] >> 3}, {o['pos_y'] >> 3})"
                 rows["mobj"].append((("mobj", i), f"{nm}  [{o['category']}]", where))
         for j, rec in enumerate(doc.map.mapj_records()):
             dest = map_names.describe_destination(rec[5])[0] or data.rooms_by_id().get(rec[5], f"map {rec[5]}")
@@ -1069,10 +1069,11 @@ class EncountersTab(ui.ScrollFrame):
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": True, "labels": False,
                   "sprite_borders": True, "gate_art": True, "mapj": True, "dest": True, "si": True,
-                  "gates": True, "spawns": False}
+                  "gates": True, "spawns": False, "stamps": True}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
-                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn"}
+                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn",
+                "stamps": "stamp"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
 VIEW_SETTING = "map_view"      # settings.json key: the View tab's choices, kept across maps and runs
 FLAGS_NONE = "(all objects)"
@@ -1122,9 +1123,13 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "gates", "monster gates", 8, 1, render.GATE_COLOR)
         cb(L, "spawns", "script NPCs", 9, 0, render.SPAWN_COLOR)
         cb(L, "grid", "tile grid lines", 9, 1)
+        ui.Tip(cb(L, "stamps", "object collision", 10, 0, render.STAMP_COLOR),
+               "Hatched: the tiles the placed objects (trees, rocks, stones ...) stamp into the "
+               "ATTR grid when the room loads -- collision the map file does not contain. Shown "
+               "for the flag state chosen below; Alt over a tile names the object.")
         hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
                 "first time they are shown the script is scanned.", wrap=300).grid(
-            row=10, column=0, columnspan=4, sticky="w", pady=(2, 0))
+            row=11, column=0, columnspan=4, sticky="w", pady=(2, 0))
         # ---- flag state ----
         S = section(b, "Show objects as in")
         self.flagsrc = tk.StringVar(value=FLAGS_NONE)
@@ -1146,8 +1151,10 @@ class ViewTab(ui.ScrollFrame):
         ui.Tip(b_br, "Pick a slot save (rf4_sNN.sav) from anywhere.")
         self.flagstatus = ttk.Label(S, font=ui.HINT_FONT, wraplength=300, justify="left")
         self.flagstatus.grid(row=1, column=0, columnspan=2, sticky="w")
-        hint(S, "The game checks these flags when a map loads, so in game a change shows on the "
-                "next visit.", wrap=300).grid(row=2, column=0, columnspan=2, sticky="w")
+        hint(S, "Scenery and objects (bridges, walls, trees) follow their flag every frame, so "
+                "they appear or vanish in game the moment a script sets it; chests, crates and "
+                "other actors check theirs when the room loads.", wrap=300).grid(
+            row=2, column=0, columnspan=2, sticky="w")
         # ---- ground display ----
         G = section(b, "Ground texture")
         ttk.Label(G, text="show").grid(row=0, column=0, sticky="w")

@@ -29,7 +29,9 @@ FIELD_CONVENTION = {
     # road tiles 78..81 (gate flag) DO read f13 — the sweep missed them behind
     # custom-named decompiler args ('descriptor', a2[13] array indexing).
     # describe()/the editor only list f13 for types that read it.
-    13: ("u16", "scene-flag id, REGION B (abs bit = 4096 + f13; always a flag when read; unread by pure-effect types)"),
+    # Every spawner that gates on f13 reads the full signed dword first (`> 0`, `== -1`),
+    # so a value is edited and stored as a whole i32 (-1 = no flag); valid ids are 0..2559.
+    13: ("u32", "scene-flag id, REGION B (abs bit = 4096 + f13; -1 = none, ids 0..2559; always a flag when read; unread by pure-effect types)"),
     14: ("u32", "tile X (sub-units; <<12 = world)"),
     15: ("u32", "tile Y"),
 }
@@ -68,11 +70,19 @@ LANES = [
      [(6, 4, "scale /4096/3 - NEGATIVE mirrors horizontally"),
       (7, 2, "sub-image index (sprite word +124)"),
       (8, 4, "z bias (z = 2*(f8+f15)+4096) + interact word, template-adjusted (g_mapEntityTemplates +0x4D5030 adds a per-type bias)"),
-      (9, 4, "collision half-width (>>4 -> tiles; stamped into tile flags when f11 != 0)"),
-      (10, 4, "collision half-height"),
-      (11, 4, "0 = register interactable trigger, nonzero = stamp collision instead"),
-      (12, 4, "bit flags: 0x1/0x2 -> sprite flags 8/0x10; 0x4 -> flag 0x20 = INVERT the f13 gate (hidden UNTIL set)"),
-      (13, 2, "story-flag gate: SET = hidden (f12 bit 0x4 inverts)")],
+      (9, 4, "solid box width, only with f11 != 0: f9 >> 4 tiles either side of the anchor "
+             "tile (so about f9 sub-units in all); 0 = the box collapses onto map column 0"),
+      (10, 4, "solid box height, only with f11 != 0 (f10 >> 4 tiles above and below); 0 = "
+              "the box collapses onto map row 0"),
+      (11, 4, "0 = the type's collision template is stamped into ATTR while the object is "
+              "shown, and it can be interacted with; nonzero = no template and not "
+              "interactable -- a SOLID f9 x f10 box is stamped instead, even while hidden "
+              "(Map_SpawnInteractiveObject RF4S.exe+0x143760)"),
+      (12, 4, "bit flags: 0x1/0x2 -> sprite flags 8/0x10 (0x2 also stamps the template into "
+              "the pristine ATTR copy); 0x4 = INVERT the f13 gate (hidden UNTIL set)"),
+      (13, 4, "story-flag gate: SET = hidden (f12 bit 0x4 inverts); re-checked every frame "
+              "(Map_TickEntityArray RF4S.exe+0x143FB0), so the object and its collision appear "
+              "and vanish as soon as the flag changes; -1 / 0 = no gate")],
      "Chests/signs/doors-with-interaction; type 263 diverts to the daily herb spawner "
      "(Map_SpawnDiscoverableHerbOrSpawner_Type263). Field map decoded 2026-08-31 from the "
      "handler (which carries the full IDB annotation)."),
@@ -82,7 +92,8 @@ LANES = [
       (8, 4, "z bias (z = 2*(f8+f15)+4096)"),
       (9, 4, "flipbook frame duration - multi-frame RES textures animate (word +906)"),
       (10, 4, "nonzero = glow (Sprite_ApplyEffect_Glow)"),
-      (13, 2, "story-flag: SET = hidden")],
+      (13, 4, "story-flag: SET = hidden; re-checked every frame (Map_TickEntityArray "
+              "RF4S.exe+0x143FB0); -1 / 0 = no gate")],
      "Static/animated scenery (rocks, trees, grass, houses, bridges). A per-sprite switch adds "
      "special cases (background layers pinned to z 81..92, ATTR stampers for a few bridge/road "
      "sheets). Confirmed 2026-08-31 against the 2026-08-07 IDB annotation; the old 'rotation' "
@@ -171,10 +182,15 @@ GIMMICKS = {
                   "Corrected 2026-08-31 vs Actor_InitFlagGatedTreasure +0x14B130 — the old "
                   "'emits attacks' role was a misread.",
              params=[(6, 4, "scale"), (8, 4, "loot-table row index"),
-                     (9, 4, "'opened' flag offset (flag = f13 + f9; 0 = no sparkle tick)"),
+                     (9, 1, "reveal flag offset (signed byte): with f9 != 0 the chest stays "
+                            "hidden until flag f13 + f9 is set (usually a seal door's room-clear "
+                            "flag), then appears with a burst; 0 = always there "
+                            "(Actor_InitFlagGatedTreasure RF4S.exe+0x14B130, "
+                            "Actor_TickTreasureSparkleAndOpen +0x14B450)"),
                      (10, 2, "sub-id kept with the chest (0..3 shipped; the chest's own code "
                              "doesn't read it)"),
-                     (13, 2, "collected flag: SET = the chest is gone")]),
+                     (13, 4, "collected flag: SET = the chest is gone (-1 = none: it is back on "
+                             "every visit); set when it is opened")]),
     45: dict(name="fe102", role="Colour switch: a pillar with a crystal, 8 colours "
                   "(switch_00..07 = res 15289 + (f8 & 7); Actor_InitFlagGatedRes15289Object).",
              params=[(8, 4, "colour (switch_00..07, f8 & 7)"),
@@ -200,7 +216,10 @@ GIMMICKS = {
                   "Actor_InitFlagGatedDecoration is historical (playtest + tick decompile 2026-09-01).",
              params=[(6, 4, "scale Q12 (actor+584)"), (7, 2, "angle"),
                      (8, 4, "seal zone width (rect, centre = spawn pos)"),
-                     (9, 4, "seal zone height"), (10, 4, "nonzero -> starts hidden (bit 4)"), _DIS2]),
+                     (9, 4, "seal zone height"), (10, 4, "nonzero -> starts hidden (bit 4)"),
+                     (13, 4, "cleared flag: set when the room is cleared (the door then stays "
+                             "open). X <= 0 = hidden controller: no barrier, only sets the flag "
+                             "on clear (Actor_InitFlagGatedDecoration RF4S.exe+0x14E7C0)")]),
     48: dict(name="fe107", role="BARRIER zone, flag-gated: a rect zone that blocks/repels the player "
                   "with particle hits (Action 0x95) until its gate flag clears — the dungeon "
                   "barrier walls. MapObj_InitFlagGatedBarrierZone +0x14EDC0 / "
@@ -370,7 +389,9 @@ FORAGE = {
                  "config index, or a weighted roll over configs 0..15 when f11 != 0 (weights = "
                  "crop-param kinds 26..37 word +12). Only type with the daily BIG/SMALL size-tier "
                  "rolls (counters +7/+8).",
-            params=_FOR + [(10, 1, "ore config index (MiningOreCfg row)"),
+            params=_FOR + [(10, 1, "ore config index (MiningOreCfg row): the game keeps only "
+                                   "the low 6 bits (f10 & 63) and the shipped MapOre_Rate has "
+                                   "25 rows (0..24)"),
                            (11, 4, "nonzero = weighted roll over configs 0..15 instead of f10")]),
     1: dict(name="rune_flower_spawn", role="Fixed kind 23 — the wild RUNE FLOWER (sprite crop_023, blue "
                  "flower): NOT hand-pickable — destroyed with a sword or sickle, releasing RUNE "
@@ -465,7 +486,9 @@ SPECIAL = {
                    "Type263).",
               params=[(8, 4, "picture variant 0..7 (archive 15297 + f8 & 7)"),
                       (9, 4, "nonzero = inverted flag (discovered while f13 is CLEAR)"),
-                      (13, 2, "discovered flag (SET = already found)")]),
+                      (13, 2, "discovered flag (SET = already found); read as a signed 16-bit "
+                              "id with no 'none' value -- -1 tests the last zone-1 story bit, "
+                              "so it must be a real id 0..2559")]),
 }
 
 
@@ -477,8 +500,8 @@ PARAM_NAMES = {
     (0, 8): {8: "spawn chance", 9: "scatter radius"},
     (82, 195): {8: "collision X offset", 9: "collision Y offset", 10: "collision stamp",
                 11: "draw mode", 13: "toggle flag"},
-    (196, 335): {6: "scale", 7: "frame", 8: "depth bias", 9: "collision half-width",
-                 10: "collision half-height", 11: "solid", 12: "sprite flags", 13: "hide flag"},
+    (196, 335): {6: "scale", 7: "frame", 8: "depth bias", 9: "solid box width",
+                 10: "solid box height", 11: "no template (box)", 12: "sprite flags", 13: "hide flag"},
     (336, 9999): {6: "scale", 7: "frame", 8: "depth bias", 9: "frame duration", 10: "glow",
                   13: "hide flag"},
     0: {10: "ore config", 11: "random ore config"},
@@ -514,7 +537,7 @@ PARAM_NAMES = {
     41: {6: "light size", 8: "pulse phase"},
     42: {7: "fall direction", 8: "landing X", 9: "landing Y", 10: "map offset", 13: "active flag"},
     43: {8: "mode"},
-    44: {6: "scale", 8: "loot row", 9: "opened flag offset", 10: "sub-id", 13: "collected flag"},
+    44: {6: "scale", 8: "loot row", 9: "reveal flag offset", 10: "sub-id", 13: "collected flag"},
     45: {8: "colour", 9: "no cursor when set", 10: "unused value", 11: "sparkle", 13: "flag"},
     46: {8: "invisible", 9: "stays pressed", 10: "script event", 11: "hitbox half-width",
          12: "hitbox half-height", 13: "flag"},
@@ -676,7 +699,7 @@ _INTERACT_TYPE = {
     263: "examine",                                 # discoverable herb / switch-wall / spawner
     # damaging gimmicks
     29: "hazard", 30: "hazard", 31: "hazard", 33: "hazard", 34: "hazard",
-    44: "hazard", 48: "hazard", 52: "hazard", 54: "hazard", 55: "hazard",
+    44: "open", 48: "hazard", 52: "hazard", 54: "hazard", 55: "hazard",
     59: "hazard", 67: "hazard",
 }
 
@@ -724,7 +747,7 @@ def is_interactible(type_id, f13=None):
 
 
 # ---- GameFlag id -> emdeb name resolver (lazy; emdeb.bin optional) ----------
-# MOBJ flag arguments (f13 gates, treasure 'opened' offsets, toggle flags) are
+# MOBJ flag arguments (f13 gates, treasure reveal offsets, toggle flags) are
 # GameFlags BIT ids — the same id space emdeb.bin names (see emflags.py). This
 # resolves an id to its FLG_/REG_ symbol so the editor can show which flag a
 # barrier/door/spot is wired to.
@@ -805,3 +828,79 @@ def interaction_summary(type_id, f13=None):
         extra = f" (scene bit, abs {MOBJ_FLAG_BASE + f13})" if isinstance(f13, int) and f13 > 0 else ""
         parts.append(f"{role} f13={f13}{extra}")
     return " · ".join(parts)
+
+
+# ---- flag ids, one-shot flags, limits the validator checks ------------------------
+MOBJ_FLAG_COUNT = 2560     # zone-2 ids 0..2559 (the header's region-B capacity, see MOBJ_FLAG_BASE)
+
+
+def reads_flag(type_id):
+    """True when this type's spawner reads f13 as a flag id."""
+    return any(f == 13 for f, _s, _m in params_for(type_id))
+
+
+# Types whose own code SETS their f13 flag once and keeps it (opened / broken / picked up /
+# found / pressed / cleared): two records with one such flag act as one. {type: noun}
+ONE_SHOT_FLAG_TYPES = {
+    35: "herb pickup",      # Actor_SpawnOneTimeItemAndSetFlag RF4S.exe+0x149980: sets it on spawn
+    44: "chest",            # Actor_InitFlagGatedTreasure +0x14B130: set when opened
+    46: "switch",           # stays switched when f9 != 0 (a pressure plate, f9 = 0, lets go)
+    47: "seal door",        # sets it when the room is cleared
+    53: "crate",            # MapEntity_SpawnTreasure +0x14B680: set when broken
+}
+# Not here: type 263 (inscribed stone). Its tick (RF4S.exe+0x14D690) only READS f13 (found
+# or not); nothing in its own code sets it, and 25 shipped flags are shared between stones
+# on different maps on purpose.
+
+
+def one_shot_flag(rec):
+    """The one-shot flag a record owns (see ONE_SHOT_FLAG_TYPES), or None."""
+    tid = rec[0] & 0xFFFF
+    if tid not in ONE_SHOT_FLAG_TYPES or rec[13] in (-1, 0):
+        return None
+    if tid == 46 and rec[9] & 0xFF == 0:
+        return None                     # pressure plate: the flag drops when stepped off
+    return rec[13]
+
+
+# Types for which ANY unused id works exactly like the original: the handler treats f13 as a
+# plain "already used" bit and nothing else reads it (verified per handler above). A chest
+# with a reveal offset (f9 != 0) is left out: its reveal flag is f13 + f9. Duplicate / paste
+# give these a fresh id from the block the original sits in; everything else keeps its flag.
+FRESH_FLAG_TYPES = frozenset({35, 44, 53})
+
+# Zone-2 id blocks with a fixed meaning a new id must stay in (emflags.ZONE2_BLOCKS):
+# Day_OnAdvance (RF4S.exe+0x85A60) clears 752..969 every day -- daily crates and pickups
+# come back -- while 705..739 holds the crates that stay broken, and 69..647 the per-map
+# scene bits (chests, gates, switches, stones).
+FLAG_BLOCKS = ((752, 969, "daily-reset"), (705, 739, "permanent crate"), (69, 647, "scene"))
+DEFAULT_FLAG_BLOCK = {35: (752, 969), 44: (69, 647), 53: (752, 969), 263: (69, 647)}
+
+
+def flag_block(flag, type_id=None):
+    """(lo, hi) of the FLAG_BLOCKS entry holding `flag`, else the type's default block for a
+    new record (flag None), else None."""
+    if flag is not None:
+        for lo, hi, _n in FLAG_BLOCKS:
+            if lo <= flag <= hi:
+                return lo, hi
+        return None
+    return DEFAULT_FLAG_BLOCK.get(type_id)
+
+
+# Add-tool starting values that differ from the plain template [type, -1 x5, 4096, 0 .. 0,
+# f13 -1]: fields where 0 / -1 does something odd in the game, set to the value most shipped
+# records of that type use. (A new chest / crate / herb / inscribed stone also gets an unused
+# flag, see DEFAULT_FLAG_BLOCK.)
+ADD_DEFAULTS = {
+    12: {9: 255, 10: 255, 11: 255},    # tint: white, not black
+    13: {8: 210},                      # sprite yaw base: the game's own default
+    24: {8: 2, 9: 8},                  # fishing spot: 2 fish, 1-tile scatter
+    30: {8: 32, 9: 120, 10: 100},      # wind zone: some force and a zone
+    31: {8: 120, 9: 120, 10: 800},     # falling rocks: period, scatter, damage
+    35: {9: 2},                        # herb pickup: 48 + rand(0..5)
+}
+
+MAPORE_RATE_ROWS = 25       # rows of the shipped MapOre_Rate table (type-0 f10 & 63 indexes it)
+FORAGE_MAX_SPAWNS = 32      # Map_HandleSpecialTriggerEntity RF4S.exe+0x187A00 spawns at most 32
+DOOR_SLOTS = 4              # the door / road / wall collision registry (RF4S.exe+0xE95C60)

@@ -15,7 +15,14 @@ the exe at run time:
                loads archive = map id - first map id + first archive (see rf4s_modkit.areagroup)
 
 Every table records its RVA; the file records the exe it came from (size + SHA-256).
-Run:  python gen_exe_tables_json.py [--exe PATH] [--out PATH]
+
+A second file, refdata/rf4s_exe_collision.json (build_collision), holds the collision
+templates of the interactive objects (MOBJ types 196..335): g_mapEntityTemplates
+RF4S.exe+0x4D5030, one pointer per type - 197 (type 196 uses 197's). Each template: +32 i16
+depth bias, +64 u16 width, +66 u16 height (tiles), +68 / +70 i16 x / y offset (sub-units),
++72 u32 cells[width * height], the ATTR bits OR-ed into the tiles the object covers.
+
+Run:  python gen_exe_tables_json.py [--exe PATH] [--out PATH] [--collision-out PATH]
 """
 from __future__ import annotations
 
@@ -85,6 +92,60 @@ def build(exe):
     }
 
 
+TEMPLATE_RVA, TEMPLATE_FIRST, TEMPLATE_TYPES = 0x4D5030, 197, range(196, 336)
+COLLISION_ABOUT = (
+    "Collision templates of the interactive objects (MOBJ types 196..335), extracted from "
+    "g_mapEntityTemplates RF4S.exe+0x4D5030 by gen_exe_tables_json.py; index = max(0, type - "
+    "197), so type 196 uses 197's. Map_SpawnInteractiveObject RF4S.exe+0x143760 stamps a "
+    "record's template when its f11 is 0 and it is shown: Map_StampEntityCollisionTiles "
+    "+0x195FC0 ORs cell (c, r) into ATTR tile ((f14 + off_x) >> 3) - w / 2 + c, ((f15 + off_y) "
+    ">> 3) - h / 2 + r, columns mirrored when f6 < 0; Map_TickEntityArray +0x143FB0 removes / "
+    "re-stamps it when the object's flag hides / shows it. by_type: type -> template key "
+    "(types without a template are left out). templates: key (the template's RVA) -> w, h "
+    "(tiles), off (sub-units), z_bias (added to the object's depth), cells (w * h, row-major).")
+
+
+def build_collision(exe):
+    data = exetables.exe_bytes(exe)
+    pe = int.from_bytes(data[0x3C:0x40], "little")
+    image_base = int.from_bytes(data[pe + 48:pe + 56], "little")
+    ptrs = exetables.read("Q", TEMPLATE_RVA, max(TEMPLATE_TYPES) - TEMPLATE_FIRST + 1, exe)
+    by_type, templates = {}, {}
+    for t in TEMPLATE_TYPES:
+        p = ptrs[max(0, t - TEMPLATE_FIRST)]
+        if not p:
+            continue
+        rva = p - image_base
+        key = f"0x{rva:X}"
+        if key not in templates:
+            z_bias = exetables.read("h", rva + 32, 1, exe)[0]
+            w, h, ox, oy = exetables.read("h", rva + 64, 4, exe)
+            w, h = w & 0xFFFF, h & 0xFFFF
+            templates[key] = {"w": w, "h": h, "off": [ox, oy], "z_bias": z_bias,
+                              "cells": list(exetables.read("I", rva + 72, w * h, exe))}
+        by_type[str(t)] = key
+    return {
+        "_about": COLLISION_ABOUT,
+        "source": {"file": "RF4S.exe", "size": len(data),
+                   "sha256": hashlib.sha256(data).hexdigest()},
+        "table": {"rva": f"0x{TEMPLATE_RVA:X}", "first_type": TEMPLATE_FIRST},
+        "by_type": by_type,
+        "templates": templates,
+    }
+
+
+def dumps_collision(obj):
+    """JSON with one template per line."""
+    out = ["{"]
+    for k in ("_about", "source", "table", "by_type"):
+        out.append(f' {json.dumps(k)}: {json.dumps(obj[k])},')
+    out.append(' "templates": {')
+    out.append(",\n".join(f"  {json.dumps(k)}: {json.dumps(v)}" for k, v in obj["templates"].items()))
+    out.append(" }")
+    out.append("}")
+    return "\n".join(out) + "\n"
+
+
 def dumps(obj):
     """JSON with one table row per line (small diffs when the exe changes)."""
     out = ["{"]
@@ -107,6 +168,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--exe", help="RF4S.exe to read (default: the selected game folder's)")
     ap.add_argument("--out", default=str(refdata_path("rf4s_exe_tables.json")))
+    ap.add_argument("--collision-out", default=str(refdata_path("rf4s_exe_collision.json")))
     a = ap.parse_args(argv)
     obj = build(a.exe)
     text = dumps(obj)
@@ -116,6 +178,12 @@ def main(argv=None):
           f"{len(obj['crate_pools'])} crate pools, {len(obj['area_bgm']['sound_ids'])} BGM ids, "
           f"{len(obj['encounter_zones']['rows'])} encounter zones "
           f"(RF4S.exe sha256 {obj['source']['sha256'][:12]}...)")
+    col = build_collision(a.exe)
+    text = dumps_collision(col)
+    json.loads(text)
+    pathlib.Path(a.collision_out).write_text(text, encoding="utf-8")
+    print(f"wrote {a.collision_out}: {len(col['templates'])} collision templates for "
+          f"{len(col['by_type'])} object types")
 
 
 if __name__ == "__main__":
