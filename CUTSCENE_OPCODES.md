@@ -3830,10 +3830,10 @@ Kills an event actor on the spot: it plays its death animation, is knocked back,
 Args:
   0. event_key (the key the event actor was spawned with)
 
-### `op 181` — DismissEventActor(event_key)
-*handler:* `ScriptVMOp_DismissEventActor`
+### `op 181` — DisableEventActorCombat(event_key)
+*handler:* `ScriptVMOp_DisableEventActorCombat`
 
-Make a spawned event actor harmless and passive: it stops being a wild (hostile) monster and stays where it is; it is NOT removed and does not have to be in the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.
+Make a spawned event actor stop fighting altogether and stay where it is: it no longer attacks the player, does not hit back when attacked and does not attack other monsters, but it keeps its idle animation. It is NOT removed and does not have to be in the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.
 
 Args:
   0. event_key (key given to SpawnEventActor)
@@ -11129,7 +11129,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` | 173 | `SetEventActorInScriptFlag` |
 | 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` | 176 | `SetEventActorScale` |
 | 177 | `ResetEventActorToIdle` | 178 | `SetEventActorAuxYaw` | 179 | `WaitEventActorAuxYaw` |
-| 180 | `KillEventActor` | 181 | `DismissEventActor` | 182 | `GetEventActorTilePosition` |
+| 180 | `KillEventActor` | 181 | `DisableEventActorCombat` | 182 | `GetEventActorTilePosition` |
 | 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` | 185 | `PlayActorSplash` |
 | 186 | `SetCameraPosition` | 187 | `ReattachCameraToActor` | 188 | `HoldCameraInPlace` |
 | 189 | `ResetCameraToPlayer` | 190 | `SetCameraTarget` | 191 | `ResetCameraToActor` |

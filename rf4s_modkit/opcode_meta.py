@@ -894,7 +894,7 @@ _M.update({
           "Effect_ApplyByKindAndSpawn — the event-actor twin of op 139. arg0 = event key "
           "(char id), arg1 = effect kind id.",
           ["event key", "effect kind id"]),
-    181: ("DismissEventActor", "actor",
+    181: ("DisableEventActorCombat", "actor",
           "Cleanly despawn a spawned event actor — NO death animation (contrast op 180 "
           "KillEventActor). arg0 = event key. Runs the canonical companion-dismiss "
           "reset and decrements the event-companion count; the player can't be dismissed.",
@@ -952,7 +952,7 @@ _M.update({
           "Remove a spawned event actor from the calendar-event registry, matching on BOTH "
           "char id and event key; frees its slot on the next sweep. arg0 = char id, arg1 = "
           "event key. Registry-level cleanup — no death animation and no dismiss reset "
-          "(contrast KillEventActor op 180 / DismissEventActor op 181). Use when a scene ends.",
+          "(contrast KillEventActor op 180 / DisableEventActorCombat op 181). Use when a scene ends.",
           ["char id", "event key"]),
     168: ("EventActorResyncAnimFrame", "actor",
           "Force a spawned event actor to re-sync its animation frame from its widget after a "
