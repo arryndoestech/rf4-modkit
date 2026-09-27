@@ -502,6 +502,19 @@ class PickTool(Tool):
 
 
 # --------------------------------------------------------------------------- #
+def new_entity_record(tid, sx=0, sy=0):
+    """A fresh MOBJ record of type `tid` at (sx, sy) sub-units, with the per-type defaults
+    taken from the shipped maps (the Add tool and the object palette's pictures use it)."""
+    if mobj_types.is_positionless(tid):
+        sx = sy = 0                          # map parameter records have no position
+    rec = [tid, -1, -1, -1, -1, -1, 4096, 0, 0, 0, 0, 0, 0, -1, sx, sy]
+    for f, v in mobj_params.ADD_DEFAULTS.get(tid & 0xFFFF, {}).items():
+        rec[f] = v
+    if (tid & 0xFFFF) == 52:
+        rec[8], rec[9] = sx, sy              # the knock-back target: its own spot to start with
+    return rec
+
+
 class AddTool(Tool):
     name, label, key, cursor = "add", "Add", "a", "plus"
     hint = "Click a tile to place the chosen kind of object there."
@@ -522,13 +535,7 @@ class AddTool(Tool):
             if why:
                 ed.status(f"Can't add: {why}")
                 return
-            if mobj_types.is_positionless(tid):
-                sx = sy = 0                  # map parameter records have no position
-            rec = [tid, -1, -1, -1, -1, -1, 4096, 0, 0, 0, 0, 0, 0, -1, sx, sy]
-            for f, v in mobj_params.ADD_DEFAULTS.get(tid & 0xFFFF, {}).items():
-                rec[f] = v
-            if (tid & 0xFFFF) == 52:
-                rec[8], rec[9] = sx, sy      # the knock-back target: its own spot to start with
+            rec = new_entity_record(tid, sx, sy)
             note = ""
             if mobj_params.flag_block(None, tid & 0xFFFF):
                 new, why = data.fresh_flag(doc.map.mobj_records(), doc.map.mapj_records(), rec,

@@ -490,6 +490,15 @@ class Sprites:
         got = self._src[key]
         return (fn, key[1], got[1]) if got else None
 
+    def image(self, o):
+        """The object's sprite as a PIL image at its own size (mirrored like the game draws
+        it), or None when it has none."""
+        src = self.source(o)
+        got = self._src.get((src[0], src[1])) if src else None
+        if not got:
+            return None
+        return got[0].transpose(Image.FLIP_LEFT_RIGHT) if spritequad.mirrored(o) else got[0]
+
     def gate_source(self):
         """(key, 0, quad) for a monster gate, or None: every Gate actor kind (359..390)
         takes model 754 = mons/EFC_00_GATEA from rf3NpcParam -- six camera-facing quads

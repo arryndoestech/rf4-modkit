@@ -25,11 +25,12 @@ from . import data, dialogs, render, tools, ui
 from . import view as view_mod
 from .document import MapDocument
 from .inspector import Inspector
+from .palette import PaletteTab
 from .tabs import (FLAGS_LIVE, FLAGS_NONE, LAYER_GROUPS, EncountersTab, MapTab, MinimapPanel, ObjectsTab,
                    ProblemsTab, ViewTab)
 from .view import MapView
 
-TABS = ("View", "Inspect", "Objects", "Properties", "Gates", "Problems")
+TABS = ("View", "Inspect", "Objects", "Palette", "Properties", "Gates", "Problems")
 _MOVE_ASPECT = {"mobj": "mobj", "warp": "mapj", "si": "si", "gpos": "gen", "mpos": "gen"}
 # The clipboard is the system clipboard: one tagged JSON line, so a copied object survives
 # switching maps (the host may rebuild this panel) and pastes into another toolkit window.
@@ -103,6 +104,7 @@ class MapEditorPanel:
         self.nb.pack(fill="both", expand=True)
         self.inspector = Inspector(self.nb, self)
         self.objects = ObjectsTab(self.nb, self)
+        self.palette = PaletteTab(self.nb, self)
         self.maptab = MapTab(self.nb, self)
         # the minimap: docked under the tabs, whatever tab is open
         self.minimap_panel = MinimapPanel(side, self)
@@ -110,7 +112,7 @@ class MapEditorPanel:
         self.encounters = EncountersTab(self.nb, self)
         self.viewtab = ViewTab(self.nb, self)
         self.problems = ProblemsTab(self.nb, self)
-        for w, t in zip((self.viewtab, self.inspector, self.objects, self.maptab,
+        for w, t in zip((self.viewtab, self.inspector, self.objects, self.palette, self.maptab,
                          self.encounters, self.problems), TABS):
             self.nb.add(w, text=t)
         self.show_tab("View")                   # the editor opens on the View tab
@@ -238,6 +240,7 @@ class MapEditorPanel:
     def tex_reader(self, reader):
         self._reader = reader
         self.view.set_reader(reader)
+        self.palette.set_reader(reader)
 
     @property
     def map(self):
@@ -291,6 +294,7 @@ class MapEditorPanel:
         self.inspector.show_selection(None)
         self.inspector.refresh(frozenset({"attr"}))
         self.objects.rebuild()
+        self.palette.refresh()
         self.maptab.refresh()
         self.minimap_panel.refresh()
         self.encounters.refresh()
@@ -370,6 +374,8 @@ class MapEditorPanel:
         self.inspector.refresh(aspects)
         if not live:
             self._schedule("objects", "maptab")
+            if aspects & {"mobj", "chunks"}:
+                self._schedule("palette")
             if "gen" in aspects:                # (the Map tab's MGRP checks count the gates)
                 self._schedule("encounters", "maptab")
             if aspects & {"attr", "mobj", "mapj", "props", "chunks"} and self.on_change:
@@ -390,6 +396,8 @@ class MapEditorPanel:
             return
         if "objects" in names:
             self.objects.rebuild()
+        if "palette" in names:
+            self.palette.refresh()
         if "maptab" in names:
             self.maptab.refresh()
             self.minimap_panel.refresh()

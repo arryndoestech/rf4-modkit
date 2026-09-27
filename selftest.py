@@ -6463,6 +6463,90 @@ def test_map_editor_attr_tip():
         root.destroy()
 
 
+def test_map_editor_palette():
+    """Map editor Palette tab: every placeable type as a cell with the sprite a new record of it
+    shows (the Add tool's defaults) or its category marker; Find / the group filter narrow the
+    grid; a click picks the type for the Add tool (the tab stays open) and outlines it; the
+    types already on the map are named in green, and that follows adds and undo."""
+    print("map editor Palette tab (object pictures, pick to place):")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor palette", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("map editor palette", "no extracted bundleMain"); return
+    me = _map_editor()
+    from map_editor import data as _data, tools as _tools
+    from rf4s_modkit import rf4m as _rf4m
+    root = tk.Tk()
+    root.geometry("1000x700+40+40")
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        f = tk.Frame(root)
+        f.pack(fill="both", expand=True)
+        ed = me.MapEditorPanel(f, _rf4m.Rf4mMap.load(B / "MAP_CITY_04.rf4m"), "MAP_CITY_04",
+                               tex_reader=_data.folder_reader(B))
+        ed.show_tab("Palette")
+        pal = ed.palette
+        for _ in range(200):
+            root.update()
+            if pal.canvas.winfo_ismapped() and pal.canvas.winfo_width() > 100:
+                break
+        pal.group.set("Interactive objects")
+        pal._relayout()
+        pal.make_all()
+        objs = list(pal._shown)
+        from rf4s_modkit import mobj_types as _mt
+        shipped = [t for t in objs if (B / f"{_mt.mobj_name(t)}.texture").exists()]
+        missing = [t for t in shipped if pal._photos.get(t) is None]
+        _check("Palette: the interactive-object group lists only types 196..335, each with its "
+               "sprite when the game ships one", objs and all(196 <= t < 336 for t in objs)
+               and len(shipped) > 100 and not missing, (len(objs), len(shipped), missing[:5]))
+        pal.group.set("All")
+        pal.query.set("chest")
+        root.update()
+        _check("Palette: Find narrows the grid (chest -> the treasure chest, type 44)",
+               44 in pal._shown and len(pal._shown) < 10, pal._shown)
+        pal.query.set("")
+        pal.group.set("Map parameters (no picture)")
+        pal._relayout()
+        pal.make_all()
+        _check("Palette: map parameter records get their marker, not a picture",
+               pal._shown and all(9 <= t <= 19 and pal._photos.get(t) is None for t in pal._shown),
+               pal._shown)
+        pal.group.set("All")
+        pal.query.set("")
+        root.update()
+        x0, y0 = pal._cell_xy(223)
+        pal.canvas.yview_moveto(y0 / max(1, float(pal.canvas.cget("scrollregion").split()[3])))
+        root.update()
+        wy = y0 - pal.canvas.canvasy(0) + 10
+        tid = pal.tid_at(x0 + 10, wy)
+        pal._click(type("E", (), {"x": x0 + 10, "y": wy})())
+        outlined = pal.canvas.itemcget("cell223", "outline")
+        _check("Palette: a click picks the type for the Add tool, outlines it and keeps the tab "
+               "open", tid == 223 and ed.add_type == 223 and ed.tool.name == "add"
+               and ed.add_kind == "entity" and ed.nb.tab(ed.nb.select(), "text") == "Palette"
+               and outlined.lower() == "#00e5ff", (tid, ed.add_type, ed.tool.name, outlined))
+        used = lambda t: pal.canvas.itemcget(f"name{t}", "fill") == pal.USED
+        n0 = len(ed.doc.map.mobj_records())
+        on_before = used(223)
+        with ed.doc.edit("add", "mobj"):
+            ed.doc.map.add_mobj_record(_tools.new_entity_record(223, 80, 80))
+        root.update()
+        after_add = used(223)
+        ed.undo()
+        root.update()
+        _check("Palette: types on the map are named in green, following adds and undo",
+               not on_before and after_add and not used(223)
+               and len(ed.doc.map.mobj_records()) == n0, (on_before, after_add, used(223)))
+        _check("Palette raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
 def test_map_editor_multi_select():
     """Map editor multi-selection: Shift+click adds / removes, a drag on empty map selects
     what lies in the box, dragging one of several moves them all (one undo step), arrow keys
@@ -10801,7 +10885,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):

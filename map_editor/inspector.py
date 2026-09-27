@@ -883,6 +883,9 @@ class AddOptions(ttk.Frame):
         self.type_combo.var.set(mobj_choice(tid))
         self.ed.add_type = tid
         self.type_lbl.config(text=mobj_types.mobj_label(tid))
+        pal = getattr(self.ed, "palette", None)
+        if pal is not None:
+            pal.mark()
 
     def sync(self):
         k = self.ed.add_kind
