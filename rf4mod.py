@@ -2977,6 +2977,33 @@ def cmd_res_model_import(a):
               "the nearest original vertex")
 
 
+def cmd_res_model_import_glb(a):
+    from rf4s_modkit import model, modelwrite, meshimport, gltf
+    src = _resolve(a.file)
+    data = src.read_bytes()
+    mapping = {}
+    for item in a.map or []:
+        if "=" not in item:
+            sys.exit(f"error: --map takes SHAPE=MESH, got {item!r}")
+        k, v = item.split("=", 1)
+        mapping[k] = v
+    try:
+        out, rep = meshimport.import_glb(data, _resolve(a.glb), mapping=mapping or None)
+    except (model.ModelError, modelwrite.ModelWriteError, meshimport.MeshImportError, gltf.GltfError) as e:
+        sys.exit(f"error: {e}")
+    print(rep.text())
+    if out == data:
+        print("nothing changed (every matched shape reproduces the original) -- no file written")
+        return
+    probs = modelwrite.validate(out)
+    if probs:
+        sys.exit("error: the rebuilt file does not check out: " + "; ".join(probs))
+    model.parse(out)
+    dst = pathlib.Path(a.out) if a.out else pathlib.Path(src.stem + "_glb.model")
+    dst.write_bytes(out)
+    print(f"{len(rep.changed)} shape(s) rebuilt -> {dst} ({_size_note(len(data), len(out))})")
+
+
 def cmd_res_model_transform(a):
     from rf4s_modkit import model, modelwrite
     data = _resolve(a.file).read_bytes()
@@ -4312,6 +4339,17 @@ def build_parser():
                     "like the shape)")
     r7.add_argument("-o", "--out", required=True)
     r7.set_defaults(func=cmd_res_model_import)
+    rmg = rsub.add_parser("model-import-glb", help="Import from Blender: rebuild the shapes a "
+                          ".glb / .gltf has meshes for (matched by name, as model-glb names them) "
+                          "-- positions, normals, UVs AND bone weights; any vertex / triangle "
+                          "count. Unchanged meshes keep their bytes")
+    rmg.add_argument("file", help=".model")
+    rmg.add_argument("glb", help=".glb / .gltf (a model-glb export, edited in Blender and exported)")
+    rmg.add_argument("--map", action="append", metavar="SHAPE=MESH",
+                     help="put mesh MESH (the glTF node / Blender object name) on shape SHAPE "
+                          "(index or name) instead of matching by name; repeatable")
+    rmg.add_argument("-o", "--out", help="output .model (default: <model>_glb.model here)")
+    rmg.set_defaults(func=cmd_res_model_import_glb)
     r8 = rsub.add_parser("model-transform", help="move / scale / rotate one shape's vertices in "
                          "place (model space; file size unchanged)")
     r8.add_argument("file"); r8.add_argument("shape", help="shape index or name, or 'all'")

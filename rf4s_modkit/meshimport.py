@@ -633,10 +633,10 @@ def import_glb(data, path, *, mapping=None):
     """(new .model bytes, ImportReport): the shapes a glTF / GLB's meshes match (by name, see
     match_shapes; `mapping` = {shape index or name: mesh node name} overrides) rebuilt from
     those meshes with their bone weights. The result equals `data` byte for byte when nothing
-    changed."""
+    changed. `path` may also be read_gltf's (json, buffers) or a list of GltfMesh."""
     m = _model.parse(data)
     L = _mw.layout(data)
-    meshes = read_meshes(path)
+    meshes = list(path) if isinstance(path, list) else read_meshes(path)
     if mapping:
         by = {me.name: me for me in meshes}
         plan = {}
