@@ -682,7 +682,16 @@ def cmd_map_validate(a):
     known = {i for i in range(map_names.map_count() + 1) if map_names.map_file(i)}
     reader, name = ((None, None) if getattr(a, "no_ground", False)
                     else _ground_reader_for(path, a.dir, a.map))
-    findings = m.validate(known_maps=known, ground_reader=reader, map_name=name)
+    # warp destinations are read from the same folder (the destination's .rf4m by its exact
+    # game name), so arrival points get checked against the destination's grid and warps
+    dest_dir = pathlib.Path(a.dir) if a.dir else path.parent
+
+    def dest_loader(mid):
+        fn = map_names.map_file(mid)
+        p = dest_dir / f"{fn}.rf4m" if fn else None
+        return rf4m.Rf4mMap.load(p) if p is not None and p.is_file() else None
+    findings = m.validate(known_maps=known, ground_reader=reader, map_name=name,
+                          dest_loader=dest_loader)
     if not findings:
         extra = "" if reader else "  [ground atlas NOT checked: pass --dir]"
         print(f"{a.file}: OK (no loader problems found){extra}")
