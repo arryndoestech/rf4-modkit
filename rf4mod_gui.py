@@ -1798,7 +1798,8 @@ class App:
         ttk.Label(win, text="Texture wrap applies to every material. DrawOrder (pass 0-3, drawn in "
                             "order), BlendType (0 off, 1 alpha, 2 additive, 3 One/One, 4 One/Zero) and "
                             "CombineType (0 texture, 1 texture lit, 2/3 flat CombineColor) can only be "
-                            "changed where the material already has them.",
+                            "changed where the material already has them. Models a map places "
+                            "always wrap mirrored (the game overrides the file there).",
                   wraplength=620, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
         grid = ttk.Frame(win)
         grid.pack(fill="both", expand=True, padx=8)
