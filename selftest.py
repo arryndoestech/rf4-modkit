@@ -1910,27 +1910,27 @@ def test_script():
         except Exception:
             _cxok = False
         _check("set_action_arg_value on a variable/computed arg raises clean ScriptError", _cxok)
-        # GUI primary value-edit path (_set_value -> set_action_arg_value_or_repoint): unlike the
-        # strict set_action_arg_value above, it SETS any arg -- auto-repointing a variable/computed/
-        # fixed-push arg to a freshly appended literal -- so the value reads back after rebuild+
+        # GUI primary value-edit path (_set_value -> set_arg_value): unlike the
+        # strict set_action_arg_value above, it SETS any arg -- giving a variable/computed/
+        # fixed-push arg its own literal and rebuilding the bank -- so the value reads back after rebuild+
         # reparse, and it raises a clean ScriptError on a bad pc/arg (which the GUI turns into a
         # messagebox, never a crash). Fresh container so the shared `c` stays clean.
         _rpc = script.Container(raw)
         _rb = _rpc.banks[_bx.index]
-        _rpc.set_action_arg_value_or_repoint(_rb, _pcx, _ix, 88)
+        _rpc.set_arg_value(_rb, _pcx, _ix, 88)
         _rc2 = script.Container(_rpc.build())
         _rst2 = script.decode_statement(_rc2.banks[_bx.index].data, _pcx)
         _rv2, _rok2 = script.eval_expr(_rc2.banks[_bx.index].data, _rst2.args[_ix])
         _rrej = 0
-        for _rbad in (lambda: _rpc.set_action_arg_value_or_repoint(_rb, 0xFFFE, 0, 5),
-                      lambda: _rpc.set_action_arg_value_or_repoint(_rb, _pcx, 99, 5)):
+        for _rbad in (lambda: _rpc.set_arg_value(_rb, 0xFFFE, 0, 5),
+                      lambda: _rpc.set_arg_value(_rb, _pcx, 99, 5)):
             try:
                 _rbad()
             except script.ScriptError:
                 _rrej += 1
             except Exception:
                 pass
-        _check("set_action_arg_value_or_repoint (GUI edit path) sets a variable arg + rejects bad pc/arg",
+        _check("set_arg_value (GUI edit path) sets a variable arg + rejects bad pc/arg",
                _rok2 and _rv2 == 88 and _rrej == 2)
     else:
         _skip("complex-expr edit safety", "no complex-expr arg found in sample")
@@ -2669,12 +2669,12 @@ def test_script():
         _skip("script value-edit", "no settable immediate arg found")
     _check("eval_expr resolves an s8 immediate",
            script.eval_expr(b"\x18\x05\x00", 0) == (5, True))
-    # structural editing: grow_bank repack + trampoline insert/delete
+    # structural editing: set_bank_bytes repack + relinked insert/delete
     c4 = script.Container(raw)
-    c4.grow_bank(5, b"\x00" * 8)
+    c4.set_bank_bytes(5, bytes(c4.banks[5].data) + b"\x00" * 8)
     o4 = c4.build()
     c4b = script.Container(o4)
-    _check("grow_bank keeps other banks byte-identical",
+    _check("set_bank_bytes keeps other banks byte-identical",
            all(bytes(script.Container(raw).banks[i].data) == bytes(c4b.banks[i].data)
                for i in range(0, len(c4b.banks), 137) if i != 5))
     # find a clean scene with a DIALOG, insert a beat before it, verify
@@ -2693,33 +2693,36 @@ def test_script():
         b5, s5, dpc5 = target
         before = sum(1 for st in s5.stmts.values() if st.mnem == "DIALOG")
         c5.insert_before(b5, dpc5, "DIALOG #8709")
+        _e5 = c5.last_relink[b5.index][s5.entry_pc]
         c5b = script.Container(c5.build())
-        s5b = script.disassemble_scene(c5b.banks[b5.index], s5.action_type, s5.entry_pc)
+        s5b = script.disassemble_scene(c5b.banks[b5.index], s5.action_type, _e5)
         ids = [st.dialog_id for st in s5b.stmts.values() if st.mnem == "DIALOG"]
-        _check("trampoline insert adds the beat + scene stays clean",
-               s5b.ok and 8709 in ids and len(ids) == before + 1)
+        _check("relinked insert adds the beat in place (no JMP) + scene stays clean",
+               s5b.ok and 8709 in ids and len(ids) == before + 1
+               and sum(st.mnem == "JMP" for st in s5b.stmts.values())
+               == sum(st.mnem == "JMP" for st in s5.stmts.values()))
         _check("insert leaves other banks byte-identical",
                all(bytes(script.Container(raw).banks[i].data) == bytes(c5b.banks[i].data)
                    for i in range(0, len(c5b.banks), 211) if i != b5.index))
         # rewrite_scene: author a fresh body on the same trigger
         c6 = script.Container(raw)
-        c6.rewrite_scene(b5.index, s5.entry_pc, "DIALOG #8709\nDIALOG #8709")
-        s6 = script.disassemble_scene(c6.banks[b5.index], s5.action_type, s5.entry_pc)
+        _e6 = c6.rewrite_scene(b5.index, s5.entry_pc, "DIALOG #8709\nDIALOG #8709")
+        s6 = script.disassemble_scene(c6.banks[b5.index], s5.action_type, _e6)
         ids6 = [st.dialog_id for st in s6.stmts.values() if st.mnem == "DIALOG"]
         _check("rewrite_scene installs the new body",
                s6.ok and ids6.count(8709) >= 2)
-        # compound edits compose: an in-place edit must survive a LATER grow+repoint (the real
+        # compound edits compose: an in-place edit must survive a LATER rebuild (the real
         # multi-edit modder workflow, where the second edit shifts file offsets). Both edits must
         # be present after build -> reparse from scratch.
         c7 = script.Container(raw)
         b7 = c7.banks[b5.index]
         b7.set_dialog_id(dpc5, 9001)                    # 1) in-place edit
-        c7.insert_before(b7, dpc5, "DIALOG #9002")  # 2) grow + trampoline (shifts offsets)
+        c7.insert_before(b7, dpc5, "DIALOG #9002")  # 2) bank rebuilt (shifts offsets)
         _ids7 = [st.dialog_id
                  for sc in script.disassemble_bank(script.Container(c7.build()).banks[b5.index],
                                                     discover=False)
                  for st in sc.stmts.values() if st.mnem == "DIALOG"]
-        _check("compound edits compose (in-place edit survives a later grow+repoint)",
+        _check("compound edits compose (in-place edit survives a later rebuild)",
                9001 in _ids7 and 9002 in _ids7)
         # author-by-name: insert a DIALOG + an action resolved BY NAME in one shot; both must
         # persist through build->reparse and the action must decode (the opcode half of the
@@ -2728,7 +2731,8 @@ def test_script():
         _give = script.op_from_name("GivePlayerItem")
         c8.insert_before(c8.banks[b5.index], dpc5,
                          "DIALOG #8801\nop%d 258, 1, 0" % _give)
-        s8 = script.disassemble_scene(c8.banks[b5.index], s5.action_type, s5.entry_pc)
+        s8 = script.disassemble_scene(c8.banks[b5.index], s5.action_type,
+                                      c8.last_relink[b5.index][s5.entry_pc])
         _m8 = [script.opcode_mnemonic(st.op) for st in s8.stmts.values() if st.op < 0xFFF0]
         _d8 = [st.dialog_id for st in s8.stmts.values() if st.mnem == "DIALOG"]
         _check("author-by-name: insert DIALOG + action-by-name composes + decodes",
@@ -2737,8 +2741,8 @@ def test_script():
     else:
         _skip("script structural insert", "no suitable scene found")
     # delete-safety: deleting a statement that is a BRANCH TARGET must not corrupt the scene --
-    # the trampoline 'skip' leaves a jump-over at that pc so the branch forwards to the next
-    # statement (no dangling reference). Find such a case, delete the target, verify still valid.
+    # the rebuild sends the branch to the next statement (no dangling reference). Find such a
+    # case, delete the target, verify still valid.
     cD = script.Container(raw)
     _dtgt = None
     for _bd2 in cD.banks[:30]:
@@ -2747,7 +2751,8 @@ def test_script():
                 continue
             for _pc, _st in _scd.stmts.items():
                 for _t in (_st.code_targets or []):
-                    if _t is not None and _t in _scd.stmts and _t != _pc:
+                    if (_t is not None and _t in _scd.stmts and _t != _pc
+                            and _scd.stmts[_t].falls_through and not _scd.stmts[_t].terminator):
                         _dtgt = (_bd2, _scd, _t)
                         break
                 if _dtgt:
@@ -2758,10 +2763,16 @@ def test_script():
             break
     if _dtgt:
         _bd2, _scd, _t = _dtgt
-        cD.delete_statement(_bd2, _t)
-        _scd2 = script.disassemble_scene(_bd2, _scd.action_type, _scd.entry_pc)
-        _check("deleting a branch target keeps the scene valid (jump-over forwards the branch)",
-               _scd2.ok and cD.build() is not None)
+        _st_t = _scd.stmts[_t]
+        if _st_t.falls_through and not _st_t.terminator:
+            _nx = cD.delete_statement(_bd2, _t)
+            _scd2 = script.disassemble_scene(_bd2, _scd.action_type,
+                                             cD.last_relink[cD.banks.index(_bd2)][_scd.entry_pc])
+            _check("deleting a branch target keeps the scene valid (the branch goes to the next statement)",
+                   _scd2.ok and _nx in _scd2.stmts and len(_scd2.stmts) == len(_scd.stmts) - 1
+                   and cD.build() is not None)
+        else:
+            _skip("delete branch-target safety", "the first branch target found never falls through")
     else:
         _skip("delete branch-target safety", "no in-scene branch target found in sample")
     # global-bank edit path: the special opening-cutscene bank is addressed by a DIRECT header
@@ -4928,7 +4939,7 @@ def test_script_authoring():
     # --- header max-bank-size words (the engine's reusable load buffers) -------------------
     # ScriptTask_FirstTimeInit (RF4S.exe+0x1EE060) sizes one buffer per bank kind from header
     # words 4 / 12 / 13 and the loader (RF4S.exe+0x23F9C0) copies each bank into it, so a bank
-    # grown past its word overflows the game's heap. grow_bank must raise the word.
+    # grown past its word overflows the game's heap. set_bank_bytes must raise the word.
     caps = {k: c.max_bank_size(k) for k in ("primary", "tail", "global")}
     actual = {}
     for kind in ("primary", "tail", "global"):
@@ -4939,7 +4950,7 @@ def test_script_authoring():
     big = max((b for b in cg.banks if b.kind == "tail"), key=lambda b: len(b.data))
     gi_big = cg.banks.index(big)
     before = cg.max_bank_size("tail")
-    cg.grow_bank(big, b"\x00" * 64)
+    cg.set_bank_bytes(big, bytes(big.data) + b"\x00" * 64)
     grown = script.Container(cg.build())
     _check("growing the largest bank raises its kind's max-size word (no heap overflow in game)",
            cg.max_bank_size("tail") == before + 64 == len(big.data)
@@ -5046,16 +5057,17 @@ def test_script_authoring():
               if s.ok and any(x.mnem == "DIALOG" for x in s.stmts.values()))
     dpc = next(pc for pc, x in sc.stmts.items() if x.mnem == "DIALOG")
     c3.insert_after(b3, dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg0 = 3)")
-    sc3 = script.disassemble_scene(b3, sc.action_type, sc.entry_pc)
+    _e3 = c3.last_relink[213][sc.entry_pc]
+    sc3 = script.disassemble_scene(b3, sc.action_type, _e3)
     lst = scriptasm.scene_listing(sc3, b3)
     _check("insert_after accepts listing text (branch + label + STORE) and the scene stays clean",
            sc3.ok and "BR_Z (FLG_KOKUHAKU_NOW) ->" in lst and "STORE (reg0 = 3)" in lst
-           and "DIALOG #5" in lst and len(sc3.stmts) == len(sc.stmts) + 5,   # 3 new + moved copy + JMP back
+           and "DIALOG #5" in lst and len(sc3.stmts) == len(sc.stmts) + 3,   # 3 new, in place
            f"{len(sc.stmts)} -> {len(sc3.stmts)} stmts, ok={sc3.ok}")
     body = ("FRAME 2\nSetSpeakerNancy 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
             "PROMPT_CHOICE CANCEL->done, #100->yes, #101->done\nyes:\nGivePlayerItem 258, 1, 0\ndone:\nEND")
-    c3.rewrite_scene(b3, sc.entry_pc, body)
-    sc4 = script.disassemble_scene(b3, sc.action_type, sc.entry_pc)
+    _e4 = c3.rewrite_scene(b3, _e3, body)
+    sc4 = script.disassemble_scene(b3, sc.action_type, _e4)
     kinds = [x.mnem for x in sc4.stmts.values()]
     _check("rewrite_scene from listing text: FRAME/speaker/DIALOG/BR_NZ/PROMPT_CHOICE/END all decode",
            sc4.ok and kinds.count("PROMPT_CHOICE") == 1 and kinds.count("BR_NZ") == 1
@@ -5179,27 +5191,28 @@ def test_script_authoring():
         except script.ScriptError:
             _hdr_bad += 1
     _check("Container refuses a big-endian or non-0x10001 MYCF header", _hdr_bad == 2)
-    # grow_bank on a ZERO-length bank: the bank starts at the insertion point and must keep its
-    # offset (the old rule shifted it past its own new bytes).
+    # set_bank_bytes on a ZERO-length bank: the bank starts at the splice point and must keep its
+    # offset (not shift past its own new bytes).
     _z = bytearray(raw)
     _zc = script.Container(bytes(_z))
     _zt = next(b for b in _zc.banks if b.kind == "tail")
     struct.pack_into("<II", _z, _zt.slot, _zt.file_off, 0)
     _zc = script.Container(bytes(_z))
     _zb = next(b for b in _zc.banks if b.kind == "tail" and b.index == _zt.index)
-    _zc.grow_bank(_zb, b"\xAB" * 8)
+    _zc.set_bank_bytes(_zb, b"\xAB" * 8)
     _zr = script.Container(_zc.build())
     _zb2 = next(b for b in _zr.banks if b.kind == "tail" and b.index == _zt.index)
-    _check("grow_bank on a zero-length bank keeps its offset and holds exactly the new bytes",
+    _check("set_bank_bytes on a zero-length bank keeps its offset and holds exactly the new bytes",
            bytes(_zb2.data) == b"\xAB" * 8 and _zb2.file_off == _zt.file_off)
-    # appended code lands on an even pc even when the bank size is odd (263 shipped banks are),
-    # so add_entry/set_entry (which require even event pcs) accept it.
+    # a new scene body lands on an even pc even when the bank size is odd (263 shipped banks
+    # are): code always is (the rebuild puts it before the lists and the pool), so
+    # add_entry/set_entry (which require even event pcs) accept it.
     c7 = script.Container(raw)
     _odd = next(b for b in c7.banks if len(b.data) % 2 and len(b.data) < 0xF000 and b.table_slots > 6)
     _pc7, _ = c7.add_entry(_odd, 6, [], listing="DIALOG #5\nEND")
     _recs7 = _odd.entry_records(6)
     c7.set_entry(_odd, 6, len(_recs7) - 1, event_pc=_pc7)
-    _check("code appended to an odd-sized bank starts on an even pc (add_entry/set_entry accept it)",
+    _check("a new scene in an odd-sized bank starts on an even pc (add_entry/set_entry accept it)",
            _pc7 % 2 == 0 and script.decode_statement(_odd.data, _pc7).mnem == "DIALOG")
     # delete / insert_after refuse statements that never fall through (JMP, choices, ...).
     _nf = None
@@ -5653,7 +5666,7 @@ def test_cutscene_editor_authoring():
         ex.source.text.insert("end", "\n; selftest: same content, different text\n")
         ok = ex.source.apply()
         sig1 = scriptasm.scene_signature(ex.scene, ex.bank.data)
-        _check("Apply to scene keeps the scene's signature (trampolined body)",
+        _check("Apply to scene keeps the scene's signature (bank rebuilt, body in place)",
                bool(ok) and sig0 == sig1 and doc.script_dirty())
         ex.source.text.insert("end", "\nNoSuchOpcodeXYZ 1\n")
         bad = ex.source.check()
@@ -5664,9 +5677,33 @@ def test_cutscene_editor_authoring():
         dpc = next((pc for pc, st in ex.scene.stmts.items() if st.mnem == "DIALOG"), None)
         if dpc is not None:
             n0 = len(ex.scene.stmts)
+            _j0 = sum(x.mnem == "JMP" for x in ex.scene.stmts.values())
             ex.insert_after(dpc, "BR_Z (FLG_KOKUHAKU_NOW) -> skip\nDIALOG #5\nskip:\nSTORE (reg1 = 2)")
-            _check("listing-syntax insert adds the branch/label/STORE beat",
-                   len(ex.scene.stmts) == n0 + 5 and ex.scene.ok)
+            _check("listing-syntax insert adds the branch/label/STORE beat in place (selected)",
+                   len(ex.scene.stmts) == n0 + 3 and ex.scene.ok and ex.sel is not None
+                   and ex.scene.stmts[ex.sel[0]].mnem == "BR_Z")
+            # the save path writes the rebuilt bank: no trampoline, compiler layout, every other
+            # bank as shipped (save_script through the scripted file dialog)
+            from rf4s_modkit import bankrelink
+            import tempfile
+            _sv = pathlib.Path(tempfile.mkdtemp()) / "rf3.mc"
+            box["save"] = str(_sv)
+            _saved = ex.save_script()
+            _cs = script.Container(_sv.read_bytes()) if _sv.is_file() else None
+            _raw = p.read_bytes()
+            _c0 = script.Container(_raw)
+            _b = _cs.banks[213] if _cs else None
+            _sc = script.disassemble_scene(_b, ex.scene.action_type, ex.scene.entry_pc) if _b else None
+            _check("GUI save writes the rebuilt bank (compiler layout, no JMP added, other banks as shipped)",
+                   _saved and _cs is not None and bankrelink.relink(_b) == bytes(_b.data)
+                   and bankrelink.BankModel.parse(_b).fold() == 0
+                   and bytes(_b.data) == bytes(ex.bank.data) and not doc.script_dirty()
+                   and _sc.ok and any(x.dialog_id == 5 for x in _sc.stmts.values())
+                   and sum(x.mnem == "JMP" for x in _sc.stmts.values())
+                   == _j0
+                   and all(bytes(x.data) == bytes(y.data) for i, (x, y) in enumerate(zip(_c0.banks, _cs.banks))
+                           if i != 213))
+            box["save"] = ""
         else:
             _skip("listing insert", "scene without DIALOG")
         # --- Triggers tab: new scene on an EMPTY tail bank, then remove ---
@@ -10300,8 +10337,9 @@ def test_cutscene_editor_workflows():
         # Add before + adding at a label (= before the labelled statement, so jumps run it too)
         import cutscene_editor.dialogs as dialogs_mod
         def _first_new(pc):
-            _j = cx.stmt(pc)
-            return cx.stmt(_j.code_targets[0]) if (_j is not None and _j.mnem == "JMP" and _j.code_targets) else None
+            # the bank is rebuilt with the new line in place, right before `pc`'s statement: the
+            # line takes `pc` (nothing before it moved) and the editor selects it
+            return cx.stmt(cx.sel[0]) if (cx.sel is not None and cx.sel[0] == pc) else None
         _nb = cx.insert_dialogue_before(dpc, None, "Before test")
         _fb = _first_new(dpc)
         _before_ok = _nb is not None and _fb is not None and _fb.mnem == "DIALOG" and _fb.dialog_id == _nb

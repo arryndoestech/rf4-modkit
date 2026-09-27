@@ -1957,9 +1957,16 @@ def cmd_script_set_dialog(a):
 
 def cmd_script_set_arg(a):
     c = script.Container(_resolve(a.file).read_bytes())
-    c.banks[a.bank].set_action_arg(int(a.pc, 0), a.index, a.value)
-    pathlib.Path(a.out).write_bytes(c.build())
-    print(f"bank {a.bank} pc {a.pc} arg[{a.index}] = {a.value}; wrote {a.out}")
+    from rf4s_modkit import bankrelink
+    b = c.banks[a.bank]
+    try:                                               # the arg gets its own copy of that expression
+        expr = bytes(b.data[a.value:a.value + bankrelink.expr_size(b.data, a.value)])
+        how = c.set_action_arg_expr(b, int(a.pc, 0), a.index, expr)
+    except (script.ScriptError, IndexError) as e:
+        sys.exit(f"error: @0x{a.value:04x}: {e}")
+    _script_write(c, a.out)
+    print(f"bank {a.bank} pc {a.pc} arg[{a.index}] = copy of the expression @0x{a.value:04x} "
+          f"({how[0].replace('_', ' ')}); wrote {a.out}")
 
 
 def cmd_script_set_val(a):
@@ -1989,16 +1996,16 @@ def cmd_script_set_val(a):
         print(f"bank {a.bank} pc {a.pc} {st.mnem} literal[{a.index}] = {a.value}; wrote {a.out}")
     else:
         # In place when the literal's width allows it; otherwise (a fixed 0/-1/1 push, a u8 too
-        # small, a variable) a fresh literal expression is appended and the arg repointed -- the
-        # same auto-repoint the GUI value row uses, so the CLI never dead-ends on "not editable".
+        # small, a variable) the arg gets its own literal and the bank is rebuilt around it --
+        # the same path the GUI value row uses, so the CLI never dead-ends on "not editable".
         try:
-            how = c.set_action_arg_value_or_repoint(bank, pc, a.index, a.value)
+            how = c.set_arg_value(bank, pc, a.index, a.value)
         except script.ScriptError as e:
             sys.exit(f"error: {e}")
         where = {"in_place": "in place", "unchanged": "already that value -- nothing changed"}.get(
-            how[0], f"repointed to a new expression @0x{how[1]:04x}")
+            how[0], f"bank rebuilt, new literal @0x{how[1]:04x}")
         print(f"bank {a.bank} pc {a.pc} arg[{a.index}] value = {a.value} ({where}); wrote {a.out}")
-    pathlib.Path(a.out).write_bytes(c.build())
+    _script_write(c, a.out)
 
 
 def cmd_script_set_target(a):
@@ -2059,18 +2066,23 @@ def cmd_script_insert(a):
         sys.exit("error: pass --dialogue LINE, --action 'OP ARGS', --stmt 'LINE / LINE' or --listing FILE")
     fn = c.insert_before if a.before else c.insert_after
     try:
-        fn(a.bank, int(a.pc, 0), specs)
+        new = fn(a.bank, int(a.pc, 0), specs)
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
-    pathlib.Path(a.out).write_bytes(c.build())
-    print(f"inserted {'before' if a.before else 'after'} bank {a.bank} pc {a.pc}; wrote {a.out}")
+    _script_write(c, a.out)
+    print(f"inserted {'before' if a.before else 'after'} bank {a.bank} pc {a.pc} (bank rebuilt; the new "
+          f"statements start at 0x{new:04x}); wrote {a.out}")
 
 
 def cmd_script_delete(a):
     c = script.Container(_resolve(a.file).read_bytes())
-    c.delete_statement(a.bank, int(a.pc, 0))
-    pathlib.Path(a.out).write_bytes(c.build())
-    print(f"deleted (jumped over) bank {a.bank} pc {a.pc}; wrote {a.out}")
+    try:
+        nxt = c.delete_statement(a.bank, int(a.pc, 0))
+    except script.ScriptError as e:
+        sys.exit(f"error: {e}")
+    _script_write(c, a.out)
+    print(f"deleted bank {a.bank} pc {a.pc} (bank rebuilt; the next statement is now at 0x{nxt:04x}); "
+          f"wrote {a.out}")
 
 
 def _parse_beats(s):
@@ -2103,11 +2115,12 @@ def cmd_script_rewrite(a):
     else:
         sys.exit("error: pass --beats 'd:LINE;a:OP,arg' or --listing FILE")
     try:
-        c.rewrite_scene(a.bank, int(a.pc, 0), specs)
+        entry = c.rewrite_scene(a.bank, int(a.pc, 0), specs)
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
-    pathlib.Path(a.out).write_bytes(c.build())
-    print(f"rewrote scene bank {a.bank} entry {a.pc} with {n} statement(s); wrote {a.out}")
+    _script_write(c, a.out)
+    print(f"rewrote scene bank {a.bank} entry {a.pc} with {n} statement(s) (bank rebuilt; the scene "
+          f"now starts at 0x{entry:04x}); wrote {a.out}")
 
 
 def cmd_script_set_text(a):
@@ -2132,6 +2145,28 @@ def _script_load(a, resolver=True):
         except Exception:
             c.install_asm_resolver()
     return c
+
+
+def _script_write(c, out):
+    """Write rf3.mc after a code edit. Banks an older toolkit edited by trampolining are
+    rebuilt in place first (Container.normalize_banks: same execution, no dead code)."""
+    c.normalize_banks()
+    for pos, folds in sorted((c.untrampolined or {}).items()):
+        b = c.banks[pos]
+        print(f"note: container bank {pos} ({b.kind} {b.index}) was trampolined by an older toolkit; "
+              f"rebuilt in place ({folds} jump(s) folded back)")
+    pathlib.Path(out).write_bytes(c.build())
+
+
+def cmd_script_normalize(a):
+    """Rebuild the banks an older toolkit trampolined (nothing else changes)."""
+    c = script.Container(_resolve(a.file).read_bytes())
+    found = c.trampolined_banks()
+    if not found:
+        print("no trampolined banks; nothing to do")
+        return
+    _script_write(c, a.out)
+    print(f"{len(found)} bank(s) rebuilt; wrote {a.out}")
 
 
 def _script_dialog_fn(a):
@@ -2231,13 +2266,16 @@ def cmd_script_asm(a):
     text = _listing_text(a)
     if text is None:
         sys.exit("error: pass --listing FILE or --stmt 'LINE / LINE'")
-    if a.pc:
-        c.rewrite_scene(a.bank, int(a.pc, 0), text)
-        what = f"rewrote scene bank {a.bank} entry {a.pc}"
-    else:
-        base = c.assemble(a.bank, text)
-        what = f"appended region at bank {a.bank} pc 0x{base:04x} (not registered; use add-entry)"
-    pathlib.Path(a.out).write_bytes(c.build())
+    try:
+        if a.pc:
+            entry = c.rewrite_scene(a.bank, int(a.pc, 0), text)
+            what = f"rewrote scene bank {a.bank} entry {a.pc} (it now starts at 0x{entry:04x})"
+        else:
+            base = c.assemble(a.bank, text)
+            what = f"assembled at bank {a.bank} pc 0x{base:04x} (not registered; use add-entry)"
+    except script.ScriptError as e:
+        sys.exit(f"error: {e}")
+    _script_write(c, a.out)
     print(f"{what}; wrote {a.out}")
 
 
@@ -2327,7 +2365,7 @@ def cmd_script_add_entry(a):
                               listing=text, position=a.position)
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
-    pathlib.Path(a.out).write_bytes(c.build())
+    _script_write(c, a.out)
     print(f"registered type {a.type} {_type_label(a.type)} entry #{idx} -> scene pc 0x{pc:04x} "
           f"in bank {a.bank}; wrote {a.out}")
     if note:
@@ -2340,7 +2378,7 @@ def cmd_script_remove_entry(a):
         eid, subs = c.remove_entry(a.bank, a.type, a.index)
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
-    pathlib.Path(a.out).write_bytes(c.build())
+    _script_write(c, a.out)
     print(f"removed type {a.type} entry #{a.index} (pc 0x{eid:04x}) from bank {a.bank}; wrote {a.out}")
 
 
@@ -2351,7 +2389,7 @@ def cmd_script_set_entry(a):
         c.set_entry(a.bank, a.type, a.index, subs=keys, event_pc=int(a.pc, 0) if a.pc else None)
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
-    pathlib.Path(a.out).write_bytes(c.build())
+    _script_write(c, a.out)
     rec = c.banks[a.bank].entry_records(a.type)[a.index]
     print(f"type {a.type} entry #{a.index}: pc 0x{rec.event_id:04x} keys {rec.subs}; wrote {a.out}")
 
@@ -3997,7 +4035,8 @@ def build_parser():
     sc3.add_argument("--pc", required=True, help="statement PC (hex ok, e.g. 0x3478)")
     sc3.add_argument("--line", type=int, required=True)
     sc3.add_argument("-o", "--out", required=True); sc3.set_defaults(func=cmd_script_set_dialog)
-    sc4 = scsub.add_parser("set-arg", help="repoint an action arg to another expression offset")
+    sc4 = scsub.add_parser("set-arg", help="give an action arg a copy of the expression at another "
+                           "offset (--value) in the bank")
     sc4.add_argument("file"); sc4.add_argument("--bank", type=int, required=True)
     sc4.add_argument("--pc", required=True); sc4.add_argument("--index", type=int, required=True)
     sc4.add_argument("--value", type=int, required=True)
@@ -4025,7 +4064,8 @@ def build_parser():
     sc7.add_argument("--action", help="action op + args, e.g. '55 3 5'")
     sc7.add_argument("--before", action="store_true", help="insert before (default: after)")
     sc7.add_argument("-o", "--out", required=True); sc7.set_defaults(func=cmd_script_insert)
-    sc8 = scsub.add_parser("delete", help="delete (jump over) a statement")
+    sc8 = scsub.add_parser("delete", help="delete a statement (the bank is rebuilt; what jumped to it "
+                           "goes to the next statement)")
     sc8.add_argument("file"); sc8.add_argument("--bank", type=int, required=True)
     sc8.add_argument("--pc", required=True)
     sc8.add_argument("-o", "--out", required=True); sc8.set_defaults(func=cmd_script_delete)
@@ -4099,6 +4139,10 @@ def build_parser():
     scse.add_argument("--type", type=int, required=True); scse.add_argument("--index", type=int, required=True)
     scse.add_argument("--keys", default=None); scse.add_argument("--pc", default=None)
     scse.add_argument("-o", "--out", required=True); scse.set_defaults(func=cmd_script_set_entry)
+    scnm = scsub.add_parser("normalize", help="rebuild banks an older toolkit edited by trampolining "
+                            "(appended code folded back in place; same execution)")
+    scnm.add_argument("file"); scnm.add_argument("-o", "--out", required=True)
+    scnm.set_defaults(func=cmd_script_normalize)
 
     # em (Event Manager)
     pem = sub.add_parser("em", help="em.bin Event Manager (named trigger conditions/actions)")
