@@ -1642,14 +1642,69 @@ class App:
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
 
-    def _obj_import_dialog(self, m, objs):
-        """{shape index: OBJ object name} chosen in a small dialog, or None when cancelled."""
+    def _import_model_glb(self, name, glb_path=None, choose=None):
+        """Import from Blender… on a .model tab: read a .glb / .gltf (Export for Blender,
+        edited and exported by Blender), put each mesh on the shape of the same name (a dialog
+        shows the pairing; `choose(model, meshes, defaults) -> {shape index: mesh name}` skips
+        it in tests) and rebuild those shapes with the file's positions, normals, UVs and bone
+        weights (meshimport.import_glb). The result is the tab's working copy (cur_data)."""
+        from rf4s_modkit import model as _model, meshimport as _mi
+        doc = self._doc
+        if doc.cur_data is None:
+            return False
+        f = glb_path or filedialog.askopenfilename(title="Import from Blender (glTF .glb)",
+                                                   filetypes=[("glTF", "*.glb *.gltf"), ("All files", "*.*")])
+        if not f:
+            return False
+        try:
+            meshes = _mi.read_meshes(f)
+            m = _model.parse(doc.cur_data)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import from Blender", str(e))
+            return False
+        if not meshes:
+            messagebox.showerror("Import from Blender", f"{pathlib.Path(f).name} has no triangle meshes.")
+            return False
+        auto, _rest = _mi.match_shapes(m, meshes)
+        defaults = {si: me.name for si, me in auto.items()}
+        if choose is not None:
+            plan = choose(m, meshes, defaults)
+        else:
+            plan = self._obj_import_dialog(
+                m, meshes, title="Import from Blender -- which mesh replaces which shape",
+                what="a mesh of the file", named="Export for Blender", defaults=defaults)
+        if not plan:
+            return False
+        try:
+            blob, rep = _mi.import_glb(doc.cur_data, meshes, mapping=plan)
+            _model.parse(blob)                     # the result must read back
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Import from Blender", f"Nothing was changed:\n{e}")
+            return False
+        doc._glb_report = rep
+        if blob == doc.cur_data:
+            self.status.config(text=f"{pathlib.Path(f).name}: the geometry is unchanged")
+            return True
+        before = len(doc.cur_data)
+        doc.cur_data = blob
+        self._show(name, blob, doc)
+        changed = rep.changed
+        if any(r.moved_influences or r.dropped_influences or r.ignored_weights or r.notes for r in changed):
+            messagebox.showinfo("Import from Blender", rep.text())
+        self.status.config(text=f"Rebuilt {len(changed)} shape(s) from {pathlib.Path(f).name} -> "
+                                f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
+        return True
+
+    def _obj_import_dialog(self, m, objs, *, title="Import OBJ -- which object replaces which shape",
+                           what="an OBJ object", named="Export OBJ", defaults=None):
+        """{shape index: object / mesh name} chosen in a small dialog, or None when cancelled.
+        `defaults` ({shape index: name}) preselects; else same-named objects are."""
         names = [o.name for o in objs]
         win = tk.Toplevel(self.root)
-        win.title("Import OBJ -- which object replaces which shape")
+        win.title(title)
         win.transient(self.root)
-        ttk.Label(win, text="Each shape keeps its geometry unless an OBJ object is chosen for it. "
-                            "Objects named like a shape (as Export OBJ names them) are preselected.",
+        ttk.Label(win, text=f"Each shape keeps its geometry unless {what} is chosen for it. "
+                            f"Ones named like a shape (as {named} names them) are preselected.",
                   wraplength=520, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
         grid = ttk.Frame(win)
         grid.pack(fill="both", expand=True, padx=8)
@@ -1659,7 +1714,10 @@ class App:
             sname = sh.name or f"shape{sh.index}"
             ttk.Label(grid, text=f"{sh.index}  {sname}  ({len(sh.indices) // 3} triangles)").grid(
                 row=r, column=0, sticky="w", pady=1)
-            default = sname if sname in names else (names[0] if len(names) == 1 and len(m.shapes) == 1 else KEEP)
+            if defaults is not None:
+                default = defaults.get(sh.index, KEEP)
+            else:
+                default = sname if sname in names else (names[0] if len(names) == 1 and len(m.shapes) == 1 else KEEP)
             v = tk.StringVar(value=default)
             ttk.Combobox(grid, textvariable=v, values=[KEEP] + names, state="readonly",
                          width=max(20, min(48, max(map(len, names)) + 2))).grid(
@@ -2334,6 +2392,16 @@ class App:
                  "its rest pose with bones, skin and textures, plus the motion picked in the "
                  "'motion' row as an animation (or none). Animate it in Blender, export a .glb, "
                  "then bring it back with Import motion…. " + BLENDER_HINT)
+        bb = ttk.Button(bar, text="Import from Blender…", command=lambda: self._import_model_glb(name))
+        bb.pack(side="right", padx=4)
+        from guiutil import Tip as _Tip
+        _Tip(bb, "Bring meshes edited in Blender back: open the .glb Blender exported (File > "
+                 "Export > glTF 2.0, from an Export for Blender file). Each mesh replaces the shape "
+                 "of the same name with its positions, normals, UVs AND bone weights (weight "
+                 "painting reaches the game; any vertex / triangle count). Meshes you did not "
+                 "touch keep their exact bytes. A shape stores a fixed number of bone influences "
+                 "per vertex (1 for rigid parts, 2-4 for skinned ones): extra ones are dropped, "
+                 "the heaviest kept. The result becomes this tab's working copy.")
         ib = ttk.Button(bar, text="Import OBJ…", command=lambda: self._import_model_obj(name))
         ib.pack(side="right", padx=4)
         from guiutil import Tip as _Tip
