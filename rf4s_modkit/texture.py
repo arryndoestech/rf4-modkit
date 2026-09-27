@@ -68,6 +68,7 @@ splices a same-size re-encoded payload over the original level-0 bytes (see docs
 from __future__ import annotations
 
 import pathlib
+import re
 import struct
 
 try:
@@ -123,6 +124,9 @@ _CNT_COUNT = 0x24
 _CNT_ARRAY = 0x28
 _CNT_DESC = 0x30
 _CNT_DIC = 0x38
+_BNTX_NAME = 0x10          # bare BNTX header: u32 file-name offset
+_BNTX_RLT = 0x18           # bare BNTX header: u32 _RLT offset (file size at +0x1C as in RES)
+_PIXL_TILE = 0x12
 _PIXL_MIPS = 0x16
 _PIXL_FMT = 0x1C
 _PIXL_W = 0x24
@@ -204,9 +208,18 @@ def _name_at(data: bytes, off: int) -> str:
     return data[off + 2:off + 2 + n].decode("utf-8", "replace")
 
 
+def _rlt_field(data: bytes) -> int:
+    """Header field holding the _RLT offset, by BFRES_GetRelocationTableStart's rule
+    (RF4S.exe+0x3CA9B0): +0x10 when the first byte is 'R' (RES\\0: .texture / .model), else
+    +0x18 (a bare BNTX, i.e. the texture file embedded in a .model)."""
+    return _HDR_RLT if data[:1] == b"R" else _BNTX_RLT
+
+
 def _walk_container(data: bytes) -> dict | None:
     """Follow the container pointers exactly as the loader does. Returns None when
-    the pointers do not check out (then `parse` falls back to a magic scan)."""
+    the pointers do not check out (then `parse` falls back to a magic scan). Works on a
+    .texture (RES\\0: PIXL / DESC blocks) and on a bare embedded BNTX (BRTI / BRTD blocks,
+    same offsets -- see the module docstring)."""
     n = len(data)
     if n < 0x60:
         return None
@@ -214,9 +227,9 @@ def _walk_container(data: bytes) -> dict | None:
     arr = _u64(data, _CNT_ARRAY)
     desc = _u64(data, _CNT_DESC)
     dic = _u64(data, _CNT_DIC)
-    rlt = _u32(data, _HDR_RLT)
+    rlt = _u32(data, _rlt_field(data))
     if not (0 < count <= 4096 and arr + 8 * count <= n and desc + _DESC_HDR <= n
-            and data[desc:desc + 4] == b"DESC"):
+            and data[desc:desc + 4] in (b"DESC", b"BRTD")):
         return None
     if dic + 8 <= n and data[dic:dic + 4] == b"_DIC":
         dic_count = _u32(data, dic + 4)
@@ -225,7 +238,7 @@ def _walk_container(data: bytes) -> dict | None:
     frames = []
     for k in range(count):
         px = _u64(data, arr + 8 * k)
-        if px + 0x80 > n or data[px:px + 4] != b"PIXL":
+        if px + 0x80 > n or data[px:px + 4] not in (b"PIXL", b"BRTI"):
             return None
         fmt_code = _u32(data, px + _PIXL_FMT)
         w, h = _u32(data, px + _PIXL_W), _u32(data, px + _PIXL_H)
@@ -238,18 +251,21 @@ def _walk_container(data: bytes) -> dict | None:
             "index": k, "name": _name_at(data, _u64(data, px + _PIXL_NAME)),
             "pixl_off": px, "fmt_code": fmt_code, "fmt_name": fmt_name, "kind": kind,
             "width": w, "height": h, "mips": _u16(data, px + _PIXL_MIPS),
+            "tile": _u16(data, px + _PIXL_TILE),
             "image_size": _u32(data, px + _PIXL_IMGSZ),
             "mipptr_off": mipptr, "data_off": data_off,
             "size": payload_size(fmt_code, w, h),
             "upload_issue": upload_problem(fmt_code, w, h),
         })
+    res = data[:1] == b"R"
+    name_off = _u32(data, _HDR_NAME if res else _BNTX_NAME)
     return {
         "frame_list": frames, "desc_off": desc, "dic_off": dic,
         "desc_size": _u64(data, desc + 8) if desc + 16 <= n else 0,
         "rlt_off": rlt, "rlt_ok": rlt + 4 <= n and data[rlt:rlt + 4] == b"_RLT",
-        "file_size": _u32(data, _HDR_FILE_SIZE),
-        "name": data[_u32(data, _HDR_NAME):].split(b"\0", 1)[0].decode("utf-8", "replace")
-        if _u32(data, _HDR_NAME) < n else "",
+        "file_size": _u32(data, _HDR_FILE_SIZE if res else _HDR_FILE_SIZE2),
+        "name": data[name_off:].split(b"\0", 1)[0].decode("utf-8", "replace")
+        if name_off < n else "",
     }
 
 
@@ -258,8 +274,9 @@ def parse(data: bytes) -> dict:
     width, height, pixel_off) as a shortcut; `frames` is the frame count and
     `frame_list` holds one dict per frame (index, name, pixl_off, fmt_code, fmt_name, kind,
     width, height, mips, data_off, size). `container` is True when the pointer walk
-    succeeded (required for encoding)."""
-    if data[:4] != MAGIC_RES:
+    succeeded (required for encoding). A bare BNTX (the texture file a .model embeds, see
+    bntx_replace) parses the same way."""
+    if data[:4] not in (MAGIC_RES, b"BNTX"):
         raise TextureError(f"not a RES texture (magic={data[:4]!r})")
     walk = _walk_container(data)
     if walk is None:
@@ -460,17 +477,26 @@ def decode_bntx(data: bytes, index: int = 0):
 
 
 def bntx_replace(data: bytes, index: int, png, *, fmt: str | None = None) -> bytes:
-    """Replace texture `index` of the BNTX embedded in a .model IN PLACE and return the
-    new file bytes. `png` (path or PIL Image, upright) must have the texture's own
-    dimensions. fmt None/"keep" re-encodes in the texture's own format (BC1/BC3/BC7 via
-    bcenc, the raw formats natively); another format is accepted only when its payload
-    is exactly the same size (BC3 <-> BC7), and then the BRTI format code (+0x1C) is
-    rewritten as well. The new level-0 bytes overwrite the old ones at data_off; the
-    mip pointer, image size, mip count, name, _DIC and both relocation tables are left
-    untouched (nothing else is read for the upload -- docs/09 s4). A format change the
-    engine cannot upload at this size is refused (upload_problem). A block-linear
-    (tileMode != 1) texture is rewritten linear in its slot and its BRTI tile mode /
-    image size set to match (the loader ignores both and uploads the slot linearly)."""
+    """Replace texture `index` of the BNTX embedded in a .model (or of a bare BNTX) and return
+    the new file bytes. `png` (path or PIL Image, upright) may have ANY size. fmt None/"keep"
+    re-encodes in the texture's own format (BC1/BC3/BC7 via bcenc, the raw formats natively)
+    or forces another (ENCODE_FORMATS); a format or size the engine cannot upload is refused
+    (upload_problem).
+
+    Same size and same payload size: IN PLACE -- the new level-0 bytes overwrite the old ones
+    at data_off and only the BRTI format code (+0x1C) changes with the format; the mip
+    pointer, image size, mip count, name, _DIC and both relocation tables are left untouched
+    (nothing else is read for the upload -- docs/09 s4). A block-linear (tileMode != 1)
+    texture is rewritten linear in its slot and its BRTI tile mode / image size set to match
+    (the loader ignores both and uploads the slot linearly).
+
+    Otherwise (another size, or a format with another payload size) the BNTX is REBUILT the
+    way encode_into rebuilds a .texture (it is the same container: BRTI = PIXL, BRTD = DESC,
+    _RLT offset at +0x18 instead of +0x10): new width/height/format/image size in the BRTI,
+    payloads repacked in the BRTD, BRTD size, the BNTX's own _RLT and file size; then
+    modelwrite.replace_embedded_file moves everything after it in the .model (embedded-file
+    table size, relocated pointers, outer _RLT). Model UVs are normalised floats, so a model
+    texture can change size freely (see the module docstring, "Size in game")."""
     if not HAS_PIL:
         raise TextureError("Pillow required: pip install Pillow")
     infos = bntx_info(data)
@@ -483,14 +509,12 @@ def bntx_replace(data: bytes, index: int, png, *, fmt: str | None = None) -> byt
     if len(images) != 1:
         raise TextureError("bntx_replace takes exactly one image")
     im = images[0].convert("RGBA")
-    if im.size != (t["width"], t["height"]):
-        raise TextureError(f"image is {im.size}, texture {index} ({t['name']}) is "
-                           f"{t['width']}x{t['height']}; dimensions must match")
     if t["data_off"] < 0 or t["data_off"] + t["image_size"] > len(data):
         raise TextureError(f"texture {index}: level-0 data outside the file")
     target = _resolve_target(t["fmt_name"], t["kind"], fmt)
     what = f"texture {index} ({t['name']})"
     code, payload = _encode_checked(im, t, target, what, validate=False)
+    _validate_change(code, t, target, what, tuple(im.size))
     # The loader uploads exactly the level-0 payload from data_off and never reads the
     # tile mode (MGTexture_LoadFromPIXL, RF4S.exe+0x3D2230, uses only +0x1C/+0x24/+0x28 of
     # the BRTI), so a linear payload fits wherever the slot holds at least that much.
@@ -498,20 +522,56 @@ def bntx_replace(data: bytes, index: int, png, *, fmt: str | None = None) -> byt
     # ones are GOB-padded Switch leftovers that the PC build uploads as garbage); writing
     # linear data there and marking the BRTI linear (tile = 1) makes it decodable here too.
     linearise = t["tile"] != 1
-    if len(payload) != t["image_size"] and not (linearise and len(payload) <= t["image_size"]):
-        raise TextureError(
-            f"{target} payload is {len(payload):,} B but texture {index} holds {t['image_size']:,} B "
-            f"({t['fmt_name']}); .model textures are replaced in place, so the format must keep "
-            f"the payload size (leave fmt at 'keep', or BC3 <-> BC7)")
-    _validate_change(code, t, target, what)
+    if im.size != (t["width"], t["height"]) or (
+            len(payload) != t["image_size"] and not (linearise and len(payload) <= t["image_size"])):
+        return _bntx_rebuild(data, index, code, payload, tuple(im.size))
     out = bytearray(data)
     out[t["data_off"]:t["data_off"] + len(payload)] = payload
     if code != t["fmt_code"]:
         struct.pack_into("<I", out, t["brti_off"] + _PIXL_FMT, code)
     if linearise:     # tile mode + level-0 size, so the next replace sees a normal slot
-        struct.pack_into("<H", out, t["brti_off"] + 0x12, 1)
+        struct.pack_into("<H", out, t["brti_off"] + _PIXL_TILE, 1)
         struct.pack_into("<I", out, t["brti_off"] + _PIXL_IMGSZ, len(payload))
     return bytes(out)
+
+
+def _bntx_rebuild(data: bytes, index: int, code: int, payload: bytes, size: tuple) -> bytes:
+    """bntx_replace for a payload that does not fit the old slot (see there)."""
+    from . import modelwrite      # modelwrite -> model -> texture: import here, not at the top
+    if data[:4] == b"BNTX":
+        k, blob = None, data
+    else:
+        try:
+            files = modelwrite.embedded_files(data)
+        except modelwrite.ModelWriteError as e:
+            raise TextureError(f"cannot resize: {e}") from None
+        k = next((i for i, (o, _s) in enumerate(files) if data[o:o + 4] == b"BNTX"), None)
+        if k is None or files[k][0] != data.find(b"BNTX"):
+            raise TextureError("cannot resize: the BNTX is not an entry of the embedded-file table "
+                               "(RES+0x98)")
+        bn, sz = files[k]
+        blob = data[bn:bn + sz]
+    info = parse(blob)
+    if not (info["container"] and info["rlt_ok"] and len(info["frame_list"]) == info["frames_declared"]):
+        raise TextureError("cannot resize: the embedded BNTX container could not be walked")
+    payloads = [(fr["fmt_code"], _slot_bytes(blob, fr)) for fr in info["frame_list"]]
+    payloads[index] = (code, payload, size)
+    new = _rebuild(blob, info, payloads)
+    if k is None:
+        return new
+    try:
+        return modelwrite.replace_embedded_file(data, k, new)
+    except modelwrite.ModelWriteError as e:
+        raise TextureError(f"cannot resize: {e}") from None
+
+
+def bntx_size_warnings(t: dict, new_size: tuple) -> list:
+    """Warnings for storing embedded texture `t` (a bntx_info entry) at `new_size` (w, h):
+    only the GPU size limit -- model UVs are normalised, so the size itself is free."""
+    w, h = new_size
+    if max(w, h) > MAX_SAFE_SIZE:
+        return [f"{w}x{h} is above {MAX_SAFE_SIZE} px; many GPUs cannot create a texture that large."]
+    return []
 
 
 def bntx_list(data: bytes) -> list:
@@ -753,43 +813,13 @@ def _as_images(png) -> list:
     return [img]
 
 
-def encode_into(template: bytes, png, *, rotate: bool = True, frame: int | None = None,
-                strip: bool = False, fmt: str | None = None) -> bytes:
-    """
-    Produce a new .texture by replacing the pixels of `template` (ANY shipped .texture)
-    with `png`. Returns the new .texture bytes.
-
-    png    -- a PNG path, a PIL Image, or a list of them (one per frame, in frame order).
-    frame  -- replace only this frame index of a flipbook (png = one image).
-    strip  -- png is one image holding every frame side by side, as decode_strip lays
-              them out (frames left-to-right, top-aligned, decoded sizes).
-    fmt    -- storage format for the replaced frames: None / "keep" (default) re-encodes
-              each frame in its template frame's own format (BC7 / BC3 / BC1 through
-              bcenc -- same payload size -- or the raw format; BC2 / ASTC -> RGBA8); or
-              force "BC7" / "BC3" / "BC1" / "RGBA8" / "RGBA4444" / "ABGR1555" / "GL_RED_8bpp".
-    rotate -- undo the decoder's 90deg CCW rotation (images are in in-game orientation).
-
-    Each image must have its template frame's dimensions (after un-rotation). Frames
-    not replaced keep their original bytes and format. The container is rebuilt for
-    the new payload size (see module docstring for the fields the loader reads); with
-    the default it comes out the same size as the template (bundle-patchable in place).
-    """
-    if not HAS_PIL:
-        raise TextureError("Pillow required: pip install Pillow")
-    info = parse(template)
-    if not info["container"] or not info["rlt_ok"]:
-        raise TextureError("template container could not be walked (no _RLT / bad pointers); "
-                           "only shipped-layout .texture files can be re-encoded")
-    if fmt is not None and fmt not in ENCODE_FORMATS:
-        raise TextureError(f"fmt must be one of {ENCODE_FORMATS}, not {fmt!r}")
-    if info["frames"] != info["frames_declared"]:
-        raise TextureError(f"template declares {info['frames_declared']} frames but only "
-                           f"{info['frames']} are physically present (truncated file)")
+def _assign_images(info: dict, images: list, *, rotate: bool, frame, strip: bool) -> dict:
+    """{frame index: image (in DECODED orientation)} for encode_into's png / frame / strip
+    arguments. A strip of another size than the template's strip layout is accepted when it
+    scales every frame box to whole pixels (e.g. exactly 2x); each box is then cut out at the
+    scaled position."""
     frames = info["frame_list"]
     nfr = len(frames)
-
-    # ---- which frames get which image ----
-    images = _as_images(png)
     new = {}
     if strip:
         if len(images) != 1:
@@ -797,8 +827,15 @@ def encode_into(template: bytes, png, *, rotate: bool = True, frame: int | None 
         (W, H), boxes = strip_boxes(info, rotate=rotate)
         im = images[0]
         if im.size != (W, H):
-            raise TextureError(f"strip is {im.size}, template strip layout is {(W, H)} "
-                               f"({nfr} frame(s))")
+            sx, sy = im.size[0] / W, im.size[1] / H
+            scaled = [(x * sx, y * sy, w * sx, h * sy) for x, y, w, h in boxes]
+            if any(not float(v).is_integer() or v < 0 for b in scaled for v in b) or \
+                    any(b[2] < 1 or b[3] < 1 for b in scaled):
+                raise TextureError(
+                    f"strip is {im.size}, template strip layout is {(W, H)} ({nfr} frame(s)); a "
+                    f"resized strip must scale every frame box to whole pixels (e.g. exactly 2x) -- "
+                    f"or replace the frames one at a time (frame=N)")
+            boxes = [tuple(int(v) for v in b) for b in scaled]
         for i, (x, y, w, h) in enumerate(boxes):
             new[i] = im.crop((x, y, x + w, y + h))
     elif frame is not None:
@@ -815,73 +852,212 @@ def encode_into(template: bytes, png, *, rotate: bool = True, frame: int | None 
             raise TextureError(f"{len(images)} image(s) for a {nfr}-frame template")
         for i, im in enumerate(images):
             new[i] = im
+    return new
+
+
+def size_changes(template: bytes, png, *, rotate: bool = True, frame: int | None = None,
+                 strip: bool = False) -> list:
+    """The frames encode_into(template, png, ...) would store at another size: a list of
+    {frame, old: (w, h), new: (w, h)}, sizes as DECODED (in-game orientation when rotate).
+    [] when every image has its template frame's size."""
+    if not HAS_PIL:
+        raise TextureError("Pillow required: pip install Pillow")
+    info = parse(template)
+    new = _assign_images(info, _as_images(png), rotate=rotate, frame=frame, strip=strip)
+    out = []
+    for i, im in sorted(new.items()):
+        fr = info["frame_list"][i]
+        old = (fr["height"], fr["width"]) if rotate else (fr["width"], fr["height"])
+        if tuple(im.size) != old:
+            out.append({"frame": i, "old": old, "new": tuple(im.size)})
+    return out
+
+
+# Map ground / overlay tiles: <set>_<layer digit 0|1><3-digit index> (see mapground).
+_GROUND_TILE = re.compile(r"^MAP_.+_[01]\d{3}$", re.IGNORECASE)
+MAX_SAFE_SIZE = 8192       # GL_MAX_TEXTURE_SIZE of common GPUs is 8192..16384 (not the exe's limit)
+
+
+def size_warnings(template: bytes, changes: list, *, name: str = "") -> list:
+    """What a size change (from size_changes) does in game -- WARNINGS, the encode itself is
+    allowed. `name` = the file name (else the container's own name). Statically verified
+    (RF4S.exe, see the module docstring, "Size in game"): the loader takes each frame's size
+    from its PIXL, the sprite UVs are normalised and the sprite quad comes either from the
+    frame's PolygonVertexes user data (unchanged here -> the new image is scaled into the old
+    quad) or, for sprites the game creates without it, from the PIXL size in pixels."""
+    if not changes:
+        return []
+    from . import spritequad
+    info = parse(template)
+    stem = pathlib.PurePath(name).stem if name else info.get("name", "")
+    out = []
+    if _GROUND_TILE.match(stem or ""):
+        out.append(f"{stem} is a map ground/overlay tile. Map_SpawnEntity (RF4S.exe+0x194140) lays "
+                   f"the tiles on a fixed 512-px grid and draws each at its texture's PIXEL size "
+                   f"(no quad data on that path), so a resized tile overlaps its neighbours or leaves "
+                   f"a gap. Keep ground tiles at their size (`map ground-import` re-cuts a whole layer).")
+    for c in changes:
+        i, (ow, oh), (nw, nh) = c["frame"], c["old"], c["new"]
+        what = f"frame {i}" if info["frames"] > 1 else "the texture"
+        ud = spritequad.frame_userdata(template, i)
+        pv = ud.get("PolygonVertexes")
+        if pv and len(pv) >= 4:
+            if abs(ow * nh - oh * nw) > 0.01 * ow * nh:
+                out.append(f"{what}: its sprite quad (PolygonVertexes, {abs(pv[2] - pv[0]):g} x "
+                           f"{abs(pv[3] - pv[1]):g}) keeps the old {ow}x{oh} shape; the {nw}x{nh} image "
+                           f"is stretched into it (aspect {ow / oh:.3g} -> {nw / nh:.3g}).")
+        else:
+            k = (nw * nh / (ow * oh)) ** 0.5
+            out.append(f"{what} has no sprite quad data: the game draws it at its pixel size "
+                       f"(Sprite_BindFrameTexture RF4S.exe+0x1B7D90), so it will appear "
+                       f"{k:.2g}x {'larger' if k > 1 else 'smaller'} on screen and may sit off its mark.")
+        if max(nw, nh) > MAX_SAFE_SIZE:
+            out.append(f"{what}: {nw}x{nh} is above {MAX_SAFE_SIZE} px; many GPUs cannot create a "
+                       f"texture that large.")
+    ground = bool(_GROUND_TILE.match(stem or ""))
+    if not ground and any(spritequad.frame_userdata(template, c["frame"]).get("PolygonVertexes")
+                          for c in changes):
+        out.append("Sprites drawn from their quad data (map objects, most menus) show the new "
+                   "image at the old on-screen size. A sprite the game creates without that data "
+                   "is drawn at the texture's pixel size instead (verified for map ground tiles; "
+                   "other callers not surveyed).")
+    return out
+
+
+def size_change_text(changes: list, warnings: list) -> str:
+    """Multi-line 'old -> new' + warnings summary (CLI output / GUI confirm dialog)."""
+    lines = [f"{'frame %d: ' % c['frame'] if 'frame' in c else ''}{c['old'][0]}x{c['old'][1]} -> "
+             f"{c['new'][0]}x{c['new'][1]}" for c in changes]
+    lines += ["", *[f"- {w}" for w in warnings]] if warnings else []
+    return "\n".join(lines)
+
+
+def encode_into(template: bytes, png, *, rotate: bool = True, frame: int | None = None,
+                strip: bool = False, fmt: str | None = None) -> bytes:
+    """
+    Produce a new .texture by replacing the pixels of `template` (ANY shipped .texture)
+    with `png`. Returns the new .texture bytes.
+
+    png    -- a PNG path, a PIL Image, or a list of them (one per frame, in frame order).
+    frame  -- replace only this frame index of a flipbook (png = one image).
+    strip  -- png is one image holding every frame side by side, as decode_strip lays
+              them out (frames left-to-right, top-aligned, decoded sizes; a uniformly
+              scaled strip -- e.g. 2x -- resizes every frame).
+    fmt    -- storage format for the replaced frames: None / "keep" (default) re-encodes
+              each frame in its template frame's own format (BC7 / BC3 / BC1 through
+              bcenc -- same payload size -- or the raw format; BC2 / ASTC -> RGBA8); or
+              force "BC7" / "BC3" / "BC1" / "RGBA8" / "RGBA4444" / "ABGR1555" / "GL_RED_8bpp".
+    rotate -- undo the decoder's 90deg CCW rotation (images are in in-game orientation).
+
+    An image may have ANY size: the replaced frame's PIXL width/height are rewritten with
+    it (see "Size in game" in the module docstring for what that does on screen --
+    size_changes / size_warnings report it). A size a block format cannot be uploaded at
+    (upload_problem: BC7/BC3 need multiples of 4, BC1 also a square block grid) is refused;
+    pick such a size or fmt="RGBA8". Frames not replaced keep their original bytes, format
+    and size. The container is rebuilt for the new payload size (see module docstring for
+    the fields the loader reads); with the default format and the template's size it comes
+    out the same size as the template (bundle-patchable in place).
+    """
+    if not HAS_PIL:
+        raise TextureError("Pillow required: pip install Pillow")
+    info = parse(template)
+    if not info["container"] or not info["rlt_ok"]:
+        raise TextureError("template container could not be walked (no _RLT / bad pointers); "
+                           "only shipped-layout .texture files can be re-encoded")
+    if fmt is not None and fmt not in ENCODE_FORMATS:
+        raise TextureError(f"fmt must be one of {ENCODE_FORMATS}, not {fmt!r}")
+    if info["frames"] != info["frames_declared"]:
+        raise TextureError(f"template declares {info['frames_declared']} frames but only "
+                           f"{info['frames']} are physically present (truncated file)")
+    new = _assign_images(info, _as_images(png), rotate=rotate, frame=frame, strip=strip)
 
     # ---- per-frame payloads ----
-    payloads = []          # (fmt_code, bytes) in frame order
-    for fr in frames:
+    payloads = []          # (fmt_code, bytes[, (w, h) when replaced]) in frame order
+    for fr in info["frame_list"]:
         i = fr["index"]
         if i not in new:
-            payloads.append((fr["fmt_code"], template[fr["data_off"]:fr["data_off"] + fr["size"]]))
+            payloads.append((fr["fmt_code"], _slot_bytes(template, fr)))
             continue
         im = new[i]
         if rotate:
             im = im.transpose(Image.ROTATE_270)   # inverse of decode's ROTATE_90
-        if im.size != (fr["width"], fr["height"]):
-            shown = (fr["height"], fr["width"]) if rotate else (fr["width"], fr["height"])
-            raise TextureError(
-                f"frame {i}: image is {new[i].size}, template frame is {shown} (as decoded); "
-                f"dimensions must match -- the sprite UV/quad data is per-sprite")
-        payloads.append(_encode_checked(im, fr, _resolve_target(fr["fmt_name"], fr["kind"], fmt),
-                                        f"frame {i}"))
+        code, pb = _encode_checked(im, fr, _resolve_target(fr["fmt_name"], fr["kind"], fmt),
+                                   f"frame {i}")
+        payloads.append((code, pb, tuple(im.size)))
 
     return _rebuild(template, info, payloads)
+
+
+def _slot_bytes(data: bytes, fr: dict) -> bytes:
+    """A frame's stored level-0 bytes as they are: the linear payload, or the whole slot of a
+    block-linear (tileMode != 1) texture whose image size is larger (7 shipped .model
+    textures), so rebuilding around it never truncates it."""
+    n = fr["size"]
+    if fr.get("tile", 1) != 1 and fr.get("image_size", 0) > n:
+        n = fr["image_size"]
+    return data[fr["data_off"]:fr["data_off"] + n]
 
 
 def _encode_checked(im, fr: dict, target: str, what: str, *, validate: bool = True) -> tuple:
     """_encode_frame for template frame/texture `fr`, keeping the template's own format
     code when the target IS its format (RGBA8 has two codes, 0x0B01 and 0x0B03), and
-    refusing a format CHANGE the engine could not upload at this size (upload_problem).
-    Re-encoding in the template's own format is always allowed -- it is what shipped."""
+    refusing a format or SIZE change the engine could not upload (upload_problem).
+    Re-encoding in the template's own format at its own size is always allowed -- it is
+    what shipped."""
     code, payload = _encode_frame(im, target)
     if target == fr["fmt_name"]:
         code = fr["fmt_code"]
     if validate:
-        _validate_change(code, fr, target, what)
+        _validate_change(code, fr, target, what, tuple(im.size))
     return code, payload
 
 
-def _validate_change(code: int, fr: dict, target: str, what: str) -> None:
-    if code != fr["fmt_code"]:
-        why = upload_problem(code, fr["width"], fr["height"])
+def _validate_change(code: int, fr: dict, target: str, what: str, size: tuple | None = None) -> None:
+    w, h = size or (fr["width"], fr["height"])
+    resized = (w, h) != (fr["width"], fr["height"])
+    if code != fr["fmt_code"] or resized:
+        why = upload_problem(code, w, h)
         if why:
-            raise TextureError(f"{what}: cannot store as {target}: {why}")
+            hint = (" -- pick a size the format can take, or store it as RGBA8 (fmt='RGBA8')"
+                    if resized else "")
+            raise TextureError(f"{what}: cannot store {'%dx%d ' % (w, h) if resized else ''}"
+                               f"as {target}: {why}{hint}")
 
 
 def _rebuild(template: bytes, info: dict, payloads: list) -> bytes:
-    """Rewrite the container around new per-frame payloads (frame order)."""
+    """Rewrite the container around new per-frame payloads (frame order): entries are
+    (format code, level-0 bytes) or (format code, bytes, (w, h)) for a frame whose storage
+    size changes. Works on a .texture (RES) and on a bare BNTX (the header differs only in
+    where the _RLT offset lives: +0x10 vs +0x18; see _rlt_field)."""
     desc = info["desc_off"]
     rlt = info["rlt_off"]
     frames = info["frame_list"]
+    if desc + info["desc_size"] != rlt:
+        raise TextureError(f"data block 0x{desc:x}+0x{info['desc_size']:x} is not followed by the "
+                           f"_RLT (0x{rlt:x}); this container layout is not rewritable")
     body = bytearray(template[:desc + _DESC_HDR])
     # Frame payloads are stored back to back (as shipped); the block is padded to a
     # 16-byte multiple so the _RLT keeps the alignment every shipped file has.
     offsets, blob = [], bytearray()
-    for _code, pb in payloads:
+    for pl in payloads:
         offsets.append(len(blob))
-        blob += pb
+        blob += pl[1]
     if len(blob) % 16:
         blob += b"\0" * (16 - len(blob) % 16)
     new_rlt_off = desc + _DESC_HDR + len(blob)
     trailer = bytearray(template[rlt:])
     out = body + blob + trailer
-    # header: file sizes + _RLT offset
-    struct.pack_into("<I", out, _HDR_FILE_SIZE, len(out))
-    struct.pack_into("<I", out, _HDR_RLT, new_rlt_off)
+    # header: file sizes + _RLT offset (RES: +0x0C/+0x1C sizes, _RLT +0x10; BNTX: +0x0C is the
+    # byte-order mark / alignment, size +0x1C, _RLT +0x18)
+    if template[:1] == b"R":
+        struct.pack_into("<I", out, _HDR_FILE_SIZE, len(out))
+    struct.pack_into("<I", out, _rlt_field(template), new_rlt_off)
     struct.pack_into("<I", out, _HDR_FILE_SIZE2, len(out))
     # DESC block size = header + payload (this is the memory-pool size, +0x3C6130)
     struct.pack_into("<Q", out, desc + 8, _DESC_HDR + len(blob))
     # _RLT: self offset (the fixup derives the image base from it), data-section size
-    struct.pack_into("<I", out, new_rlt_off + 4, new_rlt_off)
+    struct.pack_into("<I", out, new_rlt_off + 4,
+                     (_u32(template, rlt + 4) & 0x80000000) | new_rlt_off)
     nsec = _u32(out, new_rlt_off + 8)
     for s in range(min(nsec, 16)):
         so = new_rlt_off + _RLT_SECTIONS + _RLT_SECTION_SIZE * s
@@ -889,13 +1065,18 @@ def _rebuild(template: bytes, info: dict, payloads: list) -> bytes:
             break
         if _u32(out, so + 8) == desc:                     # section covering the DESC block
             struct.pack_into("<I", out, so + 12, _DESC_HDR + len(blob))
-    # per-frame PIXL: format, level-0 size, single mip level, data pointer
-    for fr, (code, pb), rel in zip(frames, payloads, offsets):
+    # per-frame PIXL: format, level-0 size, single mip level, data pointer (+ size, linear)
+    for fr, pl, rel in zip(frames, payloads, offsets):
+        code, pb = pl[0], pl[1]
         px = fr["pixl_off"]
         struct.pack_into("<H", out, px + _PIXL_MIPS, 1)
         struct.pack_into("<I", out, px + _PIXL_FMT, code)
         struct.pack_into("<I", out, px + _PIXL_IMGSZ, len(pb))
         struct.pack_into("<Q", out, fr["mipptr_off"], desc + _DESC_HDR + rel)
+        if len(pl) > 2:                                  # replaced frame: its (new) size, linear
+            w, h = pl[2]
+            struct.pack_into("<II", out, px + _PIXL_W, w, h)
+            struct.pack_into("<H", out, px + _PIXL_TILE, 1)
         for m in range(1, fr["mips"]):                   # drop extra mip pointers (never shipped)
             mo = fr["mipptr_off"] + 8 * m
             if mo + 8 <= desc:

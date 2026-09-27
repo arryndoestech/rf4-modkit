@@ -901,3 +901,137 @@ def cube_obj(center=(0.0, 0.0, 0.0), size=1.0, name="cube"):
         + ["vn %.6f %.6f %.6f" % t for t in vn]
     lines += ["f " + " ".join(f"{i + 1}/{i + 1}/{i + 1}" for i in tri) for tri in f]
     return "\n".join(lines) + "\n"
+
+
+# --------------------------------------------------------------------------- #
+# embedded files (section 4): BNTX textures, FSHA shaders, FRES
+# --------------------------------------------------------------------------- #
+# Checked on all 912 shipped mesh .model files (the 212 UI-layout .model files embed nothing):
+# RES+0x98 -> table of {u64 -> file, u32 size, u32 0} per file, RES+0xA0 -> a name dictionary
+# whose u32 at +4 is the file count (== u16 RES+0xC8); 883 files embed BNTX + FSHA, 29 BNTX +
+# FSHA + FRES. Every file starts on a 0x1000 boundary, file k+1 at align(end of file k, 0x1000),
+# the outer _RLT at align(end of the last file, 0x1000); the last _RLT section covers exactly
+# [first file, _RLT); the table's u64 file pointers are the ONLY relocation slots whose target
+# lies at or past the first file (one per file), and no slot lies inside section 4. The BNTX
+# is fetched by GfxCTR_Model_BuildFromResource (RF4S.exe+0x1B52C0) as table[0].ptr and fixed up
+# through its own _RLT (BNTX+0x18, BFRES_GetRelocationTableStart +0x3CA9B0); the FSHA as
+# table[1].ptr. The size words are not read on that path; they are kept equal to the files'
+# own size fields (BNTX/FRES +0x1C) anyway.
+EMBED_ALIGN = 0x1000
+
+
+def embedded_files(data):
+    """[(file offset, size)] of the files embedded in section 4 (see above); [] for a .model
+    that embeds none."""
+    tab, dic = _u64(data, 0x98), _u64(data, 0xA0)
+    if not tab or not dic:
+        return []
+    n = _u32(data, dic + 4)
+    if n != _u16(data, 0xC8) or not 0 < n <= 64 or tab + 16 * n > len(data):
+        raise ModelWriteError(f"embedded-file table: count {n} (dictionary) != {_u16(data, 0xC8)} (RES+0xC8)")
+    return [(_u64(data, tab + 16 * k), _u32(data, tab + 16 * k + 8)) for k in range(n)]
+
+
+def _embedded_layout(data):
+    """(files, first, rlt) after checking the section-4 rules listed above."""
+    files = embedded_files(data)
+    if not files:
+        raise ModelWriteError("this .model embeds no files")
+    rlt, secs = _sections(data)
+    first = files[0][0]
+    end = first
+    for off, size in files:
+        if off != _align(end, EMBED_ALIGN) or off + size > rlt:
+            raise ModelWriteError("embedded files are not laid out as in the shipped files "
+                                  "(each 0x1000-aligned right after the previous one)")
+        end = off + size
+    if rlt != _align(end, EMBED_ALIGN):
+        raise ModelWriteError("the _RLT does not follow the last embedded file")
+    last = secs[-1]
+    if last[1] != first or last[1] + last[2] != rlt:
+        raise ModelWriteError("the last relocation section does not cover the embedded files")
+    return files, first, rlt
+
+
+def replace_embedded_file(data, index, blob):
+    """Swap embedded file `index` (see embedded_files) for `blob` of ANY size and return the
+    new .model bytes. The files after it move to the next 0x1000 boundary as shipped, then
+    the outer _RLT; fixed up: the table's size word (and every file pointer), every other
+    relocation slot whose target moves, the header file sizes (+0x0C/+0x1C) and _RLT offset
+    (+0x10), the _RLT self offset and the last section's size. A slot pointing INTO a file
+    other than at its start, or a slot inside section 4, is refused (none shipped). The blob
+    must be a complete file with its own relocation table (texture.bntx_replace builds one);
+    its inner pointers are relative to its own start, so it moves as a unit."""
+    files, first, rlt = _embedded_layout(data)
+    if not 0 <= index < len(files):
+        raise ModelWriteError(f"embedded file {index} out of range (model has {len(files)})")
+    if blob[:4] != data[files[index][0]:files[index][0] + 4]:
+        raise ModelWriteError(f"embedded file {index} is {data[files[index][0]:][:4]!r}, "
+                              f"the replacement {bytes(blob[:4])!r}")
+    out = bytearray(data[:first])
+    starts = []
+    for k, (off, size) in enumerate(files):
+        out += b"\0" * (_align(len(out), EMBED_ALIGN) - len(out))
+        starts.append(len(out))
+        out += blob if k == index else data[off:off + size]
+    out += b"\0" * (_align(len(out), EMBED_ALIGN) - len(out))
+    new_rlt = len(out)
+    out += data[rlt:]
+    sizes = [len(blob) if k == index else s for k, (_o, s) in enumerate(files)]
+
+    def moved(t):
+        if t < first:
+            return t
+        if t >= rlt:
+            return t - rlt + new_rlt
+        for k, (off, size) in enumerate(files):
+            if off <= t < off + max(size, 1):
+                if k == index and t != off:
+                    raise ModelWriteError(f"a relocation slot points inside embedded file {index} "
+                                          f"(0x{t:X}); it cannot be moved")
+                return starts[k] + (t - off)
+        raise ModelWriteError(f"a relocation slot points at 0x{t:X}, between the embedded files")
+    for sl, t in relocation_slots(data):
+        if sl >= first:
+            raise ModelWriteError(f"relocation slot 0x{sl:X} lies inside the embedded files")
+        nt = moved(t)
+        if nt != t:
+            struct.pack_into("<Q", out, sl, nt)
+    tab = _u64(data, 0x98)
+    for k, (st, sz) in enumerate(zip(starts, sizes)):
+        struct.pack_into("<QI", out, tab + 16 * k, st, sz)
+    struct.pack_into("<I", out, 0x0C, len(out))
+    struct.pack_into("<I", out, 0x1C, len(out))
+    struct.pack_into("<I", out, 0x10, new_rlt)
+    struct.pack_into("<I", out, new_rlt + 4, (_u32(data, rlt + 4) & 0x80000000) | new_rlt)
+    nsec = _u32(data, rlt + 8)
+    struct.pack_into("<I", out, new_rlt + _RLT_HDR + _RLT_SEC * (nsec - 1) + 12, new_rlt - first)
+    return bytes(out)
+
+
+def validate_embedded(data):
+    """Problems with section 4 ([] = none): the layout rules above, each table entry pointing
+    at a file whose own size field (BNTX/FRES +0x1C) equals the table size, a BNTX's own _RLT
+    ending the file and walking cleanly (texture.relocation_slots on the file)."""
+    from . import texture
+    try:
+        files, _first, _rlt = _embedded_layout(data)
+    except (ModelWriteError, struct.error, IndexError) as e:
+        return [str(e)]
+    probs = []
+    for k, (off, size) in enumerate(files):
+        f = bytes(data[off:off + size])
+        if f[:4] in (b"BNTX", b"FRES") and _u32(f, 0x1C) != size:
+            probs.append(f"embedded file {k}: own size 0x{_u32(f, 0x1C):X} != table size 0x{size:X}")
+        if f[:4] == b"BNTX":
+            try:
+                texture.relocation_slots(f)
+                info = texture.parse(f)
+                if info["rlt_off"] + 0x10 > size:
+                    probs.append(f"embedded file {k}: _RLT outside the file")
+                for fr in info["frame_list"]:
+                    if fr["data_off"] + fr["size"] > info["desc_off"] + info["desc_size"]:
+                        probs.append(f"embedded file {k}: texture {fr['index']} data past its BRTD block")
+            except texture.TextureError as e:
+                probs.append(f"embedded file {k}: {e}")
+    return probs
