@@ -93,6 +93,7 @@ class MapEditorPanel:
         self._build_toolbar()
         # No live relayout while the sash is dragged (the sidebar is ~150 native
         # widgets); the sidebar keeps its width when the window resizes.
+        self._build_limits_bar()
         paned = Paned(self.frame, orient="horizontal")
         paned.pack(fill="both", expand=True)
         self.view = MapView(paned, on_hover_tile=self._hover)
@@ -181,6 +182,61 @@ class MapEditorPanel:
         ttk.Button(bar, text="Validate", command=self.run_validation).pack(side="left")
         self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=ui.HINT_FONT)
         self.dirty_lbl.pack(side="right", padx=6)
+
+    # the game's fixed per-map capacities, as "used / cap" along the bottom of the editor
+    LIMIT_OK, LIMIT_NEAR, LIMIT_FULL, LIMIT_OVER = "#8a8a96", "#c89a00", "#d06a00", "#e03030"
+
+    def _build_limits_bar(self):
+        bar = ttk.Frame(self.frame, padding=(4, 1))
+        bar.pack(side="bottom", fill="x")
+        lab = ttk.Label(bar, text="Limits:", font=ui.HINT_FONT)
+        lab.pack(side="left")
+        ui.Tip(lab, "How much of the game's fixed per-map room this map uses. Grey = fine, "
+                    "yellow = nearly full, orange = full (nothing more can be added), red = "
+                    "past the limit (Validate lists what goes wrong).")
+        self.limit_lbls = {}
+        self._limit_tips = {}
+        for key in ("mobj", "mapj", "forage", "doors", "si"):
+            w = ttk.Label(bar, font=ui.HINT_FONT)
+            w.pack(side="left", padx=(8, 0))
+            ui.Tip(w, lambda k=key: self._limit_tips.get(k, ""))
+            self.limit_lbls[key] = w
+
+    def limit_usage(self):
+        """[(key, label, used, cap, over_is_error, tip)] for the open map and its SI file
+        (search spots only when the game rolls search items here)."""
+        d = self.doc
+        if d is None:
+            return []
+        out = d.map.limit_usage()
+        if not d.si_block_reason():
+            out.append(("si", "Search spots", len(d.si.spots) if d.si else 0,
+                        search_items.MAX_SPOTS, True,
+                        "Search spots in this map's SI file: the daily roll uses one random "
+                        "stream per spot and stream 255 never finishes, so 253 is the most "
+                        "that is safe."))
+        return out
+
+    def _update_limits(self):
+        shown = {}
+        for key, label, used, cap, hard, tip in self.limit_usage():
+            if used > cap:
+                col, state = self.LIMIT_OVER, "past the limit" if hard else "over"
+            elif used == cap:
+                col, state = self.LIMIT_FULL, "full"
+            elif used >= cap * 0.9:
+                col, state = self.LIMIT_NEAR, "nearly full"
+            else:
+                col, state = self.LIMIT_OK, None
+            shown[key] = (f"{label} {used}/{cap}", col)
+            self._limit_tips[key] = (f"{label}: {used} of {cap}" + (f" -- {state}" if state else "")
+                                     + "\n" + tip)
+        for key, w in self.limit_lbls.items():
+            text, col = shown.get(key, ("", self.LIMIT_OK))
+            if key == "si" and key not in shown and self.doc is not None:
+                text = "Search spots -"
+                self._limit_tips[key] = self.doc.si_block_reason() or ""
+            w.config(text=text, foreground=col)
 
     def _bind_canvas(self):
         c = self.view.canvas
@@ -437,6 +493,7 @@ class MapEditorPanel:
         self.undo_btn.state(["!disabled"] if d and d.undo_stack else ["disabled"])
         self.redo_btn.state(["!disabled"] if d and d.redo_stack else ["disabled"])
         self.zoom_lbl.config(text=f"{self.view.cp} px")
+        self._update_limits()
 
     def _undo_tip(self, which):
         d = self.doc

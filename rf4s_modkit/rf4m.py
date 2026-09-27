@@ -1122,6 +1122,28 @@ class Rf4mMap:
     # (trees / rock walls whose sprite hangs into view, seal-door controllers at x <= 0).
     _REACHED_TYPES = frozenset({24, 25, 35, 42, 44, 45, 46, 52, 53, 58, 63})
 
+    def limit_usage(self) -> list[tuple]:
+        """[(key, label, used, cap, over_is_error, what the cap is)] for the game's fixed
+        per-map capacities -- what the map editor's limits bar shows. Past a cap the game
+        corrupts memory (over_is_error) or misbehaves (see validate())."""
+        from . import mobj_params as mp
+        tids = [r[0] & 0xFFFF for r in self.mobj_records()]
+        n = Counter(c.tag for c in self.chunks)
+        return [
+            ("mobj", "Objects", n[b"MOBJ"], ENGINE_MAX_CHUNKS[b"MOBJ"], True,
+             "Placed objects (MOBJ records), map parameter records included. Map_LoadById "
+             "keeps one pointer per object in a fixed array of 40 and never checks the count: "
+             "a 41st overwrites the next array."),
+            ("mapj", "Warps", n[b"MAPJ"], ENGINE_MAX_CHUNKS[b"MAPJ"], True,
+             "Warp zones (MAPJ records): Map_LoadById's warp array holds 10, unchecked."),
+            ("forage", "Forage", sum(1 for t in tids if t <= 8), mp.FORAGE_MAX_SPAWNS, True,
+             "Forage spawners (types 0..8: ore rocks, wood, stones, herbs, crops): "
+             "Map_HandleSpecialTriggerEntity spawns at most 32 per map."),
+            ("doors", "Doors / walls", sum(1 for t in tids if 82 <= t <= 195), mp.DOOR_SLOTS, False,
+             "Doors, roads and walls (types 82..195) share a 4-slot collision registry: a 5th "
+             "one copies door #0's collision instead of having its own."),
+        ]
+
     def _entity_findings(self, W: int, H: int, has_grid: bool):
         """(errors, warnings) for the MOBJ records (validate() section 5)."""
         from . import mobj_params as mp

@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 # your settings (the game folder in use): personal, never shipped
 settings.json
+# the window icon, decoded from your game copy (app_icon.py): game art, never shipped
+toolkit_icon.png
 *.py[cod]
 
 # ---- regenerated / scratch output ---------------------------------------------

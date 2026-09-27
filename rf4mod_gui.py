@@ -4173,7 +4173,10 @@ class App:
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
+    import app_icon
+    app_icon.prepare()
     root = tk.Tk()
+    app_icon.apply(root)
     found = gamepaths.find_bundle_dir()
     if not argv and (found is None or (not gamepaths.is_unpacked(found)
                                        and gamepaths.get_setting("unpack_asked") != str(found))):
@@ -4185,6 +4188,7 @@ def main(argv=None):
         root.withdraw()
         if game_setup.run(root, current=found) or found is not None:
             _use_game_paths()
+            app_icon.apply(root)                # a game copy is known now: its trophy icon
         root.deiconify()
     App(root, initial=argv[0] if argv else None)
     root.mainloop()

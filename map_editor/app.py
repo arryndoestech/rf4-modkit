@@ -160,6 +160,9 @@ class MapExplorer:
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
+    import app_icon
+    app_icon.prepare()
     root = tk.Tk()
+    app_icon.apply(root)
     MapExplorer(root, initial=argv[0] if argv else None)
     root.mainloop()

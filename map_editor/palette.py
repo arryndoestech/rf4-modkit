@@ -2,11 +2,12 @@
 the type for the Add tool, and the next click on the map places it."""
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
 
-from rf4s_modkit import mobj_types
+from rf4s_modkit import gamepaths, mobj_types
 
 from . import attrs, render, ui
 from .inspector import mobj_choice, mobj_choices
@@ -18,8 +19,11 @@ try:
 except ImportError:                     # the palette falls back to coloured markers
     Image = ImageTk = None
 
-# (label, mobj_types.mobj_kind values shown)
-GROUPS = (("All", None), ("Decorations", ("decoration",)), ("Interactive objects", ("object",)),
+FAVORITES_SETTING = "map_palette_favorites"     # settings.json: the favourite type ids
+FAVORITES = "Favorites"
+
+# (label, mobj_types.mobj_kind values shown); Favorites = the types the user starred
+GROUPS = (("All", None), (FAVORITES, None), ("Decorations", ("decoration",)), ("Interactive objects", ("object",)),
           ("Actors (NPCs, doors, chests ...)", ("actor",)), ("Forage spawners", ("forage",)),
           ("Map parameters (no picture)", ("mapparam",)))
 
@@ -29,7 +33,8 @@ class PaletteTab(ttk.Frame):
     (the Add tool's defaults), else a marker in the type's category colour, with the id and
     name under it. Pictures are made a few at a time while the tab is shown."""
 
-    CELL_W, CELL_H, PIC = 92, 96, 72       # cell size, picture box (px)
+    CELL_W, CELL_H, PIC = 92, 120, 72      # cell size, picture box (px)
+    NAME_LINES = 3                         # the name wraps onto up to this many lines
     UNUSED, USED = "#d8d8e0", "#9fe39f"    # name colour; green = already on this map
     BATCH = 6                              # pictures made per idle step
 
@@ -51,8 +56,8 @@ class PaletteTab(ttk.Frame):
         self.query.trace_add("write", lambda *_a: self._relayout())
         cb.bind("<<ComboboxSelected>>", lambda _e: self._relayout())
         hint(self, "Click an object to pick it, then click the map to place it (the Add tool, "
-                   "A). Pictures show the object as a new one looks; set its fields in the "
-                   "Inspector afterwards.", wrap=340).pack(anchor="w", fill="x", padx=4)
+                   "A). Right-click: add to / remove from Favorites. Pictures show the object as "
+                   "a new one looks; set its fields in the Inspector afterwards.", wrap=340).pack(anchor="w", fill="x", padx=4)
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True, padx=4, pady=2)
         self.canvas = tk.Canvas(body, bg="#1b1b22", highlightthickness=0, cursor="hand2")
@@ -71,6 +76,8 @@ class PaletteTab(ttk.Frame):
         self._shown = []                    # tids laid out, in order
         self._cols = 1
         self._hover = None
+        self.favorites = self._load_favorites()
+        self.canvas.bind("<Button-3>", self._menu)
         self.canvas.bind("<Configure>", lambda _e: self._relayout())
         self.canvas.bind("<Button-1>", self._click)
         self.canvas.bind("<Motion>", self._motion)
@@ -137,7 +144,46 @@ class PaletteTab(ttk.Frame):
                 self._draw_pic(tid)
 
     # ---- layout -------------------------------------------------------------- #
+    # ---- favourites (kept in settings.json across sessions) ------------------ #
+    @staticmethod
+    def _load_favorites():
+        try:
+            return {int(t) for t in gamepaths.get_setting(FAVORITES_SETTING, []) or []}
+        except Exception:  # noqa: BLE001 - no / unreadable settings: none
+            return set()
+
+    def set_favorite(self, tid, on):
+        """Star / unstar a type (remembered); the Favorites group follows at once."""
+        if on:
+            self.favorites.add(tid)
+        else:
+            self.favorites.discard(tid)
+        try:
+            gamepaths.set_setting(FAVORITES_SETTING, sorted(self.favorites))
+        except OSError:
+            pass                                # a read-only toolkit folder: this session only
+        self._relayout()
+        name = mobj_types.mobj_display_name(tid) or f"type {tid}"
+        self.ed.status(f"{tid} {name} {'added to' if on else 'removed from'} the palette's favorites")
+
+    def _menu(self, e):
+        tid = self.tid_at(e.x, e.y)
+        if tid is None:
+            return
+        m = tk.Menu(self, tearoff=False)
+        if tid in self.favorites:
+            m.add_command(label="Remove from favorites", command=lambda: self.set_favorite(tid, False))
+        else:
+            m.add_command(label="Add to favorites", command=lambda: self.set_favorite(tid, True))
+        m.add_command(label="Pick to place", command=lambda: self.pick(tid))
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+
     def matches(self, tid):
+        if self.group.get() == FAVORITES and tid not in self.favorites:
+            return False
         kinds = dict(GROUPS).get(self.group.get())
         if kinds and mobj_types.mobj_kind(tid) not in kinds:
             return False
@@ -162,9 +208,13 @@ class PaletteTab(ttk.Frame):
                                outline="#33333d", fill="#23232b", tags=(tag, "cell", f"cell{tid}"))
             name = mobj_types.mobj_display_name(tid) or f"type {tid}"
             c.create_text(x0 + self.CELL_W // 2, y0 + self.CELL_H - 4, anchor="s",
-                          text=self._fit(f"{tid}  {name}"), fill=self.USED if tid in on_map else self.UNUSED,
+                          text=self._fit(f"{tid}  {name}"), justify="center",
+                          fill=self.USED if tid in on_map else self.UNUSED,
                           font=self.font, tags=(tag, f"name{tid}", "name"))
             self._draw_pic(tid, x0, y0)
+            if tid in self.favorites:
+                c.create_text(x0 + self.CELL_W - 6, y0 + 4, anchor="ne", text="★", fill="#ffd040",
+                              font=self.font, tags=(tag, "star"))
         rows = (len(self._shown) + cols - 1) // cols
         c.configure(scrollregion=(0, 0, cols * self.CELL_W, max(rows * self.CELL_H, 1)))
         self.mark()
@@ -172,16 +222,35 @@ class PaletteTab(ttk.Frame):
         if self._queue and self._job is None:
             self._job = ui.later(self, self._pump, 1)
         if not self._shown:
-            c.create_text(8, 8, anchor="nw", fill="#aaa", text="No object type matches.")
+            c.create_text(8, 8, anchor="nw", fill="#aaa", width=max(120, width - 16),
+                          text="No favorites yet: right-click an object and choose Add to "
+                               "favorites." if self.group.get() == FAVORITES and not self.favorites
+                          else "No object type matches.")
 
     def _fit(self, text):
-        """`text` cut (with an ellipsis) to one line of the cell's width."""
+        """`text` word-wrapped onto at most NAME_LINES lines of the cell's width; only what
+        still does not fit is cut (with an ellipsis). Hover shows the full name."""
         room = self.CELL_W - 8
-        if self.font.measure(text) <= room:
-            return text
-        while text and self.font.measure(text + "…") > room:
-            text = text[:-1]
-        return text.rstrip() + "…"
+        lines, cur = [], ""
+        for word in re.sub(r"-(?=\w)", "- ", text).split(" "):
+            trial = (cur + word if cur.endswith("-") else f"{cur} {word}") if cur else word
+            if self.font.measure(trial) <= room or not cur:
+                cur = trial
+            else:
+                lines.append(cur)
+                cur = word
+        lines.append(cur)
+        cut = len(lines) > self.NAME_LINES
+        lines = lines[:self.NAME_LINES]
+        out = []
+        for k, line in enumerate(lines):
+            last = k == len(lines) - 1
+            if self.font.measure(line) > room or (last and cut):
+                while line and self.font.measure(line + "…") > room:
+                    line = line[:-1]
+                line = line.rstrip() + "…"
+            out.append(line)
+        return "\n".join(out)
 
     def _cell_xy(self, tid):
         try:

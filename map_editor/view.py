@@ -12,7 +12,7 @@ import types
 from tkinter import ttk
 
 import guiutil
-from rf4s_modkit import mobj_types
+from rf4s_modkit import collisionstamp, mobj_types
 
 from . import attrs, data, render, ui
 
@@ -695,10 +695,11 @@ class MapView(ttk.Frame):
         for i, mode, bits in render.stamps_at(d, self.st.flags, t):
             o = d.objs[i]
             nm = mobj_types.mobj_display_name(o["type_id"] & 0xFFFF) or f"type {o['type_id']}"
-            what = (f"+0x{bits:X}" if mode == "template" else "made solid (| 0x2)")
-            lines.append(f"stamped by #{i} {nm} at load: {what}")
-            lines.append("  -> " + attrs.walk_readout(
-                (v & ~0x1018F | 0x2) if mode == "box" else (v | bits)))
+            what = {"template": f"+0x{bits:X}", "box": "made solid (| 0x2)",
+                    "replace": f"set to 0x{bits:X} (replaces the walking bits)"}[mode]
+            after = collisionstamp.result(v, mode, bits)
+            lines.append(f"stamped by #{i} {nm} at load: {what}  -> 0x{after:X}")
+            lines.append("  -> " + attrs.walk_readout(after))
         return "\n".join(lines)
 
     def _hover(self, t):

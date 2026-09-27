@@ -36,7 +36,8 @@ SI_COLOR = "#ffe000"
 GATE_COLOR = "#ff8c1a"
 MPOS_COLOR = "#ff5aa0"
 SPAWN_COLOR = "#c060ff"
-STAMP_COLOR = "#ff40c0"          # the collision the objects stamp into ATTR at load
+STAMP_COLOR = "#ff40c0"          # the collision the objects stamp into ATTR at load: blocks the player
+STAMP_WALK_COLOR = "#40e080"     # ... stamped, but the player can walk there (the airship gangway)
 HANDLES = ("nw", "n", "ne", "w", "e", "sw", "s", "se")
 
 
@@ -768,11 +769,19 @@ def overlay(group, st):
         # the collision the interactive objects stamp into ATTR when the room loads (not in
         # the file): a hatched fill per tile, outlined, for the flag snapshot shown
         if L.get("stamps", True):
-            for _i, _mode, cells in object_stamps(doc, getattr(st, "flags", None)):
-                for x0, x1, ty in stamp_runs(cells):
-                    out.append(Prim("rect", (x0 * cp, ty * cp, (x1 + 1) * cp, (ty + 1) * cp),
-                                    fill=STAMP_COLOR, stipple="gray25", outline=STAMP_COLOR,
-                                    width=1 if cp >= 6 else 0))
+            # coloured by what the tile becomes for the player: magenta = blocked (trees,
+            # rocks, the invisible wall), green = walkable (the gangway lays a path)
+            player = attrs.ACTOR_MASKS[0][1]
+            for _i, mode, cells in object_stamps(doc, getattr(st, "flags", None)):
+                walk, block = {}, {}
+                for t, bits in cells.items():
+                    after = collisionstamp.result(doc.cell(*t), mode, bits)
+                    (block if attrs.blocks(after, player) else walk)[t] = bits
+                for part, col in ((block, STAMP_COLOR), (walk, STAMP_WALK_COLOR)):
+                    for x0, x1, ty in stamp_runs(part) if part else ():
+                        out.append(Prim("rect", (x0 * cp, ty * cp, (x1 + 1) * cp, (ty + 1) * cp),
+                                        fill=col, stipple="gray25", outline=col,
+                                        width=1 if cp >= 6 else 0))
     elif group == "warp":
         if L.get("mapj"):
             # the game's own runtime warps / walls first (dashed, no key: never selected)

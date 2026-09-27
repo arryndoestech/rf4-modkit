@@ -33,7 +33,8 @@ def _private_settings():
     read back from it (a user's saved choices would change what the tests see)."""
     import json as _json
     d = _gamepaths._load_settings()
-    for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden"):
+    for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden",
+              "map_palette_favorites"):
         d.pop(k, None)
     p = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_selftest_")) / "settings.json"
     p.write_text(_json.dumps(d), encoding="utf-8")
@@ -6542,7 +6543,131 @@ def test_map_editor_palette():
         _check("Palette: types on the map are named in green, following adds and undo",
                not on_before and after_add and not used(223)
                and len(ed.doc.map.mobj_records()) == n0, (on_before, after_add, used(223)))
+        pal.group.set("Favorites")
+        pal._relayout()
+        empty = list(pal._shown)
+        pal.set_favorite(223, True)
+        pal.set_favorite(44, True)
+        starred = sorted(pal._shown)
+        from map_editor import palette as _pal_mod
+        kept = _pal_mod.PaletteTab._load_favorites()
+        pal.set_favorite(44, False)
+        _check("Palette: Favorites starts empty, lists the starred types (remembered in the "
+               "settings), and drops an unstarred one",
+               empty == [] and starred == [44, 223] and kept == {44, 223} and pal._shown == [223]
+               and pal.canvas.find_withtag("star"), (empty, starred, kept, pal._shown))
+        pal.set_favorite(223, False)
         _check("Palette raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_map_editor_limits_bar():
+    """Map editor limits bar: objects / warps / forage / doors / search spots as used/cap
+    against the game's fixed per-map capacities; grey while there is room, orange when full,
+    red past the cap; it follows edits and undo."""
+    print("map editor limits bar:")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("map editor limits bar", "no tkinter"); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_CITY_04.rf4m").exists():
+        _skip("map editor limits bar", "no extracted bundleMain"); return
+    from map_editor import tools as _tools
+    from rf4s_modkit import rf4m as _rf4m
+    root, ed, errs = _headless_panel("MAP_CITY_04", B)
+    try:
+        d = ed.doc
+        L = ed.limit_lbls
+        n0 = len(d.map.mobj_records())
+        text = L["mobj"].cget("text")
+        _check("limits bar: objects used / 40, warps / 10, forage / 32, doors / 4 and search "
+               "spots / 253 are shown",
+               text == f"Objects {n0}/40" and L["mapj"].cget("text").endswith("/10")
+               and L["forage"].cget("text").endswith("/32")
+               and L["doors"].cget("text").endswith("/4")
+               and L["si"].cget("text").endswith("/253"),
+               {k: w.cget("text") for k, w in L.items()})
+        with d.edit("fill", "mobj"):
+            while len(d.map.mobj_records()) < 40:
+                d.map.add_mobj_record(_tools.new_entity_record(223, 80, 80))
+        root.update()
+        full = (L["mobj"].cget("text"), str(L["mobj"].cget("foreground")))
+        with d.edit("over", "mobj"):
+            d.map.add_mobj_record(_tools.new_entity_record(223, 80, 80))
+        root.update()
+        over = (L["mobj"].cget("text"), str(L["mobj"].cget("foreground")))
+        ed.undo()
+        ed.undo()
+        root.update()
+        back = (L["mobj"].cget("text"), str(L["mobj"].cget("foreground")))
+        _check("limits bar: orange when full, red past the cap, back to grey after undo",
+               full == ("Objects 40/40", ed.LIMIT_FULL) and over == ("Objects 41/40", ed.LIMIT_OVER)
+               and back == (f"Objects {n0}/40", ed.LIMIT_OK), (full, over, back))
+        _check("limits bar raised no callback errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+
+
+def test_collision_stamp_modes():
+    """Object collision stamps as the game applies them: templates are OR-ed in (the invisible
+    wall 262 adds 0x8000002 and blocks), but the airship gangway 294 goes through
+    Map_SetAttrTileFlags (Map_SpawnInteractiveObject tests archive 0x45AC), whose group-wise
+    merge replaces the walking bits -- the walls under it become walkable path."""
+    print("object collision stamps (OR vs the gangway's merge):")
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_ROOM_25.rf4m").exists():
+        _skip("collision stamps", "no extracted bundleMain"); return
+    from map_editor import attrs as _attrs
+    from rf4s_modkit import collisionstamp as _cs, rf4m as _rf4m
+    _check("Map_SetAttrTileFlags merge: a walking bit replaces the walking group, other "
+           "groups stay, stray bits are OR-ed",
+           _cs.set_attr_flags(0x2 | 0x400000, 0x20000001) == 0x20400001
+           and _cs.set_attr_flags(0x4, 0x8000000) == 0x8000004
+           and _cs.set_attr_flags(0x8000 | 0x1, 0x20000000) == 0x20000001)
+    player = _attrs.ACTOR_MASKS[0][1]
+
+    def walkable(name, tid):
+        m = _rf4m.Rf4mMap.load(B / f"{name}.rf4m")
+        W, H, cells = m.attr_grid()
+        rec = next(r for r in m.mobj_records() if (r[0] & 0xFFFF) == tid)
+        mode, st = _cs.stamp(rec, W, H)
+        after = _cs.apply(cells, W, H, [rec])
+        return mode, len(st), sum(1 for (x, y) in st if not _attrs.blocks(after[y * W + x], player))
+
+    g = walkable("MAP_ROOM_25", 294)
+    w = walkable("MAP_CITY_04", 262)
+    _check("the airship gangway (294) makes its tiles walkable; the invisible wall (262) "
+           "blocks every tile it covers",
+           g[0] == "replace" and g[1] > 0 and g[2] == g[1]
+           and w[0] == "template" and w[1] > 0 and w[2] == 0, (g, w))
+
+
+def test_app_icon():
+    """The window / taskbar icon: the 77th trophy (COLLECTION_76) read from the game copy,
+    squared, cached as a PNG next to settings.json (a scratch copy here), and set on the
+    root window for every later window too."""
+    print("toolkit icon (COLLECTION_76 from the game copy):")
+    try:
+        import tkinter as tk
+    except Exception:
+        _skip("app icon", "no tkinter"); return
+    import app_icon
+    if app_icon._texture_bytes() is None:
+        _skip("app icon", "no game copy with COLLECTION_76.texture"); return
+    cp = app_icon.cache_path()
+    if cp.exists():
+        cp.unlink()
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        ok = app_icon.apply(root)
+        im = app_icon.image()
+        _check("the icon is decoded from the game copy, squared and cached next to the "
+               "settings (not in the toolkit)", ok and im is not None and im.width == im.height
+               and cp.is_file() and cp.parent == _gamepaths.settings_path().parent,
+               (ok, im and im.size, str(cp)))
     finally:
         root.destroy()
 
@@ -10885,7 +11010,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_collision_stamp_modes, test_app_icon, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
