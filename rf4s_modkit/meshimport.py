@@ -53,10 +53,12 @@ Round trips. A vertex whose model-space position (within 1e-5 of the model's siz
 normal (dot >= 0.9995) and weights (same bones, within 2e-3) match an original vertex of the
 shape keeps that vertex's original bytes; when EVERY vertex matches and the triangles are the
 original ones (in any order, any rotation), the shape is left untouched. So an unmodified
-Export for Blender file re-imports byte-identically, and so does a Blender import -> export
-round trip, whose positions move by ~1e-5 and normals by ~1e-4 (float noise of its Z-up
-conversion) and whose vertex order changes (verified on shipped models, selftest
-test_model_glb_import / test_model_glb_blender). Other vertices are built fresh: non-geometry
+Export for Blender file re-imports byte-identically (all 912 mesh .model files), and so does a
+Blender 5.2 import -> export round trip, whose positions move by ~1e-5 and normals by ~1e-4
+(float noise of its Z-up conversion) and whose vertex order changes: 55 of 61 sampled models
+(every 15th) came back byte-identical; in the other 6 Blender re-split a few triangles or, under
+a non-uniformly scaled bone, re-derived the normals, and the renders (front and top, 256 px)
+are pixel-identical (selftest test_model_glb_import / test_model_glb_blender). Other vertices are built fresh: non-geometry
 attributes (`_c0`) copied from the nearest original vertex, then position / normal / UV /
 weights from the file. Identical records are shared (the index buffer references them once).
 

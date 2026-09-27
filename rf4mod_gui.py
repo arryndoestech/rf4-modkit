@@ -1695,6 +1695,111 @@ class App:
                                 f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
         return True
 
+    def _edit_model_materials(self, name, changes=None):
+        """Materials… on a .model tab: the settings the game reads from each material (texture
+        wrap U / V, and DrawOrder / BlendType / CombineType / CombineColor00 where the material
+        carries them -- rf4s_modkit.matedit), edited in place into the tab's working copy.
+        `changes` ({material index: set_material keyword arguments}) skips the dialog (tests)."""
+        from rf4s_modkit import matedit as _me
+        doc = self._doc
+        if doc.cur_data is None:
+            return False
+        try:
+            mats = _me.materials(doc.cur_data)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Materials", str(e))
+            return False
+        if changes is None:
+            changes = self._material_dialog(mats)
+        if not changes:
+            return False
+        blob = doc.cur_data
+        try:
+            for mi, kw in sorted(changes.items()):
+                blob = _me.set_material(blob, mi, **kw)
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("Materials", f"Nothing was changed:\n{e}")
+            return False
+        if blob == doc.cur_data:
+            self.status.config(text="materials unchanged")
+            return True
+        doc.cur_data = blob
+        self._show(name, blob, doc)
+        self.status.config(text=f"Changed {len(changes)} material(s) in place (same size); "
+                                f"Extract to save the working copy")
+        return True
+
+    def _material_dialog(self, mats):
+        """{material index: set_material kwargs} of the settings changed in a dialog, or None."""
+        from rf4s_modkit import matedit as _me
+        win = tk.Toplevel(self.root)
+        win.title("Materials -- what the game reads")
+        win.transient(self.root)
+        ttk.Label(win, text="Texture wrap applies to every material. DrawOrder (pass 0-3, drawn in "
+                            "order), BlendType (0 off, 1 alpha, 2 additive, 3 One/One, 4 One/Zero) and "
+                            "CombineType (0 texture, 1 texture lit, 2/3 flat CombineColor) can only be "
+                            "changed where the material already has them.",
+                  wraplength=620, justify="left").pack(anchor="w", padx=8, pady=(8, 4))
+        grid = ttk.Frame(win)
+        grid.pack(fill="both", expand=True, padx=8)
+        heads = ("material", "texture", "wrap U", "wrap V", "DrawOrder", "BlendType", "CombineType", "CombineColor00")
+        for c, h in enumerate(heads):
+            ttk.Label(grid, text=h).grid(row=0, column=c, sticky="w", padx=3)
+        rows = {}
+        for r, mt in enumerate(mats, start=1):
+            ttk.Label(grid, text=f"{mt.index} {mt.name}").grid(row=r, column=0, sticky="w", padx=3)
+            ttk.Label(grid, text=mt.texture or "-").grid(row=r, column=1, sticky="w", padx=3)
+            v = {}
+            for c, k in ((2, 0), (3, 1)):
+                var = tk.StringVar(value=_me.WRAP_MODES[mt.wrap[k]] if mt.wrap and mt.wrap[k] < 5 else "")
+                ttk.Combobox(grid, textvariable=var, values=_me.WRAP_MODES, width=11,
+                             state="readonly" if mt.wrap else "disabled").grid(row=r, column=c, padx=3)
+                v["wrap_u" if k == 0 else "wrap_v"] = var
+            for c, key, kw in ((4, "DrawOrder", "draw_order"), (5, "BlendType", "blend"), (6, "CombineType", "combine")):
+                has = key in mt.user
+                var = tk.StringVar(value=str(mt.user[key]) if has else "")
+                ttk.Combobox(grid, textvariable=var, values=[str(i) for i in range(_me.USER_INTS[key] + 1)],
+                             width=4, state="readonly" if has else "disabled").grid(row=r, column=c, padx=3)
+                v[kw] = var
+            cc = mt.user.get("CombineColor00")
+            var = tk.StringVar(value=", ".join(f"{x:g}" for x in cc) if cc else "")
+            ttk.Entry(grid, textvariable=var, width=18, state="normal" if cc else "disabled").grid(row=r, column=7, padx=3)
+            v["combine_color"] = var
+            rows[mt.index] = (mt, v)
+        out = {}
+
+        def ok():
+            for mi, (mt, v) in rows.items():
+                kw = {}
+                for key in ("wrap_u", "wrap_v"):
+                    k = 0 if key == "wrap_u" else 1
+                    if mt.wrap and v[key].get() and v[key].get() != _me.WRAP_MODES[min(4, mt.wrap[k])]:
+                        kw[key] = v[key].get()
+                for key, kwn in (("DrawOrder", "draw_order"), ("BlendType", "blend"), ("CombineType", "combine")):
+                    if key in mt.user and v[kwn].get() != str(mt.user[key]):
+                        kw[kwn] = int(v[kwn].get())
+                cc = mt.user.get("CombineColor00")
+                if cc:
+                    try:
+                        new = tuple(float(x) for x in v["combine_color"].get().replace(" ", "").split(","))
+                    except ValueError:
+                        new = ()
+                    if len(new) != 3:
+                        messagebox.showerror("Materials", f"{mt.name}: CombineColor00 takes r, g, b")
+                        return
+                    if any(abs(a - b) > 1e-6 for a, b in zip(new, cc)):
+                        kw["combine_color"] = new
+                if kw:
+                    out[mi] = kw
+            win.destroy()
+        b = ttk.Frame(win)
+        b.pack(fill="x", padx=8, pady=8)
+        ttk.Button(b, text="Apply", command=ok).pack(side="right")
+        ttk.Button(b, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+        win.grab_set()
+        win.wait_window()
+        return out or None
+
     def _obj_import_dialog(self, m, objs, *, title="Import OBJ -- which object replaces which shape",
                            what="an OBJ object", named="Export OBJ", defaults=None):
         """{shape index: object / mesh name} chosen in a small dialog, or None when cancelled.
@@ -2412,6 +2517,11 @@ class App:
                  "Materials and textures stay as they are (Replace texture… changes those). "
                  "The result becomes this tab's working copy: save it like any other edit.")
         ttk.Button(bar, text="Export OBJ…", command=export).pack(side="right", padx=4)
+        mb = ttk.Button(bar, text="Materials…", command=lambda: self._edit_model_materials(name))
+        mb.pack(side="right", padx=4)
+        _Tip(mb, "The material settings the game reads: texture wrap (repeat / mirror / clamp …) "
+                 "for every material, and draw pass, blend mode and colour combine where the "
+                 "material has them. Changed in place (same file size) in this tab's working copy.")
         # the model view on top, the info pane (shapes, materials) under it; the divider moves
         body = ttk.Panedwindow(frame, orient="vertical"); body.pack(fill="both", expand=True)
         cv = tk.Canvas(body, bg="#202024", highlightthickness=0)
@@ -2426,9 +2536,16 @@ class App:
         txt.pack(side="left", fill="both", expand=True)
         body.add(infof, weight=1)
         lines = [_model.summary(m), "", "materials:"]
+        from rf4s_modkit import matedit as _me
+        try:
+            wraps = {s.index: s.wrap for s in _me.materials(data)}
+        except Exception:  # noqa: BLE001
+            wraps = {}
         for mt in m.materials:
             ud = _model.user_data_text(mt)
-            lines.append(f"  {mt.name}: {', '.join(mt.textures) or '(no texture)'}" + (f"  [{ud}]" if ud else ""))
+            w = wraps.get(mt.index)
+            wt = (f"  wrap {_me.WRAP_MODES[min(4, w[0])]}/{_me.WRAP_MODES[min(4, w[1])]}") if w else ""
+            lines.append(f"  {mt.name}: {', '.join(mt.textures) or '(no texture)'}{wt}" + (f"  [{ud}]" if ud else ""))
         txt.insert("end", "\n".join(lines)); txt.config(state="disabled")
         state = {"photo": None, "frame": 0.0, "textures": {}}
         anim = self._model_material_anim(name, m)

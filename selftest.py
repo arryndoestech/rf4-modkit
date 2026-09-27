@@ -9545,7 +9545,7 @@ def test_model_material():
 def test_explorer_model_glb_import():
     """rf4mod_gui model tab: Import from Blender… rebuilds shapes from a .glb (same-named mesh
     preselected), makes the result the tab's working copy, and reports an unedited export as
-    unchanged."""
+    unchanged; Materials… opens and edits a material's settings in place."""
     print("asset explorer: Import from Blender on a model tab:")
     import importlib.util, tempfile, shutil
     try:
@@ -9605,6 +9605,24 @@ def test_explorer_model_glb_import():
                and m2.vertex_buffers[m2.shapes[1].vertex_buffer].data == m.vertex_buffers[m.shapes[1].vertex_buffer].data
                and "Rebuilt 1 shape" in app.status.cget("text") and not box["msgs"],
                (app.status.cget("text"), box["msgs"][:1]))
+        # Materials…: the dialog builds (Apply with nothing changed returns nothing), and a
+        # change goes into the working copy in place
+        def press_apply():
+            for w in root.winfo_children():
+                if isinstance(w, tk.Toplevel):
+                    for b in w.winfo_children():
+                        for x in b.winfo_children():
+                            if isinstance(x, gui.ttk.Button) and x.cget("text") == "Apply":
+                                x.invoke(); return
+        root.after(300, press_apply)
+        nothing = app._edit_model_materials(doc.cur_name)
+        before = doc.cur_data
+        ok = app._edit_model_materials(doc.cur_name, changes={0: {"wrap_u": "mirror", "wrap_v": "clamp"}})
+        from rf4s_modkit import matedit as _me
+        _check("Materials…: the dialog opens and applies nothing when nothing changed; a wrap change "
+               "lands in the working copy in place",
+               nothing is False and ok and len(doc.cur_data) == len(before)
+               and _me.materials(doc.cur_data)[0].wrap == (1, 2), _me.materials(doc.cur_data)[0].wrap)
         _check("model glb import raised no callback errors", not errs, errs[:1])
     finally:
         try:
