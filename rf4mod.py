@@ -4400,7 +4400,8 @@ def build_parser():
     rmg.set_defaults(func=cmd_res_model_import_glb)
     rmm = rsub.add_parser("model-material", help="list the material settings the game reads "
                           "(texture wrap, DrawOrder, BlendType, CombineType, CombineColor00), or "
-                          "change one material's in place (same file size)")
+                          "change one material's in place (same file size). Models a map spawns "
+                          "always wrap mirrored (the game overrides the file there)")
     rmm.add_argument("file", help=".model")
     rmm.add_argument("material", nargs="?", help="material index or name (omit to list them)")
     rmm.add_argument("--wrap-u", choices=("repeat", "mirror", "clamp", "border", "mirror-clamp"))

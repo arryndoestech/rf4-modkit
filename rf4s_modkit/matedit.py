@@ -14,6 +14,12 @@ mesh .model files):
   4 GL_MIRROR_CLAMP_TO_EDGE (nn::gfx TextureAddressMode order). Shipped: clamp/clamp 1,469,
   repeat/repeat 1,006, mirror/mirror 54, mirror/repeat 20, clamp/repeat 7. The filter is not
   taken from the file (the texture object picks linear / mipmapped itself).
+  EXCEPTION: GfxCTR_Model_BuildFromResource's last argument = 1 overwrites the first two
+  bytes with 0x0101 (mirror / mirror) before the sampler is initialised, and Map_SpawnEntity
+  (RF4S.exe+0x194140, the models a map places) is the one caller passing 1 (the other four --
+  Resource_AttachToTask, ActionTask_LoadArchivesAndApplyEffects, Actor_SpawnHeldItemSprite,
+  Family_SpawnCarriedBabyModelTask -- pass 0). So a model a map spawns always wraps
+  mirrored, whatever its file says.
 
   User data (GfxCTR_Model_BuildFromResource, +0x1B52C0; each only when the entry is an int --
   type byte 0 -- except CombineColor00, a float3):
