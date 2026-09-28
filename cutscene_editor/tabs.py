@@ -210,7 +210,7 @@ class TriggersTab(ttk.Frame):
         self.tree = ttk.Treeview(f, columns=("pc", "keys"), yscrollcommand=sb.set, selectmode="browse")
         self.tree.heading("#0", text="when it plays (action type) / entry")
         self.tree.heading("pc", text="scene")
-        self.tree.heading("keys", text="matches (keys; -1 = any)")
+        self.tree.heading("keys", text="matches (keys; -1 = any where the type allows it)")
         self.tree.column("#0", width=280, stretch=False)
         self.tree.column("pc", width=90, stretch=False)
         self.tree.column("keys", width=420)
@@ -279,8 +279,8 @@ class TriggersTab(ttk.Frame):
             return False
         from tkinter import simpledialog
         s = simpledialog.askstring(
-            "Change keys", "Keys for %s entry #%d — a comma list: `5, -1` (-1 = any) or `(tag, value)` "
-            "pairs for a non-1 tag:" % (catalog.type_label(typ), r.index),
+            "Change keys", "Keys for %s entry #%d — a comma list: `5, -1` (-1 = any where the type allows "
+            "it; type 2 has no wildcard) or `(tag, value)` pairs for a non-1 tag:" % (catalog.type_label(typ), r.index),
             initialvalue=catalog.entry_keys_text(r.subs), parent=self)
         if s is None:
             return False

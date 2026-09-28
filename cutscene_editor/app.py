@@ -835,8 +835,9 @@ class CutsceneExplorer:
         event_pc, idx = box["r"]
         self.browser.refresh_bank(pos)
         self.open_scene(pos, event_pc)
+        warn = "; ".join([note] * bool(note) + catalog.key_problems(int(type_id), subs))
         self.status("new scene @0x%04x registered as %s entry #%d" % (event_pc, catalog.type_label(int(type_id)), idx)
-                    + (("   ⚠ " + note) if note else ""))
+                    + (("   ⚠ " + warn) if warn else ""))
         return event_pc, idx
 
     def remove_entry(self, pos, type_id, index):
@@ -854,8 +855,12 @@ class CutsceneExplorer:
             messagebox.showinfo("Keys", str(e))
             return False
         bank = self.doc.container.banks[pos]
-        return self.apply("Keys of %s entry #%d" % (catalog.type_label(type_id), index),
-                          lambda: self.doc.container.set_entry(bank, type_id, index, subs=subs))
+        ok = self.apply("Keys of %s entry #%d" % (catalog.type_label(type_id), index),
+                        lambda: self.doc.container.set_entry(bank, type_id, index, subs=subs))
+        warn = catalog.key_problems(type_id, subs)
+        if ok and warn:
+            self.status("keys changed   ⚠ " + "; ".join(warn))
+        return ok
 
     def open_new_scene_dialog(self, bank_index, default_type=None):
         """Host entry point ('New scene on this map…'): open the bank, then the New scene

@@ -1426,6 +1426,22 @@ def test_search_items():
     _check("NLCL footer xref-table valid", nl_ok == nl_total, f"{nl_ok}/{nl_total} NLCL files")
 
 
+def test_entry_key_warnings():
+    """Keys that can never match are flagged when a trigger is added or re-keyed: type 2
+    compares a spawned event actor's unsigned 16-bit key exactly (no -1 wildcard)."""
+    print("entry key warnings (type 2 = exact unsigned 16-bit event key):")
+    from rf4s_modkit import entry_types as _et
+    kp = _et.key_problems
+    _check("type 2: -1, a negative, > 65535 and 0 are flagged; 1000 and 65535 are fine",
+           len(kp(2, [(1, -1)])) == 1 and "65535" in kp(2, [(1, -1)])[0] and len(kp(2, [-5])) == 1
+           and len(kp(2, [70000])) == 1 and len(kp(2, [0])) == 1
+           and kp(2, [(1, 1000)]) == [] and kp(2, [65535]) == [])
+    wild = next(((t, k) for t, s in _et.ENTRY_TYPES.items() for k, ks in enumerate(s["keys"])
+                 if isinstance(ks["index"], int) and ks.get("wildcard")), None)
+    _check("a key the catalogue marks as a wildcard accepts -1 without a warning",
+           wild is not None and kp(wild[0], [0] * wild[1] + [-1]) == [], wild)
+
+
 def test_search_item_chances():
     """The pool 'chance' shown by the toolkit is what SearchItem_RollSpotsAndSpawnFromArchive
     (RF4S.exe+0x231FF0) picks: both the total and the running sum are bytes, and a total that
@@ -12868,7 +12884,7 @@ def run() -> int:
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_mapground,
-              test_search_items, test_search_item_chances, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_search_items, test_search_item_chances, test_entry_key_warnings, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,

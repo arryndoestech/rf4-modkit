@@ -113,6 +113,16 @@ def type_key_names(type_id):
     return None
 
 
+def key_problems(type_id, subs):
+    """entry_types.key_problems (keys that can never match, e.g. -1 for type 2), or []."""
+    if _entry_types is None:
+        return []
+    try:
+        return list(_entry_types.key_problems(type_id, list(subs)))
+    except Exception:
+        return []
+
+
 def describe_keys(type_id, subs):
     """Decoded keys of an entry (entry_types.describe_entry), else the raw key list."""
     if _entry_types is not None:

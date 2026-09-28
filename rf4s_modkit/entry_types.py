@@ -938,6 +938,42 @@ def key_spec(type_id, k):
     return best
 
 
+def key_problems(type_id, subs):
+    """Warnings (list of str) for the keys `subs` (ints, or (tag, value) pairs) of a new or
+    changed `type_id` entry. Entry keys are signed 32-bit, and -1 only means "any" where the
+    type's matcher skips it (the catalogue's per-key `wildcard`). Type 2 (ActorInteractScene)
+    compares exactly against a spawned event actor's key, which the event manager keeps as
+    an UNSIGNED 16-bit word (CalendarEvent_GetKeyOfActor RF4S.exe+0x1D3540): -1 or any value
+    outside 0..65535 can never match an event actor, and 0 is the key of an empty /
+    unregistered record."""
+    out = []
+    spec = ENTRY_TYPES.get(type_id)
+    for k, sub in enumerate(subs or ()):
+        v = sub[1] if isinstance(sub, (tuple, list)) else sub
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            continue
+        ks = key_spec(type_id, k)
+        kname = (ks or {}).get("name", "key %d" % k)
+        if type_id == 2:
+            if v == -1:
+                out.append("key %d is -1, but %s has no wildcard: it compares the event actor's key "
+                           "exactly, and event keys are 0..65535, so this entry never runs (a key "
+                           "spawned as -1 is stored as 65535 -- write 65535)" % (k, type_name(2)))
+            elif v < 0 or v > 0xFFFF:
+                out.append("key %d = %d can never match a spawned event actor: event keys are "
+                           "unsigned 16-bit (0..65535); only a special actor's id could match it"
+                           % (k, v))
+            elif v == 0:
+                out.append("key %d = 0: 0 is the key of an empty / unregistered event record; "
+                           "spawn event actors with keys 1..65535 (the game uses 100..1500)" % k)
+        elif v == -1 and spec is not None and ks is not None and not ks.get("wildcard", False):
+            out.append("key %d (%s) is -1, but %s compares it exactly (no wildcard): it only "
+                       "matches the value -1" % (k, kname, type_name(type_id)))
+    return out
+
+
 _PACKED_FLAG_VALUES = (16582, 16638)
 
 

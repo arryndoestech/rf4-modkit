@@ -530,9 +530,22 @@ def ask_new_scene(parent, app, bank, default_type=None):
         names = catalog.type_key_names(t)
         khint.config(text=("keys: " + ", ".join(str(k.get("name") if isinstance(k, dict) else k) for k in names))
                      if names else "key count mirrors this bank's existing entries of the type")
-        note.config(text=app.shadow_note(bank, t, 0 if pv.get() == "first" else None))
+        refresh_note()
+
+    def refresh_note(*_a):
+        """The shadow note plus any key that can never match (e.g. -1 for type 2)."""
+        t = cur_type()
+        if t is None:
+            return
+        parts = [app.shadow_note(bank, t, 0 if pv.get() == "first" else None)]
+        try:
+            parts += catalog.key_problems(t, catalog.parse_entry_keys(kv.get()))
+        except ValueError:
+            pass
+        note.config(text="\n".join(p for p in parts if p))
     type_cb._on_pick = lambda _t: on_type()
     pos.bind("<<ComboboxSelected>>", on_type)
+    kv.trace_add("write", refresh_note)
 
     def ok(_e=None):
         t = cur_type()

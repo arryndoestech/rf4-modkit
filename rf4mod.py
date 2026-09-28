@@ -2181,6 +2181,15 @@ def _script_dialog_fn(a):
     return None
 
 
+def _entry_key_warnings(type_id, keys):
+    """entry_types.key_problems for CLI key input (empty list when the catalogue is missing)."""
+    try:
+        from rf4s_modkit import entry_types
+    except ImportError:
+        return []
+    return entry_types.key_problems(type_id, keys)
+
+
 def _parse_keys(s):
     """Entry keys from text: '5, -1, 2:0x1234' -> [(1,5), (1,-1), (2,0x1234)]. Items are
     plain ints (tag 1 = value) or tag:value pairs; 'x' or '*' = wildcard (-1)."""
@@ -2375,6 +2384,8 @@ def cmd_script_add_entry(a):
           f"in bank {a.bank}; wrote {a.out}")
     if note:
         print("warning: " + note)
+    for w in _entry_key_warnings(a.type, keys):
+        print("warning: " + w)
 
 
 def cmd_script_remove_entry(a):
@@ -2397,6 +2408,8 @@ def cmd_script_set_entry(a):
     _script_write(c, a.out)
     rec = c.banks[a.bank].entry_records(a.type)[a.index]
     print(f"type {a.type} entry #{a.index}: pc 0x{rec.event_id:04x} keys {rec.subs}; wrote {a.out}")
+    for w in _entry_key_warnings(a.type, keys or ()):
+        print("warning: " + w)
 
 
 # --------------------------------------------------------------------------- #
