@@ -169,11 +169,9 @@ class SceneText:
 
     @staticmethod
     def raw_op(st):
-        """'[5 ShowPortrait] ' -- the opcode number and table mnemonic the statement is stored
-        as (control ops as their 0xFFFx token), for the 'opcodes' toggle."""
-        if st.op >= 0xFFF0:
-            return "[0x%04X %s] " % (st.op, st.mnem)
-        return "[%d %s] " % (st.op, script.opcode_mnemonic(st.op))
+        """'0x005  ' -- the raw opcode the statement is stored as, in hex (control ops as
+        their 0xFFFx token), padded to one width, for the 'opcodes' toggle."""
+        return "%-8s" % ("0x%04X" % st.op if st.op >= 0xFFF0 else "0x%03X" % st.op)
 
     def story_rows(self, show_addr=False, show_ops=False):
         sc = self.scene
@@ -181,8 +179,8 @@ class SceneText:
 
         def addr(pc, st=None, cont=False):
             segs = [("%04x  " % pc, "addr")] if show_addr else []
-            if show_ops and st is not None and not cont:
-                segs.append((self.raw_op(st), "opc"))
+            if show_ops and st is not None:
+                segs.append((" " * 8, None) if cont else (self.raw_op(st), "opc"))
             return segs
 
         # when it plays: trigger entries pointing at the scene + Event Manager gates

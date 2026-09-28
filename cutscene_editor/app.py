@@ -164,8 +164,8 @@ class CutsceneExplorer:
         self.show_ops = tk.BooleanVar(value=False)
         oc = ttk.Checkbutton(bar, text="opcodes", variable=self.show_ops, command=self._view_mode)
         oc.pack(side="left", padx=4)
-        Tip(oc, "Show the raw opcode each statement is stored as -- [number mnemonic], e.g. "
-                "[5 ShowPortrait], control ops as [0xFFFC DIALOG] -- in both views.")
+        Tip(oc, "Show the raw opcode each statement is stored as, in hex (e.g. 0x005; control "
+                "ops as 0xFFFC), in both views.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
