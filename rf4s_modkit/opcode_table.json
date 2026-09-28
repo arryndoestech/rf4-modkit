@@ -15666,10 +15666,10 @@
   "177": {
    "op": 177,
    "op_hex": "0x0B1",
-   "mnemonic": "ResetEventActorToIdle",
-   "previous_mnemonic": "EventActorEnterIdle",
+   "mnemonic": "EnableEventActorWandering",
+   "previous_mnemonic": "ResetEventActorToIdle",
    "category": "actor",
-   "prototype": "ResetEventActorToIdle(event key, unused)",
+   "prototype": "EnableEventActorWandering(event key, unused)",
    "args": [
     {
      "name": "event key",
@@ -15689,12 +15689,12 @@
    "optional_args_from": 1,
    "returns": null,
    "blocking": "until the event actor exists",
-   "description": "Put a spawned event actor back into its idle state and idle animation, e.g. right after spawning or after a scripted pose.",
-   "details": "Key lookup in g_calendarEventMng; on a hit with an actor: Actor_EnterIdleState_LoadAnimArchiveByEntityType(actor) (+0x163220), return 0. Returns 1 (retry) while the key is missing or has no actor; with an empty table returns 1 too.",
+   "description": "Let a spawned event actor wander on its own: it stands in its idle animation for 90-217 frames, then walks in a random direction for 30-93 frames, and repeats, turning back when it strays about 42 tiles from where it stood when this op ran. Used right after SpawnEventActor / TurnEventActorIntoNpc for animals that should roam (the captive Woolies in Idra Cave B1). Leave it out to keep the actor standing still.",
+   "details": "RF4S.exe+0x214DA0: key lookup in g_calendarEventMng (returns 1 = the statement waits while the key is missing or has no actor), then Actor_EnterIdleState_LoadAnimArchiveByEntityType (+0x163220): on the first call snapshots the current tile as the wander anchor (actor +196/+200) and clears control flag 0x10 (scene-controlled); clears the current animation, state +460 = 1, loads the idle animation (actor +546, villager ids 1..20 / 308 / 309 / 325 / 326 use their own idle archives), resets the path work and installs Actor_TickIdleAndWander (+0x163610) with a 90-frame timer. That tick is the wander loop: states 1-2 stand (friction +344) until the timer ends, then state 3 walks (animation +546 + 2) along a random heading, or toward the anchor once 172032 Q12 away, for (RNG & 0x3F) + 30 frames; when it stops or hits something it stands again for (RNG & 0x7F) + 90 frames. Actors with type bit 0x40 get Actor_TickIdleAborting instead. The second argument is never read.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x214DA0; corpus: 13 uses, all (key, 1), after SpawnEventActor/TurnEventActorIntoNpc.",
+   "evidence": "RF4S.exe+0x214DA0, +0x163220 and +0x163610 decompiled 2026-09-28; corpus: 13 uses, all (key, 1), after SpawnEventActor / TurnEventActorIntoNpc (e.g. Idra Cave B1, tail bank 809, keys 100 / 101). In game 2026-09-28 (user): with it the actors walk around, without it they stay in place.",
    "alias_of": null,
-   "handler": "ScriptVMOp_EnterActorIdleStateByCalendarEventKey",
+   "handler": "ScriptVMOp_EnableEventActorWandering",
    "handler_rva": "0x214DA0",
    "shares_handler_with": [],
    "size": [
@@ -15707,9 +15707,9 @@
     "2": 13
    },
    "confidence": "high",
-   "notes": "",
-   "change_reason": "Verb-first naming, matching ResetNpcToIdle.",
-   "human_verified": false,
+   "notes": "Corrected 2026-09-28: the 2026-09-27 review described it as 'back into its idle state'; the idle tick it installs is a stand-and-wander loop.",
+   "change_reason": "2026-09-28, user's choice after in-game tests: the op starts the actor's own stand-and-wander loop (it does not merely reset it to idle). Was ResetEventActorToIdle.",
+   "human_verified": true,
    "example": {
     "bank": 809,
     "pc": "0x0150",
@@ -15717,10 +15717,10 @@
      "L_013c:",
      "    SpawnEventActor(111, 100, 116, 210, 90)",
      "    TurnEventActorIntoNpc(100)",
-     "    ResetEventActorToIdle(100, 1)    ; <--",
+     "    EnableEventActorWandering(100, 1)    ; <--",
      "    SpawnEventActor(111, 101, 110, 230, 90)",
      "    TurnEventActorIntoNpc(101)",
-     "    ResetEventActorToIdle(101, 1)"
+     "    EnableEventActorWandering(101, 1)"
     ]
    }
   },
@@ -15941,7 +15941,7 @@
      "L_013c:",
      "    SpawnEventActor(111, 100, 116, 210, 90)",
      "    TurnEventActorIntoNpc(100)    ; <--",
-     "    ResetEventActorToIdle(100, 1)",
+     "    EnableEventActorWandering(100, 1)",
      "    SpawnEventActor(111, 101, 110, 230, 90)",
      "    TurnEventActorIntoNpc(101)"
     ]

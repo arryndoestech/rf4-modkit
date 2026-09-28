@@ -3796,10 +3796,10 @@ Args:
   0. event_key (the key the event actor was spawned with)
   1. scale (100 = normal size, 50 = half)
 
-### `op 177` — ResetEventActorToIdle(event key, unused)
-*handler:* `ScriptVMOp_EnterActorIdleStateByCalendarEventKey`
+### `op 177` — EnableEventActorWandering(event key, unused)
+*handler:* `ScriptVMOp_EnableEventActorWandering`
 
-Put a spawned event actor back into its idle state and idle animation, e.g. right after spawning or after a scripted pose.
+Let a spawned event actor wander on its own: it stands in its idle animation for 90-217 frames, then walks in a random direction for 30-93 frames, and repeats, turning back when it strays about 42 tiles from where it stood when this op ran. Used right after SpawnEventActor / TurnEventActorIntoNpc for animals that should roam (the captive Woolies in Idra Cave B1). Leave it out to keep the actor standing still.
 
 Args:
   0. event key
@@ -11128,7 +11128,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 168 | `SkipEventActorAnimToEnd` | 169 | `WaitEventActorAnimDone` | 170 | `SetEventActorAnimSpeed` |
 | 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` | 173 | `SetEventActorInScriptFlag` |
 | 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` | 176 | `SetEventActorScale` |
-| 177 | `ResetEventActorToIdle` | 178 | `SetEventActorAuxYaw` | 179 | `WaitEventActorAuxYaw` |
+| 177 | `EnableEventActorWandering` | 178 | `SetEventActorAuxYaw` | 179 | `WaitEventActorAuxYaw` |
 | 180 | `KillEventActor` | 181 | `TurnEventActorIntoNpc` | 182 | `GetEventActorTilePosition` |
 | 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` | 185 | `PlayActorSplash` |
 | 186 | `SetCameraPosition` | 187 | `ReattachCameraToActor` | 188 | `HoldCameraInPlace` |

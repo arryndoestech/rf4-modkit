@@ -176,7 +176,7 @@
  "174": "ScriptVMOp_AddVerticalVelocityToActorClampedByJumpFlag",
  "175": "ScriptVMOp_SetCalendarEventActorWordField172",
  "176": "ScriptVMOp_SetCalendarEventActorSpriteTintGreyscale",
- "177": "ScriptVMOp_EnterActorIdleStateByCalendarEventKey",
+ "177": "ScriptVMOp_EnableEventActorWandering",
  "178": "ScriptVMOp_SetCalendarEventActorTargetFacingDegrees",
  "179": "ScriptVMOp_QueryCalendarEventActorStillTurningTowardTarget",
  "180": "ScriptVMOp_CalendarEvent_KillActorWithDeathAnimAndKnockback",
