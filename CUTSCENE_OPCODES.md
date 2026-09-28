@@ -30,7 +30,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 ### `op 5` — ShowPortrait(character, face, side)
 *handler:* `Script_VMOp_ShowNpcBubbleVariant`
 
-Show or change a character's E-mote portrait on the left or right side without touching the name plate, text blip, voice or emote icons.
+Show or change a character's E-mote portrait on the left or right side without touching the name plate, text blip, voice or emote icons. A DIALOG line must come after it (usually after the SetSpeaker… that names the speaker): the portrait belongs to the next line shown.
 
 Args:
   0. character (0 = player; 1-23 villagers; 22/23 = child (resolved to GF_REG_CHILD_ID); 25 = no-op)

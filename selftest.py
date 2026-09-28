@@ -1442,6 +1442,53 @@ def test_entry_key_warnings():
            wild is not None and kp(wild[0], [0] * wild[1] + [-1]) == [], wild)
 
 
+def test_hotreload_image():
+    """rf3.mc hot reload (rf4s_modkit.hotreload), offline: the SceneState header cache it
+    writes matches what the game's parser derives, bank bytes match the container, and a
+    file the game would overflow on (or can't index) is refused before anything is sent."""
+    print("rf3.mc hot reload (offline checks):")
+    import struct as _st
+    from rf4s_modkit import hotreload as H, script as S
+    import rf4mod as _cli
+    mc = BUNDLE_DIR / "bundlePatch1" / "rf3.mc"
+    if not mc.is_file():
+        _skip("hot reload image checks", "no rf3.mc in the game folder")
+        return
+    data = mc.read_bytes()
+    img = H.McImage(data)
+    c = S.Container(data)
+    f = _st.unpack("<17I", img.scene_fields())
+    _check("scene cache = header words in the parser's order, shifts = low zero bits",
+           f[0] == img.global_off and f[3] == c.n_primary and f[4] == c.table1_off
+           and f[7] == c.n_tail and f[8] == c.table2_off and f[5] == c.max_bank_size("primary")
+           and f[9] == c.max_bank_size("tail") and f[12] == c.var_off_shift
+           and f[14] == c.var_wid_shift and f[16] == c.type_table_slots, f)
+    tail = [b for b in c.banks if b.kind == "tail"]
+    prim = [b for b in c.banks if b.kind == "primary"]
+    _check("bank_bytes = the container's banks (tail 60, primary 224, global)",
+           img.bank_bytes(2, 60) == bytes(tail[60].data) and img.bank_bytes(1, 224) == bytes(prim[224].data)
+           and len(img.bank_bytes(0, 0)) == img.global_size and img.bank_bytes(2, 99999) is None)
+    bad = bytearray(data)
+    _st.pack_into("<I", bad, 52, 100)                      # max tail bank below the real one
+    worse = bytearray(data)
+    _st.pack_into("<I", worse, img.table2_off + 4, len(data))   # tail bank 0 past the end
+    errs = []
+    for blob in (bytes(bad), bytes(worse), b"NOPE" + data[4:], data[:40]):
+        try:
+            H.McImage(blob)
+            errs.append(None)
+        except H.HotReloadError as e:
+            errs.append(str(e))
+    _check("refused: max-size words below the biggest bank, a bank past EOF, not MYCF, truncated",
+           all(errs) and "overflow" in errs[0], errs)
+    _check("ctz loop = the game's (32 for a zero mask)", H._ctz_loop(0) == 32 and H._ctz_loop(0xF000) == 12)
+    ap = _cli.build_parser() if hasattr(_cli, "build_parser") else None
+    if ap is not None:
+        ns = ap.parse_args(["script", "reload", "--force"])
+        _check("CLI: script reload / script live", ns.func is _cli.cmd_script_reload and ns.force
+               and ap.parse_args(["script", "live"]).func is _cli.cmd_script_live)
+
+
 def test_search_item_chances():
     """The pool 'chance' shown by the toolkit is what SearchItem_RollSpotsAndSpawnFromArchive
     (RF4S.exe+0x231FF0) picks: both the total and the running sum are bytes, and a total that
@@ -12884,7 +12931,7 @@ def run() -> int:
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_mapground,
-              test_search_items, test_search_item_chances, test_entry_key_warnings, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_search_items, test_search_item_chances, test_entry_key_warnings, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,

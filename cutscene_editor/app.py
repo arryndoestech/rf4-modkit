@@ -96,6 +96,7 @@ class CutsceneExplorer:
             ("z", lambda e: self.redo() if e.state & 0x0001 else self.undo()),
             ("y", lambda e: self.redo()),
             ("s", lambda e: self.save_all()),
+            ("r", lambda e: self.reload_in_game()),
             ("f", lambda e: self.focus_search())],
             home=lambda: getattr(getattr(self, "view", None), "text", None))   # the Script rows
 
@@ -115,6 +116,8 @@ class CutsceneExplorer:
         mb = ttk.Menubutton(bar, text="Save")
         m = tk.Menu(mb, tearoff=False)
         m.add_command(label="Save changes into the game folder", accelerator="Ctrl+S", command=self.save_all)
+        m.add_command(label="Save + reload scenes in the running game", accelerator="Ctrl+R",
+                      command=self.reload_in_game)
         m.add_separator()
         m.add_command(label="Save rf3.mc (scenes) as…", command=self.save_script)
         m.add_command(label="Save dialogue (rf3mc.<locale>) as…", command=self.save_text)
@@ -158,10 +161,21 @@ class CutsceneExplorer:
         ac.pack(side="left", padx=4)
         Tip(ac, "Show each statement's byte address in the story view (the code view always has "
                 "labels).")
+        self.show_ops = tk.BooleanVar(value=False)
+        oc = ttk.Checkbutton(bar, text="opcodes", variable=self.show_ops, command=self._view_mode)
+        oc.pack(side="left", padx=4)
+        Tip(oc, "Show the raw opcode each statement is stored as -- [number mnemonic], e.g. "
+                "[5 ShowPortrait], control ops as [0xFFFC DIALOG] -- in both views.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
         Tip(nb, "Mint a new scene in the open bank: pick when it plays, its keys and its body.")
+        rl = ttk.Button(bar, text="⟳ Reload in game", command=self.reload_in_game)
+        rl.pack(side="left", padx=(0, 4))
+        Tip(rl, "Ctrl+R: save, then put rf3.mc into the RUNNING game -- no restart, any size. "
+                "Refused while a scene plays (let it finish). The new scenes apply from the next "
+                "trigger / talk; a room's own scenes are re-read on use. Dialogue text needs no "
+                "reload (the game reads it from disk for every line); em.bin still needs a restart.")
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
@@ -351,6 +365,7 @@ class CutsceneExplorer:
     def _view_mode(self):
         self.view.mode = self.mode.get()
         self.view.show_addr = self.addr.get()
+        self.view.show_ops = self.show_ops.get()
         self.view.render()
 
     def set_locale(self, loc):
@@ -748,12 +763,13 @@ class CutsceneExplorer:
             return False
         pc = self.sel[0]
         st = self.stmt(pc)
-        if not messagebox.askyesno("Delete", "Delete %s @0x%04x? (whatever jumped to it goes to the "
-                                   "next statement)"
-                                   % (script.opcode_mnemonic(st.op) if st.op < 0xFFF0 else st.mnem, pc)):
-            return False
-        return self.apply("Delete statement @0x%04x" % pc,
-                          lambda: self.doc.container.delete_statement(self.bank, pc))
+        name = script.opcode_mnemonic(st.op) if st.op < 0xFFF0 else st.mnem
+        ok = self.apply("Delete %s @0x%04x" % (name, pc),
+                        lambda: self.doc.container.delete_statement(self.bank, pc))
+        if ok:
+            self.status("Deleted %s @0x%04x (whatever jumped to it now goes to the next statement; "
+                        "Ctrl+Z undoes it)" % (name, pc))
+        return ok
 
     def show_callers(self):
         if self.scene is None:
@@ -1106,7 +1122,42 @@ class CutsceneExplorer:
                             em="em.bin" in blobs)
         self._chrome()
         note = " (originals of %s kept in %s)" % (", ".join(backed), self.BACKUP_DIR) if backed else ""
-        self.status("Saved %s%s -- restart the game to see it" % (", ".join(written), note))
+        how = []
+        if "rf3.mc" in blobs:
+            how.append("Ctrl+R puts the scenes into the running game")
+        if any(n.startswith("rf3mc.") for n in blobs):
+            how.append("the running game reads dialogue fresh for every line")
+        if "em.bin" in blobs:
+            how.append("em.bin needs a game restart")
+        self.status("Saved %s%s -- %s" % (", ".join(written), note, "; ".join(how)))
+        return True
+
+    def reload_in_game(self):
+        """Save, then swap the saved rf3.mc into the running RF4S.exe (rf4s_modkit.hotreload)."""
+        from rf4s_modkit import hotreload
+        if self.unsaved() and not self.save_all():
+            return False
+        targets = self.save_targets() or {}
+        path = targets.get("rf3.mc")
+        if path is None or not pathlib.Path(path).is_file():
+            self.status("Reload: no saved rf3.mc to load (set the game folder or save first)")
+            return False
+        if not hotreload.is_running():
+            self.status("Reload: RF4S.exe is not running")
+            return False
+        try:
+            self.frame.config(cursor="watch")
+            self.frame.update_idletasks()
+            r = hotreload.reload_mc(pathlib.Path(path).read_bytes())
+        except hotreload.HotReloadError as e:
+            self.status("Reload refused: %s" % e)
+            return False
+        finally:
+            try:
+                self.frame.config(cursor="")
+            except tk.TclError:
+                pass
+        self.status(hotreload.describe(r))
         return True
 
     def _save_em_names(self):

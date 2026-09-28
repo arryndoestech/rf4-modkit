@@ -167,12 +167,23 @@ class SceneText:
                 words.append(script.portrait_emote_name(iv) or "emote %d" % iv)
         return words
 
-    def story_rows(self, show_addr=False):
+    @staticmethod
+    def raw_op(st):
+        """'[5 ShowPortrait] ' -- the opcode number and table mnemonic the statement is stored
+        as (control ops as their 0xFFFx token), for the 'opcodes' toggle."""
+        if st.op >= 0xFFF0:
+            return "[0x%04X %s] " % (st.op, st.mnem)
+        return "[%d %s] " % (st.op, script.opcode_mnemonic(st.op))
+
+    def story_rows(self, show_addr=False, show_ops=False):
         sc = self.scene
         rows = []
 
-        def addr(pc):
-            return [("%04x  " % pc, "addr")] if show_addr else []
+        def addr(pc, st=None, cont=False):
+            segs = [("%04x  " % pc, "addr")] if show_addr else []
+            if show_ops and st is not None and not cont:
+                segs.append((self.raw_op(st), "opc"))
+            return segs
 
         # when it plays: trigger entries pointing at the scene + Event Manager gates
         trig = self.triggers()
@@ -208,29 +219,29 @@ class SceneText:
             body = [("“%s”" % txt.replace("\n", " ⏎ "), "dlg")] if txt is not None else \
                    [("#%d  [no text in this locale]" % st.dialog_id, "warn")]
             head = [(who + ": ", ("spk", self.speaker_colour(who)))] if who else []
-            rows.append(Row(addr(pc) + ind + head + body, key, st))
+            rows.append(Row(addr(pc, st) + ind + head + body, key, st))
             return speaker
         if st.op == 10:                                  # SetSpeakerVoice: a name plate
             name, blip = self.nameplate_of(st)
-            rows.append(Row(addr(pc) + ind + [("🗨 ", "dim"), (name, ("cue", self.speaker_colour(name))),
+            rows.append(Row(addr(pc, st) + ind + [("🗨 ", "dim"), (name, ("cue", self.speaker_colour(name))),
                                                ("  · name plate%s" % ((" · " + blip) if blip else ""), "dim")],
                             key, st))
             return (name, "plate", self.speaker_colour(name))
         if script.is_portrait_op(st.op):
             name, side, col = self.speaker_of(st)
             mood = self.speaker_mood(st)
-            rows.append(Row(addr(pc) + ind + [("🗨 ", "dim"), (name, ("cue", col)),
+            rows.append(Row(addr(pc, st) + ind + [("🗨 ", "dim"), (name, ("cue", col)),
                                                ("  · %s%s" % (side, (" · " + ", ".join(mood)) if mood else ""), "dim")],
                             key, st))
             return (name, side, col)
         if st.op == 92:                                  # EndDialogue closes the speaker
-            rows.append(Row(addr(pc) + ind + [("▸ end of dialogue", "act")], key, st))
+            rows.append(Row(addr(pc, st) + ind + [("▸ end of dialogue", "act")], key, st))
             return None
         if st.op < 0xFFF0:
             args = self.arg_strs(st)
             body = script.render_action(st.op, args) or f"{script.opcode_mnemonic(st.op)}({', '.join(args)})"
             nm = self.emf_name(st)
-            rows.append(Row(addr(pc) + ind + [("▸ " + body, "act")] + ([("   ; " + nm, "emf")] if nm else []),
+            rows.append(Row(addr(pc, st) + ind + [("▸ " + body, "act")] + ([("   ; " + nm, "emf")] if nm else []),
                             key, st))
             return speaker
         exprs = self.expr_texts(st)
@@ -255,10 +266,10 @@ class SceneText:
             head = "choice"
             if m == "PROMPT_CHOICE" and st.code_targets:
                 head += " (cancel → %s)" % self.target(st.code_targets[0])
-            rows.append(Row(addr(pc) + ind + [(head + ":", "flow")], key, st))
+            rows.append(Row(addr(pc, st) + ind + [(head + ":", "flow")], key, st))
             for k, item, tgt in self.choice_options(st):
                 txt = self.dlg(item)
-                rows.append(Row(addr(pc) + ind + [("      ▹ ", "flow"),
+                rows.append(Row(addr(pc, st, cont=True) + ind + [("      ▹ ", "flow"),
                                                    (("“%s”" % txt.replace("\n", " ⏎ ")) if txt is not None else "#%d" % item, "dlg"),
                                                    ("  → %s" % self.target(tgt), "flow")],
                                 (pc, k), st))
@@ -272,7 +283,7 @@ class SceneText:
                                             for k, t in enumerate(tg)), "flow")]
         else:
             segs = [(self.code_line(st)[7:], "flow")]
-        rows.append(Row(addr(pc) + ind + segs, key, st))
+        rows.append(Row(addr(pc, st) + ind + segs, key, st))
         return speaker
 
     # ---- when the scene plays ------------------------------------------------------ #

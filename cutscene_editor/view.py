@@ -14,7 +14,7 @@ from rf4s_modkit import script
 from .render import Row, SceneText
 
 BG, FG = "#15151b", "#dcdce4"
-TAGS = {"addr": "#5c5c6a", "hdr": "#ffd479", "hdrv": "#c9b27a", "lbl": "#ffb454",
+TAGS = {"addr": "#5c5c6a", "opc": "#7f8fa6", "hdr": "#ffd479", "hdrv": "#c9b27a", "lbl": "#ffb454",
         "dlg": "#e8e8ef", "act": "#8fb7d9", "flow": "#f0a868", "cond": "#e08fd0",
         "dim": "#7c7c8a", "emf": "#7fd6a0", "warn": "#e06060", "narr": "#b0b0bc"}
 
@@ -25,6 +25,7 @@ class ScriptView(ttk.Frame):
         self.app = app
         self.mode = "story"
         self.show_addr = False
+        self.show_ops = False
         sb = ttk.Scrollbar(self)
         sb.pack(side="right", fill="y")
         self.text = tk.Text(self, wrap="word", font=("Segoe UI", 10), bg=BG, fg=FG,
@@ -91,7 +92,8 @@ class ScriptView(ttk.Frame):
             t.config(state="disabled")
             return
         st_text = SceneText(app.doc, bank, sc)
-        rows = st_text.story_rows(self.show_addr) if self.mode == "story" else self._code_rows(st_text)
+        rows = (st_text.story_rows(self.show_addr, self.show_ops) if self.mode == "story"
+                else self._code_rows(st_text))
         for n, row in enumerate(rows, 1):
             for s, tag in row.segs:
                 if isinstance(tag, tuple):                # ("spk" | "cue", colour)
@@ -119,8 +121,9 @@ class ScriptView(ttk.Frame):
                 rows.append(Row([("; --- other branches / paths ---", "hdr")]))
             for pc, st in seq:
                 lbl = st_text.labels.get(pc, "")
-                rows.append(Row([("%-7s" % (lbl + ":" if lbl else ""), "lbl"),
-                                 (st_text.code_line(st), "dlg" if st.mnem == "DIALOG" else "act")],
+                ops = [(st_text.raw_op(st), "opc")] if self.show_ops else []
+                rows.append(Row([("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops +
+                                [(st_text.code_line(st), "dlg" if st.mnem == "DIALOG" else "act")],
                                 (pc, None), st))
         return rows
 

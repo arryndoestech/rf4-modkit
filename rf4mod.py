@@ -1953,6 +1953,45 @@ def cmd_script_space(a):
           ("" if a.bank is not None else f"; showing the {len(rows)} fullest banks (--limit)"))
 
 
+def _game_mc_path():
+    """The rf3.mc the game loads (the Bundle/** winner), or None without a game folder."""
+    from rf4s_modkit import gamepaths
+    t = gamepaths.game_targets(["rf3.mc"])
+    return t["rf3.mc"] if t and t["rf3.mc"].is_file() else None
+
+
+def cmd_script_reload(a):
+    """Put a rf3.mc into the running game without a restart (any size)."""
+    from rf4s_modkit import hotreload
+    path = _resolve(a.file) if a.file else _game_mc_path()
+    if path is None:
+        raise SystemExit("no rf3.mc given and no game folder set")
+    try:
+        r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), force=a.force)
+    except hotreload.HotReloadError as e:
+        raise SystemExit("reload refused: %s" % e)
+    print(hotreload.describe(r))
+    print(f"  from {path}")
+    print("  dialogue text (rf3mc.<locale>) is read from disk for every line: no reload needed")
+
+
+def cmd_script_live(a):
+    """What the running game holds of rf3.mc (read only)."""
+    from rf4s_modkit import hotreload
+    try:
+        st = hotreload.status()
+    except hotreload.HotReloadError as e:
+        raise SystemExit(str(e))
+    print(f"RF4S.exe pid {st['pid']}: rf3.mc {'resident' if st['resident'] else 'not loaded yet'}")
+    for sl in st["slots"]:
+        print(f"  {sl['kind']:<7} slot: bank {sl['bank']}, {sl['size']:,} bytes"
+              + ("" if sl["loaded"] else " (not loaded)"))
+    for v in st["vms"]:
+        print(f"  script VM: state {v['state']} pc 0x{v['pc']:04x}"
+              + ("  <- a scene is running" if v["state"] in hotreload.BUSY_VM_STATES else ""))
+    print("a reload is " + ("refused right now (a scene is running)" if st["busy"] else "possible now"))
+
+
 def cmd_script_set_dialog(a):
     c = script.Container(_resolve(a.file).read_bytes())
     c.banks[a.bank].set_dialog_id(int(a.pc, 0), a.line)
@@ -4125,6 +4164,15 @@ def build_parser():
     sc2s.add_argument("file"); sc2s.add_argument("--bank", type=int, help="only this bank (container position)")
     sc2s.add_argument("--limit", type=int, default=25, help="how many banks to list (default 25)")
     sc2s.set_defaults(func=cmd_script_space)
+    scrl = scsub.add_parser("reload", help="put a rf3.mc into the RUNNING game without a restart "
+                            "(any size; refused while a scene is running)")
+    scrl.add_argument("file", nargs="?", help="rf3.mc to load (default: the one the game loads "
+                      "from the game folder)")
+    scrl.add_argument("--force", action="store_true",
+                      help="reload even while a scene is running (that scene will misbehave)")
+    scrl.set_defaults(func=cmd_script_reload)
+    sclv = scsub.add_parser("live", help="show what the running game holds of rf3.mc (read only)")
+    sclv.set_defaults(func=cmd_script_live)
     sc3 = scsub.add_parser("set-dialog", help="retarget a DIALOG to another line id")
     sc3.add_argument("file"); sc3.add_argument("--bank", type=int, required=True)
     sc3.add_argument("--pc", required=True, help="statement PC (hex ok, e.g. 0x3478)")

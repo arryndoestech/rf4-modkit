@@ -615,8 +615,16 @@ on, or an existing `Bundle\00_mods` override. A file the game only has inside a 
 `.mbundle` goes to `Bundle\00_mods`. The first time a file is overwritten, the original is copied
 to `ModdingBackup\` in the game folder, keeping the same path; copy it back to undo everything. A
 file opened with *Open rf3.mc…* is saved back where it was opened. *Save … as…* writes a copy
-anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`. Restart the game to see
-changes. *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
+anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
+
+**No restart for scenes:** *⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
+game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the
+reload swaps that copy and the three bank buffers in place while the game is paused for a moment.
+It is refused while a scene is playing, so let the scene finish first. Changed scenes run from the
+next trigger or talk. Dialogue text needs no reload, because the game reads `rf3mc.<locale>` from
+disk every time it shows a line. An `em.bin` change still needs a restart, and so does a file that
+is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]` and
+`rf4mod script live` (what the game currently holds). *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
@@ -920,6 +928,7 @@ written as expressions (`DistanceToTarget <= 110`, `RandomChance(50)`, `ActorIsN
 python rf4mod.py script find rf3.mc "about to call you" --text rf3mc.eng   # → bank + pc of matches
 python rf4mod.py script dev-menus rf3.mc --text rf3mc.eng --bank 18  # the devs' ＊ test menus: event / festival / date → routine pc
 python rf4mod.py script space rf3.mc [--bank N]                     # bytecode room left per bank (64 KiB each; fullest first)
+python rf4mod.py script reload                                       # push the game folder's rf3.mc into the RUNNING game (no restart)
 python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng --friendly # read the scene (author names)
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)
