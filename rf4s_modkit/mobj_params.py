@@ -84,7 +84,7 @@ LANES = [
               "(Map_TickEntityArray RF4S.exe+0x143FB0), so the object and its collision appear "
               "and vanish as soon as the flag changes; -1 / 0 = no gate")],
      "Chests/signs/doors-with-interaction; type 263 diverts to the daily herb spawner "
-     "(Map_SpawnDiscoverableHerbOrSpawner_Type263). Field map decoded 2026-08-31 from the "
+     "(Map_SpawnSwWallDiscoverable_Type263). Field map decoded 2026-08-31 from the "
      "handler (which carries the full IDB annotation)."),
     ((336, 9999), "decoration", "MapDecoration_Spawn",
      [(6, 4, "scale /4096/3 - NEGATIVE mirrors horizontally"),
@@ -507,7 +507,7 @@ MAP_PARAMS = {
 
 
 # ---- type 263: the interactive band's one special case ------------------------------
-# Map_SpawnInteractiveObject hands 263 to Map_SpawnDiscoverableHerbOrSpawner_Type263, which
+# Map_SpawnInteractiveObject hands 263 to Map_SpawnSwWallDiscoverable_Type263, which
 # reads only f8 / f9 / f13 (hexrays read sweep 2026-09-26).
 SPECIAL = {
     263: dict(name="MOBJ_SW_WALL_00", role="Inscribed stone, a discoverable spot: dim until you or a party member "
@@ -691,7 +691,7 @@ def describe(type_id):
 # VERIFIED chain (RF4S.exe, 2026-07-03):
 #   * Map_SpawnAllEntities routes a MOBJ by type_id. Types 20-195 -> MapObj_SetupActorByTypeId
 #     which sets the spawned Actor's id (actor+8) = type_id + 1000. Type 263 ->
-#     Map_SpawnDiscoverableHerbOrSpawner_Type263 which allocs an Actor (id = 1263) and copies
+#     Map_SpawnSwWallDiscoverable_Type263 which allocs an Actor (id = 1263) and copies
 #     record field 13 -> actor.stat_block[+320] = the game-flag / char id.
 #   * Player_TickFieldInteraction scans the nearest actor (player_inner+1280); if its flags
 #     (+16) mark it interactible it calls WorldCursor_SpawnOrUpdateOverInteractable ("H"

@@ -258,11 +258,11 @@ _M_LOW = {
          "common_audio_data.bdat, the files sit in bundleMain; 4+ = the PLAYER's own blip -- male for Lest's model "
          "(model 1217 = NPC_PLAYER_00), female for Frey's (1233 = NPC_PLAYER_01), male again when "
          "neither and player control flag 0x8000000 is set. Shipped uses: 651x 0, 170x 1, "
-         "5x 2, 105x 3 (931 in all). IDA-verified (NpcBubble_DispatchSimpleScriptedLine, "
+         "5x 2, 105x 3 (931 in all). IDA-verified (Script_VMOp_SetSpeakerVoice, "
          "RF4S.exe+0x20A240).",
          ["name string id (name archive)", "text blip (0 male, 1 female, 2 monster, 3 dragon, 4+ player's)"]),
 }
-# actions 16..75 are ALL one handler NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70) --
+# actions 16..75 are ALL one handler Script_VMOp_SetSpeaker (RF4S.exe+0x207F70) --
 # the PORTRAIT dialogue line. The OPCODE NUMBER is a parameter: the handler reads it back
 # from sceneCtx+260 and computes  speaker_slot = (op-16)>>1  (0..29) and  parity = op&1.
 # speaker_slot indexes g_gameGlobalsSlotTable (the character/state directory) to pick WHO
@@ -270,7 +270,7 @@ _M_LOW = {
 # So two consecutive opcodes (2N+16, 2N+17) are the same speaker with a parity sub-variant.
 # The script args are the portrait content: arg1=face/expression; arg2/arg3=trigger ids
 # (emote bubble 186-192, e.g. 190='!'/191='?', OR a voice-line sfx id >= 0x1F0 played via
-# the NPC-variant remap -- NOT a target actor). The handler (NpcBubble_DispatchAreaInfoLine,
+# the NPC-variant remap -- NOT a target actor). The handler (Script_VMOp_SetSpeaker,
 # shared by all of 16-75) reads the SPEAKER from the opcode via ctx+260: line_id=(op-16)>>1,
 # side=op&1. (Live-proven: op16 face 4 = open-mouth surprise for the MC in both the bathhouse
 # gag and the intro "Really?!" line; op54/55 = Nancy neutral/laughing in the intro wake-up scene.)
@@ -288,7 +288,7 @@ _M_LOW = {
 #   27 = Barrett (*Barrett name-tag; user-confirmed "...get along well with that dragon?")
 #   28 = Raven   (*Raven name-tag)
 # 25/26/29 have no name-tag line; their NAME PLATE comes from the handler itself (verified
-# 2026-09-24): NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70, the shared handler of ops
+# 2026-09-24): Script_VMOp_SetSpeaker (RF4S.exe+0x207F70, the shared handler of ops
 # 16..75) maps the slot (op-16)>>1 to the rf3TxtNpc name entry it passes to
 # Dialogue_LoadAndShowText -- 24 -> 309 Pico, 25 -> 149 Soldier, 26 -> 239 Ethelberd,
 # 27 -> 24 Barrett, 28 -> 25 Raven, every other slot unchanged (so 29 -> 29 Traveler). That
@@ -366,9 +366,9 @@ def portrait_speaker_tag(op):
 
 
 # SetSpeaker arg2 = mood/expression id. The common vocabulary in shipped scripts is 186..192
-# (measured across ~211k dialogue ops). g_npcBubble_emoteToStringIdTable (RF4S.exe+0x4DA670)
+# (measured across ~211k dialogue ops). g_emotePortrait_emoteToStringIdTable (RF4S.exe+0x4DA670)
 # maps them to named mood categories -- ROW 0 shown here. NOTE: the mapping is *row/kind-
-# dependent* (NpcBubble_ResolveSpriteRow(kind) picks the row), so a given id can render a
+# dependent* (EmotePortrait_ResolveSpriteRow(kind) picks the row), so a given id can render a
 # different mood in a different scene: the earlier LIVE read saw 190='!'/191='?' (surprise /
 # troubled) where row 0 has 190=sadness/191=smile. Treat these as the default-row meaning, and
 # verify in-game for a specific scene. (JP -> EN below.)
@@ -377,7 +377,7 @@ PORTRAIT_EMOTES = {
     # an `＊Emote Bubble` sampler menu whose labels ('＊Blush' / '＊Teary Eyes' /
     # '＊Angry' / '＊Sweat' / '＊!') pin down what each id renders as when set
     # from a SetSpeaker's arg 1. Values are the row-0 dominant meaning; the
-    # actual sprite is picked by NpcBubble_ResolveSpriteRow(kind).
+    # actual sprite is picked by EmotePortrait_ResolveSpriteRow(kind).
     186: "blush",    # ＊Blush (also 25 pairings with '＊Blushing' in the face-check menu)
     187: "teary",    # ＊Teary Eyes (previously mislabelled 'SP2' -- SP2 is a Special
                      # FACE frame at id 254; this is the teary-eyed EMOTE bubble)
@@ -437,10 +437,10 @@ for _op in range(16, 76):
                    "when the slot differs from the latched host+108, loads the name plate %s; "
                    "also sets the text blip (Dialogue_PickChimeClassForSpeaker). Carries no text "
                    "and persists until the next speaker op / EndDialogue. arg0 = expression: < "
-                   "1000 = the character's face index (via g_npcBubble_emoteToStringIdTable), "
+                   "1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable), "
                    "1000..1927 = a raw expression entry (id-1000), 255 / 254 = the stock "
                    "alternate expressions of the character's current outfit row "
-                   "(g_npcBubbleKindRows; NpcBubble_Show then uses entries 1192 / 1224). "
+                   "(g_emotePortraitKindRows; EmotePortrait_Show then uses entries 1192 / 1224). "
                    "arg1..arg3 (argc clamped to 4) = triggers: >= 0x1F0 plays that voice/sfx via "
                    "Sfx_PlayByIdWithNpcVariantRemap; otherwise an emote-icon id (186-192) queued "
                    "on the portrait (the first two non-voice ids are kept; 0 = none)."
@@ -855,7 +855,7 @@ _M.update({
           "31 share field model NPC_TRAVELER_M2 — rf3NpcParam+272 is 321 for both; the model "
           "resolves as chr-TOC[+272 + 933], or mons-TOC[+272 + 12584] for monster-body chars, "
           "per Actor_RecomputeAllStats). ARG ORDER IDA-VERIFIED 2026-08-17 (the old 'scene "
-          "id, char id' labels were swapped): ScriptVMOp_CalendarEvent_SpawnOrUpdateNpcAtTilePos "
+          "id, char id' labels were swapped): Script_VMOp_SpawnEventActor "
           "matches records on arg1 and stores arg0 as the char word.",
           ["char id (model)", "event key (scene-local handle)", "x (tiles)", "y (tiles)",
            "facing (degrees)"]),
@@ -1347,7 +1347,7 @@ _M.update({
           "is written to the VM output slot (ctx+64) for a following read.",
           ["N (exclusive upper bound)"]),
     597: ("RollShopCategoryItemReturnId", "item",
-          "Roll a random item id from a shop category table (Shop_RollByCategoryFromTable) and "
+          "Roll a random item id from a shop category table (Item_RollRandomIdInCategory) and "
           "write it to the VM output slot for a following read.",
           ["shop category"]),
     631: ("RollSeededHashByMode16", "misc",
@@ -1845,7 +1845,7 @@ _M.update({
 })
 
 # --- child-NPC records / weather transition / NPC state byte (448-475) --------------------------
-# Decompiled + verified. Child friendship records = g_ChildFriendshipTable, 8-byte (4x int16) per
+# Decompiled + verified. Child friendship records = g_guestNpcStateTable, 8-byte (4x int16) per
 # child, indexed (childId-24) for child NPCs 24..47. Weather flags live on g_weather.
 _M.update({
     473: ("RollChildDailyPref", "query",
@@ -2231,10 +2231,10 @@ _M.update({
         "Block the script while the given speaker portrait is still animating (sliding in/out or moving: portrait state (+42 & 0x7C) != 0x10); continue once it has settled. arg0 = portrait character id; if no on-screen portrait matches, it does not block. Nothing is written to a VM register - the result is the handler's busy flag.",
         ['portrait character id']),
     83: ('ClosePortraits', 'dialogue',
-        'Dismiss speaker PORTRAIT(s) and block until the dismissal animation is done. arg0: 0 = the side-0 portrait (host+88), 1 = the side-1 portrait (host+96), any other value = both. Each is sent DialogueBubble_TransitionState(p, 0) (slide off to x -64 or 464) and the slot pointer cleared; the op keeps returning busy while g_npcBubbleActiveByScreen / the portrait slot table still shows one active.',
+        'Dismiss speaker PORTRAIT(s) and block until the dismissal animation is done. arg0: 0 = the side-0 portrait (host+88), 1 = the side-1 portrait (host+96), any other value = both. Each is sent EmotePortrait_ShowOrSlideOut(p, 0) (slide off to x -64 or 464) and the slot pointer cleared; the op keeps returning busy while g_emotePortraitActiveByScreen / the portrait slot table still shows one active.',
         ['which (0 = side-0 portrait, 1 = side-1 portrait, other = both)']),
     84: ('SetPortraitField62', 'actor',
-        'Portrait tweak: if arg2 != 0 and a portrait with char id arg0 is on screen, write arg1 to field +62 of the SIDE-0 portrait (host+88) - note it always writes the host+88 portrait, not the matched one. +62 is initialised to 100 by NpcBubble_Init; no reader was found. With arg2 = 0 (every shipped use) the op does nothing.',
+        'Portrait tweak: if arg2 != 0 and a portrait with char id arg0 is on screen, write arg1 to field +62 of the SIDE-0 portrait (host+88) - note it always writes the host+88 portrait, not the matched one. +62 is initialised to 100 by EmotePortrait_Init; no reader was found. With arg2 = 0 (every shipped use) the op does nothing.',
         ['portrait character id', 'value (u16; default 100)', 'apply (0 = do nothing)']),
     85: ('SetPortraitTargetY', 'actor',
         'Move a speaker PORTRAIT vertically: sets its target screen y (+56); each frame its y eases 1/4 of the remaining distance toward it. 0 disables the easing (y stays where it is). arg0 = portrait character id (else no-op), arg1 = target y (pixels, signed).',
@@ -2243,10 +2243,10 @@ _M.update({
         'Move a speaker PORTRAIT vertically: sets its target screen y (+56); each frame its y eases 1/4 of the remaining distance toward it. 0 disables the easing (y stays where it is). arg0 = portrait character id (else no-op), arg1 = target y (pixels, signed).',
         ['portrait character id', 'target screen y (pixels; 0 = hold)']),
     87: ('JoltPortraitY', 'actor',
-        'Give a speaker PORTRAIT a vertical jolt: sets its extra y offset (+60), which NpcBubble_SetPosition adds to the drawn y and NpcBubble_TickTask halves toward 0 every frame (a hop / drop that springs back). arg0 = portrait character id (else no-op), arg1 = offset in pixels (signed).',
+        'Give a speaker PORTRAIT a vertical jolt: sets its extra y offset (+60), which EmotePortrait_SetPosition adds to the drawn y and EmotePortrait_TickTask halves toward 0 every frame (a hop / drop that springs back). arg0 = portrait character id (else no-op), arg1 = offset in pixels (signed).',
         ['portrait character id', 'y jolt (pixels, signed; decays by half per frame)']),
     88: ('JoltPortraitY', 'actor',
-        'Give a speaker PORTRAIT a vertical jolt: sets its extra y offset (+60), which NpcBubble_SetPosition adds to the drawn y and NpcBubble_TickTask halves toward 0 every frame (a hop / drop that springs back). arg0 = portrait character id (else no-op), arg1 = offset in pixels (signed).',
+        'Give a speaker PORTRAIT a vertical jolt: sets its extra y offset (+60), which EmotePortrait_SetPosition adds to the drawn y and EmotePortrait_TickTask halves toward 0 every frame (a hop / drop that springs back). arg0 = portrait character id (else no-op), arg1 = offset in pixels (signed).',
         ['portrait character id', 'y jolt (pixels, signed; decays by half per frame)']),
     89: ('SetPortraitTremble', 'actor',
         "Make a speaker PORTRAIT tremble: writes the tremble mask +66 = 127 >> n for n in 1..254 (the portrait's y flips by the +58 amplitude, 1 px by default, whenever (phase & mask) == 0, so n = 6 flips every 2 frames, n = 3 every 16); n = 0 (or 255) writes 0xFF = tremble off. arg0 = portrait character id (else no-op).",
@@ -2396,7 +2396,7 @@ _M.update({
         "Set a spawned event actor's ANIMATION playback speed: model node (actor+0x20) +0x180 float = arg1 * 0.01 (100 = normal, 50 = half, 0 = frozen pose). Movement speed is not affected.",
         ['event key', 'anim speed % (100 = normal, 0 = freeze)']),
     172: ('ShowEventActorEmote', 'actor',
-        'Show an emote/balloon icon over a spawned event actor. arg1 = icon subtype (0 = clear). Stores it at actor+0x140 and, unless the same icon (>=16) is already shown, spawns Action 143 (VfxAction_SpawnPrimarySprite) at the actor with subtype arg1 and plays a matching SFX for ids 4/5, 6/8 and 14.',
+        'Show an emote/balloon icon over a spawned event actor. arg1 = icon subtype (0 = clear). Stores it at actor+0x140 and, unless the same icon (>=16) is already shown, spawns Action 143 (ActionConstructor_EmotionIcon) at the actor with subtype arg1 and plays a matching SFX for ids 4/5, 6/8 and 14.',
         ['event key', 'emote icon id (0 = clear)']),
     173: ('SetEventActorInScriptFlag', 'actor',
         "Set bit 0x80 of the event ACTOR's +0x234 flags (not the record). The only reader is monster AI opcode 0x80 (MonsterScript_Op80_IfScriptLocked), which treats the actor as 'in script/cutscene' and takes its scripted branch. arg0 = event key.",
@@ -2450,10 +2450,10 @@ _M.update({
         "**Cutscene 'NPC hands you a gift' primitive.** Spawns an item visual and attaches it to either an NPC's hand or the player. **arg 0 = target**: 0 = give to player (either attach to hand OR drop on ground if player has status 0x4000 / secondary_mod in the 'item-blocked' range 1..0x453 — plays Sfx 0x100226D + fires Action_TriggerActor(0x13)). >0 = NPC slot index (looked up via g_gameGlobalsSlotTable), then `Item_SpawnVisualTask` + `Npc_AttachHeldItem`. **arg 1 = item_id** masked to 11 bits (0..2047). The item metadata is loaded from `g_itemDatabase` (recipe metadata copied via 5-byte stride).",
         ['target npc (0=player)', 'item id']),
     211: ('ShowActorEmote', 'actor',
-        'Show an emote/balloon icon over an actor (0 = player, -1 = current interaction NPC, 1..47 NPC). arg1 = icon id (0 = clear). Stored at actor+0x140; unless the same icon (>= 16) is already up, spawns Action 143 (VfxAction_SpawnPrimarySprite, subtype = icon) at the actor and plays an SFX for icons 4/5, 6/8 and 14. NPCs whose control_flags hidden bit 0x4 is set are skipped. No animation or outfit is touched.',
+        'Show an emote/balloon icon over an actor (0 = player, -1 = current interaction NPC, 1..47 NPC). arg1 = icon id (0 = clear). Stored at actor+0x140; unless the same icon (>= 16) is already up, spawns Action 143 (ActionConstructor_EmotionIcon, subtype = icon) at the actor and plays an SFX for icons 4/5, 6/8 and 14. NPCs whose control_flags hidden bit 0x4 is set are skipped. No animation or outfit is touched.',
         ['actor (0=player, -1=current NPC, 1-47 NPC)', 'emote icon id (0 = clear)']),
     212: ('ShowActorEmote', 'actor',
-        'Show an emote/balloon icon over an actor (0 = player, -1 = current interaction NPC, 1..47 NPC). arg1 = icon id (0 = clear). Stored at actor+0x140; unless the same icon (>= 16) is already up, spawns Action 143 (VfxAction_SpawnPrimarySprite, subtype = icon) at the actor and plays an SFX for icons 4/5, 6/8 and 14. NPCs whose control_flags hidden bit 0x4 is set are skipped. No animation or outfit is touched.',
+        'Show an emote/balloon icon over an actor (0 = player, -1 = current interaction NPC, 1..47 NPC). arg1 = icon id (0 = clear). Stored at actor+0x140; unless the same icon (>= 16) is already up, spawns Action 143 (ActionConstructor_EmotionIcon, subtype = icon) at the actor and plays an SFX for icons 4/5, 6/8 and 14. NPCs whose control_flags hidden bit 0x4 is set are skipped. No animation or outfit is touched.',
         ['actor (0=player, -1=current NPC, 1-47 NPC)', 'emote icon id (0 = clear)']),
     219: ('QueryNpcFriendshipLevel', 'query',
         "Read an NPC's friendship LEVEL (not raw points) into the VM output slot. arg0 = npc (char id); 0 uses the NPC the player is currently talking to. -1 if the NPC isn't found.",
@@ -2594,7 +2594,7 @@ _M.update({
         "reg0 = the NPC's current outfit variant (actor+488: 0 default, 1 pajamas, 2 swimsuit, 3 ...), 0 if unresolvable.",
         ['npc (char id)']),
     291: ('SpawnChildEventRecords', 'actor',
-        'Add at most ONE child record to the calendar-event/placement registry (g_calendarEventMng_20wPerRecord, cap 32): only when GF_REG_CHILD_NUM != 0 (count clamped to 1). Record = {key 512, type 302 or 303 (by child variant flag 287), arg0, arg1, random word, active bit}.',
+        'Add at most ONE child record to the calendar-event/placement registry (g_eventActorMng, cap 32): only when GF_REG_CHILD_NUM != 0 (count clamped to 1). Record = {key 512, type 302 or 303 (by child variant flag 287), arg0, arg1, random word, active bit}.',
         ['value stored at record+4 (u16)', 'value stored at record+6 (u16)']),
     294: ('ResetNpcDailySchedule', 'actor',
         "Put an NPC back on a daily-schedule state. arg0 = npc (char id), arg1 = state. Two distinct paths: arg1 != -1 -> Npc_ResetDailyScheduleAndAi(npc, state) (resets schedule AND AI) and returns WITHOUT touching the scene reservation; arg1 == -1 -> recompute today's state (record +17, or Schedule_GetNpcStateForToday when the computed bit +228&1 is clear), apply via Npc_ApplyScheduleState, and clear this scene's placed-actor/reservation bit (ctx+352 bit npc). Heavier than op 296; use at scene end to hand an NPC back to normal life.",
@@ -2771,7 +2771,7 @@ _M.update({
         "Multi-purpose monster query, arg1 = kind. Kinds 0-4 read party slot arg0 (0 = companion 1, 1 = companion 2) stats: 0 = 4 dwords (+60/+68/+72/+76) into reg0-3, 1 and 2 = eight s16 stat blocks (+136.., +152..), 3 = eight dwords (+100..), 4 = monster fields plus reg6 = level and reg7 = affinity of its farm record. 5 = for farm areas 1-3 on this farm, reg0-2 = the working monster's record index (0xFFFF if none). 6 = plant-seeds order bit of record arg0. 7 = barn workload count (ceil(owned/4) + owned monsters with order bits 0x40000/0x20000 + owned monsters working an area). 8 = for this script's monster: reg0 = state (1 working an area, 2 flag 0x100, 3 out in the roster, 0 otherwise), reg1 = affinity, reg2 = 1, reg3 = area. 9 = this script's monster: reg0 = level, reg1 = affinity. 10 = record arg0: reg0 = level, reg1 = affinity.",
         ['companion slot / farm record index', 'query kind (0-10)']),
     413: ('SetDialogueBoxY', 'dialogue',
-        "Override the dialogue box's Y position: game-globals slot 8 = arg0; when non-zero DialogueBox_TickStateMachine uses it instead of the default 110 (0x6E) for the box layouts that take a fixed Y. Cleared by Dialogue_TickHudTeardown when the dialogue HUD closes.",
+        "Override the dialogue box's Y position: game-globals slot 8 = arg0; when non-zero DialogueBox_TickStateMachine uses it instead of the default 110 (0x6E) for the box layouts that take a fixed Y. Cleared by Dialogue_OnHudDestroy when the dialogue HUD closes.",
         ['y position (0 = default 110)']),
     416: ('QueryPlayerVariable', 'query',
         "reg0 = a player value selected by an ASCII code: 'd'(100) gold, 'f'(102) player level (base_stats.level + 1), 'g'(103) fodder in the barn bin (g_farmMonsterMng+252), 'h'(104) level of skill arg1, 'i'(105) stone, 'j'(106) compost, 'k'(107) highest level among the 40 skills; any other code 0-39 = that skill's level. Other codes leave reg0 = 0.",
@@ -2834,7 +2834,7 @@ _M.update({
         'Set host+120 bit 0x40, which silences the jingle of every later reward popup from this script host (ops 457, 458, 459, 462); the reward ops only test the bit and never clear it.',
         []),
     462: ('GrantFestivalRewards', 'item',
-        "Open a reward popup (jingle 0x10000E9 unless op 461 was used) and fill up to 4 reward slots from (item, count) ARG PAIRS: even args pick the item - 9997 (0x270D) a random shop-available item among ids 111-114, 9998 (0x270E) a Shop_RollByCategoryFromTable roll over 13 categories, 9999 (0x270F) Loot_RollGenericFromTable, 10000 (0x2710) Loot_RollQuestSpecificFromTable (with a price-based stack when a request is active), anything else a literal item id - and each following odd arg sets that slot's count. At most 8 args are read.",
+        "Open a reward popup (jingle 0x10000E9 unless op 461 was used) and fill up to 4 reward slots from (item, count) ARG PAIRS: even args pick the item - 9997 (0x270D) a random shop-available item among ids 111-114, 9998 (0x270E) a Item_RollRandomIdInCategory roll over 13 categories, 9999 (0x270F) Loot_RollGenericFromTable, 10000 (0x2710) Loot_RollQuestSpecificFromTable (with a price-based stack when a request is active), anything else a literal item id - and each following odd arg sets that slot's count. At most 8 args are read.",
         ['item/token 1', 'count 1', 'item/token 2', 'count 2', 'item/token 3', 'count 3', 'item/token 4', 'count 4']),
     464: ('DropItemStack', 'item',
         'Drop item arg0 at the player: arg1 = QUALITY (0 treated as 1, stored as arg1-1), arg2 = COUNT (packed << 11). Plays the drop jingle 0x100226D and action 0x13.',
@@ -2849,7 +2849,7 @@ _M.update({
         'Set or add the calendar year / season / day in one call, then run the sleep fast-forward and refresh the clock/weather HUD. arg3 = mode: non-zero sets the three fields directly, 0 adds them (if the added day lands on 0 it becomes day 30 of the previous season). Hour/minute are kept.',
         ['year', 'season (0-3)', 'day (1-30)', 'absolute (0 = add, non-zero = set)']),
     470: ('GetGuestNpcVariant', 'query',
-        "Return byte +1 of the per-NPC record for char ids 24-47 (g_ChildFriendshipTable, 8 bytes per id) in reg0. That byte is not friendship: Town_BuildDailyGuestNpcRoster writes 4/5/6 for ids 24/25/26 and a random appearance/variant value for guest ids 27-47, and Dialogue_ProcessLineDirective passes it to Dialogue_LoadEventLineWithPortrait as the guest's variant. Out-of-range id reads through a null pointer (no guard).",
+        "Return byte +1 of the per-NPC record for char ids 24-47 (g_guestNpcStateTable, 8 bytes per id) in reg0. That byte is not friendship: Town_BuildDailyGuestNpcRoster writes 4/5/6 for ids 24/25/26 and a random appearance/variant value for guest ids 27-47, and Dialogue_ProcessLineDirective passes it to Dialogue_LoadEventLineWithPortrait as the guest's variant. Out-of-range id reads through a null pointer (no guard).",
         ['npc (char id 24-47)']),
     471: ('GetChildFriendPoints', 'query',
         'Return the raw friendship word (+4) of the record for char id 24-47 in reg0 (0 if out of range). The value is level*4 + a 2-bit progress count: Npc_GetFriendshipLevel returns word>>2 (cap 10000) and Npc_GetFriendshipLevelBase returns word&3 for these ids.',
@@ -2912,19 +2912,19 @@ _M.update({
         'Blocking wait: while the selected companion(s) are still moving (record +20 bit 0x8) or still turning (record +20 bit 0x800 with actor +158 != +156), the handler returns 1, so the op re-runs next tick. Otherwise it returns 0 and the script continues. Writes no register.',
         ['slot (0/1, 2 = both)']),
     503: ('ShowCompanionEmote', 'companion',
-        'Show an emote icon over a companion (companion form of op 211 ShowActorEmote). For companion slot arg0 (0/1, 2 = both) whose actor is not hidden (control_flags bit 0x4 clear), Npc_StopAnimAndClearOutfitOverride(actor, arg1) stores arg1 at actor+0x140 and, unless the same icon (>= 16) is already up, spawns Action 143 (VfxAction_SpawnPrimarySprite, subtype = icon) and plays an SFX for icons 4/5, 6/8 and 14; arg1 = 0 clears the icon. Then clears control_flags bit 0x4 and field_B4 bits 0x10C. No animation or outfit is touched.',
+        'Show an emote icon over a companion (companion form of op 211 ShowActorEmote). For companion slot arg0 (0/1, 2 = both) whose actor is not hidden (control_flags bit 0x4 clear), Npc_StopAnimAndClearOutfitOverride(actor, arg1) stores arg1 at actor+0x140 and, unless the same icon (>= 16) is already up, spawns Action 143 (ActionConstructor_EmotionIcon, subtype = icon) and plays an SFX for icons 4/5, 6/8 and 14; arg1 = 0 clears the icon. Then clears control_flags bit 0x4 and field_B4 bits 0x10C. No animation or outfit is touched.',
         ['slot (0 = companion 1, 1 = companion 2, 2 = both)', 'emote icon id (0 = clear)']),
     505: ('nop', 'noop',
         'No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.',
         []),
     507: ('PopulateSlayRequest', 'quest',
-        "Post a kind-1 (slay monsters) request into the host NPC's request record (char id < 24, else record 0). arg0 = monster char id (0 = DailyVisitor_PickWantedItem: weighted pick of 48..199, 1-in-16 chance of the 200..253 boss band, story-gated). arg1 = kill count (0 = random 1-4; forced to 1 for ids 200..253). Each further arg is a reward CATEGORY: Shop_RollByCategoryFromTable rolls one reward item per arg into rewards[0..3] (-1 skips). The record is written only if not already posted (status bit 0x2), except record 0. Status becomes posted + fresh (0x4002). reg0 = 1 if a target existed.",
+        "Post a kind-1 (slay monsters) request into the host NPC's request record (char id < 24, else record 0). arg0 = monster char id (0 = DailyVisitor_PickWantedItem: weighted pick of 48..199, 1-in-16 chance of the 200..253 boss band, story-gated). arg1 = kill count (0 = random 1-4; forced to 1 for ids 200..253). Each further arg is a reward CATEGORY: Item_RollRandomIdInCategory rolls one reward item per arg into rewards[0..3] (-1 skips). The record is written only if not already posted (status bit 0x2), except record 0. Status becomes posted + fresh (0x4002). reg0 = 1 if a target existed.",
         ['monster char id (0 = random)', 'kill count (0 = random 1-4)', 'reward category … (up to 4, -1 = none)']),
     508: ('PopulateQuestKind2RandomRewards', 'quest',
-        "Post a kind-2 request into the host NPC's record (char id < 24, else record 0; skipped if already posted, except record 0): +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category: Shop_RollByCategoryFromTable rolls up to 4 reward items (re-rolling up to 64 times so a reward never equals the target item) into rewards[0..3]. No register result. The preview op (532) returns target / count / rewards / param in reg0 / reg1 / reg2-4 / reg5.",
+        "Post a kind-2 request into the host NPC's record (char id < 24, else record 0; skipped if already posted, except record 0): +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category: Item_RollRandomIdInCategory rolls up to 4 reward items (re-rolling up to 64 times so a reward never equals the target item) into rewards[0..3]. No register result. The preview op (532) returns target / count / rewards / param in reg0 / reg1 / reg2-4 / reg5.",
         ['target item id', 'param byte (+5; corpus: an NPC char id local / REG_CHILD_ID)', 'count (+4)', 'reward category … (up to 4)']),
     509: ('PopulateQuestKind2RandomRewards', 'quest',
-        "Post a kind-2 request into the host NPC's record (char id < 24, else record 0; skipped if already posted, except record 0): +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category: Shop_RollByCategoryFromTable rolls up to 4 reward items (re-rolling up to 64 times so a reward never equals the target item) into rewards[0..3]. No register result. The preview op (532) returns target / count / rewards / param in reg0 / reg1 / reg2-4 / reg5.",
+        "Post a kind-2 request into the host NPC's record (char id < 24, else record 0; skipped if already posted, except record 0): +2 = arg0 item, +5 = arg1, +4 = arg2 (count). Each further arg is a reward category: Item_RollRandomIdInCategory rolls up to 4 reward items (re-rolling up to 64 times so a reward never equals the target item) into rewards[0..3]. No register result. The preview op (532) returns target / count / rewards / param in reg0 / reg1 / reg2-4 / reg5.",
         ['target item id', 'param byte (+5; corpus: an NPC char id local / REG_CHILD_ID)', 'count (+4)', 'reward category … (up to 4)']),
     510: ('PopulateQuestKind2LiteralRewards', 'quest',
         'Post a kind-2 request like op 508, but the trailing args are literal reward item ids copied verbatim into rewards[0..3] (no roll, no stop on 0).',
@@ -3107,16 +3107,16 @@ _M.update({
         'From a list of candidate furniture ids, gather those that have an active tile object in the current room and pick one at random. The pick is weighted by the id value itself (the ids are passed to MMIX_WeightedRandomPick as weights), and repeating an id raises its odds. Only 1 roll in 8 picks anything: 7/8 of the time reg0 = 0. reg0 = the picked id, or 0.',
         ['candidate furniture ids (variadic)']),
     598: ('RollRandomItemMatchingDisplayName', 'item',
-        'Roll a random item among all items whose display-name string id == arg0 (items sharing a name) that pass Item_CheckShopFilter (the story/unlock gate); reg0 = the pick. If none pass, reg0 = the matching item with the lowest unlock threshold (data_28), or 82 if nothing matches.',
+        'Roll a random item among all items whose display-name string id == arg0 (items sharing a name) that pass Item_IsInRandomItemPool (the story/unlock gate); reg0 = the pick. If none pass, reg0 = the matching item with the lowest unlock threshold (data_28), or 82 if nothing matches.',
         ['display-name string id']),
     599: ('RollRandomDishItem', 'item',
-        'Pick one of shop categories 5-11 uniformly (item ids 134-299, the cooked-dish range, Trout Sashimi..Turnip Heaven) and roll an unlocked item from it with Shop_RollByCategoryFromTable; reg0 = item id. No args.',
+        'Pick one of shop categories 5-11 uniformly (item ids 134-299, the cooked-dish range, Trout Sashimi..Turnip Heaven) and roll an unlocked item from it with Item_RollRandomIdInCategory; reg0 = item id. No args.',
         []),
     600: ('RollRandomEquipmentItem', 'item',
         'Pick one of 16 fixed shop categories uniformly (15-19, 24-26 weapons; 33 shields; 34 accessories; 35 headgear; 36 shoes; 37 armor; 48/49 skill and spell items; 57 the 318-327 bread range) and roll an unlocked item from it; reg0 = item id. No args.',
         []),
     601: ('RollRandomFurItem', 'item',
-        'Roll a random unlocked item from {814, 815, 816, 879, 939} (Fur S/M/L, Wooly Furball, Quality Puffy Fur); reg0 = item id. If none passes Item_CheckShopFilter, falls back to the lowest-threshold member (default 814). No args.',
+        'Roll a random unlocked item from {814, 815, 816, 879, 939} (Fur S/M/L, Wooly Furball, Quality Puffy Fur); reg0 = item id. If none passes Item_IsInRandomItemPool, falls back to the lowest-threshold member (default 814). No args.',
         []),
     602: ('RollRandomMedicineOrFailedDish', 'item',
         'Roll a random unlocked item from ids 115-119, 123, 131-133 (Antidote Potion, Para-Gone, Roundoff, Cold Medicine, Formuade, Heavy Spice, Object X, Failed Dish, Disastrous Dish); reg0 = item id, fallback 132 (Failed Dish). No args.',
@@ -3137,7 +3137,7 @@ _M.update({
         'No-op: the dispatch slot is the shared do-nothing stub (RF4S.exe+0x193B0, returns 0), so the VM decodes any args and ignores them. Harmless to keep or delete; shipped scenes still emit ops 381, 388 and 693, the other slots are unused.',
         []),
     614: ('SetDialogueBoxMode', 'dialogue',
-        'Set the dialogue-box mode byte (byte 2 of g_gameGlobalsSlotTable.entries[9]). 2 = narration: no speaker-name label, no text blips; 0 = normal; 1 = the menu-style dialogue layout (every shipped use; FMenu_*, NpcBubble_SpawnPositionedDualScreen, Dialogue_SpawnHud and ChoiceDialog code pick different widget offsets when the byte is 1). (The existing description is right; only the name is misleading.)',
+        'Set the dialogue-box mode byte (byte 2 of g_gameGlobalsSlotTable.entries[9]). 2 = narration: no speaker-name label, no text blips; 0 = normal; 1 = the menu-style dialogue layout (every shipped use; FMenu_*, EmotePortrait_SpawnPositioned, Dialogue_SpawnHud and ChoiceDialog code pick different widget offsets when the byte is 1). (The existing description is right; only the name is misleading.)',
         ['mode (0 = normal, 1 = menu-style dialogue layout, 2 = narration)']),
     616: ('QueryAndSetCraftedFlag', 'item',
         "Test-and-set the 'has been crafted' flag. For an item id: looks up its craft record (Item_FindCraftDataRecordForItemId); reg0 = the OLD bit at zone2 + craft_id + 1062, then the bit is set (reg0 = 0 and nothing is set if the item has no craft record). For 100000: the handler sets flag zone2+1403 BEFORE reading it, so reg0 is always 1 (when a save is loaded).",
@@ -3319,7 +3319,7 @@ for _op, _tech in TECHNICAL.items():
               "KIND %d" % _n)
         _d += (" (%s)." % _shape) if _shape else "."
         # Literal variants store the alternate objective items VERBATIM from args (no category
-        # roll -- IDA-confirmed on op 510: "no Shop_RollByCategoryFromTable call"); the others
+        # roll -- IDA-confirmed on op 510: "no Item_RollRandomIdInCategory call"); the others
         # roll from categories (and some shapes -- SimpleNoAlts/TwoArgsNoItem -- carry no alts).
         if "Literal" in _qk.group(2):
             _d += (" A runtime quest generator whose alternate objective items are the EXPLICIT "
@@ -4372,7 +4372,7 @@ for _eco in ((153, 0), (154, 0), (155, 0), (156, 0)):
 
 # op 10 SetSpeakerVoice: arg0 = a name-plate id in the character-name archive (the full list,
 # up to ~1000 -- the soldiers / customers / '???' plates sit above the 392 rf3NpcParam rows),
-# arg1 = the text-blip class (NpcBubble_DispatchSimpleScriptedLine, RF4S.exe+0x20A240)
+# arg1 = the text-blip class (Script_VMOp_SetSpeakerVoice, RF4S.exe+0x20A240)
 _NAME_PLATES = _lazy(lambda: {_k: (_v, "Name plate '%s' (name archive entry %d)." % (_v, _k))
                               for _k, _v in _names("characters").items()})
 ENUM_ARG_VALUES[(10, 0)] = _NAME_PLATES

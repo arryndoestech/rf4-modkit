@@ -226,7 +226,7 @@ MOBJ_NOTES: dict[str, str] = {
     "fe036": "FISHING SPOT — flag-gated fish spawn (type 24, Fishing_RegisterMapSpotIfFlagSet)",
     "fe037": "FISHING SPOT variant 1 — flag-gated (type 25, Fishing_RegisterMapSpotVariant1IfFlagSet)",
     "gmk00_eater":     "animated eater gimmick (type 26, Init/TickAnimatedEater)",
-    "gmk01_bird":      "critter spawner: birds (type 27, Critter_TickAndSpawn_TypeA)",
+    "gmk01_bird":      "critter spawner: birds (type 27, Critter_InitBirdOrDespawn)",
     "gmk02_butterfly": "critter spawner: butterflies (type 28, Critter_TickAndSpawn_TypeB)",
     "gmk04_storm":     "storm hazard, damaging (type 29, MapObj_InitStormHazard)",
     "gmk05_storm":     "wind current zone — pushes the player (type 30, MapObj_InitWindCurrentZone)",

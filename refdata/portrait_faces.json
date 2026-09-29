@@ -1,5 +1,5 @@
 {
- "_about": "Dialogue portraits, read from RF4S.exe (IDA) 2026-09-25. STORY mode (and everywhere outside Newlywed mode) draws the classic 2D art: rows of unk_7FF753E5A980 (RF4S.exe+0x4DA980, 6 u16 per row = body archive id, face archive id per outfit column); a SetSpeaker face id N shows archive (face base + N) -- the 'faces' list here, in that order (NpcBubble_ComposeContent +0x1D9D50). Row = speaker slot + 1, the player is row 0 (Lest) / 1 (Frey). 'sp' = the SP1 / SP2 face files (face ids 255 / 254). NEWLYWED mode (save flag 0x40, set only by the title menu's Newlywed entry; NpcBubble_SpawnAndAttach +0x1D7810) draws E-mote portraits instead, for the player and the 12 candidates: 'emote' rows map the same face ids to E-mote face timelines (g_npcBubble_emoteToStringIdTable +0x4DA670) -- see the 'emote' _about.",
+ "_about": "Dialogue portraits, read from RF4S.exe (IDA) 2026-09-25. STORY mode (and everywhere outside Newlywed mode) draws the classic 2D art: rows of unk_7FF753E5A980 (RF4S.exe+0x4DA980, 6 u16 per row = body archive id, face archive id per outfit column); a SetSpeaker face id N shows archive (face base + N) -- the 'faces' list here, in that order (EmotePortrait_ComposeContent +0x1D9D50). Row = speaker slot + 1, the player is row 0 (Lest) / 1 (Frey). 'sp' = the SP1 / SP2 face files (face ids 255 / 254). NEWLYWED mode (save flag 0x40, set only by the title menu's Newlywed entry; EmotePortrait_SpawnAndAttach +0x1D7810) draws E-mote portraits instead, for the player and the 12 candidates: 'emote' rows map the same face ids to E-mote face timelines (g_emotePortrait_emoteToStringIdTable +0x4DA670) -- see the 'emote' _about.",
  "rows": {
   "0": {
    "body": [
@@ -2001,7 +2001,7 @@
   }
  },
  "emote": {
-  "_about": "Portrait faces per sprite row, read from RF4S.exe (IDA) 2026-09-25. row = speaker slot + 1 (row 0 = Lest, row 1 = Frey). 'faces'[id] = the face row (0..28) a SetSpeaker face id < 1000 selects, from g_npcBubble_emoteToStringIdTable (RF4S.exe+0x4DA670, u16 in 4-byte entries, value = 1000 + face*32 + gesture; every shipped entry has gesture 0). 'files' = g_npcBubble_spritePathTable (RF4S.exe+0x4D9FE0) columns base, SP1, swimsuit, pajama, wedding, SP2 (rom:/emote/<name>.psbData). Rows not listed have no portrait. 'special' = [SP1, SP2]: the column-1 / column-5 file carries the SP1 / SP2 timeline (checked in the shipped .psbData).",
+  "_about": "Portrait faces per sprite row, read from RF4S.exe (IDA) 2026-09-25. row = speaker slot + 1 (row 0 = Lest, row 1 = Frey). 'faces'[id] = the face row (0..28) a SetSpeaker face id < 1000 selects, from g_emotePortrait_emoteToStringIdTable (RF4S.exe+0x4DA670, u16 in 4-byte entries, value = 1000 + face*32 + gesture; every shipped entry has gesture 0). 'files' = g_emotePortrait_psbPathTable (RF4S.exe+0x4D9FE0) columns base, SP1, swimsuit, pajama, wedding, SP2 (rom:/emote/<name>.psbData). Rows not listed have no portrait. 'special' = [SP1, SP2]: the column-1 / column-5 file carries the SP1 / SP2 timeline (checked in the shipped .psbData).",
   "rows": {
    "0": {
     "files": [

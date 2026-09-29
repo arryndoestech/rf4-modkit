@@ -2162,10 +2162,10 @@ _SPEAKER_OPAQUE_OPS = set()          # (every speaker-related op is now modelled
 # the message box (Dialogue_LoadAndShowText with the task's name archive, latched at task+108
 # -- the same path SetSpeakerVoice takes): Dialogue_ProcessLineDirective RF4S.exe+0x209DF0
 # (1..26 and >= 48 = that name, 0 = clear, 27..47 = event participant, resolved at run time),
-# NpcBubble_DispatchScriptedLineV3Tokens +0x207A70 (id remapped by
+# Script_VMOp_SetSpeakerById +0x207A70 (id remapped by
 # Dialogue_RemapBubbleLineId24To28: 24->309, 25->149, 26->239, 27->24, 28->25),
-# NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport +0x207CE0 (id used as is).
-# Ops 6/7 (Script_VMOp_ShowNpcBubble +0x207900) only float a bubble over an actor and leave
+# Script_VMOp_SetSpeakerByIdWithEmote +0x207CE0 (id used as is).
+# Ops 6/7 (Script_VMOp_ShowPortraitWithEmote +0x207900) only float a bubble over an actor and leave
 # the message-box speaker alone.
 _BUBBLE_ID_REMAP = {24: 309, 25: 149, 26: 239, 27: 24, 28: 25}
 # Narration mode: ops 614 (Script_VMOp_SetDialogueSpeakerSideByte RF4S.exe+0x21C740, value 2)

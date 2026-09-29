@@ -28,7 +28,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 ## Dialogue & portraits
 
 ### `op 5` — ShowPortrait(character, face, side)
-*handler:* `Script_VMOp_ShowNpcBubbleVariant`
+*handler:* `Script_VMOp_ShowPortrait`
 
 Show or change a character's E-mote portrait on the left or right side without touching the name plate, text blip, voice or emote icons. A DIALOG line must come after it (usually after the SetSpeaker… that names the speaker): the portrait belongs to the next line shown.
 
@@ -38,7 +38,7 @@ Args:
   2. side (0 = left, non-zero = right slot (bit 0 = flip bit))
 
 ### `op 6` — ShowPortraitWithEmote(character, side, expression, emote_or_voice)
-*handler:* `Script_VMOp_ShowNpcBubble`
+*handler:* `Script_VMOp_ShowPortraitWithEmote`
 
 Show or update a character's E-mote speaker portrait on one side of the dialogue box, with an optional emote icon or voice clip. Does not change the name plate or the text blip, so it is used to change a listener's face between lines.
 
@@ -49,7 +49,7 @@ Args:
   3. emote_or_voice (0 = none; 186..192 = emote icon shown on the portrait; >= 0x1F0 (496) = play that voice/sfx id instead)
 
 ### `op 7` — ShowPortraitWithEmote(character, side, expression, emote_or_voice)
-*handler:* `Script_VMOp_ShowNpcBubble`
+*handler:* `Script_VMOp_ShowPortraitWithEmote`
 
 Show or update a character's E-mote speaker portrait on one side of the dialogue box, with an optional emote icon or voice clip. Does not change the name plate or the text blip, so it is used to change a listener's face between lines.
 
@@ -76,7 +76,7 @@ Args:
   0. name_id (0 = player's own saved name; 1..26 villager; 27..47 event participant; >= 48 name-archive entry; 0xFFFF = '???')
 
 ### `op 10` — SetSpeakerVoice(name_id, blip)
-*handler:* `NpcBubble_DispatchSimpleScriptedLine`
+*handler:* `Script_VMOp_SetSpeakerVoice`
 
 Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers.
 
@@ -101,7 +101,7 @@ Args:
      - `1` = show name
 
 ### `op 12` — SetSpeakerById(speaker, face, side)
-*handler:* `NpcBubble_DispatchScriptedLineV3Tokens`
+*handler:* `Script_VMOp_SetSpeakerById`
 
 Speaker cue by character id: shows that character's portrait on the given side, sets the name plate and the text blip for the next DIALOG. The generic form of the per-character SetSpeaker ops, without emote icon or voice.
 
@@ -138,7 +138,7 @@ Args:
   2. side (0 = left portrait, 1 = right portrait)
 
 ### `op 13` — SetSpeakerById(speaker, face, side)
-*handler:* `NpcBubble_DispatchScriptedLineV3Tokens`
+*handler:* `Script_VMOp_SetSpeakerById`
 
 Speaker cue by character id: shows that character's portrait on the given side, sets the name plate and the text blip for the next DIALOG. The generic form of the per-character SetSpeaker ops, without emote icon or voice.
 
@@ -175,7 +175,7 @@ Args:
   2. side (0 = left portrait, 1 = right portrait)
 
 ### `op 14` — SetSpeakerByIdWithEmote(speaker, side, expression, emote)
-*handler:* `NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport`
+*handler:* `Script_VMOp_SetSpeakerByIdWithEmote`
 
 Speaker cue by a runtime character id (typically the spouse in REG_WIFE_ID): portrait with an expression on the given side, name plate, text blip, and an optional emote icon or voice clip.
 
@@ -213,7 +213,7 @@ Args:
   3. emote (0 = none; 186-192 emote icon over the portrait; >= 0x1F0 = a voice/sfx id played immediately)
 
 ### `op 15` — SetSpeakerByIdWithEmote(speaker, side, expression, emote)
-*handler:* `NpcBubble_DispatchScriptedLineV4TokensWithEmoteSupport`
+*handler:* `Script_VMOp_SetSpeakerByIdWithEmote`
 
 Speaker cue by a runtime character id (typically the spouse in REG_WIFE_ID): portrait with an expression on the given side, name plate, text blip, and an optional emote icon or voice clip.
 
@@ -252,726 +252,726 @@ Args:
 
 ### `op 16` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 17` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 18` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 19` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 20` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 21` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 22` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 23` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 24` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 25` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 26` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 27` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 28` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 29` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 30` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 31` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 32` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 33` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 34` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 35` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 36` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 37` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 38` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 39` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 40` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 41` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 42` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 43` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 44` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 45` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 46` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 47` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 48` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 49` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 50` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 51` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 52` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 53` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 54` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 55` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 56` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 57` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 58` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 59` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 60` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 61` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 62` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 63` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 64` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 65` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 66` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 67` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 68` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 69` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 70` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 71` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 72` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 73` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 74` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 75` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `NpcBubble_DispatchAreaInfoLine`
+*handler:* `Script_VMOp_SetSpeaker`
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
+  0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
 ### `op 77` — SlidePortraitToX(character, x, speed)
-*handler:* `Script_VMOp_SetActorFacingAngle`
+*handler:* `Script_VMOp_SlidePortraitToX`
 
 Slides a speaker portrait horizontally to an absolute screen x. Returns immediately; follow with WaitPortraitSettled to wait for the slide.
 
@@ -1008,7 +1008,7 @@ Args:
   2. speed (stored as ~speed*1024 per tick; corpus 40)
 
 ### `op 78` — SlidePortraitToX(character, x, speed)
-*handler:* `Script_VMOp_SetActorFacingAngle`
+*handler:* `Script_VMOp_SlidePortraitToX`
 
 Slides a speaker portrait horizontally to an absolute screen x. Returns immediately; follow with WaitPortraitSettled to wait for the slide.
 
@@ -1045,7 +1045,7 @@ Args:
   2. speed (stored as ~speed*1024 per tick; corpus 40)
 
 ### `op 79` — SlidePortraitBy(character, dx, speed)
-*handler:* `Script_VMOp_SetActorTurnAngle`
+*handler:* `Script_VMOp_SlidePortraitBy`
 
 Slides a speaker portrait horizontally by a relative amount (negative = left). Returns immediately; WaitPortraitSettled waits for it.
 
@@ -1082,7 +1082,7 @@ Args:
   2. speed (corpus 5..200, mostly 30-100)
 
 ### `op 80` — SlidePortraitBy(character, dx, speed)
-*handler:* `Script_VMOp_SetActorTurnAngle`
+*handler:* `Script_VMOp_SlidePortraitBy`
 
 Slides a speaker portrait horizontally by a relative amount (negative = left). Returns immediately; WaitPortraitSettled waits for it.
 
@@ -1119,7 +1119,7 @@ Args:
   2. speed (corpus 5..200, mostly 30-100)
 
 ### `op 81` — WaitPortraitSettled(character)
-*handler:* `Script_VMOp_QueryActorMotionState`
+*handler:* `Script_VMOp_WaitPortraitSettled`
 
 Waits until the given speaker portrait has finished sliding. If no on-screen portrait belongs to that character it continues at once.
 
@@ -1154,7 +1154,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 82` — WaitPortraitSettled(character)
-*handler:* `Script_VMOp_QueryActorMotionState`
+*handler:* `Script_VMOp_WaitPortraitSettled`
 
 Waits until the given speaker portrait has finished sliding. If no on-screen portrait belongs to that character it continues at once.
 
@@ -1189,7 +1189,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 83` — ClosePortraits(which)
-*handler:* `Script_VMOp_CloseBubblesWaitClosed`
+*handler:* `Script_VMOp_ClosePortraits`
 
 Dismiss one or both speaker portraits and wait until they have slid away.
 
@@ -1197,12 +1197,12 @@ Args:
   0. which (0 = side-0 portrait (host+88), 1 = side-1 portrait (host+96), anything else = both)
 
 ### `op 84` — SetPortraitField62(character, value, apply)
-*handler:* `Script_VMOp_SetActorMotionField62`
+*handler:* `Script_VMOp_SetPortraitField62`
 
 Writes a value into an unused field of the left portrait. Every shipped use passes apply = 0, so it does nothing in the retail game; it looks like a disabled portrait 'pulse' effect (130, 90, 120, 100 in a row).
 
 Args:
-  0. character (a character whose portrait is on screen (matched via Actor_MatchesCharId against host+96 then host+88))
+  0. character (a character whose portrait is on screen (matched via EmotePortrait_MatchesCharId against host+96 then host+88))
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -1234,7 +1234,7 @@ Args:
   2. apply (0 = do nothing; non-zero = write)
 
 ### `op 89` — SetPortraitTremble(character, level)
-*handler:* `Script_VMOp_SetActorMotionMask`
+*handler:* `Script_VMOp_SetPortraitTremble`
 
 Makes a speaker portrait tremble (shake up and down); 0 stops it. Used for scared or shivering lines.
 
@@ -1270,7 +1270,7 @@ Args:
   1. level (0 = off; 1..6 larger = faster (6 = every other frame, 3 = every 16 frames); corpus 0-6)
 
 ### `op 90` — SetPortraitTremble(character, level)
-*handler:* `Script_VMOp_SetActorMotionMask`
+*handler:* `Script_VMOp_SetPortraitTremble`
 
 Makes a speaker portrait tremble (shake up and down); 0 stops it. Used for scared or shivering lines.
 
@@ -1344,7 +1344,7 @@ Switch the message box to the thought style (style 2): a cloud box with a bubble
 Switch the message box to the trembling style (style 3): a wavy box with a 10-frame sideways shake. Stays until another box-style op or the box closes.
 
 ### `op 98` — ShakeDialogueBox(frames)
-*handler:* `Script_VMOp_SetDialogueField161`
+*handler:* `Script_VMOp_ShakeDialogueBox`
 
 Shake the message box (box, name and text) for a number of frames. Only the low byte of the argument is used.
 
@@ -1636,7 +1636,7 @@ Args:
   3. apply_now (non-zero = reload now; 0 = on the next map tick)
 
 ### `op 159` — ResetMapAmbientColor(apply now)
-*handler:* `ScriptVMOp_SwapMapPaletteAndTriggerReload`
+*handler:* `Script_VMOp_ResetMapAmbientColor`
 
 Restore the map's own ambient colours after SetMapAmbientColor (op 158) tinted them, e.g. when a darkening effect ends.
 
@@ -1932,7 +1932,7 @@ Args:
 ## Actors & player
 
 ### `op 85` — SetPortraitTargetY(character, target_y)
-*handler:* `Script_VMOp_SetActorMotionField56`
+*handler:* `Script_VMOp_SetPortraitTargetY`
 
 Move a speaker portrait vertically: sets a target screen y that the portrait eases toward (1/4 of the remaining distance per frame).
 
@@ -1968,7 +1968,7 @@ Args:
   1. target_y (0 = no easing (y holds))
 
 ### `op 86` — SetPortraitTargetY(character, target_y)
-*handler:* `Script_VMOp_SetActorMotionField56`
+*handler:* `Script_VMOp_SetPortraitTargetY`
 
 Move a speaker portrait vertically: sets a target screen y that the portrait eases toward (1/4 of the remaining distance per frame).
 
@@ -2004,7 +2004,7 @@ Args:
   1. target_y (0 = no easing (y holds))
 
 ### `op 87` — JoltPortraitY(character, jolt)
-*handler:* `Script_VMOp_SetActorMotionField60`
+*handler:* `Script_VMOp_JoltPortraitY`
 
 Give a speaker portrait a quick vertical jolt (a hop or drop that springs back), e.g. when a character is startled.
 
@@ -2040,7 +2040,7 @@ Args:
   1. jolt (extra y offset, halves toward 0 every frame)
 
 ### `op 88` — JoltPortraitY(character, jolt)
-*handler:* `Script_VMOp_SetActorMotionField60`
+*handler:* `Script_VMOp_JoltPortraitY`
 
 Give a speaker portrait a quick vertical jolt (a hop or drop that springs back), e.g. when a character is startled.
 
@@ -2529,7 +2529,7 @@ Args:
   2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2))
 
 ### `op 110` — FaceEventActor(actor, event_actor, ease)
-*handler:* `ScriptVMOp_MakeActorFaceCalendarEventActorAndSetAnim`
+*handler:* `Script_VMOp_FaceEventActor`
 
 Turns an actor (player or NPC) to face an event actor, i.e. a monster or prop the scene registered under an event key. Does not wait; follow with WaitActorMoveDone / WaitPlayerMoveDone.
 
@@ -2944,7 +2944,7 @@ Args:
   4. jump (non-zero = run/jump: speed x1.2 and jump bit)
 
 ### `op 121` — MoveNpcToTileKeepAnim(npc, x, y, speed)
-*handler:* `ScriptVMOp_NpcStartMoveAlternateKind2048`
+*handler:* `Script_VMOp_MoveNpcToTileKeepAnim`
 
 Moves an NPC to an absolute tile while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
 
@@ -2982,7 +2982,7 @@ Args:
   3. speed (corpus 17-800)
 
 ### `op 122` — MoveNpcToTileKeepAnim(npc, x, y, speed)
-*handler:* `ScriptVMOp_NpcStartMoveAlternateKind2048`
+*handler:* `Script_VMOp_MoveNpcToTileKeepAnim`
 
 Moves an NPC to an absolute tile while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
 
@@ -3638,7 +3638,7 @@ Args:
 Waits until the player's current one-shot animation (started with the player talk/anim ops) has finished.
 
 ### `op 153` — SpawnEventActor(char, key, x, y, facing)
-*handler:* `ScriptVMOp_CalendarEvent_SpawnOrUpdateNpcAtTilePos`
+*handler:* `Script_VMOp_SpawnEventActor`
 
 Spawn an event (cutscene) actor under a scene-local key, or reposition it if that key already exists. Later event-actor ops address it by the key.
 
@@ -3651,7 +3651,7 @@ Args:
   4. facing
 
 ### `op 154` — SpawnEventActorVariant(char, event_key, x, y, facing, variant)
-*handler:* `ScriptVMOp_CalendarEvent_AddNpcWithVariantIndex`
+*handler:* `Script_VMOp_SpawnEventActorVariant`
 
 Registers a new event actor (a scene extra such as a monster or crowd member) under an event key at a tile, with a variant index. Later event-actor ops address it by the key.
 
@@ -3665,7 +3665,7 @@ Args:
   5. variant (stored as variant-1; corpus 1-180 and registers)
 
 ### `op 155` — SpawnEventActorEx(char, event_key, x, y, facing, flag, scalar)
-*handler:* `ScriptVMOp_CalendarEvent_AddNpcWithFollowSpeedAndFlag`
+*handler:* `Script_VMOp_SpawnEventActorEx`
 
 Registers a new event actor like SpawnEventActorVariant but with an extra flag and a percentage value whose effect is not identified. Only used for character 215 in two scenes.
 
@@ -3680,7 +3680,7 @@ Args:
   6. scalar (stored as float arg*0.01 at record +16; corpus 0/100)
 
 ### `op 156` — UnregisterEventActor(char, event_key)
-*handler:* `ScriptVMOp_KillCalendarEventByCharAndEventKey`
+*handler:* `Script_VMOp_UnregisterEventActor`
 
 Removes an event actor that matches both the character id and the event key; the engine despawns it on its next sweep. No death animation (compare KillEventActor).
 
@@ -3690,7 +3690,7 @@ Args:
   1. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
 ### `op 160` — MoveEventActorToTile(key, x, y, speed, run)
-*handler:* `ScriptVMOp_CalendarEvent_BeginOrUpdateNpcMovement`
+*handler:* `Script_VMOp_MoveEventActorToTile`
 
 Walk or run an event actor to an absolute tile. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.
 
@@ -3702,7 +3702,7 @@ Args:
   4. run (0 = walk speed base (+368), 1 = run speed base (+372))
 
 ### `op 161` — MoveEventActorToTileKeepFacing(key, x, y, speed, run)
-*handler:* `ScriptVMOp_CalendarEvent_BeginScriptedNpcMovementAndSetCtrlFlag20000`
+*handler:* `Script_VMOp_MoveEventActorToTileKeepFacing`
 
 Like MoveEventActorToTile but the actor keeps its current facing while moving (side-step / back-pedal).
 
@@ -3724,7 +3724,7 @@ Args:
   2. ease (turn easing: each frame the facing moves by remaining >> ease; 0 = snap, 2 = typical smooth turn)
 
 ### `op 163` — TurnEventActorToFaceTarget(event_key, target, ease)
-*handler:* `ScriptVM_Op_FaceCalendarEventTowardEntity`
+*handler:* `Script_VMOp_TurnEventActorToFaceTarget`
 
 Turns an event actor to face the player or an NPC.
 
@@ -3761,7 +3761,7 @@ Args:
   2. ease (0 = snap, 1-2 = ease)
 
 ### `op 164` — WaitEventActorMoveDone(event_key)
-*handler:* `ScriptVMOp_CalendarEvent_QueryNpcTurnOrArrivalState`
+*handler:* `Script_VMOp_WaitEventActorMoveDone`
 
 Waits until an event actor has finished walking and turning. Waiting on a key that is not registered never ends.
 
@@ -3769,7 +3769,7 @@ Args:
   0. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
 ### `op 167` — PlayEventActorAnim(event key, anim, loop)
-*handler:* `ScriptVMOp_StartAnimOnCalendarEventActorWithLoopFlag`
+*handler:* `Script_VMOp_PlayEventActorAnim`
 
 Play an animation on a spawned event actor (event key 100+). Wait for a one-shot clip with WaitEventActorAnimDone (op 169).
 
@@ -3779,7 +3779,7 @@ Args:
   2. loop (non-zero = loop, 0 = play once (clears the loop bit))
 
 ### `op 168` — SkipEventActorAnimToEnd(key)
-*handler:* `ScriptVMOp_SyncAnimFrameFromWidgetOnCalendarEventActor`
+*handler:* `Script_VMOp_SkipEventActorAnimToEnd`
 
 Jump an event actor's current animation to its last frame, so a pose just started (e.g. lying down) shows its end pose at once. The event-actor twin of SkipActorAnimToEnd (op 250).
 
@@ -3787,7 +3787,7 @@ Args:
   0. key
 
 ### `op 169` — WaitEventActorAnimDone(event_key)
-*handler:* `ScriptVMOp_QueryCalendarEventActorReadyOrInMidAction`
+*handler:* `Script_VMOp_WaitEventActorAnimDone`
 
 Waits until an event actor's current one-shot animation (started with PlayEventActorAnim) has finished. A missing key waits forever.
 
@@ -3795,7 +3795,7 @@ Args:
   0. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
 ### `op 170` — SetEventActorAnimSpeed(event_key, speed_percent)
-*handler:* `ScriptVMOp_CalendarEvent_SetActorMoveScaleFactor`
+*handler:* `Script_VMOp_SetEventActorAnimSpeed`
 
 Set a spawned event actor's animation playback speed in percent (0 freezes the current pose). Movement speed is not affected.
 
@@ -3804,7 +3804,7 @@ Args:
   1. speed_percent (100 = normal, 50 = half, 0 = freeze the pose)
 
 ### `op 171` — SetEventActorAlpha(event_key, alpha_percent)
-*handler:* `ScriptVMOp_SetCalendarEventActorAlphaPercent0To100OrHide`
+*handler:* `Script_VMOp_SetEventActorAlpha`
 
 Make a spawned event actor translucent (1-100 % opacity) or hide it (0). Used for ghosts and fade-in/out effects, often in a loop with a register.
 
@@ -3813,7 +3813,7 @@ Args:
   1. alpha_percent (1-100 = opacity; 0 = hide the actor)
 
 ### `op 172` — ShowEventActorEmote(event_key, emote)
-*handler:* `ScriptVMOp_StopAnimAndClearOutfitOverride_OnCalendarEventActor`
+*handler:* `Script_VMOp_ShowEventActorEmote`
 
 Shows an emote icon (surprise, sweat, heart...) over an event actor, with a sound for some icons; 0 clears it.
 
@@ -3822,7 +3822,7 @@ Args:
   1. emote (0 = clear; corpus 1-27, mostly 6 and 15)
 
 ### `op 173` — SetEventActorInScriptFlag(event_key)
-*handler:* `Script_VMOp_MarkCalendarEventActorByEventId`
+*handler:* `Script_VMOp_SetEventActorInScriptFlag`
 
 Mark a spawned event actor (typically a monster) as under script control, so its monster AI takes its scripted branch. There is no op that clears the mark.
 
@@ -3839,7 +3839,7 @@ Args:
   1. delta (negative = up (-64 lifts one tile-ish), positive = down)
 
 ### `op 175` — SetEventActorCollideRadius(event key, radius)
-*handler:* `ScriptVMOp_SetCalendarEventActorWordField172`
+*handler:* `Script_VMOp_SetEventActorCollideRadius`
 
 Set a spawned event actor's collision radius.
 
@@ -3848,7 +3848,7 @@ Args:
   1. radius (collision radius (corpus 36))
 
 ### `op 176` — SetEventActorScale(event_key, scale)
-*handler:* `ScriptVMOp_SetCalendarEventActorSpriteTintGreyscale`
+*handler:* `Script_VMOp_SetEventActorScale`
 
 Sets the uniform model scale of an event actor in percent (100 = normal).
 
@@ -3866,7 +3866,7 @@ Args:
   1. unused (shipped scripts pass 1; never read)
 
 ### `op 178` — SetEventActorAuxYaw(event_key, angle)
-*handler:* `ScriptVMOp_SetCalendarEventActorTargetFacingDegrees`
+*handler:* `Script_VMOp_SetEventActorAuxYaw`
 
 Sets the target of an event actor's secondary yaw, the same rotation SetActorAuxYaw sets for roster actors (not the body facing that TurnEventActorToAngle changes). The engine eases towards it; the corpus uses it to make a character glance left and right.
 
@@ -3875,7 +3875,7 @@ Args:
   1. angle (target of the secondary yaw; corpus 350, 30, 0)
 
 ### `op 179` — WaitEventActorAuxYaw(key)
-*handler:* `ScriptVMOp_QueryCalendarEventActorStillTurningTowardTarget`
+*handler:* `Script_VMOp_WaitEventActorAuxYaw`
 
 Wait until an event actor has finished turning to the angle set with SetEventActorAuxYaw (op 178). The event-actor twin of WaitActorAuxYaw (op 113).
 
@@ -3883,7 +3883,7 @@ Args:
   0. key
 
 ### `op 180` — KillEventActor(event_key)
-*handler:* `ScriptVMOp_CalendarEvent_KillActorWithDeathAnimAndKnockback`
+*handler:* `Script_VMOp_KillEventActor`
 
 Kills an event actor on the spot: it plays its death animation, is knocked back, falls and is removed.
 
@@ -5077,7 +5077,7 @@ Args:
      - `5` = turned you down
 
 ### `op 284` — MountActor(character, mount_key)
-*handler:* `ScriptVMOp_MountActorOrDismountByCalendarEventKey`
+*handler:* `Script_VMOp_MountActor`
 
 Put a character on a rideable event actor (spawned with SpawnEventActor), or pass 0 to make them dismount.
 
@@ -5224,7 +5224,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 291` — SpawnChildEventActor(x, y)
-*handler:* `ScriptVMOp_SpawnSpecialCalendarEventRecordsByChildNum`
+*handler:* `Script_VMOp_SpawnChildEventActor`
 
 If the player has a child, registers the child as an event actor (key 512) at the given tile with a random facing. Unused by the shipped scripts.
 
@@ -5964,7 +5964,7 @@ Args:
 Sets the player's six weapon skills (skill slots 0-5) to level 30, then refreshes the skill-rank bits. Higher levels are lowered to 30. Used by debug/test scripts.
 
 ### `op 472` — SetGuestNpcSubVariant(npc, variant)
-*handler:* `Script_VMOp_SetChildFriendshipByteAt2`
+*handler:* `Script_VMOp_SetGuestNpcSubVariant`
 
 Set a guest character's second dialogue/portrait variant byte (normally rolled 0-64 each day).
 
@@ -6165,7 +6165,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 664` — SetActorUnlimitedSight(target)
-*handler:* `Script_VMOp_ForceActorMaxSpAndLockByCharId`
+*handler:* `Script_VMOp_SetActorUnlimitedSight`
 
 Make a monster notice the party at any distance and from any direction, so it engages right away.
 
@@ -6441,8 +6441,8 @@ kind 18 Random Timer Idle Anim (schedule kind 18). An NPC idle/schedule BEHAVIOR
 
 kind 19 Chat By Friendship Level (schedule kind 19). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
 
-### `op 758` — NpcAction_Kind20_EquipTool506()
-*handler:* `NpcAction_Kind20_EquipTool506`
+### `op 758` — NpcAction_Kind20_EquipElvishHarp()
+*handler:* `NpcAction_Kind20_EquipElvishHarp`
 
 kind 20 Equip Tool 506 (schedule kind 20). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
 
@@ -6451,8 +6451,8 @@ kind 20 Equip Tool 506 (schedule kind 20). An NPC idle/schedule BEHAVIOR handler
 
 Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
 
-### `op 760` — NpcAction_Kind22_EquipTool483()
-*handler:* `NpcAction_Kind22_EquipTool483`
+### `op 760` — NpcAction_Kind22_EquipMagicBroom()
+*handler:* `NpcAction_Kind22_EquipMagicBroom`
 
 kind 22 Equip Tool 483 (schedule kind 22). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
 
@@ -6504,7 +6504,7 @@ Args:
   1. plant (1 = also plant seeds, 0 = stop)
 
 ### `op 410` — TameEventMonster(key)
-*handler:* `Script_VMOp_TameCalendarEventNpc`
+*handler:* `Script_VMOp_TameEventMonster`
 
 Tame a spawned event monster and add it to the player's monsters (as if tamed in the field). reg0 = the registration result (2 = success).
 
@@ -6512,7 +6512,7 @@ Args:
   0. key
 
 ### `op 476` — RecruitNpcToParty(npc)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos`
+*handler:* `Script_VMOp_RecruitNpcToParty`
 
 Add an NPC to the player's party. If it is not loaded, it is streamed in at the player's position first. If both companion slots are full, companion 1 is dismissed (ending a date with them).
 
@@ -6547,7 +6547,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 477` — RecruitNpcToParty(npc)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos`
+*handler:* `Script_VMOp_RecruitNpcToParty`
 
 Add an NPC to the player's party. If it is not loaded, it is streamed in at the player's position first. If both companion slots are full, companion 1 is dismissed (ending a date with them).
 
@@ -6582,7 +6582,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 478` — RecruitNpcToPartyHeld(npc, held)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos_WithScriptedFlag`
+*handler:* `Script_VMOp_RecruitNpcToPartyHeld`
 
 Adds an NPC to the player's party (streaming them in at the player's position if they are not loaded) and marks them as held by the scene.
 
@@ -6618,7 +6618,7 @@ Args:
   1. held (non-zero = mark the NPC scene-held; corpus always 1)
 
 ### `op 479` — RecruitNpcToPartyHeld(npc, held)
-*handler:* `Script_VMOp_StreamInNpcAtPlayerPos_WithScriptedFlag`
+*handler:* `Script_VMOp_RecruitNpcToPartyHeld`
 
 Adds an NPC to the player's party (streaming them in at the player's position if they are not loaded) and marks them as held by the scene.
 
@@ -6688,7 +6688,7 @@ Args:
   2. no effect (non-zero = skip the departure effect (mode bit 1))
 
 ### `op 488` — SetCompanionScriptedPresence(release)
-*handler:* `Script_VMOp_SetBothCompanionScriptedPresenceAndMaybeReset`
+*handler:* `Script_VMOp_SetCompanionScriptedPresence`
 
 Take both companions' AI under script control for a scene (0) or give it back (non-zero). Unused by the shipped scripts.
 
@@ -6890,7 +6890,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 290` — SetWifeStatusAndAdvanceFamilyDay()
-*handler:* `ScriptVMOp_SetWifeStatus2AndFireBirthdayMarriageEvents`
+*handler:* `Script_VMOp_SetWifeStatusAndAdvanceFamilyDay`
 
 Set the spouse status game flag to 2 and run the once-a-day family update: add a day to the married-days counter and set or clear each child's 'birthday today' talk flag.
 
@@ -7682,7 +7682,7 @@ Args:
 Open the reward popup and give up to four items as (item, count) pairs. Special item values roll a random prize: 9997 stat drink, 9998 shop item, 9999 generic loot, 10000 request reward.
 
 Args:
-  0. item1 (item id; 9997 = random shop-available stat drink among ids 111-114; 9998 = Shop_RollByCategoryFromTable over 13 categories; 9999 = Loot_RollGenericFromTable; 10000 = request reward roll (Loot_RollQuestSpecificFromTable, stack sized by the active request's price, level from skill 36))
+  0. item1 (item id; 9997 = random shop-available stat drink among ids 111-114; 9998 = Item_RollRandomIdInCategory over 13 categories; 9999 = Loot_RollGenericFromTable; 10000 = request reward roll (Loot_RollQuestSpecificFromTable, stack sized by the active request's price, level from skill 36))
   1. count1 (1-15 (stored as count << 11; the popup keeps a 4-bit count))
   2. item2 (as item1)
   3. count2 (as count1)
@@ -7768,7 +7768,7 @@ Put a random unlocked cooked dish into reg0 (uniform over shop categories 5-11, 
 Put a random unlocked item from one of 16 fixed shop categories (mostly weapons and equipment, plus skill/spell items and breads) into reg0 - used for NPC birthday/return gifts.
 
 ### `op 601` — RollRandomFurItem()
-*handler:* `Script_VMOp_RollRandomRingItemIdInTier`
+*handler:* `Script_VMOp_RollRandomFurItem`
 
 Sets reg0 to a random fur item the player has unlocked: Fur (S)/(M)/(L), Wooly Furball or Quality Puffy Fur. Used to pick the target of a random request.
 
@@ -8039,7 +8039,7 @@ Args:
   10. extra6
 
 ### `op 165` — TriggerActionAtEventActor(key, action)
-*handler:* `ScriptVMOp_TriggerActionAtCalendarEventActorPosition`
+*handler:* `Script_VMOp_TriggerActionAtEventActor`
 
 Spawn an action/effect (by action-constructor id) attached to an event actor, at its position.
 
@@ -8048,7 +8048,7 @@ Args:
   1. action (g_actionConstructorTable id (same id space as ops 150/151))
 
 ### `op 166` — ApplyEffectToEventActor(key, effect)
-*handler:* `ScriptVMOp_ApplyEffectKindToCalendarEventActor`
+*handler:* `Script_VMOp_ApplyEffectToEventActor`
 
 Apply an effect kind (damage / status / visual) to an event actor; the event-actor twin of ApplyEffectToActor (op 139).
 
@@ -8112,7 +8112,7 @@ Spawn the farm monsters taking part in the current festival scene event (e.g. th
 Removes every placed furniture/tile object record (all rooms) by clearing its active bit. Unused by the shipped scripts.
 
 ### `op 625` — EnterSharanceMazeStage(stage)
-*handler:* `Trigger_DungeonAreaBegin`
+*handler:* `Script_VMOp_EnterSharanceMazeStage`
 
 Starts a Sharance Maze challenge stage: records the stage and the current room/tile for the return trip. The script warps into the maze with the next op.
 
@@ -8174,7 +8174,7 @@ Post a 'slay monsters' request (kind 1) into the talking NPC's request record, w
 Args:
   0. monster (monster to slay; 0 = random (DailyVisitor_PickWantedItem: weighted pick of 48..199, 1-in-16 boss band 200..253, story-gated))
   1. count (0 = random 1-4; forced to 1 for ids 200..253)
-  2. reward_categories (variable count (up to 4 used); each is rolled once with Shop_RollByCategoryFromTable into rewards[0..3]; -1 = skip)
+  2. reward_categories (variable count (up to 4 used); each is rolled once with Item_RollRandomIdInCategory into rewards[0..3]; -1 = skip)
 
 ### `op 508` — PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)
 *handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
@@ -8822,7 +8822,7 @@ Leave the game and go back to the title screen (used after endings and in the de
 ## Queries
 
 ### `op 105` — GetEventActorIndexStub(event actor id)
-*handler:* `Script_VMOp_QueryCalendarEvent`
+*handler:* `Script_VMOp_GetEventActorIndexStub`
 
 Leftover lookup that always returns 0 in reg0. It searches the event-actor table for the id but throws the result away, so scripts should not rely on it.
 
@@ -8905,7 +8905,7 @@ Args:
 Check whether the player's equipped accessory carries special-effect bit 0x40000 (per the IDB, the Rosary effect). reg0 = 1 if so, else 0.
 
 ### `op 182` — GetEventActorTilePosition(event key)
-*handler:* `ScriptVMOp_QueryCalendarEventActorWorldXY_Tiles`
+*handler:* `Script_VMOp_GetEventActorTilePosition`
 
 Read a spawned event actor's tile position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135).
 
@@ -9488,7 +9488,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 255` — GetActorAilmentState(target)
-*handler:* `ScriptVM_Op_QueryEntityActionStatusAndEventCode`
+*handler:* `Script_VMOp_GetActorAilmentState`
 
 Reads the ailment state of the player or of the companion being talked to: reg0 = a summary code, reg1 = a code naming the specific ailment. Companion dialogue uses it to comment on the player's or companion's condition.
 
@@ -9675,7 +9675,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 276` — GetNpcHeldItem(npc)
-*handler:* `Script_VMOp_QueryNpcModelId`
+*handler:* `Script_VMOp_GetNpcHeldItem`
 
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
 
@@ -9710,7 +9710,7 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 277` — GetNpcHeldItem(npc)
-*handler:* `Script_VMOp_QueryNpcModelId`
+*handler:* `Script_VMOp_GetNpcHeldItem`
 
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
 
@@ -9890,7 +9890,7 @@ Args:
 Sets reg0 to the char id of the party companion who is on a date with the player (a companion whose date state is set), or 0 if none.
 
 ### `op 288` — GetNpcOutfit(npc)
-*handler:* `ScriptVMOp_QueryNpcActorWordField488`
+*handler:* `Script_VMOp_GetNpcOutfit`
 
 Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for).
 
@@ -10448,7 +10448,7 @@ Args:
   1. attr (0-8 enchantment id n, 9 upgrade attr A, 10 upgrade attr B, 11 upgrade-bound item id, 12 payload byte +6, 13 dword +8 bits 10-19, 14 dword +8 bits 0-9; other = reg1 untouched)
 
 ### `op 470` — GetGuestNpcVariant(npc)
-*handler:* `Script_VMOp_QueryChildFriendshipByteAt1`
+*handler:* `Script_VMOp_GetGuestNpcVariant`
 
 Put a guest character's appearance/dialogue variant (rolled daily) into reg0.
 
@@ -10750,7 +10750,7 @@ Args:
   1. currency (0 PP, 1 lumber, 2 material stone, 3 gold for multi-currency orders (storage 31-38, expansions 39/40, barns 41-50); order 0: festival id; order 29: airship sub 0/1)
 
 ### `op 648` — GetShippingCompletionPercent()
-*handler:* `Script_QueryTownDevelopmentPercent`
+*handler:* `Script_VMOp_GetShippingCompletionPercent`
 
 Get the shipping-list completion percent (distinct items ever shipped / distinct shippable items * 100, max 100). reg0 = percent.
 
@@ -10805,7 +10805,7 @@ Check bit 3 (0x8) of g_saveConfigFlags. reg0 = 1/0. RegisterChildBirth (op 292) 
 Read the player's medal count into reg0 (used by the medal exchange).
 
 ### `op 676` — GetMedalGoldRate()
-*handler:* `Script_VMOp_QueryConst20`
+*handler:* `Script_VMOp_GetMedalGoldRate`
 
 Put the Rune Medal to gold exchange rate (always 20) into reg0, for the exchange dialogue text.
 
@@ -11420,5 +11420,5 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 748 | `NpcAction_Kind10_GreetThenBow` | 749 | `NpcAction_PlayKindIdleAnim` | 750 | `NpcAction_PlayKindIdleAnim` |
 | 751 | `NpcAction_Kind13_GiftAndTeleportOut` | 752 | `NpcAction_Kind14_DelayedIdleAnim` | 753 | `NpcAction_Kind15_SleepOrExitHome` |
 | 754 | `NpcAction_PlayKindIdleAnim` | 755 | `NpcAction_Kind17_EatFood` | 756 | `NpcAction_Kind18_RandomTimerIdleAnim` |
-| 757 | `NpcAction_Kind19_ChatByFriendshipLevel` | 758 | `NpcAction_Kind20_EquipTool506` | 759 | `NpcAction_PlayKindIdleAnim` |
-| 760 | `NpcAction_Kind22_EquipTool483` | 761 | `NpcAction_Kind23_EquipHeldTool` | 762 | `NpcAction_Kind24_RandomGreetGesture` |
+| 757 | `NpcAction_Kind19_ChatByFriendshipLevel` | 758 | `NpcAction_Kind20_EquipElvishHarp` | 759 | `NpcAction_PlayKindIdleAnim` |
+| 760 | `NpcAction_Kind22_EquipMagicBroom` | 761 | `NpcAction_Kind23_EquipHeldTool` | 762 | `NpcAction_Kind24_RandomGreetGesture` |

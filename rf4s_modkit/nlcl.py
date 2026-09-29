@@ -626,7 +626,7 @@ FIELD_SCHEMAS = {
         # the low bytes (0x00E38182 -> e3 81 82 -> あ; plain ASCII = its codepoint).
         # Decode: value.to_bytes(4,'big').lstrip(b'\0').decode('utf-8').
         # ADD ROW: not verified -- the only code site naming archive 16341 is the resource
-        # queue in rf4NameEntry_Step0 (RF4S.exe+0x4EF30); the key-count source was not
+        # queue in rf4NameEntry_Step0_QueueArchiveLoads (RF4S.exe+0x4EF30); the key-count source was not
         # traced (2026-09-19).
         "fields": [("utf8_be", 0, "u32")],
     },

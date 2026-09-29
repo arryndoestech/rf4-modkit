@@ -1,12 +1,12 @@
 """
 portraits.py -- the dialogue portrait face a SetSpeaker cue shows.
 
-A speaker cue (ops 16..75) takes the FACE as argument 0 (NpcBubble_DispatchAreaInfoLine
-RF4S.exe+0x207F70 -> NpcBubble_DispatchFromDescriptor +0x207370). What it shows depends on
+A speaker cue (ops 16..75) takes the FACE as argument 0 (Script_VMOp_SetSpeaker
+RF4S.exe+0x207F70 -> EmotePortrait_ShowFromDescriptor +0x207370). What it shows depends on
 the game mode (verified in RF4S.exe 2026-09-25):
 
 STORY MODE (the main game; everything but Newlywed mode) -- the classic 2D art, for every
-speaker slot 0..28. NpcBubble_ComposeContent (+0x1D9D50) draws two sprites from the row
+speaker slot 0..28. EmotePortrait_ComposeContent (+0x1D9D50) draws two sprites from the row
 table at +0x4DA980 (row = speaker slot + 1; the player is row 0 as Lest, 1 as Frey):
   * the body   <NN>_<NAME>_body_<outfit>.texture   (archive body base + outfit)
   * the face   archive (face base + face id)       -> <NN>_<NAME>_face_<nnn>_<...>.texture
@@ -17,9 +17,9 @@ SP bodies, where the character has them). The first six faces are the same moods
 everyone (normal, angry, crying, smile, surprised, shy); the rest are per-character.
 
 NEWLYWED MODE (save flag 0x40, set only by the title menu's Newlywed entry --
-NpcBubble_SpawnAndAttach +0x1D7810) -- animated E-mote portraits (rom:/emote/*.psbData) for
+EmotePortrait_SpawnAndAttach +0x1D7810) -- animated E-mote portraits (rom:/emote/*.psbData) for
 the player and the twelve candidates. The same face ids go through the character's
-translation table (g_npcBubble_emoteToStringIdTable +0x4DA670) to an E-mote face timeline;
+translation table (g_emotePortrait_emoteToStringIdTable +0x4DA670) to an E-mote face timeline;
 ids 1000..1927 pick face x gesture directly (1000 + face*32 + gesture) and exist only there.
 
 The outfit (swimsuit, pajama, wedding) is not chosen by the script -- the game picks it from

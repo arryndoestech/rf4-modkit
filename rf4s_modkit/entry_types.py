@@ -21,7 +21,7 @@ RF4S.exe+0x1EE060 with modes 0/1/2):
            story-chapter bank 211..224 (NpcAi_CheckSpecialEventCondition
            RF4S.exe+0x1FEAB0),
   slot 2 = the TAIL bank of the current map (index = map id).
-NpcAi_ApplyMovement RF4S.exe+0x1F60C0 (mode = bank slot, event_id = PC) is the
+NpcAi_StartEventScriptAtPc RF4S.exe+0x1F60C0 (mode = bank slot, event_id = PC) is the
 consumer for almost every type: it points the NPC script state machine at the
 chosen PC (33060 = "no scene" sentinel).
 
@@ -79,9 +79,9 @@ def _lazy_char_names():
 
 CHAR_NAMES = _lazy_char_names()
 
-_APPLY0 = ("NpcAi_ApplyMovement (RF4S.exe+0x1F60C0) with bank slot 0: the Script VM "
+_APPLY0 = ("NpcAi_StartEventScriptAtPc (RF4S.exe+0x1F60C0) with bank slot 0: the Script VM "
            "runs the scene at event_id in the global bank")
-_APPLY1 = ("NpcAi_ApplyMovement (RF4S.exe+0x1F60C0) with bank slot 1: the Script VM "
+_APPLY1 = ("NpcAi_StartEventScriptAtPc (RF4S.exe+0x1F60C0) with bank slot 1: the Script VM "
            "runs the scene at event_id in the loaded primary bank")
 _KICK2 = ("direct NpcAi_StepScriptActionStateMachine kick (state +112 = 4) with bank "
           "slot 2: the Script VM runs the scene at event_id in the map's tail bank")
@@ -118,13 +118,13 @@ ENTRY_TYPES = {
         "summary": "Scene run when the player interacts with a spawned event actor (keyed by its EVENT KEY, the SpawnEventActor key) or with an unregistered special actor of id >= 254 (keyed by its id), and the boss-defeat / field-object scenes queued as game event kind 27 (keys 1025+); probed in the tail bank, then the primary bank, then the global bank.",
         "bank": "tail (slot 2), primary (slot 1), global (slot 0) - probed in that order by NpcAi_ResolveMonsterBehavior",
         "keys": [
-            {"index": "0+", "name": "key", "meaning": "the interacted actor's event key when it is a registered event actor (CalendarEvent_GetKeyOfActor RF4S.exe+0x1D3540), else its id (actor +8); for game event kind 27 (NpcAi_TickEventMovementOrFinalize) the queued descriptor word +6 = 1024 + a code: 1/3/6 from Boss_BeginDefeatSequence (RF4S.exe+0x1A8020), 4 from ScriptedAction34 (RF4S.exe+0x1957F0), the interacted object's byte +577 from Player_TickFieldInteraction (RF4S.exe+0x166770)", "wildcard": False},
+            {"index": "0+", "name": "key", "meaning": "the interacted actor's event key when it is a registered event actor (EventActor_GetKeyOfActor RF4S.exe+0x1D3540), else its id (actor +8); for game event kind 27 (NpcAi_TickEventMovementOrFinalize) the queued descriptor word +6 = 1024 + a code: 1/3/6 from Boss_BeginDefeatSequence (RF4S.exe+0x1A8020), 4 from ScriptedAction34 (RF4S.exe+0x1957F0), the interacted object's byte +577 from Player_TickFieldInteraction (RF4S.exe+0x166770)", "wildcard": False},
         ],
         "select": "first",
-        "consumer": "NpcAi_ApplyMovement with the slot that matched (NpcAi_ResolveMonsterBehavior RF4S.exe+0x1F9610 returns the slot in *a3); game event kind 27 (NpcAi_TickEventMovementOrFinalize RF4S.exe+0x1F3070) probes slot 1 first when NpcAi_CheckSpecialEventCondition passes, then slot 2, and kicks the state machine with the slot that matched",
+        "consumer": "NpcAi_StartEventScriptAtPc with the slot that matched (NpcAi_ResolveMonsterBehavior RF4S.exe+0x1F9610 returns the slot in *a3); game event kind 27 (NpcAi_TickEventMovementOrFinalize RF4S.exe+0x1F3070) probes slot 1 first when NpcAi_CheckSpecialEventCondition passes, then slot 2, and kicks the state machine with the slot that matched",
         "matcher": "NpcAi_FindActionEntryByTargetForType2 (RF4S.exe+0x221EC0)",
         "confidence": "verified",
-        "notes": "NpcAi_TickOne (RF4S.exe+0x1F6930) sends registered event actors (CalendarEvent_FindRecordByActor RF4S.exe+0x1D35C0 finds their g_calendarEventMng record; wild ones are refused earlier by the talk gate, see op 181 TurnEventActorIntoNpc) and actors of id >= 0xFE to NpcAi_ResolveMonsterBehavior (+0x1F9610), which takes the key described above; key 400 additionally routes through a type-27 lookup in bank 210. Verified 2026-09-28 in game: an event actor spawned with key 1000 in the Dragon Room runs tail bank 308's type-2 entry keyed 1000, one with key 200 (no entry) runs nothing. Corrected 2026-09-28: this was read as an 'actor kind id'. Corrected 2026-09-29: type 2 also holds the boss-defeat scenes keyed 1025+ (dungeon tail banks), queued as game event kind 27 by Boss_BeginDefeatSequence, ScriptedAction34 and Player_TickFieldInteraction (also GameEventQueue_PushKind27TwoArg RF4S.exe+0x1EF330); kind 27 probes slot 1 before slot 2 (the old text said it kicked slot 2 directly).",
+        "notes": "NpcAi_TickOne (RF4S.exe+0x1F6930) sends registered event actors (EventActor_FindRecordByActor RF4S.exe+0x1D35C0 finds their g_calendarEventMng record; wild ones are refused earlier by the talk gate, see op 181 TurnEventActorIntoNpc) and actors of id >= 0xFE to NpcAi_ResolveMonsterBehavior (+0x1F9610), which takes the key described above; key 400 additionally routes through a type-27 lookup in bank 210. Verified 2026-09-28 in game: an event actor spawned with key 1000 in the Dragon Room runs tail bank 308's type-2 entry keyed 1000, one with key 200 (no entry) runs nothing. Corrected 2026-09-28: this was read as an 'actor kind id'. Corrected 2026-09-29: type 2 also holds the boss-defeat scenes keyed 1025+ (dungeon tail banks), queued as game event kind 27 by Boss_BeginDefeatSequence, ScriptedAction34 and Player_TickFieldInteraction (also GameEventQueue_PushKind27TwoArg RF4S.exe+0x1EF330); kind 27 probes slot 1 before slot 2 (the old text said it kicked slot 2 directly).",
     },
     3: {
         "name": "PlayerRegionTrigger",
@@ -161,12 +161,12 @@ ENTRY_TYPES = {
         "summary": "Item thrown at a spawned event actor on a map (crop offerings), matched by the actor's event key; consumes the stack.",
         "bank": "tail (slot 2) first, then the sub-event bank in slot 1 (NpcAi_CheckThrownItemFallbackCondition RF4S.exe+0x1FEA40 loads REG_SUBEV_NOW)",
         "keys": [
-            {"index": 0, "name": "event_key", "meaning": "the target actor's event key = word 0 of its g_calendarEventMng record (CalendarEvent_GetKeyOfActor RF4S.exe+0x1D3540 returns that word; the SpawnEventActor key, 100/101 in the corpus); 0 when the target is not an event actor", "wildcard": False},
+            {"index": 0, "name": "event_key", "meaning": "the target actor's event key = word 0 of its g_calendarEventMng record (EventActor_GetKeyOfActor RF4S.exe+0x1D3540 returns that word; the SpawnEventActor key, 100/101 in the corpus); 0 when the target is not an event actor", "wildcard": False},
             {"index": 1, "name": "consume", "meaning": "how many units of the thrown stack to consume (-1 = 9, 0 = none)", "wildcard": False},
             {"index": "2+", "name": "item", "meaning": "thrown item id; -1 matches any item but keeps scanning for an exact match", "wildcard": True},
         ],
         "select": "first",
-        "consumer": "Player_DecrementItemStackAfterUse x consume + Quest_OnNonGiftItemConsumed, then NpcAi_ApplyMovement with the slot that matched (2 or 1)",
+        "consumer": "Player_DecrementItemStackAfterUse x consume + Quest_OnNonGiftItemConsumed, then NpcAi_StartEventScriptAtPc with the slot that matched (2 or 1)",
         "matcher": "Event_MatchThrownItemActionEntryAndConsume (RF4S.exe+0x222600) via Event_QueryByItemThrowAndPriority (RF4S.exe+0x222510)",
         "confidence": "verified",
         "notes": "Corpus: 5 tail banks (Sechs Territory, Rune Prana), items 2..47 are crops (2 King Cabbage .. 47 Golden Tyrant Turnip). The keys pair with type 2 in the same tail bank: in bank 814 the type-2 entry keyed 100 asks 'Offer unto me one X' and the type-5 entry keyed 100 consumes the crop and unregisters the actor (UnregisterEventActor(300, 100)). Corrected 2026-09-29: key 0 was read as an unresolved 'event kind'; it is the target's event key.",
@@ -224,7 +224,7 @@ ENTRY_TYPES = {
         "consumer": _APPLY0,
         "matcher": "NpcAi_ProbeMovementFromType10Action (RF4S.exe+0x1F7160), game event kind 9",
         "confidence": "verified",
-        "notes": "Game event kind 9 is queued only by MonsterFarm_OnTameSuccessQueueEvent (RF4S.exe+0x1F1450) after MonsterFarm_RegisterTamedMonster returns 2; its callers are MonsterTame_TickReactionAndFinalize (RF4S.exe+0x1DE8A0) and Script_VMOp_TameCalendarEventNpc (RF4S.exe+0x212FA0). The single entry (PC 33088) runs TriggerWorldAction(51) = the monster-farm menu. Corrected 2026-09-29: this type was the placeholder GlobalScene10, numbered old handler number 8, one too low.",
+        "notes": "Game event kind 9 is queued only by MonsterFarm_OnTameSuccessQueueEvent (RF4S.exe+0x1F1450) after MonsterFarm_RegisterTamedMonster returns 2; its callers are MonsterTame_TickReactionAndFinalize (RF4S.exe+0x1DE8A0) and Script_VMOp_TameEventMonster (RF4S.exe+0x212FA0). The single entry (PC 33088) runs TriggerWorldAction(51) = the monster-farm menu. Corrected 2026-09-29: this type was the placeholder GlobalScene10, numbered old handler number 8, one too low.",
     },
     11: {
         "name": "BarnFullMessage",
@@ -294,7 +294,7 @@ ENTRY_TYPES = {
         "consumer": _APPLY1,
         "matcher": "NpcAi_ResolveVillagerBehavior (RF4S.exe+0x1F7E00), direct Npc_FindNextActionEntryOfType call at RF4S.exe+0x1F8250",
         "confidence": "verified",
-        "notes": "Gate at RF4S.exe+0x1F815D: !Npc_IsMetFlagSet(id) (RF4S.exe+0x2271B0, zone-2 met bit 981 + id; the children go through g_ChildFriendshipTable) and REG_MAIN_SCENARIO > 39; the branch then sets met bit 981 + id and also grants the daily first-talk bonus. Bank 4's entry is Forte's introduction ('I feel an unfamiliar presence'). Corrected 2026-09-29: this type was named AbsentTalk and read as 'the NPC is not in the current area' (the met-bit test carried the IDB name Npc_IsInCurrentArea).",
+        "notes": "Gate at RF4S.exe+0x1F815D: !Npc_IsMetFlagSet(id) (RF4S.exe+0x2271B0, zone-2 met bit 981 + id; the children go through g_guestNpcStateTable) and REG_MAIN_SCENARIO > 39; the branch then sets met bit 981 + id and also grants the daily first-talk bonus. Bank 4's entry is Forte's introduction ('I feel an unfamiliar presence'). Corrected 2026-09-29: this type was named AbsentTalk and read as 'the NPC is not in the current area' (the met-bit test carried the IDB name Npc_IsInCurrentArea).",
     },
     20: {
         "name": "AccompanyingTalk",
@@ -583,7 +583,7 @@ ENTRY_TYPES = {
         "keys": [],
         "select": "last",
         "consumer": _APPLY0 + "; result buffer +64 = 445 + ctx byte +323 (soil-quality name), +68 = 451 + ctx byte +324 (fatigue name), +72 = ctx byte +326 (item), +76 = ctx byte +325 (level)",
-        "matcher": "NpcAi_TickWalkToActionType54Targets (RF4S.exe+0x1F2780), game event kind 16",
+        "matcher": "GameEvent_RunSoilInspectScene (RF4S.exe+0x1F2780), game event kind 16",
         "confidence": "verified",
         "notes": "The single scene (global PC 0x89B4) prints reg0 (char names 445..450 = 'Soil quality: Good / Normal / Bad / Very Bad / Very Good / Superior'), reg1 (451.. = 'Fatigue: Low / Medium / High'), the item reg2 and the level reg3; nothing walks. What queues game event kind 16 was not found. Corrected 2026-09-29: this type was named WalkToTarget and read as walking the NPC to tile coordinates (old handler number 15, one too low).",
     },
@@ -703,7 +703,7 @@ ENTRY_TYPES = {
         ],
         "select": "first",
         "consumer": _APPLY1 + " (mode 1, step immediately)",
-        "matcher": "Event_QueryByKindNpcAndStoryChapter(kind 0x45) from NpcAi_TickOneActor_Step2 (RF4S.exe+0x1F34F0), game event kind 30",
+        "matcher": "Event_QueryByKindNpcAndStoryChapter(kind 0x45) from NpcAi_EventKind30_ApplyChapterEventMovement (RF4S.exe+0x1F34F0), game event kind 30",
         "confidence": "verified",
         "notes": "The tail-bank copies in the corpus are unreachable: the reader queries slot 1 only. Corrected 2026-09-29: the bank was given as 'whatever slot 1 holds, or tail' and the handler was numbered 29.",
     },
@@ -944,7 +944,7 @@ def key_problems(type_id, subs):
     changed `type_id` entry. Entry keys are signed 32-bit, and -1 only means "any" where the
     type's matcher skips it (the catalogue's per-key `wildcard`). Type 2 (ActorInteractScene)
     compares exactly against a spawned event actor's key, which the event manager keeps as
-    an UNSIGNED 16-bit word (CalendarEvent_GetKeyOfActor RF4S.exe+0x1D3540): -1 or any value
+    an UNSIGNED 16-bit word (EventActor_GetKeyOfActor RF4S.exe+0x1D3540): -1 or any value
     outside 0..65535 can never match an event actor, and 0 is the key of an empty /
     unregistered record."""
     out = []

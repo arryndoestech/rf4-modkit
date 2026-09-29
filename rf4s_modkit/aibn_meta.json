@@ -1069,7 +1069,7 @@
    "uses": 0
   },
   "0x3B": {
-   "ida_name": "MonsterScript_Op3B_SetWidgetFloatParam384",
+   "ida_name": "MonsterScript_Op3B_SetAnimSpeed",
    "rva": "0x1CF860",
    "arity": "var<=1",
    "operands": [
@@ -1199,18 +1199,18 @@
    "uses": 1668
   },
   "0x42": {
-   "ida_name": "MonsterScript_Op42_SpawnDoppelgangerIfWild",
+   "ida_name": "MonsterScript_Op42_SpawnMinionIfCtxFlag8",
    "rva": "0x1CF6F0",
    "arity": 1,
    "operands": [
     {
      "i": 0,
-     "label": "present in files",
-     "meaning": "present in files (179, 108, 109) but never read by the handler",
-     "units": "unused"
+     "label": "species",
+     "meaning": "monster (char) id to spawn: 179 Slime, 108, 109 in the shipped scripts",
+     "units": "char id"
     }
    ],
-   "effect": "If flags bit 3 (wild/free-roam mode): Combat_SpawnDoppelgangerAtActorPositionAndRegister(actor) (+0x1E5B80). PC+=2 unconditionally; return 0.",
+   "effect": "If ctx flags bit 3: Monster_SpawnMinionAtActorPosition(actor, species) (+0x1E5B80) spawns monster `species` (operand 0, resolved like any operand) at the actor. The operand is read at +0x1CF703 and passed as the u16 second argument (the decompiler hides it: the callee's type declares one argument). PC+=2 unconditionally; return 0. Corrected 2026-09-30: the operand was listed as never read.",
    "status": "verified",
    "uses": 4,
    "value_ranges": {
@@ -1563,7 +1563,7 @@
      "units": "frames"
     }
    ],
-   "effect": "*(u16*)(actor+490) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickRecoveryDecrementIFramesAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x65. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
+   "effect": "*(u16*)(actor+490) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickAiCooldownsAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x65. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
    "status": "verified"
   },
   "0x5A": {
@@ -1578,7 +1578,7 @@
      "units": "frames"
     }
    ],
-   "effect": "*(u16*)(actor+492) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickRecoveryDecrementIFramesAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x66. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
+   "effect": "*(u16*)(actor+492) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickAiCooldownsAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x66. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
    "status": "verified"
   },
   "0x5B": {
@@ -1593,7 +1593,7 @@
      "units": "frames"
     }
    ],
-   "effect": "*(u16*)(actor+494) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickRecoveryDecrementIFramesAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x67. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
+   "effect": "*(u16*)(actor+494) = token_stream[pc+1]; PC+=2; return 1. The word is decremented once per frame, saturating at 0, by Actor_StateTick_Idle (+0x15FA84..) and Actor_TickAiCooldownsAndApplyFriction (+0x160346..) (i.e. only while the actor is idle or recovering, not during attack/anim/grab ticks) and zeroed by Actor_TickKnockoutPoseAndRevive; polled by 0x67. Shipped: 180..5000 frames, tested == 0 (cooldown expired) or >= 1.",
    "status": "verified"
   },
   "0x5C": {
@@ -1848,7 +1848,7 @@
    "status": "verified"
   },
   "0x68": {
-   "ida_name": "MonsterScript_Op68_IfAnimWidgetFlag8",
+   "ida_name": "MonsterScript_Op68_IfAttackInfoFlag8",
    "rva": "0x1C8330",
    "arity": 0,
    "operands": [],
