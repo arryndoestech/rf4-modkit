@@ -89,7 +89,7 @@ def build():
                 lines.append("")
                 lines.append("Args:")
                 for i, a in enumerate(args):
-                    lines.append(f"  {i}. {a}")
+                    lines.append(f"  {i}. {a}" + (" — verified in game" if om.arg_verified(op, i) else ""))
                     # enum-picker values, so the reference is a true GUI-free companion: list the
                     # small dispatch/mode enums (world-interaction actions, effects, shake kinds,
                     # weather, companions, ...) in full; for large id-spaces (items/rooms) just note
@@ -153,11 +153,12 @@ def build():
                      "to `reg0` (the ctx result slot); a following op / branch reads it.")
         lines.append("- **`arr[0xNN]`** — a scene var-array load; **`self`**, **`null`**, **`0`** — "
                      "fixed leaves.")
-        lines.append("- **`actor(Name)`** / **`map(MAP_NAME)`** (raw form **`localvar[N]`** / "
-                     "**`globalvar[N]`**) — typed CONSTANTS, not variables: the handler receives the "
-                     "number N (`Script_PrepActionArgs` never dereferences them). The listing names "
-                     "them only where the argument slot is known — a character id in actor slots, a "
-                     "map id in the schedule ops — and keeps `localvar[N]`/`globalvar[N]` elsewhere.")
+        lines.append("- **`tag3(N)`** / **`tag4(N)`** (tag bytes 0x03 / 0x04) — typed u32 CONSTANTS, "
+                     "not variables: the handler receives the number N (`Script_PrepActionArgs` never "
+                     "dereferences them). The listing always writes this raw form; where the argument "
+                     "slot is known (a character id in actor slots, a map id in the schedule ops) the "
+                     "comment shows it as **`actor(Name)`** / **`map(MAP_NAME)`**, which the assembler "
+                     "also accepts.")
         lines.append("")
         lines.append(f"Operators build parenthesised infix — binary {_bo}; unary negate and "
                      f"logical-not; and the compound-assign forms {_as} (which write the result back "

@@ -46,7 +46,9 @@ CONTROL_HELP = {
     "SWITCH_CLAMP": "Like SWITCH, but values past the end use the last target.",
     "JMP_RAND": "Jump to one of the targets at random.",
     "JMP_WEIGHTED": "Jump to one of the targets at random, each with its own weight.",
-    "FRAME": "Reserve N local slots for the scene (scenes start with FRAME 0).",
+    "FRAME": "Reserve N stack words for the scene or subroutine. Not needed by hand: the "
+             "editor adds or raises it by itself when an argument is a nested expression "
+             "(e.g. reg0 + 1) evaluated while other arguments are on the stack.",
 }
 
 
@@ -54,7 +56,17 @@ CONTROL_HELP = {
 _CACHE = {}
 
 
+_NAME_KEYS = ("chars", "maps", "items")        # built from the game's names (gamenames)
+
+
 def _cached(key, fn):
+    if key in _NAME_KEYS:                       # a saved name file / 00_mods change rebuilds them
+        from rf4s_modkit import gamenames
+        gen = gamenames.generation()
+        if _CACHE.get("_names_gen") != gen:
+            for k in _NAME_KEYS:
+                _CACHE.pop(k, None)
+            _CACHE["_names_gen"] = gen
     if key not in _CACHE:
         try:
             _CACHE[key] = fn()
@@ -86,10 +98,9 @@ def map_choices():
 
 def item_choices():
     def build():
-        from rf4s_modkit.refdata import refdata_path
-        with open(refdata_path("rf4s_item_names.json"), encoding="utf-8") as f:
-            d = json.load(f)
-        return [("%s  (%s)" % (v, k), str(k)) for k, v in sorted(d.items(), key=lambda kv: int(kv[0])) if v]
+        from rf4s_modkit import gamenames
+        d = gamenames.table("items")
+        return [("%s  (%d)" % (v, k), str(k)) for k, v in sorted(d.items()) if v]
     return _cached("items", build)
 
 
@@ -147,8 +158,14 @@ def op_info_text(op):
         for a in fam or ():
             L.append("  %s (in the opcode): %s" % (a["name"], a["values"]))
         for i, a in enumerate(args):
-            L.append("  %d. %s — %s%s" % (i, a["name"], a.get("type") or "",
-                                         (": " + a["values"]) if a.get("values") else ""))
+            L.append("  %d. %s — %s%s   [%s]" % (i, a["name"], a.get("type") or "",
+                                               (": " + a["values"]) if a.get("values") else "",
+                                               "✓ verified" if a.get("human_verified") else "not verified"))
+            for v, e in (a.get("value_names") or {}).items():
+                L.append("       %s = %s%s%s" % (v, e["name"], ("  " + e["text"]) if e.get("text") else "",
+                                                 "  ✓" if e.get("human_verified") else "  (untested)"))
+            for te in a.get("tests") or ():
+                L.append("       tested %s: %s -> %s" % (te["date"], te["call"], te["observed"]))
     for k, lab in (("returns", "Returns"), ("blocking", "Blocks"), ("side_effects", "Side effects")):
         if r.get(k):
             L += ["", "%s: %s" % (lab, r[k])]
@@ -332,7 +349,7 @@ def _arg_spec(op, i, a):
     """(kind, [(display, token)], default token) of argument `i` of action `op`."""
     ch = script.enum_arg_choices(op, i)
     if ch:
-        opts = [("%s  %s" % (v, lab), str(v)) for v, lab, _d in ch]
+        opts = [("%s  %s" % (v, lab), meta.value_name(op, i, v) or str(v)) for v, lab, _d in ch]
         return "enum", opts, opts[0][1]
     k = script.leaf_slot_kind(op, i)
     if k == "actor":
@@ -869,6 +886,7 @@ class InstructionPicker:
         a = self.args[min(i, len(self.args) - 1)] if self.args else {"name": "arg"}
         kind, opts, default = _arg_spec(op, i, a)
         hint = ((a.get("type") or "") + (": " + a["values"] if a.get("values") else ""))[:300]
+        hint = ("✓ verified in game. " if a.get("human_verified") else "not verified in game. ") + hint
         label = a["name"] if i < len(self.args) else "%s #%d" % (a["name"], i - len(self.args) + 2)
         if i >= self.opt_from:
             label += " (optional)"
@@ -977,7 +995,7 @@ class InstructionPicker:
         elif m in ("JMP", "CALL"):
             self.t1 = self._add("target", "a statement of this scene", tg, tdef)
         elif m == "FRAME":
-            self.n = self._add("local slots", "an even number (scenes start with FRAME 0)", [], "0", width=14)
+            self.n = self._add("stack words", "an even number; the editor sizes it by itself", [], "2", width=14)
         elif m in ("SWITCH", "SWITCH_CLAMP"):
             vars_ = variable_choices(self.app.doc)
             self.sel_f = self._add("selector", "the value that picks the target", vars_, "reg0")

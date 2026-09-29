@@ -360,20 +360,10 @@ _GATHER_NAMES = None
 
 
 def gather_kind_name(kind: int) -> str | None:
-    """The game's name for gatherable `kind` (char 459 + kind in char_names.json):
+    """The game's name for gatherable `kind` (char 459 + kind in the game's rf3TxtNpc):
     'Stone', 'Branch', 'Medicinal Herb', 'Mineral' (the ore rocks 26..37), 'Turnip' ..."""
-    global _GATHER_NAMES
-    if _GATHER_NAMES is None:
-        import json
-        from .refdata import refdata_path
-        try:
-            with open(refdata_path("char_names.json"), encoding="utf-8") as f:
-                names = json.load(f)
-        except (OSError, ValueError):
-            names = {}
-        _GATHER_NAMES = {k: names.get(str(GATHER_KIND_CHAR_BASE + k))
-                         for k in range(GATHER_KIND_MAX + 1)}
-    return _GATHER_NAMES.get(int(kind))
+    from . import gamenames
+    return gamenames.name("characters", GATHER_KIND_CHAR_BASE + int(kind))
 
 
 def param_choices(type_id, field):

@@ -353,26 +353,9 @@ _ITEMS = None
 
 
 def item_names():
-    """{item id: English name}: rf3TxtItem from the extracted tree, with the vendored
-    rf4s_item_names.json filling any gaps."""
-    global _ITEMS
-    if _ITEMS is not None:
-        return _ITEMS
-    out = {}
-    try:
-        d = json.loads(refdata_path("rf4s_item_names.json").read_text(encoding="utf-8"))
-        out.update({int(k): v for k, v in d.items() if v})
-    except Exception:
-        pass
-    hit = find_extracted("rf3TxtItem_split2_1.eng")
-    if hit is not None:
-        try:
-            arc = textdb.TextArchive.load(hit)
-            out.update({i: e.decode("utf-8", "replace") for i, e in enumerate(arc.entries) if e})
-        except Exception:
-            pass
-    _ITEMS = out
-    return out
+    """{item id: English name}: the game's rf3TxtItem (gamenames), else the built-in list."""
+    from rf4s_modkit import gamenames
+    return gamenames.table("items")
 
 
 def item_name(i):
@@ -676,14 +659,8 @@ _ACTOR_FN = None
 
 def actor_name(i):
     """Monster / gate actor id -> name ('' when unknown)."""
-    global _ACTOR_FN
-    if _ACTOR_FN is None:
-        p = refdata_path("rf4s_actor_names.json")
-        try:
-            _ACTOR_FN = gen.load_actor_names(p) if p.is_file() else (lambda _i: "")
-        except Exception:
-            _ACTOR_FN = lambda _i: ""
-    return _ACTOR_FN(i) or ""
+    from rf4s_modkit import gamenames
+    return gamenames.name("characters", i) or ""
 
 
 def monster_choices():
@@ -698,13 +675,8 @@ _CHARS = None
 
 
 def char_name(cid):
-    global _CHARS
-    if _CHARS is None:
-        try:
-            _CHARS = json.loads(refdata_path("char_names.json").read_text(encoding="utf-8"))
-        except Exception:
-            _CHARS = {}
-    return _CHARS.get(str(cid))
+    from rf4s_modkit import gamenames
+    return gamenames.name("characters", int(cid))
 
 
 # ---- MapOre_Rate (type-0 ore spawn configs) ------------------------------ #
@@ -738,19 +710,39 @@ _LIVE_SCRIPT = {"fn": None}            # () -> the open cutscene editor's contai
 _SCRIPT_LISTENERS = []                 # fn() called when the script may have changed
 
 
+_RF3MC_PATH = {"key": None, "path": None}
+
+
 def rf3mc_path():
     """The rf3.mc the game loads: the Bundle/** winner (a Bundle/00_mods override, else the
-    unpacked bundlePatch1 copy), else the extracted copy (a bundlePatch one first)."""
+    unpacked bundlePatch1 copy), else the extracted copy (a bundlePatch one first).
+    Finding the winner walks the whole Bundle folder (~0.5 s), so it is cached per game
+    folder; only a Bundle/00_mods/rf3.mc appearing or going away changes the winner, and
+    that is a cheap check on every call (the chest checks call this on each redraw)."""
+    try:
+        from rf4s_modkit import gamepaths, mbundle
+        b = gamepaths.find_bundle_dir()
+        key = (str(b), (b / mbundle.MOD_FOLDER / "rf3.mc").is_file()) if b is not None else None
+    except Exception:
+        b, key = None, None
+    if key is not None and key == _RF3MC_PATH["key"]:
+        p = _RF3MC_PATH["path"]
+        if p is not None and p.is_file():
+            return p
+    path = None
     try:
         from rf4s_modkit import gamepaths
         t = gamepaths.game_targets(["rf3.mc"])
         if t and t["rf3.mc"].is_file():
-            return t["rf3.mc"]
+            path = t["rf3.mc"]
     except Exception:
         pass
-    hits = find_extracted_all("rf3.mc")
-    patch = [h for h in hits if "patch" in str(h).lower()]
-    return (patch or hits)[0] if hits else None
+    if path is None:
+        hits = find_extracted_all("rf3.mc")
+        patch = [h for h in hits if "patch" in str(h).lower()]
+        path = (patch or hits)[0] if hits else None
+    _RF3MC_PATH.update(key=key, path=path)
+    return path
 
 
 def set_live_script(fn):

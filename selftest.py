@@ -1442,6 +1442,191 @@ def test_entry_key_warnings():
            wild is not None and kp(wild[0], [0] * wild[1] + [-1]) == [], wild)
 
 
+def test_frame_sizing():
+    """FRAME is sized by itself: a new scene starts empty (RET), and an edit that makes an
+    argument a nested expression evaluated while other arguments are on the stack gets the
+    routine a FRAME (inserted, or raised in place) -- the evaluator spills 2 words per level
+    below the top to stack[frame_base..] (Script_EvalExpressionBytecode RF4S.exe+0x23E1C0)."""
+    print("FRAME sizing (new scenes start empty; FRAME added / raised when needed):")
+    from rf4s_modkit import bankrelink as BR, script as S
+    mc = BUNDLE_DIR / "bundlePatch1" / "rf3.mc"
+    if not mc.is_file():
+        _skip("FRAME sizing", "no rf3.mc"); return
+    _check("expression depth / need: literals and registers never need a frame; only a nested "
+           "argument that is not the last one does",
+           BR.expr_depth(b"\x17\x05\x00") == 1 and BR.expr_depth(b"\x07\x16\x86\x00") == 2
+           and BR.action_frame_need([b"\x07\x16\x86\x00", b"\x17\x01\x00"]) == 2
+           and BR.action_frame_need([b"\x17\x01\x00", b"\x07\x16\x86\x00"]) == 0
+           and BR.action_frame_need([b"\x07\x16\x86\x00"]) == 0)
+    c = S.Container(mc.read_bytes())
+    pos = next(i for i, b in enumerate(c.banks) if b.kind == "tail" and len(b.data) == 296)
+    bank = c.banks[pos]
+    pc, _idx = c.add_entry(bank, 6, [], listing="RET")
+    first = S.decode_statement(bank.data, pc)
+    empty_ok = first is not None and first.mnem == "RET"
+    npc = c.insert_before(bank, pc, "GivePlayerItem((reg0 + 1), 1, 0)")
+    ent = bank.entry_records(6)[0].event_id
+    st0 = S.decode_statement(bank.data, ent)
+    inserted = st0.mnem == "FRAME" and st0.items == [2] and c.last_frames and c.last_frames[0][2] == 2
+    nxt = S.decode_statement(bank.data, ent + st0.size)
+    c.insert_after(bank, nxt.pc, "GivePlayerItem((reg0 + (reg1 * 2)), 1, 0)")
+    ent = bank.entry_records(6)[0].event_id
+    st1 = S.decode_statement(bank.data, ent)
+    raised = st1.mnem == "FRAME" and st1.items == [4]
+    c.insert_after(bank, ent, "GivePlayerItem(1, 1, (reg0 + (reg1 * (reg2 + 3))))")   # nested but LAST: no need
+    st2 = S.decode_statement(bank.data, bank.entry_records(6)[0].event_id)
+    _check("a new scene is just RET; a nested non-last argument inserts FRAME 2; a deeper one "
+           "raises it to 4; a nested LAST argument changes nothing",
+           empty_ok and inserted and raised and st2.items == [4],
+           (empty_ok, st0.mnem, st0.items, st1.items, st2.items))
+    shipped = S.Container(mc.read_bytes())
+    changed = [i for i, b in enumerate(shipped.banks[:200]) if BR.BankModel.parse_any(b).ensure_frames()]
+    _check("no shipped bank needs a FRAME change (every shipped routine meets the rule)",
+           not changed, changed[:5])
+
+
+def _walk_widgets(w):
+    """Every descendant widget of `w`."""
+    for ch in w.winfo_children():
+        yield ch
+        yield from _walk_widgets(ch)
+
+
+def test_game_names():
+    """Character / item / map / skill names come from the game's own text files (the copy the
+    game loads: Bundle/00_mods beats bundleMain), with the toolkit's lists as the default, so a
+    renamed character shows up in pickers, comments and actor(..)."""
+    print("Names from the game's text files (gamenames):")
+    import os
+    from rf4s_modkit import gamenames as G, gamepaths, textdb, opcode_meta as om, script as S
+    real = gamepaths.find_bundle_dir()
+    if real is None:
+        _skip("game names", "no game folder"); return
+    G.reload()
+    same = all(G.source(k) is not None
+               and G.table(k) == {i: v.strip() for i, v in G._builtin(k).items() if v.strip()}
+               for k in G.KINDS)
+    _check("an unmodded game gives the same names as the built-in lists, read from its files",
+           same, {k: str(G.source(k)) for k in G.KINDS})
+    npc = G.source("characters")
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        (tmp / "00_mods").mkdir()
+        (tmp / "bundleMain").mkdir()
+        shutil.copy2(npc, tmp / "bundleMain" / npc.name)
+        arc = textdb.TextArchive.parse(npc.read_bytes())
+        arc.set_text(4, "Fortissa")
+        (tmp / "00_mods" / npc.name).write_bytes(arc.build())
+        saved = gamepaths.find_bundle_dir
+        gamepaths.find_bundle_dir = lambda refresh=False: tmp
+        try:
+            G.reload()
+            modded = (G.name("characters", 4) == "Fortissa" and G.source("characters").parent.name == "00_mods"
+                      and om.CHAR_IDS[4][0] == "Fortissa" and S.actor_leaf_value("Fortissa") == 4
+                      and S.actor_leaf_text(4) == "actor(Fortissa)" and G.source("items") is None
+                      and G.name("items", 258) == "Pineapple Juice")
+            detail = (G.name("characters", 4), str(G.source("characters")), om.CHAR_IDS[4])
+            # a save of the file (no reload call) and removing the override are picked up
+            every, G.CHECK_EVERY = G.CHECK_EVERY, 0
+            try:
+                arc.set_text(4, "Fortina")
+                f = tmp / "00_mods" / npc.name
+                f.write_bytes(arc.build())
+                st = f.stat()
+                os.utime(f, ns=(st.st_atime_ns, st.st_mtime_ns + 2_000_000_000))
+                saved_seen = (om.CHAR_IDS[4][0] == "Fortina" and S.actor_leaf_text(4) == "actor(Fortina)")
+                f.unlink()
+                removed_seen = om.CHAR_IDS[4][0] == "Forte" and G.source("characters").parent.name == "bundleMain"
+            finally:
+                G.CHECK_EVERY = every
+            gamepaths.find_bundle_dir = lambda refresh=False: None
+            G.reload()
+            nogame = G.source("characters") is None and G.name("characters", 4) == "Forte"                 and om.CHAR_IDS[4][0] == "Forte"
+        finally:
+            gamepaths.find_bundle_dir = saved
+            G.reload()
+        _check("a character renamed in Bundle/00_mods shows everywhere (pickers, actor(..)); a file the "
+               "mod lacks falls back to the built-in list", modded, detail)
+        _check("without a game folder the built-in lists are the default", nogame)
+        _check("saving a name file, and removing a 00_mods override, show up without a restart",
+               saved_seen and removed_seen, (saved_seen, removed_seen))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_opcode_arg_verification():
+    """Each opcode argument carries its own human_verified flag and tests log, and a code-valued
+    argument lists value_names: the assembler reads a name as its number, the listing writes the
+    number with the name in the statement's comment, and a true alias / family shares them (optest.py records into the whole group)."""
+    print("Opcode argument verification and value names:")
+    import json
+    import re as _re
+    import optest as O
+    from rf4s_modkit import opcode_meta as om, scriptasm as A, script as S
+    rows = om.TABLE["actions"]
+    _check("every argument has a human_verified flag",
+           all("human_verified" in a for r in rows.values() for a in r["args"]))
+    bad, roundtrip = [], []
+    reserved = {"add", "sub", "set", "zero", "null", "self", "player"}
+    for k, r in rows.items():
+        for i, a in enumerate(r["args"]):
+            vn = a.get("value_names") or {}
+            seen = set()
+            for v, e in vn.items():
+                nm = e["name"]
+                if (not _re.fullmatch(r"[A-Za-z_]\w*", nm) or nm.lower() in seen or nm.lower() in reserved
+                        or _re.fullmatch(r"(reg|arr)\d+", nm.lower())):
+                    bad.append((k, i, nm))
+                seen.add(nm.lower())
+                if om.value_name(int(k), i, int(v, 0)) != nm:
+                    bad.append((k, i, v, "not loaded"))
+            if vn:
+                roundtrip.append((int(k), i))
+    _check("value names are identifiers, unique per argument, not a mode word or register",
+           not bad, bad[:5])
+    diff = [(r["op"], x["op"]) for r in rows.values() for x in O.alias_group(om.TABLE, r)
+            if [a.get("value_names") for a in x["args"]] != [a.get("value_names") for a in r["args"]]
+            or [a.get("human_verified") for a in x["args"]] != [a.get("human_verified") for a in r["args"]]]
+    _check("aliases and families agree on their arguments' names and verification", not diff, diff[:5])
+    fails = []
+    for op, i in roundtrip:
+        for v, nm in om.VALUE_NAMES[(op, i)].items():
+            name = om.mnemonic(op)
+            n = len(rows[str(op)]["args"])
+            if om.OPCODE_ARGS.get(op) or n > 6:
+                continue
+            args = ["1"] * n
+            args[i] = nm
+            if om.MODE_ARG_SLOTS and any((op, j) in om.MODE_ARG_SLOTS for j in range(n)):
+                args = [("add" if (op, j) in om.MODE_ARG_SLOTS else x) for j, x in enumerate(args)]
+            try:
+                reg, _l = A.assemble("%s(%s)" % (name, ", ".join(args)), 0x1000)
+                buf = bytes(0x1000) + reg
+                st = S.decode_statement(buf, 0x1000)
+                back = A.operand_text(buf, st.args[i], st.op, i)
+                val, ok = S.arg_constant(buf, st.args[i])
+                pretty = S.render_action(st.op, S.stmt_arg_strs(buf, st)) or ""
+                if back != str(v) or not ok or val != v or nm not in pretty:
+                    fails.append((op, i, nm, back, val, pretty))
+            except Exception as e:
+                fails.append((op, i, nm, repr(e)[:80]))
+    _check("a value name assembles to its number; the listing writes the number and names it in the comment (%d arguments)"
+           % len(roundtrip), roundtrip and not fails, fails[:5])
+    lst = O.sweep_listing("ShowActorEmote(actor(player), {v})", O.parse_values("1-3,6"),
+                          then="ShowActorEmote(actor(player), none)")
+    try:
+        A.assemble(lst, 0x1000)
+        ok = lst.count("DIALOG #%d" % O.NUMBER_LINE) == 4
+    except Exception as e:
+        ok = repr(e)
+    _check("optest sweep listings assemble (announce, call, hold per value)", ok is True, ok)
+    t = json.loads(json.dumps(om.TABLE))
+    O.record(t, 211, "ShowActorEmote(actor(player), 9)", "a '?'", args=(1,), values={1: {9: "question"}},
+             evidence=False)
+    grp = [x["args"][1]["value_names"].get("9", {}).get("name") for x in O.alias_group(t, t["actions"]["211"])]
+    _check("optest.record writes to every row of an alias group", len(grp) >= 2 and set(grp) == {"question"}, grp)
+
+
 def test_error_logging():
     """Toolkit failures go to the console as one copy-paste block (guiutil.log_error), the GUI
     only points there; failures the user can act on keep their message and log nothing."""
@@ -5290,13 +5475,14 @@ def test_script_authoring():
     resolver = c.install_asm_resolver(emf)
     _check("Container.install_asm_resolver wires emdeb.bin names into the assembler", resolver is not None)
     # --- typed-constant leaves (tags 3/4): named per argument slot (2026-09-23) --------------
-    # The handlers read only the value of a "localvar"/"globalvar" leaf (Script_PrepActionArgs
-    # pushes raw (value, kind) pairs), so the tag is just a typed constant and the SLOT gives it
-    # its meaning. The listing writes actor(Name) / map(MAP_NAME) where the slot is known.
+    # The handlers read only the value of a tag-3 / tag-4 leaf (Script_PrepActionArgs pushes raw
+    # (value, kind) pairs), so the tag is just a typed constant and the SLOT gives it its meaning.
+    # The listing writes the raw tag3(N) / tag4(N) and names actor(Name) / map(MAP_NAME) in the
+    # statement's comment where the slot is known.
     forms = {"actor(Forte)": b"\x03\x04\x00\x00\x00", "actor(4)": b"\x03\x04\x00\x00\x00",
-             "localvar[0x4]": b"\x03\x04\x00\x00\x00", "actor(player)": b"\x03\x00\x00\x00\x00",
+             "tag3(0x4)": b"\x03\x04\x00\x00\x00", "actor(player)": b"\x03\x00\x00\x00\x00",
              "actor(Xiao Pai)": b"\x03\x0b\x00\x00\x00", "map(MAP_CITY_00)": b"\x04\x18\x00\x00\x00",
-             "map(24)": b"\x04\x18\x00\x00\x00", "globalvar[24]": b"\x04\x18\x00\x00\x00"}
+             "map(24)": b"\x04\x18\x00\x00\x00", "tag4(24)": b"\x04\x18\x00\x00\x00"}
     got = {t: scriptasm.asm_expr(t) for t in forms}
     rej = 0
     for bad in ("actor(Traveler)", "actor(Nobody)", "map(MAP_NOPE)"):   # shared / unknown names
@@ -5304,7 +5490,7 @@ def test_script_authoring():
             scriptasm.asm_expr(bad)
         except scriptasm.AsmError:
             rej += 1
-    _check("actor(..)/map(..) assemble to the same bytes as localvar/globalvar; ambiguous names refused",
+    _check("actor(..)/map(..) assemble to the same bytes as tag3(..)/tag4(..); ambiguous names refused",
            got == forms and rej == 3, f"{sum(got[t] == forms[t] for t in forms)}/{len(forms)} forms, {rej}/3 refused")
     n_leaf = n_actor = n_map = 0
     leaf_bad, sched_txt, subev_txt = [], None, None
@@ -5318,16 +5504,19 @@ def test_script_authoring():
                         continue
                     n_leaf += 1
                     txt = scriptasm.operand_text(bk.data, off, st.op, i)
-                    n_actor += txt.startswith("actor(")
-                    n_map += txt.startswith("map(")
-                    if scriptasm.asm_expr(txt) != bytes(bk.data[off:off + 5]):
-                        leaf_bad.append((bk.index, st.pc, txt))
+                    named = script.arg_repr(bk.data, off, st.op, i)
+                    n_actor += named.startswith("actor(")
+                    n_map += named.startswith("map(")
+                    if (not txt.startswith("tag%d(" % bk.data[off])
+                            or scriptasm.asm_expr(txt) != bytes(bk.data[off:off + 5])
+                            or scriptasm.asm_expr(named) != bytes(bk.data[off:off + 5])):
+                        leaf_bad.append((bk.index, st.pc, txt, named))
                 if st.op == 266 and sched_txt is None and len(st.args) > 1 \
                         and bk.data[st.args[0]] == 3 and bk.data[st.args[1]] == 4:
                     sched_txt = script.stmt_arg_strs(bk.data, st)[:2]
                 if st.op == 629 and subev_txt is None and st.args and bk.data[st.args[0]] == 3:
                     subev_txt = script.stmt_arg_strs(bk.data, st)[0]
-    _check("every tag-3/4 argument re-assembles byte-exact from its slot-named listing text",
+    _check("every tag-3/4 argument is listed raw (tagN(..)) and re-assembles byte-exact from it and from its slot-named form",
            n_leaf > 50000 and not leaf_bad and n_actor > 15000 and n_map > 500,
            f"{n_leaf} leaves, {n_actor} actor(..), {n_map} map(..), {len(leaf_bad)} mismatches {leaf_bad[:2]}")
     # schedule op 266 = (npc, map, ...): both named. op 629 loads a sub-event id (compared with
@@ -5349,7 +5538,7 @@ def test_script_authoring():
            and script.leaf_slot_kind(129, 3) == "actor")
     _check("slot naming: NpcScheduleOrClear shows actor(..), map(MAP_..); a sub-event id stays neutral",
            bool(sched_txt) and sched_txt[0].startswith("actor(") and sched_txt[1].startswith("map(MAP_")
-           and bool(subev_txt) and subev_txt.startswith("localvar["),
+           and bool(subev_txt) and subev_txt.startswith("tag3("),
            f"{sched_txt} / {subev_txt}")
     # --- type table: (count, offset) slots, 74-slot tables, count-exact walks --------------
     slots = set()
@@ -5677,7 +5866,7 @@ def test_script_authoring():
     _asm_bad = 0
     _bad_listings = ["DIALOG #abc", "FRAME x", "FRAME 70000", "PROMPT_CHOICE CANCEL->L, #zz->L\nL: END",
                      "SWITCH_CLAMP (reg0) ->", "JMP_RAND", "JMP_WEIGHTED", "DIALOG #99999999999",
-                     "op5 u16(70000)", "op5 localvar[0x1FFFFFFFF]", "op5 @zz",
+                     "op5 u16(70000)", "op5 tag3(0x1FFFFFFFF)", "op5 @zz",
                      "op157 " + ", ".join(["1"] * 12)]
     for _t in _bad_listings:
         try:
@@ -7260,6 +7449,16 @@ def test_map_editor_script_spawns():
            and not any(i == 16 for _s, i, _m in _probs)
            and any(s == "WARN" and "1029" in m for s, _i, m in med.chest_problems("MAP_DUNG_G01", [_bad])),
            _ev)
+    # the chest check runs on every inspector refresh (each drag step): finding the game's
+    # rf3.mc must be cached -- it walks the whole Bundle folder (~0.5 s) otherwise
+    import time as _time
+    med.rf3mc_path()
+    _t = _time.perf_counter()
+    for _ in range(20):
+        med.chest_event(_recs[16], "MAP_DUNG_G01")
+    _ms = (_time.perf_counter() - _t) / 20 * 1000
+    _check("the chest script lookup is fast after the first call (no Bundle walk per redraw)",
+           _ms < 20, "%.1f ms per call" % _ms)
     # type 8 = "gatherable": its f10 kind is a dropdown of the game's names (char 459 + kind)
     from rf4s_modkit import mobj_params as _mp, mobj_types as _mt
     _ch = _mp.param_choices(8, 10)
@@ -11573,10 +11772,20 @@ def test_cutscene_toolbox():
             _check("Triggers pane: 'Draw the box on the map' opens the bank's map with the box and fills the fields",
                    bp.map_id == 60 and bp.locked and [v.get() for v in cx.trigger_detail.fields[0][2]] == ["100", "200", "80", "60"])
             cx.nb.select(cx.view); root.update()
+            back = cx.right_pane == "inspector" and cx.inspector.winfo_manager() == "pack" \
+                and cx.trigger_detail.winfo_manager() == ""
+            # an edit on the Script tab refreshes the Triggers tab, which re-selects its row:
+            # that must not take the right-hand pane away from the Inspector
+            _f = next(iter(cx.scene.stmts))
+            cx.select((_f, None))
+            if cx.stmt(_f).op < 0xFFF0 and cx.stmt(_f).args:
+                cx.set_arg(_f, 0, "12")
+            root.update()
             _check("a trigger's details take the Inspector's place on the right while the Triggers tab "
-                   "is open, and give it back on the Script tab",
-                   swapped and cx.right_pane == "inspector" and cx.inspector.winfo_manager() == "pack"
-                   and cx.trigger_detail.winfo_manager() == "")
+                   "is open, and give it back on the Script tab -- also after an edit there",
+                   swapped and back and cx.right_pane == "inspector"
+                   and cx.inspector.winfo_manager() == "pack", cx.right_pane)
+            cx.undo()
         r = cx.open_reference()
         _check("one Reference window per editor", cx.open_reference() is r)
         tabs = [r.nb.tab(i, "text") for i in range(len(r.nb.tabs()))]
@@ -11655,9 +11864,13 @@ def test_cutscene_editor_workflows():
                 entries(ch, out)
             return out
         shown = entries(cx.inspector, [])
-        _check("Inspector shows arguments in listing syntax (actor(..), map(..)), not raw offsets",
-               any(v.startswith("actor(") for v in shown) and any(v.startswith("map(MAP_") for v in shown),
-               str(shown[:4]))
+        combos = [ch.get() for ch in _walk_widgets(cx.inspector) if isinstance(ch, ttk.Combobox)]
+        _check("Inspector shows arguments in listing syntax (raw tag3(..) / tag4(..)), and its pickers "
+               "name the character and the map",
+               any(v.startswith("tag3(") for v in shown) and any(v.startswith("tag4(") for v in shown)
+               and any(c.startswith("MAP_") for c in combos)
+               and any(c and not c.startswith("MAP_") and any(ch.isalpha() for ch in c) for c in combos),
+               str(shown[:4]) + " " + str(combos[:4]))
         # no-op edits: re-setting every argument to its own text, and applying an untouched listing
         for i in range(len(st.args)):
             cx.set_arg(pc, i, scriptasm.operand_text(cx.bank.data, st.args[i], st.op, i))
@@ -13269,7 +13482,7 @@ def run() -> int:
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_mapground,
-              test_search_items, test_search_item_chances, test_entry_key_warnings, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,

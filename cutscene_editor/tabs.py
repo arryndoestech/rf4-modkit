@@ -219,7 +219,7 @@ class TriggersTab(ttk.Frame):
         self.tree.bind("<Double-Button-1>", lambda _e: self.open_selected())
         self.tree.bind("<Return>", lambda _e: self.open_selected())
         # the selected entry's keys go to the editor's right-hand pane (TriggerDetail)
-        self.tree.bind("<<TreeviewSelect>>", lambda _e: app.show_trigger(*self.selected()))
+        self.tree.bind("<<TreeviewSelect>>", lambda _e: app.trigger_selected(*self.selected()))
         self.rows = {}
         self.bank_pos = None
 
@@ -265,8 +265,7 @@ class TriggersTab(ttk.Frame):
                     t.selection_set(iid)
                     t.see(iid)
                     break
-        if app.right_pane == "trigger":
-            app.show_trigger(*self.selected())
+        app.trigger_selected(*self.selected())
         self.lbl.config(text="%s: %d action type%s, %d entr%s%s"
                              % (catalog.bank_title(bank), len(tt), "" if len(tt) == 1 else "s", total,
                                 "y" if total == 1 else "ies",

@@ -80,12 +80,11 @@ def load_species(path=None) -> dict:
 
 
 def load_item_names(path=None) -> dict:
-    """item_id(int) -> name."""
-    if path:
-        p = pathlib.Path(path)
-    else:
-        from .refdata import refdata_path as _rp
-        p = _rp("rf4s_item_names.json")
+    """item_id(int) -> name: `path` (a JSON {id: name}), else the game's rf3TxtItem."""
+    if not path:
+        from . import gamenames
+        return dict(gamenames.table("items"))
+    p = pathlib.Path(path)
     if not p.is_file():
         return {}
     raw = json.loads(p.read_text(encoding="utf-8"))

@@ -257,7 +257,7 @@ Args:
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -269,7 +269,7 @@ Args:
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -281,7 +281,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -293,7 +293,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -305,7 +305,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -317,7 +317,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -329,7 +329,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -341,7 +341,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -353,7 +353,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -365,7 +365,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -377,7 +377,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -389,7 +389,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -401,7 +401,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -413,7 +413,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -425,7 +425,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -437,7 +437,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -449,7 +449,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -461,7 +461,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -473,7 +473,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -485,7 +485,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -497,7 +497,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -509,7 +509,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -521,7 +521,7 @@ Args:
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -533,7 +533,7 @@ Args:
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -545,7 +545,7 @@ Args:
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -557,7 +557,7 @@ Args:
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -569,7 +569,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -581,7 +581,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -593,7 +593,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -605,7 +605,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -617,7 +617,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -629,7 +629,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -641,7 +641,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -653,7 +653,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -665,7 +665,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -677,7 +677,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -689,7 +689,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -701,7 +701,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -713,7 +713,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -725,7 +725,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -737,7 +737,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -749,7 +749,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -761,7 +761,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -773,7 +773,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -785,7 +785,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -797,7 +797,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -809,7 +809,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -821,7 +821,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -833,7 +833,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -845,7 +845,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -857,7 +857,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -869,7 +869,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -881,7 +881,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -893,7 +893,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -905,7 +905,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -917,7 +917,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -929,7 +929,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -941,7 +941,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -953,7 +953,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -965,7 +965,7 @@ Args:
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
-  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows))
+  0. face (< 1000 = the character's face index (via g_npcBubble_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_npcBubbleKindRows)) — verified in game
   1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
@@ -1797,11 +1797,11 @@ Args:
 ### `op 334` — FadeScreen(target, duration)
 *handler:* `Script_VMOp_BeginDualScreenFadeWithKindAndDuration`
 
-Fade the screen to black or white (or partly). Returns at once; follow with WaitForFade to wait for it.
+Fade the screen to black or white (or partly). Returns at once; follow with WaitForFade to wait for it. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Without WaitForFade the next statements run while it fades, and a later FadeScreen takes over from the current opacity. A dialogue line waits for the fade to finish but is drawn under the overlay, so fade back before showing text.
 
 Args:
-  0. target (sign = colour (<= 0 black, > 0 white), |v|/16 = opacity: -16 black, +16 white, +-8 half)
-  1. duration (frames = duration/100 (6000 = 60 frames = 1 s); 0 = immediate; 100..199 is also immediate)
+  0. target (sign = colour (<= 0 black, > 0 white), |v|/16 = opacity: -16 black, +16 white, +-8 half) — verified in game
+  1. duration (frames = duration/100 (6000 = 60 frames = 1 s); 0 = immediate; 100..199 is also immediate) — verified in game
 
 ### `op 335` — FadeScreenToClear(duration)
 *handler:* `Script_VMOp_FadeScreenToClearOverDuration`
@@ -4031,7 +4031,7 @@ Args:
 Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it.
 
 Args:
-  0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC)
+  0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -4059,15 +4059,17 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. icon (0 = clear; 6 (most common), 15, 9, 7, 8, 4, 1, 3 ... up to 26)
+  1. icon (0 = clear; 6 (most common), 15, 9, 7, 8, 4, 1, 3 ... up to 26) — verified in game
+     - `0` = none
+     - `6` = exclaim
 
 ### `op 212` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it.
+Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon
 
 Args:
-  0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC)
+  0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
      - `0` = Lest/Frey
      - `1` = Vishnal
      - `2` = Clorica
@@ -4095,7 +4097,9 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. icon (0 = clear; 6 (most common), 15, 9, 7, 8, 4, 1, 3 ... up to 26)
+  1. icon (0 = clear; 6 (most common), 15, 9, 7, 8, 4, 1, 3 ... up to 26) — verified in game
+     - `0` = none
+     - `6` = exclaim
 
 ### `op 217` — ApplyFriendshipDelta(npc, mode, amount)
 *handler:* `ScriptVM_Op_ApplyFriendshipDeltaToNpc`
@@ -6921,8 +6925,8 @@ Args:
 Store a value in script-variable bank 3 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar3.
 
 Args:
-  0. index (out of range -> ignored)
-  1. value (clamped (unsigned) to 999,999,999)
+  0. index (out of range -> ignored) — verified in game
+  1. value (clamped (unsigned) to 999,999,999) — verified in game
 
 ### `op 351` — SetVar4(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind4`
@@ -7170,7 +7174,7 @@ Forget where each music class (village, dungeon, story, ...) was paused, so the 
 Play a sound effect.
 
 Args:
-  0. sfx (0x1000000+ sound id; 0 = nothing)
+  0. sfx (0x1000000+ sound id; 0 = nothing) — verified in game
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 386` — StopVoices()
@@ -7456,12 +7460,17 @@ Args:
 ### `op 417` — ModifyPlayerResource(resource, mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerResourceByCharCodeOp`
 
-Give, take or set gold, stone, compost, fodder or the player's level. E.g. pay 1000 gold = (100, sub, 1000), reward = (100, add, N).
+Give, take or set gold, stone, compost, fodder or the player's level. E.g. pay 1000 gold = ModifyPlayerResource(gold, sub, 1000), reward = ModifyPlayerResource(gold, add, N).
 
 Args:
-  0. resource (100 'd' gold, 102 'f' player level, 103 'g' fodder, 105 'i' stone, 106 'j' compost; anything else does nothing)
-  1. mode (add (null leaf, kind 4) / sub (zero leaf, kind 5) / set (self leaf, kind 6); read from the arg's KIND slot)
-  2. amount
+  0. resource (100 'd' gold, 102 'f' player level, 103 'g' fodder, 105 'i' stone, 106 'j' compost; anything else does nothing) — verified in game
+     - `100` = gold
+     - `102` = level
+     - `103` = fodder
+     - `105` = stone
+     - `106` = compost
+  1. mode (add (null leaf, kind 4) / sub (zero leaf, kind 5) / set (self leaf, kind 6); read from the arg's KIND slot) — verified in game
+  2. amount — verified in game
 
 ### `op 421` — SetNextItemAttributes(level, crafted, ingredients...)
 *handler:* `Script_VMOp_SetupPendingInteractionRecord`
@@ -8491,7 +8500,7 @@ Args:
 Pauses the script for a time. 12000 units = 1 second (200 per frame), so 6000 = half a second and Wait(1) yields exactly one frame.
 
 Args:
-  0. duration (200 = 1 frame, 12000 = 1 s; 1..200 = one frame)
+  0. duration (200 = 1 frame, 12000 = 1 s; 1..200 = one frame) — verified in game
 
 ### `op 3` — WaitReset(duration)
 *handler:* `Script_VMOp_EndReactionResetAndWait`
@@ -8701,7 +8710,7 @@ Args:
      - `19` = Nancy
      - `22` = Son
      - `23` = Daughter
-     - `25` = Guest25
+     - `25` = Raven
   1. shop_action (75-89 (Shop_WeaponFarmTool, Shop_Accessory, ... Shop_SakuTuner 86))
      - `75` = Shop_WeaponFarmTool
      - `76` = Shop_Accessory
@@ -11070,7 +11079,7 @@ Weighted-random branch: pick one of N targets at random, each weighted by an exp
 
 ### `0xFFF1` — FRAME
 
-Frame setup (it does NOT return): sets the frame base to the current operand-stack top and reserves [local slots] entries for locals (always even -- the stack holds value/kind pairs, 2 per local), then execution FALLS THROUGH to the next statement. Typically the first statement of a CALLed subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep case 0xFFF1, corrected 2026-08-06.
+Frame setup (it does NOT return): sets the frame base to the stack top, reserves N stack words, and falls through. The reserved words are the spill room of the expression evaluator: an expression of depth d writes 2*(d-1) words at the frame base (8-byte {kind, value} slots), and an action pushes its arguments (value, kind) last to first at the stack top = frame base + N. So an action argument that is a nested expression (e.g. reg0 + 1) and not the last one needs N >= 2*(depth-1), or it overwrites the arguments already pushed. Literals, registers and flags (depth 1), branch conditions and EVAL never need it. The shipped scripts never need theirs (FRAME 2 everywhere is compiler slack); the editor adds / raises FRAME by itself when an edit needs it.
 
 ## Expression operands (argument encoding)
 
@@ -11080,7 +11089,7 @@ Action-op arguments and control-op guard/value expressions are not raw integers 
 - **`FLG_`/`REG_` name** (e.g. `REG_WIFE_ID`) — a packed game-flag / register reference (an emdeb.bin variable); shown as `var:0xNN` when the name table is unavailable.
 - **`reg0`..`reg9`** — the VM's scratch registers. A query op writes its result to `reg0` (the ctx result slot); a following op / branch reads it.
 - **`arr[0xNN]`** — a scene var-array load; **`self`**, **`null`**, **`0`** — fixed leaves.
-- **`actor(Name)`** / **`map(MAP_NAME)`** (raw form **`localvar[N]`** / **`globalvar[N]`**) — typed CONSTANTS, not variables: the handler receives the number N (`Script_PrepActionArgs` never dereferences them). The listing names them only where the argument slot is known — a character id in actor slots, a map id in the schedule ops — and keeps `localvar[N]`/`globalvar[N]` elsewhere.
+- **`tag3(N)`** / **`tag4(N)`** (tag bytes 0x03 / 0x04) — typed u32 CONSTANTS, not variables: the handler receives the number N (`Script_PrepActionArgs` never dereferences them). The listing always writes this raw form; where the argument slot is known (a character id in actor slots, a map id in the schedule ops) the comment shows it as **`actor(Name)`** / **`map(MAP_NAME)`**, which the assembler also accepts.
 
 Operators build parenthesised infix — binary `*` `/` `%` `+` `-` `<` `>` `<=` `>=` `==` `!=` `&&` `||`; unary negate and logical-not; and the compound-assign forms `=` `*=` `/=` `%=` `+=` `-=` `&&=` `||=` (which write the result back into the target variable, e.g. `REG_X += 1`).
 

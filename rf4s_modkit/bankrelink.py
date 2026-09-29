@@ -81,6 +81,54 @@ def expr_size(buf, off):
     return ln
 
 
+# ---- FRAME sizing ------------------------------------------------------------------- #
+# FRAME N (0xFFF1) sets the frame base to the stack top and reserves N stack words. The
+# postfix evaluator (Script_EvalExpressionBytecode RF4S.exe+0x23E1C0) keeps the top of its
+# stack in a local and SPILLS the values below it to stack[frame_base + 2*i] (8 bytes = 2
+# words each), so an expression of depth d writes 2*(d-1) words there. Script_PrepActionArgs
+# (+0x23EE10) evaluates an action's arguments last to first and pushes each (value, kind)
+# at the stack top = frame_base + N: an argument evaluated while others are already pushed
+# (every one but the last) must not spill past N, or it overwrites them. So a routine needs
+# N >= 2*(d-1) for those arguments. Branch conditions push nothing and literals / registers
+# (depth 1) never spill. Every shipped routine meets this (the 33,556 without a FRAME need
+# none), so the rule changes nothing in a shipped bank.
+_DIRECT_LEAVES = (3, 4, 5, 0x11, 0x12, 0x13)          # resolved without the evaluator
+_PUSH_SIZES = {0x01: 5, 0x02: 5, 0x06: 3, 0x14: 1, 0x15: 1, 0x16: 1, 0x17: 2, 0x18: 2, 0x19: 3, 0x1A: 3}
+
+
+def expr_depth(e):
+    """Deepest evaluation stack of the expression bytes `e` (0 for a direct leaf)."""
+    if not e or e[0] in _DIRECT_LEAVES:
+        return 0
+    d = mx = 0
+    p = 0
+    while p < len(e):
+        t = e[p]
+        if t == 0:
+            break
+        if t >= 0x80:
+            if t - 0x80 not in (0, 1, 2):                 # binary / compound-assign: pop 2 push 1
+                d -= 1
+            p += 1
+        elif 0x07 <= t <= 0x10:                           # reg0..reg9
+            d += 1
+            p += 1
+        elif t in _PUSH_SIZES:
+            d += 1
+            p += _PUSH_SIZES[t]
+        else:
+            break
+        mx = max(mx, d)
+    return mx
+
+
+def action_frame_need(exprs):
+    """Stack words an action with argument expressions `exprs` needs reserved by FRAME."""
+    if len(exprs) < 2:
+        return 0
+    return max([0] + [2 * (expr_depth(e) - 1) for e in exprs[:-1] if expr_depth(e) >= 2])
+
+
 def fields(st):
     """[(byte offset in the statement, 'pc' | 'expr')] for every u16 address field."""
     op, n = st.op, None
@@ -370,6 +418,70 @@ class BankModel:
             if s.falls and i < len(self.code):
                 stack.append(self.code[i].old_pc)
         return seen
+
+    # ---- FRAME sizing ------------------------------------------------------------------ #
+    def routine_roots(self):
+        """Keys where a routine starts: every entry's scene and every CALL target."""
+        roots = set(self.entry_keys())
+        for s in self.code:
+            if isinstance(s, Stmt) and s.op == 0xFFFE:
+                roots.update(t for t in s.targets if t is not None)
+        return roots
+
+    def frame_need(self, root):
+        """Stack words the routine starting at `root` needs from its FRAME (see
+        action_frame_need; CALLed routines have their own frame)."""
+        pos = self.positions()
+        seen, todo, need = set(), [root], 0
+        while todo:
+            k = todo.pop()
+            if k in seen or k not in pos:
+                continue
+            s = self.code[pos[k]]
+            if not isinstance(s, Stmt):
+                continue
+            seen.add(k)
+            if s.op < 0xFFF0:
+                need = max(need, action_frame_need(s.exprs))
+            if s.op != 0xFFFE:
+                todo += [t for t in s.targets if t is not None]
+            i = pos[k] + 1
+            if s.falls and i < len(self.code):
+                todo.append(self.code[i].old_pc)
+        return need
+
+    def ensure_frames(self):
+        """Give every routine the FRAME its code needs: a too-small FRAME at its start is
+        raised in place, a routine without one gets `FRAME n` inserted at its start (only
+        where nothing falls into it -- a FRAME run mid-scene would move the frame base and
+        break the final RET). Returns [(root key, old size | None, new size)]."""
+        out = []
+        pos = self.positions()
+        for root in sorted(self.routine_roots()):
+            need = self.frame_need(root)
+            if not need or root not in pos:
+                continue
+            i = pos[root]
+            s = self.code[i]
+            if not isinstance(s, Stmt):
+                continue
+            if s.op == 0xFFF1:
+                have = struct.unpack_from("<H", s.raw, 2)[0]
+                if have < need:
+                    struct.pack_into("<H", s.raw, 2, need)
+                    out.append((root, have, need))
+                continue
+            prev = self.code[i - 1] if i > 0 else None
+            if isinstance(prev, Stmt) and prev.falls:
+                raise RelinkError("the code at 0x%04x needs FRAME %d (an argument there is an "
+                                  "expression evaluated while other arguments are on the stack), "
+                                  "but the statement before it falls into it, so a FRAME cannot "
+                                  "be put there -- write FRAME %d at the start of the scene or "
+                                  "subroutine it belongs to" % (root, need, need))
+            self.insert_before(root, "FRAME %d" % need)
+            out.append((root, None, need))
+            pos = self.positions()
+        return out
 
     # ---- undoing trampolines ------------------------------------------------------ #
     def fold(self):

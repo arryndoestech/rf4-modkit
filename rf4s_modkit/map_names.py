@@ -56,10 +56,8 @@ def map_count() -> int:
 
 def map_name(map_id):
     """In-game display name for a map id, or '' if unknown/blank."""
-    i = (map_id & 0xFFFF) + 1                 # rf3TxtMapName index = map_id + 1
-    if 0 <= i < len(_NAMES):
-        return _NAMES[i]
-    return ""
+    from . import gamenames                   # the game's rf3TxtMapName (row = map id + 1)
+    return gamenames.name("maps", map_id & 0xFFFF) or ""
 
 
 def is_building_entrance(map_id):

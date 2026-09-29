@@ -32,7 +32,7 @@ CHARS = {
 
 
 def char_name(cid):
-    """A character id's English name (refdata/char_names.json; 0 = the player)."""
+    """A character id's English name (the game's rf3TxtNpc; 0 = the player)."""
     from .emflags import _char_name
     return _char_name(int(cid))
 

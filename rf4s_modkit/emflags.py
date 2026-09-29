@@ -131,14 +131,8 @@ def zone2_text(rel):
 
 
 def _char_name(cid):
-    try:
-        import json
-        from .refdata import refdata_path
-        with open(refdata_path("char_names.json"), encoding="utf-8") as f:
-            nm = json.load(f).get(str(cid))
-        return "Lest/Frey" if cid == 0 else nm
-    except Exception:
-        return None
+    from . import gamenames
+    return "Lest/Frey" if cid == 0 else gamenames.name("characters", int(cid))
 
 
 class Variable:

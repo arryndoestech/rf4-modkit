@@ -35,8 +35,6 @@ from rf4s_modkit import (  # noqa: E402
 # Reference name tables are VENDORED in modding/refdata/ (self-contained share);
 # a full workspace's tools/ copies act as fallbacks (rf4s_modkit.refdata).
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-ACTOR_NAMES = _refdata_path("rf4s_actor_names.json")
-ITEM_NAMES = _refdata_path("rf4s_item_names.json")
 
 # Repo root = two levels up from tools/modding/. Bundle dir + extracted dir.
 REPO = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -1135,20 +1133,17 @@ def cmd_str_set(a):
     print(f"#{rid} {t.label(rid, names)}: " + ", ".join(a.set) + f" -> {out}")
 
 
-CHAR_NAMES = _refdata_path("char_names.json")
-
-
 def _char_names():
-    if CHAR_NAMES.is_file():
-        return {int(k): v for k, v in json.loads(CHAR_NAMES.read_text(encoding="utf-8")).items()}
-    return {}   # refdata_path already tried every layout
+    """{character id: name}: the game's rf3TxtNpc, else the built-in list."""
+    from rf4s_modkit import gamenames
+    return dict(gamenames.table("characters"))
 
 
 def _item_name_fn():
-    if ITEM_NAMES.is_file():
-        names = json.loads(ITEM_NAMES.read_text(encoding="utf-8"))
-        return lambda i: names.get(str(i), "")
-    return None
+    """item id -> name: the game's rf3TxtItem, else the built-in list."""
+    from rf4s_modkit import gamenames
+    names = gamenames.table("items")
+    return lambda i: names.get(i, "")
 
 
 def _gift_file(target: str) -> tuple[pathlib.Path, int]:
@@ -3294,10 +3289,12 @@ def cmd_res_anim_gif(a):
 # gen (Gen*.bin monster encounter tables)
 # --------------------------------------------------------------------------- #
 def _names(arg):
-    p = pathlib.Path(arg) if arg else ACTOR_NAMES
-    if p.is_file():
-        return gen.load_actor_names(p)
-    return lambda i: ""
+    """id -> name: a JSON {id: name} file when given, else the game's rf3TxtNpc."""
+    if arg and pathlib.Path(arg).is_file():
+        return gen.load_actor_names(arg)
+    from rf4s_modkit import gamenames
+    tbl = gamenames.table("characters")
+    return lambda i: tbl.get(i, "")
 
 
 def cmd_gen_info(a):
@@ -3334,9 +3331,8 @@ def _row_name_fn(stem):
             if stem.startswith(pre):
                 sch = s
                 break
-    if sch and sch.get("names") == "item" and ITEM_NAMES.is_file():
-        names = json.loads(ITEM_NAMES.read_text(encoding="utf-8"))
-        return lambda i: names.get(str(i), "")
+    if sch and sch.get("names") == "item":
+        return _item_name_fn()
     return lambda i: ""
 
 
@@ -4632,7 +4628,7 @@ def build_parser():
     pg = sub.add_parser("gen", help="Gen*.bin dungeon/field monster encounter tables")
     gsub = pg.add_subparsers(dest="op", required=True)
     g0 = gsub.add_parser("info", help="show gates + monster roster of one Gen file")
-    g0.add_argument("file"); g0.add_argument("--names", help="rf4s_actor_names.json")
+    g0.add_argument("file"); g0.add_argument("--names", help="a JSON {id: name} file (default: the game's character names)")
     g0.set_defaults(func=cmd_gen_info)
     g1 = gsub.add_parser("area", help="aggregate roster across an area, e.g. GenA / GenField")
     g1.add_argument("prefix"); g1.add_argument("--names")

@@ -442,10 +442,13 @@ def _outer_parens_match(s):
 #     NPC actor's +84 current-map field, Npc_GetCurrentScheduleId RF4S.exe+0x227230 --
 #     the player branch uses field_54), 246 (written to NPC +188, the same field
 #     Npc_GetCurrentScheduleId falls back to) and 266/267.
-#   * anything else stays localvar[N] / globalvar[N], in decimal.
+#   * anything else stays tag3(N) / tag4(N), in decimal.
 # 56,119 tag-3/4 argument leaves in rf3.mc, none with bits above 16 set. scriptasm accepts
-# actor(Name|N), map(MAP_NAME|N) and localvar/globalvar[N] -- all to the same bytes.
-_ACTOR_NAMES = None          # id -> display name (rf3TxtNpc order, vendored char_names.json)
+# actor(Name|N), map(MAP_NAME|N) and tag3(N) / tag4(N) -- all to the same bytes. The listing
+# (scriptasm.operand_text) always writes the raw tag3 / tag4 form, since actor / map are our own
+# reading of the slot, and puts the named form in the statement's comment.
+_ACTOR_NAMES = None          # id -> display name (the game's rf3TxtNpc, see gamenames)
+_ACTOR_GEN = None
 _ACTOR_UNIQUE = None         # normalised unique name -> id
 
 
@@ -454,15 +457,12 @@ def _norm_leaf_name(name):
 
 
 def _actor_tables():
-    global _ACTOR_NAMES, _ACTOR_UNIQUE
-    if _ACTOR_NAMES is None:
-        names = {}
-        try:
-            from .refdata import refdata_path
-            with open(refdata_path("char_names.json"), encoding="utf-8") as f:
-                names = {int(k): v for k, v in json.load(f).items() if v}
-        except Exception:
-            names = {}
+    global _ACTOR_NAMES, _ACTOR_UNIQUE, _ACTOR_GEN
+    from . import gamenames
+    gen = gamenames.generation()
+    if _ACTOR_NAMES is None or _ACTOR_GEN != gen:
+        _ACTOR_GEN = gen
+        names = dict(gamenames.table("characters"))
         counts = {}
         for v in names.values():
             counts[_norm_leaf_name(v)] = counts.get(_norm_leaf_name(v), 0) + 1
@@ -559,9 +559,9 @@ def disasm_expr(buf, off, _maxtok=512):
     # the postfix evaluator -- handle them as single leaves.
     t0 = buf[off]
     if t0 == 3:
-        return ("localvar[%d]" % (_u32(buf, off + 1) or 0), 5)
+        return ("tag3(%d)" % (_u32(buf, off + 1) or 0), 5)
     if t0 == 4:
-        return ("globalvar[%d]" % (_u32(buf, off + 1) or 0), 5)
+        return ("tag4(%d)" % (_u32(buf, off + 1) or 0), 5)
     if t0 == 5:
         return (str(_u16(buf, off + 1) or 0), 3)
     if t0 == 0x11:
@@ -649,7 +649,7 @@ def expr_literals(buf, off, _maxtok=512):
     if not (0 <= off < n):
         return out
     if buf[off] in (3, 4, 5, 0x11, 0x12, 0x13):       # leading single leaf -> no postfix literal
-        return out                                    # (localvar/globalvar/OrVar-u16/null/0/self)
+        return out                                    # (tag3/tag4/OrVar-u16/null/0/self)
     p = off
     for _ in range(_maxtok):
         if not (0 <= p < n):
@@ -758,7 +758,7 @@ def _table_arg(op, ai):
 
 def leaf_slot_kind(op, ai):
     """'actor', 'map' or None: what a tag-3 / tag-4 constant in argument `ai` of opcode
-    `op` means. None = unknown slot (rendered as the neutral localvar/globalvar form)."""
+    `op` means. None = unknown slot (rendered as the raw tag3(N) / tag4(N) form)."""
     if op is None or ai is None:
         return None
     if (op, ai) in _MAP_LEAF_SLOTS or (op in _MAP_LEAF_VARIADIC and ai >= _MAP_LEAF_VARIADIC[op]):
@@ -867,14 +867,14 @@ def leaf_tooltip(buf, off, op=None, ai=None):
     kind = leaf_slot_kind(op, ai)
     if (tag, kind) in ((3, "actor"), (4, "map")):
         return leaf_description(tag, n)
-    return ("typed constant %d (tag %d, written %s). The handler receives the number %d; "
+    return ("typed constant %d (tag %d, written tag%d(%d)). The handler receives the number %d; "
             "this argument slot has no verified meaning, so it is not named."
-            % (n, tag, "localvar" if tag == 3 else "globalvar", n))
+            % (n, tag, tag, n, n))
 
 def arg_is_settable(buf, off):
     """True if the expression at `off` is a single immediate whose value can be set in
     place (Bank.set_expr_value): a u8/s8/u16/s16 push, or a tag-3/4 typed constant
-    (actor(..) / map(..) / localvar / globalvar -- a u32 the handler receives as-is)."""
+    (tag3(N) / tag4(N), read as actor(..) / map(..) -- a u32 the handler receives as-is)."""
     if not (0 <= off < len(buf)):
         return False
     return buf[off] in (0x17, 0x18, 0x19, 0x1A, 0x03, 0x04)
@@ -1709,6 +1709,7 @@ class Container:
         m = bankrelink.BankModel.parse_any(bank)
         result = edit(m)
         try:
+            self.last_frames = m.ensure_frames()           # FRAME sizes the edited code needs
             new = m.build()
         except bankrelink.RelinkError as e:
             raise ScriptError("%s bank %d: %s" % (bank.kind, bank.index, e))
@@ -1725,6 +1726,20 @@ class Container:
         lr[pos] = pm
         self.last_relink = lr
         return m, result
+
+    last_frames = None
+
+    def ensure_frames(self, bank):
+        """Rebuild `bank` when a routine's FRAME is too small for its code (see
+        bankrelink.BankModel.ensure_frames); returns the changes, [] when none was needed."""
+        from . import bankrelink
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        m = bankrelink.BankModel.parse_any(bank)
+        if not any(m.frame_need(r) for r in m.routine_roots()):
+            return []
+        m2, _r = self._relink(bank, lambda m: None)
+        return self.last_frames or []
 
     def _pc(self, m, key):
         pc = m.pc_of(key) if key is not None else None
@@ -1841,6 +1856,7 @@ class Container:
             return ("unchanged", off)
         if size == len(expr):
             bank.data[off:off + size] = expr
+            self.ensure_frames(bank)                   # a deeper expression may need a bigger FRAME
             return ("in_place", off)
         m, _r = self._relink(bank, lambda m: m.set_operand(pc, index, expr))
         npc = m.pc_of(pc)

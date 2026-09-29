@@ -208,12 +208,9 @@ def tier_row_name(i: int) -> str:
 
 
 def load_item_names() -> dict:
-    """{item id -> name} from the vendored rf4s_item_names.json, or {}."""
-    p = refdata_path("rf4s_item_names.json")
-    if not p.is_file():
-        return {}
-    raw = json.loads(p.read_text(encoding="utf-8"))
-    return {int(k): v for k, v in raw.items()}
+    """{item id -> name}: the game's rf3TxtItem (gamenames), else the built-in list."""
+    from . import gamenames
+    return dict(gamenames.table("items"))
 
 
 def q12_text(v: int) -> str:

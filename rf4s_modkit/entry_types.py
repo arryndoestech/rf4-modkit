@@ -51,7 +51,7 @@ TAG_NAMES = {
 BANK_SLOTS = {0: "global", 1: "primary", 2: "tail"}
 
 # Character ids 0..47 (== the primary bank index of that character's script bank; 0 = the
-# player). Taken from the shipped rf3TxtNpc name list (vendored refdata/char_names.json).
+# player). Read from the game's rf3TxtNpc name list (gamenames; the built-in list without one).
 # The hand-written table this replaces had 24 Pico / 27 Barrett / 28 Raven, which is wrong:
 # rf3TxtNpc and the banks' own dialogue agree on 24 Barrett (bank 24 = the gear check),
 # 25 Raven, 26 Mistress Trupin (bank 26 = "My name is Trupin"), 27..40 Traveler,
@@ -66,18 +66,18 @@ _CHAR_NAMES_FALLBACK = {
 
 
 def _load_char_names():
-    try:
-        import json
-        from .refdata import refdata_path
-        with open(refdata_path("char_names.json"), encoding="utf-8") as f:
-            d = {int(k): v for k, v in json.load(f).items() if 0 < int(k) < 48 and v}
-        d[0] = "Lest/Frey"
-        return d if len(d) >= 27 else dict(_CHAR_NAMES_FALLBACK)
-    except Exception:
-        return dict(_CHAR_NAMES_FALLBACK)
+    from . import gamenames
+    d = {k: v for k, v in gamenames.table("characters").items() if 0 < k < 48 and v}
+    d[0] = "Lest/Frey"
+    return d if len(d) >= 27 else dict(_CHAR_NAMES_FALLBACK)
 
 
-CHAR_NAMES = _load_char_names()
+def _lazy_char_names():
+    from .gamenames import Lazy
+    return Lazy(_load_char_names)
+
+
+CHAR_NAMES = _lazy_char_names()
 
 _APPLY0 = ("NpcAi_ApplyMovement (RF4S.exe+0x1F60C0) with bank slot 0: the Script VM "
            "runs the scene at event_id in the global bank")

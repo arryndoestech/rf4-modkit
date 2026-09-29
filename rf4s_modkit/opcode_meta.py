@@ -3414,7 +3414,7 @@ ARG_HINTS = {
     "duration_ms": "fade length in milliseconds",
     "mode": "opcode-specific mode selector (see the action id list on the tooltip)",
     "mode (1/-1)": "1 = add/set, -1 = remove/clear",
-    "shopkeeper npc": "NPC id (usually indirect via localvar[]) of the shopkeeper you're "
+    "shopkeeper npc": "NPC id (usually a tag3(N) constant) of the shopkeeper you're "
                       "talking to. Selects the day-off + shop-kind override. Vanilla ids: "
                       "6=Bado, 8=Dylas, 9=Arthur, 10=Porcoline, 11=Xiao Pai, 12=Lin Fa, "
                       "13=Amber, 14=Illuminata, 15=Doug, 16=Blossom, 17=Dolce, 18=Jones, "
@@ -3424,7 +3424,7 @@ ARG_HINTS = {
                "75=WeaponFarmTool, 76=Accessory, 77=ExcavatedEquipment, 78=Hospital, "
                "79=Flower(alt), 80=Flower, 81/89=variants, 82=Furniture, 83=Ability, "
                "84=Magic, 85=Jewel, 86=SakuTuner, 87=Yue, 88=Restaurant",
-    "actor ctx": "actor / scene context reference (usually `globalvar[...]` holding an "
+    "actor ctx": "actor / scene context reference (usually a `tag4(...)` constant holding an "
                  "actor slot pointer or a scene handle)",
     "duration (frames = arg0/100; 6000 ~= 1s)": "FadeScreenToClear / FadeScreen: animation "
                    "length. Effective frames = value / 100 (6000 -> 60 frames ~= 1s at 60fps; "
@@ -3557,20 +3557,27 @@ PLAYER_VAR_BY_CHARCODE = {
     100: "Gold", 102: "ArmorDef", 103: "FarmTameCount",
     104: "Skill", 105: "Stone", 106: "Compost", 107: "MaxSkillLevel",
 }
+# Name tables that come from the game's text files (gamenames: the copy the game loads, else
+# the toolkit's built-in list) are built on first use, so importing this module reads nothing.
+def _lazy(build):
+    from .gamenames import Lazy
+    return Lazy(build)
+
+
+def reload_game_names():
+    """Re-read the game's name files (after the game folder or a text file changed)."""
+    from . import gamenames
+    gamenames.reload()
+
+
+def _names(kind):
+    from . import gamenames
+    return gamenames.table(kind)
+
+
 # 40-slot skill table (rf3TxtSkill_split2_1.eng); id -> name, matching skill_array indexing.
-SKILL_NAMES = [
-    "Short Sword", "Long Sword", "Spear", "Axe/Hammer", "Dual Blades", "Fist",
-    "Fire", "Water", "Earth", "Wind", "Light", "Dark", "Love",
-    "Farming", "Logging", "Mining", "Fishing", "Cooking", "Forging", "Chemistry",
-    "Crafting", "Searching", "Walking", "Sleeping", "Eating", "Defense",
-    "Resist Poison", "Resist Seals", "Resist Paralysis", "Resist Sleep",
-    "Resist Fatigue", "Resist Cold", "Resist Knockout", "Bathing", "Taming",
-    "Throwing", "Leadership", "Bartering", "Dummy", "Dummy 2",
-]
-
-
 def skill_name(i):
-    return SKILL_NAMES[i] if 0 <= i < len(SKILL_NAMES) else "skill#%d" % i
+    return _names("skills").get(i) or "skill#%d" % i
 
 
 _STAT_QUERY_OPS = {_op for _op, _t in TECHNICAL.items() if "QueryPlayerStatByCharCode" in _t}
@@ -3700,7 +3707,7 @@ _TRIGGER_WORLD_INTERACTION_OP = next(
 
 # Shopkeeper NPC ids for op 376 arg 0. Derived from the Script_VMOp_BeginCalendarContextualInteraction
 # switch (RF4S.exe+0x211C20) + PORTRAIT_SPEAKERS slot correspondence + observed corpus usage.
-# Vanilla script never passes a LITERAL for this arg (always localvar[]), so the enum picker
+# Vanilla script never passes a LITERAL for this arg (always a tag3 constant), so the enum picker
 # is mostly documentation -- but it also makes the tooltip and future-mod authoring easier.
 SHOPKEEPER_NPCS = {
     0:  ("Anonymous",           "Fallback / non-shopkeeper NPC -> day 6 (Sat), kind 22"),
@@ -4234,27 +4241,31 @@ if _TRIGGER_WORLD_INTERACTION_OP is not None:
 # (Save/Load/NameEntry/...) would not open a shop. So the picker is scoped to just
 # the shop subrange rather than the full 83-action table, which would mislead. Arg 0
 # (shopkeeper NPC) gets its own small enum of the switch cases.
-ENUM_ARG_VALUES[(376, 0)] = SHOPKEEPER_NPCS
+# the shopkeepers' names come from the game (a mod may rename them); the notes stay ours
+ENUM_ARG_VALUES[(376, 0)] = _lazy(lambda: {
+    _k: (((_names("characters").get(_k) if _k else None) or _l), _d)
+    for _k, (_l, _d) in SHOPKEEPER_NPCS.items()})
 ENUM_ARG_VALUES[(376, 1)] = {_k: _v for _k, _v in WORLD_INTERACTION_ACTIONS.items()
                              if 75 <= _k <= 89}
 ENUM_ARG_VALUES[(617, 0)] = STAFF_SPAWN_MODES
 ENUM_ARG_VALUES[(446, 0)] = WEATHER_CODES         # SetWeather weather code
 ENUM_ARG_VALUES[(197, 0)] = SHAKE_KINDS            # ShakeCamera jitter kind (1-6, 0=stop)
 
-# Character ids (0-26 named; 0 = the player Lest/Frey). This is the NPC record-array index used
-# by the many "char id (0=player, 1-47=NPC)" opcode args. Names are the authoritative rf3TxtNpc
-# archive strings (char_names.json, index == char_id). Ids 27-40 are generic 'Traveler', 41-47
-# 'Soldier', 48+ = event/monster actors -- type the raw id for those (they stay numeric).
-_CHAR_NAMES = {
-    0: "Lest/Frey", 1: "Vishnal", 2: "Clorica", 3: "Volkanon", 4: "Forte", 5: "Kiel",
-    6: "Bado", 7: "Margaret", 8: "Dylas", 9: "Arthur", 10: "Porcoline", 11: "Xiao Pai",
-    12: "Lin Fa", 13: "Amber", 14: "Illuminata", 15: "Doug", 16: "Blossom", 17: "Dolce",
-    18: "Jones", 19: "Nancy", 20: "Leon", 21: "Ventuswill", 22: "Son", 23: "Daughter",
-    24: "Barrett", 25: "Raven", 26: "Mistress Trupin",
-}
-CHAR_IDS = {_i: (_nm, ("The player character (char id 0)." if _i == 0
-                       else "Character '%s' (char id %d)." % (_nm, _i)))
-            for _i, _nm in _CHAR_NAMES.items()}
+# Character ids (0-26 named; 0 = the player). This is the NPC record-array index used by the
+# many "char id (0=player, 1-47=NPC)" opcode args. Names are the game's rf3TxtNpc archive
+# (index == char_id). Ids 27-40 are generic 'Traveler', 41-47 'Soldier', 48+ = event/monster
+# actors -- type the raw id for those (they stay numeric).
+def _char_name(i):
+    nm = _names("characters").get(i)
+    if i == 0:
+        return "Lest/Frey" if nm in (None, "Lest") else nm     # the player (the save's gender)
+    return nm
+
+
+CHAR_IDS = _lazy(lambda: {
+    _i: (_char_name(_i), ("The player character (char id 0)." if _i == 0
+                          else "Character '%s' (char id %d)." % (_char_name(_i), _i)))
+    for _i in range(27) if _char_name(_i)})
 # Ops whose selected arg is a plain char-id selector in the 0-47 NPC space (0=player). Excludes
 # ops with overloaded char args (338 0=spouse, 486 0=scene-actor/22=spouse, child ops 24-47).
 _CHAR_ID_ARG_OPS = [(110, 0), (121, 0), (122, 0), (209, 0), (339, 0), (440, 0),
@@ -4268,7 +4279,7 @@ for _cop, _cai in _CHAR_ID_ARG_OPS:
 # something else (all/current/count/input/-1). SKIPS: child ops (24-47 = the player's children, a
 # different id table), monster args (48+ species space), event-key, spouse-default, and variadic /
 # index args -- decoding those with the villager roster would be WRONG.
-_CHAR_IDS_NPC = {_k: _v for _k, _v in CHAR_IDS.items() if _k != 0}
+_CHAR_IDS_NPC = _lazy(lambda: {_k: _v for _k, _v in CHAR_IDS.items() if _k != 0})
 for _cop2, _cmeta in META.items():
     for _cai2, _clbl in enumerate(_cmeta["a"]):
         if (_cop2, _cai2) in ENUM_ARG_VALUES:
@@ -4306,63 +4317,44 @@ def _load_char_models():
         return {}
 
 
-def _load_all_char_names():
-    """Every rf3NpcParam row's name (char_names.json, index == char id), including the
-    model-less rows char_models.json leaves out."""
-    import json as _json
-    try:
-        from .refdata import refdata_path as _rp
-        return {int(_k): _v for _k, _v in _json.loads(_rp("char_names.json").read_text(encoding="utf-8")).items()
-                if _v and not _k.startswith("_") and int(_k) < 392}   # rf3NpcParam has 392 rows
-    except Exception:
-        return {}
+def _event_char_ids():
+    """Every rf3NpcParam row (392; names from the game's rf3TxtNpc, index == char id), with
+    its field model where it has one."""
+    models = _load_char_models()
+    names = {k: v for k, v in _names("characters").items() if k < 392}   # rf3NpcParam rows
+    out = {}
+    for ci in sorted(set(models) | set(names)):
+        cm = models.get(ci, {})
+        nm = (_char_name(ci) if ci == 0 else names.get(ci)) or cm.get("name") or ("char#%d" % ci)
+        mdl = cm.get("model")
+        if mdl:
+            lbl = "%s [%s]" % (nm, mdl)
+            dsc = ("Character '%s' (char id %d). Field model %s/%s (rf3NpcParam+272 = %d)."
+                   % (nm, ci, cm.get("kind", "chr"), mdl, cm.get("model_index", -1)))
+        else:
+            # no model: spawned it is an invisible actor. 269/270 'Search' are the cutscene
+            # MARKERS -- EventSpawnNpc 269 is the most-spawned char (314 uses): a point that
+            # FaceEventActor / move ops then target by its event key
+            lbl = "%s (no model)" % nm
+            dsc = ("Character '%s' (char id %d). No field model (rf3NpcParam+272 = -1): it spawns "
+                   "invisible, as a marker other actors face or walk to by its event key."
+                   % (nm, ci))
+        out[ci] = (lbl, dsc)
+    return out
 
 
-_CHAR_MODELS = _load_char_models()
-_ALL_CHAR_NAMES = _load_all_char_names()
-EVENT_CHAR_IDS = {}
-for _ci in sorted(set(_CHAR_MODELS) | set(_CHAR_NAMES) | set(_ALL_CHAR_NAMES)):
-    _cm = _CHAR_MODELS.get(_ci, {})
-    _nm2 = _cm.get("name") or _CHAR_NAMES.get(_ci) or _ALL_CHAR_NAMES.get(_ci) or ("char#%d" % _ci)
-    if _ci == 0:
-        _nm2 = "Lest/Frey"
-    _mdl = _cm.get("model")
-    if _mdl:
-        _lbl = "%s [%s]" % (_nm2, _mdl)
-        _dsc = ("Character '%s' (char id %d). Field model %s/%s (rf3NpcParam+272 = %d)."
-                % (_nm2, _ci, _cm.get("kind", "chr"), _mdl, _cm.get("model_index", -1)))
-    else:
-        # no model: spawned it is an invisible actor. 269/270 'Search' are the cutscene
-        # MARKERS -- EventSpawnNpc 269 is the most-spawned char (314 uses): a point that
-        # FaceEventActor / move ops then target by its event key
-        _lbl = "%s (no model)" % _nm2
-        _dsc = ("Character '%s' (char id %d). No field model (rf3NpcParam+272 = -1): it spawns "
-                "invisible, as a marker other actors face or walk to by its event key."
-                % (_nm2, _ci))
-    EVENT_CHAR_IDS[_ci] = (_lbl, _dsc)
+EVENT_CHAR_IDS = _lazy(_event_char_ids)
 # Spawn ops 153/154/155 arg0 + registry cleanup 156 arg0 address the full roster (overrides the
 # villager-only dict the auto-extend loop assigned from the "char id" label).
 for _eco in ((153, 0), (154, 0), (155, 0), (156, 0)):
-    if EVENT_CHAR_IDS:
-        ENUM_ARG_VALUES[_eco] = EVENT_CHAR_IDS
+    ENUM_ARG_VALUES[_eco] = EVENT_CHAR_IDS
 
 # op 10 SetSpeakerVoice: arg0 = a name-plate id in the character-name archive (the full list,
 # up to ~1000 -- the soldiers / customers / '???' plates sit above the 392 rf3NpcParam rows),
 # arg1 = the text-blip class (NpcBubble_DispatchSimpleScriptedLine, RF4S.exe+0x20A240)
-def _load_name_plates():
-    import json as _json
-    try:
-        from .refdata import refdata_path as _rp
-        _d = _json.loads(_rp("char_names.json").read_text(encoding="utf-8"))
-        return {int(_k): (_v, "Name plate '%s' (name archive entry %s)." % (_v, _k))
-                for _k, _v in _d.items() if _v and not _k.startswith("_")}
-    except Exception:
-        return {}
-
-
-_NAME_PLATES = _load_name_plates()
-if _NAME_PLATES:
-    ENUM_ARG_VALUES[(10, 0)] = _NAME_PLATES
+_NAME_PLATES = _lazy(lambda: {_k: (_v, "Name plate '%s' (name archive entry %d)." % (_v, _k))
+                              for _k, _v in _names("characters").items()})
+ENUM_ARG_VALUES[(10, 0)] = _NAME_PLATES
 TEXT_BLIPS = {
     0: ("male blip", "SE_WORDS_M.wav (sfx 16785916): the male blip (soldiers, travellers, Ethelwill)."),
     1: ("female blip", "SE_WORDS_F.ogg (sfx 16785917): the female blip ('???', Trupin, Eliza, Frey)."),
@@ -4437,20 +4429,14 @@ COMPANION_SLOTS = {
 for _cs in (494, 495, 496, 497, 498, 499, 500, 501, 502, 503):
     ENUM_ARG_VALUES[(_cs, 0)] = COMPANION_SLOTS
 
-# Item-id -> name value-decoder, from the authoritative item-name archive (co-located
-# item_names.json; a missing file just disables item decoding, gracefully). Auto-wired to every
-# opcode arg whose label is an item-id selector, so the editor shows item names and value-decodes
-# them ("GivePlayerItem(258=Pineapple Juice)"). ~33 item args across the give/take/ship/query ops.
-_ITEM_NAMES = {}
-try:
-    with open(os.path.join(os.path.dirname(__file__), "item_names.json"), encoding="utf-8") as _itf:
-        _ITEM_NAMES = {int(_k): _v for _k, _v in json.load(_itf).items()}
-except (OSError, ValueError):
-    _ITEM_NAMES = {}
-if _ITEM_NAMES:
+# Item-id -> name value-decoder, from the game's item-name archive (rf3TxtItem; the built-in
+# list without a game folder). Auto-wired to every opcode arg whose label is an item-id selector,
+# so the editor shows item names and value-decodes them ("GivePlayerItem(258=Pineapple Juice)").
+# ~33 item args across the give/take/ship/query ops.
+if True:
     # Empty description: the label IS the item name and the id is already shown in the picker row,
     # so a desc would just repeat both -- keep the 1108-entry dropdown clean ("258 - Pineapple Juice").
-    ITEM_IDS = {_i: (_nm, "") for _i, _nm in _ITEM_NAMES.items()}
+    ITEM_IDS = _lazy(lambda: {_i: (_nm, "") for _i, _nm in _names("items").items()})
     for _iop, _imeta in META.items():
         for _iai, _ilbl in enumerate(_imeta["a"]):
             _l = _ilbl.lower()
@@ -4467,8 +4453,8 @@ if _ITEM_NAMES:
 # Skill ids (0-37 named; 38/39 are unused 'Dummy' slots). Built from skill_name(). Wired to the
 # skill-leveling ops. (op416 QueryPlayerVariable's skill arg is already value-decoded by the
 # dedicated stat-query render path, so it is left alone.)
-SKILL_IDS = {_s: (skill_name(_s), "Player skill '%s' (skill %d)." % (skill_name(_s), _s))
-             for _s in range(38)}
+SKILL_IDS = _lazy(lambda: {_s: (skill_name(_s), "Player skill '%s' (skill %d)." % (skill_name(_s), _s))
+                           for _s in range(38)})
 ENUM_ARG_VALUES[(679, 0)] = SKILL_IDS      # IncrementPlayerSkillLevel
 ENUM_ARG_VALUES[(701, 0)] = SKILL_IDS      # SetPlayerSkillXp
 
@@ -4524,20 +4510,10 @@ ENUM_ARG_VALUES[(281, 1)] = DATE_STATES
 # render_action already value-decodes it via the stat-query path; this just adds the dropdown.
 ENUM_ARG_VALUES[(416, 1)] = SKILL_IDS
 
-# Room / map name decoder (op291 SpawnChildEventRecords arg1 = room id). From the co-located
-# map_names.json (index == room id); BLANK/placeholder rows are filtered out. Missing file =
-# graceful disable.
-_MAP_NAMES = []
-try:
-    with open(os.path.join(os.path.dirname(__file__), "map_names.json"), encoding="utf-8") as _mf:
-        _MAP_NAMES = json.load(_mf)
-except (OSError, ValueError):
-    _MAP_NAMES = []
-if _MAP_NAMES:
-    ROOM_IDS = {_r: (_rn, "")
-                for _r, _rn in enumerate(_MAP_NAMES)
-                if _rn and not _rn.startswith("BLANK") and _rn != "JP"}
-    ENUM_ARG_VALUES[(291, 1)] = ROOM_IDS
+# Map name decoder (map id -> the game's rf3TxtMapName row; placeholder rows left out).
+ROOM_IDS = _lazy(lambda: {_r: (_rn, "") for _r, _rn in _names("maps").items()
+                          if not _rn.startswith("BLANK")})
+ENUM_ARG_VALUES[(291, 1)] = ROOM_IDS
 
 
 def enum_arg_choices(op, arg_index):
@@ -4632,7 +4608,10 @@ def render_action(op, arg_strs):
             except (ValueError, TypeError):
                 continue
             entry = tbl.get(v)
-            if entry:
+            if entry and v in VALUE_NAMES.get((op, i), ()):
+                decorated[i] = entry[0]              # a source name: the listing writes it too
+                changed = True
+            elif entry:
                 decorated[i] = "%s=%s" % (arg_strs[i], entry[0])
                 changed = True
         if changed:
@@ -5005,6 +4984,40 @@ CONTROL = {_r["mnemonic"]: (_r["category"], _r["description"]) for _r in TABLE["
 def table_row(op):
     """The opcode_table.json row of an action op (dict), or None."""
     return TABLE["actions"].get(str(op))
+
+
+# Argument value names: an argument whose value is a code (ModifyPlayerResource's resource,
+# ShowActorEmote's icon) lists its codes in the table as
+#   "value_names": {"100": {"name": "gold", "text": "...", "human_verified": true}, ...}
+# The name is what a listing writes and the assembler reads (ModifyPlayerResource(gold, add,
+# 1234)), and it replaces any built-in picker table of that argument. Each argument also has
+# its own human_verified flag and a `tests` log of the in-game tests that exercised it (see
+# optest.py): an op can be verified while some of its arguments are not.
+VALUE_NAMES = {}                                   # (op, arg index) -> {value: name}
+for _k, _r in TABLE["actions"].items():
+    for _i, _a in enumerate(_r["args"]):
+        _vn = _a.get("value_names")
+        if _vn:
+            VALUE_NAMES[(int(_k), _i)] = {int(_v, 0): _e["name"] for _v, _e in _vn.items()}
+            ENUM_ARG_VALUES[(int(_k), _i)] = {int(_v, 0): (_e["name"], _e.get("text") or "")
+                                              for _v, _e in _vn.items()}
+
+
+def value_name(op, arg_index, value):
+    """The table's source name for `value` of argument `arg_index` of `op`, or None."""
+    return VALUE_NAMES.get((op, arg_index), {}).get(value)
+
+
+def arg_row(op, arg_index):
+    """The opcode_table.json entry of one argument (dict), or None."""
+    r = table_row(op)
+    return r["args"][arg_index] if r and 0 <= arg_index < len(r["args"]) else None
+
+
+def arg_verified(op, arg_index):
+    """True when a person confirmed this argument's meaning in game."""
+    a = arg_row(op, arg_index)
+    return bool(a and a.get("human_verified"))
 
 
 # Opcode arguments: an instruction family whose leading arguments are encoded in the opcode

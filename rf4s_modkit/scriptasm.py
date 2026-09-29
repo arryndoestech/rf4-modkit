@@ -23,9 +23,11 @@ Engine ground truth (IDB, RF4S.exe; all verified 2026-09-19):
   `Script_PrepActionArgs` (+0x23EE10) evaluates each offset with
   `Script_EvalExpressionOrVar` and pushes (value, kind) pairs.
 * `Script_EvalExpressionOrVar` (+0x23EA10): the first byte of an operand decides. Tags
-  1, 2, 6, 7..0x10, 0x14..0x1A enter the RPN evaluator (kind 0); tag 3 = "localvar" ref
-  (u32, kind 2) = an ACTOR id, written actor(Name), 4 = "globalvar" ref (kind 3) = a MAP id,
-  written map(MAP_NAME) -- handlers only read the value, see script.actor_leaf_text --
+  1, 2, 6, 7..0x10, 0x14..0x1A enter the RPN evaluator (kind 0); tag 3 = a u32 constant
+  handed over with kind 2, written tag3(N), 4 = the same with kind 3, written tag4(N). No
+  variable is read. In a character slot tag3 is an actor id and in a location slot tag4 is a
+  map id: actor(Name) / map(MAP_NAME) assemble to the same bytes, and the listing shows them
+  in the statement's comment -- handlers only read the value, see script.actor_leaf_text --
   5 = u16 literal (kind 7), 0x11 null,
   0x12 zero, 0x13 self (kinds 4/5/6). Those "leaf" forms have no terminator.
 * `Script_EvalExpressionBytecode` (+0x23E1C0): postfix stream, 0x00 terminates. Pushes:
@@ -202,7 +204,7 @@ class _Parser:
                 idx = self.take("num")
                 self.take("op", "]")
                 return ("arr", _int_in(idx, 0, 0xFFFF, None, "arr[] index"))
-            if low in ("localvar", "globalvar", "actor", "map", "u16") or low in _LEAF_WORDS:
+            if low in ("tag3", "tag4", "actor", "map", "u16") or low in _LEAF_WORDS:
                 raise AsmError("%s is a leaf-only operand form; it cannot be combined with "
                                "operators" % v)
             enc = self.resolver(v) if self.resolver else None
@@ -271,7 +273,7 @@ def parse_expr(text, resolver=None):
     return node
 
 
-_LEAF_RE = re.compile(r"^\s*(localvar|globalvar)\s*\[\s*(0[xX][0-9A-Fa-f]+|\d+)\s*\]\s*$", re.I)
+_LEAF_RE = re.compile(r"^\s*tag([34])\s*\(\s*(0[xX][0-9A-Fa-f]+|\d+)\s*\)\s*$", re.I)
 # Named forms of the same two leaves (see script.actor_leaf_text): actor(Forte) / actor(4) /
 # actor(player) = tag 3, map(MAP_CITY_00) / map(24) = tag 4.
 _NAMED_LEAF_RE = re.compile(r"^\s*(actor|map)\s*\(\s*([^()]*?)\s*\)\s*$", re.I)
@@ -283,8 +285,9 @@ def asm_expr(text, resolver=None):
 
     `resolver(name) -> packed enc | None` maps symbolic variable names (emdeb.bin
     FLG_/REG_ names, NAMED_SCRIPT_VARS) to their packed encoding; see `make_resolver`.
-    Whole-operand leaf forms: `actor(Name|N)` (= `localvar[N]`, tag 3, a character id),
-    `map(MAP_NAME|N)` (= `globalvar[N]`, tag 4, a map id), `u16(N)`, `null`, `zero`,
+    Whole-operand leaf forms: `tag3(N)` / `tag4(N)` (u32 constants the handler gets with
+    kind 2 / 3), `actor(Name|N)` (= `tag3(N)`, a character id), `map(MAP_NAME|N)`
+    (= `tag4(N)`, a map id), `u16(N)`, `null`, `zero`,
     `self` (no terminator, exactly what the engine's leaf reader expects)."""
     s = text.strip()
     if _outer_parens(s):
@@ -294,8 +297,8 @@ def asm_expr(text, resolver=None):
         return _LEAF_WORDS[low]
     m = _LEAF_RE.match(s)
     if m:
-        tag = 3 if m.group(1).lower() == "localvar" else 4
-        return bytes([tag]) + struct.pack("<I", _int_in(m.group(2), 0, 0xFFFFFFFF, None, m.group(1)))
+        tag = int(m.group(1))
+        return bytes([tag]) + struct.pack("<I", _int_in(m.group(2), 0, 0xFFFFFFFF, None, "tag%d" % tag))
     m = _NAMED_LEAF_RE.match(s)
     if m:
         from . import script as _script
@@ -910,12 +913,12 @@ def operand_text(buf, off, op=None, ai=None):
     `(expr)` for runtime expressions, leaf forms verbatim, or `@0xOFF` when the bytes
     cannot be rendered (the assembler then reuses them in place). With the statement's
     opcode `op` and argument index `ai`, a tag-3/4 constant in a known slot is written
-    actor(Name) / map(MAP_NAME) (see script.leaf_slot_kind); otherwise localvar/globalvar[N]."""
+    raw, as tag3(N) / tag4(N): actor(Name) / map(MAP_NAME) are our reading of the slot
+    (script.leaf_slot_kind), so the listing's comment shows them. Value names (opcode_table
+    `value_names`) likewise stay numbers here and appear in the comment."""
     if off is None or not (0 <= off < len(buf)):
         return "@0x%04x" % (off or 0)
     t = buf[off]
-    if t in (3, 4) and op is not None:
-        return script.arg_repr(buf, off, op, ai)
     if t in (0x11, 0x12, 0x13) and (op, ai) in script.meta.MODE_ARG_SLOTS:
         return script.meta.MODE_LEAF_WORDS[t]
     if t in (3, 4, 5, 0x11, 0x12, 0x13):
@@ -1025,6 +1028,10 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 try:
                     arg_strs = script.stmt_arg_strs(buf, st)
                     pretty = script.render_action(st.op, arg_strs)
+                    if pretty is None and friendly and any(a.startswith("tag") for a in args):
+                        # a tag3 / tag4 constant: show it as the actor / map it names
+                        pretty = action_line(st.op, [n if a.startswith("tag") else a
+                                                     for a, n in zip(args, arg_strs)])
                 except Exception:
                     pretty = None
                 bits = []

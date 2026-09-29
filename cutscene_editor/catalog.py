@@ -18,7 +18,8 @@ LOCALES = ["eng", "jpn", "deu", "fra", "kor", "twn", "chn"]
 SOURCE_SYNTAX_HELP = (
     "Listing syntax -- one statement per line, `;` starts a comment, `Lx:` is a label, the\n"
     "`0123:` address prefixes the disassembler prints are ignored (paste listings back verbatim):\n"
-    "  FRAME 0                          frame setup (reserve N operand slots; scenes start with it)\n"
+    "  FRAME 2                          reserve stack room for nested argument expressions (added\n"
+    "                                   and sized by itself when the code needs it; optional)\n"
     "  DIALOG #8709                     show rf3mc line 8709 (speaker = the last SetSpeaker)\n"
     "  SetSpeaker(Nancy, Left, 3, 0)    action: name(args) -- mnemonic | technical name | opN\n"
     "  GivePlayerItem(258, reg0 + 1, 0) args: int, expression, enum name, regN, arr[N], @0xOFF (reuse)\n"

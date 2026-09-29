@@ -75,25 +75,17 @@ def _use_game_paths():
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
 from guiutil import err_text
-ACTOR_NAMES_PATH = _refdata_path("rf4s_actor_names.json")   # vendored in modding/refdata/
-
-
 def _load_actor_names():
-    try:
-        return gen.load_actor_names(ACTOR_NAMES_PATH)
-    except Exception:
-        return lambda i: ""
+    """id -> name: the game's rf3TxtNpc (gamenames), else the built-in list."""
+    from rf4s_modkit import gamenames
+    tbl = gamenames.table("characters")
+    return lambda i: tbl.get(i, "")
 
 
 def _load_item_names() -> dict[int, str]:
-    """tools/rf4s_item_names.json as {int id: name} (empty dict if absent)."""
-    try:
-        import json as _json
-        raw = _json.loads((ACTOR_NAMES_PATH.parent / "rf4s_item_names.json")
-                          .read_text(encoding="utf-8"))
-        return {int(k): v for k, v in raw.items()}
-    except Exception:
-        return {}
+    """{item id: name}: the game's rf3TxtItem, else the built-in list."""
+    from rf4s_modkit import gamenames
+    return dict(gamenames.table("items"))
 
 
 def _find_extracted(basename: str):
@@ -108,13 +100,9 @@ def _find_extracted(basename: str):
 
 
 def _load_char_names() -> dict[int, str]:
-    """char_names.json as {int id: name} (vendored modding/refdata/; empty if absent)."""
-    try:
-        import json as _json
-        raw = _json.loads(_refdata_path("char_names.json").read_text(encoding="utf-8"))
-        return {int(k): v for k, v in raw.items()}
-    except Exception:
-        return {}
+    """{character id: name}: the game's rf3TxtNpc, else the built-in list."""
+    from rf4s_modkit import gamenames
+    return dict(gamenames.table("characters"))
 
 MAX_TABLE_ROWS = 5000  # cap rows shown in big tables (TEXT catalogs are 100k+)
 
@@ -4414,10 +4402,9 @@ class App:
         sch = t.schema(stem)
         # row-name fn (item names) if the schema asks for it
         namefn = (lambda i: "")
-        if sch and sch.get("names") == "item" and ACTOR_NAMES_PATH.parent.joinpath("rf4s_item_names.json").is_file():
-            import json as _json
-            tbl = _json.loads((ACTOR_NAMES_PATH.parent / "rf4s_item_names.json").read_text(encoding="utf-8"))
-            namefn = lambda i: tbl.get(str(i), "")
+        if sch and sch.get("names") == "item":
+            tbl = _load_item_names()
+            namefn = lambda i: tbl.get(i, "")
 
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"NLCL {stem}: {t.entry_count} records × {t.record_size} B"
@@ -4570,11 +4557,8 @@ class App:
         doc._param = t
         stem = "rf3CropParam"
         namefn = (lambda i: "")
-        itemjson = ACTOR_NAMES_PATH.parent / "rf4s_item_names.json"
-        if itemjson.is_file():
-            import json as _json
-            tbl = _json.loads(itemjson.read_text(encoding="utf-8"))
-            namefn = lambda i: tbl.get(str(i), "")
+        tbl = _load_item_names()
+        namefn = lambda i: tbl.get(i, "")
 
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"rf3CropParam: {t.entry_count} crops × {t.record_size} B  "

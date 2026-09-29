@@ -347,12 +347,15 @@ class Inspector(ScrollFrame):
             if lbl:
                 notes.append("= " + lbl)
             notes += txt.arg_notes(st, i)
+            if script.meta.arg_verified(st.op, i):
+                notes.append("✓ verified in game")
             if hint_txt:
                 notes.append(hint_txt)
             if choices:
                 labels = ["%d  %s" % (val, lab) + (("  (%s)" % d) if d else "") for val, lab, d in choices]
                 pick = FilterCombo(box, labels, lambda t, i=i: to_int(t.split()[0]) is not None
-                                   and app.set_arg(st.pc, i, t.split()[0]), width=34)
+                                   and app.set_arg(st.pc, i, script.meta.value_name(st.op, i, to_int(t.split()[0]))
+                                                   or t.split()[0]), width=34)
                 num, ok = script.arg_constant(buf, off)
                 cur = next((s for s, (val, _l, _d) in zip(labels, choices) if ok and val == num), "")
                 pick.var.set(cur)
@@ -376,7 +379,9 @@ class Inspector(ScrollFrame):
         if kind not in ("actor", "map", "item") or not opts:
             return
         tok = dict(opts)
-        cur = next((d for d, t in opts if t == var.get().strip()), "")
+        # the entry holds the raw tag3(N) / tag4(N); the picker lists the named form
+        named = script.arg_repr(self.app.bank.data, st.args[i], st.op, i) if i < len(st.args) else ""
+        cur = next((d for d, t in opts if t in (var.get().strip(), named)), "")
         pick = FilterCombo(box, [d for d, _t in opts],
                            lambda d, i=i: d in tok and self.app.set_arg(st.pc, i, tok[d]), width=34)
         pick.var.set(cur)

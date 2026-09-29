@@ -404,6 +404,19 @@ class CutsceneExplorer:
             self.inspector.pack(fill="both", expand=True)
         self.right_pane = which
 
+    def triggers_visible(self):
+        try:
+            return self.nb.select() == str(self.triggers)
+        except tk.TclError:
+            return False
+
+    def trigger_selected(self, typ, rec):
+        """A Triggers-tab row was selected -- by the user, or re-selected when the tab
+        refreshes after an edit. Only while the Triggers tab is showing does its detail
+        take the right-hand pane; on the other tabs the Inspector keeps it."""
+        if self.triggers_visible():
+            self.show_trigger(typ, rec)
+
     def show_trigger(self, typ, rec):
         """Show a trigger type / entry (Triggers tab selection) in the right-hand pane."""
         self.trigger_detail.show(typ, rec)
@@ -897,14 +910,9 @@ class CutsceneExplorer:
         return ", ".join(["-1"] * n) if n else ""
 
     def new_scene_template(self):
-        lid = None
-        if self.sel is not None:
-            st = self.stmt(self.sel[0])
-            if st is not None and st.mnem == "DIALOG":
-                lid = st.dialog_id
-        if lid is None and self.scene is not None:
-            lid = next((st.dialog_id for st in self.scene.stmts.values() if st.mnem == "DIALOG"), None)
-        return "FRAME 0\nDIALOG #%d\nEND\n" % (lid if lid is not None else 0)
+        """A new scene starts empty. The FRAME its code needs is added / raised by itself on
+        every edit (bankrelink.BankModel.ensure_frames), so nobody has to write one."""
+        return "RET\n"
 
     def shadow_note(self, bank, type_id, position=None):
         try:
@@ -939,8 +947,9 @@ class CutsceneExplorer:
         except ValueError as e:
             messagebox.showinfo("New scene", err_text(e))
             return None
-        err = self.assemble_check(body)[2] if (body or "").strip() else \
-            "the body needs at least one statement (FRAME 0 / DIALOG #id / END)"
+        if not (body or "").strip():
+            body = "RET"                         # an empty scene
+        err = self.assemble_check(body)[2]
         if err:
             messagebox.showinfo("New scene", err)
             return None

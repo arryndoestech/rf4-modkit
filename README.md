@@ -548,9 +548,9 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
   *As new line* (a fresh id in every locale) and *Show other locales*; a **speaker** picker with
-  the portrait side; each **action argument** in listing syntax (`actor(Forte)`,
-  `map(MAP_CITY_00)`, `FLG_X + 1`, `@0xNNNN` for an existing expression) with a named-value
-  picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
+  the portrait side; each **action argument** in listing syntax (`tag3(4)`, `tag4(24)`,
+  `FLG_X + 1`, `@0xNNNN` for an existing expression; `actor(Forte)` / `map(MAP_CITY_00)` can be
+  typed too) with a character / map / named-value picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
   every other offset are untouched); each **choice option**'s text, line id and destination.
   *Add after* inserts a spoken line (speaker + text) or any statements in listing syntax,
   *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
@@ -644,6 +644,44 @@ For writing by hand, the **Source** tab holds the whole scene as editable listin
 bit id, width, value range and Japanese label, plus the recovered zone-2 bits), the functions
 verified in game (with everything the opcode table knows about each), and the character, map and
 item ids with the form an argument takes. Double-click copies.
+
+**Names come from your game.** Character, item, map and skill names are read from the game's
+own English text files (`rf3TxtNpc_split2_1.eng`, `rf3TxtItem_split2_1.eng`, `rf3TxtMapName.eng`,
+`rf3TxtSkill_split2_1.eng`). The toolkit uses the copy the game loads, so one in `Bundle\00_mods`
+wins over `bundleMain`. A mod that renames a character therefore shows the new name in every
+picker, comment and map-editor label, and `actor(NewName)` is accepted when typing. A saved
+change to one of these files is picked up within half a second, with no restart, and so is a
+`00_mods` copy being added or removed. Without a game folder, or when one of the files is
+missing, the toolkit falls back to the lists it ships with (`refdata/`), which match the
+unmodded game. Flag names come from your `emdeb.bin` and sound names from your
+`*_audio_data.bdat` in the same way.
+
+**Testing instructions in game (`optest.py`).** Verification is kept per argument, not only per
+instruction. In `rf4s_modkit/opcode_table.json` every argument has its own `human_verified` flag
+and a `tests` log (date, the call, what was seen). An argument whose value is a code can list
+`value_names`, for example ModifyPlayerResource's `resource`: `100` = `gold`, `105` = `stone`.
+The assembler reads the name (`ModifyPlayerResource(gold, add, 1234)`) and the pickers offer it. The
+listing keeps the game's own number and names it in the statement's comment:
+`ModifyPlayerResource(100, add, 1234)   ; ModifyPlayerResource(gold, add, 1234)`. Typed
+constants work the same way: the listing writes the raw `tag3(0)` and the comment shows
+`actor(player)`. Each name records whether it was seen working in game. True aliases and
+families such as SetSpeaker share one set of arguments, so a test of one counts for all of them.
+The Reference, the instruction picker and the Inspector mark verified arguments with ✓.
+
+```bash
+python optest.py status                    # verified instructions that still have unverified arguments
+python optest.py status ModifyPlayerResource   # one instruction: arguments, value names, tests
+python optest.py sweep "ShowActorEmote(actor(player), {v})" 1-26 --then "ShowActorEmote(actor(player), none)"
+python optest.py restore MAP_F_ROOM_00     # put that map's scenes back as the game shipped them
+python optest.py record 417 --call "ModifyPlayerResource(gold, add, 1234)" --observed "gold +1234" --arg 0 --value 0:100=gold
+```
+
+A *sweep* tries each value in turn, to find out what the values of an argument do. For each value,
+a dialogue box first says "The result: *N* points", then the call runs with that value and the
+scene holds for 2 seconds. It goes into the entry scene of a map (`--map`, the Dragon Room by
+default), which runs every time you walk in. That scene starts while the warp's black screen is
+still up, so the sweep waits half a second first. Otherwise a fade or anything else on screen
+would be hidden.
 
 **No restart for scenes:** *⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
 game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the

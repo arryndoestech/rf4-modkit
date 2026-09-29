@@ -559,8 +559,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
             return "break"
         text = body.get("1.0", "end-1c")
         if not text.strip():
-            err.config(text="the body needs at least one statement (FRAME 0 / DIALOG #id / END)")
-            return "break"
+            text = "RET"                         # an empty scene
         e = app.assemble_check(text, base=len(bank.data))[2]
         if e:
             err.config(text=e)
