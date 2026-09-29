@@ -31,6 +31,142 @@ def count_statements(text):
 
 
 # --------------------------------------------------------------------------- #
+class BankListingTab(ttk.Frame):
+    """The whole open bank as one read-only listing (Options -> Advanced): every scene, the
+    ones no trigger registers included, one after another in the `rf4mod script listing
+    --bank N` format with dialogue comments. Find jumps between matches; a double click opens
+    that scene at that statement; Save as... writes the text out."""
+
+    def __init__(self, parent, app):
+        super().__init__(parent)
+        self.app = app
+        bar = ttk.Frame(self)
+        bar.pack(fill="x", padx=2, pady=2)
+        ttk.Label(bar, text="Find").pack(side="left", padx=(2, 2))
+        self.find_var = tk.StringVar()
+        fe = ttk.Entry(bar, textvariable=self.find_var, width=28)
+        fe.pack(side="left")
+        fe.bind("<Return>", lambda _e: self.find_next())
+        fe.bind("<Shift-Return>", lambda _e: self.find_next(back=True))
+        Tip(fe, "Enter: next match, Shift+Enter: previous (not case-sensitive).")
+        self.find_var.trace_add("write", lambda *_: self._mark_all())
+        b = ttk.Button(bar, text="Save as…", command=self.save_as)
+        b.pack(side="right", padx=2)
+        Tip(b, "Write the listing to a text file.")
+        self.info = ttk.Label(bar, text="", font=("Segoe UI", 8), foreground="#666")
+        self.info.pack(side="left", padx=8)
+        box = ttk.Frame(self)
+        box.pack(fill="both", expand=True)
+        sb = ttk.Scrollbar(box)
+        sb.pack(side="right", fill="y")
+        xs = ttk.Scrollbar(box, orient="horizontal")
+        xs.pack(side="bottom", fill="x")
+        self.text = tk.Text(box, wrap="none", font=("Consolas", 10), yscrollcommand=sb.set,
+                            xscrollcommand=xs.set, **DARK)
+        self.text.pack(side="left", fill="both", expand=True)
+        sb.config(command=self.text.yview)
+        xs.config(command=self.text.xview)
+        self.text.tag_configure("cmt", foreground="#7c8c7c")
+        self.text.tag_configure("head", foreground="#e0b060")
+        self.text.tag_configure("hit", background="#4a4a10")
+        self.text.tag_configure("cur", background="#8a6a10")
+        self.text.bind("<Double-Button-1>", self._open_line)
+        self.text.bind("<Key>", lambda e: None if (e.state & 0x4 or e.keysym in (
+            "Up", "Down", "Left", "Right", "Prior", "Next", "Home", "End")) else "break")
+        Tip(self.text, "Double-click a statement to open its scene there.")
+        self._key = None
+        self.line_at = []                   # line number (1-based) - 1 -> (entry_pc, pc | None)
+
+    def render(self, force=False):
+        """(Re)build the listing when the bank or its bytes changed since the last time."""
+        app = self.app
+        bank = getattr(app, "bank", None)
+        key = (app.bank_pos, bytes(bank.data) if bank is not None else None, app.doc.locale)
+        if not force and key == self._key:
+            return
+        self._key = key
+        t = self.text
+        t.delete("1.0", "end")
+        self.line_at = []
+        if bank is None:
+            self.info.config(text="open a bank on the left")
+            return
+        parts, n = [], 0
+        for sc in script.disassemble_bank(bank):
+            try:
+                txt = scriptasm.scene_listing(sc, bank, dialog=app.doc.text, bank_no=app.bank_pos)
+            except Exception as e:  # noqa: BLE001 -- one broken scene must not hide the rest
+                txt = "; scene @0x%04x: %s" % (sc.entry_pc, err_text(e))
+            n += 1
+            for ln in txt.split("\n") + [""]:
+                m = re.match(r"^\s*([0-9a-fA-F]{4}):", ln)
+                self.line_at.append((sc.entry_pc, int(m.group(1), 16) if m else None))
+                parts.append(ln)
+        t.insert("1.0", "\n".join(parts))
+        for i, ln in enumerate(parts, 1):
+            if ln.startswith(";"):
+                t.tag_add("head", "%d.0" % i, "%d.end" % i)
+            else:
+                c = ln.find(";")
+                if c >= 0:
+                    t.tag_add("cmt", "%d.%d" % (i, c), "%d.end" % i)
+        self.info.config(text="%s · %d scenes · %d lines" % (catalog.bank_title(bank), n, len(parts)))
+        self._mark_all()
+
+    def _mark_all(self):
+        t = self.text
+        t.tag_remove("hit", "1.0", "end")
+        t.tag_remove("cur", "1.0", "end")
+        q = self.find_var.get()
+        if not q:
+            return
+        pos, n = "1.0", 0
+        while True:
+            pos = t.search(q, pos, "end", nocase=True)
+            if not pos:
+                break
+            end = "%s+%dc" % (pos, len(q))
+            t.tag_add("hit", pos, end)
+            pos, n = end, n + 1
+        self.info.config(text=self.info.cget("text").split("  ·  ")[0] + "  ·  %d matches" % n)
+
+    def find_next(self, back=False):
+        q = self.find_var.get()
+        if not q:
+            return
+        t = self.text
+        start = t.index("insert" if back else "insert+1c")
+        pos = t.search(q, start, backwards=back, nocase=True) or t.search(
+            q, "end" if back else "1.0", backwards=back, nocase=True)
+        if not pos:
+            return
+        t.tag_remove("cur", "1.0", "end")
+        t.tag_add("cur", pos, "%s+%dc" % (pos, len(q)))
+        t.mark_set("insert", pos)
+        t.xview_moveto(0)                   # keep the addresses / labels in view when the match fits
+        t.see(pos)
+
+    def _open_line(self, e):
+        line = int(self.text.index("@%d,%d" % (e.x, e.y)).split(".")[0])
+        if not 0 < line <= len(self.line_at):
+            return "break"
+        entry_pc, pc = self.line_at[line - 1]
+        self.app.open_scene(self.app.bank_pos, entry_pc, focus_pc=pc, tab="Script")
+        return "break"
+
+    def save_as(self):
+        from tkinter import filedialog
+        app = self.app
+        f = filedialog.asksaveasfilename(parent=self, defaultextension=".txt",
+                                         initialfile="bank_%s.txt" % app.bank_pos,
+                                         filetypes=[("Text", "*.txt"), ("All", "*.*")])
+        if f:
+            import pathlib
+            pathlib.Path(f).write_text(self.text.get("1.0", "end-1c"), encoding="utf-8")
+            app.status("bank listing saved to %s" % f)
+
+
+# --------------------------------------------------------------------------- #
 class SourceTab(ttk.Frame):
     """The scene as an editable listing: Check assembles it without applying, Apply makes
     the scene play the new body (appended; the scene's entry jumps to it; nothing moves)."""

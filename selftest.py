@@ -6480,6 +6480,78 @@ def test_textlint():
         _skip("shipped text passes textlint", "rf3mc.eng not extracted")
 
 
+def test_cutscene_bank_listing():
+    """Options -> Advanced 'Bank listing tab': off by default; on, the Cutscene Editor gets a
+    read-only tab with every scene of the open bank (registered and discovered), Find marks
+    the matches, a double click opens that scene at that statement; the toolbar keeps the
+    setting when it saves its own."""
+    print("cutscene editor: whole-bank listing tab (Options -> Advanced):")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("bank listing", f"cutscene_editor/tkinter not importable ({e})")
+        return
+    from rf4s_modkit import script
+    if not _first("rf3.mc"):
+        _skip("bank listing", "rf3.mc not extracted")
+        return
+
+    def reader(n):
+        f = _first(n)
+        return f.read_bytes() if f else None
+
+    CE = ce.CutsceneExplorer
+    default_off = CE.bank_listing_setting() is False
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("bank listing", f"no display for Tk ({e})")
+            return
+        ex = CE(tk.Toplevel(root), reader=reader)
+        tabs0 = [ex.nb.tab(t, "text") for t in ex.nb.tabs()]
+        CE.set_bank_listing_setting(True)
+        ex.show_bank_listing(True)
+        ex._save_prefs()                         # the toolbar's own save keeps the option
+        kept = CE.bank_listing_setting()
+        bank = ex.doc.container.n_primary + 272  # MAP_DUNG_A02: boss scenes + a shared SetFlagBit body
+        ex.show_bank(bank)
+        ex.nb.select(ex.listing)
+        ex._tab_changed()
+        txt = ex.listing.text.get("1.0", "end-1c")
+        n_scenes = len(script.disassemble_bank(ex.doc.container.banks[bank]))
+        heads = len(re.findall(r"^; container bank %d " % bank, txt, re.M))
+        ex.listing.find_var.set("SetFlagBit(99")
+        hits = len(ex.listing.text.tag_ranges("hit")) // 2
+        line = next(i for i, (e, pc) in enumerate(ex.listing.line_at, 1) if pc == 0x0290)
+        entry = ex.listing.line_at[line - 1][0]
+        bb = ex.listing.text.bbox("%d.4" % line) or (0, 0, 0, 0)
+        ex.listing.text.see("%d.4" % line)
+        root.update_idletasks()
+        bb = ex.listing.text.bbox("%d.4" % line) or bb
+        ev = type("E", (), {"x": bb[0] + 1, "y": bb[1] + 1})()
+        ex.listing._open_line(ev)
+        opened = (ex.scene is not None and ex.scene.entry_pc == entry
+                  and ex.nb.select() == str(ex.view))
+        CE.set_bank_listing_setting(False)
+        ex.show_bank_listing(False)
+        tabs1 = [ex.nb.tab(t, "text") for t in ex.nb.tabs()]
+    finally:
+        CE.set_bank_listing_setting(False)
+        if root is not None:
+            root.destroy()
+    _check("the Bank listing tab is off by default and appears / goes when the option changes; "
+           "the toolbar's own save keeps the option",
+           default_off and "Bank listing" not in tabs0 and kept and "Bank listing" not in tabs1,
+           (tabs0, kept, tabs1))
+    _check("it lists every scene of the bank (one header each), Find marks the matches",
+           n_scenes > 3 and heads == n_scenes and hits >= 4, (n_scenes, heads, hits))
+    _check("a double click on a statement opens its scene in the Script tab", opened, (line, entry))
+
+
 def test_cutscene_editor_authoring():
     """Headless drive of the cutscene editor's authoring surfaces: Source tab (listing,
     Check, Apply to scene), listing-syntax insert, Triggers tab (New scene on an empty map
@@ -7893,6 +7965,17 @@ def test_explorer_tabs():
             _pl[0].invoke()
         _check("'Add new lines to every language' is in Options -> Cutscene Editor and saved for the editor",
                _pl_ok and _CE.pad_locales_setting() == _pl_before)
+        _bl = [b for b in boxes if b.cget("text") == "Bank listing tab"]
+        _bl_before = _CE.bank_listing_setting()
+        if _bl:
+            _bl[0].invoke()
+        _bl_on = _CE.bank_listing_setting()
+        if _bl:
+            _bl[0].invoke()
+        _check("'Bank listing tab' is in Options -> Advanced, off by default and saved for the editor",
+               bool(_bl) and _bl_before is False and _bl_on is True
+               and _CE.bank_listing_setting() is False
+               and str(_bl[0].winfo_parent()) == app._options_nb.tabs()[-1], (_bl_before, _bl_on))
         win.destroy()
         import shortcuts_help as _sh
         hwin = _sh.open_help(app.root)
@@ -7910,7 +7993,7 @@ def test_explorer_tabs():
         _check("Options… is on the toolbar (Game folder… moved into it), opens one window, and its tick box "
                "switches the mouse wheel between zoom and scroll (saved in settings.json)",
                "Options…" in bar_texts and "Game folder…" not in bar_texts
-               and again is win and len(boxes) == 4 and ticked_before
+               and again is win and len(boxes) == 5 and ticked_before
                and after_untick == ("scroll", "scroll") and after_tick == "zoom",
                (bar_texts, ticked_before, after_untick, after_tick))
         _check("explorer tabs raised no callback errors", not errs, str(errs[:1]))
@@ -14224,7 +14307,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

@@ -1084,6 +1084,24 @@ class App:
         # -- Advanced: backups (off by default)
         adv = tab("Advanced")
         self._options_backups(adv, win)
+        ttk.Label(adv, text="Cutscene Editor", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        self._bank_listing = tk.BooleanVar(value=CutsceneExplorer.bank_listing_setting())
+
+        def listing_changed():
+            on = bool(self._bank_listing.get())
+            CutsceneExplorer.set_bank_listing_setting(on)
+            cur = getattr(self, "_cutscene_ed", None)      # an open editor follows at once
+            try:
+                if cur is not None and cur[0].winfo_exists():
+                    cur[1].show_bank_listing(on)
+            except tk.TclError:
+                pass
+        ttk.Checkbutton(adv, text="Bank listing tab", variable=self._bank_listing,
+                        command=listing_changed).pack(anchor="w", pady=(4, 0))
+        ttk.Label(adv, text="Adds a tab with the whole open bank as one read-only listing: every "
+                            "scene, also those no trigger starts, with the code they share. Find "
+                            "searches it; a double click opens that scene at that line.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
         # bottom row: the toolkit's version (commit + date, selectable for bug reports) on the
         # left, its text sitting on the same line as the bottom of Close on the right
         foot = ttk.Frame(body)

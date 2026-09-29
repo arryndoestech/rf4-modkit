@@ -87,6 +87,10 @@ class CutsceneExplorer:
         self.overview = OverviewTab(self.nb, self)
         for w, t in zip((self.view, self.source, self.triggers, self.overview), TABS):
             self.nb.add(w, text=t)
+        from .tabs import BankListingTab
+        self.listing = BankListingTab(self.nb, self)       # Options -> Advanced (off by default)
+        self._listing_shown = False
+        self.show_bank_listing(self.bank_listing_setting())
         side = ttk.Frame(paned, width=380)
         side.pack_propagate(False)
         paned.add(side, weight=0, minsize=300, width=380)
@@ -419,6 +423,8 @@ class CutsceneExplorer:
         show the Inspector (the selected statement)."""
         try:
             on_triggers = self.nb.select() == str(self.triggers)
+            if self.nb.select() == str(self.listing):
+                self.listing.render()
         except tk.TclError:
             return
         if on_triggers:
@@ -488,6 +494,35 @@ class CutsceneExplorer:
         return bool(cls._load_prefs().get("pad_locales", True))
 
     @classmethod
+    def bank_listing_setting(cls):
+        """'Bank listing tab' (Options -> Advanced): the whole open bank as one read-only
+        listing. Off by default."""
+        return bool(cls._load_prefs().get("bank_listing", False))
+
+    @classmethod
+    def set_bank_listing_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["bank_listing"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    def show_bank_listing(self, on):
+        """Add or remove the Bank listing tab (after Overview) in this editor."""
+        on = bool(on)
+        if on == self._listing_shown:
+            return
+        try:
+            if on:
+                self.nb.add(self.listing, text="Bank listing")
+            else:
+                if self.nb.select() == str(self.listing):
+                    self.nb.select(0)
+                self.nb.forget(self.listing)
+        except tk.TclError:
+            return
+        self._listing_shown = on
+
+    @classmethod
     def set_pad_locales_setting(cls, on):
         from rf4s_modkit import gamepaths
         d = dict(cls._load_prefs())
@@ -507,10 +542,11 @@ class CutsceneExplorer:
         """Remember the toolbar for the next time the editor opens."""
         try:
             from rf4s_modkit import gamepaths
-            gamepaths.set_setting(self.PREFS_KEY, {
-                "locale": self.doc.locale, "pad_locales": bool(self.pad_locales.get()),
-                "mode": self.mode.get(), "addresses": bool(self.addr.get()),
-                "opcodes": bool(self.show_ops.get())})
+            d = dict(self._load_prefs())         # keep the Options keys (bank_listing ...)
+            d.update({"locale": self.doc.locale, "pad_locales": bool(self.pad_locales.get()),
+                      "mode": self.mode.get(), "addresses": bool(self.addr.get()),
+                      "opcodes": bool(self.show_ops.get())})
+            gamepaths.set_setting(self.PREFS_KEY, d)
         except Exception:  # noqa: BLE001 -- a convenience only
             pass
 

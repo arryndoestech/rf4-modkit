@@ -311,6 +311,8 @@ packed; the original is kept in `ModdingBackup`), or back to the file you opened
 the Cutscene Editor's *⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
 restart, but the editors' character, item, map and skill names follow the saved file at once.
 
+**Bank listing** (*Options…* → Advanced, off by default): the Cutscene Editor gets a *Bank listing* tab with the whole open bank as one read-only listing (the `script listing --bank N` text): every scene, also those no trigger starts, with the code they share. *Find* marks and steps through matches (Enter / Shift+Enter), a double click opens that scene at that line, *Save as…* writes it out.
+
 **Backups** (*Options…* → Advanced, **off by default**). When on, every save of a game file (map,
 script, dialogue, text, table ...) keeps the file as it was as a *previous version*, in
 `ModdingBackup\Previous\<same folder>\<name>.<date_time>` (how many per file: your choice, the

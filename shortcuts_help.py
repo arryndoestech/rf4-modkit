@@ -100,6 +100,10 @@ SHORTCUTS = [
             ("Double-click / Enter in Find a line", "use that line"),
             ("Double-click in Callers", "go to the calling statement"),
         ]),
+        ("Bank listing tab (Options → Advanced)", [
+            ("Enter / Shift+Enter in Find", "next / previous match"),
+            ("Double-click a line", "open that scene at that statement"),
+        ]),
         ("Reference window", [
             ("Double-click / Enter on a row", "copy the name or code (Functions: open it in the "
                                               "instruction picker)"),
