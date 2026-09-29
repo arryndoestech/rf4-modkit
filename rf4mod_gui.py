@@ -104,6 +104,32 @@ def _load_char_names() -> dict[int, str]:
     from rf4s_modkit import gamenames
     return dict(gamenames.table("characters"))
 
+def _table_scrollbars(top, tv, widths=None):
+    """Scroll bars for a wide Treeview table: every column keeps its width (wide enough for its
+    heading, or widths[col]) instead of being squeezed into the window, a horizontal bar appears
+    under the table, and Shift + mouse wheel scrolls sideways."""
+    import tkinter.font as tkfont
+    try:
+        f = tkfont.nametofont("TkHeadingFont")
+    except tk.TclError:
+        f = None
+    for c in tv["columns"]:
+        text = tv.heading(c, "text") or str(c)
+        need = (f.measure(text) if f else 7 * len(text)) + 18
+        w = max(need, (widths or {}).get(c, tv.column(c, "width")))
+        tv.column(c, width=w, minwidth=40, stretch=False)
+    vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
+    hs = ttk.Scrollbar(top, orient="horizontal", command=tv.xview)
+    tv.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+    top.grid_rowconfigure(0, weight=1)
+    top.grid_columnconfigure(0, weight=1)
+    tv.grid(row=0, column=0, sticky="nsew")
+    vs.grid(row=0, column=1, sticky="ns")
+    hs.grid(row=1, column=0, sticky="ew")
+    tv.bind("<Shift-MouseWheel>", lambda e: (tv.xview_scroll(-1 if e.delta > 0 else 1, "units"), "break")[1])
+    return vs, hs
+
+
 def _fixed_tip(text, typ, bits):
     """Tooltip of a fixed-point field in the table editor: the stored integer and the scale."""
     one = 1 << bits
@@ -3716,9 +3742,7 @@ class App:
         widths = {"#": 44, "name": 170, "procs": 120, "resists": 120, "flags": 260, "status_word": 70}
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=widths.get(c, 52), anchor="w")
-        vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(side="left", fill="both", expand=True)
+        _table_scrollbars(top, tv)
 
         def fill(*_):
             tv.delete(*tv.get_children())
@@ -4641,9 +4665,7 @@ class App:
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=70 if c != "name" else 160, anchor="w")
-        vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(side="left", fill="both", expand=True)
+        _table_scrollbars(top, tv)              # wide tables scroll sideways (Shift + wheel too)
 
         name_field = sch.get("name_field") if sch else None
         name_off_typ = next(((o, ty) for n, o, ty in (sch["fields"] if sch else [])
@@ -4813,9 +4835,7 @@ class App:
         widths = {"#": 40, "grows": 150, "name": 150}
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=widths.get(c, 58), anchor="w")
-        vs = ttk.Scrollbar(top, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(side="left", fill="both", expand=True)
+        _table_scrollbars(top, tv)
 
         def is_planted(i):
             return bool(any(t.get(i, k, "u8") for k in range(3))
@@ -4940,9 +4960,7 @@ class App:
         tv = ttk.Treeview(left, columns=cols, show="headings", height=20)
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=widths[c], anchor="w")
-        vs = ttk.Scrollbar(left, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(side="left", fill="both", expand=True)
+        _table_scrollbars(left, tv)
 
         right = ttk.Frame(body); right.pack(side="left", fill="both", expand=True)
         sheet = tk.Text(right, wrap="word", width=52, height=15, font=("Consolas", 9))

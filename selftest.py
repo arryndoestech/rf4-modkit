@@ -3282,7 +3282,7 @@ def test_script():
     _check("no stale 'Mnemonic (op NNN)' cross-references in descriptions",
            not _stale_xref, "; ".join(_stale_xref[:5]))
     # ops 16..75 are one instruction SetSpeaker(character, side, ...): opcode = 16 + 2*character
-    # + side (NpcBubble_DispatchAreaInfoLine RF4S.exe+0x207F70 decodes both from the opcode)
+    # + side (Script_VMOp_SetSpeaker RF4S.exe+0x207F70 decodes both from the opcode)
     _check("SetSpeaker: one mnemonic, character + side are opcode arguments (op = 16 + 2*char + side)",
            all(om.mnemonic(o) == "SetSpeaker" for o in range(16, 76))
            and om.opcode_arg_values(16) == ["MC", "Left"] and om.opcode_arg_values(17) == ["MC", "Right"]
@@ -5943,7 +5943,7 @@ def test_script_authoring():
     _ok157 = scriptasm.assemble("op157 " + ", ".join(["1"] * 11), 0x100)[0][:4] == b"\x9d\x00\x0b\x00"
     _check("assembler rejects malformed/out-of-range fields, empty jump tables and op-157 overflow cleanly",
            _asm_bad == len(_bad_listings) and _ok157, "%d/%d" % (_asm_bad, len(_bad_listings)))
-    # speaker slots 25/26/29 are named from NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70)
+    # speaker slots 25/26/29 are named from Script_VMOp_SetSpeaker (RF4S.exe+0x207F70)
     _check("SetSpeaker slots 25/26/29 = Soldier/Ethelberd/Traveler (no old names kept)",
            script.meta.opcode_arg_values(66) == ["Soldier", "Left"]
            and script.meta.opcode_arg_values(69) == ["Ethelberd", "Right"]
@@ -7746,6 +7746,14 @@ def test_explorer_tabs():
         _check("a click on a tab with unsaved changes opens a new tab (the edited one stays, marked •)",
                len(app._docs) == 2 and a is not b and title(a).endswith("•")
                and a.cur_data != orig and app._doc is b, [title(d) for d in app._docs])
+        _tvs = [w for w in _all_widgets(b.content) if w.winfo_class() == "Treeview"]
+        _hbars = [w for w in _all_widgets(b.content) if isinstance(w, gui.ttk.Scrollbar)
+                  and str(w.cget("orient")) == "horizontal"]
+        _wide = bool(_tvs) and all(not int(_tvs[0].column(c, "stretch")) for c in _tvs[0]["columns"])
+        _check("a param table (rf3NpcParam) scrolls sideways: its columns keep their width "
+               "and a horizontal scroll bar sits under it",
+               _wide and bool(_hbars) and bool(str(_tvs[0].cget("xscrollcommand"))),
+               (len(_tvs), len(_hbars)))
         c = open_("rf3CropParam.bin")
         _check("a click on a clean tab shows the file in that same tab",
                c is b and len(app._docs) == 2 and b.cur_name.endswith("rf3CropParam.bin"))
