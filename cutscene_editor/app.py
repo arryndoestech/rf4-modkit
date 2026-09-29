@@ -1246,13 +1246,18 @@ class CutsceneExplorer:
         if path is None or not pathlib.Path(path).is_file():
             self.status("Reload: no saved rf3.mc to load (set the game folder or save first)")
             return False
-        if not hotreload.is_running():
-            self.status("Reload: RF4S.exe is not running")
+        try:
+            pid = hotreload.pick_process(self._choose_game)
+        except hotreload.HotReloadError as e:
+            self.status("Reload: %s" % err_text(e))
+            return False
+        if pid is None:
+            self.status("Reload cancelled")
             return False
         try:
             self.frame.config(cursor="watch")
             self.frame.update_idletasks()
-            r = hotreload.reload_mc(pathlib.Path(path).read_bytes())
+            r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), pid=pid)
         except hotreload.HotReloadError as e:
             self.status("Reload refused: %s" % err_text(e))
             return False
@@ -1263,6 +1268,41 @@ class CutsceneExplorer:
                 pass
         self.status(hotreload.describe(r))
         return True
+
+    def _choose_game(self, procs):
+        """Several RF4S.exe run: ask which one gets the reload (remembered while it runs)."""
+        win = tk.Toplevel(self.frame)
+        win.title("Which game?")
+        win.transient(self.frame.winfo_toplevel())
+        ttk.Label(win, text="%d copies of RF4S.exe are running. Which one should get the "
+                            "scenes? (Remembered until that game is closed.)" % len(procs),
+                  wraplength=520, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
+        lb = tk.Listbox(win, height=min(8, len(procs)), width=90, font=("Segoe UI", 9))
+        for p in procs:
+            lb.insert("end", p.label())
+        lb.selection_set(0)
+        lb.pack(fill="x", padx=10)
+        out = {"p": None}
+
+        def ok(_e=None):
+            s = lb.curselection()
+            if s:
+                out["p"] = procs[s[0]]
+            win.destroy()
+        bb = ttk.Frame(win)
+        bb.pack(fill="x", padx=10, pady=10)
+        ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right")
+        ttk.Button(bb, text="Reload into this one", command=ok).pack(side="right", padx=4)
+        lb.bind("<Double-Button-1>", ok)
+        lb.bind("<Return>", ok)
+        win.bind("<Escape>", lambda _e: win.destroy())
+        lb.focus_set()
+        try:
+            win.grab_set()
+        except tk.TclError:
+            pass
+        win.wait_window()
+        return out["p"]
 
     def _save_em_names(self):
         """Keep the names of custom em.bin entries: emdeb.bin (the game's debug name table) is

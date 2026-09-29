@@ -1967,7 +1967,8 @@ def cmd_script_reload(a):
     if path is None:
         raise SystemExit("no rf3.mc given and no game folder set")
     try:
-        r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), force=a.force)
+        pid = a.pid or hotreload.pick_process()
+        r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), pid=pid, force=a.force)
     except hotreload.HotReloadError as e:
         if e.technical:                     # a toolkit / build problem: the full block for a bug report
             import guiutil
@@ -1982,7 +1983,7 @@ def cmd_script_live(a):
     """What the running game holds of rf3.mc (read only)."""
     from rf4s_modkit import hotreload
     try:
-        st = hotreload.status()
+        st = hotreload.status(a.pid or hotreload.pick_process())
     except hotreload.HotReloadError as e:
         raise SystemExit(str(e))
     print(f"RF4S.exe pid {st['pid']}: rf3.mc {'resident' if st['resident'] else 'not loaded yet'}")
@@ -4171,10 +4172,13 @@ def build_parser():
                             "(any size; refused while a scene is running)")
     scrl.add_argument("file", nargs="?", help="rf3.mc to load (default: the one the game loads "
                       "from the game folder)")
+    scrl.add_argument("--pid", type=int, help="the game process to reload into, when several "
+                      "RF4S.exe run (default: the only one)")
     scrl.add_argument("--force", action="store_true",
                       help="reload even while a scene is running (that scene will misbehave)")
     scrl.set_defaults(func=cmd_script_reload)
     sclv = scsub.add_parser("live", help="show what the running game holds of rf3.mc (read only)")
+    sclv.add_argument("--pid", type=int, help="the game process, when several RF4S.exe run")
     sclv.set_defaults(func=cmd_script_live)
     sc3 = scsub.add_parser("set-dialog", help="retarget a DIALOG to another line id")
     sc3.add_argument("file"); sc3.add_argument("--bank", type=int, required=True)

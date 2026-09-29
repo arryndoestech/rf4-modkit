@@ -1518,6 +1518,37 @@ def test_hotreload_image():
     _check("refused: max-size words below the biggest bank, a bank past EOF, not MYCF, truncated",
            all(errs) and "overflow" in errs[0], errs)
     _check("ctz loop = the game's (32 for a zero mask)", H._ctz_loop(0) == 32 and H._ctz_loop(0xF000) == 12)
+    # several RF4S.exe: ask once, remember the pick while that process runs; one: no question
+    _gp, _ch = H.game_processes, dict(H._CHOSEN)
+    try:
+        a_, b_ = H.GameProcess(111, r"C:\Games\A\RF4S.exe", 1000), H.GameProcess(222, r"D:\B\RF4S.exe", 2000)
+        H._CHOSEN["key"] = None
+        asked = []
+
+        def _choose(procs):
+            asked.append(len(procs))
+            return procs[1]
+        H.game_processes = lambda name=H.EXE_NAME: [a_, b_]
+        first, again = H.pick_process(_choose), H.pick_process(_choose)
+        try:
+            H._CHOSEN["key"] = None
+            H.pick_process()
+            cli_msg = ""
+        except H.HotReloadError as e:
+            cli_msg = str(e)
+        H.game_processes = lambda name=H.EXE_NAME: [H.GameProcess(222, r"D:\B\RF4S.exe", 3000), a_]
+        H._CHOSEN["key"] = (222, 2000)                  # pid 222 reused by a NEW process
+        reused = H.pick_process(lambda procs: procs[1])
+        H.game_processes = lambda name=H.EXE_NAME: [a_]
+        single = H.pick_process(lambda procs: (_ for _ in ()).throw(AssertionError("asked")))
+        _check("hot reload with several games: asks once and remembers the pick while it runs, a "
+               "reused pid is not the same game, one game is used without asking, the CLI needs --pid",
+               first == 222 and again == 222 and asked == [2] and reused == 111 and single == 111
+               and "--pid" in cli_msg and "111" in cli_msg,
+               (first, again, asked, reused, single, cli_msg))
+    finally:
+        H.game_processes = _gp
+        H._CHOSEN.update(_ch)
     ap = _cli.build_parser() if hasattr(_cli, "build_parser") else None
     if ap is not None:
         ns = ap.parse_args(["script", "reload", "--force"])

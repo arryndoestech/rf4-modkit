@@ -80,26 +80,110 @@ class _MBI(ctypes.Structure):
                 ("Type", wt.DWORD)]
 
 
-def find_pid(name=EXE_NAME):
-    """PID of the running game, or None."""
+def find_pids(name=EXE_NAME):
+    """PIDs of every running game process (tasklist), in its order."""
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq %s" % name, "/FO", "CSV", "/NH"],
                              capture_output=True, text=True, timeout=10,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
     except (OSError, subprocess.SubprocessError):
-        return None
+        return []
+    pids = []
     for line in out.splitlines():
         parts = [p.strip('"') for p in line.split('","')]
         if len(parts) > 1 and parts[0].strip('"').lower() == name.lower():
             try:
-                return int(parts[1])
+                pids.append(int(parts[1]))
             except ValueError:
                 pass
-    return None
+    return pids
+
+
+def find_pid(name=EXE_NAME):
+    """PID of the running game (the first one), or None."""
+    pids = find_pids(name)
+    return pids[0] if pids else None
 
 
 def is_running():
-    return find_pid() is not None
+    return bool(find_pids())
+
+
+class GameProcess:
+    """One running game: pid, exe path and start time (a pid reused by a new process gets a
+    different start time, so a remembered choice does not follow it)."""
+
+    __slots__ = ("pid", "path", "started")
+
+    def __init__(self, pid, path, started):
+        self.pid, self.path, self.started = pid, path, started
+
+    def label(self):
+        import datetime
+        when = ""
+        if self.started:
+            # FILETIME: 100 ns ticks since 1601-01-01 UTC
+            t = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=self.started // 10)
+            when = t.replace(tzinfo=datetime.timezone.utc).astimezone().strftime("%H:%M:%S")
+        folder = self.path.rsplit("\\", 1)[0] if self.path else "?"
+        return "pid %d · started %s · %s" % (self.pid, when or "?", folder)
+
+    def key(self):
+        return (self.pid, self.started)
+
+
+def game_processes(name=EXE_NAME):
+    """[GameProcess] for every running game."""
+    out = []
+    if not hasattr(ctypes, "WinDLL"):
+        return out
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    k.OpenProcess.restype = wt.HANDLE
+    k.QueryFullProcessImageNameW.argtypes = [wt.HANDLE, wt.DWORD, ctypes.c_wchar_p, ctypes.POINTER(wt.DWORD)]
+    k.GetProcessTimes.argtypes = [wt.HANDLE] + [ctypes.POINTER(ctypes.c_ulonglong)] * 4
+    for pid in find_pids(name):
+        path, started = "", 0
+        h = k.OpenProcess(0x1000, False, pid)          # PROCESS_QUERY_LIMITED_INFORMATION
+        if h:
+            try:
+                buf = ctypes.create_unicode_buffer(1024)
+                n = wt.DWORD(len(buf))
+                if k.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)):
+                    path = buf.value
+                t = [ctypes.c_ulonglong() for _ in range(4)]
+                if k.GetProcessTimes(h, *[ctypes.byref(x) for x in t]):
+                    started = t[0].value
+            finally:
+                k.CloseHandle(h)
+        out.append(GameProcess(pid, path, started))
+    return out
+
+
+_CHOSEN = {"key": None}          # (pid, start time) of the game picked while several run
+
+
+def pick_process(choose=None):
+    """The pid to hot-reload into. One running game: that one. Several: the one picked before
+    while it still runs, else `choose([GameProcess])` -> the chosen GameProcess or None
+    (cancelled); the pick is remembered until that process ends. Raises HotReloadError when
+    none runs, or when several run and there is no `choose` (the CLI: pass --pid)."""
+    procs = game_processes()
+    if not procs:
+        raise HotReloadError("%s is not running" % EXE_NAME)
+    if len(procs) == 1:
+        _CHOSEN["key"] = procs[0].key()
+        return procs[0].pid
+    for p in procs:
+        if p.key() == _CHOSEN["key"]:
+            return p.pid
+    if choose is None:
+        raise HotReloadError("%d copies of %s are running (%s): pick one with --pid"
+                             % (len(procs), EXE_NAME, ", ".join(str(p.pid) for p in procs)))
+    got = choose(procs)
+    if got is None:
+        return None
+    _CHOSEN["key"] = got.key()
+    return got.pid
 
 
 class _Game:
