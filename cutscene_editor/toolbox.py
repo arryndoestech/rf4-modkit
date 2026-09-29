@@ -7,8 +7,8 @@ Reference (toolbar "Reference"): searchable lists of what a scene can name --
     `human_verified`), with everything the table knows about each;
   * Characters, Maps, Items: the ids and the listing form an argument takes.
 
-Instruction picker (the Script view's right-click menu, the Insert key, the Inspector's Add
-before / Add after): every instruction by category, a form with one
+Instruction picker (the Script view's right-click menu, the Insert key): every instruction by
+category, a form with one
 field per argument (character / map / item / flag / enum pickers where the table knows the
 type), a live listing preview that can also be edited by hand, and Insert before / after the
 selected statement. The preview is plain listing text, so everything goes through the same
@@ -490,7 +490,8 @@ class MapPointPicker:
     show_grid = False                   # remembered for the session
     TITLE = "Pick a position on the map"
     USE_TEXT = "Use this position"
-    HELP = ("Click = place the point · double-click = use it and close · wheel = zoom · "
+    HELP = ("Click = place the point · double-click = use it and close · wheel = zoom (or scroll: "
+            "Options → Map editor) · "
             "middle-drag = pan. Values are in 1/8 tiles (8 per tile), as the script stores "
             "them; the white markers are this map's scripted NPC spawns.")
 
@@ -586,7 +587,8 @@ class MapBoxPicker(MapPointPicker):
 
     TITLE = "Draw a box on the map"
     USE_TEXT = "Use this box"
-    HELP = ("Drag = draw the box · wheel = zoom · middle-drag = pan. Values are in 1/8 tiles "
+    HELP = ("Drag = draw the box · wheel = zoom (or scroll: Options → Map editor) · middle-drag = "
+            "pan. Values are in 1/8 tiles "
             "(8 per tile), the units trigger boxes compare the player's position in.")
 
     def __init__(self, parent, map_id, box, on_pick, lock=None, note=None):

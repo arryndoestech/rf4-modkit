@@ -677,7 +677,6 @@ class App:
         om.add_command(label="File…", command=self.cmd_open_file)
         om.add_command(label="Folder…", command=self.cmd_open_folder)
         self._open_btn.pack(side="left", padx=2, pady=3)
-        ttk.Button(bar, text="Game folder…", command=self.cmd_game_folder).pack(side="left", padx=2)
         ttk.Button(bar, text="Options…", command=self.cmd_options).pack(side="left", padx=2)
         # shown only while something other than the game is listed (see load_source)
         self._back_btn = ttk.Button(bar, text="Back to the game", command=self.cmd_back_to_game)
@@ -693,7 +692,14 @@ class App:
         self.export_btn.pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
-        # the list filters, kept together at the right end of the toolbar
+        # Help (every shortcut) at the very right, then the list filters
+        import shortcuts_help
+        hb = ttk.Button(bar, text="Help", command=lambda: shortcuts_help.open_help(self.root))
+        hb.pack(side="right", padx=(2, 4))
+        from guiutil import Tip as _Tip
+        _Tip(hb, "Every keyboard shortcut and mouse gesture of the toolkit: the explorer, the map "
+                 "editor, the Cutscene Editor, the Event Manager and the text editor.")
+        self._help_btn = hb
         flt = ttk.Frame(bar)
         flt.pack(side="right", padx=(0, 4))
         ttk.Separator(bar, orient="vertical").pack(side="right", fill="y", padx=6)
@@ -766,6 +772,7 @@ class App:
         self._tab_menu.add_command(label="Close the other tabs",
                                    command=lambda: self.cmd_close_others(self._tab_menu_doc))
         self.root.bind("<Control-w>", lambda _e: self.cmd_close_tab())
+        self.root.bind("<Control-W>", lambda _e: self.cmd_close_tab())      # (Caps Lock on)
         self.root.bind("<Control-Tab>", lambda _e: self._cycle_tab(1) or "break")
         self.root.bind("<Control-Shift-Tab>", lambda _e: self._cycle_tab(-1) or "break")
         try:
@@ -990,9 +997,28 @@ class App:
             return f
         from guiutil import Tip
         import guitheme
-        # -- General: the file list, backups, big lists
+        # -- General: the game folder, the file list, big lists
         gen = tab("General")
-        ttk.Label(gen, text="File list", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        ttk.Label(gen, text="Game folder", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self._game_dir = tk.StringVar()
+
+        def show_game():
+            b = gamepaths.find_bundle_dir()        # the game folder: the one holding Bundle and RF4S.exe
+            self._game_dir.set(str(b.parent) if b is not None else "(none chosen yet)")
+        show_game()
+        grow = ttk.Frame(gen)
+        grow.pack(anchor="w", fill="x", pady=(4, 0))
+        ttk.Label(grow, textvariable=self._game_dir, foreground="#666", wraplength=380,
+                  justify="left").pack(side="left")
+
+        def change_game():
+            self.cmd_game_folder()
+            show_game()
+        cg = ttk.Button(gen, text="Change…", command=change_game)
+        cg.pack(anchor="w", pady=(4, 0))
+        Tip(cg, "Pick the game copy every tool uses (its Bundle folder), or make one. A new folder "
+                "is used from the next start.")
+        ttk.Label(gen, text="File list", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
         gm = ttk.Checkbutton(gen, text="Group maps by area", variable=self.group_maps_var,
                              command=self.cmd_group_maps)
         gm.pack(anchor="w", pady=(4, 0))

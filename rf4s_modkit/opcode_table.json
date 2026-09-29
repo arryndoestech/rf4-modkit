@@ -19623,7 +19623,7 @@
     {
      "name": "icon",
      "type": "emote icon id",
-     "values": "0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws: emo_heart, emo_exclamation ...); 16-21 and above 28 have no icon of their own (the handler's default); 26 pauses the actor's action instead",
+     "values": "0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws); 16-21 have no case in the PC build (the debug menu calls them Poison, Paralysis, Sealed, Fatigue, Cold, Healthy; untested); 26 pauses the actor's action",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -19639,18 +19639,18 @@
        "human_verified": false
       },
       "2": {
-       "name": "skull",
-       "text": "a skull and crossbones (emo_bone)",
+       "name": "bones",
+       "text": "skull and crossbones, 'Bones' in the debug menu (emo_bone)",
        "human_verified": false
       },
       "3": {
-       "name": "scribble",
-       "text": "a dark scribble cloud: annoyed / gloomy (emo_bad, animated)",
+       "name": "annoyed",
+       "text": "a dark scribble cloud, 'Annoyed' in the debug menu (emo_bad, animated)",
        "human_verified": false
       },
       "4": {
        "name": "note",
-       "text": "a yellow music note: happy (emo_glad00; with a sound)",
+       "text": "a yellow music note, 'Music Note' in the debug menu (emo_glad00; with a sound)",
        "human_verified": false
       },
       "5": {
@@ -19709,18 +19709,18 @@
        "human_verified": false
       },
       "22": {
-       "name": "skull_b",
+       "name": "bones_b",
        "text": "the skull (emo_bone) with another animation",
        "human_verified": false
       },
       "23": {
-       "name": "scribble_b",
-       "text": "the scribble cloud (emo_bad) with another animation",
+       "name": "bad_mood",
+       "text": "the scribble (emo_bad), 'Bad Mood' in the debug menu",
        "human_verified": false
       },
       "24": {
-       "name": "sleep",
-       "text": "growing 'Z's: falling asleep (emo_sleep, 5 frames)",
+       "name": "sleepy",
+       "text": "growing 'Z's, 'Sleepy' in the debug menu (emo_sleep, 5 frames)",
        "human_verified": false
       },
       "25": {
@@ -19739,7 +19739,7 @@
        "human_verified": false
       },
       "28": {
-       "name": "skull_c",
+       "name": "bones_c",
        "text": "the skull (emo_bone) with a third animation",
        "human_verified": false
       }
@@ -19756,7 +19756,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icons: 1 heart, 2 skull, 3 scribble, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (skull, scribble, growing Z's, treasure chest, pause, heart, skull); 0 clears.",
+   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icons: 1 heart, 2 bones, 3 annoyed, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (bones, bad mood, sleepy, treasure chest, pause, heart, bones); 0 clears.",
    "details": "Npc_StopAnimAndClearOutfitOverride (+0xA52E0, misnamed): actor+320 = icon; unless the same icon (>= 16) is already up, Action_TriggerAttacker(actor task, 143 = VfxAction_SpawnPrimarySprite, {pos, +12 = icon}) and Sfx_PlayAtWorldPos 16786116 (icons 6/8), 16786135 (4/5), 16786117 (14). NPCs with control_flags bit 4 (hidden) are skipped; NPC path passes (u8)icon. argc < 2 -> nothing. No animation or outfit is touched.",
    "side_effects": "actor+320 emote id; spawns an icon action; may play a sound",
    "evidence": "RF4S.exe+0x211F40 (actor resolution, -1 -> qword_7FF7547BCB30+8); corpus 2427 uses, argc 2, icons 6 (880), 15 (699), 9, 7, 8. Verified through its true alias op 212 (same handler, 2026-09-29). Icon -> effect texture: VfxAction_SpawnPrimarySprite (RF4S.exe+0x46920) switch on the icon sets the texture's archive id per case (2138 emo_heart, 2132 emo_bone, 2131 emo_bad, 2136/2137 emo_glad00/01, 2134 emo_exclamation, 2143 emo_question, 2182 emo_sweat00, 2129 emo_anger00 (also the default), 2144 emo_shy, 2140 emo_kabu, 2178 emo_state_sleep05, 2141 emo_light, 2172 emo_silent_a, 2173 emo_sleep, 2184 emo_treasure; ids resolved by path in the game's file table), the textures decoded to check the art.",
@@ -19819,7 +19819,7 @@
     {
      "name": "icon",
      "type": "emote icon id",
-     "values": "0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws: emo_heart, emo_exclamation ...); 16-21 and above 28 have no icon of their own (the handler's default); 26 pauses the actor's action instead",
+     "values": "0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws); 16-21 have no case in the PC build (the debug menu calls them Poison, Paralysis, Sealed, Fatigue, Cold, Healthy; untested); 26 pauses the actor's action",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -19835,18 +19835,18 @@
        "human_verified": false
       },
       "2": {
-       "name": "skull",
-       "text": "a skull and crossbones (emo_bone)",
+       "name": "bones",
+       "text": "skull and crossbones, 'Bones' in the debug menu (emo_bone)",
        "human_verified": false
       },
       "3": {
-       "name": "scribble",
-       "text": "a dark scribble cloud: annoyed / gloomy (emo_bad, animated)",
+       "name": "annoyed",
+       "text": "a dark scribble cloud, 'Annoyed' in the debug menu (emo_bad, animated)",
        "human_verified": false
       },
       "4": {
        "name": "note",
-       "text": "a yellow music note: happy (emo_glad00; with a sound)",
+       "text": "a yellow music note, 'Music Note' in the debug menu (emo_glad00; with a sound)",
        "human_verified": false
       },
       "5": {
@@ -19905,18 +19905,18 @@
        "human_verified": false
       },
       "22": {
-       "name": "skull_b",
+       "name": "bones_b",
        "text": "the skull (emo_bone) with another animation",
        "human_verified": false
       },
       "23": {
-       "name": "scribble_b",
-       "text": "the scribble cloud (emo_bad) with another animation",
+       "name": "bad_mood",
+       "text": "the scribble (emo_bad), 'Bad Mood' in the debug menu",
        "human_verified": false
       },
       "24": {
-       "name": "sleep",
-       "text": "growing 'Z's: falling asleep (emo_sleep, 5 frames)",
+       "name": "sleepy",
+       "text": "growing 'Z's, 'Sleepy' in the debug menu (emo_sleep, 5 frames)",
        "human_verified": false
       },
       "25": {
@@ -19935,7 +19935,7 @@
        "human_verified": false
       },
       "28": {
-       "name": "skull_c",
+       "name": "bones_c",
        "text": "the skull (emo_bone) with a third animation",
        "human_verified": false
       }
@@ -19952,7 +19952,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon Icons: 1 heart, 2 skull, 3 scribble, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (skull, scribble, growing Z's, treasure chest, pause, heart, skull); 0 clears.",
+   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon Icons: 1 heart, 2 bones, 3 annoyed, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (bones, bad mood, sleepy, treasure chest, pause, heart, bones); 0 clears.",
    "details": "Npc_StopAnimAndClearOutfitOverride (+0xA52E0, misnamed): actor+320 = icon; unless the same icon (>= 16) is already up, Action_TriggerAttacker(actor task, 143 = VfxAction_SpawnPrimarySprite, {pos, +12 = icon}) and Sfx_PlayAtWorldPos 16786116 (icons 6/8), 16786135 (4/5), 16786117 (14). NPCs with control_flags bit 4 (hidden) are skipped; NPC path passes (u8)icon. argc < 2 -> nothing. No animation or outfit is touched.",
    "side_effects": "actor+320 emote id; spawns an icon action; may play a sound",
    "evidence": "RF4S.exe+0x211F40 (actor resolution, -1 -> qword_7FF7547BCB30+8); corpus 2427 uses, argc 2, icons 6 (880), 15 (699), 9, 7, 8. In-game test 2026-09-29 (user): ShowActorEmote(actor(player), 6) shows the '!' bubble over the player (with a sound); ShowActorEmote(actor(player), 0) clears it. Icon -> effect texture: VfxAction_SpawnPrimarySprite (RF4S.exe+0x46920) switch on the icon sets the texture's archive id per case (2138 emo_heart, 2132 emo_bone, 2131 emo_bad, 2136/2137 emo_glad00/01, 2134 emo_exclamation, 2143 emo_question, 2182 emo_sweat00, 2129 emo_anger00 (also the default), 2144 emo_shy, 2140 emo_kabu, 2178 emo_state_sleep05, 2141 emo_light, 2172 emo_silent_a, 2173 emo_sleep, 2184 emo_treasure; ids resolved by path in the game's file table), the textures decoded to check the art.",

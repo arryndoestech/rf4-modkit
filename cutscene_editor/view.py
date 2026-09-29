@@ -155,8 +155,12 @@ class ScriptView(ttk.Frame):
                       command=lambda: app.ask_insert_instruction(True))
         m.add_command(label="Add dialogue line after…", state=st,
                       command=lambda: app.ask_insert_dialogue(False))
+        m.add_command(label="Add dialogue line before…", state=st,
+                      command=lambda: app.ask_insert_dialogue(True))
         m.add_command(label="Add statements (listing) after…", state=st,
                       command=lambda: app.ask_insert_listing(False))
+        m.add_command(label="Add statements (listing) before…", state=st,
+                      command=lambda: app.ask_insert_listing(True))
         m.add_separator()
         m.add_command(label="Copy line  (Ctrl+C)", state=st, command=self.copy_row)
         m.add_command(label="Delete  (Del)", state=st, command=app.delete_selected)

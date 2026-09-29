@@ -63,7 +63,7 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
      archive as soon as it is unpacked, which needs only the largest archive's
      worth of free space at a time. Or keep the archives.
 
-   The choice is saved, and the toolbar's **Game folder…** button shows or changes it.
+   The choice is saved; *Options…* → General → **Game folder** shows it, and *Change…* changes it.
 
    Then it opens the game's bundles. Pick a map for the **map editor**, or use the
    **Cutscenes** button for the **cutscene editor**. The command-line tool is
@@ -180,7 +180,7 @@ python tools/modding/rf4mod.py selftest
 The toolkit needs the `Bundle/` directory of your game **copy** (the one containing
 `Manifest.plist` and the `bundle*.mbundle` archives). Every tool uses the one you chose
 (`rf4s_modkit/gamepaths.py`): the folder saved in the toolkit's settings (`settings.json` in
-the toolkit folder), set by the GUI's first-start window / **Game folder…** button or by
+the toolkit folder), set by the GUI's first-start window / *Options…* → General → **Game folder** or by
 `rf4mod.py game <copy>` (`rf4mod.py game --forget` drops it). Nothing is guessed from where
 the toolkit sits or from environment variables, so no tool picks up a game you didn't mean,
 not even the one the toolkit is unpacked inside.
@@ -334,6 +334,10 @@ included, and is kept in `settings.json`. Colours the toolkit uses for meaning (
 blue notes, grey hints, list highlights) keep their hue and are made readable on the dark
 background; the Windows title bars turn dark too.
 
+**Help.** The *Help* button at the right end of the explorer toolbar lists every keyboard
+shortcut and mouse gesture, one tab per area (Explorer, Map editor, Cutscene Editor,
+Event Manager & text).
+
 **Dropdowns.** In every dropdown of the toolkit, Up / Down step to the previous / next value and apply it at once (Alt+Down opens the list).
 
 **Colours, raise / lower and button icons in text.** Game text can hold characters nobody can type
@@ -464,7 +468,7 @@ the selection · Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste an entity, warp, s
 monster spawn point -- also onto another map (it pastes at the pointer; a gate point goes
 into the gate chosen in the Gates tab, or the map's only gate; right-click empty map for *Paste here*;
 a map already holding the game's 40 entity / 10 warp chunks refuses) · arrows nudge it by a tile (Shift: one sub-unit) · Esc clears it · `+` / `-`
-/ `0` zoom / fit (a map opens at 6 px per tile; zoom runs 2–24 px, and name labels grow with it) · the wheel zooms at the pointer and Ctrl+wheel scrolls (untick *Mouse wheel zooms the map* in **Options…**, next to **Game folder…**, to swap them; remembered in `settings.json`) · Shift+wheel scrolls sideways · middle-drag pans · Alt+hover a tile (Ctrl+hover works too)
+/ `0` zoom / fit (a map opens at 6 px per tile; zoom runs 2–24 px, and name labels grow with it) · the wheel zooms at the pointer and Ctrl+wheel scrolls (untick *Mouse wheel zooms the map* in *Options…* → Map editor to swap them; remembered in `settings.json`) · Shift+wheel scrolls sideways · middle-drag pans · Alt+hover a tile (Ctrl+hover works too)
 shows its ATTR decode.
 
 **Editing rules.** Every field commits on Enter or when it loses focus, as one undo step,
@@ -612,7 +616,6 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   `FLG_X + 1`, `@0xNNNN` for an existing expression; `actor(Forte)` / `map(MAP_CITY_00)` can be
   typed too) with a character / map / named-value picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
   every other offset are untouched); each **choice option**'s text, line id and destination.
-  *Add after* inserts a spoken line (speaker + text) or any statements in listing syntax,
   *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
   on it, and *What it does* repeats the explanation.
 
@@ -688,8 +691,9 @@ to `ModdingBackup\` in the game folder, keeping the same path; copy it back to u
 file opened with *Open rf3.mc…* is saved back where it was opened. *Save … as…* writes a copy
 anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
-**Adding instructions without typing them.** Right-click in the script (also the Insert key, and
-*Add before / Add after → Instruction…* in the Inspector) opens a list of every instruction
+**Adding instructions without typing them.** Right-click in the script (or the Insert key): *Add
+instruction / dialogue line / statements, after or before* the selected one. The instruction choice
+opens a list of every instruction
 by category, searchable, with ✓ on the ones verified in game. Picking one shows its description and
 a form with one field per argument. Characters, maps, items, flags and named values are pickers.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,

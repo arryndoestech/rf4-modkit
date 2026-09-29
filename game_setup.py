@@ -1,5 +1,5 @@
 """
-First-run / "Game folder..." window: pick the game copy every tool uses, or make one.
+First-run / Options -> General -> Game folder window: pick the game copy every tool uses, or make one.
 
 Mods are written into the game's Bundle folder, so a copy of the game is recommended (the
 window says so once) but any install is accepted. This window
@@ -138,7 +138,7 @@ class _Setup:
         if not current:
             ttk.Label(f, foreground="#777", wraplength=520, justify="left", text=(
                 "You can also skip this for now and choose the game later with "
-                "Game folder... in the toolbar.")
+                "Options… → General → Game folder.")
             ).pack(anchor="w", pady=(10, 0))
         w.update_idletasks()
         w.grab_set()
@@ -340,7 +340,7 @@ class _Setup:
         ok, err = _run_with_progress(self.win, "Unpacking the game files", work)
         if not ok:
             messagebox.showerror("Unpack", f"Unpacking stopped:\n{err}\n\nRun it again later from "
-                                 "Game folder... (it resumes).", parent=self.win)
+                                 "Options... -> General -> Game folder -> Change... (it resumes).", parent=self.win)
         return ok
 
 

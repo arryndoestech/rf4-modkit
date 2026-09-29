@@ -100,14 +100,14 @@ class EntityForm(Form):
         self.vscale, self.vrot = tk.StringVar(), tk.StringVar()
         self._f7 = "angle"                      # what f7 is for the shown type (mobj_f7_kind)
         self._tid = None
-        self.row(self.st, "Scale", self.vscale, lambda: self._commit_field(6, self.vscale), 0, 0, 7,
-                 tip=lambda: "f6 as a factor (1.0 = 4096); negative mirrors." + (
-                     "" if self._tid is None or mobj_types.mobj_reads_scale(self._tid) else
-                     "\nThis type ignores it in the game."))
-        self.row(self.st, "Rotation °", self.vrot, lambda: self._commit_field(7, self.vrot), 0, 2, 7,
-                 tip=lambda: {"angle": "f7 in degrees (stored as 65536 per turn).",
-                              "frame": "f7: which frame of the sprite is shown."}.get(
-                     self._f7, "f7: this type ignores it in the game."))
+        # shown only when the type reads them ("show all 16 raw fields" lists them anyway)
+        self.scale_ent = self.row(self.st, "Scale", self.vscale,
+                                  lambda: self._commit_field(6, self.vscale), 0, 0, 7,
+                                  tip="f6 as a factor (1.0 = 4096); negative mirrors.")
+        self.rot_ent = self.row(self.st, "Rotation °", self.vrot, lambda: self._commit_field(7, self.vrot),
+                                0, 2, 7,
+                                tip=lambda: {"angle": "f7 in degrees (stored as 65536 per turn).",
+                                             "frame": "f7: which frame of the sprite is shown."}.get(self._f7, ""))
         self.scale_lbl = self.st.grid_slaves(row=0, column=0)[0]
         self.rot_lbl = self.st.grid_slaves(row=0, column=2)[0]
 
@@ -195,13 +195,21 @@ class EntityForm(Form):
             self.st.grid_remove()
         else:
             self.pos.grid()
-            self.st.grid()
             self.vx.set(str(rec[14]))
             self.vy.set(str(rec[15]))
             self.tile_lbl.config(text=f"tile ({rec[14] >> 3}, {rec[15] >> 3})")
             self._tid, self._f7 = tid, mobj_types.mobj_f7_kind(tid)
-            self.scale_lbl.config(text="Scale" if mobj_types.mobj_reads_scale(tid) else "Scale (unused)")
-            self.rot_lbl.config(text={"angle": "Rotation °", "frame": "Frame"}.get(self._f7, "f7 (unused)"))
+            reads_scale = mobj_types.mobj_reads_scale(tid)
+            for w in (self.scale_lbl, self.scale_ent):
+                w.grid() if reads_scale else w.grid_remove()
+            for w in (self.rot_lbl, self.rot_ent):
+                w.grid() if self._f7 else w.grid_remove()
+            if self._f7:
+                self.rot_lbl.config(text={"angle": "Rotation °", "frame": "Frame"}[self._f7])
+            if reads_scale or self._f7:
+                self.st.grid()
+            else:
+                self.st.grid_remove()
             self.vscale.set(self._fmt(6, rec[6]))
             self.vrot.set(self._fmt(7, rec[7]))
         try:

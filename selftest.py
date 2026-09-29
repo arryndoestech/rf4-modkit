@@ -7781,7 +7781,7 @@ def test_explorer_tabs():
             app.cmd_close_tab(d)
         _check("closing every tab returns to the blank view",
                not app._docs and app._doc is app._blank and app._blank.frame.winfo_manager() == "pack")
-        # Options… (right of Game folder…) opens one window; its tick box sets the mouse wheel
+        # Options… opens one window; its tick box sets the mouse wheel
         from map_editor import view as _mview
         bar_texts = [w.cget("text") for w in app._open_btn.master.winfo_children()
                      if isinstance(w, gui.ttk.Button)]
@@ -7798,6 +7798,13 @@ def test_explorer_tabs():
                    w.cget("text") for w in boxes if app._options_nb.tab(str(w.winfo_parent()), "text")
                    == "Advanced"]
                and _in.get("Map editor") == "Mouse wheel zooms the map", (_tabs, _in))
+        _game_txt = app._game_dir.get()
+        _b = _gamepaths.find_bundle_dir()
+        _check("Options -> General shows the current game folder (like the Change… window) with a Change… button",
+               _game_txt == (str(_b.parent) if _b is not None else "(none chosen yet)")
+               and any(isinstance(w, gui.ttk.Button) and w.cget("text") == "Change…"
+                       and str(w.winfo_parent()) == app._options_nb.tabs()[0] for w in _all_widgets(win)),
+               _game_txt)
         wheel = next(b for b in boxes if b.cget("text") == "Mouse wheel zooms the map")
         ticked_before = app._wheel_zooms.get()
         wheel.invoke()                          # untick: the wheel scrolls
@@ -7837,9 +7844,22 @@ def test_explorer_tabs():
         _check("'Add new lines to every language' is in Options -> Cutscene Editor and saved for the editor",
                _pl_ok and _CE.pad_locales_setting() == _pl_before)
         win.destroy()
-        _check("Options… sits right of Game folder…, opens one window, and its tick box switches "
-               "the mouse wheel between zoom and scroll (saved in settings.json)",
-               bar_texts.index("Options…") == bar_texts.index("Game folder…") + 1
+        import shortcuts_help as _sh
+        hwin = _sh.open_help(app.root)
+        _htabs = [hwin.notebook.tab(t, "text") for t in hwin.notebook.tabs()]
+        _keys = {k for _t, secs in _sh.SHORTCUTS for _n, rows in secs for k, _w in rows}
+        _bound = (bool(app.root.bind("<Control-w>")) and bool(app.root.bind("<Control-W>"))
+                  and bool(app.root.bind("<Control-Tab>")))
+        _check("Help (right end of the toolbar) lists the shortcuts per area; a sample matches the "
+               "real bindings (Ctrl+W with and without Caps Lock, Ctrl+Tab)",
+               app._help_btn.winfo_manager() == "pack"
+               and _htabs == ["Explorer", "Map editor", "Cutscene Editor", "Event Manager & text"]
+               and {"Ctrl+W", "Insert", "Ctrl+R", "Hold Alt over a line", "V"} <= _keys and _bound
+               and _sh.open_help(app.root) is hwin, _htabs)
+        hwin.destroy()
+        _check("Options… is on the toolbar (Game folder… moved into it), opens one window, and its tick box "
+               "switches the mouse wheel between zoom and scroll (saved in settings.json)",
+               "Options…" in bar_texts and "Game folder…" not in bar_texts
                and again is win and len(boxes) == 4 and ticked_before
                and after_untick == ("scroll", "scroll") and after_tick == "zoom",
                (bar_texts, ticked_before, after_untick, after_tick))
@@ -11902,6 +11922,7 @@ def test_map_editor_workflows():
     sidecar saves never overwrite the game's files."""
     print("map editor: workflows (tools, forms, chunks, validation, unsaved guard):")
     import tempfile, types
+    from rf4s_modkit import mobj_types
     try:
         import tkinter as tk  # noqa: F401
     except Exception as e:
@@ -11935,6 +11956,20 @@ def test_map_editor_workflows():
             for fi in range(16):
                 if ef.rows[fi][1].winfo_manager():
                     ef._commit_param(fi)
+        _vis_bad, _hidden_seen = [], 0
+        for i, o in enumerate(d.objs):
+            if o["category"] == "mapparam":
+                continue
+            panel.select(("mobj", i))
+            _t = d.map.mobj_records()[i][0] & 0xFFFF
+            _want = (mobj_types.mobj_reads_scale(_t), mobj_types.mobj_f7_kind(_t) is not None)
+            _got = (bool(ef.scale_ent.winfo_manager()), bool(ef.rot_ent.winfo_manager()))
+            _hidden_seen += not all(_want)
+            if _want != _got or bool(ef.st.winfo_manager()) != any(_want):
+                _vis_bad.append((i, _t, _want, _got))
+        _check("the entity form shows Scale / Rotation only when the type reads f6 / f7 "
+               "(an unused one only under 'show all 16 raw fields')",
+               not _vis_bad and _hidden_seen > 0, _vis_bad[:5] or _hidden_seen)
         wf = panel.inspector.forms["warp"]
         for j in range(len(d.map.mapj_records())):
             panel.select(("warp", j)); wf._commit()
@@ -12594,9 +12629,9 @@ def test_cutscene_editor_workflows():
             _lop = cx.stmt(_lpc).op
             _lrow = any(r.key == (_lpc, cx.LABEL) for r in cx.view.rows)
             cx.select((_lpc, cx.LABEL))
-            _btns = (cx.inspector.after_mb.winfo_manager() == "pack"
-                     and cx.inspector.before_mb.winfo_manager() == ""
-                     and cx.inspector.del_btn.winfo_manager() == "")
+            _btns = (cx.inspector.callers_btn.winfo_manager() == "pack"
+                     and cx.inspector.del_btn.winfo_manager() == ""
+                     and not hasattr(cx.inspector, "after_mb"))
             _no_del = cx.delete_selected() is False
             _old_ask = dialogs_mod.ask_dialogue
             dialogs_mod.ask_dialogue = lambda *a, **k: {"speaker": None, "text": "Label test"}
@@ -12611,9 +12646,9 @@ def test_cutscene_editor_workflows():
             _lab_ok = _lab_ok and cx.stmt(_lpc).op == _lop
             cx.open_scene(*_home)
             cx.select((dpc, None))
-            _lab_ok = _lab_ok and cx.inspector.before_mb.winfo_manager() == "pack"
-        _check("Add before, and Add after on a selected label (story view), insert ahead of the "
-               "statement; labels can't be deleted; undo is exact",
+            _lab_ok = _lab_ok and cx.inspector.del_btn.winfo_manager() == "pack"
+        _check("adding before, and adding after a selected label (story view), insert ahead of the "
+               "statement; labels can't be deleted (no Delete button); undo is exact",
                _before_ok and _lab_ok and doc.container.build() == orig,
                f"before={_before_ok} label={_lab_ok} lpc={_lpc}")
         # the message-box tail: a shipped thought line gets one (its cue has a portrait); a

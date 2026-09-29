@@ -4028,7 +4028,7 @@ Args:
 ### `op 211` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icons: 1 heart, 2 skull, 3 scribble, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (skull, scribble, growing Z's, treasure chest, pause, heart, skull); 0 clears.
+Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icons: 1 heart, 2 bones, 3 annoyed, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (bones, bad mood, sleepy, treasure chest, pause, heart, bones); 0 clears.
 
 Args:
   0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
@@ -4059,11 +4059,11 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws: emo_heart, emo_exclamation ...); 16-21 and above 28 have no icon of their own (the handler's default); 26 pauses the actor's action instead) — verified in game
+  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws); 16-21 have no case in the PC build (the debug menu calls them Poison, Paralysis, Sealed, Fatigue, Cold, Healthy; untested); 26 pauses the actor's action) — verified in game
      - `0` = none
      - `1` = heart
-     - `2` = skull
-     - `3` = scribble
+     - `2` = bones
+     - `3` = annoyed
      - `4` = note
      - `5` = notes
      - `6` = exclaim
@@ -4076,18 +4076,18 @@ Args:
      - `13` = zzz
      - `14` = idea
      - `15` = silence
-     - `22` = skull_b
-     - `23` = scribble_b
-     - `24` = sleep
+     - `22` = bones_b
+     - `23` = bad_mood
+     - `24` = sleepy
      - `25` = treasure
      - `26` = pause
      - `27` = heart_b
-     - `28` = skull_c
+     - `28` = bones_c
 
 ### `op 212` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon Icons: 1 heart, 2 skull, 3 scribble, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (skull, scribble, growing Z's, treasure chest, pause, heart, skull); 0 clears.
+Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon Icons: 1 heart, 2 bones, 3 annoyed, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (bones, bad mood, sleepy, treasure chest, pause, heart, bones); 0 clears.
 
 Args:
   0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
@@ -4118,11 +4118,11 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws: emo_heart, emo_exclamation ...); 16-21 and above 28 have no icon of their own (the handler's default); 26 pauses the actor's action instead) — verified in game
+  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws); 16-21 have no case in the PC build (the debug menu calls them Poison, Paralysis, Sealed, Fatigue, Cold, Healthy; untested); 26 pauses the actor's action) — verified in game
      - `0` = none
      - `1` = heart
-     - `2` = skull
-     - `3` = scribble
+     - `2` = bones
+     - `3` = annoyed
      - `4` = note
      - `5` = notes
      - `6` = exclaim
@@ -4135,13 +4135,13 @@ Args:
      - `13` = zzz
      - `14` = idea
      - `15` = silence
-     - `22` = skull_b
-     - `23` = scribble_b
-     - `24` = sleep
+     - `22` = bones_b
+     - `23` = bad_mood
+     - `24` = sleepy
      - `25` = treasure
      - `26` = pause
      - `27` = heart_b
-     - `28` = skull_c
+     - `28` = bones_c
 
 ### `op 217` — ApplyFriendshipDelta(npc, mode, amount)
 *handler:* `ScriptVM_Op_ApplyFriendshipDeltaToNpc`

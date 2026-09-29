@@ -268,7 +268,8 @@ class MapEditorPanel:
     def _bind_shortcuts(self):
         c = self.view.canvas
         for name, t in self.tools.items():
-            c.bind(f"<KeyPress-{t.key}>", lambda _e, n=name: self.set_tool(n))
+            for k in {t.key.lower(), t.key.upper()}:             # (Caps Lock on too)
+                c.bind(f"<KeyPress-{k}>", lambda _e, n=name: self.set_tool(n))
         for k in ("Delete", "BackSpace"):
             c.bind(f"<{k}>", lambda _e: self.delete_selection())
         for k in ("a", "A"):
@@ -2056,7 +2057,7 @@ class MapEditorPanel:
         mine = next((f for _s, f in fam if f.upper() == (d.base or "").upper()), d.base)
         targets = gamepaths.game_targets([f + ".rf4m" for _s, f in fam])
         if targets is None:
-            messagebox.showerror(title, "Set the game folder first (Game folder… in the main window).")
+            messagebox.showerror(title, "Set the game folder first (Options… → General in the main window).")
             return False
         backup = gamepaths.backup_path(targets[mine + ".rf4m"])
         if backup is not None and backup.is_file():

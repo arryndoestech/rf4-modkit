@@ -43,21 +43,7 @@ class Inspector(ScrollFrame):
         # actions for any selected statement
         self.actions = ttk.Frame(b)
         self.actions.pack(fill="x", padx=6, pady=(8, 2))
-        def add_menu(text, before):
-            mb = ttk.Menubutton(self.actions, text=text)
-            m = tk.Menu(mb, tearoff=False)
-            m.add_command(label="Instruction… (pick from a list)",
-                          command=lambda: app.ask_insert_instruction(before))
-            m.add_command(label="Dialogue line…", command=lambda: app.ask_insert_dialogue(before))
-            m.add_command(label="Statements (listing)…", command=lambda: app.ask_insert_listing(before))
-            mb["menu"] = m
-            return mb
-        self.before_mb = add_menu("Add before", True)
-        Tip(self.before_mb, "Insert new beats just before the selected statement: every path that "
-                            "reaches it -- the line above, and every jump to it -- runs them first. "
-                            "Nothing existing moves: the statement becomes a jump to the new code.")
-        self.after_mb = add_menu("Add after", False)
-        self.after_tip = Tip(self.after_mb, "")
+        # (adding instructions, dialogue lines and statements: right-click in the script)
         self.del_btn = ttk.Button(self.actions, text="Delete", width=7, command=app.delete_selected)
         Tip(self.del_btn, "Skip this statement (the scene jumps over it; byte-safe). Del key.")
         self.callers_btn = ttk.Button(self.actions, text="Callers…", width=9, command=app.show_callers)
@@ -72,20 +58,13 @@ class Inspector(ScrollFrame):
         self.bind_wheel_tree()
         self.show(None)
 
-    AFTER_TIP = ("Insert new beats right after the selected statement. Nothing existing moves: "
-                 "the statement becomes a jump to the new code, which jumps back.")
-    AFTER_LABEL_TIP = ("Insert new beats at this label: they run first on every path that reaches "
-                       "it -- each jump to the label and the line above falling through.")
-
     def _pack_actions(self, label):
-        """Add before / Add after / Delete / Callers…; a label gets Add after + Callers… only."""
-        for w in (self.before_mb, self.after_mb, self.del_btn, self.callers_btn):
+        """Delete / Callers…; a label gets Callers… only (labels can't be deleted)."""
+        for w in (self.del_btn, self.callers_btn):
             w.pack_forget()
-        shown = (self.after_mb, self.callers_btn) if label else \
-                (self.before_mb, self.after_mb, self.del_btn, self.callers_btn)
+        shown = (self.callers_btn,) if label else (self.del_btn, self.callers_btn)
         for i, w in enumerate(shown):
             w.pack(side="left", padx=(0 if i == 0 else 4, 0))
-        self.after_tip.text = self.AFTER_LABEL_TIP if label else self.AFTER_TIP
 
     # ---- building the form for a selection ------------------------------------ #
     def _clear(self):
@@ -128,9 +107,9 @@ class Inspector(ScrollFrame):
         name = txt.target(st.pc)
         self.title.config(text="Label %s" % name)
         self.sub.config(text="marks @0x%04x -- a place jumps, branches and choices lead to" % st.pc)
-        self.desc.config(text="Add after puts new lines here: they play first on every path that "
-                              "reaches %s. To add after the statement below it instead, select "
-                              "that statement." % name)
+        self.desc.config(text="Adding after it (right-click) puts new lines here: they play first "
+                              "on every path that reaches %s. To add after the statement below it "
+                              "instead, select that statement." % name)
 
     def _header(self, title, st, desc):
         self.title.config(text=title)

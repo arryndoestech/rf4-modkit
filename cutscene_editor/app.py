@@ -1312,7 +1312,7 @@ class CutsceneExplorer:
             blobs["em.bin"] = self.doc.em.build()
         missing = [n for n in blobs if n not in targets]
         if missing:
-            messagebox.showerror("Save", "No place to save %s: set the game folder (Game folder… "
+            messagebox.showerror("Save", "No place to save %s: set the game folder (Options… → General "
                                          "in the main window), or use Save … as…" % ", ".join(missing),
                                  parent=self.frame)
             return False
