@@ -103,7 +103,8 @@ class EntityForm(Form):
         # shown only when the type reads them ("show all 16 raw fields" lists them anyway)
         self.scale_ent = self.row(self.st, "Scale", self.vscale,
                                   lambda: self._commit_field(6, self.vscale), 0, 0, 7,
-                                  tip="f6 as a factor (1.0 = 4096); negative mirrors.")
+                                  tip="f6 as a percentage (100% = 4096 stored); negative mirrors. "
+                                      "Type 150 or 150% (or 1.5x).")
         self.rot_ent = self.row(self.st, "Rotation °", self.vrot, lambda: self._commit_field(7, self.vrot),
                                 0, 2, 7,
                                 tip=lambda: {"angle": "f7 in degrees (stored as 65536 per turn).",
@@ -351,7 +352,8 @@ class EntityForm(Form):
 
     def _fmt(self, fi, raw):
         if fi == 6:
-            return f"{raw / 4096:g}"
+            from rf4s_modkit import nlcl
+            return nlcl.format_value(raw, 12)
         if fi == 7 and self._f7 == "angle":
             return f"{(raw % 65536) * 360 / 65536:g}"
         return str(raw)
@@ -374,13 +376,21 @@ class EntityForm(Form):
         rec = self._rec()
         if rec is None or var.get().strip() == self._fmt(fi, rec[fi]):
             return
+        if fi == 6:                             # a percentage: 150, 150% or 1.5x
+            from rf4s_modkit import nlcl
+            t = var.get().strip()
+            try:
+                rec[fi] = nlcl.parse_value(t if t.endswith(("%",) + nlcl.MULT_SIGNS) else t + "%",
+                                           "s32", 12)
+            except nlcl.NlclError:
+                return
+            self._set(rec, f"Set entity #{self.key[1]} scale")
+            return
         try:
             v = float(var.get())
         except ValueError:
             return
-        if fi == 6:
-            rec[fi] = int(round(v * 4096))
-        elif self._f7 == "angle":
+        if self._f7 == "angle":
             rec[fi] = int(round(v * 65536 / 360)) % 65536
         else:
             rec[fi] = int(round(v))

@@ -135,10 +135,10 @@ def _fixed_tip(text, typ, bits):
     one = 1 << bits
     try:
         raw = nlcl.parse_value(text, typ, bits)
-        return (f"stored as {raw} ({one} = 1×, Q{bits}); type 1.5x for a multiplier or a whole "
+        return (f"stored as {raw} ({one} = 100%, Q{bits}); type a percentage (150%) or a whole "
                 f"number for the stored value")
     except Exception:
-        return f"fixed-point field: {one} = 1× (Q{bits}); type 1.5x or a whole number"
+        return f"fixed-point field: {one} = 100% (Q{bits}); type 150% or a whole number"
 
 def _max_rows():
     """Rows shown in big tables before 'refine search' (Options: guiutil.list_rows)."""
@@ -4638,7 +4638,7 @@ class App:
         ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
 
     def _view_param(self, name, data):
-        """Generic NLCL table view: named schema fields (fixed-point ones as multipliers,
+        """Generic NLCL table view: named schema fields (fixed-point ones as percentages,
         nlcl.FIXED_FIELDS), raw offset edits, add / remove rows, CSV export (raw values)."""
         doc = self._doc
         t = nlcl.NlclTable(data)
@@ -4704,12 +4704,12 @@ class App:
         if any(nlcl.fixed_bits(stem, fn) is not None for fn, _o, _t in fields):
             one = {12: 4096, 7: 128}
             hint_lbl = ttk.Label(ed, foreground="#777", justify="left", wraplength=600, text=(
-                "Fields shown as 1.5× are fixed-point multipliers: the file stores the value × "
+                "Fields shown as a percentage are fixed-point values: the file stores the fraction × "
                 + " / ".join(sorted({str(one.get(b, 1 << b)) for b in
                                      nlcl.FIXED_FIELDS.get(stem, {}).values()}))
-                + " (so " + " / ".join(sorted({f"{one.get(b, 1 << b)} = 1×" for b in
+                + " (so " + " / ".join(sorted({f"{one.get(b, 1 << b)} = 100%" for b in
                                                nlcl.FIXED_FIELDS.get(stem, {}).values()}))
-                + "). Type a multiplier with x (1.5x) or the stored whole number (6144)."
+                + "). Type a percentage (150%) or the stored whole number (6144)."
             ))
             hint_lbl.pack(fill="x", padx=6)
             hint_lbl.bind("<Configure>", lambda e, w=hint_lbl: w.config(wraplength=max(200, e.width - 8)))
@@ -4852,7 +4852,7 @@ class App:
                     continue
                 row = t.row(i, stem)
                 grows = "/".join(nlcl.crop_season_decode(row["season"])["grows"])
-                vals = [i] + [row[c] for c in show_cols] + [grows, nm]
+                vals = [i] + [nlcl.format_value(row[c], nlcl.fixed_bits(stem, c)) for c in show_cols] + [grows, nm]
                 tv.insert("", "end", iid=str(i), values=vals); shown += 1
                 if shown >= _max_rows():
                     break
@@ -4888,7 +4888,7 @@ class App:
             i = int(s[0]); sel["i"] = i
             row = t.row(i, stem)
             for v, fn in evars:
-                v.set(str(row[fn]))
+                v.set(nlcl.format_value(row[fn], nlcl.fixed_bits(stem, fn)))
             dec = nlcl.crop_season_decode(row["season"])
             grows = set() if dec["grows"] == ["all-season"] else set(dec["grows"])
             for s2, bv in seavars.items():
@@ -4903,7 +4903,7 @@ class App:
             try:
                 for v, fn in evars:
                     off, ty = ftyp[fn]
-                    t.set(i, off, int(v.get(), 0), ty)
+                    t.set(i, off, nlcl.parse_value(v.get(), ty, nlcl.fixed_bits(stem, fn)), ty)
                 chosen = [s for s, bv in seavars.items() if bv.get()]
                 old = t.get(i, 104, "u32")
                 if chosen:
@@ -4974,7 +4974,7 @@ class App:
             cell = ttk.Frame(grid); cell.grid(row=idx // 6, column=idx % 6, padx=1, pady=1)
             ttk.Label(cell, text=fn, font=("Segoe UI", 7)).pack()
             v = tk.StringVar(); ttk.Entry(cell, textvariable=v, width=8).pack()
-            evars.append((v, off, typ))
+            evars.append((v, off, typ, fn))
         sel = {"i": None}
 
         def render_sheet(cid):
@@ -5004,8 +5004,8 @@ class App:
             if not s:
                 return
             i = int(s[0]); sel["i"] = i
-            for v, off, typ in evars:
-                v.set(str(t.get(i, off, typ)))
+            for v, off, typ, fn in evars:
+                v.set(nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, fn)))
             render_sheet(i)
         tv.bind("<<TreeviewSelect>>", on_sel)
 
@@ -5014,8 +5014,8 @@ class App:
                 return
             i = sel["i"]
             try:
-                for v, off, typ in evars:
-                    t.set(i, off, int(v.get(), 0), typ)
+                for v, off, typ, fn in evars:
+                    t.set(i, off, nlcl.parse_value(v.get(), typ, nlcl.fixed_bits(stem, fn)), typ)
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()

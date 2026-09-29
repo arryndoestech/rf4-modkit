@@ -139,7 +139,8 @@ def fmt_arg(op: int, arg: int) -> str:
     if kind == "frame":
         return f"frame={arg}"
     if kind == "q12":
-        return f"{s / 4096:.3f}"
+        from .nlcl import format_value
+        return format_value(s, 12)
     if kind == "angle":
         return f"{s} ({(s & 0xFFFF) * 360 / 65536:.0f} deg)"
     if kind == "sfx":
@@ -263,19 +264,21 @@ def op_from_name(name) -> int:
 
 
 def parse_operand(text) -> int:
-    """Operand text -> u32: signed decimal, 0x hex, `1.5q` (Q12 = 6144) or `90deg` (u16 angle)."""
+    """Operand text -> u32: signed decimal, 0x hex, `150%` or `1.5q` (Q12 = 6144) or `90deg` (u16 angle)."""
     if isinstance(text, int):
         return text & 0xFFFFFFFF
     s = str(text).strip().lower()
     try:
         if s.endswith("q"):
             v = int(round(float(s[:-1]) * 4096))
+        elif s.endswith("%"):
+            v = int(round(float(s[:-1]) * 4096 / 100))
         elif s.endswith("deg"):
             v = int(round(float(s[:-3]) * 65536 / 360))
         else:
             v = int(s, 0)
     except (ValueError, OverflowError):
-        raise AsatkError(f"bad operand {text!r} (signed int, 0x hex, 1.5q or 90deg)") from None
+        raise AsatkError(f"bad operand {text!r} (signed int, 0x hex, 150%, 1.5q or 90deg)") from None
     if not -0x80000000 <= v <= 0xFFFFFFFF:
         raise AsatkError(f"operand {text!r} does not fit in 32 bits")
     return v & 0xFFFFFFFF
@@ -299,7 +302,7 @@ def disassemble(data: bytes) -> str:
     pair in the file (two shipped files carry one pair after END; it is kept), the
     decoded meaning as a trailing comment. `assemble(disassemble(x)) == x`."""
     out = ["; as_atk timeline -- one event per line: <mnemonic | opN> <operand>  ; comment",
-           "; operand = signed int, 0x hex, `1.5q` (Q12 fixed point) or `90deg` (u16 angle)",
+           "; operand = signed int, 0x hex, `150%` / `1.5q` (Q12 fixed point, 4096 = 100%) or `90deg` (u16 angle)",
            "; FRAME n waits for animation frame n; END ends the stream. `asatk ops` lists opcodes."]
     for e in parse(data, stop_at_end=False):
         kind = OPCODES.get(e.op, (None, "int"))[1]

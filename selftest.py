@@ -979,28 +979,29 @@ def test_gen():
 
 
 def test_fixed_point_fields():
-    """Fixed-point fields (nlcl.FIXED_FIELDS): shown as the shortest multiplier that converts
-    back to the same stored integer, typed as 1.5x or a whole number, range-checked by width;
+    """Fixed-point fields (nlcl.FIXED_FIELDS): shown as the shortest percentage that converts
+    back to the same stored integer, typed as 150% (or 1.5x) or a whole number, range-checked by width;
     the table editor and `param set` use it."""
-    print("param tables: fixed-point (Q12 / Q7) fields shown and edited as multipliers:")
+    print("param tables: fixed-point (Q12 / Q7) fields shown and edited as percentages:")
     from rf4s_modkit import nlcl
     bad = [(b, r) for b in (12, 7) for r in list(range(-9000, 9000)) + [2 ** 31 - 1, -2 ** 31, 70000]
            if nlcl.parse_value(nlcl.format_value(r, b), "s32", b) != r]
-    _check("every stored value round-trips through its multiplier text (Q12 and Q7)", not bad, bad[:5])
+    _check("every stored value round-trips through its percentage text (Q12 and Q7)", not bad, bad[:5])
     shown = [nlcl.format_value(r, 12) for r in (4096, 6144, 4710, 3686, -2048, 0)]
-    _check("multipliers read as designed: 4096 = 1x, 6144 = 1.5x, 4710 = 1.15x (not 1.1499x)",
-           shown == ["1\u00d7", "1.5\u00d7", "1.15\u00d7", "0.9\u00d7", "-0.5\u00d7", "0\u00d7"]
-           and nlcl.format_value(96, 7) == "0.75\u00d7", shown)
+    _check("percentages read as designed: 4096 = 100%, 6144 = 150%, 4710 = 115% (not 114.99%)",
+           shown == ["100%", "150%", "115%", "90%", "-50%", "0%"]
+           and nlcl.format_value(96, 7) == "75%" and nlcl.parse_value("1.5x", "s32", 12) == 6144
+           and nlcl.parse_value("150%", "s32", 12) == 6144, shown)
     errs = []
-    for args in (("9x", "s16", 12), ("1.5x", "s32", None), ("abc", "s32", 12)):
+    for args in (("900%", "s16", 12), ("150%", "s32", None), ("abc", "s32", 12)):
         try:
             nlcl.parse_value(*args)
             errs.append(None)
         except nlcl.NlclError as e:
             errs.append(str(e))
-    _check("a multiplier past a 16-bit field (Q4.12 tops out near 8x), a multiplier on a plain "
+    _check("a percentage past a 16-bit field (Q4.12 tops out near 800%), a percentage on a plain "
            "field and a non-number are refused with a reason",
-           all(errs) and "7.99976" in errs[0] and "not a multiplier" in errs[1],
+           all(errs) and "799.976" in errs[0] and "not a percentage" in errs[1],
            errs)
     _check("the fixed-point fields are real schema fields of their tables",
            all(f in {n for n, _o, _t in nlcl.FIELD_SCHEMAS[s]["fields"]}
@@ -1013,10 +1014,10 @@ def test_fixed_point_fields():
     import importlib, tempfile
     rf4 = importlib.import_module("rf4mod")
     t = nlcl.NlclTable(src.read_bytes())
-    rf4._param_assign(t, 0, "dmg_mult=1.25x", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "dmg_mult=125%", "rf3ParamMagic")
     rf4._param_assign(t, 0, "mat_scalar=8192", "rf3ParamMagic")
     row = t.row(0, "rf3ParamMagic")
-    _check("param set: dmg_mult=1.25x stores 5120, a whole number is stored as is",
+    _check("param set: dmg_mult=125% stores 5120, a whole number is stored as is",
            row["dmg_mult"] == 5120 and row["mat_scalar"] == 8192, (row["dmg_mult"], row["mat_scalar"]))
 
 

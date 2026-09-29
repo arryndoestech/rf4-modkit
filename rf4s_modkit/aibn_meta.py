@@ -64,7 +64,8 @@ def format_value(units: str, value: int) -> str:
     if units == "deg":
         return f"{value} deg"
     if units == "Q12":
-        return f"{value} ({value / 4096:.2f})"
+        from .nlcl import format_value
+        return f"{value} ({format_value(value, 12)})"
     if units == "percent":
         return f"{value} %"
     if units in ("frames", "units", "count", "shift"):

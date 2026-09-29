@@ -523,9 +523,23 @@ FIELD_SCHEMAS = {
                                          # (Attack_PopulateAttackInfoFromWeaponAndStatus
                                          # writes 30); 0 = the target does not flinch
             ("status_proc", 60, "s32"),  # status-infliction weight (-> *-10240>>12)
-            ("elem0", 100, "u16"), ("elem1", 104, "u16"), ("elem2", 108, "u16"),
-            ("elem3", 112, "u16"), ("elem4", 116, "u16"), ("elem5", 120, "u16"),
-            ("elem6", 124, "u16"), ("elem7", 128, "u16"),  # 8 per-element damage scalars
+            # the STATUS block, copied as u16 (the low half of each dword) into the attack
+            # (Combat_CopyAttackEntryAndScaleDamageToItemRecord +0x97250 and
+            # Combat_FillAttackInfoFromEffectKind +0xED2D0 -> AttackInfo +334 / +340..+354)
+            ("Hunger", 96, "u16"),       # -> AttackInfo+334 (hunger; shipped 0..25)
+            ("Psn Atk%", 100, "u16"), ("Seal Atk%", 104, "u16"), ("Par Atk%", 108, "u16"),
+            ("Slp Atk%", 112, "u16"), ("Ftg Atk%", 116, "u16"), ("Sick Atk%", 120, "u16"),
+            ("Faint Atk%", 124, "u16"),  # Q12 status proc chances poison..faint (409 = 10%)
+            ("Drain Atk%", 128, "u16"),  # Q12 HP drain (2048 = 50%)
+            # the player's cost and reward (Effect_ApplyByKindAndSpawn +0xECEC0, Combat_ResolveHit)
+            ("Skill Exp", 132, "u32"),   # XP given to skill `Skill Type`: Player_gainEXP(actor,
+                                         # +132, +144) -- on cast, and on a hit only when both
+                                         # costs are 0 (a free attack)
+            ("RP Cost", 136, "u32"),     # flat RP cost (action 87 doubles it below skill level 50
+                                         # with the wrong weapon category)
+            ("RP% Cost", 140, "s32"),    # Q12 share of the caster's MAX RP; non-zero replaces RP Cost
+            ("Skill Type", 144, "u16"),  # skill id that receives the XP (and whose rp_discount in
+                                         # rf3ParamSkill lowers the cost)
         ],
     },
     "rf3ParamSkillData": {
@@ -773,7 +787,9 @@ _CROP_SEASON_MASK = 0xFF000  # the 8 season bits (0x1000..0x80000)
 # {table stem: {field: fraction bits}}
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
-                                      "elem_resist", "stagger")},
+                                      "elem_resist", "stagger", "Psn Atk%", "Seal Atk%",
+                                      "Par Atk%", "Slp Atk%", "Ftg Atk%", "Sick Atk%",
+                                      "Faint Atk%", "Drain Atk%", "RP% Cost")},
     "rf3NpcParam": {**{f"elem_{e}": 12 for e in ("fire", "water", "earth", "wind", "light",
                                                  "dark", "none", "love")},
                     **{f"res_{s}": 12 for s in ("poison", "seal", "paralysis", "sleep",
@@ -787,7 +803,7 @@ FIXED_FIELDS = {
     "rf3ItemStrengthening": {"knockback_scale_q12": 12},
     "rf3CropParam": {f: 7 for f in ("gmul_size", "gmul_1", "gmul_2", "gmul_3")},
 }
-MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplier
+MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplier (1.5x = 150%)
 
 
 def fixed_bits(stem: str, name: str):
@@ -796,43 +812,46 @@ def fixed_bits(stem: str, name: str):
 
 
 def format_value(raw: int, bits=None) -> str:
-    """How a field value is shown: a multiplier ('1.5×') for a fixed-point field, else the
-    int. The multiplier is the SHORTEST decimal that converts back to the same stored integer
-    (4710 -> 1.15×, the value the designers typed, not 1.1499×); four decimals always do."""
+    """How a field value is shown: a percentage for a fixed-point field (the stored value
+    over 2**bits: 4096 -> 100%, 6144 -> 150%, Q7 128 -> 100%), else the int. The percentage is
+    the SHORTEST decimal that converts back to the same stored integer (4710 -> 115%, the value
+    the designers typed, not 114.99%); two decimals always do for Q12, fewer for Q7."""
     if bits is None:
         return str(raw)
     one = 1 << bits
-    for nd in range(0, 5):
-        s = f"{raw / one:.{nd}f}"
-        if round(float(s) * one) == raw:
+    for nd in range(0, 7):
+        s = f"{raw * 100 / one:.{nd}f}"
+        if round(float(s) * one / 100) == raw:
             break
     if "." in s:
         s = s.rstrip("0").rstrip(".")
-    return (s if s not in ("-0", "") else "0") + "\u00d7"
+    return (s if s not in ("-0", "") else "0") + "%"
 
 
 def parse_value(text: str, typ: str = "s32", bits=None) -> int:
-    """A typed field value -> the stored integer. '1.5x' / '1.5×' is a multiplier (fixed-point
-    fields only), anything else a plain integer (0x.. allowed) stored as is. Checks the
-    field's width and names the multiplier range when a multiplier does not fit."""
+    """A typed field value -> the stored integer. For a fixed-point field '150%' (or the
+    multiplier '1.5x' / '1.5×') is converted; anything else is a plain integer (0x.. allowed)
+    stored as is. Checks the field's width and names the percentage range when it does not fit."""
     t = str(text).strip()
-    if t.endswith(MULT_SIGNS):
+    if t.endswith("%") or t.endswith(MULT_SIGNS):
         if bits is None:
-            raise NlclError(f"{t!r}: this field is not a multiplier -- type a whole number")
+            raise NlclError(f"{t!r}: this field is not a percentage -- type a whole number")
+        pct = t.endswith("%")
         try:
-            raw = round(float(t[:-1]) * (1 << bits))
+            v = float(t[:-1].strip())
         except ValueError:
             raise NlclError(f"{t!r} is not a number") from None
+        raw = round((v / 100 if pct else v) * (1 << bits))
         lo, hi = type_range(typ)
         if not lo <= raw <= hi:
-            raise NlclError(f"{t} does not fit a {typ} field: {lo / (1 << bits):g}\u00d7 .. "
-                            f"{hi / (1 << bits):g}\u00d7")
+            raise NlclError(f"{t} does not fit a {typ} field: {lo * 100 / (1 << bits):g}% .. "
+                            f"{hi * 100 / (1 << bits):g}%")
         return raw
     try:
         return int(t, 0)
     except ValueError:
         raise NlclError(f"{t!r} is not a whole number"
-                        + (" (for a multiplier add x, e.g. 1.5x)" if bits is not None else "")) from None
+                        + (" (for a percentage add %, e.g. 150%)" if bits is not None else "")) from None
 
 
 def crop_season_decode(season: int) -> dict:

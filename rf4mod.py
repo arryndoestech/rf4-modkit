@@ -3440,7 +3440,7 @@ def cmd_param_set(a):
 
 def _param_assign(t, rec, assign, stem):
     """One `name=val | OFF=val | OFF:type=val` assignment (the `param set` grammar). A
-    fixed-point field (nlcl.FIXED_FIELDS) also takes a multiplier: dmg_mult=1.5x."""
+    fixed-point field (nlcl.FIXED_FIELDS) also takes a percentage: dmg_mult=150%."""
     key, val = assign.split("=", 1)
     if ":" in key:
         off_s, typ = key.split(":", 1)
