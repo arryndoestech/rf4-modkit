@@ -7621,6 +7621,13 @@ def test_explorer_tabs():
         after_untick = (_mview.wheel_mode(), _gamepaths.get_setting(_mview.WHEEL_SETTING))
         boxes[0].invoke()                       # tick again: back to zooming
         after_tick = _mview.wheel_mode()
+        import guiutil as _gu
+        _ver = _gu.modkit_version()
+        _ents = [w for w in _all_widgets(win) if w.winfo_class() == "Entry"]
+        _last = win.winfo_children()[0].winfo_children()[-1]
+        _check("Options… ends with the modkit version (commit + date) as selectable grey text",
+               _ver != "unknown" and _ents and _ents[0].get() == "Modkit version " + _ver
+               and str(_ents[0].cget("state")) == "readonly" and _last is _ents[0], _ver)
         win.destroy()
         _check("Options… sits right of Game folder…, opens one window, and its tick box switches "
                "the mouse wheel between zoom and scroll (saved in settings.json)",

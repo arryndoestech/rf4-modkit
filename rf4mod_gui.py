@@ -902,6 +902,13 @@ class App:
                              "the Cutscene Editor too). Follow Windows uses your Windows app setting.",
                   foreground="#666", wraplength=320, justify="left").pack(anchor="w", padx=(20, 0))
         ttk.Button(body, text="Close", command=win.destroy).pack(anchor="e", pady=(12, 0))
+        # the toolkit's version (commit + date), selectable for bug reports
+        import guiutil
+        ver = tk.StringVar(value="Modkit version " + guiutil.modkit_version())
+        bg = ttk.Style(win).lookup("TFrame", "background") or win.cget("background")
+        tk.Entry(body, textvariable=ver, state="readonly", relief="flat", borderwidth=0,
+                 readonlybackground=bg, foreground="#888888", font=("Segoe UI", 8),
+                 width=len(ver.get()) + 2).pack(anchor="w", pady=(10, 0))
         win.bind("<Escape>", lambda _e: win.destroy())
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
