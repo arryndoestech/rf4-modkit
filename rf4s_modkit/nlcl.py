@@ -37,6 +37,7 @@ NLCL table can still be read/edited generically by (record, byte-offset, type).
 from __future__ import annotations
 
 import pathlib
+import re
 import struct
 
 MAGIC = b"NLCL"
@@ -804,6 +805,83 @@ FIXED_FIELDS = {
     "rf3CropParam": {f: 7 for f in ("gmul_size", "gmul_1", "gmul_2", "gmul_3")},
 }
 MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplier (1.5x = 150%)
+
+
+# ---- bit-set fields ----------------------------------------------------------------
+# Fields that are a set of independent bits: the GUI gives them one tick box per bit, the CLI
+# takes `field=+name,-name`. {table stem: {field: {mask: name}}}; an empty dict = a bit set
+# whose bits are not named yet (tick boxes "bit N"). Names only where the reader was checked:
+#   rf3ParamMagic.flags: the element bits read by Actor_ComputeDamageWithAtkScalarsAndElement
+#     Bonus (RF4S.exe+0x96B40) and the behaviour bits the hit code tests (see its schema).
+#   rf3UseItemParam.effect_bits: Item_UseOnActor (RF4S.exe+0xB4150) clears actor status bits
+#     `effect_bits & 0x3F` (cures), ORs `(effect_bits & 0x1FC0) >> 6` into the inflicted
+#     statuses and levels up on 0x2000; status order poison, seal, paralysis, sleep, fatigue,
+#     sickness (cold), faint (the order of the proc / resist bits).
+_STATUS = ("poison", "seal", "paralysis", "sleep", "fatigue", "sickness", "faint")
+FLAG_FIELDS = {
+    "rf3ParamMagic": {"flags": {
+        0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
+        0x40: "Love", 0x80: "Magic", 0x200: "Ignore DEF", 0x400: "No random spread",
+        0x200000: "Always 1 damage"}},
+    "rf3UseItemParam": {"effect_bits": {
+        **{1 << k: "Cure " + s for k, s in enumerate(_STATUS[:6])},
+        **{1 << (6 + k): "Inflict " + s for k, s in enumerate(_STATUS)},
+        0x2000: "Level up"}},
+    "rf3ItemEquipmentParam": {"boots_word": {}, "special_bit": {}},
+    "rf3ItemStrengthening": {"status_word": {}},
+    "rf3ScheduleID": {"flags": {}},
+    "rf3TxtShopNpc_split2_1": {"flag": {}},
+    "rf4TxtQuestRequestDetailFormat_split2_1": {"flag": {}},
+}
+
+
+def flag_bits(stem: str, name: str):
+    """{mask: name} of a bit-set field ({} when its bits have no names yet), or None when the
+    field is not a bit set."""
+    return FLAG_FIELDS.get(stem, {}).get(name)
+
+
+def format_flags(raw: int, typ: str = "u32") -> str:
+    """A bit-set value as hex, padded to the field width (0x00000081)."""
+    width = {"u8": 2, "s8": 2, "u16": 4, "s16": 4}.get(typ, 8)
+    return "0x%0*X" % (width, int(raw) & ((1 << (4 * width)) - 1))
+
+
+def _flag_key(s):
+    return re.sub(r"[^a-z0-9]", "", str(s).lower())
+
+
+def apply_flag_edit(current: int, text: str, names=None, typ: str = "u32") -> int:
+    """`+Fire,-Magic,+0x200,-bit3` -> current with those bits set / cleared (names are the
+    field's bit names, case, spaces and _ ignored; `bitN` or a mask work for any bit).
+    Anything not starting with + or - is a whole new value (0x.. allowed)."""
+    t = str(text).strip()
+    if not t or t[0] not in "+-":
+        return parse_value(t, typ)
+    by_name = {_flag_key(n): m for m, n in (names or {}).items()}
+    v = int(current)
+    for part in [p.strip() for p in t.split(",") if p.strip()]:
+        sign, key = part[0], part[1:].strip()
+        if sign not in "+-" or not key:
+            raise NlclError(f"{part!r}: write +name or -name (e.g. +Fire, -0x80, +bit3)")
+        k = _flag_key(key)
+        if k in by_name:
+            mask = by_name[k]
+        elif re.fullmatch(r"bit\d+", k):
+            mask = 1 << int(k[3:])
+        else:
+            try:
+                mask = int(key, 0)
+            except ValueError:
+                known = ", ".join(sorted((names or {}).values())) or "none -- use bitN or a mask"
+                raise NlclError(f"unknown flag {key!r} (known: {known})") from None
+        v = (v | mask) if sign == "+" else (v & ~mask)
+    lo, hi = type_range(typ)
+    if typ.startswith("u"):
+        v &= hi
+    if not lo <= v <= hi:
+        raise NlclError(f"{v:#x} does not fit {typ}")
+    return v
 
 
 def fixed_bits(stem: str, name: str):

@@ -130,6 +130,66 @@ def _table_scrollbars(top, tv, widths=None):
     return vs, hs
 
 
+def _flag_dialog(parent, title, typ, value, names, on_ok):
+    """One tick box per bit of a bit-set field: the named bits first ("Fire  0x01"), then every
+    other bit of the field's width as "bit N" (the ones set now are ticked). OK calls
+    on_ok(new value)."""
+    width = {"u8": 8, "s8": 8, "u16": 16, "s16": 16}.get(typ, 32)
+    win = tk.Toplevel(parent)
+    win.title(title)
+    win.transient(parent.winfo_toplevel())
+    body = ttk.Frame(win, padding=8)
+    body.pack(fill="both", expand=True)
+    boxes = {}
+    row = 0
+    named = sorted((names or {}).items())
+    if named:
+        ttk.Label(body, text="Named bits", font=("Segoe UI", 9, "bold")).grid(row=row, column=0, columnspan=4,
+                                                                           sticky="w")
+        row += 1
+        for i, (mask, nm) in enumerate(named):
+            var = tk.BooleanVar(value=bool(value & mask))
+            boxes[mask] = var
+            ttk.Checkbutton(body, text=f"{nm}  ({nlcl.format_flags(mask, typ)})", variable=var).grid(
+                row=row + i // 2, column=(i % 2) * 2, columnspan=2, sticky="w", padx=(0, 12))
+        row += (len(named) + 1) // 2
+    rest = [1 << k for k in range(width) if (1 << k) not in boxes]
+    ttk.Label(body, text="Other bits" if named else "Bits", font=("Segoe UI", 9, "bold")).grid(
+        row=row, column=0, columnspan=4, sticky="w", pady=(6 if named else 0, 0))
+    row += 1
+    for i, mask in enumerate(rest):
+        var = tk.BooleanVar(value=bool(value & mask))
+        boxes[mask] = var
+        ttk.Checkbutton(body, text=f"bit {mask.bit_length() - 1}", variable=var).grid(
+            row=row + i // 4, column=i % 4, sticky="w", padx=(0, 10))
+    row += (len(rest) + 3) // 4
+    val_lbl = ttk.Label(body, foreground="#666")
+    val_lbl.grid(row=row, column=0, columnspan=4, sticky="w", pady=(8, 0))
+
+    def current():
+        return sum(m for m, v in boxes.items() if v.get())
+
+    def show(*_):
+        val_lbl.config(text="value " + nlcl.format_flags(current(), typ))
+    for v in boxes.values():
+        v.trace_add("write", show)
+    show()
+    bar = ttk.Frame(body)
+    bar.grid(row=row + 1, column=0, columnspan=4, sticky="e", pady=(8, 0))
+
+    def ok():
+        new = current()
+        win.destroy()
+        on_ok(new)
+    ttk.Button(bar, text="OK", command=ok).pack(side="right")
+    ttk.Button(bar, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+    win.bind("<Escape>", lambda _e: win.destroy())
+    win.bind("<Return>", lambda _e: ok())
+    win.boxes = boxes                                # (selftest)
+    win.ok = ok
+    return win
+
+
 def _fixed_tip(text, typ, bits):
     """Tooltip of a fixed-point field in the table editor: the stored integer and the scale."""
     one = 1 << bits
@@ -2663,19 +2723,60 @@ class App:
             else:
                 tv.insert(nid, "end", text=str(fk), values=(repr(fv)[:200],))
 
+    def _save_blob_as(self, doc, blob, what):
+        """Ask for a file name and write `blob` (the working copy) there; the tab is then saved."""
+        f = filedialog.asksaveasfilename(defaultextension=pathlib.Path(doc.cur_name).suffix or ".bin",
+                                         initialfile=pathlib.Path(doc.cur_name).name,
+                                         filetypes=[("Game file", "*" + (pathlib.Path(doc.cur_name).suffix or ".bin")),
+                                                    ("All", "*.*")])
+        if f:
+            pathlib.Path(f).write_bytes(blob)
+            self._mark_saved(doc)
+            self.status.config(text=f"Saved {what} → {f}")
+        return f
+
     def _view_aibn(self, name, data):
+        """AI_*.bin monster / NPC AI script: the listing is editable; Assemble rebuilds the file
+        from it (the same assembler as `rf4mod ai asm`; every shipped file round-trips)."""
         doc = self._doc
         toks = aibn.load_tokens(data)
         dis = aibn.disassemble(toks, annotate=True)
+        bar = ttk.Frame(doc.content); bar.pack(fill="x", pady=2)
+        msg = ttk.Label(bar, foreground="#0d5f8f")
         txt = self._make_text_tab(None, None, mono=True, doc=doc)
         c = aibn.stats(toks)
         txt.insert("end", f"# {name}: {len(toks)} tokens, {sum(c.values())} statements"
                           f"  (sub N: / N: labels, if (...) {{ }} blocks, Action(args); trailing # = verified operand meanings;"
-                          f" rf4mod ai ops <op> for details; `rf4mod ai asm` rebuilds the file from this text)\n\n")
+                          f" rf4mod ai ops <op> for details; Assemble rebuilds the file from this text)\n\n")
         txt.insert("end", dis)
-        txt.config(state="disabled")
+        txt.edit_reset() if hasattr(txt, "edit_reset") else None
         doc._export_kind = "disasm"; doc._export_text = dis
         self.export_btn.config(state="normal")
+
+        def assemble():
+            try:
+                blob = aibn.build(aibn.assemble(txt.get("1.0", "end-1c")))
+            except Exception as e:  # noqa: BLE001 -- the assembler names the bad line
+                msg.config(text=f"Not assembled: {err_text(e)}", foreground="#b02020")
+                return None
+            doc.cur_data = blob
+            same = blob == data
+            msg.config(text=("Assembled — unchanged from the file" if same else
+                             f"Assembled ({len(blob)} bytes) — Save as… to write it"), foreground="#1d7a3a")
+            return blob
+
+        def save_as():
+            blob = assemble()
+            if blob is not None:
+                self._save_blob_as(doc, blob, "AI script")
+        b1 = ttk.Button(bar, text="Assemble", command=assemble); b1.pack(side="left", padx=4)
+        b2 = ttk.Button(bar, text="Save as…", command=save_as); b2.pack(side="left", padx=2)
+        from guiutil import Tip
+        Tip(b1, "Rebuild the AI file from the listing (checks it; errors name the line). The tab "
+                "then holds the new file: Save as… or Extract… writes it.")
+        msg.pack(side="left", padx=8)
+        doc._aibn_assemble = assemble             # (selftest)
+        doc._aibn_text = txt
 
     def _view_mycf(self, name, data):
         """rf3.mc (the cutscene / event scripts): selecting it opens the Cutscene Editor (the one
@@ -3687,22 +3788,299 @@ class App:
         self.export_btn.config(state="normal")
 
     def _view_skillcurve(self, name, data):
-        """rf3ParamSkillExp*.bin skill XP-per-level curve (read-only decode)."""
+        """rf3ParamSkillExp*.bin -- a skill XP curve: how much XP each level needs. A table (one row
+        per level; double-click an XP cell to type a new value), a bar chart of the curve (click a
+        bar to select that level, or tick Paint and drag to draw the curve), Set / Scale for the
+        selected rows or every level, Undo, Revert, and Save as... The header names the skills that use this curve (game names)."""
         doc = self._doc
-        xp = skillcurve.parse(data)
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        arc = next((a for a, f in skillcurve.ARCHIVE_FILE.items()
-                    if pathlib.Path(name).stem.lower() == f.lower()), None)
-        who = ""
-        if arc is not None:
-            sks = [s for s, a in skillcurve.FAMILY_ARCHIVE.items() if a == arc]
-            who = f"archive {arc}" + (f", skills {sks}" if sks else " (default: weapons/magic/…)")
-        ttk.Label(bar, text=f"Skill XP curve — 100 levels, total {sum(xp)}, "
-                            f"cap-bracket table[99]={xp[-1] if xp else 0}   {who}",
-                  wraplength=940).pack(side="left", padx=6)
-        txt = self._make_text_tab(None, None, mono=True, doc=doc)
-        txt.insert("end", skillcurve.render(data, upto=100))
-        txt.config(state="disabled")
+        from rf4s_modkit import gamenames
+        buf = bytearray(data)
+        stem = pathlib.Path(name).stem.lower()
+        arc = next((a for a, f in skillcurve.ARCHIVE_FILE.items() if f.lower() == stem), None)
+        if arc == skillcurve.DEFAULT_ARCHIVE:
+            sids = [s for s in range(38) if skillcurve.archive_for_skill(s) == arc]
+        else:
+            sids = sorted(s for s, x in skillcurve.FAMILY_ARCHIVE.items() if x == arc)
+        skill_names = [gamenames.name("skills", s) or f"skill {s}" for s in sids]
+        cap99 = set(range(17, 21)) | set(range(26, 33))
+        stops_at_99 = bool(sids) and all(s in cap99 for s in sids)
+        some_99 = any(s in cap99 for s in sids)
+
+        head = ttk.Frame(doc.content, padding=(6, 4)); head.pack(fill="x")
+        ttk.Label(head, text="Skill XP curve", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        used = ", ".join(skill_names) if skill_names else "(no skill found)"
+        ttk.Label(head, wraplength=600, justify="left", text=f"Used by: {used}").pack(anchor="w", fill="x")
+        if stops_at_99:
+            cap_note = "These skills stop at level 99, so the last row is never used."
+        elif some_99:
+            cap_note = ("The resist skills and crafting skills stop at level 99; the others keep going to "
+                        "999, and every level past 99 costs the last row's XP.")
+        else:
+            cap_note = "These skills go up to level 999: every level past 99 costs the last row's XP."
+        ttk.Label(head, wraplength=600, justify="left", foreground="#666", text=(
+            "Each row is the XP a skill needs at that level to reach the next one. " + cap_note +
+            " Double-click an XP value to change it, or select rows and use Set / Scale.")).pack(anchor="w", fill="x")
+        head.bind("<Configure>", lambda e: [w.config(wraplength=max(200, e.width - 16))
+                                             for w in head.winfo_children() if isinstance(w, ttk.Label)
+                                             and w.cget("wraplength")], add="+")
+
+        # the controls sit at the bottom and are laid out before the table and chart, so a small
+        # window shrinks the table / chart and never cuts the buttons off
+        foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        body = ttk.Frame(doc.content); body.pack(fill="both", expand=True, padx=6)
+        left = ttk.Frame(body); left.pack(side="left", fill="y")
+        cols = ("lvl", "xp", "total")
+        tv = ttk.Treeview(left, columns=cols, show="headings", height=22, selectmode="extended")
+        for c, t_, w in (("lvl", "At level", 150), ("xp", "XP to next level", 120), ("total", "Total XP so far", 120)):
+            tv.heading(c, text=t_); tv.column(c, width=w, anchor="e" if c != "lvl" else "w")
+        _table_scrollbars(left, tv)
+        right = ttk.Frame(body); right.pack(side="left", fill="both", expand=True, padx=(10, 0))
+        cbar = ttk.Frame(right); cbar.pack(fill="x", pady=(0, 4))
+        paintv = tk.BooleanVar(value=False)
+        pcb = ttk.Checkbutton(cbar, text="Paint the curve with the mouse", variable=paintv)
+        pcb.pack(side="left")
+        undob = ttk.Button(cbar, text="Undo", state="disabled"); undob.pack(side="right")
+        chart = tk.Canvas(right, height=300, highlightthickness=0,
+                          background=ttk.Style(body).lookup("Treeview", "fieldbackground") or "#ffffff")
+        chart.pack(fill="both", expand=True)
+
+        bar = ttk.Frame(foot); bar.pack(fill="x")
+        bar2 = ttk.Frame(foot); bar2.pack(fill="x", pady=(4, 0))
+        setv, pctv = tk.StringVar(), tk.StringVar(value="100")
+        ttk.Label(bar, text="Selected levels:").pack(side="left")
+        ttk.Label(bar, text="set to").pack(side="left", padx=(6, 0))
+        se = ttk.Entry(bar, textvariable=setv, width=9); se.pack(side="left", padx=2)
+        ttk.Label(bar, text="XP").pack(side="left")
+        sb_ = ttk.Button(bar, text="Set"); sb_.pack(side="left", padx=(4, 14))
+        ttk.Label(bar, text="scale to").pack(side="left")
+        pe = ttk.Entry(bar, textvariable=pctv, width=6); pe.pack(side="left", padx=2)
+        ttk.Label(bar, text="%").pack(side="left")
+        scb = ttk.Button(bar, text="Scale"); scb.pack(side="left", padx=4)
+        allb = ttk.Button(bar2, text="Scale all levels"); allb.pack(side="left")
+        rvb = ttk.Button(bar2, text="Revert"); rvb.pack(side="left", padx=4)
+        svb = ttk.Button(bar2, text="Save as…"); svb.pack(side="right")
+        from guiutil import Tip
+        Tip(pe, "100 = unchanged, 50 = those levels need half the XP (levelling twice as fast), "
+                "200 = twice the XP.")
+        Tip(rvb, "Throw away the changes: back to the file as it was opened.")
+        Tip(pcb, "On: drag across the chart to draw the bars (each level gets the height under the "
+                 "mouse). The scale leaves 25% headroom so you can paint above the current top; paint "
+                 "again to go higher. Off: clicking a bar selects that level.")
+        Tip(undob, "Undo the last change (Ctrl+Z). Every paint stroke is one step.")
+        info = ttk.Label(foot, foreground="#666"); info.pack(fill="x", pady=(4, 0))
+
+        def label(lvl):
+            if lvl == skillcurve.REAL_LEVELS - 1 and not stops_at_99:
+                return "99 (and every level after)"
+            return f"{lvl}  →  {lvl + 1}"
+
+        def refresh(keep=None):
+            xp = skillcurve.parse(bytes(buf))
+            sel = keep if keep is not None else [int(i) for i in tv.selection()]
+            tv.delete(*tv.get_children())
+            total = 0
+            for lvl, step in enumerate(xp):
+                total += step
+                tv.insert("", "end", iid=str(lvl), values=(label(lvl), f"{step:,}", f"{total:,}"))
+            for i in sel:
+                if tv.exists(str(i)):
+                    tv.selection_add(str(i))
+            info.config(text=f"Total XP from level 0 to 100: {sum(xp):,}   ·   largest step: {max(xp):,} "
+                             f"(level {xp.index(max(xp))})")
+            draw()
+
+        def draw(*_):
+            xp = skillcurve.parse(bytes(buf))
+            chart.delete("all")
+            w, h = max(chart.winfo_width(), 200), max(chart.winfo_height(), 120)
+            pad_l, pad_b, pad_t = PAD_L, PAD_B, PAD_T
+            top = chart_top(xp)
+            bw = (w - pad_l - 6) / len(xp)
+            sel = {int(i) for i in tv.selection()}
+            fg = ttk.Style(chart).lookup("TLabel", "foreground") or "#333"
+            for lvl, step in enumerate(xp):
+                x0 = pad_l + lvl * bw
+                y0 = h - pad_b - (h - pad_b - pad_t) * step / top
+                chart.create_rectangle(x0, y0, x0 + max(bw - 1, 1), h - pad_b, width=0,
+                                       fill="#e0902a" if lvl in sel else "#4a86c8", tags=("bar", f"l{lvl}"))
+            chart.create_text(pad_l - 6, pad_t, text=f"{top:,}", anchor="ne", fill=fg, font=("Segoe UI", 8))
+            chart.create_text(pad_l - 6, h - pad_b, text="0", anchor="e", fill=fg, font=("Segoe UI", 8))
+            for lvl in range(0, len(xp), 10):
+                chart.create_text(pad_l + lvl * bw, h - pad_b + 4, text=str(lvl), anchor="n", fill=fg,
+                                  font=("Segoe UI", 8))
+            chart.create_text(w - 6, h - 4, text="level", anchor="se", fill=fg, font=("Segoe UI", 8))
+            if paintv.get():
+                chart.create_text(w - 6, pad_t, text="drag to paint", anchor="ne", fill="#999",
+                                  font=("Segoe UI", 8, "italic"))
+        chart.bind("<Configure>", draw)
+
+        PAD_L, PAD_B, PAD_T = 50, 22, 10
+        paint = dict(top=None, last=None, before=None)     # a stroke keeps its scale fixed
+
+        def chart_top(xp):
+            if paint["top"]:
+                return paint["top"]
+            top = max(xp) or 1
+            return int(top * 1.25) + 1 if paintv.get() else top
+
+        def level_at(x):
+            n = skillcurve.REAL_LEVELS
+            w = max(chart.winfo_width(), 200)
+            return int((x - PAD_L) // ((w - PAD_L - 6) / n))
+
+        def xp_at(y):
+            h = max(chart.winfo_height(), 120)
+            frac = (h - PAD_B - y) / max(h - PAD_B - PAD_T, 1)
+            return min(skillcurve.MAX_XP, max(1, int(round(paint["top"] * min(max(frac, 0.0), 1.0)))))
+
+        def paint_to(x, y):
+            n = skillcurve.REAL_LEVELS
+            l1, v1 = level_at(x), xp_at(y)
+            l0, v0 = paint["last"] or (l1, v1)
+            lo, hi = sorted((l0, l1))
+            for lvl in range(max(lo, 0), min(hi, n - 1) + 1):
+                t_ = 0.0 if l1 == l0 else (lvl - l0) / (l1 - l0)      # fill the levels a fast drag skipped
+                skillcurve.set_level_xp(buf, lvl, int(round(v0 + (v1 - v0) * t_)))
+            paint["last"] = (l1, v1)
+            draw()
+
+        def chart_click(e):
+            if paintv.get():
+                paint["before"] = bytes(buf)
+                paint["top"] = chart_top(skillcurve.parse(bytes(buf)))
+                paint["last"] = None
+                paint_to(e.x, e.y)
+                return
+            lvl = level_at(e.x)
+            if 0 <= lvl < skillcurve.REAL_LEVELS:
+                if e.state & 0x4:
+                    tv.selection_add(str(lvl))
+                else:
+                    tv.selection_set(str(lvl))
+                tv.see(str(lvl))
+
+        def chart_drag(e):
+            if paintv.get() and paint["top"]:
+                paint_to(e.x, e.y)
+
+        def chart_release(_e):
+            if not paint["top"]:
+                return
+            before = paint["before"]
+            paint.update(top=None, last=None, before=None)
+            if before != bytes(buf):
+                history.append(before)
+                changed("Painted the curve")
+            else:
+                draw()
+        chart.bind("<Button-1>", chart_click)
+        chart.bind("<B1-Motion>", chart_drag)
+        chart.bind("<ButtonRelease-1>", chart_release)
+        paintv.trace_add("write", lambda *_: (chart.config(cursor="pencil" if paintv.get() else ""), draw()))
+        tv.bind("<<TreeviewSelect>>", lambda _e: (draw(), sel_changed()))
+
+        def sel_changed():
+            sel = [int(i) for i in tv.selection()]
+            if len(sel) == 1:
+                setv.set(str(skillcurve.parse(bytes(buf))[sel[0]]))
+
+        history = []                                       # file states before each change (Undo)
+
+        def changed(msg):
+            doc.cur_data = bytes(buf)
+            undob.config(state="normal" if history else "disabled")
+            refresh()
+            self.status.config(text=msg + " — Save as… to write the file")
+
+        def set_levels(levels, value):
+            history.append(bytes(buf))
+            for lvl in levels:
+                skillcurve.set_level_xp(buf, lvl, value)
+            changed(f"{len(levels)} level(s) set to {value:,} XP")
+
+        def scale_levels(levels, pct):
+            xp = skillcurve.parse(bytes(buf))
+            history.append(bytes(buf))
+            for lvl in levels:
+                skillcurve.set_level_xp(buf, lvl, min(skillcurve.MAX_XP, max(1, int(xp[lvl] * pct / 100 + 0.5))))
+            changed(f"{len(levels)} level(s) scaled to {pct:g}%")
+
+        def selected():
+            sel = sorted(int(i) for i in tv.selection())
+            if not sel:
+                self.status.config(text="Select one or more levels first (click, Shift / Ctrl + click)")
+            return sel
+
+        def do_set():
+            lv = selected()
+            if not lv:
+                return
+            try:
+                set_levels(lv, int(setv.get().replace(",", ""), 0))
+            except ValueError as e:
+                messagebox.showerror("Skill XP curve", err_text(e))
+
+        def do_scale(levels=None):
+            lv = levels if levels is not None else selected()
+            if not lv:
+                return
+            try:
+                pct = float(pctv.get().rstrip("%"))
+                if pct <= 0:
+                    raise ValueError("the percentage must be above 0")
+                scale_levels(lv, pct)
+            except ValueError as e:
+                messagebox.showerror("Skill XP curve", err_text(e))
+
+        def revert():
+            if bytes(buf) != data:
+                history.append(bytes(buf))
+            buf[:] = data
+            changed("Back to the file as opened")
+
+        def undo(*_):
+            if history:
+                buf[:] = history.pop()
+                changed("Undone")
+
+        sb_.config(command=do_set); scb.config(command=do_scale)
+        allb.config(command=lambda: do_scale(list(range(skillcurve.REAL_LEVELS))))
+        rvb.config(command=revert); undob.config(command=undo)
+        for w_ in (tv, chart):
+            w_.bind("<Control-z>", undo)
+        chart.bind("<Enter>", lambda _e: chart.focus_set() if paintv.get() else None)
+        svb.config(command=lambda: self._save_blob_as(doc, bytes(buf), "skill XP curve"))
+        se.bind("<Return>", lambda _e: do_set()); pe.bind("<Return>", lambda _e: do_scale())
+
+        # double-click an XP cell: type the new value in place (Enter keeps, Esc cancels)
+        def edit_cell(e):
+            row = tv.identify_row(e.y)
+            if not row or tv.identify_column(e.x) != "#2":
+                return
+            x, y, w, h = tv.bbox(row, "#2")
+            var = tk.StringVar(value=str(skillcurve.parse(bytes(buf))[int(row)]))
+            ent = ttk.Entry(tv, textvariable=var, justify="right")
+            ent.place(x=x, y=y, width=w, height=h)
+            ent.focus_set(); ent.select_range(0, "end")
+
+            def done(keep):
+                if keep:
+                    try:
+                        set_levels([int(row)], int(var.get().replace(",", ""), 0))
+                    except ValueError as err:
+                        messagebox.showerror("Skill XP curve", err_text(err))
+                ent.destroy()
+            ent.bind("<Return>", lambda _e: done(True))
+            ent.bind("<KP_Enter>", lambda _e: done(True))
+            ent.bind("<Escape>", lambda _e: done(False))
+            ent.bind("<FocusOut>", lambda _e: done(True) if ent.winfo_exists() else None)
+            doc._skill_cell_entry = (ent, var, done)          # (selftest)
+        tv.bind("<Double-Button-1>", edit_cell)
+        doc._skill = dict(tree=tv, set=set_levels, scale=scale_levels, revert=revert, used=skill_names,
+                          set_var=setv, pct_var=pctv, do_set=do_set, do_scale=do_scale, edit_cell=edit_cell,
+                          chart=chart, paint=paintv, undo=undo, history=history, press=chart_click,
+                          drag=chart_drag, release=chart_release)
+        refresh()
 
     def _view_strengthening(self, name, data):
         """rf3ItemStrengthening.bin — forge material rows / dish ingredient bonuses / the craft
@@ -3767,6 +4145,38 @@ class App:
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
 
+        ed = ttk.Frame(doc.content); ed.pack(fill="x", padx=6, pady=(4, 0))
+        fieldv, valv = tk.StringVar(value="atk"), tk.StringVar()
+        ttk.Label(ed, text="selected item's").pack(side="left")
+        fcb = ttk.Combobox(ed, textvariable=fieldv, values=list(strengthening.NAMES), width=22,
+                           state="readonly")
+        fcb.pack(side="left", padx=2)
+        ttk.Label(ed, text="=").pack(side="left")
+        ttk.Entry(ed, textvariable=valv, width=12).pack(side="left", padx=2)
+        cur = {"i": None}
+
+        def show_field(*_):
+            if cur["i"] is not None and fieldv.get() in strengthening.INDEX:
+                v = t.row(cur["i"])[fieldv.get()]
+                valv.set(("0x%X" % v) if fieldv.get() == "status_word" else str(v))
+        fieldv.trace_add("write", show_field)
+
+        def set_field():
+            if cur["i"] is None:
+                self.status.config(text="Select an item first"); return
+            try:
+                t.set(cur["i"], fieldv.get(), int(valv.get(), 0))
+            except (ValueError, nlcl.NlclError) as e:
+                messagebox.showerror("Strengthening", err_text(e)); return
+            doc.cur_data = t.build()
+            i = cur["i"]; fill()
+            if tv.exists(str(i)):
+                tv.selection_set(str(i)); tv.see(str(i))
+            on_select()
+            self.status.config(text=f"Item {i}: {fieldv.get()} = {valv.get()} — Save as… to write")
+        ttk.Button(ed, text="Set", command=set_field).pack(side="left", padx=4)
+        ttk.Button(ed, text="Save as…",
+                   command=lambda: self._save_blob_as(doc, t.build(), "rf3ItemStrengthening")).pack(side="right")
         detail = tk.Text(doc.content, height=12, wrap="word")
         detail.pack(fill="x", padx=6, pady=4)
 
@@ -3774,9 +4184,11 @@ class App:
             sel = tv.selection()
             if not sel:
                 return
+            cur["i"] = int(sel[0]); show_field()
             detail.config(state="normal"); detail.delete("1.0", "end")
             detail.insert("end", t.render(int(sel[0]), names))
             detail.config(state="disabled")
+        doc._str_set = set_field; doc._str_vars = (fieldv, valv); doc._str_tree = tv   # (selftest)
         tv.bind("<<TreeviewSelect>>", on_select)
         detail.insert("end", "Select a row for the full decoded record (readers, units, flags).")
         detail.config(state="disabled")
@@ -3984,15 +4396,68 @@ class App:
         """rf3PresentCategory — the 21 shared gift categories referenced by NPC cross-refs."""
         doc = self._doc
         items = _load_item_names()
-        cats = gifts.load_categories(data)
-        ttk.Label(doc.content, text=f"{len(cats)} shared gift categories (referenced by "
+        table = gifts.GiftTable.parse(data)
+        ttk.Label(doc.content, text=f"{len(table.groups)} shared gift categories (referenced by "
                                      f"NPC gift tables via cross-ref)").pack(fill="x", padx=6, pady=2)
+        ed = ttk.Frame(doc.content); ed.pack(fill="x", padx=6, pady=2)
+        catv, itemv = tk.StringVar(value="0"), tk.StringVar()
+        ttk.Label(ed, text="category").pack(side="left")
+        ttk.Entry(ed, textvariable=catv, width=4).pack(side="left", padx=2)
+        ttk.Label(ed, text="item id").pack(side="left", padx=(6, 0))
+        ttk.Entry(ed, textvariable=itemv, width=6).pack(side="left", padx=2)
+        item_lbl = ttk.Label(ed, width=24, foreground="#666"); item_lbl.pack(side="left")
+        itemv.trace_add("write", lambda *_: item_lbl.config(
+            text=items.get(int(itemv.get()), "") if itemv.get().strip().isdigit() else ""))
         txt = self._make_text_tab(None, None, mono=True, doc=doc)
-        for idx, _grp in enumerate(cats):
-            ids = gifts.category_items(idx, cats)
-            names = ", ".join(items.get(i, str(i)) for i in ids)
-            txt.insert("end", f"cat {idx:>2} ({len(ids)}): {names}\n")
-        txt.config(state="disabled")
+
+        def redraw():
+            cats = [g.get("disliked") or [] for g in table.groups]
+            txt.config(state="normal"); txt.delete("1.0", "end")
+            for idx in range(len(cats)):
+                ids = gifts.category_items(idx, cats)
+                names = ", ".join(items.get(i, str(i)) for i in ids)
+                txt.insert("end", f"cat {idx:>2} ({len(ids)}): {names}\n")
+            txt.config(state="disabled")
+
+        def target():
+            try:
+                g, it = int(catv.get()), int(itemv.get())
+            except ValueError:
+                messagebox.showerror("Gift categories", "category and item id must be numbers"); return None
+            if not 0 <= g < len(table.groups):
+                messagebox.showerror("Gift categories", f"category 0..{len(table.groups) - 1}"); return None
+            return g, it
+
+        def add():
+            tg = target()
+            if tg is None:
+                return
+            g, it = tg
+            lst = table.groups[g].get("disliked") or []
+            codes = [e.code for e in lst if e.kind == "item"]
+            code = max(set(codes), key=codes.count) if codes else 9   # the category's own code
+            try:
+                table.add("disliked", gifts.Entry("item", it, code), g)
+            except gifts.GiftError as e:
+                messagebox.showerror("Gift categories", err_text(e)); return
+            doc.cur_data = table.build(); redraw()
+            self.status.config(text=f"Added {items.get(it, it)} to category {g} — Save as… to write")
+
+        def remove():
+            tg = target()
+            if tg is None:
+                return
+            g, it = tg
+            n = table.remove("item", it, g)
+            doc.cur_data = table.build(); redraw()
+            self.status.config(text=(f"Removed {items.get(it, it)} from category {g}" if n else
+                                     f"{items.get(it, it)} is not in category {g}") + " — Save as… to write")
+        ttk.Button(ed, text="Add", command=add).pack(side="left", padx=(4, 0))
+        ttk.Button(ed, text="Remove", command=remove).pack(side="left", padx=4)
+        ttk.Button(ed, text="Save as…",
+                   command=lambda: self._save_blob_as(doc, table.build(), "gift categories")).pack(side="right")
+        doc._gift_add, doc._gift_remove, doc._gift_vars = add, remove, (catv, itemv)   # (selftest)
+        redraw()
 
     def _view_montame(self, name, data):
         """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849)."""
@@ -4679,7 +5144,9 @@ class App:
                 nm = namefn(t.get(i, *name_off_typ) if name_off_typ else i)
                 if q and q not in str(i) and q not in nm.lower():
                     continue
-                vals = [i] + [nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, n))
+                vals = [i] + [nlcl.format_flags(t.get(i, off, typ), typ)
+                              if nlcl.flag_bits(stem, n) is not None else
+                              nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, n))
                               for n, off, typ in fields]
                 if sch and sch.get("names"):
                     vals.append(nm)
@@ -4693,10 +5160,33 @@ class App:
         ed.pack(fill="x", padx=6, pady=4)
         grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=4)
         evars = []
+        flag_buttons = {}
+
+        def open_flags(var, fn, typ):
+            if sel["i"] is None:
+                self.status.config(text="Select a record first")
+                return None
+            try:
+                cur = nlcl.parse_value(var.get(), typ)
+            except nlcl.NlclError:
+                cur = t.get(sel["i"], dict((n, o) for n, o, _ty in fields)[fn], typ)
+
+            def done(new):
+                var.set(nlcl.format_flags(new, typ))
+                apply_edit()
+            return _flag_dialog(doc.content, f"{stem} #{sel['i']} — {fn}", typ, cur,
+                                nlcl.flag_bits(stem, fn), done)
+        doc._param_open_flags = open_flags          # (selftest)
         for idx, (fn, off, typ) in enumerate(fields):
             cell = ttk.Frame(grid); cell.grid(row=idx // 8, column=idx % 8, padx=2, pady=1)
             ttk.Label(cell, text=f"{fn}", font=("Segoe UI", 7)).pack()
             v = tk.StringVar(); en = ttk.Entry(cell, textvariable=v, width=9); en.pack()
+            if nlcl.flag_bits(stem, fn) is not None:
+                fb = ttk.Button(cell, text="Flags…", width=7,
+                                command=lambda v=v, fn=fn, typ=typ: open_flags(v, fn, typ))
+                fb.pack()
+                Tip(fb, "Set or clear each bit of this field with a tick box.")
+                flag_buttons[fn] = fb
             bits = nlcl.fixed_bits(stem, fn)
             if bits is not None:
                 Tip(en, lambda v=v, typ=typ, bits=bits: _fixed_tip(v.get(), typ, bits))
@@ -4730,8 +5220,11 @@ class App:
                 return
             i = int(s[0]); sel["i"] = i
             for v, off, typ, fn in evars:
-                v.set(nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, fn)))
+                raw_v = t.get(i, off, typ)
+                v.set(nlcl.format_flags(raw_v, typ) if nlcl.flag_bits(stem, fn) is not None
+                      else nlcl.format_value(raw_v, nlcl.fixed_bits(stem, fn)))
         tv.bind("<<TreeviewSelect>>", on_sel)
+        doc._param_select = lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel())   # (selftest)
 
         def apply_edit():
             if sel["i"] is None:

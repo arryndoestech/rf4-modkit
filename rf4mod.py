@@ -3440,7 +3440,8 @@ def cmd_param_set(a):
 
 def _param_assign(t, rec, assign, stem):
     """One `name=val | OFF=val | OFF:type=val` assignment (the `param set` grammar). A
-    fixed-point field (nlcl.FIXED_FIELDS) also takes a percentage: dmg_mult=150%."""
+    fixed-point field (nlcl.FIXED_FIELDS) also takes a percentage: dmg_mult=150%; a bit-set
+    field (nlcl.FLAG_FIELDS) takes +name / -name edits: flags=+IgnoreDEF,-Fire,+0x400."""
     key, val = assign.split("=", 1)
     if ":" in key:
         off_s, typ = key.split(":", 1)
@@ -3448,8 +3449,14 @@ def _param_assign(t, rec, assign, stem):
     elif key.lstrip("+").isdigit() or key.lstrip("+").lower().startswith("0x"):
         t.set(rec, int(key, 0), nlcl.parse_value(val, "s32"), "s32")
     else:
-        typ = next((ty for n, _o, ty in (t.schema(stem) or {}).get("fields", ()) if n == key), "s32")
-        t.set_field(rec, key, nlcl.parse_value(val, typ, nlcl.fixed_bits(stem, key)), stem)
+        typ, off = next(((ty, o) for n, o, ty in (t.schema(stem) or {}).get("fields", ()) if n == key),
+                        ("s32", None))
+        names = nlcl.flag_bits(stem, key)
+        if names is not None and val.strip()[:1] in "+-" and off is not None:
+            value = nlcl.apply_flag_edit(t.get(rec, off, typ), val, names, typ)   # +Fire,-Magic
+        else:
+            value = nlcl.parse_value(val, typ, nlcl.fixed_bits(stem, key))
+        t.set_field(rec, key, value, stem)
 
 
 def cmd_param_add(a):

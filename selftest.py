@@ -1021,6 +1021,153 @@ def test_fixed_point_fields():
            row["dmg_mult"] == 5120 and row["mat_scalar"] == 8192, (row["dmg_mult"], row["mat_scalar"]))
 
 
+def test_flag_fields():
+    """Bit-set fields (nlcl.FLAG_FIELDS): hex display, +name/-name edits (CLI `param set`),
+    and the table editor's tick-box dialog (one box per bit, named ones first)."""
+    print("param tables: bit-set fields (tick boxes, +name / -name):")
+    from rf4s_modkit import nlcl
+    missing = [(s, f) for s, fs in nlcl.FLAG_FIELDS.items() for f in fs
+               if f not in {n for n, _o, _t in nlcl.FIELD_SCHEMAS.get(s, {}).get("fields", ())}]
+    _check("every bit-set field is a real schema field of its table", not missing, missing)
+    names = nlcl.flag_bits("rf3ParamMagic", "flags")
+    errs = []
+    try:
+        nlcl.apply_flag_edit(0, "+Frie", names)
+    except nlcl.NlclError as e:
+        errs.append(str(e))
+    _check("+name / -name / +bitN / +mask set and clear single bits; an unknown name is refused "
+           "with the known ones listed",
+           nlcl.apply_flag_edit(0x81, "+Ignore DEF,-fire,+bit3", names) == 0x288
+           and nlcl.apply_flag_edit(0x81, "+0x400", names) == 0x481
+           and nlcl.apply_flag_edit(0x81, "0x7", names) == 7
+           and errs and "Fire" in errs[0] and nlcl.format_flags(0x81, "u32") == "0x00000081"
+           and nlcl.format_flags(5, "u8") == "0x05", errs)
+    src = pathlib.Path(BUNDLE_DIR) / "bundleMain" / "rf3ParamMagic.bin"
+    if not src.exists():
+        _skip("bit-set fields on the shipped table", "no rf3ParamMagic.bin"); return
+    import importlib
+    rf4 = importlib.import_module("rf4mod")
+    t = nlcl.NlclTable(src.read_bytes())
+    before = t.row(1, "rf3ParamMagic")["flags"]
+    rf4._param_assign(t, 1, "flags=+Ignore DEF,-Fire", "rf3ParamMagic")
+    after = t.row(1, "rf3ParamMagic")["flags"]
+    _check("param set flags=+Ignore DEF,-Fire changes only those bits (record 1, Fire magic 0x81)",
+           before == 0x81 and after == 0x280, (hex(before), hex(after)))
+    try:
+        import tkinter as tk
+        import rf4mod_gui as gui
+        root = tk.Tk()
+        root.withdraw()
+    except Exception as e:
+        _skip("tick-box dialog", f"no Tk ({e})"); return
+    got = []
+    try:
+        win = gui._flag_dialog(root, "t", "u32", 0x81, names, got.append)
+        ticked = sorted(m for m, v in win.boxes.items() if v.get())
+        win.boxes[0x200].set(True)
+        win.boxes[0x1].set(False)
+        win.ok()
+        win8 = gui._flag_dialog(root, "t", "u8", 0x5, {}, got.append)
+        n8 = len(win8.boxes)
+        win8.destroy()
+    finally:
+        root.destroy()
+    _check("the tick-box dialog ticks the set bits, has one box per bit of the width (named first) "
+           "and OK returns the new value",
+           ticked == [0x1, 0x80] and got == [0x280] and n8 == 8 and len(win.boxes) == 32,
+           (ticked, got, n8))
+
+
+def test_bin_editors():
+    """The .bin viewers that used to be read-only can edit: AI scripts (editable listing +
+    Assemble), skill XP curves (set a level / scale), rf3ItemStrengthening (set a field of the
+    selected item), rf3PresentCategory (add / remove an item). Each edit lands in the tab's
+    working copy and an unchanged file stays byte-exact."""
+    print("explorer: .bin editors (AI, skill curves, strengthening, gift categories):")
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    need = ["AI_m00.bin", "rf3ParamSkillExp.bin", "rf3ItemStrengthening.bin", "rf3PresentCategory.bin"]
+    if not all((B / n).exists() for n in need):
+        _skip(".bin editors", "files not extracted"); return
+    try:
+        import tkinter as tk
+        import importlib.util
+        root = tk.Tk(); root.withdraw()
+    except Exception as e:
+        _skip(".bin editors", f"no Tk ({e})"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_bined", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    from rf4s_modkit import aibn, skillcurve, gifts, strengthening
+    res = {}
+    try:
+        app = gui.App(root, initial=str(B))
+        app._testing = True
+        # AI: the listing assembles back to the same file; an edit changes the working copy
+        d = (B / "AI_m00.bin").read_bytes()
+        app._show("AI_m00.bin", d); doc = app._doc
+        same = doc._aibn_assemble() == d
+        txt = doc._aibn_text
+        body = txt.get("1.0", "end-1c")
+        txt.delete("1.0", "end"); txt.insert("1.0", body + "\nBogusOp(1)\n")
+        bad = doc._aibn_assemble() is None
+        res["ai"] = (same, bad)
+        # skill curve: select level 1, set it, scale it; the header names the skills; revert
+        d = (B / "rf3ParamSkillExpFarm.bin").read_bytes()
+        app._show("rf3ParamSkillExpFarm.bin", d); doc = app._doc
+        sk = doc._skill
+        sk["tree"].selection_set("1")
+        sk["set_var"].set("777"); sk["do_set"]()
+        one = skillcurve.parse(doc.cur_data)[1]
+        sk["tree"].selection_set("1"); sk["pct_var"].set("50"); sk["do_scale"]()
+        half = skillcurve.parse(doc.cur_data)[1]
+        size_ok = len(doc.cur_data) == len(d)
+        sk["revert"]()
+        res["skill"] = (one, half, size_ok, doc.cur_data == d, "Farming" in sk["used"])
+        # paint: one stroke from level 10 (high) to level 20 (low) fills every level in between,
+        # leaves level 9 alone, is one Undo step
+        import types
+        sk["paint"].set(True); root.update()
+        cw = max(sk["chart"].winfo_width(), 200); ch = max(sk["chart"].winfo_height(), 120)
+        bw = (cw - 56) / skillcurve.REAL_LEVELS
+        ev = lambda lvl, y: types.SimpleNamespace(x=50 + (lvl + 0.5) * bw, y=y, state=0)
+        sk["press"](ev(10, 10)); sk["drag"](ev(20, ch - 22 - (ch - 32) * 0.1)); sk["release"](None)
+        xp = skillcurve.parse(doc.cur_data)
+        painted = xp[9] == skillcurve.parse(d)[9] and all(xp[i] > xp[i + 1] for i in range(10, 20))
+        steps = len(sk["history"])
+        sk["undo"]()
+        res["paint"] = (painted, steps, doc.cur_data == d)
+        # strengthening: set a field of the selected row
+        d = (B / "rf3ItemStrengthening.bin").read_bytes()
+        app._show("rf3ItemStrengthening.bin", d); doc = app._doc
+        tv = doc._str_tree
+        first = tv.get_children()[0]
+        tv.selection_set(first); root.update()
+        fieldv, valv = doc._str_vars
+        fieldv.set("atk"); valv.set("123"); doc._str_set()
+        res["str"] = strengthening.StrengtheningTable(doc.cur_data).row(int(first))["atk"]
+        # gift categories: add then remove an item
+        d = (B / "rf3PresentCategory.bin").read_bytes()
+        app._show("rf3PresentCategory.bin", d); doc = app._doc
+        catv, itemv = doc._gift_vars
+        catv.set("3"); itemv.set("1100"); doc._gift_add()
+        added = 1100 in [e.value for e in gifts.GiftTable.parse(doc.cur_data).groups[3]["disliked"]]
+        doc._gift_remove()
+        res["gift"] = (added, doc.cur_data == d)
+    finally:
+        root.destroy()
+    _check("AI script: the shown listing assembles back to the same file; a bad line is refused",
+           res.get("ai") == (True, True), res.get("ai"))
+    _check("skill XP curve: the header names the skills (Farming...); Set changes the selected level, "
+           "Scale 50% halves it, the file keeps its size, Revert restores it",
+           res.get("skill") == (777, 389, True, True, True), res.get("skill"))
+    _check("skill XP curve: a paint stroke across the chart sets every level it crosses (a straight "
+           "line between the drag points), is one history step, and Undo restores the file",
+           res.get("paint") == (True, 4, True), res.get("paint"))
+    _check("rf3ItemStrengthening: Set writes the chosen field of the selected item", res.get("str") == 123,
+           res.get("str"))
+    _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
+           "byte-exact afterwards)", res.get("gift") == (True, True), res.get("gift"))
+
+
 def test_param():
     print("param (NLCL):")
     files = [p for p in EXTRACTED.rglob("rf3*.bin") if nlcl.is_flat_nlcl(p.read_bytes()[:32])]
@@ -14310,7 +14457,7 @@ def run() -> int:
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
-              test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_mapground,
+              test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
