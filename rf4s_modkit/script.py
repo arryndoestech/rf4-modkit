@@ -112,7 +112,7 @@ def opcode_tooltip(op, arg_values=None):
 
 
 def opcode_prototype(op):
-    """C-style signature string, e.g. 'SetSpeakerDylasLeft(face frame, emote/mood, target)'."""
+    """C-style signature string, e.g. 'SetSpeaker(character, side, face, trigger1, trigger2, trigger3)'."""
     return meta.prototype(op)
 
 

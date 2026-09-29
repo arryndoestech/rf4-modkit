@@ -44,6 +44,8 @@ class Inspector(ScrollFrame):
         def add_menu(text, before):
             mb = ttk.Menubutton(self.actions, text=text)
             m = tk.Menu(mb, tearoff=False)
+            m.add_command(label="Instruction… (pick from a list)",
+                          command=lambda: app.ask_insert_instruction(before))
             m.add_command(label="Dialogue line…", command=lambda: app.ask_insert_dialogue(before))
             m.add_command(label="Statements (listing)…", command=lambda: app.ask_insert_listing(before))
             mb["menu"] = m
@@ -356,9 +358,67 @@ class Inspector(ScrollFrame):
                 pick.var.set(cur)
                 pick.pack(fill="x", padx=(110, 0))
                 Tip(pick, "Pick a named value (type to filter); it is applied at once.")
+            else:
+                self._typed_picker(box, st, i, var)
             if notes:
                 ttk.Label(box, text="\n".join(notes), font=("Segoe UI", 8), foreground="#2a6a8a",
                           wraplength=320, justify="left").pack(anchor="w", padx=(110, 0))
+
+        self._map_button(box, st, buf)
+
+    def _typed_picker(self, box, st, i, var):
+        """A character / map / item picker under an argument the table types as one."""
+        from . import toolbox
+        r = script.meta.table_row(st.op) or {}
+        args = r.get("args") or []
+        a = args[i] if i < len(args) else (args[-1] if args else {"name": ""})
+        kind, opts, _d = toolbox._arg_spec(st.op, i, a)
+        if kind not in ("actor", "map", "item") or not opts:
+            return
+        tok = dict(opts)
+        cur = next((d for d, t in opts if t == var.get().strip()), "")
+        pick = FilterCombo(box, [d for d, _t in opts],
+                           lambda d, i=i: d in tok and self.app.set_arg(st.pc, i, tok[d]), width=34)
+        pick.var.set(cur)
+        pick.pack(fill="x", padx=(110, 0))
+        Tip(pick, "Pick a %s (type to filter); it is applied at once." % {
+            "actor": "character", "map": "map", "item": "item"}[kind])
+
+    def _map_button(self, box, st, buf):
+        """'Pick on map…' for an x / y argument pair (SpawnEventActor, moves, warps, …)."""
+        from . import toolbox
+        r = script.meta.table_row(st.op) or {}
+        pairs = [(ix, iy) for ix, iy in toolbox.coordinate_pairs(r.get("args") or [])
+                 if iy < len(st.args)]
+        if not pairs:
+            return
+        ix, iy = pairs[0]
+        app = self.app
+
+        def cur(i):
+            if i is None or i >= len(st.args):
+                return None
+            t = scriptasm.call_arg(scriptasm.operand_text(buf, st.args[i], st.op, i))
+            if t.startswith("map(") and t.endswith(")"):
+                return script.map_leaf_value(t[4:-1])
+            v, ok = script.arg_constant(buf, st.args[i])
+            return v if ok else None
+
+        def open_picker():
+            mid, lock, note, mi = toolbox.position_map(st.op, r.get("args") or [], cur, app.bank)
+
+            def done(x, y, chosen):
+                app.set_arg(st.pc, ix, str(x))
+                app.set_arg(st.pc, iy, str(y))
+                if mi is not None and mid is None and chosen is not None and mi < len(st.args):
+                    app.set_arg(st.pc, mi, script.map_leaf_text(chosen)
+                                if script.leaf_slot_kind(st.op, mi) == "map" else str(chosen))
+            return toolbox.MapPointPicker(box, mid, cur(ix), cur(iy), done, lock=lock, note=note)
+        b = ttk.Button(box, text="📍 Pick x / y on the map…", command=open_picker)
+        b.pack(anchor="w", padx=(110, 0), pady=(4, 0))
+        Tip(b, "Show the map and click the new position (1/8-tile units). The map is the one "
+               "the instruction runs on: its map argument, else this bank's map; only a scene "
+               "not tied to a map lets you choose.")
 
     # ---- condition / flow ------------------------------------------------------------ #
     def _control_form(self, st, txt):

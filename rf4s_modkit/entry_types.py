@@ -111,7 +111,7 @@ ENTRY_TYPES = {
         "consumer": _APPLY1,
         "matcher": "Npc_LookupActionEntryByPlayerHitFilter (RF4S.exe+0x220DA0) driven by the unnamed function at RF4S.exe+0x220CD0",
         "confidence": "verified",
-        "notes": "The IDB name says 'hit filter' but field_54 is the current map id: the same '& ~3 below 0x40' canonicalisation Npc_OnTalkAction_QueueDialogueCascade applies to map ids, and the corpus keys are maps (64 Castle: Dragon Room, 65 Your Room, 66 Butler's Room ...). A -1 entry writes the event id but the scan continues, so an exact match later in the list overrides it.",
+        "notes": "The IDB name says 'hit filter' but field_54 is the current map id: the same '& ~3 below 0x40' canonicalisation Map_OnEnter_QueueMapEvents applies to map ids, and the corpus keys are maps (64 Castle: Dragon Room, 65 Your Room, 66 Butler's Room ...). A -1 entry writes the event id but the scan continues, so an exact match later in the list overrides it.",
     },
     2: {
         "name": "ActorInteractScene",
@@ -180,7 +180,7 @@ ENTRY_TYPES = {
         "consumer": _KICK2,
         "matcher": "Scene_TickDispatchType6NpcEvent (RF4S.exe+0x1F2C00)",
         "confidence": "verified",
-        "notes": "Handler 23 of the game-event handler table (RF4S.exe+0x4DB688); NpcAi_PerFrameTick queues kind 23 on the every-morning flag.",
+        "notes": "Runs on entering the map: Scene_FinalizeMajorTransition (RF4S.exe+0x140ECC picks the area music first) calls Map_OnEnter_QueueMapEvents (+0x1EE7C0), which queues game event 24 with the map id; event 24 = Scene_TickDispatchType6NpcEvent (g_npcAiEventKindDispatchTable_34 +0x4DB680). The event runs on a later frame, so the scene starts after the music was picked; music changed by the scene comes back when it ends unless FLG_BGM_NOT_RETURN = 1. Corrected 2026-09-29: this note said handler 23 / the every-morning event (kind 23 is a different handler).",
     },
     7: {
         "name": "MapEnterScene",
@@ -191,7 +191,7 @@ ENTRY_TYPES = {
         "consumer": _KICK2,
         "matcher": "Npc_TickScriptActionDispatch (RF4S.exe+0x1EEE10), wrapper at RF4S.exe+0x1F2E50 = handler 24",
         "confidence": "verified",
-        "notes": "Npc_OnTalkAction_QueueDialogueCascade (RF4S.exe+0x1EE7C0) loads the tail bank of the entered map and queues event kind 24 with the map id.",
+        "notes": "Map_OnEnter_QueueMapEvents (RF4S.exe+0x1EE7C0) loads the tail bank of the entered map and queues event kind 24 with the map id.",
     },
     8: {
         "name": "GlobalScene8",
@@ -455,7 +455,7 @@ ENTRY_TYPES = {
         "summary": "Sub-event scene on map entry (key = map id); sets ctx flag 0x400 before running.",
         "bank": "primary: REG_SUBEV_NOW",
         "keys": [
-            {"index": 0, "name": "map", "meaning": "map id (tag 4) from the event descriptor word +2 (Npc_OnTalkAction_QueueDialogueCascade queues kind 20 with the entered map)", "wildcard": True},
+            {"index": 0, "name": "map", "meaning": "map id (tag 4) from the event descriptor word +2 (Map_OnEnter_QueueMapEvents queues kind 20 with the entered map)", "wildcard": True},
         ],
         "select": "first",
         "consumer": _APPLY1 + " (mode 1, step immediately)",
@@ -736,7 +736,7 @@ ENTRY_TYPES = {
         ],
         "select": "all",
         "consumer": _COLLECT + " (kind 4 records are queued as game-event kind 32)",
-        "matcher": "inline loop in Npc_OnTalkAction_QueueDialogueCascade (RF4S.exe+0x1EE7C0, reads at RF4S.exe+0x1EECB0..0x1EEDBE)",
+        "matcher": "inline loop in Map_OnEnter_QueueMapEvents (RF4S.exe+0x1EE7C0, reads at RF4S.exe+0x1EECB0..0x1EEDBE)",
         "confidence": "likely",
         "notes": "",
     },

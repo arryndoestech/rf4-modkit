@@ -43,7 +43,7 @@ The listing language (one statement per line, `;` comments, labels `name:`):
 
     L0:                                  ; label on its own line or before a statement
         FRAME 2
-        SetSpeakerNancyLeft(3, 0)            ; action: name(args) -- mnemonic | technical name | opN
+        SetSpeaker(Nancy, Left, 3, 0)    ; action: name(args) -- mnemonic | technical name | opN
         DIALOG #8709
         BR_Z (REG_WIFE_ID == 11) -> L1   ; condition in parentheses, target label or 0xPC
         EVAL (FLG_EV_DONE = 1)          ; write a game flag
@@ -418,9 +418,12 @@ def op_from_any(name):
 def listing_name(op):
     """The name `scene_listing` prints for an action opcode: the mnemonic when it maps
     back to exactly this op, else the technical name; when several opcodes share the name
-    (the left/right SetSpeaker pairs, handler aliases such as 218/219) the others print as
-    `Name_N`, and only nameless ops fall back to `opN`. Always re-assemblable."""
+    (handler aliases such as 218/219) the others print as `Name_N`, and only nameless ops
+    fall back to `opN`. An op with opcode arguments (SetSpeaker) prints its family name;
+    action_line puts those arguments first. Always re-assemblable."""
     m = script.opcode_mnemonic(op)
+    if meta.OPCODE_ARGS.get(op):
+        return m
     if m and op_from_any(m) == op:
         return m
     t = script.opcode_name(op)
@@ -671,7 +674,8 @@ class Assembler:
                 st.code += struct.pack("<I", sid)
 
     def _action(self, line_no, head, rest, st):
-        op = op_from_any(head)
+        n_opargs = meta.opcode_arg_count(head)
+        op = meta.op_from_mnemonic(head) if n_opargs else op_from_any(head)   # family: set below
         if op is None:
             hits = list(script.find_ops(head))
             if not hits:                                   # substring miss: try close spellings
@@ -697,13 +701,12 @@ class Assembler:
         if args_txt.startswith("(") and _outer_parens(args_txt.strip()):
             args_txt = args_txt.strip()[1:-1]
         args = _split_top(args_txt) if args_txt.strip() else []
-        # SetSpeaker ops (16..75): the friendly renderer prepends the side; accept + drop it.
-        if 16 <= op <= 75 and args and args[0].lower() in ("left", "right"):
-            side = "left" if (op & 1) == 0 else "right"
-            if args[0].lower() != side:
-                raise AsmError("line %d: op %d is a %s-side speaker op, not %s"
-                               % (line_no, op, side, args[0]))
-            args = args[1:]
+        if n_opargs:                        # SetSpeaker(character, side, ...): opcode arguments
+            try:
+                op = meta.op_from_opcode_args(head, args)
+            except ValueError as e:
+                raise AsmError("line %d: %s" % (line_no, e))
+            args = args[n_opargs:]
         if len(args) > 64:
             raise AsmError("line %d: too many arguments (%d)" % (line_no, len(args)))
         lim = meta.arg_limit(op) if hasattr(meta, "arg_limit") else None
@@ -947,6 +950,12 @@ def action_text(name, args):
     return "%s(%s)" % (name, ", ".join(call_arg(a) for a in args))
 
 
+def action_line(op, args):
+    """The listing line of action `op` with operand texts `args`: its listing name, and the
+    opcode-encoded arguments in front (SetSpeaker(Forte, Right, 3, 0) for op 25)."""
+    return action_text(listing_name(op), meta.opcode_arg_values(op) + list(args))
+
+
 def _single_literal(buf, off):
     t = buf[off]
     size = {0x14: 1, 0x15: 1, 0x16: 1, 0x17: 2, 0x18: 2, 0x19: 3, 0x1A: 3, 0x01: 5}.get(t)
@@ -1009,9 +1018,8 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 who = {"player": "MC", "narration": "Narration"}.get(who, who)
                 note = ("%s: %s" % (who, note)).rstrip()
         elif st.op < 0xFFF0:
-            name = listing_name(st.op) if friendly else ("op%d" % st.op)
             args = [operand_text(buf, a, st.op, i) for i, a in enumerate(st.args)]
-            body = action_text(name, args)
+            body = action_line(st.op, args) if friendly else action_text("op%d" % st.op, args)
             if comments:
                 pretty = None
                 try:

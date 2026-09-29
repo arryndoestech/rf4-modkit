@@ -3179,7 +3179,7 @@ _M.update({
         'reg0 = total gold earned from shipping over the whole save, all categories (sale-records category 0 = the ALL aggregate), capped at 2,000,000,000. No args.',
         []),
     652: ('GetPreviousMapId', 'query',
-        'reg0 = scene-context word +348, which Npc_OnTalkAction_QueueDialogueCascade sets to the previous g_lastInteractionActionId (the value it also writes to REG_PREV_MAPID) on each scene transition, i.e. the map the player came from. No args.',
+        'reg0 = scene-context word +348, which Map_OnEnter_QueueMapEvents sets to the previous g_lastInteractionActionId (the value it also writes to REG_PREV_MAPID) on each scene transition, i.e. the map the player came from. No args.',
         []),
     662: ('SetActorArmorBreak', 'actor',
         "Set (arg1 != 0) or clear bit 0x4000 of Actor_t.control_flags (+568) on the actor with char id [arg0] (0 player, <48 NPC, >=48 event actor). Requires the actor to have a stats block. What the bit means is unknown: its writers include Npc_BuildCharNpcActorTask, Actor_SpawnByCharId, Npc_SpawnCharEventActor, Actor_ResetToTameAndLeaveParty, Player_BeginThrowAction, the boss ultimate-attack action and op 664; it is cleared in Player_OnHitCancelInteractionAndCinematic, Quest_OnReactionDispatched_AdvanceState and others. Nothing supports 'armor break'.",
@@ -3467,7 +3467,8 @@ def prototype(op):
     def _short(nm):
         s = nm.split(" (")[0].strip()
         return s or nm
-    return "%s(%s)" % (mnemonic(op), ", ".join(_short(n) for n in arg_names(op)))
+    lead = [a["name"] for a in OPCODE_ARGS.get(op, ())]
+    return "%s(%s)" % (mnemonic(op), ", ".join(lead + [_short(n) for n in arg_names(op)]))
 
 
 _OP_BY_MNEMONIC = None
@@ -4588,8 +4589,8 @@ def render_action(op, arg_strs):
             return "%s(Skill, %s)" % (mnemonic(op), skill_name(sid))
         return "%s(%s)" % (mnemonic(op), PLAYER_VAR_BY_CHARCODE.get(code, "code%d" % code))
     # Portrait / SetSpeaker ops (16..75): resolve face-frame + emote-id numerics to canonical
-    # mood names (the side is in the name: even ops ...Left, odd ...Right). So
-    # `SetSpeakerVishnalRight(1, 189)` (op 19) renders as `SetSpeakerVishnalRight(angry, angry)`.
+    # mood names (the character and side come from the opcode: op = 16 + 2*character + side). So
+    # `SetSpeaker(Vishnal, Right, 1, 189)` (op 19) renders as `SetSpeaker(Vishnal, Right, angry, angry)`.
     if 16 <= op <= 75:
         decorated = []
         for i, raw in enumerate(arg_strs):
@@ -4616,7 +4617,7 @@ def render_action(op, arg_strs):
                     decorated.append(name if name else str(v))
             else:                                 # target actor ref
                 decorated.append(raw)
-        return "%s(%s)" % (mnemonic(op), ", ".join(decorated))
+        return "%s(%s)" % (mnemonic(op), ", ".join(opcode_arg_values(op) + decorated))
     # Auto-annotate any op that has an enum registry entry: TriggerWorldAction(3=MessageBoard),
     # ShowStaffCredits(2=Credits (bottom)), etc. Falls back to the default rendering
     # if the argument is a non-literal expression or the value isn't in the enum.
@@ -5004,6 +5005,55 @@ CONTROL = {_r["mnemonic"]: (_r["category"], _r["description"]) for _r in TABLE["
 def table_row(op):
     """The opcode_table.json row of an action op (dict), or None."""
     return TABLE["actions"].get(str(op))
+
+
+# Opcode arguments: an instruction family whose leading arguments are encoded in the opcode
+# itself, e.g. SetSpeaker(character, side, face, ...) = ops 16..75 with
+# opcode = 16 + 2*character + side (one handler, RF4S.exe+0x207F70, decodes both). A row's
+# `opcode_args` lists those arguments with this opcode's value; the listing prints them in
+# front of the stored arguments and the assembler picks the opcode from them.
+OPCODE_ARGS = {int(_k): _r["opcode_args"] for _k, _r in TABLE["actions"].items() if _r.get("opcode_args")}
+_FAMILY = {}                                       # mnemonic (lower) -> {(raw, ...): op}
+for _o, _oa in OPCODE_ARGS.items():
+    _FAMILY.setdefault(META[_o]["m"].lower(), {})[tuple(_a["raw"] for _a in _oa)] = _o
+
+
+def opcode_arg_values(op):
+    """Names of the opcode-encoded arguments of `op` (e.g. ['Forte', 'Right']), or []."""
+    return [a["value"] for a in OPCODE_ARGS.get(op, ())]
+
+
+def opcode_arg_count(name):
+    """How many leading arguments of mnemonic `name` are encoded in the opcode (0 if none)."""
+    fam = _FAMILY.get((name or "").strip().lower())
+    return len(next(iter(fam))) if fam else 0
+
+
+def op_from_opcode_args(name, texts):
+    """The opcode of family `name` whose opcode arguments are `texts` (each a value name,
+    case-insensitive, or its number). Raises ValueError naming the accepted values."""
+    fam = _FAMILY.get(name.strip().lower())
+    if not fam:
+        raise ValueError("%s has no opcode arguments" % name)
+    any_op = next(iter(fam.values()))
+    specs = OPCODE_ARGS[any_op]
+    if len(texts) < len(specs):
+        raise ValueError("%s needs %s first" % (name, ", ".join(s["name"] for s in specs)))
+    raws = []
+    for i, (spec, txt) in enumerate(zip(specs, texts)):
+        want = txt.strip()
+        seen = {}
+        for o in fam.values():
+            a = OPCODE_ARGS[o][i]
+            seen[a["value"].lower()] = a["raw"]
+            seen[str(a["raw"])] = a["raw"]
+        if want.lower() not in seen:
+            raise ValueError("%s: %s %r is not one of: %s" % (name, spec["name"], want, spec["values"]))
+        raws.append(seen[want.lower()])
+    op = fam.get(tuple(raws))
+    if op is None:
+        raise ValueError("%s: no opcode for %s" % (name, ", ".join(texts[:len(specs)])))
+    return op
 
 
 def returns(op):

@@ -78,8 +78,22 @@ class MapEditorPanel:
         self._build()
         self.tex_reader = tex_reader
         self.set_tool("select", focus=False)    # the host keeps its focus (e.g. the file list)
+        data.on_script_changed(self._script_changed)
         if mapobj is not None:
             self.set_map(mapobj, name)
+
+    def _script_changed(self):
+        """The event scripts changed (cutscene editor edit / undo / save): re-read this map's
+        script spawns. False once the panel is gone, which unregisters it."""
+        try:
+            if not self.frame.winfo_exists():
+                return False
+        except tk.TclError:
+            return False
+        self._spawns_for = None
+        if self.doc is not None and self.view.st.layers.get("spawns"):
+            self._load_spawns(quiet=True)
+        return True
 
     # ------------------------------------------------------------------ #
     # construction
@@ -1241,11 +1255,12 @@ class MapEditorPanel:
         self.tex_reader = data.folder_reader(hit.parent)
         self.set_map(rf4m.Rf4mMap.load(hit), name)
 
-    def _load_spawns(self):
+    def _load_spawns(self, quiet=False):
         if self.doc is None or self._spawns_for is self.doc:
             return
-        self.status("Scanning this map's event script for NPC spawns…")
-        self.frame.update_idletasks()
+        if not quiet:
+            self.status("Scanning this map's event script for NPC spawns…")
+            self.frame.update_idletasks()
         bank, spawns = data.script_spawns(self.doc.base)
         self._spawns_for = self.doc
         self._spawn_bank = bank
@@ -1253,8 +1268,9 @@ class MapEditorPanel:
         # redraw the markers now: the update_idletasks above may already have run the redraw
         # set_map scheduled, while the spawn list was still empty
         self.view.invalidate("spawn")
-        self.status(f"{len(spawns)} script-placed NPC(s) on this map" if bank is not None
-                    else "No event script found for this map")
+        if not quiet:
+            self.status(f"{len(spawns)} script-placed NPC(s) on this map" if bank is not None
+                        else "No event script found for this map")
         self._schedule("objects")
 
     def open_spawn(self, i):

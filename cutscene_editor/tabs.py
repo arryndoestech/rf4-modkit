@@ -5,7 +5,7 @@ import re
 import tkinter as tk
 from tkinter import ttk
 
-from guiutil import Tip
+from guiutil import FilterCombo, Paned, ScrollFrame, Tip
 from rf4s_modkit import script, scriptasm
 
 from . import catalog
@@ -194,7 +194,6 @@ class TriggersTab(ttk.Frame):
                 ("New scene…", app.ask_new_scene, "Mint a brand-new scene in this bank: pick WHEN it "
                                                   "plays (the action type), its keys, and write its body."),
                 ("Open", self.open_selected, "Open the selected entry's scene (double-click works too)."),
-                ("Change keys…", self.rekey, "Change what the selected entry matches (its keys; -1 = any)."),
                 ("Remove", self.remove, "Unregister the selected entry: its trigger stops firing; the "
                                         "scene's code stays as dead bytes.")):
             b = ttk.Button(bar, text=text, command=cmd)
@@ -218,6 +217,8 @@ class TriggersTab(ttk.Frame):
         sb.config(command=self.tree.yview)
         self.tree.bind("<Double-Button-1>", lambda _e: self.open_selected())
         self.tree.bind("<Return>", lambda _e: self.open_selected())
+        # the selected entry's keys go to the editor's right-hand pane (TriggerDetail)
+        self.tree.bind("<<TreeviewSelect>>", lambda _e: app.show_trigger(*self.selected()))
         self.rows = {}
         self.bank_pos = None
 
@@ -227,6 +228,8 @@ class TriggersTab(ttk.Frame):
 
     def refresh(self):
         t = self.tree
+        typ0, r0 = self.selected()
+        keep = (typ0, r0.index if r0 is not None else None) if typ0 is not None else None
         t.delete(*t.get_children())
         self.rows = {}
         app = self.app
@@ -255,6 +258,14 @@ class TriggersTab(ttk.Frame):
                                values=("@%04x%s" % (r.event_id, dead), catalog.describe_keys(typ, r.subs)))
                 self.rows[iid] = (typ, r)
                 total += 1
+        if keep is not None:                    # the same row again after an edit
+            for iid, (ty, r) in self.rows.items():
+                if ty == keep[0] and (r.index if r is not None else None) == keep[1]:
+                    t.selection_set(iid)
+                    t.see(iid)
+                    break
+        if app.right_pane == "trigger":
+            app.show_trigger(*self.selected())
         self.lbl.config(text="%s: %d action type%s, %d entr%s%s"
                              % (catalog.bank_title(bank), len(tt), "" if len(tt) == 1 else "s", total,
                                 "y" if total == 1 else "ies",
@@ -272,20 +283,6 @@ class TriggersTab(ttk.Frame):
         self.app.open_scene(self.bank_pos, r.event_id, tab="Script")
         return True
 
-    def rekey(self):
-        typ, r = self.selected()
-        if r is None:
-            self.app.status("select an entry row to change its keys")
-            return False
-        from tkinter import simpledialog
-        s = simpledialog.askstring(
-            "Change keys", "Keys for %s entry #%d — a comma list: `5, -1` (-1 = any where the type allows "
-            "it; type 2 has no wildcard) or `(tag, value)` pairs for a non-1 tag:" % (catalog.type_label(typ), r.index),
-            initialvalue=catalog.entry_keys_text(r.subs), parent=self)
-        if s is None:
-            return False
-        return self.app.set_entry_keys(self.bank_pos, typ, r.index, s)
-
     def remove(self):
         typ, r = self.selected()
         if r is None:
@@ -297,6 +294,237 @@ class TriggersTab(ttk.Frame):
                                    % (catalog.type_label(typ), r.index, r.event_id)):
             return False
         return self.app.remove_entry(self.bank_pos, typ, r.index)
+
+
+class TriggerDetail(ttk.Frame):
+    """The editor's right-hand pane while the Triggers tab is open (it takes the Inspector's
+    place): what the selected entry's type does, and one
+    named field per key (entry_types' key specs). A trigger box (x1 y1 x2 y2) shows as x, y,
+    width, height with 'Draw on map'; a condition picks an em.bin entry; a map key picks a
+    map. Apply (or Enter) writes the keys back, keeping each key's tag."""
+
+    BOX = ("x1", "y1", "x2", "y2")
+
+    def __init__(self, parent, app, tab):
+        super().__init__(parent)
+        self.app, self.tab = app, tab
+        self.sf = ScrollFrame(self)
+        self.sf.pack(fill="both", expand=True)
+        self.body = self.sf.body
+        self.typ = self.rec = None
+        self.fields = []                    # [(kind, key index | box, StringVar, token map)]
+        self.show(None, None)
+
+    # ---- layout ------------------------------------------------------------------ #
+    def _clear(self):
+        for w in self.body.winfo_children():
+            w.destroy()
+        self.fields = []
+
+    def _label(self, text, **kw):
+        kw.setdefault("wraplength", 330)
+        kw.setdefault("justify", "left")
+        lb = ttk.Label(self.body, text=text, **kw)
+        lb.pack(anchor="w", padx=8, pady=(2, 0))
+        return lb
+
+    def show(self, typ, rec):
+        self._clear()
+        self.typ, self.rec = typ, rec
+        if typ is None:
+            self._label("Select a trigger type or an entry on the left.", foreground="#777")
+            return
+        self._label(catalog.type_label(typ), font=("Segoe UI", 10, "bold"))
+        summ = catalog.type_summary(typ)
+        if summ:
+            self._label(summ, foreground="#444")
+        if rec is None:
+            recipe = catalog.type_recipe(typ)
+            if recipe:
+                self._label(recipe, foreground="#2a6a8a", font=("Segoe UI", 8))
+            self._label("Select one of its entries to edit its keys.", foreground="#777")
+            return
+        head = ttk.Frame(self.body)
+        head.pack(fill="x", padx=8, pady=(6, 2))
+        ttk.Label(head, text="entry #%d → scene @%04x" % (rec.index, rec.event_id)).pack(side="left")
+        ttk.Button(head, text="Open scene", command=self.tab.open_selected).pack(side="right")
+        box = ttk.LabelFrame(self.body, text="Keys (what this entry matches)", padding=6)
+        box.pack(fill="x", padx=6, pady=6)
+        box.columnconfigure(1, weight=1)
+        self._build_fields(box, typ, rec)
+        self.warn = ttk.Label(self.body, foreground="#b06000", wraplength=330, justify="left")
+        self.warn.pack(anchor="w", padx=8)
+        bb = ttk.Frame(self.body)
+        bb.pack(fill="x", padx=6, pady=6)
+        ap = ttk.Button(bb, text="Apply", command=self.apply)
+        ap.pack(side="left")
+        Tip(ap, "Write these keys into the entry (Enter in a field does the same). Undo with Ctrl+Z.")
+        ttk.Button(bb, text="Revert", command=lambda: self.show(self.typ, self.rec)).pack(side="left", padx=4)
+        self._check()
+
+    def _spec(self, typ, k):
+        try:
+            from rf4s_modkit import entry_types
+            return entry_types.key_spec(typ, k) or {}
+        except Exception:
+            return {}
+
+    def _row(self, box, r, label, var, hint, options=None, width=12):
+        ttk.Label(box, text=label).grid(row=r, column=0, sticky="nw", padx=(0, 6), pady=2)
+        if options:
+            w = FilterCombo(box, [d for d, _t in options], on_pick=lambda _t: self._check(), width=30,
+                            textvariable=var)
+        else:
+            w = ttk.Entry(box, textvariable=var, width=width)
+        w.grid(row=r, column=1, sticky="w", pady=2)
+        w.bind("<Return>", lambda _e: self.apply())
+        var.trace_add("write", lambda *_a: self._check())
+        if hint:
+            ttk.Label(box, text=hint, foreground="#777", font=("Segoe UI", 8), wraplength=320,
+                      justify="left").grid(row=r + 1, column=0, columnspan=3, sticky="w", pady=(0, 3))
+        return w
+
+    def _build_fields(self, box, typ, rec):
+        subs = list(rec.subs)
+        vals = [v for _t, v in subs]
+        names = [(self._spec(typ, k).get("name") or "key %d" % k) for k in range(len(subs))]
+        row = 0
+        bi = [names.index(n) for n in self.BOX] if all(n in names for n in self.BOX) else None
+        if bi:
+            x1, y1, x2, y2 = (vals[i] for i in bi)
+            x1, x2 = min(x1, x2), max(x1, x2)
+            y1, y2 = min(y1, y2), max(y1, y2)
+            vars_ = [tk.StringVar(value=str(v)) for v in (x1, y1, x2 - x1, y2 - y1)]
+            for lab, var, hint in zip(("x", "y", "width", "height"), vars_, (
+                    "box left edge (1/8-tile units, like positions)", "box top edge", "", "")):
+                self._row(box, row, lab, var, hint)
+                row += 2
+            self.fields.append(("box", tuple(bi), vars_, None))
+            b = ttk.Button(box, text="📍 Draw the box on the map…", command=self.draw_box)
+            b.grid(row=row, column=0, columnspan=2, sticky="w", pady=(2, 6))
+            Tip(b, "Drag the trigger area on the map (1/8-tile units; the map is this bank's map, "
+                   "or the entry's map key).")
+            row += 1
+        for k, (tag, v) in enumerate(subs):
+            if bi and k in bi:
+                continue
+            spec = self._spec(typ, k)
+            name = names[k]
+            hint = (spec.get("meaning") or "")[:220]
+            if spec.get("wildcard"):
+                hint = "-1 = any. " + hint
+            if tag != 1:
+                hint = "(tag %d) %s" % (tag, hint)
+            opts = self._key_options(name)
+            var = tk.StringVar()
+            tokmap = dict(opts) if opts else None
+            disp = next((d for d, t in opts if t == str(v)), str(v)) if opts else str(v)
+            var.set(disp)
+            self._row(box, row, name, var, hint, opts)
+            self.fields.append(("key", k, var, tokmap))
+            row += 2
+
+    def _key_options(self, name):
+        """[(display, token)] picker values for a key named `name`, or None."""
+        n = name.lower()
+        if n == "condition":
+            em = self.app.doc.em
+            if em is None:
+                return None
+            try:
+                from rf4s_modkit import emtext
+            except ImportError:
+                emtext = None
+            out = [("-1  (none / any)", "-1"), ("0  (none)", "0")]
+            for i in range(len(em.entries)):
+                nm = em.names.entry_name(i) or ""
+                txt = (emtext.entry_text(nm) if emtext else "") or ""
+                out.append(("%d  %s%s" % (i, nm, ("  — " + txt) if txt else ""), str(i)))
+            return out
+        if n == "map":
+            from . import toolbox
+            return [(d, str(script.map_leaf_value(t[4:-1]))) for d, t in toolbox.map_choices()]
+        return None
+
+    # ---- values ------------------------------------------------------------------ #
+    def values(self):
+        """The entry's keys as the fields say: [(tag, value)] (raises ValueError)."""
+        subs = list(self.rec.subs)
+        out = [v for _t, v in subs]
+        for kind, where, var, tokmap in self.fields:
+            if kind == "box":
+                x, y, w, h = (int(v.get().strip(), 0) for v in var)
+                if w < 0 or h < 0:
+                    raise ValueError("width and height must be 0 or more")
+                for i, val in zip(where, (x, y, x + w, y + h)):
+                    out[i] = val
+            else:
+                t = var.get().strip()
+                t = (tokmap or {}).get(t, t)
+                tok = t.split()[0] if t else ""
+                try:
+                    out[where] = int(tok, 0)
+                except ValueError:
+                    raise ValueError("%s: %r is not a number" % (self._spec(self.typ, where).get("name")
+                                                                   or "key %d" % where, t))
+        return [(tag, v) for (tag, _o), v in zip(subs, out)]
+
+    def _check(self):
+        if self.rec is None or not hasattr(self, "warn"):
+            return
+        try:
+            keys = self.values()
+        except ValueError as e:
+            self.warn.config(text="✗ " + str(e), foreground="#b00")
+            return
+        probs = catalog.key_problems(self.typ, keys)
+        changed = keys != [(t, v) for t, v in self.rec.subs]
+        self.warn.config(text=("⚠ " + "; ".join(probs)) if probs else ("● not applied yet" if changed else ""),
+                         foreground="#b06000")
+
+    def apply(self):
+        if self.rec is None:
+            return False
+        try:
+            keys = self.values()
+        except ValueError as e:
+            self.warn.config(text="✗ " + str(e), foreground="#b00")
+            return False
+        if keys == [(t, v) for t, v in self.rec.subs]:
+            return True
+        return self.app.set_entry_keys(self.tab.bank_pos, self.typ, self.rec.index, keys)
+
+    def draw_box(self):
+        from . import toolbox
+        box_field = next((f for f in self.fields if f[0] == "box"), None)
+        if box_field is None:
+            return None
+        try:
+            x, y, w, h = (int(v.get().strip(), 0) for v in box_field[2])
+            cur = (x, y, x + w, y + h)
+        except ValueError:
+            cur = None
+        bank = self.app.doc.container.banks[self.tab.bank_pos]
+        mid, lock, note = None, None, None
+        mapf = next((f for f in self.fields if f[0] == "key"
+                     and (self._spec(self.typ, f[1]).get("name") or "") == "map"), None)
+        if mapf is not None:
+            t = mapf[2].get().strip()
+            try:
+                mid = int((mapf[3] or {}).get(t, t).split()[0], 0)
+                lock = "the entry's map key says which map the box is on"
+            except (ValueError, IndexError):
+                note = "the entry's map key is not a map: choose one"
+        elif bank.kind == "tail":
+            mid, lock = bank.index, "the entry is in this map's event bank"
+        else:
+            note = "this bank is not tied to one map: choose the map the trigger is for"
+
+        def done(x1, y1, x2, y2, _mid):
+            for v, val in zip(box_field[2], (x1, y1, x2 - x1, y2 - y1)):
+                v.set(str(val))
+        self._box_picker = toolbox.MapBoxPicker(self, mid, cur, done, lock=lock, note=note)
+        return self._box_picker
 
 
 # --------------------------------------------------------------------------- #

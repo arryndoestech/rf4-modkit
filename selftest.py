@@ -1647,6 +1647,7 @@ def test_mobj_types():
         if "MapOre_Rate.bin" in _ob:
             _fs = _render.Sprites()
             _fs.reader = lambda fn: _ob[fn].read_bytes() if fn in _ob else None
+            import time
             from map_editor import data as _md
             from rf4s_modkit import mobj_params as _mpo
             k0 = _md.ore_configs(_fs.reader)[0][0]
@@ -2963,9 +2964,16 @@ def test_script():
                     _stale_xref.append("op%d cites '%s (op %d)' now=%s" % (_o, _nm, _ref, _act))
     _check("no stale 'Mnemonic (op NNN)' cross-references in descriptions",
            not _stale_xref, "; ".join(_stale_xref[:5]))
-    _check("opcode_meta SetSpeaker<char> mnemonics",
-           om.mnemonic(16) == "SetSpeakerMCLeft" and om.mnemonic(17) == "SetSpeakerMCRight"
-           and om.mnemonic(18) == "SetSpeakerVishnalLeft" and om.mnemonic(54) == "SetSpeakerNancyLeft"
+    # ops 16..75 are one instruction SetSpeaker(character, side, ...): opcode = 16 + 2*character
+    # + side (NpcBubble_DispatchAreaInfoLine RF4S.exe+0x207F70 decodes both from the opcode)
+    _check("SetSpeaker: one mnemonic, character + side are opcode arguments (op = 16 + 2*char + side)",
+           all(om.mnemonic(o) == "SetSpeaker" for o in range(16, 76))
+           and om.opcode_arg_values(16) == ["MC", "Left"] and om.opcode_arg_values(17) == ["MC", "Right"]
+           and om.opcode_arg_values(54) == ["Nancy", "Left"]
+           and all(om.op_from_opcode_args("SetSpeaker", [str(c), str(sd)]) == 16 + 2 * c + sd
+                   for c in range(30) for sd in (0, 1))
+           and om.op_from_opcode_args("setspeaker", ["nancy", "LEFT"]) == 54
+           and om.prototype(25) == "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)"
            and om.portrait_speaker_tag(16) == "MC" and om.portrait_speaker_tag(54) == "Nancy")
     _check("opcode_meta known mnemonics (+302-corrected)",
            om.mnemonic(318) == "SetNpcBirthdayGiftFlag"
@@ -5425,7 +5433,7 @@ def test_script_authoring():
            sc3.ok and "BR_Z (FLG_KOKUHAKU_NOW) ->" in lst and "EVAL (reg0 = 3)" in lst
            and "DIALOG #5" in lst and len(sc3.stmts) == len(sc.stmts) + 3,   # 3 new, in place
            f"{len(sc.stmts)} -> {len(sc3.stmts)} stmts, ok={sc3.ok}")
-    body = ("FRAME 2\nSetSpeakerNancyLeft 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
+    body = ("FRAME 2\nSetSpeaker Nancy, Left, 3, 0\nDIALOG #8709\nBR_NZ (REG_WIFE_ID != 11) -> done\n"
             "PROMPT_CHOICE CANCEL->done, #100->yes, #101->done\nyes:\nGivePlayerItem 258, 1, 0\ndone:\nEND")
     _e4 = c3.rewrite_scene(b3, _e3, body)
     sc4 = script.disassemble_scene(b3, sc.action_type, _e4)
@@ -5487,7 +5495,7 @@ def test_script_authoring():
     c5.set_asm_resolver(c.asm_resolver)
     empty = next(b for b in c5.banks if b.kind == "tail" and len(b.data) == 296)
     gi_e = c5.banks.index(empty)
-    pc, idx = c5.add_entry(empty, 6, [], listing="FRAME 0\nSetSpeakerNancyLeft 3, 0\nDIALOG #8709\n"
+    pc, idx = c5.add_entry(empty, 6, [], listing="FRAME 0\nSetSpeaker(Nancy, Left, 3, 0)\nDIALOG #8709\n"
                                                   "EVAL (FLG_KOKUHAKU_NOW = 1)\nEND")
     busy = c5.banks[213]
     bt = next(t for t, (cnt, off) in busy.type_table_full().items() if cnt >= 2)
@@ -5616,9 +5624,11 @@ def test_script_authoring():
            _asm_bad == len(_bad_listings) and _ok157, "%d/%d" % (_asm_bad, len(_bad_listings)))
     # speaker slots 25/26/29 are named from NpcBubble_DispatchAreaInfoLine (RF4S.exe+0x207F70)
     _check("SetSpeaker slots 25/26/29 = Soldier/Ethelberd/Traveler (no old names kept)",
-           script.opcode_mnemonic(66) == "SetSpeakerSoldierLeft" and script.opcode_mnemonic(69) == "SetSpeakerEthelberdRight"
-           and scriptasm.assemble("SetSpeakerTravelerLeft 0, 0", 0x100)[0][:2] == b"\x4a\x00"
+           script.meta.opcode_arg_values(66) == ["Soldier", "Left"]
+           and script.meta.opcode_arg_values(69) == ["Ethelberd", "Right"]
+           and scriptasm.assemble("SetSpeaker Traveler, Left, 0, 0", 0x100)[0][:2] == b"\x4a\x00"
            and script.meta.op_from_mnemonic("SetSpeakerguest25") is None
+           and script.meta.op_from_mnemonic("SetSpeakerTravelerLeft") is None
            and script.meta.op_from_mnemonic("SetSpeakerEmote1") is None)
     # a packed var whose width is not emdeb's keeps its raw var:0x form (it would re-assemble
     # with the emdeb width otherwise).
@@ -5649,14 +5659,18 @@ def test_script_authoring():
         _check("`rf4mod script expr` compiles an expression from the CLI", False, "SystemExit")
     except Exception as e:
         _check("`rf4mod script expr` compiles an expression from the CLI", False, repr(e))
-    # listing names: opcodes that share a mnemonic (SetSpeaker left/right pairs, handler
-    # aliases like 218/219) print as Name_N instead of a bare opN, and every name assembles back
+    # listing names: opcodes that share a mnemonic (handler aliases like 218/219) print as
+    # Name_N instead of a bare opN; SetSpeaker ops print their opcode arguments first. Every
+    # (name, opcode arguments) pair is unique and assembles back to its op.
     from rf4s_modkit import scriptasm as _sa
-    _ln = [_sa.listing_name(o) for o in range(script.DISPATCHABLE_ACTION_OPS)]
-    _bad = [(o, n) for o, n in enumerate(_ln) if _sa.op_from_any(n) != o]
-    _bare = [o for o, n in enumerate(_ln) if re.fullmatch(r"op\d+", n)]
+    _ln = [(_sa.listing_name(o), tuple(script.meta.opcode_arg_values(o)))
+           for o in range(script.DISPATCHABLE_ACTION_OPS)]
+    _bad = [(o, n) for o, n in enumerate(_ln)
+            if (script.meta.op_from_opcode_args(n[0], list(n[1])) if n[1] else _sa.op_from_any(n[0])) != o]
+    _bare = [o for o, n in enumerate(_ln) if re.fullmatch(r"op\d+", n[0])]
     _check("every action opcode has a unique listing name that assembles back (Name_N for shared names)",
-           not _bad and len(set(_ln)) == len(_ln) and len(_bare) <= 2 and _ln[53] == "SetSpeakerJonesRight",
+           not _bad and len(set(_ln)) == len(_ln) and len(_bare) <= 2
+           and _sa.action_line(53, ["3", "0"]) == "SetSpeaker(Jones, Right, 3, 0)",
            _bad[:3] or f"{len(_bare)} bare opN left: {_bare}")
     # the developers' test menus: bank 18 (Jones) carries the event / festival / date menus
     _tp = _first("rf3mc.eng")
@@ -6244,7 +6258,7 @@ def test_cutscene_editor_authoring():
         empty_idx = next(i for i, b in enumerate(c.banks) if b.kind == "tail" and len(b.data) == 296)
         ex.show_bank(empty_idx)
         eb = c.banks[empty_idx]
-        res = ex.add_entry(empty_idx, 7, "", "FRAME 0\nSetSpeakerNancyLeft 3, 0\nDIALOG #8709\nEND", "append")
+        res = ex.add_entry(empty_idx, 7, "", "FRAME 0\nSetSpeaker Nancy, Left, 3, 0\nDIALOG #8709\nEND", "append")
         recs = eb.entry_records(7)
         _check("New scene mints a type-7 scene in an empty map bank and opens it",
                isinstance(res, tuple) and len(recs) == 1 and recs[0].event_id == res[0]
@@ -11275,6 +11289,202 @@ def test_map_editor_workflows():
         root.destroy()
 
 
+def test_cutscene_toolbox():
+    """The cutscene editor's Instruction picker and Reference window (cutscene_editor/toolbox):
+    every instruction's form makes a listing that assembles, an insert lands in the scene,
+    SetSpeaker's character / side pickers choose the opcode, and the reference lists fill."""
+    print("cutscene editor toolbox (instruction picker + reference):")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("cutscene toolbox", "no tkinter: %s" % e); return
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("cutscene toolbox", "rf3.mc not extracted"); return
+    dirs = [mc.parent] + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
+                                     pathlib.Path(BUNDLE_DIR) / "bundlePatch2") if d.is_dir()]
+
+    def reader(n):
+        for d in dirs:
+            if (d / n).is_file():
+                return (d / n).read_bytes()
+        return None
+    from rf4s_modkit import script
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        sc = script.disassemble_bank(cx.doc.container.banks[48])[0]
+        cx.show_bank(48, sc.entry_pc)
+        first = next(iter(cx.scene.stmts))
+        cx.select((first, None))
+        p = cx.ask_insert_instruction()
+        _check("one picker per editor", cx.ask_insert_instruction() is p)
+        ents = p.entries()
+        bad = []
+        for _g, iid, text, _o, _v, _h in ents:
+            kind, _, key = iid.partition(":")
+            p.set_instruction((kind, int(key) if kind == "op" else key))
+            err = cx.assemble_check(p.text())[2]
+            if err:
+                bad.append("%s: %s" % (p.text(), err[:80]))
+        _check("every instruction's form (defaults) makes a listing that assembles",
+               len(ents) > 600 and not bad, "%d instructions; %s" % (len(ents), bad[:3]))
+        p.preset(("op", 16))
+        p.fam_fields[0].var.set("Forte")
+        p.fam_fields[1].var.set("Right")
+        p._rebuild()
+        _check("SetSpeaker: character + side pickers pick the opcode (Forte, Right = op 25)",
+               p.text().startswith("SetSpeaker(Forte, Right") and
+               cx.assemble_check(p.text())[0][:2] == bytes([25, 0]), p.text())
+        p.preset(("ctl", "PROMPT_CHOICE"))
+        p._add_row()
+        p._rebuild()
+        _check("a choice form with an added option assembles",
+               p.text().count("->") == 4 and cx.assemble_check(p.text())[2] is None, p.text())
+        n0 = len(cx.scene.stmts)
+        p.preset(("ctl", "EVAL"))
+        p.e_val.var.set("7")
+        p._rebuild()
+        ok = p.insert()
+        _check("Insert puts the listing after the selected statement (one more statement, undoable)",
+               ok and len(cx.scene.stmts) == n0 + 1 and cx.stmt(cx.sel[0]).mnem == "EVAL", p.text())
+        cx.undo()
+        _check("undo removes it again", len(cx.scene.stmts) == n0)
+        # x / y arguments: pick the point on the scene's map (1/8-tile units)
+        from rf4s_modkit import script as _s
+        c = cx.doc.container
+        pos = c.n_primary + 60                        # tail bank of map 60 (the Dragon Room)
+        spawn = next(((scn, pc) for scn in _s.disassemble_bank(c.banks[pos])
+                      for pc, st in scn.stmts.items() if st.op == 153), None)
+        if spawn is None:
+            _skip("map point picker", "no SpawnEventActor in tail bank 60")
+        else:
+            cx.show_bank(pos, spawn[0].entry_pc)
+            cx.select((spawn[1], None))
+            p.preset(("op", 153))
+            _check("SpawnEventActor's x / y are recognised as a map position",
+                   ce.toolbox.coordinate_pairs(p.args) == [(2, 3)] and p.scene_map_id() == 60)
+            mp = p.pick_on_map(2, 3)
+            root.update()
+            loaded = mp.view.doc is not None and mp.map_id == 60
+            _check("SpawnEventActor in a map's bank: the picker's map is fixed to that map",
+                   mp.locked and "disabled" in mp.map_cb.state())
+            tb = ce.toolbox
+            wargs = (script.meta.table_row(332) or {}).get("args") or []
+            prim = next(b for b in c.banks if b.kind == "primary")
+            m1 = tb.position_map(332, wargs, lambda i: 24 if i == 0 else None, prim)
+            m2 = tb.position_map(332, wargs, lambda i: None, prim)
+            m3 = tb.position_map(153, (script.meta.table_row(153) or {}).get("args") or [],
+                                 lambda i: None, prim)
+            _check("WarpToMap: a set map argument fixes the map; an unset one is chosen and written back; "
+                   "SpawnEventActor in a primary bank lets you choose",
+                   m1[0] == 24 and m1[1] and m1[3] == 0 and m2[0] is None and m2[1] is None
+                   and m2[3] == 0 and m3[0] is None and m3[1] is None and m3[3] is None, "%s %s %s" % (m1, m2, m3))
+            mp.grid_var.set(True)
+            mp._grid()
+            mp.view.set_zoom(8)
+            mp.view.flush()
+            n_grid = len(mp.view.canvas.find_withtag("grid"))
+            mp.grid_var.set(False)
+            mp._grid()
+            mp.view.flush()
+            _check("the position picker's grid checkbox draws / hides the tile grid",
+                   n_grid > 0 and not mp.view.canvas.find_withtag("grid"), "%d grid items" % n_grid)
+            cv = mp.view.canvas
+            moved = []
+            for (px, py) in ((60, 80), (140, 100)):
+                cv.event_generate("<Motion>", x=px, y=py)
+                cv.event_generate("<Button-1>", x=px, y=py)
+                mp.view.invalidate("bg"); mp.view.invalidate("spawn"); mp.view.flush()
+                items = cv.find_withtag("pickpt")
+                moved.append((mp.pt, bool(items) and not cv.find_above(items[-1]),
+                              "picked: x = %d" % mp.pt[0] in mp.readout.cget("text")))
+            _check("a click moves the picker's marker and readout, and a redraw keeps the marker on top",
+                   moved[0][0] != moved[1][0] and all(m[1] and m[2] for m in moved), moved)
+            mp.pt = (8 * 20 + 4, 8 * 11 + 4)
+            mp._use()
+            p._rebuild()
+            _check("picking a point writes it into the form (sub-units, 8 per tile)",
+                   loaded and p.op_fields[2].token() == "164" and p.op_fields[3].token() == "92"
+                   and ", 164, 92" in p.text(), p.text())
+            texts = [w.cget("text") for w in _all_widgets(cx.inspector.frame if hasattr(cx.inspector, "frame") else cx.frame)
+                     if w.winfo_class() == "TButton"]
+            _check("the Inspector offers 'Pick x / y on the map' on an existing SpawnEventActor",
+                   any("Pick x / y on the map" in str(t) for t in texts))
+            # the map side follows the editor: a moved spawn shows at its new place
+            import time
+            from map_editor import data as _md
+            calls = []
+            _md.on_script_changed(lambda: calls.append(1) or True)
+            spc = spawn[1]
+            cx.select((spc, None))
+            cx.set_arg(spc, 2, "200")
+            cx.set_arg(spc, 3, "120")
+            for _ in range(10):
+                root.update(); time.sleep(0.03)
+            now = [s for s in _md.script_spawns("MAP_F_ROOM_00")[1] if s["pc"] == cx.sel[0]]
+            _check("after moving a SpawnEventActor, the map views see the new position (live, unsaved)",
+                   now and (now[0]["x"], now[0]["y"]) == (200, 120) and calls,
+                   "%s, %d change signal(s)" % (now[:1], len(calls)))
+            cx.undo(); cx.undo()
+        # Triggers tab: the selected entry's keys in the right-hand pane (no dialog)
+        if len(c.banks) > 308 and c.banks[308].type_table_full().get(3, (0,))[0]:
+            cx.show_bank(308)
+            tt = cx.triggers
+            iid = next(i for i, (ty, rr) in tt.rows.items() if ty == 3 and rr is not None)
+            cx.nb.select(cx.triggers); root.update()
+            tt.tree.selection_set(iid); root.update()
+            d = cx.trigger_detail
+            swapped = (cx.right_pane == "trigger" and d.winfo_manager() == "pack"
+                       and cx.inspector.winfo_manager() == "")
+            box0 = [v.get() for v in d.fields[0][2]]
+            d.fields[0][2][2].set("120"); root.update()
+            applied = d.apply(); root.update()
+            subs = [v for _t, v in cx.doc.container.banks[308].entry_records(3)[0].subs]
+            _check("Triggers pane: a region box shows as x / y / width / height, the condition by name, "
+                   "and Apply writes the corners",
+                   box0 == ["306", "440", "94", "80"] and "121" in d.fields[1][2].get()
+                   and applied and subs == [306, 440, 426, 520, 121] and tt.selected()[0] == 3,
+                   "%s -> %s" % (box0, subs))
+            cx.undo(); root.update()
+            bp = cx.trigger_detail.draw_box()
+            root.update()
+            bp.box = (100, 200, 180, 260); bp._use(); root.update()
+            _check("Triggers pane: 'Draw the box on the map' opens the bank's map with the box and fills the fields",
+                   bp.map_id == 60 and bp.locked and [v.get() for v in cx.trigger_detail.fields[0][2]] == ["100", "200", "80", "60"])
+            cx.nb.select(cx.view); root.update()
+            _check("a trigger's details take the Inspector's place on the right while the Triggers tab "
+                   "is open, and give it back on the Script tab",
+                   swapped and cx.right_pane == "inspector" and cx.inspector.winfo_manager() == "pack"
+                   and cx.trigger_detail.winfo_manager() == "")
+        r = cx.open_reference()
+        _check("one Reference window per editor", cx.open_reference() is r)
+        tabs = [r.nb.tab(i, "text") for i in range(len(r.nb.tabs()))]
+        trees = [w for w in _all_widgets(r.win) if w.winfo_class() == "Treeview"]
+        counts = [len(t.get_children()) for t in trees]
+        _check("Reference: flags, verified functions, characters, maps, items all list something",
+               tabs == ["Flags & variables", "Functions", "Characters", "Maps", "Items"]
+               and len(counts) == 5 and all(counts) and counts[0] > 1000, "%s %s" % (tabs, counts))
+        acts, ctl = ce.toolbox.verified_ops()
+        _check("Functions lists only the human-verified instructions",
+               counts[1] == len(acts) + len(ctl) and all(script.meta.human_verified(o) for o in acts),
+               "%d rows, %d verified" % (counts[1], len(acts) + len(ctl)))
+        import traceback as _tb
+        _check("the toolbox raised no callback errors", not errs, "".join(_tb.format_exception(*errs[0])) if errs else "")
+    finally:
+        root.destroy()
+
+
+def _all_widgets(w):
+    for c in w.winfo_children():
+        yield c
+        yield from _all_widgets(c)
+
+
 def test_cutscene_editor_workflows():
     """Cutscene editor (2026-09-24 overhaul): the Inspector shows arguments in listing
     syntax, typed-constant args are set in place, one undo history covers rf3.mc and every
@@ -12010,6 +12220,18 @@ def test_asset_explorer_gui():
         cutscene_editor.CutsceneExplorer(win, reader=app.source.read_named)
         dt = time.perf_counter() - t0
         _check("Cutscene editor opens without the all-bank coverage pass (< 2 s)", dt < 2.0, "%.2f s" % dt)
+        win.destroy()
+        # only ever one Cutscene editor: every entry point reuses the open window
+        _ce1 = app.cutscene_editor()
+        _ce2 = app.cutscene_editor(5)
+        _tops = [w for w in root.winfo_children() if isinstance(w, tk.Toplevel)
+                 and str(w.title()) == "RF4S Cutscene Editor"]
+        _check("a second Cutscene editor request reuses the open window",
+               _ce1 is _ce2 and len(_tops) == 1, "same=%s, windows=%d" % (_ce1 is _ce2, len(_tops)))
+        app._cutscene_ed[0].destroy()
+        _check("after it is closed, the next request opens a new one",
+               app.cutscene_editor() is not _ce1)
+        app._cutscene_ed[0].destroy()
         # an ANIM_DUNG_* effect model finds its .bfmat and plays it in the Model tab
         show("ANIM_DUNG_A02.model")
 
@@ -12940,7 +13162,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

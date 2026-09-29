@@ -250,7 +250,8 @@ Args:
   2. expression (< 1000 face index, 1000+ raw expression entry (corpus 1, 2, 1192, 1224 ...))
   3. emote (0 = none; 186-192 emote icon over the portrait; >= 0x1F0 = a voice/sfx id played immediately)
 
-### `op 16` — SetSpeakerMCLeft(face, trigger1, trigger2, trigger3)
+### `op 16` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -261,7 +262,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 17` — SetSpeakerMCRight(face, trigger1, trigger2, trigger3)
+### `op 17` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -272,7 +274,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 18` — SetSpeakerVishnalLeft(face, trigger1, trigger2, trigger3)
+### `op 18` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -283,7 +286,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 19` — SetSpeakerVishnalRight(face, trigger1, trigger2, trigger3)
+### `op 19` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -294,7 +298,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 20` — SetSpeakerCloricaLeft(face, trigger1, trigger2, trigger3)
+### `op 20` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -305,7 +310,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 21` — SetSpeakerCloricaRight(face, trigger1, trigger2, trigger3)
+### `op 21` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -316,7 +322,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 22` — SetSpeakerVolkanonLeft(face, trigger1, trigger2, trigger3)
+### `op 22` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -327,7 +334,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 23` — SetSpeakerVolkanonRight(face, trigger1, trigger2, trigger3)
+### `op 23` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -338,7 +346,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 24` — SetSpeakerForteLeft(face, trigger1, trigger2, trigger3)
+### `op 24` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -349,7 +358,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 25` — SetSpeakerForteRight(face, trigger1, trigger2, trigger3)
+### `op 25` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -360,7 +370,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 26` — SetSpeakerKielLeft(face, trigger1, trigger2, trigger3)
+### `op 26` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -371,7 +382,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 27` — SetSpeakerKielRight(face, trigger1, trigger2, trigger3)
+### `op 27` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -382,7 +394,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 28` — SetSpeakerBadoLeft(face, trigger1, trigger2, trigger3)
+### `op 28` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -393,7 +406,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 29` — SetSpeakerBadoRight(face, trigger1, trigger2, trigger3)
+### `op 29` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -404,7 +418,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 30` — SetSpeakerMargaretLeft(face, trigger1, trigger2, trigger3)
+### `op 30` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -415,7 +430,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 31` — SetSpeakerMargaretRight(face, trigger1, trigger2, trigger3)
+### `op 31` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -426,7 +442,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 32` — SetSpeakerDylasLeft(face, trigger1, trigger2, trigger3)
+### `op 32` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -437,7 +454,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 33` — SetSpeakerDylasRight(face, trigger1, trigger2, trigger3)
+### `op 33` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -448,7 +466,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 34` — SetSpeakerArthurLeft(face, trigger1, trigger2, trigger3)
+### `op 34` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -459,7 +478,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 35` — SetSpeakerArthurRight(face, trigger1, trigger2, trigger3)
+### `op 35` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -470,7 +490,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 36` — SetSpeakerPorcolineLeft(face, trigger1, trigger2, trigger3)
+### `op 36` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -481,7 +502,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 37` — SetSpeakerPorcolineRight(face, trigger1, trigger2, trigger3)
+### `op 37` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -492,7 +514,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 38` — SetSpeakerXiaoPaiLeft(face, trigger1, trigger2, trigger3)
+### `op 38` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -503,7 +526,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 39` — SetSpeakerXiaoPaiRight(face, trigger1, trigger2, trigger3)
+### `op 39` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -514,7 +538,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 40` — SetSpeakerLinFaLeft(face, trigger1, trigger2, trigger3)
+### `op 40` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -525,7 +550,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 41` — SetSpeakerLinFaRight(face, trigger1, trigger2, trigger3)
+### `op 41` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -536,7 +562,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 42` — SetSpeakerAmberLeft(face, trigger1, trigger2, trigger3)
+### `op 42` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -547,7 +574,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 43` — SetSpeakerAmberRight(face, trigger1, trigger2, trigger3)
+### `op 43` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -558,7 +586,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 44` — SetSpeakerIlluminataLeft(face, trigger1, trigger2, trigger3)
+### `op 44` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -569,7 +598,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 45` — SetSpeakerIlluminataRight(face, trigger1, trigger2, trigger3)
+### `op 45` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -580,7 +610,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 46` — SetSpeakerDougLeft(face, trigger1, trigger2, trigger3)
+### `op 46` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -591,7 +622,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 47` — SetSpeakerDougRight(face, trigger1, trigger2, trigger3)
+### `op 47` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -602,7 +634,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 48` — SetSpeakerBlossomLeft(face, trigger1, trigger2, trigger3)
+### `op 48` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -613,7 +646,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 49` — SetSpeakerBlossomRight(face, trigger1, trigger2, trigger3)
+### `op 49` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -624,7 +658,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 50` — SetSpeakerDolceLeft(face, trigger1, trigger2, trigger3)
+### `op 50` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -635,7 +670,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 51` — SetSpeakerDolceRight(face, trigger1, trigger2, trigger3)
+### `op 51` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -646,7 +682,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 52` — SetSpeakerJonesLeft(face, trigger1, trigger2, trigger3)
+### `op 52` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -657,7 +694,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 53` — SetSpeakerJonesRight(face, trigger1, trigger2, trigger3)
+### `op 53` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -668,7 +706,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 54` — SetSpeakerNancyLeft(face, trigger1, trigger2, trigger3)
+### `op 54` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -679,7 +718,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 55` — SetSpeakerNancyRight(face, trigger1, trigger2, trigger3)
+### `op 55` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -690,7 +730,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 56` — SetSpeakerLeonLeft(face, trigger1, trigger2, trigger3)
+### `op 56` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -701,7 +742,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 57` — SetSpeakerLeonRight(face, trigger1, trigger2, trigger3)
+### `op 57` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -712,7 +754,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 58` — SetSpeakerVentuswillLeft(face, trigger1, trigger2, trigger3)
+### `op 58` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -723,7 +766,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 59` — SetSpeakerVentuswillRight(face, trigger1, trigger2, trigger3)
+### `op 59` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -734,7 +778,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 60` — SetSpeakerSonLeft(face, trigger1, trigger2, trigger3)
+### `op 60` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -745,7 +790,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 61` — SetSpeakerSonRight(face, trigger1, trigger2, trigger3)
+### `op 61` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -756,7 +802,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 62` — SetSpeakerDaughterLeft(face, trigger1, trigger2, trigger3)
+### `op 62` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -767,7 +814,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 63` — SetSpeakerDaughterRight(face, trigger1, trigger2, trigger3)
+### `op 63` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -778,7 +826,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 64` — SetSpeakerPicoLeft(face, trigger1, trigger2, trigger3)
+### `op 64` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -789,7 +838,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 65` — SetSpeakerPicoRight(face, trigger1, trigger2, trigger3)
+### `op 65` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -800,7 +850,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 66` — SetSpeakerSoldierLeft(face, trigger1, trigger2, trigger3)
+### `op 66` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -811,7 +862,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 67` — SetSpeakerSoldierRight(face, trigger1, trigger2, trigger3)
+### `op 67` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -822,7 +874,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 68` — SetSpeakerEthelberdLeft(face, trigger1, trigger2, trigger3)
+### `op 68` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -833,7 +886,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 69` — SetSpeakerEthelberdRight(face, trigger1, trigger2, trigger3)
+### `op 69` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -844,7 +898,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 70` — SetSpeakerBarrettLeft(face, trigger1, trigger2, trigger3)
+### `op 70` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -855,7 +910,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 71` — SetSpeakerBarrettRight(face, trigger1, trigger2, trigger3)
+### `op 71` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -866,7 +922,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 72` — SetSpeakerRavenLeft(face, trigger1, trigger2, trigger3)
+### `op 72` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -877,7 +934,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 73` — SetSpeakerRavenRight(face, trigger1, trigger2, trigger3)
+### `op 73` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -888,7 +946,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 74` — SetSpeakerTravelerLeft(face, trigger1, trigger2, trigger3)
+### `op 74` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -899,7 +958,8 @@ Args:
   2. trigger2 (as trigger1)
   3. trigger3 (as trigger1)
 
-### `op 75` — SetSpeakerTravelerRight(face, trigger1, trigger2, trigger3)
+### `op 75` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
+*opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `NpcBubble_DispatchAreaInfoLine`
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -7069,7 +7129,7 @@ Sets bit 5 of the system save-config flags (shared by all save slots). The only 
 ### `op 379` — PlayMusic(bgm)
 *handler:* `Script_VMOp_PlayBGMOrRestore`
 
-Switch the background music (crossfade) to a track, or with -1 go back to the area's normal music.
+Switch the background music (crossfade) to a track, or with -1 go back to the area's normal music. When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot).
 
 Args:
   0. bgm (sound id (0x1000000+); -1 = return to the map's normal music)
@@ -7077,7 +7137,7 @@ Args:
 ### `op 380` — StopMusic(fade)
 *handler:* `Script_VMOp_StopBGMWithCrossfade`
 
-Stop the current background music at once (no fade) and keep the area music from restarting until the script plays music again.
+Stop the current background music at once (the fade argument is never read). When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot). The next map change, and the 06:00 / 21:00 switch, pick the area music again unless SetMusicLock(1).
 
 Args:
   0. fade (corpus passes 0..30000 but the stop path never reads it)
@@ -7094,7 +7154,7 @@ Args:
 ### `op 383` — SetMusicLock(lock)
 *handler:* `Script_VMOp_SetSfxCaptureBypassFlag`
 
-Lock or unlock the background music. While locked, map changes and the 06:00/21:00 music switch do not replace the scripted track.
+Lock or unlock the background music. While locked, map changes and the 06:00/21:00 switch do not replace the current track. It stays locked across maps until SetMusicLock(0). It does not stop the scene-end restore after PlayMusic / StopMusic (that one ignores the lock; use FLG_BGM_NOT_RETURN).
 
 Args:
   0. lock (1 = keep the current BGM, 0 = allow area music again)
@@ -11074,27 +11134,27 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 6 | `ShowPortraitWithEmote` | 7 | `ShowPortraitWithEmote` | 8 | `SetSpeakerName` |
 | 9 | `SetSpeakerName` | 10 | `SetSpeakerVoice` | 11 | `SetSpeakerNameVisible` |
 | 12 | `SetSpeakerById` | 13 | `SetSpeakerById` | 14 | `SetSpeakerByIdWithEmote` |
-| 15 | `SetSpeakerByIdWithEmote` | 16 | `SetSpeakerMCLeft` | 17 | `SetSpeakerMCRight` |
-| 18 | `SetSpeakerVishnalLeft` | 19 | `SetSpeakerVishnalRight` | 20 | `SetSpeakerCloricaLeft` |
-| 21 | `SetSpeakerCloricaRight` | 22 | `SetSpeakerVolkanonLeft` | 23 | `SetSpeakerVolkanonRight` |
-| 24 | `SetSpeakerForteLeft` | 25 | `SetSpeakerForteRight` | 26 | `SetSpeakerKielLeft` |
-| 27 | `SetSpeakerKielRight` | 28 | `SetSpeakerBadoLeft` | 29 | `SetSpeakerBadoRight` |
-| 30 | `SetSpeakerMargaretLeft` | 31 | `SetSpeakerMargaretRight` | 32 | `SetSpeakerDylasLeft` |
-| 33 | `SetSpeakerDylasRight` | 34 | `SetSpeakerArthurLeft` | 35 | `SetSpeakerArthurRight` |
-| 36 | `SetSpeakerPorcolineLeft` | 37 | `SetSpeakerPorcolineRight` | 38 | `SetSpeakerXiaoPaiLeft` |
-| 39 | `SetSpeakerXiaoPaiRight` | 40 | `SetSpeakerLinFaLeft` | 41 | `SetSpeakerLinFaRight` |
-| 42 | `SetSpeakerAmberLeft` | 43 | `SetSpeakerAmberRight` | 44 | `SetSpeakerIlluminataLeft` |
-| 45 | `SetSpeakerIlluminataRight` | 46 | `SetSpeakerDougLeft` | 47 | `SetSpeakerDougRight` |
-| 48 | `SetSpeakerBlossomLeft` | 49 | `SetSpeakerBlossomRight` | 50 | `SetSpeakerDolceLeft` |
-| 51 | `SetSpeakerDolceRight` | 52 | `SetSpeakerJonesLeft` | 53 | `SetSpeakerJonesRight` |
-| 54 | `SetSpeakerNancyLeft` | 55 | `SetSpeakerNancyRight` | 56 | `SetSpeakerLeonLeft` |
-| 57 | `SetSpeakerLeonRight` | 58 | `SetSpeakerVentuswillLeft` | 59 | `SetSpeakerVentuswillRight` |
-| 60 | `SetSpeakerSonLeft` | 61 | `SetSpeakerSonRight` | 62 | `SetSpeakerDaughterLeft` |
-| 63 | `SetSpeakerDaughterRight` | 64 | `SetSpeakerPicoLeft` | 65 | `SetSpeakerPicoRight` |
-| 66 | `SetSpeakerSoldierLeft` | 67 | `SetSpeakerSoldierRight` | 68 | `SetSpeakerEthelberdLeft` |
-| 69 | `SetSpeakerEthelberdRight` | 70 | `SetSpeakerBarrettLeft` | 71 | `SetSpeakerBarrettRight` |
-| 72 | `SetSpeakerRavenLeft` | 73 | `SetSpeakerRavenRight` | 74 | `SetSpeakerTravelerLeft` |
-| 75 | `SetSpeakerTravelerRight` | 76 | `nop` | 77 | `SlidePortraitToX` |
+| 15 | `SetSpeakerByIdWithEmote` | 16 | `SetSpeaker` | 17 | `SetSpeaker` |
+| 18 | `SetSpeaker` | 19 | `SetSpeaker` | 20 | `SetSpeaker` |
+| 21 | `SetSpeaker` | 22 | `SetSpeaker` | 23 | `SetSpeaker` |
+| 24 | `SetSpeaker` | 25 | `SetSpeaker` | 26 | `SetSpeaker` |
+| 27 | `SetSpeaker` | 28 | `SetSpeaker` | 29 | `SetSpeaker` |
+| 30 | `SetSpeaker` | 31 | `SetSpeaker` | 32 | `SetSpeaker` |
+| 33 | `SetSpeaker` | 34 | `SetSpeaker` | 35 | `SetSpeaker` |
+| 36 | `SetSpeaker` | 37 | `SetSpeaker` | 38 | `SetSpeaker` |
+| 39 | `SetSpeaker` | 40 | `SetSpeaker` | 41 | `SetSpeaker` |
+| 42 | `SetSpeaker` | 43 | `SetSpeaker` | 44 | `SetSpeaker` |
+| 45 | `SetSpeaker` | 46 | `SetSpeaker` | 47 | `SetSpeaker` |
+| 48 | `SetSpeaker` | 49 | `SetSpeaker` | 50 | `SetSpeaker` |
+| 51 | `SetSpeaker` | 52 | `SetSpeaker` | 53 | `SetSpeaker` |
+| 54 | `SetSpeaker` | 55 | `SetSpeaker` | 56 | `SetSpeaker` |
+| 57 | `SetSpeaker` | 58 | `SetSpeaker` | 59 | `SetSpeaker` |
+| 60 | `SetSpeaker` | 61 | `SetSpeaker` | 62 | `SetSpeaker` |
+| 63 | `SetSpeaker` | 64 | `SetSpeaker` | 65 | `SetSpeaker` |
+| 66 | `SetSpeaker` | 67 | `SetSpeaker` | 68 | `SetSpeaker` |
+| 69 | `SetSpeaker` | 70 | `SetSpeaker` | 71 | `SetSpeaker` |
+| 72 | `SetSpeaker` | 73 | `SetSpeaker` | 74 | `SetSpeaker` |
+| 75 | `SetSpeaker` | 76 | `nop` | 77 | `SlidePortraitToX` |
 | 78 | `SlidePortraitToX` | 79 | `SlidePortraitBy` | 80 | `SlidePortraitBy` |
 | 81 | `WaitPortraitSettled` | 82 | `WaitPortraitSettled` | 83 | `ClosePortraits` |
 | 84 | `SetPortraitField62` | 85 | `SetPortraitTargetY` | 86 | `SetPortraitTargetY` |

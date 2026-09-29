@@ -840,7 +840,7 @@ def bank_listing(bank, resolver=None, with_pcs=False):
         op = st.op
         if op < 0xFFF0:
             args = [_operand_text(asm, d, o, w, op, i) for i, (o, w) in enumerate(ex)]
-            line = scriptasm.action_text(scriptasm.listing_name(op), args)
+            line = scriptasm.action_line(op, args)
         elif op == 0xFFFF:
             line = "RET"
         elif op == 0xFFF1:

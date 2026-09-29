@@ -617,6 +617,23 @@ to `ModdingBackup\` in the game folder, keeping the same path; copy it back to u
 file opened with *Open rf3.mc…* is saved back where it was opened. *Save … as…* writes a copy
 anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
+**Adding instructions without typing them.** *＋ Instruction…* (also the Insert key, right-click in
+the script, and *Add before / Add after → Instruction…* in the Inspector) lists every instruction
+by category, searchable, with ✓ on the ones verified in game. Picking one shows its description and
+a form with one field per argument. Characters, maps, items, flags and named values are pickers.
+Optional and repeating arguments can be added, jump targets come from the scene's own statements,
+and choice menus, switches and random jumps take rows. Every x / y position has **📍 Pick on
+map…**: click the spot on the rendered map of the scene (1/8-tile units, as the script stores them).
+The listing the form makes is shown live and checked, and it can be edited by hand. *Insert* puts it
+after or before the selected statement, and the window stays open for the next one. The Inspector
+offers the same character / map / item pickers and *Pick x / y on the map* for existing statements.
+For writing by hand, the **Source** tab holds the whole scene as editable listing text.
+
+**Reference.** *📖 Reference* lists the flags and variables (emdeb.bin's FLG_ / REG_ / EV_ names,
+bit id, width, value range and Japanese label, plus the recovered zone-2 bits), the functions
+verified in game (with everything the opcode table knows about each), and the character, map and
+item ids with the form an argument takes. Double-click copies.
+
 **No restart for scenes:** *⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
 game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the
 reload swaps that copy and the three bank buffers in place while the game is paused for a moment.
@@ -659,7 +676,7 @@ from `RF4S.exe` into `refdata/portrait_faces.json`):
   what it shows there. Ids of 1000 and up (face × gesture) only exist in Newlywed mode.
 
 The outfit (swimsuit, pajama, wedding) follows the character's state; the script doesn't
-choose it. The listing names the shared moods (`SetSpeakerVolkanonRight(angry, …)`) and
+choose it. The listing names the shared moods (`SetSpeaker(Volkanon, Right, angry, …)`) and
 numbers the rest (`face 29`).
 
 **Box style.** `SetBoxNormal`, `SetBoxShout`, `SetBoxThought`, `SetBoxTrembling` (ops 94–97) and
@@ -669,8 +686,8 @@ that shakes sideways), 4 tail only (no box, op 93 only). The style lasts until c
 closes. Their Inspector and *Add dialogue line* have a **Box style** picker that shows the game's
 own box art.
 
-The box's **tail** points at the side of the last speaker cue (`SetSpeaker…(left, …)` or
-`(right, …)`), and it only shows while a portrait is up on that side for a named character.
+The box's **tail** points at the side of the last speaker cue (`SetSpeaker(…, Left, …)` or
+`SetSpeaker(…, Right, …)`), and it only shows while a portrait is up on that side for a named character.
 Narration and `SetSpeakerVoice` name plates get no tail. So a thought line needs a speaker cue
 on the side where that character's portrait should be. The game's own thought lines always
 follow one. The Inspector says where the tail will point, or why it won't show.

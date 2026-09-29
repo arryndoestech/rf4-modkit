@@ -672,33 +672,83 @@ def ore_configs(reader):
 # ops 153 SpawnEventActor, 154 SpawnEventActorVariant, 155 SpawnEventActorEx: all start with
 # (char id, event key, x, y)
 SPAWN_OPS = ("SpawnEventActor", "SpawnEventActorVariant", "SpawnEventActorEx")
-_RF3MC = {"c": False}          # False = not tried yet; None = tried and missing
+_RF3MC = {"key": None, "c": None}      # the disk copy, keyed by (path, size, mtime)
+_LIVE_SCRIPT = {"fn": None}            # () -> the open cutscene editor's container, or None
+_SCRIPT_LISTENERS = []                 # fn() called when the script may have changed
 
 
-def rf3mc_container():
-    """The rf3.mc event-script container (a bundlePatch copy wins), or None."""
-    if _RF3MC["c"] is not False:
-        return _RF3MC["c"]
-    cont = None
+def rf3mc_path():
+    """The rf3.mc the game loads: the Bundle/** winner (a Bundle/00_mods override, else the
+    unpacked bundlePatch1 copy), else the extracted copy (a bundlePatch one first)."""
     try:
-        hits = find_extracted_all("rf3.mc")
-        patch = [h for h in hits if "patch" in str(h).lower()]
-        path = (patch or hits)[0] if hits else None
-        if path is not None:
-            cont = script.Container(path.read_bytes())
+        from rf4s_modkit import gamepaths
+        t = gamepaths.game_targets(["rf3.mc"])
+        if t and t["rf3.mc"].is_file():
+            return t["rf3.mc"]
     except Exception:
+        pass
+    hits = find_extracted_all("rf3.mc")
+    patch = [h for h in hits if "patch" in str(h).lower()]
+    return (patch or hits)[0] if hits else None
+
+
+def set_live_script(fn):
+    """Show the scripts of an open cutscene editor (fn() -> its Container, or None when it is
+    closed) instead of the file on disk, so its edits -- saved or not -- appear on the maps."""
+    _LIVE_SCRIPT["fn"] = fn
+
+
+def on_script_changed(fn):
+    """Call fn() whenever script_changed() is signalled (the map editor redraws its spawns)."""
+    _SCRIPT_LISTENERS.append(fn)
+
+
+def script_changed():
+    """The scripts changed (an edit, undo or save in the cutscene editor)."""
+    for fn in list(_SCRIPT_LISTENERS):
+        try:
+            if fn() is False:                 # a listener whose widgets are gone unregisters
+                _SCRIPT_LISTENERS.remove(fn)
+        except Exception:
+            _SCRIPT_LISTENERS.remove(fn)
+
+
+def rf3mc_container(live=True):
+    """The rf3.mc event-script container: the open cutscene editor's (set_live_script; not
+    with live=False), else the file the game loads, re-read whenever that file changes on
+    disk; None if missing."""
+    fn = _LIVE_SCRIPT["fn"] if live else None
+    if fn is not None:
+        try:
+            live = fn()
+        except Exception:
+            live = None
+        if live is not None:
+            return live
+    path = rf3mc_path()
+    try:
+        st = path.stat() if path is not None else None
+    except OSError:
+        st = None
+    key = (str(path), st.st_size, st.st_mtime_ns) if st is not None else None
+    if key != _RF3MC["key"]:
         cont = None
-    _RF3MC["c"] = cont
-    return cont
+        if path is not None and st is not None:
+            try:
+                cont = script.Container(path.read_bytes())
+            except Exception:
+                cont = None
+        _RF3MC.update(key=key, c=cont)
+    return _RF3MC["c"]
 
 
-def script_spawns(name):
+def script_spawns(name, container=None):
     """(bank index | None, [spawn dict]) for the actors this map's EVENT SCRIPT places with
     SpawnEventActor / SpawnEventActorVariant / SpawnEventActorEx: NPCs, monsters such as the Silver
     Wolf in Sechs Territory (MAP_DUNG_L13), and interactibles such as char 269 'Search'. They are not in the
     .rf4m. Coordinates are sub-units (8 per tile), like MOBJ positions."""
     mid = map_id(name)
-    cont = rf3mc_container() if mid is not None else None
+    cont = (container or rf3mc_container()) if mid is not None else None
     if cont is None:
         return None, []
     bi = cont.n_primary + mid
@@ -751,9 +801,7 @@ _FLAGS = {"idx": None, "thread": None, "result": None}
 
 def _script_flag_uses():
     from rf4s_modkit import flagusers
-    hits = find_extracted_all("rf3.mc")
-    patch = [h for h in hits if "patch" in str(h).lower()]
-    path = (patch or hits)[0] if hits else None
+    path = rf3mc_path()
     if path is None:
         return []
     st = path.stat()
@@ -765,7 +813,7 @@ def _script_flag_uses():
             return [(rel, u) for rel, u in got["uses"]]
     except (OSError, ValueError, KeyError):
         pass
-    cont = rf3mc_container()
+    cont = rf3mc_container(live=False)       # the cache is keyed by the file on disk
     if cont is None:
         return []
     uses = flagusers.script_uses(cont, map_file_for=lambda mid: rooms_by_id().get(mid))

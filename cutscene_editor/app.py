@@ -49,6 +49,7 @@ class CutsceneExplorer:
         self._build()
         if isinstance(parent, (tk.Tk, tk.Toplevel)):
             parent.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._share_with_maps()
         if reader is not None:
             self._load()
         if focus_bank is not None:
@@ -82,6 +83,11 @@ class CutsceneExplorer:
         paned.add(side, weight=0, minsize=300, width=380)
         self.inspector = Inspector(side, self)
         self.inspector.pack(fill="both", expand=True)
+        # the Triggers tab's entry details share the right-hand slot with the Inspector
+        from .tabs import TriggerDetail
+        self.trigger_detail = TriggerDetail(side, self, self.triggers)
+        self.right_pane = "inspector"
+        self.nb.bind("<<NotebookTabChanged>>", lambda _e: self._tab_changed(), add="+")
         sbar = ttk.Frame(self.frame)
         sbar.pack(fill="x", side="bottom")
         # room left in the open bank (64 KiB of bytecode per bank), refreshed with every status
@@ -170,6 +176,18 @@ class CutsceneExplorer:
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
         Tip(nb, "Mint a new scene in the open bank: pick when it plays, its keys and its body.")
+        ib = ttk.Button(bar, text="＋ Instruction…", command=lambda: self.ask_insert_instruction())
+        ib.pack(side="left", padx=(4, 0))
+        Tip(ib, "Add any instruction without typing it: pick it from the list (by category, "
+                "searchable), fill in its arguments with pickers (characters, maps, items, "
+                "flags, choices), check the listing it makes, and insert it after / before the "
+                "selected statement. Also: Insert key, right-click in the script, Add before / "
+                "Add after in the Inspector.")
+        rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
+        rb.pack(side="left", padx=4)
+        Tip(rb, "Look things up: flags & variables (name, id, description), the functions "
+                "verified in game, characters, maps and items -- with the form an argument "
+                "takes. Double-click copies.")
         rl = ttk.Button(bar, text="⟳ Reload in game", command=self.reload_in_game)
         rl.pack(side="left", padx=(0, 4))
         Tip(rl, "Ctrl+R: save, then put rf3.mc into the RUNNING game -- no restart, any size. "
@@ -362,6 +380,34 @@ class CutsceneExplorer:
     def focus_search(self):
         self.browser.search_entry.focus_set()
 
+    def _tab_changed(self):
+        """The Triggers tab shows its entry details in the right-hand pane; the other tabs
+        show the Inspector (the selected statement)."""
+        try:
+            on_triggers = self.nb.select() == str(self.triggers)
+        except tk.TclError:
+            return
+        if on_triggers:
+            self.show_trigger(*self.triggers.selected())
+        else:
+            self._right("inspector")
+
+    def _right(self, which):
+        if which == self.right_pane:
+            return
+        if which == "trigger":
+            self.inspector.pack_forget()
+            self.trigger_detail.pack(fill="both", expand=True)
+        else:
+            self.trigger_detail.pack_forget()
+            self.inspector.pack(fill="both", expand=True)
+        self.right_pane = which
+
+    def show_trigger(self, typ, rec):
+        """Show a trigger type / entry (Triggers tab selection) in the right-hand pane."""
+        self.trigger_detail.show(typ, rec)
+        self._right("trigger")
+
     def _view_mode(self):
         self.view.mode = self.mode.get()
         self.view.show_addr = self.addr.get()
@@ -420,6 +466,33 @@ class CutsceneExplorer:
         self._em_uses = None
         self.refresh_scene()
         self._chrome()
+        self._maps_pending = self._maps_pending or later(self.frame, self._tell_maps, 150)
+
+    _maps_pending = None
+
+    def _share_with_maps(self):
+        """Map views in this program (the map editor's spawn markers, the position picker)
+        show this editor's rf3.mc -- edits included, saved or not -- while it is open."""
+        try:
+            from map_editor import data as map_data
+        except ImportError:
+            return
+        frame = self.frame
+
+        def live():
+            try:
+                return self.doc.container if frame.winfo_exists() else None
+            except tk.TclError:
+                return None
+        map_data.set_live_script(live)
+
+    def _tell_maps(self):
+        self._maps_pending = None
+        try:
+            from map_editor import data as map_data
+        except ImportError:
+            return
+        map_data.script_changed()
 
     def flush_edits(self):
         try:
@@ -740,6 +813,36 @@ class CutsceneExplorer:
         if not text:
             return None
         return self.insert_before(pc, text) if before else self.insert_after(pc, text)
+
+    _picker = None
+    _reference = None
+
+    def ask_insert_instruction(self, before=None, preset=None):
+        """The Instruction picker (one per editor): pick any instruction, fill its arguments,
+        insert it at the selected statement. `preset` = ('op', n) or ('ctl', mnemonic)."""
+        from . import toolbox
+        p = self._picker
+        try:
+            alive = p is not None and bool(p.win.winfo_exists())
+        except tk.TclError:
+            alive = False
+        if not alive:
+            p = self._picker = toolbox.InstructionPicker(self)
+        p.show(preset=preset, before=before)
+        return p
+
+    def open_reference(self, tab=None):
+        """The Reference window (one per editor): flags, verified functions, characters, maps, items."""
+        from . import toolbox
+        r = self._reference
+        try:
+            alive = r is not None and bool(r.win.winfo_exists())
+        except tk.TclError:
+            alive = False
+        if not alive:
+            r = self._reference = toolbox.ReferenceWindow(self)
+        r.show(tab)
+        return r
 
     def ask_insert_dialogue(self, before=False):
         w = self._insert_where(before)

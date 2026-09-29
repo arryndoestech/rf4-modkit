@@ -65,6 +65,8 @@ class ScriptView(ttk.Frame):
         t.bind("<End>", lambda _e: self.move(10 ** 6))
         t.bind("<Return>", lambda _e: (app.focus_editor(), "break")[1])
         t.bind("<Delete>", lambda _e: (app.delete_selected(), "break")[1])
+        t.bind("<Insert>", lambda _e: (app.ask_insert_instruction(False), "break")[1])
+        t.bind("<Button-3>", self._context_menu)
         t.bind("<Motion>", self._motion)
         t.bind("<Leave>", lambda _e: self.hide_tip())
         # Alt shows the explanation (it used to be Ctrl, which Ctrl+S / Ctrl+Z share). The
@@ -139,6 +141,32 @@ class ScriptView(ttk.Frame):
     # ---- selection ---------------------------------------------------------- #
     def _line_at(self, e):
         return int(self.text.index("@%d,%d" % (e.x, e.y)).split(".")[0])
+
+    def _context_menu(self, e):
+        """Right-click: select the row, then offer the insert / delete actions."""
+        self._click(e)
+        app = self.app
+        m = tk.Menu(self.text, tearoff=False)
+        has = app.sel is not None
+        st = "normal" if has else "disabled"
+        m.add_command(label="Add instruction after…  (Insert)", state=st,
+                      command=lambda: app.ask_insert_instruction(False))
+        m.add_command(label="Add instruction before…", state=st,
+                      command=lambda: app.ask_insert_instruction(True))
+        m.add_command(label="Add dialogue line after…", state=st,
+                      command=lambda: app.ask_insert_dialogue(False))
+        m.add_command(label="Add statements (listing) after…", state=st,
+                      command=lambda: app.ask_insert_listing(False))
+        m.add_separator()
+        m.add_command(label="Copy line  (Ctrl+C)", state=st, command=self.copy_row)
+        m.add_command(label="Delete  (Del)", state=st, command=app.delete_selected)
+        m.add_separator()
+        m.add_command(label="Reference…", command=lambda: app.open_reference())
+        try:
+            m.tk_popup(e.x_root, e.y_root)
+        finally:
+            m.grab_release()
+        return "break"
 
     def _click(self, e):
         self.text.focus_set()

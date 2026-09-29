@@ -77,6 +77,9 @@ def build():
             desc = (om.describe(op) or "").strip()
             args = om.arg_names(op)
             lines.append(f"### `op {op}` — {proto}")
+            if om.OPCODE_ARGS.get(op):                     # SetSpeaker: arguments in the opcode
+                lines.append("*opcode arguments:* " + ", ".join(
+                    "%s = %s (%s)" % (a["name"], a["value"], a["encoding"]) for a in om.OPCODE_ARGS[op]))
             if tech:
                 lines.append(f"*handler:* `{tech}`")
             if desc:

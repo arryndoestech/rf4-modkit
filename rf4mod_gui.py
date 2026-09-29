@@ -2031,17 +2031,41 @@ class App:
                 return
         self.status.config(text=f"{map_name}.rf4m not found in this source")
 
-    def _open_scene_editor(self, bank_index, entry_pc, pc=None):
-        """Map-editor NPC-spawn marker click -> open the Cutscene Editor focused on the exact
-        SpawnEventActor line (bank = the map's event bank, scene = entry_pc, statement = pc)."""
-        win = tk.Toplevel(self.root)
-        win.title(f"Cutscene Editor — event bank {bank_index} @0x{(entry_pc or 0):04x}")
-        win.geometry("1200x820")
+    def cutscene_editor(self, focus_bank=None, focus_entry=None, focus_pc=None):
+        """The one Cutscene Editor window: brought to the front (and moved to the requested
+        bank / scene / statement) when it is already open, so its unsaved edits are never
+        split across two copies of rf3.mc; opened otherwise. Returns the CutsceneExplorer."""
         import cutscene_editor
-        cutscene_editor.CutsceneExplorer(
+        from guiutil import later
+        cur = getattr(self, "_cutscene_ed", None)
+        try:
+            alive = cur is not None and bool(cur[0].winfo_exists())
+        except tk.TclError:
+            alive = False
+        if alive:
+            win, ex = cur
+            win.deiconify()
+            win.lift()
+            win.focus_force()
+            if focus_bank is not None:
+                ex.show_bank(focus_bank, focus_entry)
+                if focus_pc is not None:
+                    later(ex.frame, lambda: ex.view.focus_pc(focus_pc))
+            return ex
+        win = tk.Toplevel(self.root)
+        win.title("RF4S Cutscene Editor")
+        win.geometry("1200x820")
+        ex = cutscene_editor.CutsceneExplorer(
             win, reader=(self.source.read_named if self.source else None),
             status_fn=lambda s: self.status.config(text=s),
-            focus_bank=bank_index, focus_entry=entry_pc, focus_pc=pc)
+            focus_bank=focus_bank, focus_entry=focus_entry, focus_pc=focus_pc)
+        self._cutscene_ed = (win, ex)
+        return ex
+
+    def _open_scene_editor(self, bank_index, entry_pc, pc=None):
+        """Map-editor NPC-spawn marker click -> the Cutscene Editor focused on the exact
+        SpawnEventActor line (bank = the map's event bank, scene = entry_pc, statement = pc)."""
+        self.cutscene_editor(bank_index, entry_pc, pc)
 
     def _map_notebook(self, m, name):
         """The map notebook with its 'Map (edit)' tab. Built ONCE and reused for every map:
@@ -2274,21 +2298,10 @@ class App:
                              f"@0x{epc:04x}, {nstmt} stmts{flag}")
             row_entry_pc.append(epc)
 
-        def _editor_window():
-            win = tk.Toplevel(self.root)
-            win.title(f"Cutscene Editor — {resolved} (event bank {bank_index})")
-            win.geometry("1200x820")
-            return win
-
         def open_editor(_e=None):
             sel = lb.curselection()
             entry_pc = row_entry_pc[sel[0]] if sel else None
-            win = _editor_window()
-            import cutscene_editor
-            cutscene_editor.CutsceneExplorer(
-                win, reader=(self.source.read_named if self.source else None),
-                status_fn=lambda s: self.status.config(text=s),
-                focus_bank=bank_index, focus_entry=entry_pc)
+            self.cutscene_editor(bank_index, entry_pc)
 
         def new_scene():
             """'New scene on this map…': open the Cutscene Editor on this map's event (tail)
@@ -2297,11 +2310,7 @@ class App:
             The scene lands in that editor's in-memory rf3.mc: its Save menu / Install
             write it (this tab keeps listing the shipped file)."""
             import cutscene_editor
-            win = _editor_window()
-            ex = cutscene_editor.CutsceneExplorer(
-                win, reader=(self.source.read_named if self.source else None),
-                status_fn=lambda s: self.status.config(text=s),
-                focus_bank=bank_index)
+            ex = self.cutscene_editor(bank_index)
             res = ex.open_new_scene_dialog(bank_index,
                                            default_type=cutscene_editor.map_enter_type())
             if res is not None:
@@ -4840,12 +4849,8 @@ class App:
         """Open the cutscene / event-script editor (rf3.mc + rf3mc.<locale>) in a window.
         Reads the script files by basename from the currently-loaded source, so it works
         best with a Manifest open (it can reach both bundlePatch1 and bundleMain)."""
-        import cutscene_editor
         reader = self.source.read_named if self.source else None
-        win = tk.Toplevel(self.root)
-        win.title("RF4S Cutscene Editor")
-        win.geometry("1180x780")
-        cutscene_editor.CutsceneExplorer(win, reader=reader)
+        self.cutscene_editor()
         if reader is None or reader("rf3.mc") is None:
             self.status.config(text="Cutscene editor: open the Manifest (or a bundle with rf3.mc) "
                                     "first, or use 'Open rf3.mc…' in the window.")
@@ -4854,12 +4859,7 @@ class App:
         """Open the Cutscene editor and pop its Event Manager (em.bin) window straight
         away. Same window the 'Cutscenes' button reaches via 'Event Manager\u2026'; the entry
         browser works without rf3.mc loaded (the 'used by scenes' list is just empty)."""
-        import cutscene_editor
-        reader = self.source.read_named if self.source else None
-        win = tk.Toplevel(self.root)
-        win.title("RF4S Cutscene Editor")
-        win.geometry("1180x780")
-        cutscene_editor.CutsceneExplorer(win, reader=reader).open_event_manager()
+        self.cutscene_editor().open_event_manager()
 
     def cmd_extract(self):
         """Save the shown file's working copy; True when it was written."""
