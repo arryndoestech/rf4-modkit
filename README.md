@@ -311,6 +311,8 @@ packed; the original is kept in `ModdingBackup`), or back to the file you opened
 text needs a game restart, but the editors' character, item, map and skill names follow the
 saved file at once.
 
+**Dropdowns.** In every dropdown of the toolkit, Up / Down step to the previous / next value and apply it at once (Alt+Down opens the list).
+
 **Tabs.** Clicking a file shows it in the current tab; **double-clicking opens it in a new
 tab**; Up / Down in the list show the next file in the tab you are browsing. A file that is
 already open just shows its tab, and a tab with unsaved changes is never replaced: a click
@@ -658,7 +660,9 @@ For writing by hand, the **Source** tab holds the whole scene as editable listin
 
 **Reference.** *📖 Reference* lists the flags and variables (emdeb.bin's FLG_ / REG_ / EV_ names,
 bit id, width, value range and Japanese label, plus the recovered zone-2 bits), the functions
-verified in game (with everything the opcode table knows about each), and the character, map and
+verified in game (with everything the opcode table knows about each), the **text codes** a
+dialogue line can hold (`＠０＠`, `＠キャラ０＠`, `＋blue＋` ..., what each shows and which instruction fills
+its slot: `SetVar3(0, n)` feeds `＠０＠`), and the character, map and
 item ids with the form an argument takes. Double-click copies.
 
 **Names come from your game.** Character, item, map and skill names are read from the game's
@@ -667,7 +671,7 @@ own English text files (`rf3TxtNpc_split2_1.eng`, `rf3TxtItem_split2_1.eng`, `rf
 wins over `bundleMain`. A mod that renames a character therefore shows the new name in every
 picker, comment and map-editor label, and `actor(NewName)` is accepted when typing. A saved
 change to one of these files is picked up within half a second, with no restart, and so is a
-`00_mods` copy being added or removed. Without a game folder, or when one of the files is
+`00_mods` copy being added or removed; an open Cutscene Editor re-titles its bank list by itself. Without a game folder, or when one of the files is
 missing, the toolkit falls back to the lists it ships with (`refdata/`), which match the
 unmodded game. Flag names come from your `emdeb.bin` and sound names from your
 `*_audio_data.bdat` in the same way.

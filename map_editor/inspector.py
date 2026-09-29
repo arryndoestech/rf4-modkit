@@ -150,6 +150,8 @@ class EntityForm(Form):
 
     # ---- values ---------------------------------------------------------- #
     def _rec(self):
+        if self.key is None:            # the selection went away (a field committing on focus-out)
+            return None
         recs = self.doc.map.mobj_records()
         i = self.key[1]
         return list(recs[i]) if i < len(recs) else None

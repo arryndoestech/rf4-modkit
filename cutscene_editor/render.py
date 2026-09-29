@@ -119,7 +119,7 @@ class SceneText:
         return self._spk
 
     def speaker_colour(self, name):
-        names = list(getattr(script.meta, "PORTRAIT_SPEAKERS", []))
+        names = [script.meta.speaker_name(i) for i in range(len(script.meta.PORTRAIT_SPEAKERS))]
         if name in (script.portrait_speaker_tag(16), "MC", "player"):
             return SPEAKER_COLORS[0]
         if name in names:
@@ -145,7 +145,7 @@ class SceneText:
     def speaker_of(self, st):
         """(name, side, colour) of a SetSpeaker op."""
         slot, par = script.portrait_speaker_slot(st.op)
-        name = script.portrait_speaker_tag(st.op) or script.portrait_speaker_name(st.op) or "?"
+        name = ("MC" if slot == 0 else script.portrait_speaker_name(st.op)) or "?"
         return name, ("right" if par else "left"), SPEAKER_COLORS[slot % len(SPEAKER_COLORS)]
 
     def speaker_mood(self, st):

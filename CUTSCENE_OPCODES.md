@@ -108,7 +108,7 @@ Speaker cue by character id: shows that character's portrait on the given side, 
 Args:
   0. speaker (0 = player, 1-47 = NPC/villager char id (see the character table); 24-28 name via the remap table)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -145,7 +145,7 @@ Speaker cue by character id: shows that character's portrait on the given side, 
 Args:
   0. speaker (0 = player, 1-47 = NPC/villager char id (see the character table); 24-28 name via the remap table)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -182,7 +182,7 @@ Speaker cue by a runtime character id (typically the spouse in REG_WIFE_ID): por
 Args:
   0. speaker (0 = player, 1-47 = NPC/villager char id (see the character table); usually REG_WIFE_ID or 30-37 (child / event slots))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -220,7 +220,7 @@ Speaker cue by a runtime character id (typically the spouse in REG_WIFE_ID): por
 Args:
   0. speaker (0 = player, 1-47 = NPC/villager char id (see the character table); usually REG_WIFE_ID or 30-37 (child / event slots))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -978,7 +978,7 @@ Slides a speaker portrait horizontally to an absolute screen x. Returns immediat
 Args:
   0. character (must match one of the two E-mote portraits, else no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1015,7 +1015,7 @@ Slides a speaker portrait horizontally to an absolute screen x. Returns immediat
 Args:
   0. character (must match one of the two E-mote portraits, else no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1052,7 +1052,7 @@ Slides a speaker portrait horizontally by a relative amount (negative = left). R
 Args:
   0. character (else no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1089,7 +1089,7 @@ Slides a speaker portrait horizontally by a relative amount (negative = left). R
 Args:
   0. character (else no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1126,7 +1126,7 @@ Waits until the given speaker portrait has finished sliding. If no on-screen por
 Args:
   0. character (no match = no wait)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1161,7 +1161,7 @@ Waits until the given speaker portrait has finished sliding. If no on-screen por
 Args:
   0. character (no match = no wait)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1204,7 +1204,7 @@ Writes a value into an unused field of the left portrait. Every shipped use pass
 Args:
   0. character (a character whose portrait is on screen (matched via Actor_MatchesCharId against host+96 then host+88))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1241,7 +1241,7 @@ Makes a speaker portrait tremble (shake up and down); 0 stops it. Used for scare
 Args:
   0. character (else no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1277,7 +1277,7 @@ Makes a speaker portrait tremble (shake up and down); 0 stops it. Used for scare
 Args:
   0. character (else no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1367,7 +1367,7 @@ Sets what an NPC calls the player: from now on, the player-name placeholder in t
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1403,7 +1403,7 @@ Sets what an NPC calls the player: from now on, the player-name placeholder in t
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1474,7 +1474,7 @@ Set how far away an NPC 'radiates' for chatter: villagers within this many tiles
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1510,7 +1510,7 @@ Set how far away an NPC 'radiates' for chatter: villagers within this many tiles
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1838,7 +1838,7 @@ Show a marker on the minimap (value stored as its target), or clear it with -1. 
 
 Args:
   0. target (value stored in the minimap marker (corpus 0 in 60 of 80 uses, 4); -1 = clear)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1939,7 +1939,7 @@ Move a speaker portrait vertically: sets a target screen y that the portrait eas
 Args:
   0. character (character shown in one of the two portrait slots; no-op if neither matches)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -1975,7 +1975,7 @@ Move a speaker portrait vertically: sets a target screen y that the portrait eas
 Args:
   0. character (character shown in one of the two portrait slots; no-op if neither matches)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2011,7 +2011,7 @@ Give a speaker portrait a quick vertical jolt (a hop or drop that springs back),
 Args:
   0. character (character shown in one of the two portrait slots; no-op if neither matches)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2047,7 +2047,7 @@ Give a speaker portrait a quick vertical jolt (a hop or drop that springs back),
 Args:
   0. character (character shown in one of the two portrait slots; no-op if neither matches)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2083,7 +2083,7 @@ Instantly puts an actor (player or NPC) on a tile, without a walk animation. An 
 Args:
   0. actor (ids >= 48 ignored)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2120,7 +2120,7 @@ Instantly puts an actor (player or NPC) on a tile, without a walk animation. An 
 Args:
   0. actor (ids >= 48 ignored)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2157,7 +2157,7 @@ Teleport an actor to a tile and set its facing instantly. Streams the NPC into t
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2195,7 +2195,7 @@ Teleport an actor to a tile and set its facing instantly. Streams the NPC into t
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2233,7 +2233,7 @@ Turn an actor (player or NPC) to a fixed compass direction, either instantly or 
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2270,7 +2270,7 @@ Turn an actor (player or NPC) to a fixed compass direction, either instantly or 
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2307,7 +2307,7 @@ Spins an NPC in place: turns it by the given degrees every frame for the given n
 Args:
   0. npc (0 crashes (null actor), >= 48 no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2344,7 +2344,7 @@ Turn one actor to look at another - the usual setup before two characters talk. 
 Args:
   0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2372,7 +2372,7 @@ Args:
      - `26` = Mistress Trupin
   1. target (same encoding (0 = player))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2408,7 +2408,7 @@ Turn one actor to look at another - the usual setup before two characters talk. 
 Args:
   0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2436,7 +2436,7 @@ Args:
      - `26` = Mistress Trupin
   1. target (same encoding (0 = player))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2472,7 +2472,7 @@ Turn one actor to look at another - the usual setup before two characters talk. 
 Args:
   0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2500,7 +2500,7 @@ Args:
      - `26` = Mistress Trupin
   1. target (same encoding (0 = player))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2536,7 +2536,7 @@ Turns an actor (player or NPC) to face an event actor, i.e. a monster or prop th
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2573,7 +2573,7 @@ Sets the target of an actor's secondary yaw (a second rotation separate from the
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2609,7 +2609,7 @@ Sets the target of an actor's secondary yaw (a second rotation separate from the
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2645,7 +2645,7 @@ Waits until the actor's secondary yaw has reached the target set by SetActorAuxY
 Args:
   0. actor (>= 48 or missing actor = no wait)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2680,7 +2680,7 @@ Waits until the actor's secondary yaw has reached the target set by SetActorAuxY
 Args:
   0. actor (>= 48 or missing actor = no wait)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2715,7 +2715,7 @@ Walk an actor to an absolute tile and face the given direction, then lock the NP
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2755,7 +2755,7 @@ Walk an actor to an absolute tile and face the given direction, then lock the NP
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2795,7 +2795,7 @@ Walks an NPC to an absolute tile, turning to face the way it walks (no end facin
 Args:
   0. actor
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2834,7 +2834,7 @@ Walks an NPC to an absolute tile, turning to face the way it walks (no end facin
 Args:
   0. actor
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2873,7 +2873,7 @@ Move an NPC to an absolute tile without turning it (side-step / back-pedal), the
 Args:
   0. npc (1..47 (NPC table; no player branch); >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2912,7 +2912,7 @@ Move an NPC to an absolute tile without turning it (side-step / back-pedal), the
 Args:
   0. npc (1..47 (NPC table; no player branch); >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2951,7 +2951,7 @@ Moves an NPC to an absolute tile while keeping the animation that is currently p
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -2989,7 +2989,7 @@ Moves an NPC to an absolute tile while keeping the animation that is currently p
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3027,7 +3027,7 @@ Walks an actor (player or NPC) by a relative tile offset from where it stands an
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3067,7 +3067,7 @@ Walks an actor (player or NPC) by a relative tile offset from where it stands an
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3107,7 +3107,7 @@ Walks an actor (player or NPC) by a relative tile offset, facing the way it walk
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3146,7 +3146,7 @@ Walks an actor (player or NPC) by a relative tile offset, facing the way it walk
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3185,7 +3185,7 @@ Moves an actor (player or NPC) by a relative tile offset while keeping its curre
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3224,7 +3224,7 @@ Moves an actor (player or NPC) by a relative tile offset while keeping its curre
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3263,7 +3263,7 @@ Wait until an actor has finished its scripted move and any pending turn. Put it 
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3299,7 +3299,7 @@ Wait until an actor has finished its scripted move and any pending turn. Put it 
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3335,7 +3335,7 @@ Wait until an actor has come within [range] tiles of the destination of its curr
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no wait)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3371,7 +3371,7 @@ Wait until an actor has come within [range] tiles of the destination of its curr
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no wait)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3407,7 +3407,7 @@ Play an animation clip on an actor, looping or once. Anim id 1 returns the actor
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3444,7 +3444,7 @@ Play an animation clip on an actor, looping or once. Anim id 1 returns the actor
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3481,7 +3481,7 @@ Wait until an NPC's current one-shot animation (e.g. after PlayActorAnim or Hand
 Args:
   0. npc (1-47 NPC (0 resolves NPC slot 0, not the player))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3516,7 +3516,7 @@ Wait until an NPC's current one-shot animation (e.g. after PlayActorAnim or Hand
 Args:
   0. npc (1-47 NPC (0 resolves NPC slot 0, not the player))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3551,7 +3551,7 @@ Fade or hide an actor's model: 0 hides it, any other value shows it at that opac
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3732,7 +3732,7 @@ Args:
   0. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
   1. target (0 = player, 1-47 NPC; >= 48 unsupported (uninitialised pointer))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3924,7 +3924,7 @@ Play the water-splash reaction on a character: a squash-and-stretch bob, the spl
 Args:
   0. actor (0 = player, 1-47 NPC, >= 48 event key)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3959,7 +3959,7 @@ Make an NPC hold an item in their hand (or put it away), or give the player an i
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -3996,7 +3996,7 @@ Make an NPC hold an item in their hand (or put it away), or give the player an i
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4033,7 +4033,7 @@ Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound
 Args:
   0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4071,7 +4071,7 @@ Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound
 Args:
   0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4109,7 +4109,7 @@ Add to, subtract from, or set an NPC's friendship points. The mode is written as
 Args:
   0. npc (1-47; 22 = the current child (REG_CHILD_ID))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4155,7 +4155,7 @@ Freeze an NPC for a cutscene: saves its current facing and sets the flags that s
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4190,7 +4190,7 @@ Pull an NPC out of its daily schedule for a scene (or hand it back), refreshing 
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4226,7 +4226,7 @@ Pull an NPC out of its daily schedule for a scene (or hand it back), refreshing 
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4262,7 +4262,7 @@ Bring an NPC's actor into the current map (or just re-apply its schedule state).
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4298,7 +4298,7 @@ Send an NPC away for the rest of the day (it disappears and does not come back u
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4334,7 +4334,7 @@ Send an NPC away for the rest of the day (it disappears and does not come back u
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4370,7 +4370,7 @@ Make an NPC hold up the item in its hand (after HandOrDropItem); if it is alread
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4405,7 +4405,7 @@ Brings an NPC onto a map and places it on a tile at once (no walk-in), resetting
 Args:
   0. npc (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4443,7 +4443,7 @@ Set or clear an NPC's record bit 0x800 (+52), used together with SetNpcVisible w
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4479,7 +4479,7 @@ Set or clear an NPC's record bit 0x800 (+52), used together with SetNpcVisible w
 Args:
   0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4515,7 +4515,7 @@ Jump an actor's current animation to its last frame, so a pose just started (e.g
 Args:
   0. actor (0 = player, 1..47 NPC)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4550,7 +4550,7 @@ Jump an actor's current animation to its last frame, so a pose just started (e.g
 Args:
   0. actor (0 = player, 1..47 NPC)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4585,7 +4585,7 @@ Set how fast an actor's animation plays (percent). 0 freezes the current pose. T
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4621,7 +4621,7 @@ Set how fast an actor's animation plays (percent). 0 freezes the current pose. T
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4657,7 +4657,7 @@ Jump an actor's current animation to a given frame (no blending); combine with S
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4701,7 +4701,7 @@ Set bit 0x80000000 of the listed NPCs' record word +52 (or of all villagers 1..2
 
 Args:
   0. npcs (arg0 = 0: all villagers 1..23; otherwise every arg (count from argc) is a char id)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4736,7 +4736,7 @@ End an NPC's scripted action: put away what it is holding, return it to its idle
 Args:
   0. npc (1-47 (0 and >= 48 ignored))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4771,7 +4771,7 @@ End an NPC's scripted action: put away what it is holding, return it to its idle
 Args:
   0. npc (1-47 (0 and >= 48 ignored))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4806,7 +4806,7 @@ Give an NPC a scripted destination (map, tile and facing) that it walks to on it
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4849,7 +4849,7 @@ Give an NPC a scripted destination (map, tile and facing) that it walks to on it
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4892,7 +4892,7 @@ Hands an NPC that a script placed back to its normal daily schedule. Does nothin
 Args:
   0. npc (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4928,7 +4928,7 @@ Hands an NPC that a script placed back to its normal daily schedule. Does nothin
 Args:
   0. npc (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -4964,7 +4964,7 @@ Marks an NPC as present in town again (mode 1), used at the end of date/festival
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5000,7 +5000,7 @@ Set an NPC's date state. Setting 4 (the date went well) also awards friendship: 
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5042,7 +5042,7 @@ Put a character on a rideable event actor (spawned with SpawnEventActor), or pas
 Args:
   0. character (0 = player, 1-47 NPC)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5078,7 +5078,7 @@ Make an actor tremble for a number of frames (a quick jitter, e.g. on an impact 
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5114,7 +5114,7 @@ Change an NPC's outfit: 0 normal clothes, 1 pajamas, 2 swimsuit (both kept until
 Args:
   0. npc (1-47 (0 = nothing))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5154,7 +5154,7 @@ Make the player or an NPC (usually the spouse) pick up and hold the baby: spawns
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5198,7 +5198,7 @@ Hand an NPC back to its normal daily routine at the end of a scene. With -1 the 
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5234,7 +5234,7 @@ Hand an NPC back to its normal daily routine at the end of a scene. With -1 the 
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5270,7 +5270,7 @@ Re-parse an NPC's schedule plan with an explicit state and apply today's calenda
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5306,7 +5306,7 @@ Puts an NPC back where its schedule says it should be now (position and pose for
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5342,7 +5342,7 @@ Puts an NPC back where its schedule says it should be now (position and pose for
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5378,7 +5378,7 @@ Re-reads an NPC's schedule plan for today (including a schedule a script just se
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5413,7 +5413,7 @@ Re-reads an NPC's schedule plan for today (including a schedule a script just se
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5448,7 +5448,7 @@ Recompute an NPC's schedule for today and re-apply its daily plan, without relea
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5483,7 +5483,7 @@ Make an NPC hold still for a while before resuming its schedule (used right afte
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5519,7 +5519,7 @@ Make an NPC hold still for a while before resuming its schedule (used right afte
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5569,7 +5569,7 @@ Show or hide a spawned NPC's model. The NPC keeps existing and acting while hidd
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5605,7 +5605,7 @@ Show or hide a spawned NPC's model. The NPC keeps existing and acting while hidd
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5641,7 +5641,7 @@ Set the nickname the player uses for this NPC: dialogue that names the NPC throu
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5677,7 +5677,7 @@ Set the nickname the player uses for this NPC: dialogue that names the NPC throu
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5713,7 +5713,7 @@ End an actor's character-change transform and/or put it in outfit variant 3 (the
 Args:
   0. actor (0 = player, 1..47 NPC; 48..255 ignored)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5749,7 +5749,7 @@ End an actor's character-change transform and/or put it in outfit variant 3 (the
 Args:
   0. actor (0 = player, 1..47 NPC; 48..255 ignored)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5785,7 +5785,7 @@ Instantly switch an actor's costume, with no transformation effect.
 Args:
   0. actor (0 = player, 1-47 NPC (48-253 ignored))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5825,7 +5825,7 @@ Instantly switch an actor's costume, with no transformation effect.
 Args:
   0. actor (0 = player, 1-47 NPC (48-253 ignored))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -5947,7 +5947,7 @@ Writes a byte (offset 58) of an NPC's record. What the game uses it for is not k
 Args:
   0. npc (invalid id writes to address 0x3A (crash))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6023,7 +6023,7 @@ Set or clear status bit 0x20000 on an actor's stats and recompute its stats; cle
 Args:
   0. target (0 = player, 1..47 NPC, >= 48 event key)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6059,7 +6059,7 @@ Set or clear bit 0x4000 of a character's control flags. Its effect is not known;
 Args:
   0. actor (0 = player, 1-47 NPC, >= 48 event key)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6095,7 +6095,7 @@ Make a monster impossible to tame (e.g. story bosses and event monsters spawned 
 Args:
   0. actor (0 = player, 1-47 NPC, >= 48 event key (retail: event monsters 100-105, 300))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6130,7 +6130,7 @@ Make a monster notice the party at any distance and from any direction, so it en
 Args:
   0. target (0 = player, 1..47 NPC, >= 48 event key (corpus: event monsters 100-103, 202, 205))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6165,7 +6165,7 @@ Instantly set a character's facing direction in degrees (no turning animation).
 Args:
   0. actor (0 = player, 1-47 NPC, >= 48 event key)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6477,7 +6477,7 @@ Add an NPC to the player's party. If it is not loaded, it is streamed in at the 
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6512,7 +6512,7 @@ Add an NPC to the player's party. If it is not loaded, it is streamed in at the 
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6547,7 +6547,7 @@ Adds an NPC to the player's party (streaming them in at the player's position if
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6583,7 +6583,7 @@ Adds an NPC to the player's party (streaming them in at the player's position if
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -6820,7 +6820,7 @@ Clear the per-NPC game flag 981+id - the counterpart of SetNpcStoryFlag (op 214)
 Args:
   0. npc (1-23 (flag 981+id must stay below 1005))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -7375,7 +7375,7 @@ Put an item in a character's hands: an NPC holds it (e.g. before handing it over
 Args:
   0. holder (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -7412,7 +7412,7 @@ Like HandOrDropItem, but with an explicit item level and stack amount - used whe
 Args:
   0. holder (0 = player, 1-47 = NPC/villager char id (see the character table))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -7868,7 +7868,7 @@ Applies an effect kind (magic, heal, status or visual) to an actor as if that ac
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -7904,7 +7904,7 @@ Applies an effect kind (magic, heal, status or visual) to an actor as if that ac
 Args:
   0. actor (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -7951,7 +7951,7 @@ Args:
   0. action (g_actionConstructorTable id (same id space as ops 150/165; e.g. 61, 117, 164))
   1. actor (0 = player, 1..47 NPC)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -8795,7 +8795,7 @@ Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's ac
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -8830,7 +8830,7 @@ Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's ac
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -8883,7 +8883,7 @@ Check whether a villager has been unlocked in the story (the flag SetNpcStoryFla
 Args:
   0. character (1-23 villagers (0 = player also maps to bit 981); 24-47 = child slots)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -8917,7 +8917,7 @@ Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC th
 
 Args:
   0. npc (0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -8951,7 +8951,7 @@ Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC th
 
 Args:
   0. npc (0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -8994,7 +8994,7 @@ Get the map (room) id a character is currently in; 0 gives the player's current 
 
 Args:
   0. actor (0 = the player's current map; 1..47 = where that NPC currently is)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9029,7 +9029,7 @@ Sets reg0 = 1 if the actor is currently on one of the listed maps, else 0. There
 Args:
   0. actor (>= 48 = no-op (reg0 not written))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9065,7 +9065,7 @@ Sets reg0 = 1 if the actor is currently on one of the listed maps, else 0. There
 Args:
   0. actor (>= 48 = no-op (reg0 not written))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9101,7 +9101,7 @@ Returns 1 in reg0 when the NPC is NOT currently travelling along its daily sched
 Args:
   0. npc (1-47 (entry must exist - no null check))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9136,7 +9136,7 @@ Check whether an NPC has been hidden with HideNpc (op 233).
 Args:
   0. npc (0-47 (hidden bits exist for 0-23))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9171,7 +9171,7 @@ Check whether an NPC is within 48 units of the character running this script and
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9206,7 +9206,7 @@ Check whether another villager is around to chime in on the current conversation
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9242,7 +9242,7 @@ Pick which of two nearby villagers chimes in on a conversation: reg0 = 0..3 from
 Args:
   0. npc_a (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9270,7 +9270,7 @@ Args:
      - `26` = Mistress Trupin
   1. npc_b (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9317,7 +9317,7 @@ Args:
   0. max_distance (max distance of each other NPC from the primary (corpus always 180))
   1. primary (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9353,7 +9353,7 @@ Sets reg0 to the NPC's gift-reaction value for an item (how much they like it). 
 Args:
   0. npc (>= 48 = no-op)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9390,7 +9390,7 @@ Get the tile right next to the target on the mover's side (one step back from th
 Args:
   0. mover (0 = player, 1..47 NPC: the actor that will walk)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9418,7 +9418,7 @@ Args:
      - `26` = Mistress Trupin
   1. target (0 = player, 1..47 (looked up with Npc_FindActorByNpcId when the mover is an NPC))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9503,7 +9503,7 @@ reg0 = 1 when every listed NPC has reached the spot set by SetOrClearNpcSchedule
 
 Args:
   0. npc... (one or more NPC ids; a first arg of 0 switches to the all-villager mode)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9537,7 +9537,7 @@ reg0 = 1 when every listed NPC has reached the spot set by SetOrClearNpcSchedule
 
 Args:
   0. npc... (one or more NPC ids; a first arg of 0 switches to the all-villager mode)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9571,7 +9571,7 @@ Check whether a villager is flagged present (record +52 bit 22, set by op 275). 
 
 Args:
   0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9605,7 +9605,7 @@ Check whether a villager is flagged present (record +52 bit 22, set by op 275). 
 
 Args:
   0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0)
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9640,7 +9640,7 @@ Get the item an NPC is currently holding in its hand (e.g. a gift it is about to
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9675,7 +9675,7 @@ Get the item an NPC is currently holding in its hand (e.g. a gift it is about to
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9710,7 +9710,7 @@ Put a random item this NPC likes into reg0 - used to pick the gift an NPC hands 
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9745,7 +9745,7 @@ Put a random item this NPC likes into reg0 - used to pick the gift an NPC hands 
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9780,7 +9780,7 @@ Read an NPC's date state into reg0: 0 none, 1 date promised for tomorrow, 2 date
 Args:
   0. npc (1-47 (REG_CHILD_ID also used))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9815,7 +9815,7 @@ Check whether an NPC's actor is loaded in the current map and not flagged away (
 Args:
   0. npc (1..47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9855,7 +9855,7 @@ Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what 
 Args:
   0. npc (0 or >= 48 -> reg0 = 0)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9900,7 +9900,7 @@ Sets reg0 to the nickname id the NPC currently uses for the player (0 = the play
 Args:
   0. npc
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9935,7 +9935,7 @@ Get a byte from an NPC's record (+56) that the toolkit calls its mood id. reg0 =
 Args:
   0. npc (1..47 (corpus: REG_WIFE_ID))
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -9986,7 +9986,7 @@ Put the map the NPC is currently on into reg0 (outdoor maps below 0x40 get the s
 Args:
   0. npc (1-47)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -10346,7 +10346,7 @@ Sets reg0 to a 16-bit value from the character's rf3NpcParam record (offset 292)
 Args:
   0. char (no bounds check)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte
@@ -10788,7 +10788,7 @@ For an NPC: reg0 = non-zero if they wear headgear the player gave them, reg1 = t
 Args:
   0. npc (0 -> reg0 = reg1 = 0)
      - `0` = Lest/Frey
-     - `1` = Vishnal
+     - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
      - `4` = Forte

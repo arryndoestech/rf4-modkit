@@ -320,15 +320,37 @@ def portrait_speaker_slot(op):
     return None
 
 
+def speaker_plate(slot):
+    """The name-archive entry (rf3TxtNpc row) the game shows for speaker `slot`: the slot
+    itself, except the slots the speaker handler remaps (RF4S.exe+0x207F70)."""
+    return _SPEAKER_PLATE_REMAP.get(slot, slot)
+
+
+def speaker_name(slot):
+    """Display name of speaker `slot` 0..29, from the game's name archive (so a renamed
+    character shows renamed); 'Lest/Frey' for the player slot 0."""
+    if slot == 0:
+        return PORTRAIT_SPEAKERS[0]
+    try:
+        from . import gamenames
+        nm = gamenames.name("characters", speaker_plate(slot))
+    except Exception:
+        nm = None
+    if nm:
+        return nm
+    return PORTRAIT_SPEAKERS[slot] if 0 <= slot < len(PORTRAIT_SPEAKERS) else "slot %d" % slot
+
+
 def portrait_speaker_name(op):
     """Character name for a portrait-line opcode (16..75), else None."""
     sp = portrait_speaker_slot(op)
     if sp is None:
         return None
-    slot = sp[0]
-    if 0 <= slot < len(PORTRAIT_SPEAKERS):
-        return PORTRAIT_SPEAKERS[slot]
-    return "slot %d" % slot
+    return speaker_name(sp[0])
+
+
+# name-plate archive entries of the slots the speaker handler remaps (RF4S.exe+0x207F70)
+_SPEAKER_PLATE_REMAP = {}
 
 
 def portrait_speaker_tag(op):
@@ -393,8 +415,7 @@ def face_frame_name(face_id):
     return FACE_FRAMES.get(face_id)
 
 
-# name-plate archive entries of the slots the speaker handler remaps (RF4S.exe+0x207F70)
-_SPEAKER_PLATE_REMAP = {24: 309, 25: 149, 26: 239, 27: 24, 28: 25}
+_SPEAKER_PLATE_REMAP.update({24: 309, 25: 149, 26: 239, 27: 24, 28: 25})
 for _op in range(16, 76):
     _slot, _par = ((_op - 16) >> 1, _op & 1)
     _who = PORTRAIT_SPEAKERS[_slot] if _slot < len(PORTRAIT_SPEAKERS) else "slot %d" % _slot
@@ -4593,7 +4614,7 @@ def render_action(op, arg_strs):
                     decorated.append(name if name else str(v))
             else:                                 # target actor ref
                 decorated.append(raw)
-        return "%s(%s)" % (mnemonic(op), ", ".join(opcode_arg_values(op) + decorated))
+        return "%s(%s)" % (mnemonic(op), ", ".join(opcode_arg_labels(op) + decorated))
     # Auto-annotate any op that has an enum registry entry: TriggerWorldAction(3=MessageBoard),
     # ShowStaffCredits(2=Credits (bottom)), etc. Falls back to the default rendering
     # if the argument is a non-literal expression or the value isn't in the enum.
@@ -5034,6 +5055,24 @@ for _o, _oa in OPCODE_ARGS.items():
 def opcode_arg_values(op):
     """Names of the opcode-encoded arguments of `op` (e.g. ['Forte', 'Right']), or []."""
     return [a["value"] for a in OPCODE_ARGS.get(op, ())]
+
+
+def opcode_arg_raws(op):
+    """The numbers of the opcode-encoded arguments of `op` (e.g. ['4', '1']): what a listing
+    writes, since the names are ours."""
+    return [str(a["raw"]) for a in OPCODE_ARGS.get(op, ())]
+
+
+def opcode_arg_labels(op):
+    """Display names of the opcode-encoded arguments, for comments: the speaker as the game
+    names it now (speaker_name), 'MC' for the player."""
+    out = []
+    for a in OPCODE_ARGS.get(op, ()):
+        if a["name"] == "character":
+            out.append("MC" if a["raw"] == 0 else speaker_name(a["raw"]))
+        else:
+            out.append(a["value"])
+    return out
 
 
 def opcode_arg_count(name):

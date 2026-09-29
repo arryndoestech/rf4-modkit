@@ -106,6 +106,33 @@ class CutsceneExplorer:
             ("r", lambda e: self.reload_in_game()),
             ("f", lambda e: self.focus_search())],
             home=lambda: getattr(getattr(self, "view", None), "text", None))   # the Script rows
+        self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
+
+    NAMES_EVERY_MS = 1000
+
+    def _watch_names(self):
+        """Character / map / item names come from the game's text files (gamenames): when a
+        saved file changes them, re-title the bank list and redraw the open scene."""
+        try:
+            if not self.frame.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        from rf4s_modkit import gamenames
+        gen = gamenames.generation()
+        if getattr(self, "_names_gen", None) is None:
+            self._names_gen = gen
+        elif gen != self._names_gen:
+            self._names_gen = gen
+            self.names_changed()
+        self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
+
+    def names_changed(self):
+        self.browser.relabel()
+        if self.scene is not None:
+            self.view.render(keep_sel=True)
+            self.inspector.show(self.sel)
+        self.status("Names updated from the game's text files")
 
     def retag(self, w=None):
         """Tag `w` (default: the whole editor) for the shortcuts right away. Panels that
@@ -184,11 +211,6 @@ class CutsceneExplorer:
                 "flags, choices), check the listing it makes, and insert it after / before the "
                 "selected statement. Also: Insert key, right-click in the script, Add before / "
                 "Add after in the Inspector.")
-        rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
-        rb.pack(side="left", padx=4)
-        Tip(rb, "Look things up: flags & variables (name, id, description), the functions "
-                "verified in game, characters, maps and items -- with the form an argument "
-                "takes. Double-click copies.")
         rl = ttk.Button(bar, text="⟳ Reload in game", command=self.reload_in_game)
         rl.pack(side="left", padx=(0, 4))
         Tip(rl, "Ctrl+R: save, then put rf3.mc into the RUNNING game -- no restart, any size. "
@@ -198,6 +220,11 @@ class CutsceneExplorer:
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
+        rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
+        rb.pack(side="right", padx=(4, 0))               # packed first on the right: rightmost
+        Tip(rb, "Look things up: flags & variables (name, id, description), the functions "
+                "verified in game, the codes dialogue text can hold, characters, maps and "
+                "items -- with the form an argument takes. Double-click copies.")
         self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=("Segoe UI", 8))
         self.dirty_lbl.pack(side="right", padx=6)
 
@@ -1487,6 +1514,7 @@ def main(argv=None):
     root = tk.Tk()
     import guiutil
     guiutil.install_error_logging(root)
+    guiutil.install_combo_keys(root)
     root.title("RF4S Cutscene Editor")
     root.geometry("1400x860")
     reader = None

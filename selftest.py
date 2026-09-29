@@ -1503,10 +1503,20 @@ def test_game_names():
     if real is None:
         _skip("game names", "no game folder"); return
     G.reload()
-    same = all(G.source(k) is not None
-               and G.table(k) == {i: v.strip() for i, v in G._builtin(k).items() if v.strip()}
-               for k in G.KINDS)
-    _check("an unmodded game gives the same names as the built-in lists, read from its files",
+    def _file_table(path, first):
+        arc = textdb.TextArchive.parse(pathlib.Path(path).read_bytes())
+        return {r - first: arc.text(r).strip() for r in range(first, len(arc.entries)) if arc.text(r).strip()}
+    same = True
+    for k in G.KINDS:
+        src, first = G.source(k), G.FILES[k][1]
+        # the tables are exactly the loaded file; the built-in lists are the game's original
+        # (the ModdingBackup copy when a Save replaced it, a 00_mods file's bundleMain original)
+        orig = gamepaths.backup_path(src)
+        if orig is None or not orig.is_file():
+            orig = src if src.parent.name != "00_mods" else real / "bundleMain" / src.name
+        builtin = {i: v.strip() for i, v in G._builtin(k).items() if v.strip()}
+        same = same and G.table(k) == _file_table(src, first) and _file_table(orig, first) == builtin
+    _check("names are read from the game's files; the built-in lists match the unmodded originals",
            same, {k: str(G.source(k)) for k in G.KINDS})
     npc = G.source("characters")
     tmp = pathlib.Path(tempfile.mkdtemp())
@@ -5926,7 +5936,9 @@ def test_script_authoring():
     _bare = [o for o, n in enumerate(_ln) if re.fullmatch(r"op\d+", n[0])]
     _check("every action opcode has a unique listing name that assembles back (Name_N for shared names)",
            not _bad and len(set(_ln)) == len(_ln) and len(_bare) <= 2
-           and _sa.action_line(53, ["3", "0"]) == "SetSpeaker(Jones, Right, 3, 0)",
+           and _sa.action_line(53, ["3", "0"]) == "SetSpeaker(18, 1, 3, 0)"
+           and all(script.meta.op_from_opcode_args("SetSpeaker", script.meta.opcode_arg_raws(o)) == o
+                   for o in range(16, 76)),
            _bad[:3] or f"{len(_bare)} bare opN left: {_bare}")
     # the developers' test menus: bank 18 (Jones) carries the event / festival / date menus
     _tp = _first("rf3mc.eng")
@@ -5960,8 +5972,9 @@ def test_script_authoring():
         _b300 = _c210.banks[300]
         _s300 = next((s for s in script.disassemble_bank(_b300) if s.entry_pc == 0x49AE), None)
         _sp3 = script.dialog_speakers(_s300, _b300) if _s300 else {}
-        _check("DIALOG speakers: op 8 DialogueLine 1 -> Vishnal; op 699 -> narration",
-               _sp3.get(0x021A) == "Vishnal" and _sp3.get(0x1EBC) == script.SPEAKER_NARRATION,
+        from rf4s_modkit import gamenames as _gn
+        _check("DIALOG speakers: op 8 DialogueLine 1 -> character 1 as the game names it; op 699 -> narration",
+               _sp3.get(0x021A) == _gn.name("characters", 1) and _sp3.get(0x1EBC) == script.SPEAKER_NARRATION,
                f"{_sp3.get(0x021A)!r} / {_sp3.get(0x1EBC)!r}")
         # the cutscene editor's Script view shows the same (it used the last speaker op in
         # display order, so Eliza's board lines read as 'MC')
@@ -7062,6 +7075,75 @@ def test_blender_addon():
                and not res["changed"] and not res["notes"], [c[0] for c in res["changed"]])
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_live_names_and_combo_keys():
+    """An open Cutscene Editor re-titles its bank list when a saved name file renames a
+    character (no restart); Up / Down in a dropdown step its value and apply it at once."""
+    print("live names in the cutscene editor; Up / Down in dropdowns:")
+    import os
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+        import cutscene_editor as ce
+        import guiutil
+    except Exception as e:
+        _skip("live names", "no tkinter: %s" % e); return
+    root = tk.Tk(); root.withdraw()
+    try:
+        guiutil.install_combo_keys(root)
+        got = []
+        cb = ttk.Combobox(root, values=("a", "b", "c"), state="readonly")
+        cb.pack(); cb.set("a")
+        cb.bind("<<ComboboxSelected>>", lambda _e: got.append(cb.get()))
+        fc = guiutil.FilterCombo(root, ["one", "two", "three"], on_pick=got.append)
+        fc.pack(); fc.var.set("two")
+        root.update()
+        guiutil.combo_step(cb, 1); guiutil.combo_step(cb, 1); guiutil.combo_step(cb, 1)
+        guiutil.combo_step(fc, -1); guiutil.combo_step(fc, -1)
+        down = root.bind_class("TCombobox", "<Down>") != ""
+        _check("Up / Down step a dropdown's value and apply it (stopping at the ends); Alt+Down opens the list",
+               got == ["b", "c", "one"] and cb.get() == "c" and fc.get() == "one" and down
+               and root.bind_class("TCombobox", "<Alt-Down>") != "", got)
+        mc = _first("rf3.mc")
+        from rf4s_modkit import gamenames as G, gamepaths, textdb
+        real = gamepaths.find_bundle_dir()
+        npc = real / "bundleMain" / "rf3TxtNpc_split2_1.eng" if real else None
+        if not mc or npc is None or not npc.is_file():
+            _skip("live names", "no rf3.mc / rf3TxtNpc"); return
+        dirs = [mc.parent, pathlib.Path(BUNDLE_DIR) / "bundleMain"]
+        reader = lambda n: next(((d / n).read_bytes() for d in dirs if (d / n).is_file()), None)
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        root.update_idletasks()
+        cx._watch_names()                    # what its timer does a second after opening
+        bank1 = next((i for i, r in cx.browser._rows.items() if r == ("bank", 1)), None)
+        before = cx.browser.tree.item(bank1, "text") if bank1 else ""
+        tmp = pathlib.Path(tempfile.mkdtemp())
+        saved = gamepaths.find_bundle_dir
+        try:
+            (tmp / "00_mods").mkdir()
+            arc = textdb.TextArchive.parse(npc.read_bytes())
+            arc.set_text(1, "Herbertina")
+            (tmp / "00_mods" / npc.name).write_bytes(arc.build())
+            gamepaths.find_bundle_dir = lambda refresh=False: tmp
+            G.reload()
+            cx._watch_names()
+            after = cx.browser.tree.item(bank1, "text")
+        finally:
+            gamepaths.find_bundle_dir = saved
+            G.reload()
+            shutil.rmtree(tmp, ignore_errors=True)
+        cx._watch_names()
+        back = cx.browser.tree.item(bank1, "text")
+        _check("an open Cutscene Editor re-titles its bank list when the game's names change",
+               before.startswith(G.name("characters", 1)) and after.startswith("Herbertina")
+               and back == before,
+               (before, after, back))
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
 
 
 def test_text_tab():
@@ -11733,8 +11815,8 @@ def test_cutscene_toolbox():
         p.fam_fields[0].var.set("Forte")
         p.fam_fields[1].var.set("Right")
         p._rebuild()
-        _check("SetSpeaker: character + side pickers pick the opcode (Forte, Right = op 25)",
-               p.text().startswith("SetSpeaker(Forte, Right") and
+        _check("SetSpeaker: character + side pickers pick the opcode (Forte, Right = op 25, written 4, 1)",
+               p.text().startswith("SetSpeaker(4, 1") and
                cx.assemble_check(p.text())[0][:2] == bytes([25, 0]), p.text())
         p.preset(("ctl", "PROMPT_CHOICE"))
         p._add_row()
@@ -11872,9 +11954,19 @@ def test_cutscene_toolbox():
         tabs = [r.nb.tab(i, "text") for i in range(len(r.nb.tabs()))]
         trees = [w for w in _all_widgets(r.win) if w.winfo_class() == "Treeview"]
         counts = [len(t.get_children()) for t in trees]
-        _check("Reference: flags, verified functions, characters, maps, items all list something",
-               tabs == ["Flags & variables", "Functions", "Characters", "Maps", "Items"]
-               and len(counts) == 5 and all(counts) and counts[0] > 1000, "%s %s" % (tabs, counts))
+        _check("Reference: flags, verified functions, text codes, characters, maps, items all list something",
+               tabs == ["Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items"]
+               and len(counts) == 6 and all(counts) and counts[0] > 1000, "%s %s" % (tabs, counts))
+        codes = [trees[2].item(i, "values") for i in trees[2].get_children()]
+        from rf4s_modkit import textlint as _tl
+        _num = next((c for c in codes if c[0] == "＠<n>＠"), None)
+        _check("Text codes: every code the checker knows is listed, with the instruction that fills its slot "
+               "(＠<n>＠ <- SetVar3)",
+               _num is not None and "SetVar3" in _num[3] and len(codes) == len(_tl.token_reference())
+               and all(any(c[0] == _tl.AT + v + _tl.AT for c in codes) for v in _tl.VILLAGERS)
+               and all(any(lit in c[0] for c in codes) for lit, _k, _t in _tl._SLOTTED)
+               and all(any(lit in c[0] for c in codes) for lit in _tl._PLAIN),
+               _num)
         acts, ctl = ce.toolbox.verified_ops()
         _check("Functions lists only the human-verified instructions",
                counts[1] == len(acts) + len(ctl) and all(script.meta.human_verified(o) for o in acts),
@@ -13572,7 +13664,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_text_tab, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_text_tab, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

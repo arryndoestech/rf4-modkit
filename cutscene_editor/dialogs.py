@@ -8,7 +8,7 @@ from tkinter import ttk
 from guiutil import FilterCombo, ScrollFrame, Tip, hint, later
 
 from . import catalog
-from .inspector import SPEAKER_CHOICES
+from .inspector import speaker_choices
 
 DARK = dict(bg="#15151b", fg="#dcdce4", insertbackground="#dcdce4")
 
@@ -338,8 +338,9 @@ def ask_dialogue(parent, default_speaker=None, reader=None):
     frm = ttk.Frame(win, padding=8)
     frm.pack(fill="both", expand=True)
     ttk.Label(frm, text="Speaker").grid(row=0, column=0, sticky="w")
-    spk = FilterCombo(frm, ["(keep the current speaker)"] + SPEAKER_CHOICES, None, width=32)
-    spk.var.set("(keep the current speaker)" if default_speaker is None else SPEAKER_CHOICES[default_speaker])
+    choices = speaker_choices()
+    spk = FilterCombo(frm, ["(keep the current speaker)"] + choices, None, width=32)
+    spk.var.set("(keep the current speaker)" if default_speaker is None else choices[default_speaker])
     spk.grid(row=0, column=1, sticky="we", padx=4)
     Tip(spk, "Pick a speaker to insert a SetSpeaker before the line, or keep the one already "
              "speaking.")

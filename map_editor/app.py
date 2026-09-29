@@ -166,6 +166,7 @@ def main(argv=None):
     root = tk.Tk()
     import guiutil
     guiutil.install_error_logging(root)
+    guiutil.install_combo_keys(root)
     app_icon.apply(root)
     MapExplorer(root, initial=argv[0] if argv else None)
     root.mainloop()

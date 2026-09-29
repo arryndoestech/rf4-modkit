@@ -244,3 +244,80 @@ def scene_slot_writes(scene, bank) -> dict:
             elif out.get(k) is not ALL:
                 out.setdefault(k, set()).add(slot)
     return out
+
+
+# ---- reference: every code a line can contain ------------------------------------------
+# (code, group, what the game shows, kind of the text slot it reads or None). The engine's
+# text pass: Text_PostProcessControlCodes (RF4S.exe+0x2325E0) and the font layout's control
+# bytes (+0x1B00F0). Slots are read with Globals_LookupChoiceCommitStateSlotByKindId (+0x234D10).
+_REFERENCE = [
+    ("＋text＋", "markup", "text between two ＋ in blue (each ＋ toggles blue on / off)", None),
+    ("／text／", "markup", "text between two ／ in red (each ／ toggles red on / off)", None),
+    ("＠<n>＠", "number", "the number in number slot n (n = ０-９, Ａ-Ｚ, ａ-ｏ = 0..50), in blue", 3),
+    ("＠数字<n>＠", "number", "the same number, number slot n, in blue", 3),
+    ("＠金<n>＠", "number", "a gold amount (slot n); red when the player has less gold", 4),
+    ("＠木<n>＠", "number", "a lumber amount (slot n); red when the player has less", 5),
+    ("＠石<n>＠", "number", "a material-stone amount (slot n); red when the player has less", 6),
+    ("＠王<n>＠", "number", "a Prince Points amount (slot n); red when the player has fewer", 7),
+    ("＠キャラ<n>＠", "people", "a character's name from slot n: 0 = the player's name, 22 / 23 = the "
+     "child's, else that row of the character-name file", 0),
+    ("＠しゅじんこうくん＠", "people", "how the current speaker addresses the player (their nickname "
+     "for you; with no speaker, the player's name)", None),
+    ("＠ヒーロー＠", "people", "the same as ＠しゅじんこうくん＠", None),
+    ("VILLAGERS", "people", None, None),            # one row per villager, see token_reference
+    ("＠ピコ＠", "people", "\"Pico\"", None),
+    ("＠子供ちゃん＠", "people", "the player's child's name (the child picked by slot kind 10)", 10),
+    ("＠姫＠", "people", "\"Prince\" for Lest, \"Princess\" for Frey", None),
+    ("＠私＠", "people", "the player's word for \"I\" (Japanese text only)", None),
+    ("＠会話モン＠", "people", "the name of the monster being talked to", None),
+    ("＠モン<n>＠", "people", "a barn monster's given name (the monster in slot n)", 8),
+    ("＠アイテム<n>＠", "things", "an item name (the item id in slot n), in blue", 1),
+    ("＠セーブアイテム<n>＠", "things", "an item name (slot n of the saved-item kind), in blue", 11),
+    ("＠マップ<n>＠", "things", "a place name (the map id in slot n), in blue", 2),
+    ("＠カレンダー<n>＠", "things", "the calendar event on the date in slot n (season × 100 + day), in blue", 9),
+    ("＠牧場<n>＠", "things", "the name of farm area n (renamable by the player)", None),
+    ("＠小屋<n>＠", "things", "the name of barn n", None),
+    ("＠その他<n>＠", "things", "any text line: the file and line stored in slot n (used for nicknames); "
+     "a ＠ inside it becomes the player's name", 13),
+    ("＠字<n>＠", "things", "a button icon: the private-use character U+E000 + the value in slot n "
+     "(U+E0A0.. are the buttons, following the player's controller or keyboard); ＠字＠ = slot 0", 15),
+    ("＠‡A,B＠", "grammar", "A when the player is Lest, B for Frey (German / French text); a missing "
+     "comma or closing ＠ can crash the game", None),
+    ("＠※XY＠", "grammar", "Korean: X after a final consonant, else Y", None),
+    ("＠∀X＠", "grammar", "Korean: X after a final consonant, else nothing", None),
+    ("＠∂XYZ＠", "grammar", "Korean: XY after a final consonant, else Z", None),
+    ("＠℃ABCD＠", "grammar", "Korean: the same with longer alternatives", None),
+    ("U+E0A0 … U+E0C1", "icons", "private-use characters drawn as button icons (a, b, x, y, l1, r1, l2, r2, "
+     "directions, start, select; U+E0AA = left stick, U+E0C1 = d-pad)", None),
+    ("byte 0x01 / 0x02 / 0x03", "control bytes", "red / blue / normal colour (what ／ and ＋ turn into)", None),
+    ("byte 0x04 R G B", "control bytes", "any colour: the next three bytes are red, green, blue", None),
+    ("byte 0x05 / 0x06 / 0x07 n / 0x08", "control bytes", "pen left ¼ font size / right ¼ / by n "
+     "pixels / reset", None),
+]
+
+
+def token_reference():
+    """[(code, group, what the game shows, the instructions that fill its slot, slot kind)]:
+    every code a text line can contain, for the editors' Reference. The filling
+    instructions are named from the opcode table, so they follow its names."""
+    try:
+        from . import opcode_meta as _m
+        name = _m.mnemonic
+    except Exception:
+        name = lambda op: "op %d" % op
+    try:
+        from . import gamenames as _g
+        who = lambda cid: _g.name("characters", cid) or "character %d" % cid
+    except Exception:
+        who = lambda cid: "character %d" % cid
+    out = []
+    for code, group, shows, kind in _REFERENCE:
+        if code == "VILLAGERS":                      # ビシュナル = character 1 ... セルザ = 21
+            for i, body in enumerate(VILLAGERS):
+                out.append((AT + body + AT, group, "%s's name as the player calls them (their name, "
+                            "or a nickname the player chose)" % who(i + 1), "", None))
+            continue
+        ops = KIND_OPS.get(kind, []) if kind is not None else []
+        setby = ", ".join(sorted({name(op) for op in ops}))
+        out.append((code, group, shows, setby, kind))
+    return out

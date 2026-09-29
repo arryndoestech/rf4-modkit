@@ -20,8 +20,10 @@ from rf4s_modkit import script, scriptasm, textlint
 
 from .render import CHOICE_OPS, SceneText
 
-SPEAKER_CHOICES = ["%d  %s" % (i, t if t == n else "%s (%s)" % (t, n))
-                   for i, (t, n) in enumerate(zip(script.PORTRAIT_SPEAKER_TAGS, script.PORTRAIT_SPEAKERS))]
+def speaker_choices():
+    """'N  name' for every speaker slot, named as the game names the character now."""
+    return ["%d  %s" % (i, "MC (%s)" % script.meta.speaker_name(0) if i == 0 else script.meta.speaker_name(i))
+            for i in range(len(script.PORTRAIT_SPEAKERS))]
 
 
 class Inspector(ScrollFrame):
@@ -242,8 +244,9 @@ class Inspector(ScrollFrame):
         r = ttk.Frame(f)
         r.pack(fill="x", padx=8, pady=(4, 0))
         ttk.Label(r, text="Speaker").pack(side="left")
-        combo = FilterCombo(r, SPEAKER_CHOICES, None, width=26)
-        combo.var.set(SPEAKER_CHOICES[slot] if slot < len(SPEAKER_CHOICES) else str(slot))
+        choices = speaker_choices()
+        combo = FilterCombo(r, choices, None, width=26)
+        combo.var.set(choices[slot] if slot < len(choices) else str(slot))
         combo.pack(side="left", padx=4, fill="x", expand=True)
         Tip(combo, "Who speaks the next lines (type to filter); applied at once.")
         sv = tk.StringVar(value=side)

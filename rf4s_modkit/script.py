@@ -2197,9 +2197,8 @@ def _speaker_of(bank, st):
     op = st.op
     if 16 <= op <= 75:
         slot = meta.portrait_speaker_slot(op)
-        names = getattr(meta, "PORTRAIT_SPEAKERS", [])
-        if slot and slot[0] < len(names):
-            return True, ("player" if slot[0] == 0 else names[slot[0]])
+        if slot and slot[0] < len(getattr(meta, "PORTRAIT_SPEAKERS", [])):
+            return True, ("player" if slot[0] == 0 else meta.speaker_name(slot[0]))
         return True, _SPEAKER_UNKNOWN
     if op == 10:
         if st.args:

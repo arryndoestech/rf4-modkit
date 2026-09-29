@@ -325,6 +325,37 @@ def commit_entry(parent, var, on_commit, width=8, **kw):
     return e
 
 
+def combo_step(widget, d):
+    """Pick the value `d` steps from the current one in a combobox and apply it at once
+    (<<ComboboxSelected>>, as a click in the list would). The current text not in the list:
+    Down picks the first value, Up the last. Returns the new value, or None."""
+    try:
+        if str(widget.cget("state")) == "disabled":
+            return None
+        vals = list(widget.cget("values"))
+    except tk.TclError:
+        return None
+    if not vals:
+        return None
+    cur = widget.get()
+    i = vals.index(cur) if cur in vals else (-1 if d > 0 else len(vals))
+    j = min(max(i + d, 0), len(vals) - 1)
+    if j == i:
+        return None
+    widget.set(vals[j])
+    widget.event_generate("<<ComboboxSelected>>")
+    return vals[j]
+
+
+def install_combo_keys(root):
+    """Up / Down in any combobox step to the previous / next value and apply it at once,
+    instead of opening the list; Alt+Down still opens it."""
+    root.bind_class("TCombobox", "<Down>", lambda e: (combo_step(e.widget, 1), "break")[1])
+    root.bind_class("TCombobox", "<Up>", lambda e: (combo_step(e.widget, -1), "break")[1])
+    root.bind_class("TCombobox", "<Alt-Down>",
+                    lambda e: (e.widget.tk.call("ttk::combobox::Post", e.widget), "break")[1])
+
+
 class FilterCombo(ttk.Combobox):
     """A combobox whose list narrows to the entries containing what was typed (any word,
     case-insensitive). Picking an entry or pressing Enter calls on_pick(text)."""

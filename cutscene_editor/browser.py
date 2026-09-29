@@ -124,6 +124,13 @@ class Browser(ttk.Frame):
         if iid.startswith("b:") and self.tree.exists(f"{iid}:…"):
             self._fill_bank(int(iid[2:]))
 
+    def relabel(self):
+        """Re-title the bank rows (their names come from the game's name files)."""
+        banks = self.app.doc.container.banks if self.app.doc.container is not None else []
+        for iid, row in self._rows.items():
+            if row[0] == "bank" and self.tree.exists(iid) and row[1] < len(banks):
+                self.tree.item(iid, text=catalog.bank_title(banks[row[1]]))
+
     def refresh_bank(self, pos):
         """Re-list a bank's scenes after an edit (only when it is already expanded)."""
         iid = f"b:{pos}"

@@ -955,8 +955,9 @@ def action_text(name, args):
 
 def action_line(op, args):
     """The listing line of action `op` with operand texts `args`: its listing name, and the
-    opcode-encoded arguments in front (SetSpeaker(Forte, Right, 3, 0) for op 25)."""
-    return action_text(listing_name(op), meta.opcode_arg_values(op) + list(args))
+    opcode-encoded arguments in front, as numbers (SetSpeaker(4, 1, 3, 0) for op 25: Forte,
+    Right -- the names are ours, so they go in the comment)."""
+    return action_text(listing_name(op), meta.opcode_arg_raws(op) + list(args))
 
 
 def _single_literal(buf, off):

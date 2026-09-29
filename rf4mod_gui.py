@@ -4889,6 +4889,7 @@ def main(argv=None):
     root = tk.Tk()
     import guiutil
     guiutil.install_error_logging(root)     # toolkit errors -> the console, with traceback
+    guiutil.install_combo_keys(root)        # Up / Down step a dropdown's value
     app_icon.apply(root)
     found = gamepaths.find_bundle_dir()
     if not argv and (found is None or (not gamepaths.is_unpacked(found)

@@ -249,7 +249,7 @@ class _Filtered(ttk.Frame):
 class ReferenceWindow:
     """Searchable reference lists (one window per editor)."""
 
-    TABS = ("Flags & variables", "Functions", "Characters", "Maps", "Items")
+    TABS = ("Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items")
 
     def __init__(self, app):
         self.app = app
@@ -262,6 +262,7 @@ class ReferenceWindow:
         self.status.pack(fill="x", padx=8, pady=(0, 6))
         self._flags()
         self._functions()
+        self._text_codes()
         self._simple("Characters", ("character", "use as"), (420, 300), character_choices(),
                      "Character ids: arguments typed 'char id' take actor(Name) (or the number).")
         self._simple("Maps", ("map", "use as"), (520, 300), map_choices(),
@@ -326,6 +327,29 @@ class ReferenceWindow:
         b.pack(fill="x", pady=(4, 0))
         ttk.Button(b, text="Insert this instruction…",
                    command=lambda: t.selected() and self.app.ask_insert_instruction(preset=t.selected()[3])).pack(side="left")
+
+    def _text_codes(self):
+        """The codes a dialogue line can contain (textlint.token_reference)."""
+        from rf4s_modkit import textlint
+        f = ttk.Frame(self.nb, padding=6)
+        self.nb.add(f, text="Text codes")
+        ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=(
+            "Codes inside dialogue text. The game swaps a ＠…＠ code for a value when it shows the "
+            "line. Text can't read the script's registers, so a code reads a text slot instead: "
+            "a small table per kind of value (numbers, characters, items, places …), 32 slots "
+            "each. The script fills slot n before the line, e.g. SetVar3(0, reg0) and then "
+            "\"Gained ＠０＠G!\" shows the number in number slot 0. The \"filled by\" column "
+            "names the instructions that write the slot; a slot keeps its value until something "
+            "writes it again. <n> is one character: 0-9 or ０-９, then Ａ-Ｖ = 10-31. "
+            "Double-click = copy the code.")).pack(anchor="w", pady=(0, 4))
+        rows = [(code, group, shows, setby or "—", code.replace("<n>", "０"))
+                for code, group, shows, setby, _k in textlint.token_reference()]
+        t = _Filtered(f, ("code", "group", "shows", "filled by"), (200, 90, 520, 150), rows,
+                      on_activate=lambda r: r and self.copy(r[4], r[0]))
+        t.pack(fill="both", expand=True)
+        b = ttk.Frame(f)
+        b.pack(fill="x", pady=(4, 0))
+        ttk.Button(b, text="Copy code", command=lambda: t.selected() and self.copy(t.selected()[4])).pack(side="left")
 
     @staticmethod
     def _show_fn(det, r):
