@@ -311,6 +311,23 @@ packed; the original is kept in `ModdingBackup`), or back to the file you opened
 the Cutscene Editor's *⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
 restart, but the editors' character, item, map and skill names follow the saved file at once.
 
+**Backups** (*Options…* → Advanced, **off by default**). When on, every save of a game file (map,
+script, dialogue, text, table ...) keeps the file as it was as a *previous version*, in
+`ModdingBackup\Previous\<same folder>\<name>.<date_time>` (how many per file: your choice, the
+oldest are deleted), and the first save keeps the original in `ModdingBackup\<same path>`; the
+folder can be moved. *Restore a previous version…* lists every backed-up file with its versions
+and puts the picked one back (the file as it is then becomes a previous version, so a restore can
+be undone). The Cutscene Editor's Save menu has the same restore for `rf3.mc`, the dialogue and
+`em.bin`, and reloads afterwards. The map editor's *Make over-model empty…* keeps the original
+even with backups off, because its *Restore…* needs it. The backup folder only holds copies: delete
+it, or anything in it, whenever you like to free space; it is made again at the next save, and
+*Restore* then offers only what was saved since.
+
+**Display.** *Options…* → Appearance / General: the *text size* (100-200 %: every font and the list rows
+scale at once, in every open window) and how many *rows the big lists show*
+before "search to narrow" (5000 by default). The Cutscene Editor reopens with its last toolbar
+(locale, Story / Code, addresses, opcodes).
+
 **Dark mode.** *Options…* → Appearance: *Light*, *Dark* or *Follow Windows* (your Windows app
 setting). It applies at once to every toolkit window, the map editor and the Cutscene Editor
 included, and is kept in `settings.json`. Colours the toolkit uses for meaning (red warnings,
@@ -671,8 +688,8 @@ to `ModdingBackup\` in the game folder, keeping the same path; copy it back to u
 file opened with *Open rf3.mc…* is saved back where it was opened. *Save … as…* writes a copy
 anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
-**Adding instructions without typing them.** *＋ Instruction…* (also the Insert key, right-click in
-the script, and *Add before / Add after → Instruction…* in the Inspector) lists every instruction
+**Adding instructions without typing them.** Right-click in the script (also the Insert key, and
+*Add before / Add after → Instruction…* in the Inspector) opens a list of every instruction
 by category, searchable, with ✓ on the ones verified in game. Picking one shows its description and
 a form with one field per argument. Characters, maps, items, flags and named values are pickers.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,
@@ -737,7 +754,7 @@ that the game fills with your language's `rf3mc.<locale>` at start and keeps in 
 past its line count shows line 0 ("Are you turning in for the night?"). So new or changed lines need
 this reload (the toolkit finds which language the game holds) or a restart. An `em.bin` change still needs a restart, and so does a file that
 is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]` and
-`rf4mod script live` (what the game currently holds). *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
+`rf4mod script live` (what the game currently holds). *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /

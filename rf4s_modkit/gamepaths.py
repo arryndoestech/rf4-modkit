@@ -166,6 +166,8 @@ def save(path) -> pathlib.Path:
 
 # ---- writing game files in place ---------------------------------------------------- #
 BACKUP_DIR = "ModdingBackup"        # <game>/ModdingBackup/<same path>: originals, kept once
+PREVIOUS_DIR = "Previous"           # <backups>/Previous/<same folder>/<name>.<date_time>
+DEFAULT_PREVIOUS = 0                # previous versions kept per file (settings "backup_previous")
 
 
 def game_targets(names) -> dict | None:
@@ -192,43 +194,167 @@ def game_targets(names) -> dict | None:
     return out
 
 
-def backup_path(target) -> pathlib.Path | None:
-    """Where backup_once keeps the original of a game-folder file
-    (<game>/ModdingBackup/<same path>), or None for a file outside the game folder."""
+# ---- backups (settings: backup_originals, backup_previous, backup_dir) -------------------- #
+def backup_root() -> pathlib.Path | None:
+    """The backup folder: the setting "backup_dir", else <game>/ModdingBackup; None without a
+    game folder."""
+    custom = get_setting("backup_dir")
+    if custom:
+        return pathlib.Path(custom)
+    b = find_bundle_dir()
+    return b.parent / BACKUP_DIR if b is not None else None
+
+
+def keep_originals() -> bool:
+    """Save a game file's original (the first time it is overwritten)? Setting "backup_originals",
+    off by default (Options -> Advanced)."""
+    return bool(get_setting("backup_originals", False))
+
+
+def keep_previous() -> int:
+    """How many previous versions of each game file to keep (0 = none). Setting "backup_previous"."""
+    try:
+        return max(0, int(get_setting("backup_previous", DEFAULT_PREVIOUS)))
+    except (TypeError, ValueError):
+        return DEFAULT_PREVIOUS
+
+
+def _game_rel(target) -> pathlib.Path | None:
+    """A game-folder file's path relative to the game folder (Bundle/...), else None."""
     b = find_bundle_dir()
     if b is None:
         return None
     try:
-        rel = pathlib.Path(target).resolve().relative_to(b.parent.resolve())
+        return pathlib.Path(target).resolve().relative_to(b.parent.resolve())
     except ValueError:
         return None
-    return b.parent / BACKUP_DIR / rel
 
 
-def backup_once(target) -> pathlib.Path | None:
-    """Copy a game-folder file that is about to be overwritten to
-    <game>/ModdingBackup/<same path>, the first time only (later saves keep that original).
-    The backup's path, or None when nothing was copied."""
+def backup_path(target) -> pathlib.Path | None:
+    """Where the original of a game-folder file is kept (<backups>/<same path>), or None for a
+    file outside the game folder."""
+    rel, root = _game_rel(target), backup_root()
+    return root / rel if rel is not None and root is not None else None
+
+
+def previous_versions(target) -> list[pathlib.Path]:
+    """The kept previous versions of a game-folder file, newest first
+    (<backups>/Previous/<same folder>/<name>.<YYYY-MM-DD_HHMMSS_mmm>)."""
+    rel, root = _game_rel(target), backup_root()
+    if rel is None or root is None:
+        return []
+    d = root / PREVIOUS_DIR / rel.parent
+    if not d.is_dir():
+        return []
+    name = rel.name + "."
+    return sorted((f for f in d.iterdir() if f.is_file() and f.name.startswith(name)
+                   and f.name[len(name):][:1].isdigit()), key=lambda f: f.name, reverse=True)
+
+
+def _keep_previous_copy(target, keep):
+    """Copy the current `target` into the previous versions and drop the oldest beyond `keep`."""
+    import datetime
     import shutil
-    target = pathlib.Path(target)
-    dest = backup_path(target)
-    if dest is None or not target.is_file() or dest.exists():
-        return None                                # outside the game folder, or kept already
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    rel, root = _game_rel(target), backup_root()
+    if rel is None or root is None:
+        return None
+    d = root / PREVIOUS_DIR / rel.parent
+    d.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S_%f")[:-3]   # (ms: names sort in save order)
+    dest = d / ("%s.%s" % (rel.name, stamp))
+    n = 1
+    while dest.exists():                          # two saves in one second
+        n += 1
+        dest = d / ("%s.%s-%d" % (rel.name, stamp, n))
     shutil.copy2(target, dest)
+    for old in previous_versions(target)[keep:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
     return dest
 
 
-def write_game_file(target, blob) -> pathlib.Path | None:
-    """Overwrite `target` with `blob` (through a temporary file, so a failed write never
-    leaves half a file), backing the original up once first. The backup path, or None."""
+def backup_before_write(target, force_original=False) -> pathlib.Path | None:
+    """Before a game-folder file is overwritten: keep its original the first time (when
+    keep_originals(), or `force_original` for an action whose Restore needs it), and the current
+    file as a previous version (keep_previous() of them, the oldest dropped). Returns the
+    original's path when it was saved now, else None."""
+    import shutil
     target = pathlib.Path(target)
-    backup = backup_once(target)
+    if not target.is_file():
+        return None
+    made = None
+    dest = backup_path(target)
+    if (keep_originals() or force_original) and dest is not None and not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(target, dest)
+        made = dest
+    keep = keep_previous()
+    if keep:
+        _keep_previous_copy(target, keep)
+    return made
+
+
+def write_game_file(target, blob, force_original=False) -> pathlib.Path | None:
+    """Overwrite `target` with `blob` (through a temporary file, so a failed write never
+    leaves half a file), backing it up first (backup_before_write). The original's backup
+    path when one was made now, else None."""
+    target = pathlib.Path(target)
+    backup = backup_before_write(target, force_original)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(target.name + ".saving")
     tmp.write_bytes(blob)
     tmp.replace(target)
     return backup
+
+
+def backed_up_files() -> dict:
+    """{game file path: {"original": path or None, "previous": [paths, newest first]}} for
+    every file with a backup, found by walking the backup folder."""
+    root = backup_root()
+    b = find_bundle_dir()
+    if root is None or b is None or not root.is_dir():
+        return {}
+    game = b.parent
+    out = {}
+    prev_root = root / PREVIOUS_DIR
+    for f in root.rglob("*"):
+        if not f.is_file():
+            continue
+        try:
+            rel = f.relative_to(prev_root)
+        except ValueError:
+            rel = None
+        if rel is None:                            # an original: <backups>/<same path>
+            t = game / f.relative_to(root)
+            out.setdefault(t, {"original": None, "previous": []})["original"] = f
+            continue
+        name, sep, stamp = rel.name.rpartition(".")
+        if not sep or not stamp[:1].isdigit():
+            continue
+        t = game / rel.parent / name
+        out.setdefault(t, {"original": None, "previous": []})
+    for t, e in out.items():
+        e["previous"] = previous_versions(t)
+    return out
+
+
+def restore_version(target, source) -> None:
+    """Put a backed-up version back over a game file. The file as it is now is kept as a
+    previous version first (when previous versions are on), so a restore can be undone."""
+    import shutil
+    target, source = pathlib.Path(target), pathlib.Path(source)
+    if not source.is_file():
+        raise OSError("%s is gone" % source)
+    blob = source.read_bytes()
+    if target.is_file() and keep_previous():
+        _keep_previous_copy(target, keep_previous())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(target.name + ".saving")
+    tmp.write_bytes(blob)
+    tmp.replace(target)
+    shutil.copystat(source, target)
 
 
 def get_setting(key, default=None):

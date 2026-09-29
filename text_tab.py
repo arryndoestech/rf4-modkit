@@ -12,8 +12,8 @@ A line is checked the way the game will read it (rf4s_modkit.textlint) while it 
 line the game could crash on cannot be applied. Characters that can't be typed or seen (the
 colour and shift control bytes, the button icons) are shown and typed as backslash escapes
 (rf4s_modkit.textesc: \\red, \\btn(a) ...); the Insert menu lists them and the ＠ codes. *Save* writes the file where the game loads it
-(Bundle\\00_mods when the game only has it packed; the original is kept in ModdingBackup
-once), or back to the file it was opened from; *Save as…* writes anywhere. Names the other
+(Bundle\\00_mods when the game only has it packed; with backups on, the original is kept in
+ModdingBackup), or back to the file it was opened from; *Save as…* writes anywhere. Names the other
 editors show (characters, items, maps, skills) follow a saved name file by themselves.
 """
 from __future__ import annotations
@@ -22,9 +22,9 @@ import pathlib
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
+import guiutil
 from rf4s_modkit import gamepaths, strings_file, textdb, textesc, textlint
 
-MAX_ROWS = 5000
 
 
 class _Model:
@@ -154,7 +154,8 @@ class TextTab:
         sv = ttk.Button(bar, text="Save", command=self.save)
         sv.pack(side="right", padx=2)
         Tip(sv, "Write the file where the game loads it (Bundle\\00_mods when the game has it only "
-                "packed; the original is kept in ModdingBackup), or back to the file it was opened from.")
+                "packed; with backups on, the original is kept in ModdingBackup), or back to the "
+                "file it was opened from.")
         self.count = ttk.Label(bar)
         self.count.pack(side="left", padx=6)
         ttk.Label(bar, text="Search:").pack(side="left")
@@ -243,8 +244,9 @@ class TextTab:
             tv.insert("", "end", iid=self._iid(key), values=(key, shown(text)),
                       tags=self._tags(key, text))
             n += 1
-            if n >= MAX_ROWS:
-                tv.insert("", "end", iid="…", values=("…", "(showing the first %d; search to narrow)" % MAX_ROWS))
+            if n >= guiutil.list_rows():
+                tv.insert("", "end", iid="…", values=("…", "(showing the first %d; search to narrow)"
+                                                      % guiutil.list_rows()))
                 break
         nch = sum(1 for k in m.rows if m.changed(k))
         self.count.config(text="%s %s%s" % (format(len(m.rows), ","), "lines" if m.is_text else "keys",

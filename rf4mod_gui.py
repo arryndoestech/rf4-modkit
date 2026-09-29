@@ -104,7 +104,10 @@ def _load_char_names() -> dict[int, str]:
     from rf4s_modkit import gamenames
     return dict(gamenames.table("characters"))
 
-MAX_TABLE_ROWS = 5000  # cap rows shown in big tables (TEXT catalogs are 100k+)
+def _max_rows():
+    """Rows shown in big tables before 'refine search' (Options: guiutil.list_rows)."""
+    import guiutil
+    return guiutil.list_rows()
 
 
 def human(n: int) -> str:
@@ -712,12 +715,8 @@ class App:
         Tip(self.cat_cb, "Show only one kind of file (textures, voice lines, maps...). Works together "
                          "with the Filter box: Maps + 'city' = every town map.")
         Tip(fe, "Show only files whose name contains this text (Enter applies at once).")
+        # Group maps by area: set in Options… (File list)
         self.group_maps_var = tk.BooleanVar(value=bool(gamepaths.get_setting(GROUP_MAPS_SETTING, True)))
-        gm = ttk.Checkbutton(flt, text="Group maps by area", variable=self.group_maps_var,
-                             command=self.cmd_group_maps)
-        gm.pack(side="left", padx=(8, 0))
-        Tip(gm, "List the .rf4m maps under a header per in-game area (Rune Prana, Selphia: "
-                "Town Square, ...), each one opens and closes. Off: one flat list of files.")
 
     def _build_body(self):
         from guiutil import Paned
@@ -864,6 +863,107 @@ class App:
             self.status.config(text=f"Opened {p} (with {self.source.label})")
         return doc
 
+    def _options_display(self, body):
+        """Options -> Appearance -> Display: the text size, applied at once."""
+        import guiscale
+        from guiutil import Tip
+        ttk.Label(body, text="Display", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        row = ttk.Frame(body)
+        row.pack(anchor="w", pady=(4, 0))
+        ttk.Label(row, text="Text size:").pack(side="left")
+        self._ui_scale = tk.StringVar(value="%d %%" % guiscale.setting())
+        cb = ttk.Combobox(row, textvariable=self._ui_scale, state="readonly", width=7,
+                          values=["%d %%" % v for v in guiscale.SCALES])
+        cb.pack(side="left", padx=6)
+        cb.bind("<<ComboboxSelected>>", lambda _e: guiscale.set_percent(int(self._ui_scale.get().split()[0])))
+        Tip(cb, "Makes every text in the toolkit bigger (lists, editors, menus), in every open "
+                "window at once.")
+
+    def _options_rows(self, body):
+        """Options -> General: how many rows the big lists show."""
+        import guiutil
+        from guiutil import Tip
+        ttk.Label(body, text="Big lists", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        row2 = ttk.Frame(body)
+        row2.pack(anchor="w", pady=(4, 0))
+        ttk.Label(row2, text="Rows shown in big lists:").pack(side="left")
+        self._list_rows = tk.StringVar(value=str(guiutil.list_rows()))
+
+        def rows_changed(*_a):
+            try:
+                n = int(self._list_rows.get())
+            except ValueError:
+                return
+            gamepaths.set_setting("list_rows", max(100, min(200000, n)))
+        sp = ttk.Spinbox(row2, from_=1000, to=200000, increment=1000, width=8,
+                         textvariable=self._list_rows, command=rows_changed)
+        sp.pack(side="left", padx=6)
+        sp.bind("<FocusOut>", rows_changed)
+        sp.bind("<Return>", rows_changed)
+        Tip(sp, "Big lists (all 113k dialogue lines, the parameter tables ...) show this many rows, "
+                "then 'search to narrow'. More rows take longer to show.")
+
+    def _options_backups(self, body, win):
+        """Options -> Backups: keep originals, how many previous versions, the folder, restore."""
+        import backup_dialog
+        from guiutil import Tip
+        ttk.Label(body, text="Backups", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        ttk.Label(body, text="Every save of a game file first copies it into the backup folder, so a "
+                             "bad save can be undone.\n"
+                             "The folder only holds copies: you can delete it, or anything in it, at any "
+                             "time to free space (Open shows it). The toolkit makes it again at the next "
+                             "save; Restore can then only offer the versions saved since.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", pady=(2, 0))
+        self._bk_orig = tk.BooleanVar(value=gamepaths.keep_originals())
+        ttk.Checkbutton(body, text="Keep each game file's original (copied the first time it is saved)",
+                        variable=self._bk_orig,
+                        command=lambda: gamepaths.set_setting("backup_originals", bool(self._bk_orig.get()))
+                        ).pack(anchor="w", pady=(4, 0))
+        row = ttk.Frame(body)
+        row.pack(anchor="w", pady=(4, 0))
+        ttk.Label(row, text="Previous versions kept per file:").pack(side="left")
+        self._bk_prev = tk.StringVar(value=str(gamepaths.keep_previous()))
+
+        def prev_changed(*_a):
+            try:
+                n = max(0, min(50, int(self._bk_prev.get())))
+            except ValueError:
+                return
+            gamepaths.set_setting("backup_previous", n)
+        sp = ttk.Spinbox(row, from_=0, to=50, width=4, textvariable=self._bk_prev, command=prev_changed)
+        sp.pack(side="left", padx=6)
+        sp.bind("<FocusOut>", prev_changed)
+        sp.bind("<Return>", prev_changed)
+        Tip(sp, "Every save keeps the file as it was before; the oldest beyond this number are "
+                "deleted. 0 = keep none.")
+        frow = ttk.Frame(body)
+        frow.pack(anchor="w", fill="x", pady=(4, 0))
+        self._bk_dir = tk.StringVar(value=str(gamepaths.backup_root() or "(set the game folder first)"))
+        ttk.Label(frow, text="Folder:").pack(side="left")
+        ttk.Label(frow, textvariable=self._bk_dir, foreground="#666", wraplength=420,
+                  justify="left").pack(side="left", padx=6)
+
+        def choose():
+            d = filedialog.askdirectory(title="Backup folder", parent=win)
+            if d:
+                gamepaths.set_setting("backup_dir", d)
+                self._bk_dir.set(str(gamepaths.backup_root()))
+
+        def default():
+            gamepaths.set_setting("backup_dir", None)
+            self._bk_dir.set(str(gamepaths.backup_root() or "(set the game folder first)"))
+        brow = ttk.Frame(body)
+        brow.pack(anchor="w", pady=(4, 0))
+        for text, cmd, tip in (("Change…", choose, "Keep the backups in another folder."),
+                               ("Default", default, "Back to ModdingBackup next to the game's Bundle folder."),
+                               ("Open", backup_dialog.open_folder, "Open the backup folder in Explorer."),
+                               ("Restore a previous version…",
+                                lambda: backup_dialog.open_restore(win), "Put an original or a "
+                                "previous version of a game file back.")):
+            b = ttk.Button(brow, text=text, command=cmd)
+            b.pack(side="left", padx=(0, 4))
+            Tip(b, tip)
+
     def cmd_options(self):
         """The Options window: toolkit settings, applied as soon as they are ticked and kept
         in settings.json. One window at a time (a second click brings it forward)."""
@@ -880,35 +980,85 @@ class App:
         win.resizable(False, False)
         body = ttk.Frame(win, padding=12)
         body.pack(fill="both", expand=True)
-        ttk.Label(body, text="Map editor", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        self._wheel_zooms = tk.BooleanVar(value=map_view.wheel_mode() == "zoom")
+        nb = ttk.Notebook(body)
+        nb.pack(fill="both", expand=True)
+        self._options_nb = nb
 
-        def wheel_changed():
-            map_view.set_wheel_mode("zoom" if self._wheel_zooms.get() else "scroll")
-        ttk.Checkbutton(body, text="Mouse wheel zooms the map", variable=self._wheel_zooms,
-                        command=wheel_changed).pack(anchor="w", pady=(4, 0))
-        ttk.Label(body, text="Unticked, the wheel scrolls the map instead. Ctrl+wheel always does "
-                             "the other one; Shift+wheel scrolls sideways.",
-                  foreground="#666", wraplength=320, justify="left").pack(anchor="w", padx=(20, 0))
+        def tab(title):
+            f = ttk.Frame(nb, padding=12)
+            nb.add(f, text=title)
+            return f
+        from guiutil import Tip
         import guitheme
-        ttk.Label(body, text="Appearance", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        # -- General: the file list, backups, big lists
+        gen = tab("General")
+        ttk.Label(gen, text="File list", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        gm = ttk.Checkbutton(gen, text="Group maps by area", variable=self.group_maps_var,
+                             command=self.cmd_group_maps)
+        gm.pack(anchor="w", pady=(4, 0))
+        Tip(gm, "List the .rf4m maps under a header per in-game area (Rune Prana, Selphia: "
+                "Town Square, ...), each one opens and closes. Off: one flat list of files.")
+        self._options_rows(gen)
+        # -- Appearance: light / dark, text size
+        app_tab = tab("Appearance")
+        ttk.Label(app_tab, text="Theme", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         self._theme_var = tk.StringVar(value=guitheme.setting())
-        row = ttk.Frame(body)
+        row = ttk.Frame(app_tab)
         row.pack(anchor="w", pady=(4, 0))
         for m in guitheme.MODES:
             ttk.Radiobutton(row, text=guitheme.LABELS[m], value=m, variable=self._theme_var,
                             command=lambda: guitheme.set_mode(self._theme_var.get())).pack(side="left", padx=(0, 10))
-        ttk.Label(body, text="Dark mode applies to every toolkit window at once (the map editor and "
-                             "the Cutscene Editor too). Follow Windows uses your Windows app setting.",
-                  foreground="#666", wraplength=320, justify="left").pack(anchor="w", padx=(20, 0))
-        ttk.Button(body, text="Close", command=win.destroy).pack(anchor="e", pady=(12, 0))
-        # the toolkit's version (commit + date), selectable for bug reports
+        self._options_display(app_tab)
+        # -- Map editor
+        me = tab("Map editor")
+        ttk.Label(me, text="Mouse wheel", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self._wheel_zooms = tk.BooleanVar(value=map_view.wheel_mode() == "zoom")
+
+        def wheel_changed():
+            map_view.set_wheel_mode("zoom" if self._wheel_zooms.get() else "scroll")
+        ttk.Checkbutton(me, text="Mouse wheel zooms the map", variable=self._wheel_zooms,
+                        command=wheel_changed).pack(anchor="w", pady=(4, 0))
+        ttk.Label(me, text="Unticked, the wheel scrolls the map instead. Ctrl+wheel always does "
+                           "the other one; Shift+wheel scrolls sideways.",
+                  foreground="#666", wraplength=360, justify="left").pack(anchor="w", padx=(20, 0))
+        # -- Cutscene Editor
+        ce = tab("Cutscene Editor")
+        from cutscene_editor.app import CutsceneExplorer
+        ttk.Label(ce, text="Adding dialogue lines", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        self._pad_locales = tk.BooleanVar(value=CutsceneExplorer.pad_locales_setting())
+
+        def pad_changed():
+            on = bool(self._pad_locales.get())
+            CutsceneExplorer.set_pad_locales_setting(on)
+            cur = getattr(self, "_cutscene_ed", None)      # an open editor follows at once
+            try:
+                if cur is not None and cur[0].winfo_exists():
+                    cur[1].pad_locales.set(on)
+            except tk.TclError:
+                pass
+        pl = ttk.Checkbutton(ce, text="Add new lines to every language", variable=self._pad_locales,
+                             command=pad_changed)
+        pl.pack(anchor="w", pady=(4, 0))
+        ttk.Label(ce, text="Each language has its own dialogue file, and a scene shows a line by its "
+                           "number. A line you add is also added to the other languages' files "
+                           "(in your text, untranslated), so it has the same number everywhere and "
+                           "shows in every language. Unticked, only the language you edit gets it: "
+                           "players of the other languages would see a wrong line instead.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
+        # -- Advanced: backups (off by default)
+        adv = tab("Advanced")
+        self._options_backups(adv, win)
+        # bottom row: the toolkit's version (commit + date, selectable for bug reports) on the
+        # left, its text sitting on the same line as the bottom of Close on the right
+        foot = ttk.Frame(body)
+        foot.pack(fill="x", pady=(12, 0))
+        ttk.Button(foot, text="Close", command=win.destroy).pack(side="right")
         import guiutil
         ver = tk.StringVar(value="Modkit version " + guiutil.modkit_version())
-        vent = tk.Entry(body, textvariable=ver, state="readonly", relief="flat", borderwidth=0,
+        vent = tk.Entry(foot, textvariable=ver, state="readonly", relief="flat", borderwidth=0,
                         foreground="#888888", font=("Segoe UI", 8), width=len(ver.get()) + 2,
                         highlightthickness=0)
-        vent.pack(anchor="w", pady=(10, 0))
+        vent.pack(side="left", anchor="s")
 
         def match_window(_e=None):                 # the window's colour, also after a theme switch
             bg = ttk.Style(win).lookup("TFrame", "background") or win.cget("background")
@@ -2872,8 +3022,9 @@ class App:
                     messagebox.showerror("Import all motions", f"Could not write {targets[fn]}:\n{err_text(e)}")
                     break
                 written.append((fn, a))
-            self.status.config(text=f"Installed {len(written)} motion(s) (originals in ModdingBackup) -- "
-                                    f"restart the game to see them")
+            self.status.config(text=f"Installed {len(written)} motion(s)"
+                                    + (" (originals in ModdingBackup)" if gamepaths.keep_originals() else "")
+                                    + " -- restart the game to see them")
         else:
             d = pathlib.Path(answer)
             d.mkdir(parents=True, exist_ok=True)
@@ -2983,7 +3134,7 @@ class App:
             answer = messagebox.askyesnocancel(
                 "Import motion",
                 f"The new motion plays in the preview now.\n\nInstall it into your game as "
-                f"{file_name}? (Yes = install, the original is kept in ModdingBackup; No = save "
+                f"{file_name}? (Yes = install over the game's copy; No = save "
                 f"the .bfskl somewhere else; Cancel = only preview it.)")
         if answer is None:
             self.status.config(text=f"Previewing the imported motion (not saved) -- {file_name}")
@@ -3125,7 +3276,7 @@ class App:
         _Tip(im_b, "Replace the motion picked here with an animation from a glTF / .glb file -- "
                    "made in Blender from Export for Blender… (the bone names must stay the same). "
                    "It is previewed on the model at once, then installed into your game under this "
-                   "motion's file name (the original is kept in ModdingBackup) or saved elsewhere.")
+                   "motion's file name or saved elsewhere.")
 
         def import_all():
             res = self._import_all_motions(m, names, src)
@@ -3142,7 +3293,7 @@ class App:
                    "edited in Blender): each animation named like one of this model's motion "
                    "files replaces that file. Only the ones you changed are listed to install "
                    "(untouched ones are left alone); you choose which to install into the game "
-                   "(originals kept in ModdingBackup) or save to a folder.")
+                   "or save to a folder.")
         cb.bind("<<ComboboxSelected>>", select)
 
         def update(st):
@@ -3532,7 +3683,7 @@ class App:
                 vals = [r.id, nm] + [(("0x%X" % r[c]) if c == "status_word" else r[c]) for c in show]
                 vals += [procs, res, "; ".join(r.status_flags())]
                 tv.insert("", "end", iid=str(r.id), values=vals); shown += 1
-                if shown >= MAX_TABLE_ROWS:
+                if shown >= _max_rows():
                     break
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
@@ -4454,7 +4605,7 @@ class App:
                     vals.append(nm)
                 tv.insert("", "end", iid=str(i), values=vals)
                 shown += 1
-                if shown >= MAX_TABLE_ROWS:
+                if shown >= _max_rows():
                     break
         sv.trace_add("write", fill); fill()
 
@@ -4610,7 +4761,7 @@ class App:
                 grows = "/".join(nlcl.crop_season_decode(row["season"])["grows"])
                 vals = [i] + [row[c] for c in show_cols] + [grows, nm]
                 tv.insert("", "end", iid=str(i), values=vals); shown += 1
-                if shown >= MAX_TABLE_ROWS:
+                if shown >= _max_rows():
                     break
         sv.trace_add("write", fill); only_crops.trace_add("write", fill); fill()
 
@@ -4753,7 +4904,7 @@ class App:
                 tv.insert("", "end", iid=str(i),
                           values=(i, nm, row["hp"], tot["atk"], tot["def"], monster.id_semantics(i)))
                 shown += 1
-                if shown >= MAX_TABLE_ROWS:
+                if shown >= _max_rows():
                     break
         sv.trace_add("write", fill); fill()
 
@@ -4933,6 +5084,8 @@ def main(argv=None):
     root = tk.Tk()
     import guiutil
     guiutil.install_error_logging(root)     # toolkit errors -> the console, with traceback
+    import guiscale
+    guiscale.install(root)                  # text size (Options), live
     guiutil.install_combo_keys(root)        # Up / Down step a dropdown's value
     import guitheme
     guitheme.install(root)                  # light / dark (settings.json, Options...)

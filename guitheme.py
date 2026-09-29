@@ -205,7 +205,7 @@ def _style_dark(root):
     st.map(".", foreground=[("disabled", p["disabled"])], background=[("disabled", p["bg"])])
     st.configure("TButton", background=p["button"], bordercolor=p["border"])
     st.map("TButton", background=[("pressed", p["select"]), ("active", p["button_active"])])
-    st.configure("TMenubutton", background=p["button"])
+    st.configure("TMenubutton", background=p["button"], padding=(8, 3))   # (clam's is much wider)
     st.map("TMenubutton", background=[("active", p["button_active"])], foreground=[("active", p["fg"])])
     # the map editor's tool row (Select / Paint / ...): radio buttons in the Toolbutton style
     st.configure("Toolbutton", background=p["bg"], foreground=p["fg"], bordercolor=p["border"])
@@ -218,6 +218,12 @@ def _style_dark(root):
         st.map(w, fieldbackground=[("readonly", p["field"]), ("disabled", p["bg"])],
                foreground=[("disabled", p["disabled"])])
     st.configure("Treeview", background=p["field"], fieldbackground=p["field"], foreground=p["fg"])
+    try:                                           # rows that fit a larger text size (Options)
+        import guiscale
+        if guiscale.row_height():
+            st.configure("Treeview", rowheight=guiscale.row_height())
+    except ImportError:
+        pass
     st.map("Treeview", background=[("selected", p["select"])], foreground=[("selected", p["select_fg"])])
     st.configure("Treeview.Heading", background=p["panel"], foreground=p["fg"])
     st.map("Treeview.Heading", background=[("active", p["button_active"])])
@@ -258,6 +264,12 @@ def _style_light(root):
     if _state["base_theme"] and st.theme_use() != _state["base_theme"]:
         st.theme_use(_state["base_theme"])
     root.option_clear()
+    try:
+        import guiscale
+        if guiscale.row_height():
+            st.configure("Treeview", rowheight=guiscale.row_height())
+    except ImportError:
+        pass
 
 
 def apply(root=None, mode=None):

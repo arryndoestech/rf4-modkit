@@ -19623,20 +19623,125 @@
     {
      "name": "icon",
      "type": "emote icon id",
-     "values": "0 = clear; 6 (most common), 15, 9, 7, 8, 4, 1, 3 ... up to 26",
+     "values": "0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws: emo_heart, emo_exclamation ...); 16-21 and above 28 have no icon of their own (the handler's default); 26 pauses the actor's action instead",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
      "value_names": {
       "0": {
        "name": "none",
-       "text": "clear the icon",
+       "text": "clears the icon",
        "human_verified": true
+      },
+      "1": {
+       "name": "heart",
+       "text": "a heart (emo_heart)",
+       "human_verified": false
+      },
+      "2": {
+       "name": "skull",
+       "text": "a skull and crossbones (emo_bone)",
+       "human_verified": false
+      },
+      "3": {
+       "name": "scribble",
+       "text": "a dark scribble cloud: annoyed / gloomy (emo_bad, animated)",
+       "human_verified": false
+      },
+      "4": {
+       "name": "note",
+       "text": "a yellow music note: happy (emo_glad00; with a sound)",
+       "human_verified": false
+      },
+      "5": {
+       "name": "notes",
+       "text": "pink music notes: happy (emo_glad01; with a sound)",
+       "human_verified": false
       },
       "6": {
        "name": "exclaim",
-       "text": "the '!' bubble (with a sound)",
+       "text": "the '!' bubble (emo_exclamation; with a sound)",
        "human_verified": true
+      },
+      "7": {
+       "name": "question",
+       "text": "a '?' (emo_question)",
+       "human_verified": false
+      },
+      "8": {
+       "name": "exclaim_question",
+       "text": "'!?': a '!' with a '?' beside it (emo_exclamation + emo_question; with a sound)",
+       "human_verified": false
+      },
+      "9": {
+       "name": "sweat",
+       "text": "a sweat drop (emo_sweat00)",
+       "human_verified": false
+      },
+      "10": {
+       "name": "anger",
+       "text": "an anger mark (emo_anger00)",
+       "human_verified": false
+      },
+      "11": {
+       "name": "blush",
+       "text": "blush lines (emo_shy)",
+       "human_verified": false
+      },
+      "12": {
+       "name": "turnip",
+       "text": "a turnip (emo_kabu)",
+       "human_verified": false
+      },
+      "13": {
+       "name": "zzz",
+       "text": "'Zzz' asleep (emo_state_sleep05)",
+       "human_verified": false
+      },
+      "14": {
+       "name": "idea",
+       "text": "a light bulb that lights up: an idea (emo_light, 2 frames; with a sound)",
+       "human_verified": false
+      },
+      "15": {
+       "name": "silence",
+       "text": "'…' dots appearing one by one (emo_silent_a, 3 frames)",
+       "human_verified": false
+      },
+      "22": {
+       "name": "skull_b",
+       "text": "the skull (emo_bone) with another animation",
+       "human_verified": false
+      },
+      "23": {
+       "name": "scribble_b",
+       "text": "the scribble cloud (emo_bad) with another animation",
+       "human_verified": false
+      },
+      "24": {
+       "name": "sleep",
+       "text": "growing 'Z's: falling asleep (emo_sleep, 5 frames)",
+       "human_verified": false
+      },
+      "25": {
+       "name": "treasure",
+       "text": "a treasure chest (emo_treasure)",
+       "human_verified": false
+      },
+      "26": {
+       "name": "pause",
+       "text": "no icon: pauses the actor's current action",
+       "human_verified": false
+      },
+      "27": {
+       "name": "heart_b",
+       "text": "the heart (emo_heart) with another animation (its frames break it in two)",
+       "human_verified": false
+      },
+      "28": {
+       "name": "skull_c",
+       "text": "the skull (emo_bone) with a third animation",
+       "human_verified": false
       }
      },
      "tests": [
@@ -19651,10 +19756,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it.",
+   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icons: 1 heart, 2 skull, 3 scribble, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (skull, scribble, growing Z's, treasure chest, pause, heart, skull); 0 clears.",
    "details": "Npc_StopAnimAndClearOutfitOverride (+0xA52E0, misnamed): actor+320 = icon; unless the same icon (>= 16) is already up, Action_TriggerAttacker(actor task, 143 = VfxAction_SpawnPrimarySprite, {pos, +12 = icon}) and Sfx_PlayAtWorldPos 16786116 (icons 6/8), 16786135 (4/5), 16786117 (14). NPCs with control_flags bit 4 (hidden) are skipped; NPC path passes (u8)icon. argc < 2 -> nothing. No animation or outfit is touched.",
    "side_effects": "actor+320 emote id; spawns an icon action; may play a sound",
-   "evidence": "RF4S.exe+0x211F40 (actor resolution, -1 -> qword_7FF7547BCB30+8); corpus 2427 uses, argc 2, icons 6 (880), 15 (699), 9, 7, 8. Verified through its true alias op 212 (same handler, 2026-09-29).",
+   "evidence": "RF4S.exe+0x211F40 (actor resolution, -1 -> qword_7FF7547BCB30+8); corpus 2427 uses, argc 2, icons 6 (880), 15 (699), 9, 7, 8. Verified through its true alias op 212 (same handler, 2026-09-29). Icon -> effect texture: VfxAction_SpawnPrimarySprite (RF4S.exe+0x46920) switch on the icon sets the texture's archive id per case (2138 emo_heart, 2132 emo_bone, 2131 emo_bad, 2136/2137 emo_glad00/01, 2134 emo_exclamation, 2143 emo_question, 2182 emo_sweat00, 2129 emo_anger00 (also the default), 2144 emo_shy, 2140 emo_kabu, 2178 emo_state_sleep05, 2141 emo_light, 2172 emo_silent_a, 2173 emo_sleep, 2184 emo_treasure; ids resolved by path in the game's file table), the textures decoded to check the art.",
    "alias_of": null,
    "handler": "ScriptVMOp_StopActorAnimAndClearOutfitOverride",
    "handler_rva": "0x211F40",
@@ -19714,20 +19819,125 @@
     {
      "name": "icon",
      "type": "emote icon id",
-     "values": "0 = clear; 6 (most common), 15, 9, 7, 8, 4, 1, 3 ... up to 26",
+     "values": "0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws: emo_heart, emo_exclamation ...); 16-21 and above 28 have no icon of their own (the handler's default); 26 pauses the actor's action instead",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
      "value_names": {
       "0": {
        "name": "none",
-       "text": "clear the icon",
+       "text": "clears the icon",
        "human_verified": true
+      },
+      "1": {
+       "name": "heart",
+       "text": "a heart (emo_heart)",
+       "human_verified": false
+      },
+      "2": {
+       "name": "skull",
+       "text": "a skull and crossbones (emo_bone)",
+       "human_verified": false
+      },
+      "3": {
+       "name": "scribble",
+       "text": "a dark scribble cloud: annoyed / gloomy (emo_bad, animated)",
+       "human_verified": false
+      },
+      "4": {
+       "name": "note",
+       "text": "a yellow music note: happy (emo_glad00; with a sound)",
+       "human_verified": false
+      },
+      "5": {
+       "name": "notes",
+       "text": "pink music notes: happy (emo_glad01; with a sound)",
+       "human_verified": false
       },
       "6": {
        "name": "exclaim",
-       "text": "the '!' bubble (with a sound)",
+       "text": "the '!' bubble (emo_exclamation; with a sound)",
        "human_verified": true
+      },
+      "7": {
+       "name": "question",
+       "text": "a '?' (emo_question)",
+       "human_verified": false
+      },
+      "8": {
+       "name": "exclaim_question",
+       "text": "'!?': a '!' with a '?' beside it (emo_exclamation + emo_question; with a sound)",
+       "human_verified": false
+      },
+      "9": {
+       "name": "sweat",
+       "text": "a sweat drop (emo_sweat00)",
+       "human_verified": false
+      },
+      "10": {
+       "name": "anger",
+       "text": "an anger mark (emo_anger00)",
+       "human_verified": false
+      },
+      "11": {
+       "name": "blush",
+       "text": "blush lines (emo_shy)",
+       "human_verified": false
+      },
+      "12": {
+       "name": "turnip",
+       "text": "a turnip (emo_kabu)",
+       "human_verified": false
+      },
+      "13": {
+       "name": "zzz",
+       "text": "'Zzz' asleep (emo_state_sleep05)",
+       "human_verified": false
+      },
+      "14": {
+       "name": "idea",
+       "text": "a light bulb that lights up: an idea (emo_light, 2 frames; with a sound)",
+       "human_verified": false
+      },
+      "15": {
+       "name": "silence",
+       "text": "'…' dots appearing one by one (emo_silent_a, 3 frames)",
+       "human_verified": false
+      },
+      "22": {
+       "name": "skull_b",
+       "text": "the skull (emo_bone) with another animation",
+       "human_verified": false
+      },
+      "23": {
+       "name": "scribble_b",
+       "text": "the scribble cloud (emo_bad) with another animation",
+       "human_verified": false
+      },
+      "24": {
+       "name": "sleep",
+       "text": "growing 'Z's: falling asleep (emo_sleep, 5 frames)",
+       "human_verified": false
+      },
+      "25": {
+       "name": "treasure",
+       "text": "a treasure chest (emo_treasure)",
+       "human_verified": false
+      },
+      "26": {
+       "name": "pause",
+       "text": "no icon: pauses the actor's current action",
+       "human_verified": false
+      },
+      "27": {
+       "name": "heart_b",
+       "text": "the heart (emo_heart) with another animation (its frames break it in two)",
+       "human_verified": false
+      },
+      "28": {
+       "name": "skull_c",
+       "text": "the skull (emo_bone) with a third animation",
+       "human_verified": false
       }
      },
      "tests": [
@@ -19742,10 +19952,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon",
+   "description": "Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon Icons: 1 heart, 2 skull, 3 scribble, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (skull, scribble, growing Z's, treasure chest, pause, heart, skull); 0 clears.",
    "details": "Npc_StopAnimAndClearOutfitOverride (+0xA52E0, misnamed): actor+320 = icon; unless the same icon (>= 16) is already up, Action_TriggerAttacker(actor task, 143 = VfxAction_SpawnPrimarySprite, {pos, +12 = icon}) and Sfx_PlayAtWorldPos 16786116 (icons 6/8), 16786135 (4/5), 16786117 (14). NPCs with control_flags bit 4 (hidden) are skipped; NPC path passes (u8)icon. argc < 2 -> nothing. No animation or outfit is touched.",
    "side_effects": "actor+320 emote id; spawns an icon action; may play a sound",
-   "evidence": "RF4S.exe+0x211F40 (actor resolution, -1 -> qword_7FF7547BCB30+8); corpus 2427 uses, argc 2, icons 6 (880), 15 (699), 9, 7, 8. In-game test 2026-09-29 (user): ShowActorEmote(actor(player), 6) shows the '!' bubble over the player (with a sound); ShowActorEmote(actor(player), 0) clears it.",
+   "evidence": "RF4S.exe+0x211F40 (actor resolution, -1 -> qword_7FF7547BCB30+8); corpus 2427 uses, argc 2, icons 6 (880), 15 (699), 9, 7, 8. In-game test 2026-09-29 (user): ShowActorEmote(actor(player), 6) shows the '!' bubble over the player (with a sound); ShowActorEmote(actor(player), 0) clears it. Icon -> effect texture: VfxAction_SpawnPrimarySprite (RF4S.exe+0x46920) switch on the icon sets the texture's archive id per case (2138 emo_heart, 2132 emo_bone, 2131 emo_bad, 2136/2137 emo_glad00/01, 2134 emo_exclamation, 2143 emo_question, 2182 emo_sweat00, 2129 emo_anger00 (also the default), 2144 emo_shy, 2140 emo_kabu, 2178 emo_state_sleep05, 2141 emo_light, 2172 emo_silent_a, 2173 emo_sleep, 2184 emo_treasure; ids resolved by path in the game's file table), the textures decoded to check the art.",
    "alias_of": 211,
    "handler": "ScriptVMOp_StopActorAnimAndClearOutfitOverride",
    "handler_rva": "0x211F40",

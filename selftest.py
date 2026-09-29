@@ -34,8 +34,11 @@ def _private_settings():
     import json as _json
     d = _gamepaths._load_settings()
     for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden",
-              "map_palette_favorites"):
+              "map_palette_favorites", "cutscene_editor", "theme", "backup_originals", "backup_previous",
+              "backup_dir", "list_rows", "ui_scale"):
         d.pop(k, None)
+    # the GUI tests expect a save to keep the original (backups are off by default for users)
+    d["backup_originals"], d["backup_previous"] = True, 1
     p = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_selftest_")) / "settings.json"
     p.write_text(_json.dumps(d), encoding="utf-8")
     _gamepaths.settings_path = lambda: p
@@ -7407,6 +7410,161 @@ def test_text_tab():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_backups():
+    """Saving a game file keeps its original once and the file as it was as a previous
+    version (Options: on/off, how many, the folder); the restore window puts any of them
+    back, keeping the replaced file as a previous version."""
+    print("backups: originals, previous versions, restore:")
+    from rf4s_modkit import gamepaths as G
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    game = tmp / "game"
+    (game / "Bundle" / "bundlePatch1").mkdir(parents=True)
+    target = game / "Bundle" / "bundlePatch1" / "rf3.mc"
+    target.write_bytes(b"v0")
+    settings = {}
+    saved = (G.find_bundle_dir, G.get_setting, G.set_setting)
+    G.find_bundle_dir = lambda refresh=False: game / "Bundle"
+    G.get_setting = lambda k, d=None: settings.get(k, d)
+    G.set_setting = lambda k, v: settings.__setitem__(k, v)
+    try:
+        G.write_game_file(target, b"v1")
+        _check("backups are off by default: a save keeps no original and no previous version",
+               not G.keep_originals() and G.keep_previous() == 0 and not G.backup_path(target).exists()
+               and not G.previous_versions(target))
+        G.write_game_file(target, b"v0", force_original=True)
+        forced = G.backup_path(target).read_bytes() == b"v1"
+        G.backup_path(target).unlink()
+        target.write_bytes(b"v0")
+        _check("an action whose Restore needs the original (empty over-model) keeps it anyway", forced)
+        settings.update(backup_originals=True, backup_previous=1)
+        G.write_game_file(target, b"v1")
+        G.write_game_file(target, b"v2")
+        orig = G.backup_path(target)
+        prev = [f.read_bytes() for f in G.previous_versions(target)]
+        _check("turned on: the original is kept once, and one previous version (the file before the last save)",
+               orig.read_bytes() == b"v0" and prev == [b"v1"] and orig.parent.name == "bundlePatch1"
+               and G.backup_root() == game / G.BACKUP_DIR, (prev, orig))
+        settings["backup_previous"] = 3
+        for v in (b"v3", b"v4", b"v5"):
+            G.write_game_file(target, v)
+        prev = [f.read_bytes() for f in G.previous_versions(target)]
+        _check("with 3 previous versions the newest three are kept, the oldest dropped",
+               prev == [b"v4", b"v3", b"v2"], prev)
+        G.restore_version(target, orig)
+        prev = [f.read_bytes() for f in G.previous_versions(target)]
+        _check("restoring the original puts it back and keeps the replaced file as a previous version",
+               target.read_bytes() == b"v0" and prev[0] == b"v5" and len(prev) == 3, prev)
+        listed = G.backed_up_files()
+        _check("the backup folder lists the file with its original and previous versions",
+               set(listed) == {target} and listed[target]["original"] == orig
+               and len(listed[target]["previous"]) == 3, listed)
+        other = game / "Bundle" / "bundlePatch1" / "em.bin"
+        other.write_bytes(b"e0")
+        settings.update(backup_originals=False, backup_previous=0)
+        G.write_game_file(other, b"e1")
+        settings["backup_dir"] = str(tmp / "elsewhere")
+        G.write_game_file(target, b"v9")
+        _check("originals and previous versions can be turned off; the backup folder can be moved",
+               not G.backup_path(other).exists() and not G.previous_versions(other)
+               and G.backup_root() == tmp / "elsewhere" and not (tmp / "elsewhere").exists())
+        settings.update(backup_originals=True, backup_previous=2)
+        G.write_game_file(target, b"v10")
+        try:
+            import tkinter as tk
+            import backup_dialog
+        except Exception as e:
+            _skip("restore window", "no tkinter: %s" % e); return
+        root = tk.Tk(); root.withdraw()
+        try:
+            win = backup_dialog.open_restore(root, answer=True)
+            row = next(iid for iid, (t, src) in win.rows.items() if src == G.backup_path(target))
+            win.tree.selection_set(row)
+            got = win.restore()
+            _check("the restore window lists the versions and puts the picked one back",
+                   got == target and target.read_bytes() == b"v9"
+                   and [f.read_bytes() for f in G.previous_versions(target)][0] == b"v10",
+                   [f.read_bytes() for f in G.previous_versions(target)])
+        finally:
+            root.destroy()
+    finally:
+        G.find_bundle_dir, G.get_setting, G.set_setting = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_remembered_options():
+    """The Cutscene Editor reopens with its last toolbar (locale, add new lines to every language,
+    story / code, addresses, opcodes); the big lists' row cap and the text size come from
+    Options (the text size scales the fonts and the list rows at start)."""
+    print("remembered editor toolbar, list rows, text size:")
+    try:
+        import tkinter as tk
+        import tkinter.font as tkfont
+        import cutscene_editor as ce
+        import guiutil
+    except Exception as e:
+        _skip("remembered options", "no tkinter: %s" % e); return
+    from rf4s_modkit import gamepaths as G
+    root = tk.Tk(); root.withdraw()
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root))
+        cx.set_locale("deu")
+        cx.pad_locales.set(False); cx._save_prefs()
+        cx.mode.set("code"); cx.addr.set(True); cx.show_ops.set(True); cx._view_mode()
+        cx2 = ce.CutsceneExplorer(tk.Toplevel(root))
+        got = (cx2.doc.locale, cx2.pad_locales.get(), cx2.mode.get(), cx2.addr.get(), cx2.show_ops.get(),
+               cx2.view.mode, cx2.view.show_addr, cx2.view.show_ops)
+        _check("the Cutscene Editor reopens with its last toolbar settings",
+               got == ("deu", False, "code", True, True, "code", True, True), got)
+        G.set_setting("cutscene_editor", None)
+        G.set_setting("list_rows", 1234)
+        rows_ok = guiutil.list_rows() == 1234
+        G.set_setting("list_rows", 5)
+        rows_ok = rows_ok and guiutil.list_rows() == 100          # a floor, so lists never vanish
+        G.set_setting("list_rows", None)
+        _check("the big lists' row cap comes from Options (default 5000, at least 100)",
+               rows_ok and guiutil.list_rows() == guiutil.DEFAULT_LIST_ROWS)
+    finally:
+        root.destroy()
+    r2 = tk.Tk(); r2.withdraw()
+    try:
+        import guiscale
+        guiscale._state.update(root=None, bound=False, factor=1.0, row=None)
+        guiscale._state["named"].clear(); guiscale._state["orig"].clear()
+        guiscale.install(r2)
+        top = tk.Toplevel(r2)
+        lbl = tk.Label(top, text="x", font=("Segoe UI", 9))
+        lbl.pack()
+        txt = tk.Text(top, height=2)
+        txt.tag_configure("b", font=("Segoe UI", 9, "bold"))
+        txt.pack()
+        r2.update_idletasks()
+
+        def px(spec):
+            return tkfont.Font(root=r2, font=spec).metrics("linespace")
+        base = (px(lbl.cget("font")), px(txt.tag_cget("b", "font")),
+                tkfont.nametofont("TkDefaultFont", r2).metrics("linespace"))
+        guiscale.apply(r2, 150)
+        big = (px(lbl.cget("font")), px(txt.tag_cget("b", "font")),
+               tkfont.nametofont("TkDefaultFont", r2).metrics("linespace"))
+        late = tk.Label(top, text="new", font=("Segoe UI", 9))
+        late.pack()
+        r2.update()
+        late_px = px(late.cget("font"))
+        rh = guiscale.row_height()
+        guiscale.apply(r2, 100)
+        back = (px(lbl.cget("font")), px(txt.tag_cget("b", "font")),
+                tkfont.nametofont("TkDefaultFont", r2).metrics("linespace"))
+        _check("text size switches live: 150 % grows hand-set fonts, tag fonts, the named fonts, list rows "
+               "and a window opened afterwards; 100 % brings the original sizes back",
+               all(b2 > b1 * 1.3 for b1, b2 in zip(base, big)) and late_px > base[0] * 1.3
+               and bool(rh) and back == base,
+               {"base": base, "150": big, "opened later": late_px, "rows": rh, "back": back})
+    finally:
+        guiscale._state.update(root=None, bound=False, factor=1.0, row=None)
+        guiscale._state["named"].clear(); guiscale._state["orig"].clear()
+        r2.destroy()
+
+
 def test_explorer_tabs():
     """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
     state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
@@ -7629,24 +7787,60 @@ def test_explorer_tabs():
                      if isinstance(w, gui.ttk.Button)]
         win = app.cmd_options()
         again = app.cmd_options()
-        boxes = [w for w in win.winfo_children()[0].winfo_children() if isinstance(w, gui.ttk.Checkbutton)]
+        boxes = [w for w in _all_widgets(win) if isinstance(w, gui.ttk.Checkbutton)]
+        _tabs = [app._options_nb.tab(t, "text") for t in app._options_nb.tabs()]
+        _in = {app._options_nb.tab(str(w.winfo_parent()), "text") if str(w.winfo_parent()) in
+               app._options_nb.tabs() else None: w.cget("text") for w in boxes}
+        _check("Options has the tabs General / Appearance / Map editor / Cutscene Editor / Advanced: group "
+               "maps under General, the mouse wheel under Map editor, backups under Advanced",
+               _tabs == ["General", "Appearance", "Map editor", "Cutscene Editor", "Advanced"]
+               and "Keep each game file's original (copied the first time it is saved)" in [
+                   w.cget("text") for w in boxes if app._options_nb.tab(str(w.winfo_parent()), "text")
+                   == "Advanced"]
+               and _in.get("Map editor") == "Mouse wheel zooms the map", (_tabs, _in))
+        wheel = next(b for b in boxes if b.cget("text") == "Mouse wheel zooms the map")
         ticked_before = app._wheel_zooms.get()
-        boxes[0].invoke()                       # untick: the wheel scrolls
+        wheel.invoke()                          # untick: the wheel scrolls
         after_untick = (_mview.wheel_mode(), _gamepaths.get_setting(_mview.WHEEL_SETTING))
-        boxes[0].invoke()                       # tick again: back to zooming
+        wheel.invoke()                          # tick again: back to zooming
         after_tick = _mview.wheel_mode()
         import guiutil as _gu
         _ver = _gu.modkit_version()
         _ents = [w for w in _all_widgets(win) if w.winfo_class() == "Entry"]
-        _last = win.winfo_children()[0].winfo_children()[-1]
-        _check("Options… ends with the modkit version (commit + date) as selectable grey text",
+        _foot = win.winfo_children()[0].winfo_children()[-1]
+        _row = _foot.winfo_children()
+        _check("Options… ends with one row: the modkit version (commit + date, selectable grey text) "
+               "bottom-aligned on the left, Close on the right",
                _ver != "unknown" and _ents and _ents[0].get() == "Modkit version " + _ver
-               and str(_ents[0].cget("state")) == "readonly" and _last is _ents[0], _ver)
+               and str(_ents[0].cget("state")) == "readonly" and _ents[0] in _row
+               and any(isinstance(w, gui.ttk.Button) and w.cget("text") == "Close" for w in _row)
+               and _ents[0].pack_info().get("anchor") == "s", _ver)
+        _gm = [b for b in boxes if b.cget("text") == "Group maps by area"]
+        _before = app.group_maps_var.get()
+        if _gm:
+            _gm[0].invoke()
+        _moved = (bool(_gm) and app.group_maps_var.get() != _before
+                  and _gamepaths.get_setting("group_maps_by_area") == app.group_maps_var.get()
+                  and not [w for w in _all_widgets(app.root) if isinstance(w, gui.ttk.Checkbutton)
+                           and w.winfo_toplevel() is app.root and w.cget("text") == "Group maps by area"])
+        if _gm:
+            _gm[0].invoke()
+        _check("Group maps by area is in Options (not the toolbar), saved and applied at once", _moved)
+        _pl = [b for b in boxes if b.cget("text") == "Add new lines to every language"]
+        _pl_before = _pl[0].instate(["selected"]) if _pl else None
+        if _pl:
+            _pl[0].invoke()
+        from cutscene_editor.app import CutsceneExplorer as _CE
+        _pl_ok = bool(_pl) and _CE.pad_locales_setting() != _pl_before
+        if _pl:
+            _pl[0].invoke()
+        _check("'Add new lines to every language' is in Options -> Cutscene Editor and saved for the editor",
+               _pl_ok and _CE.pad_locales_setting() == _pl_before)
         win.destroy()
         _check("Options… sits right of Game folder…, opens one window, and its tick box switches "
                "the mouse wheel between zoom and scroll (saved in settings.json)",
                bar_texts.index("Options…") == bar_texts.index("Game folder…") + 1
-               and again is win and len(boxes) == 1 and ticked_before
+               and again is win and len(boxes) == 4 and ticked_before
                and after_untick == ("scroll", "scroll") and after_tick == "zoom",
                (bar_texts, ticked_before, after_untick, after_tick))
         _check("explorer tabs raised no callback errors", not errs, str(errs[:1]))
@@ -13851,7 +14045,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

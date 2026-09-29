@@ -166,6 +166,8 @@ def main(argv=None):
     root = tk.Tk()
     import guiutil
     guiutil.install_error_logging(root)
+    import guiscale
+    guiscale.install(root)                  # text size (Options), live
     guiutil.install_combo_keys(root)
     import guitheme
     guitheme.install(root)                  # light / dark (settings.json)

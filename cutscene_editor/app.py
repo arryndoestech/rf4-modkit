@@ -43,11 +43,19 @@ class CutsceneExplorer:
         self.scene = None
         self._edited_lines = set()         # (locale, line id) edited this session, re-checked on save
         self.sel = None                      # (pc, option)
-        self.pad_locales = tk.BooleanVar(value=True)
+        # the toolbar's last settings (settings.json "cutscene_editor"): locale, new lines in
+        # all locales, story / code, addresses, opcodes
+        self._prefs = self._load_prefs()
+        if self._prefs.get("locale") in catalog.LOCALES:
+            self.doc.locale = self._prefs["locale"]
+        self.pad_locales = tk.BooleanVar(value=bool(self._prefs.get("pad_locales", True)))
         self._em_window = None
         self._em_uses = None
         self._em_bank_uses = {}              # bank pos -> (bank bytes, [(entry id | None, ...)])
         self._build()
+        self._fit_toolbar()
+        self.view.mode, self.view.show_addr, self.view.show_ops = (
+            self.mode.get(), self.addr.get(), self.show_ops.get())
         if isinstance(parent, (tk.Tk, tk.Toplevel)):
             parent.protocol("WM_DELETE_WINDOW", self._on_close)
         self._share_with_maps()
@@ -143,6 +151,7 @@ class CutsceneExplorer:
     def _build_toolbar(self):
         bar = ttk.Frame(self.frame, padding=(2, 2))
         bar.pack(fill="x")
+        self.toolbar = bar
         ob = ttk.Button(bar, text="Open rf3.mc…", command=self.open_file)
         ob.pack(side="left")
         Tip(ob, "Open a rf3.mc cutscene container (its rf3mc.<locale> and em.bin are looked "
@@ -158,12 +167,16 @@ class CutsceneExplorer:
         m.add_command(label="Save em.bin (Event Manager) as…", command=self.save_em)
         m.add_separator()
         m.add_command(label="Install as loose files (Bundle\\00_mods)", command=self.install)
+        m.add_separator()
+        m.add_command(label="Restore a previous version…", command=self.restore_previous)
         mb["menu"] = m
         mb.pack(side="left", padx=4)
         Tip(mb, "Save (Ctrl+S) writes the changed files -- rf3.mc (scenes), rf3mc.<locale> "
                 "(dialogue), em.bin (Event Manager) -- straight over the ones the game loads from "
-                "your game folder, without asking; the first time, the originals are copied to "
-                "ModdingBackup in the game folder. 'Save … as…' writes a copy elsewhere instead.")
+                "your game folder, without asking. With backups on (Options → Advanced in the main "
+                "window) the first save keeps the originals in ModdingBackup and every save keeps "
+                "the file as it was as a previous version; 'Restore a previous version…' puts one "
+                "back. 'Save … as…' writes a copy elsewhere instead.")
         self.undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo)
         self.undo_btn.pack(side="left")
         Tip(self.undo_btn, lambda: self._undo_tip("undo"))
@@ -177,12 +190,9 @@ class CutsceneExplorer:
         lc.pack(side="left", padx=4)
         lc.bind("<<ComboboxSelected>>", lambda _e: self.set_locale(self.loc.get()))
         Tip(lc, "Which language's dialogue is shown and edited. Line ids are shared by every locale.")
-        pc = ttk.Checkbutton(bar, text="new lines in all locales", variable=self.pad_locales)
-        pc.pack(side="left", padx=4)
-        Tip(pc, "When a new dialogue line is added, give it the same id in every other locale "
-                "(untranslated) so it shows everywhere.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
-        self.mode = tk.StringVar(value="story")
+        self.mode = tk.StringVar(value=self._prefs.get("mode") if self._prefs.get("mode") in ("story", "code")
+                                 else "story")
         for val, text, tip in (("story", "Story", "Readable: who says what, actions in words, "
                                                    "branches as if / go to."),
                                ("code", "Code", "The technical listing (the disassembly).")):
@@ -190,12 +200,12 @@ class CutsceneExplorer:
                                  command=self._view_mode)
             rb.pack(side="left")
             Tip(rb, tip)
-        self.addr = tk.BooleanVar(value=False)
+        self.addr = tk.BooleanVar(value=bool(self._prefs.get("addresses", False)))
         ac = ttk.Checkbutton(bar, text="addresses", variable=self.addr, command=self._view_mode)
         ac.pack(side="left", padx=4)
         Tip(ac, "Show each statement's byte address in the story view (the code view always has "
                 "labels).")
-        self.show_ops = tk.BooleanVar(value=False)
+        self.show_ops = tk.BooleanVar(value=bool(self._prefs.get("opcodes", False)))
         oc = ttk.Checkbutton(bar, text="opcodes", variable=self.show_ops, command=self._view_mode)
         oc.pack(side="left", padx=4)
         Tip(oc, "Show the raw opcode each statement is stored as, in hex (e.g. 0x005; control "
@@ -204,15 +214,8 @@ class CutsceneExplorer:
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
         Tip(nb, "Mint a new scene in the open bank: pick when it plays, its keys and its body.")
-        ib = ttk.Button(bar, text="＋ Instruction…", command=lambda: self.ask_insert_instruction())
-        ib.pack(side="left", padx=(4, 0))
-        Tip(ib, "Add any instruction without typing it: pick it from the list (by category, "
-                "searchable), fill in its arguments with pickers (characters, maps, items, "
-                "flags, choices), check the listing it makes, and insert it after / before the "
-                "selected statement. Also: Insert key, right-click in the script, Add before / "
-                "Add after in the Inspector.")
         rl = ttk.Button(bar, text="⟳ Reload in game", command=self.reload_in_game)
-        rl.pack(side="left", padx=(0, 4))
+        rl.pack(side="left", padx=(4, 4))
         Tip(rl, "Ctrl+R: save, then put rf3.mc into the RUNNING game -- no restart, any size. "
                 "Refused while a scene plays (let it finish). The new scenes apply from the next "
                 "trigger / talk; a room's own scenes are re-read on use. The dialogue text of "
@@ -222,12 +225,14 @@ class CutsceneExplorer:
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
         rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
-        rb.pack(side="right", padx=(4, 0))               # packed first on the right: rightmost
+        # laid out before everything else, so a narrow window squeezes the middle of the
+        # toolbar, never the Reference button at its right end
+        rb.pack(side="right", padx=(4, 0), before=ob)
         Tip(rb, "Look things up: flags & variables (name, id, description), the functions "
                 "verified in game, the codes dialogue text can hold, characters, maps and "
                 "items -- with the form an argument takes. Double-click copies.")
         self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=("Segoe UI", 8))
-        self.dirty_lbl.pack(side="right", padx=6)
+        self.dirty_lbl.pack(side="right", padx=6, before=ob)
 
     # ------------------------------------------------------------------ #
     # loading
@@ -454,11 +459,65 @@ class CutsceneExplorer:
         self.view.mode = self.mode.get()
         self.view.show_addr = self.addr.get()
         self.view.show_ops = self.show_ops.get()
+        self._save_prefs()
         self.view.render()
+
+    def _fit_toolbar(self):
+        """Open the window at least as wide as the toolbar needs (the dark theme and a larger
+        text size make it wider), within the screen."""
+        top = self.parent
+        if not isinstance(top, (tk.Tk, tk.Toplevel)):
+            return
+        try:
+            top.update_idletasks()
+            need = self.toolbar.winfo_reqwidth() + 8
+            geo = top.geometry()                       # "WxH+X+Y"
+            w, rest = geo.split("x", 1)
+            h = rest.split("+", 1)[0]
+            if int(w) < need:
+                top.geometry("%dx%s" % (min(need, top.winfo_screenwidth() - 40), h))
+        except (tk.TclError, ValueError):
+            pass
+
+    PREFS_KEY = "cutscene_editor"
+
+    @classmethod
+    def pad_locales_setting(cls):
+        """'Add new lines to every language' (Options -> Cutscene Editor): a new dialogue line gets the
+        same id in every other locale (untranslated). On by default."""
+        return bool(cls._load_prefs().get("pad_locales", True))
+
+    @classmethod
+    def set_pad_locales_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["pad_locales"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    @classmethod
+    def _load_prefs(cls):
+        try:
+            from rf4s_modkit import gamepaths
+            d = gamepaths.get_setting(cls.PREFS_KEY, {})
+        except Exception:  # noqa: BLE001
+            d = {}
+        return d if isinstance(d, dict) else {}
+
+    def _save_prefs(self):
+        """Remember the toolbar for the next time the editor opens."""
+        try:
+            from rf4s_modkit import gamepaths
+            gamepaths.set_setting(self.PREFS_KEY, {
+                "locale": self.doc.locale, "pad_locales": bool(self.pad_locales.get()),
+                "mode": self.mode.get(), "addresses": bool(self.addr.get()),
+                "opcodes": bool(self.show_ops.get())})
+        except Exception:  # noqa: BLE001 -- a convenience only
+            pass
 
     def set_locale(self, loc):
         self.flush_edits()
         self.doc.locale = loc
+        self._save_prefs()
         if self.doc.textarc is None:
             self.status("rf3mc.%s is not in this source" % loc)
         self.browser.rebuild()
@@ -1215,9 +1274,25 @@ class CutsceneExplorer:
         return out
 
     def _backup_once(self, target):
-        """Copy the file about to be overwritten to <game>/ModdingBackup/<same path>, once."""
+        """Back the file about to be overwritten up (its original once, the current file as a
+        previous version: gamepaths.backup_before_write). The original's path when made now."""
         from rf4s_modkit import gamepaths
-        return gamepaths.backup_once(target)
+        return gamepaths.backup_before_write(target)
+
+    def restore_previous(self):
+        """Put a backed-up rf3.mc / rf3mc.<locale> / em.bin back, then reload the editor."""
+        import backup_dialog
+        names = ["rf3.mc", "em.bin"] + ["rf3mc.%s" % loc for loc in
+                                        ("eng", "jpn", "deu", "fra", "kor", "twn", "chn")]
+
+        def restored(_target):
+            if self.unsaved():
+                self.status("Restored %s -- your unsaved edits are still open here; save them over "
+                            "it, or reopen the editor to load the restored file" % _target.name)
+                return
+            self._load()
+            self.status("Restored %s and reloaded it" % _target.name)
+        return backup_dialog.open_restore(self.frame, names=names, on_restored=restored)
 
     def save_to_game(self):
         """Overwrite the changed files where they came from, without asking."""
@@ -1267,7 +1342,7 @@ class CutsceneExplorer:
         if "rf3.mc" in blobs:
             how.append("Ctrl+R puts the scenes into the running game")
         if any(n.startswith("rf3mc.") for n in blobs):
-            how.append("the running game reads dialogue fresh for every line")
+            how.append("Ctrl+R puts the dialogue text into the running game too")
         if "em.bin" in blobs:
             how.append("em.bin needs a game restart")
         self.status("Saved %s%s -- %s" % (", ".join(written), note, "; ".join(how)))
@@ -1516,6 +1591,8 @@ def main(argv=None):
     root = tk.Tk()
     import guiutil
     guiutil.install_error_logging(root)
+    import guiscale
+    guiscale.install(root)                  # text size (Options), live
     guiutil.install_combo_keys(root)
     import guitheme
     guitheme.install(root)                  # light / dark (settings.json)

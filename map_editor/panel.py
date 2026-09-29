@@ -161,8 +161,9 @@ class MapEditorPanel:
         mb.pack(side="left")
         ui.Tip(mb, "Save (Ctrl+S) writes this map's changed files -- the map, its search spots, "
                    "its monster gates -- straight over the ones the game loads from your game folder, "
-                   "without asking; the first time, the originals are copied to ModdingBackup in "
-                   "the game folder. 'Save … as…' writes a copy elsewhere instead.\n"
+                   "without asking (with backups on -- Options → Advanced in the main window -- "
+                   "the originals are copied to ModdingBackup first). 'Save … as…' writes a copy "
+                   "elsewhere instead.\n"
                    "Farm, field and Selphia maps come in four seasons (…_SUMMER, _AUTUMN, "
                    "_WINTER): the game loads the one for the current season. 'Copy changes to "
                    "the other seasons…' carries this map's object / warp / ATTR changes over.")
@@ -1473,7 +1474,7 @@ class MapEditorPanel:
             self.status("Over-model left unchanged")
             return False
         try:
-            gamepaths.write_game_file(target, blank)
+            gamepaths.write_game_file(target, blank, force_original=True)   # Restore… needs it
         except OSError as e:
             messagebox.showerror("Empty over-model", f"Could not write {target}:\n{err_text(e)}\n\n"
                                                      "(Is the game running with the file open?)")
@@ -2109,7 +2110,7 @@ class MapEditorPanel:
             lines += ["", "After the copy the game would choke on:"]
             lines += ["  • " + x for x in fatal[:8]] + (["  …"] if len(fatal) > 8 else [])
         lines += ["", "Write the other seasons over the game's files" + (" anyway" if fatal else "")
-                  + "? (The originals are kept in ModdingBackup the first time.) A season open in "
+                  + "? (With backups on, the originals are kept in ModdingBackup.) A season open in "
                     "another tab still shows the old map until you reopen it."]
         if not messagebox.askyesno(title, "\n".join(lines), icon="warning" if fatal else "question"):
             return False

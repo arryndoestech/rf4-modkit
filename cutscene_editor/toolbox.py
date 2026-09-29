@@ -7,8 +7,8 @@ Reference (toolbar "Reference"): searchable lists of what a scene can name --
     `human_verified`), with everything the table knows about each;
   * Characters, Maps, Items: the ids and the listing form an argument takes.
 
-Instruction picker (toolbar "Instruction…", the Inspector's Add before / Add after, the Script
-view's right-click menu, the Insert key): every instruction by category, a form with one
+Instruction picker (the Script view's right-click menu, the Insert key, the Inspector's Add
+before / Add after): every instruction by category, a form with one
 field per argument (character / map / item / flag / enum pickers where the table knows the
 type), a live listing preview that can also be edited by hand, and Insert before / after the
 selected statement. The preview is plain listing text, so everything goes through the same
@@ -22,6 +22,7 @@ from tkinter import ttk
 
 from guiutil import FilterCombo, Tip, later
 from guiutil import err_text
+import guiutil
 from rf4s_modkit import opcode_meta as meta
 from rf4s_modkit import script, scriptasm
 
@@ -237,9 +238,10 @@ class _Filtered(ttk.Frame):
                     continue
             self.tree.insert("", "end", iid=str(i), values=shown)
             n += 1
-            if n >= 3000:
+            if n >= guiutil.list_rows():
                 break
-        self.count.config(text="%d shown%s" % (n, " (first 3000)" if n >= 3000 else ""))
+        cap = guiutil.list_rows()
+        self.count.config(text="%d shown%s" % (n, " (first %d)" % cap if n >= cap else ""))
 
     def selected(self):
         s = self.tree.selection()

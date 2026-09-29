@@ -325,6 +325,18 @@ def commit_entry(parent, var, on_commit, width=8, **kw):
     return e
 
 
+DEFAULT_LIST_ROWS = 5000
+
+
+def list_rows():
+    """How many rows the big lists show before 'search to narrow' (setting "list_rows")."""
+    try:
+        from rf4s_modkit import gamepaths
+        return max(100, int(gamepaths.get_setting("list_rows", DEFAULT_LIST_ROWS)))
+    except (TypeError, ValueError, ImportError):
+        return DEFAULT_LIST_ROWS
+
+
 def combo_step(widget, d):
     """Pick the value `d` steps from the current one in a combobox and apply it at once
     (<<ComboboxSelected>>, as a click in the list would). The current text not in the list:
