@@ -1274,8 +1274,8 @@ class CutsceneExplorer:
         win = tk.Toplevel(self.frame)
         win.title("Which game?")
         win.transient(self.frame.winfo_toplevel())
-        ttk.Label(win, text="%d copies of RF4S.exe are running. Which one should get the "
-                            "scenes? (Remembered until that game is closed.)" % len(procs),
+        ttk.Label(win, text="%d copies of RF4S.exe are running.\nWhich one should get the "
+                            "scenes?" % len(procs),
                   wraplength=520, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
         lb = tk.Listbox(win, height=min(8, len(procs)), width=90, font=("Segoe UI", 9))
         for p in procs:
@@ -1292,7 +1292,7 @@ class CutsceneExplorer:
         bb = ttk.Frame(win)
         bb.pack(fill="x", padx=10, pady=10)
         ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right")
-        ttk.Button(bb, text="Reload into this one", command=ok).pack(side="right", padx=4)
+        ttk.Button(bb, text="Select", command=ok).pack(side="right", padx=4)
         lb.bind("<Double-Button-1>", ok)
         lb.bind("<Return>", ok)
         win.bind("<Escape>", lambda _e: win.destroy())
