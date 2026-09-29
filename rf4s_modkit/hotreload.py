@@ -654,6 +654,133 @@ def reload_mc(data, pid=None, force=False, settle=0.25):
         g.close()
 
 
+# ---- dialogue text ------------------------------------------------------------------------ #
+# Scripts show lines from archive 15213 ("rom:/script/rf3mc.jpn"); MageEngine_OpenLocalizedResource
+# fills that slot with the player's language (rf3mc.eng ...) when the game starts, and it stays
+# resident (refcount >= 1): Text_LoadStringFromArchive (RF4S.exe+0x232290) reads the cached
+# copy and shows line 0 for an id past its line count. So a changed or added line needs this
+# reload (or a restart), like rf3.mc. Each shown line is copied out of the archive first
+# (Text_CopyArchiveEntry), so swapping the pointer while the game is paused is safe.
+TEXT_ARCHIVE_PATH = "rom:/script/rf3mc.jpn"
+TEXT_LOCALES = ("eng", "jpn", "deu", "fra", "kor", "twn", "chn")
+
+
+def _text_lines(data, ids):
+    """{id: raw bytes} of a few lines of a TEXT archive held in `data` (bytes)."""
+    out = {}
+    count = struct.unpack_from("<I", data, 4)[0]
+    for i in ids:
+        if i < count:
+            ln, off = struct.unpack_from("<II", data, 8 + 8 * i)
+            out[i] = bytes(data[off:off + ln])
+    return out
+
+
+def text_locale(pid=None, candidates=None):
+    """(locale, lines in the game) of the dialogue text the running game holds: the language
+    whose file matches the resident copy's opening lines. `candidates` = {locale: file bytes};
+    by default the game folder's rf3mc.<locale> files. (None, count) when none matches."""
+    g = _Game(pid)
+    try:
+        idx = g.find_archive(TEXT_ARCHIVE_PATH)
+        if idx is None:
+            raise HotReloadTechnicalError("cannot find the dialogue text archive in the game")
+        _e, ptr, rc = g.archive_entry(idx)
+        if not ptr or rc == 0:
+            raise HotReloadError("the dialogue text is not loaded in the game yet (still on the title screen?)")
+        head = g.read(ptr, 8)
+        if head[:4] != b"TEXT":
+            raise HotReloadTechnicalError("the game's resident dialogue text does not look like a TEXT archive")
+        count = struct.unpack_from("<I", head, 4)[0]
+        probe = [1, 2, 3, 10, 100]
+        table = g.read(ptr, 8 + 8 * (max(probe) + 1))
+        live = {}
+        for i in probe:
+            if i < count:
+                ln, off = struct.unpack_from("<II", table, 8 + 8 * i)
+                live[i] = g.read(ptr + off, ln) if ln else b""
+    finally:
+        g.close()
+    if candidates is None:
+        # each language's file as it is now, and its original (ModdingBackup) in case one of
+        # the compared lines was edited since the game started
+        candidates = []
+        from . import gamepaths
+        t = gamepaths.game_targets(["rf3mc.%s" % loc for loc in TEXT_LOCALES]) or {}
+        for loc in TEXT_LOCALES:
+            f = t.get("rf3mc.%s" % loc)
+            for src in (f, gamepaths.backup_path(f) if f is not None else None):
+                if src is not None and src.is_file():
+                    candidates.append((loc, src.read_bytes()))
+    else:
+        candidates = list(candidates.items())
+    for loc, data in candidates:
+        if _text_lines(data, live) == live:
+            return loc, count
+    return None, count
+
+
+def reload_text(data, pid=None):
+    """Put `data` (a whole rf3mc.<locale> TEXT archive, the player's language) into the running
+    game in place of the resident dialogue text. Returns a report dict."""
+    if data[:4] != b"TEXT" or len(data) < 8:
+        raise HotReloadError("not a TEXT archive")
+    g = _Game(pid)
+    try:
+        idx = g.find_archive(TEXT_ARCHIVE_PATH)
+        if idx is None:
+            raise HotReloadTechnicalError("cannot find the dialogue text archive in the game")
+        new = g.alloc(len(data) + 16)
+        g.write(new, data)
+        g.suspend()
+        try:
+            entry, old, rc = g.archive_entry(idx)
+            if not old or rc == 0:
+                raise HotReloadError("the dialogue text is not loaded in the game yet (still on the title screen?)")
+            if g.read(old, 4) != b"TEXT":
+                raise HotReloadTechnicalError("the game's resident dialogue text does not look like a TEXT archive")
+            old_count = g.u32(old + 4)
+            g.write(entry, struct.pack("<Q", new))
+        except Exception:
+            g.resume()
+            g.free(new)
+            raise
+        g.resume()
+        if g.own_allocation(old):                     # an earlier reload's buffer of ours
+            g.free(old)
+        return {"pid": g.pid, "bytes": len(data), "lines": struct.unpack_from("<I", data, 4)[0],
+                "lines_before": old_count}
+    finally:
+        g.close()
+
+
+def describe_text(report, locale=None):
+    return ("dialogue text%s (%d lines, was %d) is live in the running game (pid %d)"
+            % ((" rf3mc.%s" % locale) if locale else "", report["lines"], report["lines_before"], report["pid"]))
+
+
+def reload_all(mc_data, pid=None, force=False, text_files=None):
+    """rf3.mc and the dialogue text of the game's language. `text_files` = {locale: bytes}
+    (default: the game folder's files). Returns (rf3.mc report, (locale, text report) or
+    (None, reason))."""
+    r = reload_mc(mc_data, pid=pid, force=force)
+    try:
+        loc, _n = text_locale(pid=r["pid"], candidates=text_files)
+    except HotReloadError as e:
+        return r, (None, str(e))
+    if loc is None:
+        return r, (None, "the game's dialogue text matches none of the rf3mc.<locale> files")
+    files = text_files
+    if files is None:
+        from . import gamepaths
+        t = gamepaths.game_targets(["rf3mc.%s" % loc]) or {}
+        f = t.get("rf3mc.%s" % loc)
+        files = {loc: f.read_bytes()} if f is not None and f.is_file() else {}
+    if loc not in files:
+        return r, (None, "rf3mc.%s is not in the game folder" % loc)
+    return r, (loc, reload_text(files[loc], pid=r["pid"]))
+
+
 def describe(report):
     """One line for a reload report."""
     parts = []

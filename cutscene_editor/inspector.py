@@ -16,7 +16,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from guiutil import FilterCombo, ScrollFrame, Tip, commit_entry, hint, section, set_text, to_int
-from rf4s_modkit import script, scriptasm, textlint
+from rf4s_modkit import script, scriptasm, textesc, textlint
 
 from .render import CHOICE_OPS, SceneText
 
@@ -162,18 +162,24 @@ class Inspector(ScrollFrame):
         self._header("Dialogue line #%d" % lid, st, "Shows one line of dialogue and waits for the player")
         ttk.Label(f, text="Spoken by: " + (spk or "(narration — no SetSpeaker before it)"),
                   foreground="#555").pack(anchor="w", padx=8)
-        ttk.Label(f, text="Text (%s)" % app.doc.locale).pack(anchor="w", padx=8, pady=(6, 0))
+        trow = ttk.Frame(f)
+        trow.pack(fill="x", padx=8, pady=(6, 0))
+        ttk.Label(trow, text="Text (%s)" % app.doc.locale).pack(side="left")
         box = tk.Text(f, height=5, wrap="word", font=("Segoe UI", 10), undo=True)
         box.pack(fill="x", padx=8)
         cur = app.doc.text(lid)
-        box.insert("1.0", cur or "")
+        box.insert("1.0", textesc.to_edit(cur or ""))      # colours / icons as \red, \btn(a) ...
         box.edit_modified(False)
         check = ttk.Label(f, text="", wraplength=330, justify="left")
         check.pack(anchor="w", padx=8)
         colours = {"error": "#c0392b", "warning": "#b9770e", "info": "#666"}
 
         def recheck(_e=None):
-            issues = textlint.lint(box.get("1.0", "end-1c"), slots=app.scene_slots())
+            bad = textesc.check(box.get("1.0", "end-1c"))
+            if bad is not None:
+                check.config(text="• error: %s" % bad, foreground=colours["error"])
+                return
+            issues = textlint.lint(textesc.from_edit(box.get("1.0", "end-1c")), slots=app.scene_slots())
             if not issues:
                 check.config(text="")
                 return
@@ -185,9 +191,19 @@ class Inspector(ScrollFrame):
             check.config(text=textlint.format_issues(issues, limit=4), foreground=colours[worst])
         box.bind("<KeyRelease>", recheck, add="+")
         recheck()
+        import text_tab
+        im = text_tab.insert_menu(trow, box, after=recheck)
+        im.pack(side="right")
+        Tip(im, "Put a colour, a raise / lower, a button icon or a ＠ code at the cursor. Characters "
+                "that can't be typed are written as backslash escapes (\\red, \\btn(a) ...); a "
+                "real backslash is \\\\.")
 
         def commit(_e=None):
-            new = box.get("1.0", "end-1c")
+            try:
+                new = textesc.from_edit(box.get("1.0", "end-1c"))
+            except textesc.EscapeError:
+                recheck()                                   # shows the error; nothing is changed
+                return "break" if _e is not None and _e.keysym == "Return" else None
             if app.doc.text(lid) is not None and new != app.doc.text(lid):
                 app.set_text(lid, new)
             return "break" if _e is not None and _e.keysym == "Return" else None

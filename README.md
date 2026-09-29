@@ -305,13 +305,32 @@ checker problems are shown in orange, and changed lines in blue. *Show* narrows 
 changed lines or lines with problems. *＋ New line* appends a line whose number is its id.
 TEXT lines are addressed by number, so they can't be removed. `.strings` files also take
 *＋ New key…* and *Delete key*. *Revert line* goes back to the text as the file was opened.
-*Save* writes the file where the game loads it (`Bundle _mods` when the game only has it
+*Save* writes the file where the game loads it (`Bundle\00_mods` when the game only has it
 packed; the original is kept in `ModdingBackup`), or back to the file you opened from disk.
-*Save as…* writes anywhere. Dialogue shows in game the next time the line is shown. Other
-text needs a game restart, but the editors' character, item, map and skill names follow the
-saved file at once.
+*Save as…* writes anywhere. The game keeps the dialogue text (`rf3mc.<locale>`) in memory:
+the Cutscene Editor's *⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
+restart, but the editors' character, item, map and skill names follow the saved file at once.
 
 **Dropdowns.** In every dropdown of the toolkit, Up / Down step to the previous / next value and apply it at once (Alt+Down opens the list).
+
+**Colours, raise / lower and button icons in text.** Game text can hold characters nobody can type
+or see in a text box. The editors (the text editor, the Cutscene Editor's dialogue box and its
+new-line dialog) show and take them as backslash escapes, and the file gets the real characters.
+Every shipped line reads back exactly, and no shipped line contains a backslash:
+
+| Escape | In game (tested 2026-09-29) |
+|---|---|
+| `\red` `\blue` `\normal` | red / blue text, normal colour again (what `／` and `＋` do) |
+| `\rgb(255,128,1)` | any colour, red / green / blue 1-255 |
+| `\up` `\down` | raise / lower what follows by a quarter of the font size |
+| `\shift(4)` | lower what follows by 4 pixels (negative raises); the shifts add up |
+| `\base` | back to the normal baseline |
+| `\btn(a)` | a button icon: a b x y l1 r1 l2 r2 stick right down up left start select dpad; it follows the player's controller or keyboard |
+| `\u(E0A8)` | any character by its hexadecimal code |
+| `\\` | a backslash |
+
+An unknown escape is refused with the reason. The *Insert ▾* menu next to each text box puts an
+escape or a `＠` code at the cursor.
 
 **Tabs.** Clicking a file shows it in the current tab; **double-clicking opens it in a new
 tab**; Up / Down in the list show the next file in the tab you are browsing. A file that is
@@ -707,8 +726,10 @@ would be hidden.
 game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the
 reload swaps that copy and the three bank buffers in place while the game is paused for a moment.
 It is refused while a scene is playing, so let the scene finish first. Changed scenes run from the
-next trigger or talk. Dialogue text needs no reload, because the game reads `rf3mc.<locale>` from
-disk every time it shows a line. An `em.bin` change still needs a restart, and so does a file that
+next trigger or talk. The dialogue text is swapped in too: scripts show lines from one archive slot
+that the game fills with your language's `rf3mc.<locale>` at start and keeps in memory, and a line id
+past its line count shows line 0 ("Are you turning in for the night?"). So new or changed lines need
+this reload (the toolkit finds which language the game holds) or a restart. An `em.bin` change still needs a restart, and so does a file that
 is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]` and
 `rf4mod script live` (what the game currently holds). *New lines in all locales* gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.

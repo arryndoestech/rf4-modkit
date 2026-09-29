@@ -1963,7 +1963,7 @@ def cmd_script_reload(a):
         raise SystemExit("no rf3.mc given and no game folder set")
     try:
         pid = a.pid or hotreload.pick_process()
-        r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), pid=pid, force=a.force)
+        r, (loc, t) = hotreload.reload_all(pathlib.Path(path).read_bytes(), pid=pid, force=a.force)
     except hotreload.HotReloadError as e:
         if e.technical:                     # a toolkit / build problem: the full block for a bug report
             import guiutil
@@ -1971,7 +1971,10 @@ def cmd_script_reload(a):
         raise SystemExit("reload refused: %s" % e)
     print(hotreload.describe(r))
     print(f"  from {path}")
-    print("  dialogue text (rf3mc.<locale>) is read from disk for every line: no reload needed")
+    if loc:
+        print("  " + hotreload.describe_text(t, loc))
+    else:
+        print("  dialogue text not reloaded: %s (restart the game for text changes)" % t)
 
 
 def cmd_script_live(a):

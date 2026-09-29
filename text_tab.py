@@ -9,7 +9,9 @@ Two kinds of file, one editor:
     "key" = "value"; keys can be added and removed.
 
 A line is checked the way the game will read it (rf4s_modkit.textlint) while it is typed: a
-line the game could crash on cannot be applied. *Save* writes the file where the game loads it
+line the game could crash on cannot be applied. Characters that can't be typed or seen (the
+colour and shift control bytes, the button icons) are shown and typed as backslash escapes
+(rf4s_modkit.textesc: \\red, \\btn(a) ...); the Insert menu lists them and the ＠ codes. *Save* writes the file where the game loads it
 (Bundle\\00_mods when the game only has it packed; the original is kept in ModdingBackup
 once), or back to the file it was opened from; *Save as…* writes anywhere. Names the other
 editors show (characters, items, maps, skills) follow a saved name file by themselves.
@@ -20,7 +22,7 @@ import pathlib
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
-from rf4s_modkit import gamepaths, strings_file, textdb, textlint
+from rf4s_modkit import gamepaths, strings_file, textdb, textesc, textlint
 
 MAX_ROWS = 5000
 
@@ -69,8 +71,65 @@ class _Model:
 
 
 def problems(text):
-    """textlint issues worth showing (errors and warnings)."""
+    """textlint issues worth showing (errors and warnings) of a game text."""
     return [x for x in textlint.lint(text) if x.level in ("error", "warning")]
+
+
+def shown(text):
+    """A game text as the editors show it: the notation, one row (⏎ for line breaks)."""
+    return textesc.to_edit(text).replace("\n", "⏎")
+
+
+def insert_codes():
+    """[(menu, [(label, code)])] for the Insert menu: the escapes, then the ＠ codes."""
+    esc = dict(textesc.reference())
+    colour = [("＋blue＋  (markup: blue between two ＋)", "＋＋"), ("／red／  (markup: red between two ／)", "／／")]
+    colour += [("%s  %s" % (k, esc[k]), k) for k in (textesc.BS + "red", textesc.BS + "blue",
+                                                     textesc.BS + "normal", textesc.BS + "rgb(255,128,1)")]
+    shift = [("%s  %s" % (k, esc[k]), k) for k in (textesc.BS + "up", textesc.BS + "down",
+                                                   textesc.BS + "shift(4)", textesc.BS + "base")]
+    buttons = [("%s  %s" % (k, k[5:-1]), k) for k, _d in textesc.reference() if k.startswith(textesc.BS + "btn(")]
+    values, names, other = [], [], []
+    for code, group, what, setby, kind in textlint.token_reference():
+        if not code.startswith(textlint.AT):
+            continue
+        ins = code.replace("<n>", "０")
+        label = "%s  %s%s" % (ins, what[:70], ("  (slot set by %s)" % setby) if setby else "")
+        if kind is not None and group in ("number", "things") or group == "number":
+            values.append((label, ins))
+        elif group == "people":
+            names.append((label, ins))
+        else:
+            other.append((label, ins))
+    return [("Colour", colour), ("Raise / lower", shift), ("Button icon", buttons),
+            ("Value set by the script", values), ("Name", names), ("Other codes", other),
+            ("", [(textesc.BS + textesc.BS + "  a backslash", textesc.BS + textesc.BS),
+                  (textesc.BS + "u(E0A8)  any character by its code", textesc.BS + "u(E0A8)")])]
+
+
+def insert_menu(parent, text_widget, after=None):
+    """An 'Insert ▾' button whose menu puts an escape or ＠ code at the text box's cursor."""
+    mb = ttk.Menubutton(parent, text="Insert ▾")
+    menu = tk.Menu(mb, tearoff=False)
+    mb["menu"] = menu
+
+    def put(code):
+        text_widget.insert("insert", code)
+        if code in ("＋＋", "／／"):                     # the cursor between the two marks
+            text_widget.mark_set("insert", "insert-1c")
+        text_widget.focus_set()
+        if after:
+            after()
+    for title, items in insert_codes():
+        target = menu
+        if title:
+            target = tk.Menu(menu, tearoff=False)
+            menu.add_cascade(label=title, menu=target)
+        else:
+            menu.add_separator()
+        for label, code in items:
+            target.add_command(label=label, command=lambda c=code: put(c))
+    return mb
 
 
 class TextTab:
@@ -141,6 +200,7 @@ class TextTab:
             if m.is_text else "Add a key with a value.")
         self.which = ttk.Label(head, text="Pick a line to edit it.", font=("Segoe UI", 9, "bold"))
         self.which.pack(side="left")
+        self._insert_head = head
         foot = ttk.Frame(ed)
         foot.pack(side="bottom", fill="x")                # below the text box, always visible
         ap = ttk.Button(foot, text="Apply (Ctrl+Enter)", command=self.apply)
@@ -154,12 +214,17 @@ class TextTab:
         self.edit.pack(fill="both", expand=True, pady=(4, 2))
         self.edit.bind("<Control-Return>", lambda _e: (self.apply(), "break")[1])
         self.edit.bind("<<Modified>>", self._on_typed)
+        im = insert_menu(self._insert_head, self.edit)
+        im.pack(side="right", padx=2)
+        Tip(im, "Put a colour, a raise / lower, a button icon or a ＠ code at the cursor. "
+                "Characters that can't be typed are written as backslash escapes (\\red, "
+                "\\btn(a) ...); a real backslash is \\\\.")
         pw.add(ed, weight=1)
 
     # ---- list -------------------------------------------------------------------------- #
     def _shown(self, key, text):
         q = self.q.get().strip().lower()
-        if q and q not in text.lower() and q != str(key).lower():
+        if q and q not in text.lower() and q not in textesc.to_edit(text).lower() and q != str(key).lower():
             return False
         mode = self.only.get()
         if mode == "changed" and not self.m.changed(key):
@@ -175,7 +240,7 @@ class TextTab:
         for key, text in m.rows.items():
             if not self._shown(key, text):
                 continue
-            tv.insert("", "end", iid=self._iid(key), values=(key, text.replace("\n", "⏎")),
+            tv.insert("", "end", iid=self._iid(key), values=(key, shown(text)),
                       tags=self._tags(key, text))
             n += 1
             if n >= MAX_ROWS:
@@ -214,10 +279,10 @@ class TextTab:
         text = self.m.rows[key]
         self.which.config(text=("Line %d" % key) if self.m.is_text else ("Key “%s”" % key))
         self.edit.delete("1.0", "end")
-        self.edit.insert("1.0", text)
+        self.edit.insert("1.0", textesc.to_edit(text))
         self.edit.edit_modified(False)
         self.edit.edit_reset()
-        self._show_issues(text)
+        self._show_issues(textesc.to_edit(text))
 
     def _on_typed(self, _e=None):
         if self.edit.edit_modified():
@@ -225,10 +290,15 @@ class TextTab:
             self.edit.edit_modified(False)
 
     def typed(self):
+        """What is in the box (the notation)."""
         return self.edit.get("1.0", "end-1c")
 
-    def _show_issues(self, text):
-        iss = problems(text)
+    def _show_issues(self, notation):
+        bad = textesc.check(notation)
+        if bad is not None:
+            self.issues.config(text="• error: %s" % bad, foreground="#c01c28")
+            return
+        iss = problems(textesc.from_edit(notation))
         self.issues.config(text=textlint.format_issues(iss, 3) if iss else "",
                            foreground="#c01c28" if any(x.level == "error" for x in iss) else "#b5471b")
 
@@ -238,7 +308,13 @@ class TextTab:
         crash on it. True when applied."""
         if self.sel is None:
             return False
-        text = self.typed() if text is None else text
+        if text is None:                               # the box holds the notation
+            try:
+                text = textesc.from_edit(self.typed())
+            except textesc.EscapeError as e:
+                if not quiet:
+                    messagebox.showerror("Not applied", str(e))
+                return False
         errs = [x for x in textlint.lint(text) if x.level == "error"]
         if errs:
             if not quiet:
@@ -357,7 +433,7 @@ class TextTab:
     def _reload_note(self):
         n = pathlib.Path(self.name).name.lower()
         if n.startswith("rf3mc."):
-            return "the game reads dialogue from disk, so it shows the next time the line does"
+            return "the game keeps dialogue in memory: ⟳ Reload in game (Cutscene Editor) or restart"
         return "restart the game to see it (the editors' names follow at once)"
 
 

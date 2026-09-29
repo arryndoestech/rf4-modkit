@@ -215,8 +215,9 @@ class CutsceneExplorer:
         rl.pack(side="left", padx=(0, 4))
         Tip(rl, "Ctrl+R: save, then put rf3.mc into the RUNNING game -- no restart, any size. "
                 "Refused while a scene plays (let it finish). The new scenes apply from the next "
-                "trigger / talk; a room's own scenes are re-read on use. Dialogue text needs no "
-                "reload (the game reads it from disk for every line); em.bin still needs a restart.")
+                "trigger / talk; a room's own scenes are re-read on use. The dialogue text of "
+                "the game's language is swapped in too (the game keeps it in memory); em.bin "
+                "still needs a restart.")
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
@@ -1293,7 +1294,7 @@ class CutsceneExplorer:
         try:
             self.frame.config(cursor="watch")
             self.frame.update_idletasks()
-            r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), pid=pid)
+            r, (loc, t) = hotreload.reload_all(pathlib.Path(path).read_bytes(), pid=pid)
         except hotreload.HotReloadError as e:
             self.status("Reload refused: %s" % err_text(e))
             return False
@@ -1302,7 +1303,8 @@ class CutsceneExplorer:
                 self.frame.config(cursor="")
             except tk.TclError:
                 pass
-        self.status(hotreload.describe(r))
+        self.status(hotreload.describe(r) + "; " + (hotreload.describe_text(t, loc) if loc else
+                    "dialogue text not reloaded: %s (restart the game for text changes)" % t))
         return True
 
     def _choose_game(self, procs):

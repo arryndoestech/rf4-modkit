@@ -58,9 +58,9 @@ _BARE = {**{chr(0xFF10 + i): i for i in range(10)}, **{chr(0xFF21 + i): 10 + i f
 _KOREAN = {"※": 2, "∀": 1, "∂": 3, "℃": 5}
 
 # control bytes the font layout reads
-_CTRL = {1: "red text", 2: "blue text", 3: "normal colour", 4: "colour from the next 3 bytes",
-         5: "pen left by 1/4 of the font size", 6: "pen right by 1/4 of the font size",
-         7: "pen shift by the next byte", 8: "pen shift reset"}
+_CTRL = {1: "red text", 2: "blue text", 3: "normal colour", 4: "colour from the next 3 characters",
+         5: "raise by 1/4 of the font size", 6: "lower by 1/4 of the font size",
+         7: "lower by the next character's value (signed)", 8: "back to the normal baseline"}
 
 # script opcodes that write each text-slot kind (argument 0 = the slot)
 SETVAR_KINDS = {340: (0,), 341: (0,), 343: (1,), 345: (11,), 347: (2,), 348: (2,), 349: (3,),
@@ -287,12 +287,7 @@ _REFERENCE = [
     ("＠∀X＠", "grammar", "Korean: X after a final consonant, else nothing", None),
     ("＠∂XYZ＠", "grammar", "Korean: XY after a final consonant, else Z", None),
     ("＠℃ABCD＠", "grammar", "Korean: the same with longer alternatives", None),
-    ("U+E0A0 … U+E0C1", "icons", "private-use characters drawn as button icons (a, b, x, y, l1, r1, l2, r2, "
-     "directions, start, select; U+E0AA = left stick, U+E0C1 = d-pad)", None),
-    ("byte 0x01 / 0x02 / 0x03", "control bytes", "red / blue / normal colour (what ／ and ＋ turn into)", None),
-    ("byte 0x04 R G B", "control bytes", "any colour: the next three bytes are red, green, blue", None),
-    ("byte 0x05 / 0x06 / 0x07 n / 0x08", "control bytes", "pen left ¼ font size / right ¼ / by n "
-     "pixels / reset", None),
+    ("ESCAPES", "escapes", None, None),              # the textesc notation, see token_reference
 ]
 
 
@@ -312,6 +307,12 @@ def token_reference():
         who = lambda cid: "character %d" % cid
     out = []
     for code, group, shows, kind in _REFERENCE:
+        if code == "ESCAPES":                        # characters no one can type: \\red, \\btn(a) ...
+            from . import textesc
+            for esc, what in textesc.reference():
+                grp = "buttons" if esc.startswith(textesc.BS + "btn(") else "escapes"
+                out.append((esc, grp, what + " (an editor escape; the file gets the character)", "", None))
+            continue
         if code == "VILLAGERS":                      # ビシュナル = character 1 ... セルザ = 21
             for i, body in enumerate(VILLAGERS):
                 out.append((AT + body + AT, group, "%s's name as the player calls them (their name, "

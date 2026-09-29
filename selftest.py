@@ -1749,6 +1749,16 @@ def test_hotreload_image():
         ns = ap.parse_args(["script", "reload", "--force"])
         _check("CLI: script reload / script live", ns.func is _cli.cmd_script_reload and ns.force
                and ap.parse_args(["script", "live"]).func is _cli.cmd_script_live)
+    # dialogue text: the game keeps its language's rf3mc.<locale> resident in archive 15213; the
+    # reload finds the language by matching a few lines of the resident copy against the files
+    from rf4s_modkit import textdb as _tdb
+    _a = _tdb.TextArchive([("line %d" % i).encode() for i in range(120)])
+    _blob = _a.build()
+    _probe = H._text_lines(_blob, [1, 2, 3, 10, 100, 500])
+    _check("dialogue text reload: the resident copy's lines are read by the file's own table "
+           "(ids past the end are left out); archive 15213 = rom:/script/rf3mc.jpn",
+           _probe == {i: ("line %d" % i).encode() for i in (1, 2, 3, 10, 100)}
+           and H.TEXT_ARCHIVE_PATH == "rom:/script/rf3mc.jpn" and callable(H.reload_all), _probe)
 
 
 def test_search_item_chances():
@@ -7144,6 +7154,83 @@ def test_live_names_and_combo_keys():
             root.destroy()
         except Exception:
             pass
+
+
+def test_text_escapes():
+    """The editors' backslash notation (textesc) for characters that can't be typed: colours,
+    the vertical shifts, button icons. Every shipped line round-trips exactly; bad escapes are
+    refused with a reason; the text editor and the Cutscene Editor store the real characters."""
+    print("text escapes (\\red, \\btn(a) ... in the editors, the characters in the files):")
+    from rf4s_modkit import textesc as E, textdb
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    files = sorted(B.glob("*.eng")) if B.is_dir() else []
+    n = bad = 0
+    for f in files:
+        with open(f, "rb") as fh:
+            if fh.read(4) != b"TEXT":
+                continue
+        for t in textdb.TextArchive.parse(f.read_bytes()).texts():
+            n += 1
+            bad += E.from_edit(E.to_edit(t)) != t
+    _check("every English line round-trips through the notation exactly (%d lines)" % n,
+           n > 100000 and bad == 0, "%d failures" % bad)
+    BS = "\\"
+    cases = {BS + "redRED" + BS + "normal": "\x01RED\x03",
+             BS + "rgb(200,30,200)x": "\x04\xc8\x1e\xc8x",
+             "A" + BS + "shift(-16)B" + BS + "base": "A\x07\xf0B\x08",
+             BS + "up(" + BS + "down)": "\x05(\x06)",
+             BS + "btn(stick)" + BS + "btn(dpad)": "\ue0aa\ue0c1",
+             BS + "u(E0A8)": "\ue0a8", "a" + BS + BS + "b": "a" + BS + "b"}
+    got = {k: E.from_edit(k) for k in cases}
+    back = all(E.to_edit(v) == k for k, v in cases.items() if not k.startswith(BS + "up("))
+    refused = [x for x in (BS + "bleu", BS + "rgb(1,2)", BS + "rgb(0,1,1)", BS + "shift(0)",
+                           BS + "btn(zz)", BS + "u(zz)", BS + "shift(5") if E.check(x) is None]
+    _check("escapes: colours, rgb up to 255, signed shifts, buttons, \\u(...) and \\\\ read and write back; "
+           "unknown or out-of-range ones are refused",
+           got == cases and back and not refused, (got if got != cases else refused))
+    try:
+        import tkinter as tk
+        import importlib.util
+    except Exception as e:
+        _skip("text escapes GUI", "no tkinter: %s" % e); return
+    src = B / "rf3TxtItem_split2_1.eng"
+    if not src.is_file():
+        _skip("text escapes GUI", "no extracted bundleMain"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_esc", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        app = gui.App(root, initial=str(B))
+        cp = tmp / src.name
+        cp.write_bytes(src.read_bytes())
+        d = app.open_file_tab(cp)
+        root.update_idletasks()
+        t = d._text_tab
+        t.show(5)
+        t.edit.delete("1.0", "end")
+        t.edit.insert("1.0", "Press " + BS + "btn(a) to eat " + BS + "redNOW" + BS + "normal")
+        ok = t.apply()
+        stored = textdb.TextArchive.parse(d.cur_data).text(5)
+        t.edit.delete("1.0", "end")
+        t.edit.insert("1.0", "oops " + BS + "bleu")
+        refused = not t.apply(quiet=True)
+        t.show(5)
+        shown_back = t.typed()
+        menu = [title for title, _items in __import__("text_tab").insert_codes()]
+        _check("text editor: typed escapes are stored as the characters, shown as escapes again, a bad "
+               "escape is refused; the Insert menu offers colours, shifts, buttons and the ＠ codes",
+               ok and stored == "Press \ue0a0 to eat \x01NOW\x03" and refused
+               and shown_back == "Press " + BS + "btn(a) to eat " + BS + "redNOW" + BS + "normal"
+               and {"Colour", "Raise / lower", "Button icon", "Value set by the script", "Name"} <= set(menu),
+               (stored, shown_back))
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def test_text_tab():
@@ -13664,7 +13751,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_text_tab, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

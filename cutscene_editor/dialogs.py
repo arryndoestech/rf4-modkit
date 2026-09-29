@@ -365,6 +365,11 @@ def ask_dialogue(parent, default_speaker=None, reader=None):
     ttk.Label(frm, text="Text").grid(row=4, column=0, sticky="nw", pady=(6, 0))
     txt = tk.Text(frm, height=5, width=60, wrap="word", font=("Segoe UI", 10), undo=True)
     txt.grid(row=4, column=1, sticky="nsew", padx=4, pady=(6, 0))
+    import text_tab
+    im = text_tab.insert_menu(frm, txt)
+    im.grid(row=4, column=2, sticky="nw", pady=(6, 0))
+    Tip(im, "Put a colour, a raise / lower, a button icon or a ＠ code at the cursor (written as "
+            "backslash escapes: \\red, \\btn(a) ...).")
     hint(frm, "The text becomes a new line in every locale (the others get it untranslated until "
               "you edit them). The face applies when you pick a speaker.", wrap=460).grid(
         row=5, column=1, sticky="w", padx=4)
@@ -375,7 +380,12 @@ def ask_dialogue(parent, default_speaker=None, reader=None):
     out = {}
 
     def ok(_e=None):
-        t = txt.get("1.0", "end-1c")
+        from rf4s_modkit import textesc
+        try:
+            t = textesc.from_edit(txt.get("1.0", "end-1c"))   # \red, \btn(a) ... -> the characters
+        except textesc.EscapeError as e:
+            err.config(text=str(e))
+            return "break"
         if not t.strip():
             err.config(text="type the line's text")
             return "break"

@@ -341,6 +341,8 @@ class ReferenceWindow:
             "\"Gained ＠０＠G!\" shows the number in number slot 0. The \"filled by\" column "
             "names the instructions that write the slot; a slot keeps its value until something "
             "writes it again. <n> is one character: 0-9 or ０-９, then Ａ-Ｖ = 10-31. "
+            "Colours, raise / lower and button icons can't be typed: the editors write them as "
+            "backslash escapes (\\red, \\btn(a) ...), a real backslash as \\\\. "
             "Double-click = copy the code.")).pack(anchor="w", pady=(0, 4))
         rows = [(code, group, shows, setby or "—", code.replace("<n>", "０"))
                 for code, group, shows, setby, _k in textlint.token_reference()]

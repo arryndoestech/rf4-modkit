@@ -42,7 +42,10 @@ class SceneText:
 
     # ---- small helpers ------------------------------------------------------ #
     def dlg(self, line_id):
-        return self.doc.text(line_id)
+        """A line's text as the editor shows it: colours / icons as \\red, \\btn(a) ..."""
+        from rf4s_modkit import textesc
+        t = self.doc.text(line_id)
+        return textesc.to_edit(t) if t is not None else None
 
     def target(self, t):
         return self.labels.get(t, "0x%04x" % t) if t is not None else "?"
