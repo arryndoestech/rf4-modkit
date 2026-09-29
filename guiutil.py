@@ -441,7 +441,21 @@ class TabBar(ttk.Frame):
     buttons and the mouse wheel scroll it, ▼ lists every tab to pick one, each tab's ×
     or a middle click closes it. Tabs are keyed by any hashable; the host shows the page.
     on_select(key) / on_close(key) / on_menu(key, event) are the host's callbacks."""
-    BG, SEL, HOVER, LINE, DIM = "#dddddd", "#ffffff", "#ebebeb", "#b4b4b4", "#707070"
+    _LIGHT = ("#dddddd", "#ffffff", "#ebebeb", "#b4b4b4", "#707070")
+    _DARK = ("#2a2a31", "#3a3a44", "#34343c", "#1f1f24", "#8a8a94")     # (guitheme's dark mode)
+
+    def _pal(self, i):
+        try:
+            import guitheme
+            return (self._DARK if guitheme.is_dark() else self._LIGHT)[i]
+        except ImportError:
+            return self._LIGHT[i]
+
+    BG = property(lambda self: self._pal(0))
+    SEL = property(lambda self: self._pal(1))
+    HOVER = property(lambda self: self._pal(2))
+    LINE = property(lambda self: self._pal(3))
+    DIM = property(lambda self: self._pal(4))
 
     def __init__(self, parent, on_select, on_close, on_menu=None):
         super().__init__(parent)
@@ -463,6 +477,13 @@ class TabBar(ttk.Frame):
         self.canvas.bind("<Configure>", self._sync)
         self._wheel(self.canvas)
         self._menu = tk.Menu(self, tearoff=False)
+        self.bind("<<ThemeChanged>>", lambda _e: self._retheme(), add="+")   # light / dark switched
+
+    def _retheme(self):
+        self.inner.configure(bg=self.LINE)
+        for key, (_f, _lbl, x) in self._tabs.items():
+            x.configure(fg=self.DIM)
+            self._paint(key)
 
     # ---- tabs ---------------------------------------------------------------------- #
     def add(self, key, text):

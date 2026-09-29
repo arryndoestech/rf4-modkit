@@ -7233,6 +7233,85 @@ def test_text_escapes():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_theme():
+    """Dark mode (guitheme): hand-set colours are adapted keeping their hue (dark text gets
+    lighter, light backgrounds darker, dark ones stay), ttk switches to the dark palette, the
+    tab strip follows, and switching back restores every original colour."""
+    print("light / dark appearance (guitheme):")
+    import colorsys
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+        import guitheme, guiutil
+    except Exception as e:
+        _skip("theme", "no tkinter: %s" % e); return
+    root = tk.Tk(); root.withdraw()
+    saved = guitheme.setting
+    try:
+        def lum(c):
+            r, g, b = (x / 65535.0 for x in root.winfo_rgb(c))
+            return colorsys.rgb_to_hls(r, g, b)
+        red = guitheme.adapt(root, "#c0392b", "fg")
+        _check("colours: dark text lighter, white background dark, a dark canvas unchanged, red stays red",
+               lum(guitheme.adapt(root, "#000000", "fg"))[1] > 0.8
+               and lum(guitheme.adapt(root, "#ffffff", "bg"))[1] < 0.2
+               and guitheme.adapt(root, "#101014", "bg") == "#101014"
+               and abs(lum(red)[0] - lum("#c0392b")[0]) < 0.02 and lum(red)[1] > 0.6,
+               red)
+        guitheme.setting = lambda: "light"
+        guitheme._state.update(root=None, bound=False, base_theme=None)
+        guitheme.install(root)
+        base = ttk.Style(root).theme_use()
+        top = tk.Toplevel(root)
+        lbl = tk.Label(top, text="hint", fg="#666666", bg="#f0f0f0")
+        lbl.pack()
+        txt = tk.Text(top, height=2)
+        txt.tag_configure("warn", foreground="#b5471b")
+        txt.pack()
+        tl = ttk.Label(top, text="note", foreground="#888888")
+        tl.pack()
+        tb = guiutil.TabBar(top, lambda k: None, lambda k: None)
+        tb.pack(fill="x")
+        tb.add("a", "one")
+        top.update_idletasks()
+        before = (lbl.cget("fg"), lbl.cget("bg"), str(txt.cget("bg")), txt.tag_cget("warn", "foreground"),
+                  str(tl.cget("foreground")), tb._tabs["a"][0].cget("bg"))
+        guitheme.apply(root, "dark")
+        top.update_idletasks()
+        dark = (lbl.cget("fg"), lbl.cget("bg"), str(txt.cget("bg")), txt.tag_cget("warn", "foreground"),
+                str(tl.cget("foreground")), tb._tabs["a"][0].cget("bg"))
+        dark_ok = (ttk.Style(root).theme_use() == "clam" and lum(dark[0])[1] > 0.6
+                   and lum(dark[1])[1] < 0.3 and lum(dark[2])[1] < 0.3 and lum(dark[3])[1] > 0.55
+                   and lum(dark[4])[1] > 0.55 and lum(dark[5])[1] < 0.3)
+        guitheme.apply(root, "light")
+        top.update_idletasks()
+        after = (lbl.cget("fg"), lbl.cget("bg"), str(txt.cget("bg")), txt.tag_cget("warn", "foreground"),
+                 str(tl.cget("foreground")), tb._tabs["a"][0].cget("bg"))
+        _check("dark mode darkens windows, keeps hints and warnings readable and the tab strip dark; "
+               "light mode brings every original colour and the platform theme back",
+               dark_ok and after == before and ttk.Style(root).theme_use() == base,
+               {"before": before, "dark": dark, "after": after})
+        # a pane divider made while dark (guiutil.Paned copies the frame colour when it is made)
+        # takes the light colour when the app switches back
+        guitheme.apply(root, "dark")
+        pn = guiutil.Paned(top)
+        pn.pack()
+        top.update_idletasks()
+        made_dark = lum(pn.cget("background"))[1] < 0.3
+        guitheme.apply(root, "light")
+        light_bg = ttk.Style(root).lookup("TFrame", "background")
+        _check("a pane divider made in dark mode turns light when switching back",
+               made_dark and pn.cget("background") == light_bg, (pn.cget("background"), light_bg))
+    finally:
+        guitheme.setting = saved
+        guitheme._state.update(root=None, bound=False, mode="light")
+        guitheme._state["orig"].clear()
+        try:
+            root.destroy()
+        except Exception:
+            pass
+
+
 def test_text_tab():
     """The explorer edits every text file: TEXT archives (rf3Txt* / rf4Txt* / rf3mc.<locale>)
     line by line -- changed, added, reverted, never removed -- and .strings files key by key;
@@ -13751,7 +13830,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

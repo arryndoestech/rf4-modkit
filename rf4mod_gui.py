@@ -890,6 +890,17 @@ class App:
         ttk.Label(body, text="Unticked, the wheel scrolls the map instead. Ctrl+wheel always does "
                              "the other one; Shift+wheel scrolls sideways.",
                   foreground="#666", wraplength=320, justify="left").pack(anchor="w", padx=(20, 0))
+        import guitheme
+        ttk.Label(body, text="Appearance", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        self._theme_var = tk.StringVar(value=guitheme.setting())
+        row = ttk.Frame(body)
+        row.pack(anchor="w", pady=(4, 0))
+        for m in guitheme.MODES:
+            ttk.Radiobutton(row, text=guitheme.LABELS[m], value=m, variable=self._theme_var,
+                            command=lambda: guitheme.set_mode(self._theme_var.get())).pack(side="left", padx=(0, 10))
+        ttk.Label(body, text="Dark mode applies to every toolkit window at once (the map editor and "
+                             "the Cutscene Editor too). Follow Windows uses your Windows app setting.",
+                  foreground="#666", wraplength=320, justify="left").pack(anchor="w", padx=(20, 0))
         ttk.Button(body, text="Close", command=win.destroy).pack(anchor="e", pady=(12, 0))
         win.bind("<Escape>", lambda _e: win.destroy())
         win.update_idletasks()
@@ -4890,6 +4901,8 @@ def main(argv=None):
     import guiutil
     guiutil.install_error_logging(root)     # toolkit errors -> the console, with traceback
     guiutil.install_combo_keys(root)        # Up / Down step a dropdown's value
+    import guitheme
+    guitheme.install(root)                  # light / dark (settings.json, Options...)
     app_icon.apply(root)
     found = gamepaths.find_bundle_dir()
     if not argv and (found is None or (not gamepaths.is_unpacked(found)

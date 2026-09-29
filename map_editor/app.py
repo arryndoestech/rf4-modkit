@@ -167,6 +167,8 @@ def main(argv=None):
     import guiutil
     guiutil.install_error_logging(root)
     guiutil.install_combo_keys(root)
+    import guitheme
+    guitheme.install(root)                  # light / dark (settings.json)
     app_icon.apply(root)
     MapExplorer(root, initial=argv[0] if argv else None)
     root.mainloop()

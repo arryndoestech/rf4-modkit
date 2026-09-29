@@ -311,6 +311,12 @@ packed; the original is kept in `ModdingBackup`), or back to the file you opened
 the Cutscene Editor's *⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
 restart, but the editors' character, item, map and skill names follow the saved file at once.
 
+**Dark mode.** *Options…* → Appearance: *Light*, *Dark* or *Follow Windows* (your Windows app
+setting). It applies at once to every toolkit window, the map editor and the Cutscene Editor
+included, and is kept in `settings.json`. Colours the toolkit uses for meaning (red warnings,
+blue notes, grey hints, list highlights) keep their hue and are made readable on the dark
+background; the Windows title bars turn dark too.
+
 **Dropdowns.** In every dropdown of the toolkit, Up / Down step to the previous / next value and apply it at once (Alt+Down opens the list).
 
 **Colours, raise / lower and button icons in text.** Game text can hold characters nobody can type

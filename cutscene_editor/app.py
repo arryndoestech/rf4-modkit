@@ -1517,6 +1517,8 @@ def main(argv=None):
     import guiutil
     guiutil.install_error_logging(root)
     guiutil.install_combo_keys(root)
+    import guitheme
+    guitheme.install(root)                  # light / dark (settings.json)
     root.title("RF4S Cutscene Editor")
     root.geometry("1400x860")
     reader = None
