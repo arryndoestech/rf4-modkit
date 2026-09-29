@@ -905,10 +905,16 @@ class App:
         # the toolkit's version (commit + date), selectable for bug reports
         import guiutil
         ver = tk.StringVar(value="Modkit version " + guiutil.modkit_version())
-        bg = ttk.Style(win).lookup("TFrame", "background") or win.cget("background")
-        tk.Entry(body, textvariable=ver, state="readonly", relief="flat", borderwidth=0,
-                 readonlybackground=bg, foreground="#888888", font=("Segoe UI", 8),
-                 width=len(ver.get()) + 2).pack(anchor="w", pady=(10, 0))
+        vent = tk.Entry(body, textvariable=ver, state="readonly", relief="flat", borderwidth=0,
+                        foreground="#888888", font=("Segoe UI", 8), width=len(ver.get()) + 2,
+                        highlightthickness=0)
+        vent.pack(anchor="w", pady=(10, 0))
+
+        def match_window(_e=None):                 # the window's colour, also after a theme switch
+            bg = ttk.Style(win).lookup("TFrame", "background") or win.cget("background")
+            vent.configure(readonlybackground=bg)
+        match_window()
+        vent.bind("<<AppearanceChanged>>", match_window, add="+")   # (guitheme, after a switch)
         win.bind("<Escape>", lambda _e: win.destroy())
         win.update_idletasks()
         x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2

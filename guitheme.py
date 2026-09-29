@@ -92,6 +92,10 @@ def adapt(widget, colour, role):
     if role == "bg":
         if l <= 0.55:
             return colour                              # already dark
+        if s < 0.12 and l >= 0.9:
+            # the standard light window / field colours: exactly the dark palette's, so a
+            # plain Tk widget matches the ttk frames around it
+            return DARK["field"] if l >= 0.99 else DARK["bg"]
         l2, s2 = 0.11 + (1.0 - l) * 0.5, s * 0.55
     else:
         if l >= 0.6:
@@ -269,6 +273,13 @@ def apply(root=None, mode=None):
                 pass
     if new == "light":
         _state["orig"].clear()
+    # widgets that copied a theme colour when they were made re-read it on this event
+    # (Tk's <<ThemeChanged>> only reaches ttk widgets)
+    for w in _walk(root):
+        try:
+            w.event_generate("<<AppearanceChanged>>")
+        except tk.TclError:
+            pass
 
 
 def install(root):
