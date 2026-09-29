@@ -736,7 +736,8 @@ class MapView(ttk.Frame):
             rec = d.map.mobj_records()[i]
             loot = (data.chest_loot(rec) if tid == 44 else
                     data.crate_loot(rec, d.map.mgrp()) if tid == 53 else None)
-            return text + ("\n" + loot if loot else "")
+            event = data.chest_event(rec, d.base) if tid == 44 else None
+            return text + ("\n" + loot if loot else "") + ("\n" + event if event else "")
         if kind == "si" and d.si is not None and i < len(d.si.spots):
             sp = d.si.spots[i]
             return f"search spot #{i}  tile ({sp.tile_x}, {sp.tile_y})  {len(sp.pool.entries)} drop(s)"

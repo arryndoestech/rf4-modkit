@@ -187,8 +187,13 @@ GIMMICKS = {
                             "flag), then appears with a burst; 0 = always there "
                             "(Actor_InitFlagGatedTreasure RF4S.exe+0x14B130, "
                             "Actor_TickTreasureSparkleAndOpen +0x14B450)"),
-                     (10, 2, "sub-id kept with the chest (0..3 shipped; the chest's own code "
-                             "doesn't read it)"),
+                     (10, 2, "script event: when the chest is opened and f10 != 0, the game "
+                             "runs this map's type-2 scene keyed 1024 + f10 after dropping the "
+                             "items (WorldObject_OnBreakDropLoot RF4S.exe+0x1662C0 queues event "
+                             "27, NpcAi_TickEventMovementOrFinalize +0x1F3070 looks the key up in "
+                             "the map's event bank). Shipped: 44 chests use f10 1..3 (keys "
+                             "1025..1027), every empty-row chest among them: 12 scenes give money, "
+                             "the others play dialogue; 0 = no scene"),
                      (13, 4, "collected flag: SET = the chest is gone (-1 = none: it is back on "
                              "every visit); set when it is opened")]),
     45: dict(name="fe102", role="Colour switch: a pillar with a crystal, 8 colours "
@@ -350,6 +355,39 @@ _FOR = [(8, 4, "spawn probability threshold (daily-RNG gate; 0 = always spawn)")
 # 485..496 "Mineral" = the 12 ore-rock kinds 26..37, 497+ = crops 38+). This
 # OFFICIALLY confirms the playtest identifications of kinds 22..24.
 GATHER_KIND_CHAR_BASE = 459
+GATHER_KIND_MAX = 138          # char 459 + 139 is "Dummy", then the character list starts
+_GATHER_NAMES = None
+
+
+def gather_kind_name(kind: int) -> str | None:
+    """The game's name for gatherable `kind` (char 459 + kind in char_names.json):
+    'Stone', 'Branch', 'Medicinal Herb', 'Mineral' (the ore rocks 26..37), 'Turnip' ..."""
+    global _GATHER_NAMES
+    if _GATHER_NAMES is None:
+        import json
+        from .refdata import refdata_path
+        try:
+            with open(refdata_path("char_names.json"), encoding="utf-8") as f:
+                names = json.load(f)
+        except (OSError, ValueError):
+            names = {}
+        _GATHER_NAMES = {k: names.get(str(GATHER_KIND_CHAR_BASE + k))
+                         for k in range(GATHER_KIND_MAX + 1)}
+    return _GATHER_NAMES.get(int(kind))
+
+
+def param_choices(type_id, field):
+    """[(value, label)] for a field whose values have names (the editor's dropdown), else []."""
+    tid = type_id & 0xFFFF
+    if tid == 8 and field == 10:
+        out = []
+        for k in range(GATHER_KIND_MAX + 1):
+            nm = gather_kind_name(k) or "kind %d" % k
+            if 26 <= k <= 37:
+                nm += " (ore rock)"
+            out.append((k, "%d  %s" % (k, nm)))
+        return out
+    return []
 
 # Gatherable kind -> crop sprite basename (archive 1366+kind; file names skip the
 # unused kind 25, so minerals shift by one — verified against file_toc.tsv).
@@ -414,9 +452,10 @@ FORAGE = {
                  "fully grown.", params=list(_FOR)),
     7: dict(name="wild_crop_pool64b", role="Wild CROP: weighted pick over kinds 38+ (64 pool, second "
                  "weight column), spawns fully grown.", params=list(_FOR)),
-    8: dict(name="kind_from_f10", role="Gatherable kind taken directly from f10 (crop-range kinds spawn "
-                 "grown).",
-            params=_FOR + [(10, 4, "gatherable kind index (see docs/22 §1 kind table)")]),
+    8: dict(name="gatherable", role="Spawns one chosen gatherable: the kind in f10 (a stone, stump, "
+                 "herb, ore rock, crop ...; crop-range kinds spawn grown).",
+            params=_FOR + [(10, 4, "gatherable kind (0..138; its name is the game's char 459 + kind, "
+                                   "see docs/22 §1 kind table)")]),
 }
 
 
@@ -505,7 +544,7 @@ PARAM_NAMES = {
     (336, 9999): {6: "scale", 7: "frame", 8: "depth bias", 9: "frame duration", 10: "glow",
                   13: "hide flag"},
     0: {10: "ore config", 11: "random ore config"},
-    8: {10: "gatherable kind"},
+    8: {10: "kind"},
     9: {8: "depth"},
     10: {8: "backdrop width", 9: "backdrop height"},
     11: {8: "scroll speed X", 9: "scroll speed Y"},
@@ -537,7 +576,7 @@ PARAM_NAMES = {
     41: {6: "light size", 8: "pulse phase"},
     42: {7: "fall direction", 8: "landing X", 9: "landing Y", 10: "map offset", 13: "active flag"},
     43: {8: "mode"},
-    44: {6: "scale", 8: "loot row", 9: "reveal flag offset", 10: "sub-id", 13: "collected flag"},
+    44: {6: "scale", 8: "loot row", 9: "reveal flag offset", 10: "script event", 13: "collected flag"},
     45: {8: "colour", 9: "no cursor when set", 10: "unused value", 11: "sparkle", 13: "flag"},
     46: {8: "invisible", 9: "stays pressed", 10: "script event", 11: "hitbox half-width",
          12: "hitbox half-height", 13: "flag"},

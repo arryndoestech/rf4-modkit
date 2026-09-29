@@ -600,8 +600,9 @@ true right now?" to decide which talk plays, whether a shop is open or which eve
   that change nothing, so em.bin keeps working at every step.
 - **Checks**: the toolbar counts problems. Errors (a condition that loops back to itself, an entry
   that doesn't exist, dividing by zero) make Save refuse; warnings flag things like the weather
-  queries, which RF4S never answers (they always read 0). **Type it…** still takes the text form
-  (`Hour >= 6 AND Season == 1`, `alt: REG_WIFE_ID = 3`, `CALL EV_FOO`).
+  queries, which RF4S never answers (they always read 0). The text form (`Hour >= 6 AND
+  Season == 1`, `REG_WIFE_ID = 3`, `CALL EV_FOO`) is on the CLI: `rf4mod em add-cond` /
+  `add-action` / `set`.
 
 Selecting `em.bin` in the asset explorer opens the same window.
 

@@ -116,6 +116,7 @@ class EntityForm(Form):
         self.pframe.columnconfigure(2, weight=1)
         self.rows = []
         self._meanings = {}
+        self._pickers = {}                  # field -> (FilterCombo, {label: value}) for named values
         for fi in range(16):
             # the parameter's name; its explanation (and what the value means) is the tooltip
             var = tk.StringVar()
@@ -178,8 +179,9 @@ class EntityForm(Form):
         elif name:
             lab += "\nno sprite of its own"
         loot = data.chest_loot(rec)             # a treasure chest: its contents (row f8)
+        event = data.chest_event(rec, self.doc.base)    # ... and the scene f10 runs when opened
         crate = data.crate_loot(rec, self.doc.map.mgrp())   # a crate: its area's pool + odds
-        for extra in (loot, crate):
+        for extra in (loot, event, crate):
             if extra:
                 lab += "\n" + extra
         for extra in self._object_notes(i, rec):
@@ -214,12 +216,21 @@ class EntityForm(Form):
             if fi not in shown:
                 lab_w.grid_remove()
                 ent.grid_remove()
+                if fi in self._pickers:
+                    self._pickers[fi][0].grid_remove()
                 continue
             r = shown.index(fi)
             sz, m = meaning.get(fi, (4, ""))
             lab_w.config(text=mobj_params.param_name(tid, fi))
             lab_w.grid(row=r, column=0, sticky="w", padx=(0, 6))
-            ent.grid(row=r, column=1, sticky="w", pady=1)
+            # a field with named values shows only its dropdown; "show all 16 raw fields"
+            # shows only the number box
+            if raw or not self._picker_for(fi, tid, r, rec[fi]):
+                ent.grid(row=r, column=1, sticky="w", pady=1)
+                if fi in self._pickers:
+                    self._pickers[fi][0].grid_remove()
+            else:
+                ent.grid_remove()
             eff = rec[fi] & ((1 << (8 * sz)) - 1)
             var.set(str(rec[fi]))               # the whole stored value (typed as a full i32)
             head = f"word {fi}" + (f", read as {mobj_params.SIZE_NAME[sz]}" if sz != 4 else "")
@@ -231,6 +242,35 @@ class EntityForm(Form):
         except Exception:
             inter = ""
         self.role.config(text="\n".join(x for x in (role, f"interaction: {inter}" if inter else "", only) if x))
+
+    def _picker_for(self, fi, tid, r, value):
+        """Show a dropdown of named values in place of field fi's number box
+        (mobj_params.param_choices, e.g. the gatherable kind of type 8); picking one writes
+        the field. False when the field has no named values."""
+        choices = mobj_params.param_choices(tid, fi)
+        pk = self._pickers.get(fi)
+        if not choices:
+            if pk:
+                pk[0].grid_remove()
+            return False
+        labels = {lab: v for v, lab in choices}
+        if pk is None or pk[1] != labels:
+            if pk:
+                pk[0].destroy()
+            cb = ui.FilterCombo(self.pframe, [lab for _v, lab in choices],
+                                lambda t, fi=fi: self._pick_param(fi, t), width=24)
+            ui.Tip(cb, lambda fi=fi: self._meanings.get(fi, ""))
+            pk = self._pickers[fi] = (cb, labels)
+        pk[0].var.set(next((lab for v, lab in choices if v == value), ""))
+        pk[0].grid(row=r, column=1, columnspan=2, sticky="w", pady=1)
+        return True
+
+    def _pick_param(self, fi, text):
+        pk = self._pickers.get(fi)
+        if pk is None or text not in pk[1]:
+            return
+        self.rows[fi][2].set(str(pk[1][text]))
+        self._commit_param(fi)
 
     def _object_notes(self, i, rec):
         """Lines under the type label: this entity's problems (chest / one-shot flag checks,

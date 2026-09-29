@@ -548,8 +548,69 @@ def chest_problems(name, recs):
             out.append(("WARN", i, f"chest #{i}: loot row {row} is past the {chestloot.ROWS}-row "
                                    f"chest table -- the game reads unrelated data as its items"))
         elif row < 0 or not any(item for item, _v in (chestloot.row(row) or [])):
-            out.append(("INFO", i, f"chest #{i} gives nothing (loot row {row} is empty)"))
+            if not r[10]:
+                out.append(("INFO", i, f"chest #{i} gives nothing (loot row {row} is empty)"))
+        ev = chest_scene(r, name) if r[10] else None
+        if ev is not None and ev[1] is not None and ev[2] is None:
+            out.append(("WARN", i, f"chest #{i}: f10 = {r[10]} runs the map's scene keyed {ev[0]}, but "
+                                   f"its event bank has no type-2 entry with that key"))
     return out
+
+
+CHEST_EVENT_BASE = 1024       # a chest's f10 runs the map's type-2 scene keyed 1024 + f10
+
+
+def chest_scene(rec, name):
+    """(key, bank, scene pc | None) of the scene a chest runs when opened (f10 != 0), else None.
+    WorldObject_OnBreakDropLoot (RF4S.exe+0x1662C0) queues game event 27 with 1024 + f10;
+    its handler (NpcAi_TickEventMovementOrFinalize +0x1F3070) runs the type-2 entry with that
+    key from the map's event (tail) bank."""
+    if rec is None or (rec[0] & 0xFFFF) != 44 or not rec[10]:
+        return None
+    key = CHEST_EVENT_BASE + rec[10]
+    mid = map_id(name) if name else None
+    cont = rf3mc_container() if mid is not None else None
+    bank = cont.banks[cont.n_primary + mid] if cont is not None and 0 <= cont.n_primary + mid < len(cont.banks) else None
+    pc = None
+    if bank is not None:
+        try:
+            for r in bank.entry_records(2):
+                if any(v == key for _t, v in r.subs):
+                    pc = r.event_id
+                    break
+        except Exception:
+            pc = None
+    return key, bank, pc
+
+
+def chest_event(rec, name):
+    """'Opening it runs scene key 1025 (@0e18): ModifyPlayerResource(100, add, 3630), ...' for a
+    chest with a script event (f10), or that the key has no scene. None without one."""
+    hit = chest_scene(rec, name)
+    if hit is None:
+        return None
+    key, bank, pc = hit
+    if bank is None:
+        return f"Opening it runs the map's scene keyed {key} (f10 = {rec[10]}); rf3.mc not found"
+    if pc is None:
+        return (f"Opening it runs the map's scene keyed {key} (f10 = {rec[10]}), but this map's "
+                f"event bank has no type-2 entry with that key: nothing happens")
+    from rf4s_modkit import scriptasm
+    steps = []
+    try:
+        sc = script.disassemble_scene(bank, 2, pc)
+        for st in sc.stmts.values():
+            if st.op < 0xFFF0:
+                args = [scriptasm.operand_text(bank.data, a, st.op, i) for i, a in enumerate(st.args)]
+                steps.append(scriptasm.action_line(st.op, args))
+            elif st.mnem == "DIALOG":
+                steps.append("DIALOG #%d" % st.dialog_id)
+        if len(steps) > 6:
+            steps = steps[:6] + ["…"]
+    except Exception:
+        pass
+    return (f"Opening it runs scene key {key} (f10 = {rec[10]}, type 2 @{pc:04x} in the map's event "
+            f"bank)" + (": " + ", ".join(steps) if steps else ""))
 
 
 def chest_reveal(rec, recs):

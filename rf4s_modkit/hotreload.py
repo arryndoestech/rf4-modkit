@@ -41,9 +41,16 @@ import subprocess
 import time
 
 EXE_NAME = "RF4S.exe"
+# Where the two globals are in the RF4S.exe build the toolkit was made against. Another build
+# (a newer Steam update, another store) moves them, so each is verified against the game's
+# own data and, when that fails, found again by scanning the running exe's code for an
+# instruction that uses it (RIP-relative: the global = instruction end + disp32).
 RVA_CURRENT_FILE_ARCHIVE = 0xE9E538     # g_currentFileArchive (pointer)
 RVA_SCENE_CONTEXT = 0xE3CB10            # g_currentSceneContext (SceneState_t *)
-MC_ARCHIVE_ID = 15209                   # rom:/script/rf3.mc
+# (pattern, offset of the disp32, instruction length); None = any byte
+SIG_FILE_ARCHIVE = ([0x48, 0x8B, 0x3D, None, None, None, None, 0x8B, 0xEA], 3, 7)   # nsFileArchive_Load: mov rdi, [g]
+SIG_SCENE_CONTEXT = ([0x48, 0x89, 0x1D, None, None, None, None, 0x48, 0x85, 0xDB], 3, 7)  # ScriptTask_FirstTimeInit: mov [g], rbx
+MC_ARCHIVE_ID = 15209                   # rom:/script/rf3.mc in the known build (found by path otherwise)
 MC_ARCHIVE_PATH = "rom:/script/rf3.mc"
 SLOT_OFFSETS = (("global", 200, 0), ("primary", 208, 1), ("tail", 216, 2))
 SLOT_BUF_SIZE = 0x10000 + 64            # any bank fits: pcs are u16 (BANK_ADDRESS_LIMIT)
@@ -92,6 +99,13 @@ class _Game:
     def __init__(self, pid=None):
         if not hasattr(ctypes, "WinDLL"):
             raise HotReloadError("hot reload needs Windows")
+        if ctypes.sizeof(ctypes.c_void_p) != 8:
+            # a 32-bit process cannot list or read a 64-bit one (EnumProcessModulesEx fails
+            # with error 299 ERROR_PARTIAL_COPY, and addresses past 4 GB are out of reach)
+            raise HotReloadError("the toolkit is running on 32-bit Python, which cannot reach the "
+                                 "64-bit game: install 64-bit Python 3.10+ (python.org, 'Windows "
+                                 "installer (64-bit)'), then run start.bat again -- it rebuilds "
+                                 "the toolkit's .venv with it")
         self.k32 = ctypes.WinDLL("kernel32", use_last_error=True)
         self.ntdll = ctypes.WinDLL("ntdll")
         psapi = ctypes.WinDLL("psapi", use_last_error=True)
@@ -117,10 +131,47 @@ class _Game:
         need = wt.DWORD()
         psapi.EnumProcessModulesEx.argtypes = [wt.HANDLE, ctypes.c_void_p, wt.DWORD,
                                                ctypes.POINTER(wt.DWORD), wt.DWORD]
-        if not psapi.EnumProcessModulesEx(self.h, mods, ctypes.sizeof(mods), ctypes.byref(need), 3):
-            raise HotReloadError("cannot list the game's modules (error %d)" % ctypes.get_last_error())
-        self.base = mods[0]
+        base = None
+        for _try in range(5):              # error 299 also happens while the game is still starting
+            if psapi.EnumProcessModulesEx(self.h, mods, ctypes.sizeof(mods), ctypes.byref(need), 3):
+                base = mods[0]
+                break
+            err = ctypes.get_last_error()
+            time.sleep(0.2)
+        if base is None:
+            base = self._base_from_snapshot()
+        if base is None:
+            raise HotReloadError("cannot find the game's exe in its memory (error %d) -- if the "
+                                 "game is still starting, wait for the title screen and retry"
+                                 % err)
+        self.base = base
         self.suspended = False
+        self._locate()
+
+    def _base_from_snapshot(self):
+        """The exe's load address from a Toolhelp module snapshot (the fallback when
+        EnumProcessModulesEx fails), or None."""
+        class _ME32(ctypes.Structure):
+            _fields_ = [("dwSize", wt.DWORD), ("th32ModuleID", wt.DWORD), ("th32ProcessID", wt.DWORD),
+                        ("GlblcntUsage", wt.DWORD), ("ProccntUsage", wt.DWORD),
+                        ("modBaseAddr", ctypes.c_void_p), ("modBaseSize", wt.DWORD),
+                        ("hModule", wt.HMODULE), ("szModule", ctypes.c_wchar * 256),
+                        ("szExePath", ctypes.c_wchar * 260)]
+        k = self.k32
+        k.CreateToolhelp32Snapshot.restype = wt.HANDLE
+        k.CreateToolhelp32Snapshot.argtypes = [wt.DWORD, wt.DWORD]
+        k.Module32FirstW.argtypes = [wt.HANDLE, ctypes.POINTER(_ME32)]
+        snap = k.CreateToolhelp32Snapshot(0x8 | 0x10, self.pid)       # MODULE | MODULE32
+        if not snap or snap == wt.HANDLE(-1).value:
+            return None
+        try:
+            me = _ME32()
+            me.dwSize = ctypes.sizeof(me)
+            if k.Module32FirstW(snap, ctypes.byref(me)):
+                return me.modBaseAddr
+        finally:
+            k.CloseHandle(snap)
+        return None
 
     def close(self):
         if self.suspended:
@@ -181,9 +232,114 @@ class _Game:
         self.ntdll.NtResumeProcess(self.h)
         self.suspended = False
 
+    # ---- finding the globals ------------------------------------------------------------ #
+    def _text_section(self):
+        """(address, size) of the exe's .text section, from its PE headers in memory."""
+        pe = self.base + struct.unpack("<I", self.read(self.base + 0x3C, 4))[0]
+        nsec = struct.unpack("<H", self.read(pe + 6, 2))[0]
+        opt = struct.unpack("<H", self.read(pe + 20, 2))[0]
+        sec = pe + 24 + opt
+        for i in range(nsec):
+            h = self.read(sec + 40 * i, 40)
+            if h[:5] == b".text":
+                vsize, rva = struct.unpack("<II", h[8:16])
+                return self.base + rva, vsize
+        raise HotReloadError("the game's exe has no .text section")
+
+    def _scan(self, sig):
+        """Addresses of the global every match of `sig` in .text references."""
+        pat, doff, ilen = sig
+        import re
+        rx = re.compile(b"".join(b"." if b is None else re.escape(bytes([b])) for b in pat), re.S)
+        start, size = self._text_section()
+        out, chunk, pos = [], 1 << 22, 0
+        while pos < size:
+            n = min(chunk + len(pat), size - pos)
+            try:
+                data = self.read(start + pos, n)
+            except HotReloadError:
+                pos += chunk
+                continue
+            for m in rx.finditer(data):
+                if m.start() < chunk:
+                    ins = start + pos + m.start()
+                    disp = struct.unpack("<i", data[m.start() + doff:m.start() + doff + 4])[0]
+                    out.append(ins + ilen + disp)
+            pos += chunk
+        return sorted(set(out))
+
+    def _archive_ok(self, g):
+        """rf3.mc's archive id when `g` is g_currentFileArchive, else None."""
+        try:
+            arc = self.ptr(g)
+            if not arc:
+                return None
+            toc = self.ptr(arc + 16)
+            count = self.u32(arc + 560)
+            if not (0 < count < 200000) or not toc:
+                return None
+            want = MC_ARCHIVE_PATH.encode("utf-16-le") + b"\0\0"
+            if MC_ARCHIVE_ID < count and self.read(toc + (MC_ARCHIVE_ID << 8), len(want)) == want:
+                return MC_ARCHIVE_ID
+            step = 4096                              # 16 names of 256 bytes per read
+            for first in range(0, count, step // 256):
+                blob = self.read(toc + (first << 8), min(step, (count - first) << 8))
+                for k in range(0, len(blob), 256):
+                    if blob[k:k + len(want)] == want:
+                        return first + k // 256
+        except HotReloadError:
+            return None
+        return None
+
+    def _scene_ok(self, g):
+        """True when `g` holds 0 (no session yet) or a SceneState whose three bank slots point
+        back at it -- what g_currentSceneContext holds."""
+        try:
+            sc = self.ptr(g)
+            if not sc:
+                return True
+            for _n, off, mode in SLOT_OFFSETS:
+                sl = self.ptr(sc + off)
+                if not sl or self.ptr(sl) != sc or self.i32(sl + 8) != mode:
+                    return False
+            return True
+        except HotReloadError:
+            return False
+
+    def _locate(self):
+        """Set self.g_archive, self.g_scene and self.mc_id for this build of the game."""
+        g = self.base + RVA_CURRENT_FILE_ARCHIVE
+        mc = self._archive_ok(g)
+        if mc is None:
+            hits = [(a, self._archive_ok(a)) for a in self._scan(SIG_FILE_ARCHIVE)]
+            hits = [(a, m) for a, m in hits if m is not None]
+            if len(hits) != 1:
+                raise HotReloadError(
+                    "this RF4S.exe build is not one the toolkit knows, and the file-archive table "
+                    "could not be found in it (%d candidate(s)); hot reload cannot run -- restart "
+                    "the game to load the saved rf3.mc (or wait until the game reaches the title "
+                    "screen)" % len(hits))
+            g, mc = hits[0]
+        self.g_archive, self.mc_id = g, mc
+        g = self.base + RVA_SCENE_CONTEXT
+        if not self._scene_ok(g) or (self.ptr(g) == 0 and self._scan_needed_for_scene()):
+            hits = [a for a in self._scan(SIG_SCENE_CONTEXT) if self._scene_ok(a) and self.ptr(a)]
+            if len(hits) != 1:
+                raise HotReloadError(
+                    "this RF4S.exe build is not one the toolkit knows, and its script state could "
+                    "not be found (%d candidate(s)); load a save first, or restart the game to "
+                    "load the saved rf3.mc" % len(hits))
+            g = hits[0]
+        self.g_scene = g
+
+    def _scan_needed_for_scene(self):
+        """A zero at the known address only proves something in the known build: in another
+        build (the archive global was not where expected) look the scene global up too."""
+        return self.g_archive != self.base + RVA_CURRENT_FILE_ARCHIVE
+
     # ---- game structures -------------------------------------------------------------- #
     def archive(self):
-        return self.ptr(self.base + RVA_CURRENT_FILE_ARCHIVE)
+        return self.ptr(self.g_archive)
 
     def archive_path(self, idx):
         toc = self.ptr(self.archive() + 16)
@@ -198,13 +354,13 @@ class _Game:
 
     def find_archive(self, path):
         """Archive id of `path` (e.g. 'rom:/script/rf3mc.eng'), searched near rf3.mc."""
-        for idx in range(MC_ARCHIVE_ID - 64, MC_ARCHIVE_ID + 64):
+        for idx in range(self.mc_id - 64, self.mc_id + 64):
             if self.archive_path(idx) == path:
                 return idx
         return None
 
     def scene(self):
-        return self.ptr(self.base + RVA_SCENE_CONTEXT)
+        return self.ptr(self.g_scene)
 
     def slots(self, sc):
         """[(name, slot address, mode, bank_index, buf, bank_size, loaded)]."""
@@ -313,9 +469,7 @@ def status(pid=None):
     """What the running game holds: a dict for display (raises HotReloadError)."""
     g = _Game(pid)
     try:
-        if g.archive_path(MC_ARCHIVE_ID) != MC_ARCHIVE_PATH:
-            raise HotReloadError("archive %d is not %s in this RF4S.exe build" % (MC_ARCHIVE_ID, MC_ARCHIVE_PATH))
-        _, ptr, rc = g.archive_entry(MC_ARCHIVE_ID)
+        _, ptr, rc = g.archive_entry(g.mc_id)
         sc = g.scene()
         out = {"pid": g.pid, "resident": bool(ptr), "refcount": rc, "scene": bool(sc),
                "slots": [], "vms": [], "busy": False}
@@ -337,14 +491,12 @@ def reload_mc(data, pid=None, force=False, settle=0.25):
     g = _Game(pid)
     freed = []
     try:
-        if g.archive_path(MC_ARCHIVE_ID) != MC_ARCHIVE_PATH:
-            raise HotReloadError("archive %d is not %s in this RF4S.exe build" % (MC_ARCHIVE_ID, MC_ARCHIVE_PATH))
         new_file = g.alloc(len(img.data) + 4160)
         g.write(new_file, img.data)
         spare = {}                                      # slot -> a fresh 64 KiB buffer
         g.suspend()
         try:
-            entry, old_ptr, rc = g.archive_entry(MC_ARCHIVE_ID)
+            entry, old_ptr, rc = g.archive_entry(g.mc_id)
             if not old_ptr or rc == 0:
                 raise HotReloadError("rf3.mc is not loaded in the game yet (still on the title screen?)")
             if g.read(old_ptr, 4) != b"MYCF":

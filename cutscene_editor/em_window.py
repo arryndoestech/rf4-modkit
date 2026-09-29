@@ -31,42 +31,6 @@ from rf4s_modkit import emscript, emtext, script
 from . import catalog
 
 
-# ---- text-spec helpers (the "Type it…" path and `rf4mod em`) ------------------------ #
-def parse_condition(em, entry, text):
-    """('a'|'b', slot|None, [Expr]) from a condition spec. A leading `B:` targets
-    condition B; `slot=N ` ANDs the terms onto OR-slot N instead of opening a new one."""
-    t = (text or "").strip()
-    which = "a"
-    if t[:2].lower() == "b:":
-        which, t = "b", t[2:].strip()
-    elif t[:2].lower() == "a:":
-        t = t[2:].strip()
-    slot = None
-    m = re.match(r"slot\s*=\s*(\d+)\s+(.*)$", t, re.I)
-    if m:
-        slot, t = int(m.group(1)), m.group(2).strip()
-        slots = (entry.cond_a if which == "a" else entry.cond_b) or []
-        if not 0 <= slot <= len(slots):
-            raise ValueError("condition %s has %d OR-slot(s); slot=%d is out of range (omit slot= "
-                             "to open a new one)" % (which.upper(), len(slots), slot))
-    if not t:
-        raise ValueError("no condition terms")
-    return which, slot, em.parse_condition_spec(t)
-
-
-def parse_action(em, text):
-    """('main'|'alt', Action) from an action spec; a leading `alt:` picks the alt stream."""
-    t = (text or "").strip()
-    stream = "main"
-    if t[:4].lower() == "alt:":
-        stream, t = "alt", t[4:].strip()
-    elif t[:5].lower() == "main:":
-        t = t[5:].strip()
-    if not t:
-        raise ValueError("no action")
-    return stream, em.parse_action_spec(t)
-
-
 # ---- rows ---------------------------------------------------------------------------- #
 class Row:
     __slots__ = ("segs", "key")
@@ -195,9 +159,7 @@ class EventManagerWindow:
                 ("New entry", self.add_entry, "Add an empty entry at the end (its id is the next number)."),
                 ("Copy entry", self.copy_entry, "Add a copy of the open entry at the end."),
                 ("Remove entry…", self.remove_entry, "Remove the open entry. Scenes and other entries "
-                                                     "that use it are listed first."),
-                ("Type it…", self.type_it, "Add a condition or an action by typing it "
-                                           "(`Hour >= 6 AND Season == 1`, `REG_X += 2`).")):
+                                                     "that use it are listed first.")):
             b = ttk.Button(bar, text=text, command=cmd)
             b.pack(side="left", padx=(6, 0))
             Tip(b, tip)
@@ -1292,32 +1254,3 @@ class EventManagerWindow:
         self.show_entry(self.idx)
         self.set_status("em.bin: entry %d %s (unsaved)" % (idx, how))
         return how
-
-    def type_it(self):
-        """Add a condition or an action by typing it (the old spec language)."""
-        e = self.entry()
-        if e is None:
-            messagebox.showinfo("Type it", "Open an entry first.", parent=self.win)
-            return None
-        prompt = ("For #%d %s — type a condition (adds a new way) or an action.\n\n"
-                  % (e.idx, self.label(e.idx)) + catalog.EM_CONDITION_SYNTAX_HELP + "\n\n"
-                  + catalog.EM_ACTION_SYNTAX_HELP)
-
-        def classify(t):
-            try:
-                return "act", parse_action(self.em, t)
-            except ValueError:
-                return "cond", parse_condition(self.em, self.em.entries[e.idx], t)
-        spec = self.app.ask_spec("Type it", prompt, classify)
-        if not spec:
-            return None
-        kind, parsed = classify(spec)
-        idx = e.idx
-        if kind == "act":
-            stream, action = parsed
-            n = len(self.em.entries[idx].actions if stream == "main" else self.em.entries[idx].alt_actions)
-            return self._edit("Add an action to em.bin #%d" % idx,
-                              lambda: self.em.add_action(idx, stream, action), select=("act", stream, n))
-        which, slot, exprs = parsed
-        return self._edit("Add a condition to em.bin #%d" % idx,
-                          lambda: self.em.add_condition(idx, which, exprs, slot=slot), select=("sec", which))

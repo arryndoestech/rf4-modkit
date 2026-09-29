@@ -216,29 +216,6 @@ def map_enter_type():
     return MAP_ENTER_TYPE
 
 
-# The Event Manager text grammars (rf4s_modkit.emscript.EmScript.parse_condition_spec /
-# parse_action_spec), shown as help in the Add condition… / Add action… dialogs.
-EM_CONDITION_SYNTAX_HELP = (
-    "Condition text -- ONE OR-slot's expression list (parse_condition_spec grammar):\n"
-    "  Hour >= 6 AND (12 > Hour OR FLG_RAINBOW == 1) AND !condA(EV_DATE_APPO)\n"
-    "  groups are joined by AND; terms inside a group by OR (parenthesise the group)\n"
-    "  term     a OP b  (OP: == != > >= < <=)  |  TRUE  |  FALSE  |  condA(entry) / !condB(entry)\n"
-    "  operand  12 / 0x10 literal · -3 or s:N signed · Hour / q:Hour / q:3 query · REG_/FLG_\n"
-    "           emdeb variable name · flag@BIT/WIDTH raw flag ref · entry = its name or #id\n"
-    "  slot     'new' opens another OR-slot (slots are ORed: any true slot = condition true);\n"
-    "           an existing slot number ANDs the new groups onto that slot"
-)
-
-EM_ACTION_SYNTAX_HELP = (
-    "Action text -- ONE action (parse_action_spec grammar):\n"
-    "  CALL EV_FOO                run that entry's main actions (entry = its name or #id)\n"
-    "  FLG_X = 1   REG_Y += 2     also T -= V, T *= V, T /= V, T %= V, T = (V == 0) (SET_EQ_ZERO)\n"
-    "  MAX_S REG_Y 5              explicit form OP T V, OP in SET ADD SUB MUL_S MUL_U DIV_S DIV_U\n"
-    "                             MOD_S MOD_U MAX_S MAX_U MIN_S MIN_U SET_EQ_ZERO (_S/_U = signedness)\n"
-    "  T = an emdeb variable (FLG_/REG_ name) or flag@BIT/W (or q:N); V = literal / query / variable\n"
-    "  stream: main = the entry's actions (op 373 / condition true), alt = its alt actions (op 374)"
-)
-
 def collect_xrefs(bank, target_pc):
     """Reverse control-flow lookup: every statement in `bank` whose CALL/JMP/branch/
     switch/choice targets `target_pc`. Returns [(scene_entry_pc, action_type, from_pc,

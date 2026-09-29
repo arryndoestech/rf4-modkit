@@ -6299,15 +6299,16 @@ def test_cutscene_editor_authoring():
                    and doc.em.entries[nidx].name == "SELFTEST_ENTRY" and emw.idx == nidx)
             # NB: EmScript._relayout() re-creates the Entry objects, so re-fetch by id
             # after every structural edit (the window itself re-selects by id and refills).
-            ex.ask_spec = lambda title, prompt, validate, initial="": "Hour >= 6 AND FLG_RAINBOW == 1"
-            emw.type_it()
+            _em = doc.em
+            emw._edit("Add a condition", lambda: _em.add_condition(
+                nidx, "a", _em.parse_condition_spec("Hour >= 6 AND FLG_RAINBOW == 1")), select=("sec", "a"))
             new = doc.em.entries[nidx]
-            _check("Event Manager 'Type it…' parses a condition into a new way",
+            _check("Event Manager: a condition spec becomes a new way",
                    len(new.cond_a) == 1 and len(new.cond_a[0]) == 2)
-            ex.ask_spec = lambda title, prompt, validate, initial="": "alt: REG_WIFE_ID = 3"
-            emw.type_it()
+            emw._edit("Add an action", lambda: _em.add_action(
+                nidx, "alt", _em.parse_action_spec("REG_WIFE_ID = 3")), select=("act", "alt", 0))
             new = doc.em.entries[nidx]
-            _check("Event Manager 'Type it…' reads an action and honours the alt: prefix",
+            _check("Event Manager: an action spec lands in the alt stream",
                    len(new.alt_actions) == 1 and not new.actions)
             kinds = [r.key[0] for r in emw.rows if r.key and r.key[0] in ("expr", "act")]
             _check("the rule view lists each requirement and the action as selectable lines",
@@ -7176,6 +7177,54 @@ def test_map_editor_script_spawns():
     _check("MAP_DUNG_L13 shows the Silver Wolf its script spawns (SpawnEventActorVariant, "
            "sub-units 240, 290)",
            wolf and (wolf[0]["x"], wolf[0]["y"], wolf[0]["instance"]) == (240, 290, 100), str(sp))
+    # a chest's f10 runs the map's type-2 scene keyed 1024 + f10 when opened
+    # (WorldObject_OnBreakDropLoot RF4S.exe+0x1662C0): MAP_DUNG_G01 #16 has an empty loot row
+    # and gives 3630 G through its key-1025 scene
+    from map_editor.document import MapDocument as _MD
+    _g01 = _MD(med.load_map_by_id(med.map_id("MAP_DUNG_G01")), "MAP_DUNG_G01", load_sidecars=False)
+    _recs = _g01.map.mobj_records()
+    _ev = med.chest_event(_recs[16], "MAP_DUNG_G01")
+    _bad = list(_recs[16]); _bad[10] = 5
+    _probs = med.chest_problems("MAP_DUNG_G01", _recs)
+    _check("chest f10 = script event: MAP_DUNG_G01 #16 ('empty' row) runs scene key 1025 that gives "
+           "3630 G; not reported as 'gives nothing'; a key with no scene is a warning",
+           _ev and "1025" in _ev and "ModifyPlayerResource(100, add, 3630)" in _ev
+           and med.chest_event(_recs[17], "MAP_DUNG_G01") is None
+           and not any(i == 16 for _s, i, _m in _probs)
+           and any(s == "WARN" and "1029" in m for s, _i, m in med.chest_problems("MAP_DUNG_G01", [_bad])),
+           _ev)
+    # type 8 = "gatherable": its f10 kind is a dropdown of the game's names (char 459 + kind)
+    from rf4s_modkit import mobj_params as _mp, mobj_types as _mt
+    _ch = _mp.param_choices(8, 10)
+    _check("MOBJ type 8 is 'gatherable' and its kind (f10) offers the game's names",
+           _mt.mobj_display_name(8) == "gatherable" and _mp.param_name(8, 10) == "kind"
+           and len(_ch) == 139 and _ch[1] == (1, "1  Stone") and _ch[72] == (72, "72  Turnip")
+           and "ore rock" in _ch[30][1], _ch[:3])
+    _B8 = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if (_B8 / "MAP_DUNG_A04.rf4m").exists():
+        _r8, _p8, _e8 = _headless_panel("MAP_DUNG_A04", _B8)
+        try:
+            _p8.select(("mobj", 14))
+            _r8.update()
+            _ins = _p8.inspector
+            _ent = next((w for w in _all_widgets(_p8.frame) if hasattr(w, "_pickers")), None)
+            _pk = _ent._pickers.get(10) if _ent is not None else None
+            _shown = _pk is not None and _pk[0].var.get() == "15  Green Grass"
+            if _pk is not None:
+                _ent._pick_param(10, "72  Turnip")
+                _r8.update()
+            _val = _p8.doc.map.mobj_records()[14][10]
+            _check("the map editor shows the gatherable kind as a dropdown, and picking one writes f10",
+                   _shown and _val == 72, "shown=%s f10=%s" % (_shown, _val))
+            _box = _ent.rows[10][1]
+            _normal = (_pk[0].winfo_manager() == "grid", _box.winfo_manager() == "")
+            _ent.raw.set(True); _ent.refresh(); _r8.update()
+            _rawm = (_pk[0].winfo_manager() == "", _box.winfo_manager() == "grid")
+            _ent.raw.set(False); _ent.refresh()
+            _check("the kind shows only the dropdown normally, only the number box with the raw fields",
+                   all(_normal) and all(_rawm), "normal %s raw %s" % (_normal, _rawm))
+        finally:
+            _r8.destroy()
     # with the layer on, leaving the map and coming back draws the markers again
     B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
     if not (B / "MAP_DUNG_L12.rf4m").exists():
@@ -8550,8 +8599,8 @@ def test_map_editor_extra_warnings():
     """More Problems checks: a chest sharing its collected flag (with another chest here, or
     on another map -- a duplicate / pasted chest), a chest with no flag, an empty or
     out-of-table loot row (INFO / WARN), a room whose area group differs from the rest of its
-    dungeon (INFO) and a file name the game never loads. On the shipped maps only the 36
-    chests that really give nothing are noted -- no warning."""
+    dungeon (INFO) and a file name the game never loads. The shipped maps get no notes: the
+    36 chests with an empty loot row all run a scene through f10 (chest_event) -- no warning."""
     print("map editor: chest flags / loot rows, area vs dungeon, unloaded file names:")
     import collections
     from rf4s_modkit import areagroup as ag, rf4m as _rf4m
@@ -8571,9 +8620,9 @@ def test_map_editor_extra_warnings():
                 sev[sv] += 1
         sev.update(sv for sv, _m in ag.problems(m.mgrp(), p.name,
                                                 sibling_zones=_md.sibling_zones(p.stem)))
-    _check("shipped maps: only the chests that give nothing are noted, and the one-shot flags "
-           "other maps reuse (crates, switches, seal doors) are warned about",
-           set(sev) <= {"INFO"} and sev["INFO"] == 36 and shared == 27, (dict(sev), shared))
+    _check("shipped maps: no chest is noted as giving nothing (every empty-row chest runs an f10 "
+           "scene), and the one-shot flags other maps reuse (crates, switches, seal doors) are "
+           "warned about", not sev and shared == 27, (dict(sev), shared))
     m = _rf4m.Rf4mMap.load(B / "MAP_DUNG_A03.rf4m")
     recs = [list(r) for r in m.mobj_records()]
     k = next(i for i, r in enumerate(recs) if (r[0] & 0xFFFF) == 44)

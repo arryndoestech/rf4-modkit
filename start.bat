@@ -3,7 +3,7 @@ setlocal EnableExtensions
 title RF4S Modding Toolkit
 rem ---------------------------------------------------------------------------
 rem  Double-click to start the RF4S modding GUI.
-rem  First run: finds (or offers to install) Python 3.10+, makes a private
+rem  First run: finds (or offers to install) 64-bit Python 3.10+, makes a private
 rem  environment in .venv next to this file, installs requirements.txt into it.
 rem  Later runs only check and start the GUI.
 rem ---------------------------------------------------------------------------
@@ -14,9 +14,9 @@ set "VPY=%VENV%\Scripts\python.exe"
 
 rem ---- already set up? --------------------------------------------------------
 if exist "%VPY%" (
-    "%VPY%" -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+    "%VPY%" -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) and sys.maxsize > 2**32 else 1)" >nul 2>&1
     if not errorlevel 1 goto :deps
-    echo The environment in .venv is broken or too old - rebuilding it.
+    echo The environment in .venv is broken, too old or 32-bit - rebuilding it.
     rmdir /s /q "%VENV%"
 )
 
@@ -25,7 +25,8 @@ call :findpy
 if defined PY goto :mkvenv
 
 echo.
-echo Python 3.10 or newer was not found on this PC.
+echo 64-bit Python 3.10 or newer was not found on this PC (a 32-bit Python cannot
+echo reach the 64-bit game, e.g. for Reload in game).
 where winget >nul 2>&1
 if errorlevel 1 goto :nopython
 echo.
@@ -42,8 +43,8 @@ goto :fail
 
 :nopython
 echo.
-echo Please install Python 3.10 or newer from https://www.python.org/downloads/
-echo (tick "Add python.exe to PATH" in the installer), then run start.bat again.
+echo Please install 64-bit Python 3.10 or newer from https://www.python.org/downloads/
+echo ("Windows installer (64-bit)"; tick "Add python.exe to PATH"), then run start.bat again.
 start "" "https://www.python.org/downloads/"
 goto :fail
 
@@ -90,9 +91,10 @@ echo.
 pause
 exit /b 1
 
-rem ---- :findpy - sets PY to a Python 3.10+ command, or leaves it empty -------
+rem ---- :findpy - sets PY to a 64-bit Python 3.10+ command, or leaves it empty -
 :findpy
 set "PY="
+call :trypy "py" "-3-64"
 call :trypy "py" "-3"
 call :trypy "python" ""
 call :trypy "%LOCALAPPDATA%\Programs\Python\Launcher\py.exe" "-3"
@@ -101,9 +103,9 @@ call :trypy "%LOCALAPPDATA%\Programs\Python\Python313\python.exe" ""
 call :trypy "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" ""
 exit /b 0
 
-rem :trypy "exe" "args" - the Microsoft Store "python" alias fails this test
+rem :trypy "exe" "args" - the Microsoft Store "python" alias and 32-bit Pythons fail this test
 :trypy
 if defined PY exit /b 0
-"%~1" %~2 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
+"%~1" %~2 -c "import sys; sys.exit(0 if sys.version_info >= (3, 10) and sys.maxsize > 2**32 else 1)" >nul 2>&1
 if not errorlevel 1 set PY="%~1" %~2
 exit /b 0
