@@ -1969,6 +1969,9 @@ def cmd_script_reload(a):
     try:
         r = hotreload.reload_mc(pathlib.Path(path).read_bytes(), force=a.force)
     except hotreload.HotReloadError as e:
+        if e.technical:                     # a toolkit / build problem: the full block for a bug report
+            import guiutil
+            guiutil.log_error("rf4mod script reload", e)
         raise SystemExit("reload refused: %s" % e)
     print(hotreload.describe(r))
     print(f"  from {path}")

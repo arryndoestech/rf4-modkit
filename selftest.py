@@ -1442,6 +1442,42 @@ def test_entry_key_warnings():
            wild is not None and kp(wild[0], [0] * wild[1] + [-1]) == [], wild)
 
 
+def test_error_logging():
+    """Toolkit failures go to the console as one copy-paste block (guiutil.log_error), the GUI
+    only points there; failures the user can act on keep their message and log nothing."""
+    print("error logging (console for toolkit bugs, GUI for user problems):")
+    import contextlib
+    import io
+    import guiutil
+    from rf4s_modkit import hotreload as H, script as S
+    buf = io.StringIO()
+    with contextlib.redirect_stderr(buf):
+        user = [guiutil.err_text(x) for x in (ValueError("bad number"), S.ScriptError("line 3: unknown opcode"),
+                                              FileNotFoundError("no such file"),
+                                              H.HotReloadError("RF4S.exe is not running"))]
+    _check("user problems keep their message and log nothing",
+           user[0] == "bad number" and user[1] == "line 3: unknown opcode"
+           and user[3] == "RF4S.exe is not running" and buf.getvalue() == "", (user, buf.getvalue()[:80]))
+    buf = io.StringIO()
+    with contextlib.redirect_stderr(buf):
+        try:
+            {}["missing"]
+        except Exception as e:
+            shown = guiutil.err_text(e, "a test action")
+            again = guiutil.err_text(e, "a test action")
+        tech = guiutil.err_text(H.HotReloadTechnicalError("cannot read memory"), "Reload in game")
+    log = buf.getvalue()
+    _check("a toolkit bug is logged once to the console with the traceback and versions; the GUI "
+           "text points to the console",
+           "console window" in shown and "KeyError" in shown and log.count("while: a test action") == 1
+           and "Traceback" in log and "bit)" in log and "modkit " in log and shown == again, log[:300])
+    _check("technical hot reload failures (32-bit Python, unknown build, memory) are logged too",
+           "console window" in tech and "while: Reload in game" in log)
+    _check("the release zip stamps VERSION with its commit (git archive export-subst)",
+           "export-subst" in (pathlib.Path(__file__).parent / ".gitattributes").read_text(encoding="utf-8")
+           and bool(guiutil.modkit_version()))
+
+
 def test_hotreload_image():
     """rf3.mc hot reload (rf4s_modkit.hotreload), offline: the SceneState header cache it
     writes matches what the game's parser derives, bank bytes match the container, and a
@@ -13202,7 +13238,7 @@ def run() -> int:
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_mapground,
-              test_search_items, test_search_item_chances, test_entry_key_warnings, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
+              test_search_items, test_search_item_chances, test_entry_key_warnings, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,

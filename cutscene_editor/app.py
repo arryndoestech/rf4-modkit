@@ -16,6 +16,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from guiutil import Paned, Tip, later, shortcut_scope
+from guiutil import err_text
 from rf4s_modkit import bankrelink, mbundle, script, scriptasm, textlint
 
 from . import catalog, dialogs
@@ -207,7 +208,7 @@ class CutsceneExplorer:
         try:
             ok = self.doc.load_from_reader()
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("rf3.mc", "Could not read rf3.mc: %s" % e)
+            messagebox.showerror("rf3.mc", "Could not read rf3.mc: %s" % err_text(e))
             return
         if not ok:
             self.status("rf3.mc was not found in the loaded source — Open rf3.mc…")
@@ -225,7 +226,7 @@ class CutsceneExplorer:
         try:
             self.doc.load_file(f)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("rf3.mc", str(e))
+            messagebox.showerror("rf3.mc", err_text(e))
             return
         self.bank = self.scene = self.bank_pos = None
         self.browser.rebuild()
@@ -443,7 +444,7 @@ class CutsceneExplorer:
             with self.doc.edit(label, view):
                 run()
         except Exception as e:  # noqa: BLE001 - the document rolled back; say why
-            messagebox.showerror("Not applied", "%s:\n%s" % (label, e))
+            messagebox.showerror("Not applied", "%s:\n%s" % (label, err_text(e)))
             return False
         if self.doc.undo_stack and (not steps or self.doc.undo_stack[-1] is not steps[-1]):
             self.doc.undo_stack[-1]["view_after"] = (self.bank_pos, self.scene.entry_pc if self.scene else None)
@@ -652,7 +653,7 @@ class CutsceneExplorer:
         try:
             kind, val = asm.operand(text, st.op, index)
         except Exception as e:  # noqa: BLE001 - AsmError / ValueError
-            messagebox.showerror("Argument", "arg %d: %s" % (index, e))
+            messagebox.showerror("Argument", "arg %d: %s" % (index, err_text(e)))
             return False
 
         def do():
@@ -936,7 +937,7 @@ class CutsceneExplorer:
         try:
             subs = catalog.parse_entry_keys(keys) if isinstance(keys, str) else list(keys or ())
         except ValueError as e:
-            messagebox.showinfo("New scene", str(e))
+            messagebox.showinfo("New scene", err_text(e))
             return None
         err = self.assemble_check(body)[2] if (body or "").strip() else \
             "the body needs at least one statement (FRAME 0 / DIALOG #id / END)"
@@ -971,7 +972,7 @@ class CutsceneExplorer:
         try:
             subs = catalog.parse_entry_keys(keys) if isinstance(keys, str) else list(keys or ())
         except ValueError as e:
-            messagebox.showinfo("Keys", str(e))
+            messagebox.showinfo("Keys", err_text(e))
             return False
         bank = self.doc.container.banks[pos]
         ok = self.apply("Keys of %s entry #%d" % (catalog.type_label(type_id), index),
@@ -1253,7 +1254,7 @@ class CutsceneExplorer:
             self.frame.update_idletasks()
             r = hotreload.reload_mc(pathlib.Path(path).read_bytes())
         except hotreload.HotReloadError as e:
-            self.status("Reload refused: %s" % e)
+            self.status("Reload refused: %s" % err_text(e))
             return False
         finally:
             try:
@@ -1272,7 +1273,7 @@ class CutsceneExplorer:
             if emflags.save_entry_names(path, self.doc.em.custom_entry_names()):
                 self.doc.em.names.flags.extra_path = path
         except (OSError, ValueError) as e:
-            self.status("em.bin saved; the custom entry names could not be kept: %s" % e)
+            self.status("em.bin saved; the custom entry names could not be kept: %s" % err_text(e))
 
     def save_script(self):
         if self.doc.container is None:
@@ -1287,7 +1288,7 @@ class CutsceneExplorer:
         try:
             pathlib.Path(f).write_bytes(self.doc.container.build())
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Save rf3.mc", str(e))
+            messagebox.showerror("Save rf3.mc", err_text(e))
             return False
         self.doc.mark_saved(script_=True)
         self._chrome()
@@ -1332,7 +1333,7 @@ class CutsceneExplorer:
                     (folder / ("rf3mc.%s" % loc)).write_bytes(self.doc.arcs[loc].build())
                     written.append("rf3mc.%s" % loc)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Save dialogue", str(e))
+            messagebox.showerror("Save dialogue", err_text(e))
             return False
         self.doc.mark_saved(locales=set(self.doc.dirty_locales()) | {self.doc.locale})
         self._chrome()
@@ -1351,7 +1352,7 @@ class CutsceneExplorer:
         try:
             pathlib.Path(f).write_bytes(em.build())
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Save em.bin", str(e))
+            messagebox.showerror("Save em.bin", err_text(e))
             return False
         self._save_em_names()
         self.doc.mark_saved(em=True)
@@ -1385,7 +1386,7 @@ class CutsceneExplorer:
                     (stage / name).write_bytes(blob)
                     mbundle.install_loose(pathlib.Path(root), name, str(stage / name))
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Install", str(e))
+            messagebox.showerror("Install", err_text(e))
             return False
         self.doc.mark_saved(script_=True, locales=self.doc.dirty_locales(), em="em.bin" in files)
         self._chrome()
@@ -1435,6 +1436,8 @@ class CutsceneExplorer:
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     root = tk.Tk()
+    import guiutil
+    guiutil.install_error_logging(root)
     root.title("RF4S Cutscene Editor")
     root.geometry("1400x860")
     reader = None

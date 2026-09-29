@@ -3,3 +3,5 @@
 * text=auto
 # batch files must keep CRLF (cmd.exe mis-parses labels in LF files)
 *.bat text eol=crlf
+# the release zip (git archive) stamps VERSION with the commit it was built from
+VERSION export-subst

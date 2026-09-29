@@ -61,7 +61,16 @@ _MEM_COMMIT_RESERVE, _MEM_RELEASE, _PAGE_RW = 0x3000, 0x8000, 0x04
 
 
 class HotReloadError(Exception):
-    pass
+    """A reload that cannot happen for a reason the user can act on (the game is not
+    running, a scene is playing, the file is not a valid rf3.mc)."""
+    technical = False
+
+
+class HotReloadTechnicalError(HotReloadError):
+    """A reload that failed for a technical reason (32-bit Python, an unknown RF4S.exe
+    build, memory access): the GUI logs it to the console for a bug report
+    (guiutil.err_text)."""
+    technical = True
 
 
 class _MBI(ctypes.Structure):
@@ -102,7 +111,7 @@ class _Game:
         if ctypes.sizeof(ctypes.c_void_p) != 8:
             # a 32-bit process cannot list or read a 64-bit one (EnumProcessModulesEx fails
             # with error 299 ERROR_PARTIAL_COPY, and addresses past 4 GB are out of reach)
-            raise HotReloadError("the toolkit is running on 32-bit Python, which cannot reach the "
+            raise HotReloadTechnicalError("the toolkit is running on 32-bit Python, which cannot reach the "
                                  "64-bit game: install 64-bit Python 3.10+ (python.org, 'Windows "
                                  "installer (64-bit)'), then run start.bat again -- it rebuilds "
                                  "the toolkit's .venv with it")
@@ -141,7 +150,7 @@ class _Game:
         if base is None:
             base = self._base_from_snapshot()
         if base is None:
-            raise HotReloadError("cannot find the game's exe in its memory (error %d) -- if the "
+            raise HotReloadTechnicalError("cannot find the game's exe in its memory (error %d) -- if the "
                                  "game is still starting, wait for the title screen and retry"
                                  % err)
         self.base = base
@@ -184,7 +193,7 @@ class _Game:
         got = ctypes.c_size_t()
         if not self.k32.ReadProcessMemory(self.h, ctypes.c_void_p(addr), buf, n, ctypes.byref(got)) \
                 or got.value != n:
-            raise HotReloadError("cannot read %d bytes at %#x in the game" % (n, addr))
+            raise HotReloadTechnicalError("cannot read %d bytes at %#x in the game" % (n, addr))
         return buf.raw
 
     def write(self, addr, data):
@@ -192,7 +201,7 @@ class _Game:
         got = ctypes.c_size_t()
         if not self.k32.WriteProcessMemory(self.h, ctypes.c_void_p(addr), data, len(data),
                                            ctypes.byref(got)) or got.value != len(data):
-            raise HotReloadError("cannot write %d bytes at %#x in the game (error %d)"
+            raise HotReloadTechnicalError("cannot write %d bytes at %#x in the game (error %d)"
                                  % (len(data), addr, ctypes.get_last_error()))
 
     def u8(self, a): return self.read(a, 1)[0]
@@ -204,7 +213,7 @@ class _Game:
     def alloc(self, n):
         p = self.k32.VirtualAllocEx(self.h, None, n, _MEM_COMMIT_RESERVE, _PAGE_RW)
         if not p:
-            raise HotReloadError("cannot allocate %d bytes in the game (error %d)"
+            raise HotReloadTechnicalError("cannot allocate %d bytes in the game (error %d)"
                                  % (n, ctypes.get_last_error()))
         return p
 
@@ -225,7 +234,7 @@ class _Game:
 
     def suspend(self):
         if self.ntdll.NtSuspendProcess(self.h) != 0:
-            raise HotReloadError("cannot pause the game")
+            raise HotReloadTechnicalError("cannot pause the game")
         self.suspended = True
 
     def resume(self):
@@ -244,7 +253,7 @@ class _Game:
             if h[:5] == b".text":
                 vsize, rva = struct.unpack("<II", h[8:16])
                 return self.base + rva, vsize
-        raise HotReloadError("the game's exe has no .text section")
+        raise HotReloadTechnicalError("the game's exe has no .text section")
 
     def _scan(self, sig):
         """Addresses of the global every match of `sig` in .text references."""
@@ -314,7 +323,7 @@ class _Game:
             hits = [(a, self._archive_ok(a)) for a in self._scan(SIG_FILE_ARCHIVE)]
             hits = [(a, m) for a, m in hits if m is not None]
             if len(hits) != 1:
-                raise HotReloadError(
+                raise HotReloadTechnicalError(
                     "this RF4S.exe build is not one the toolkit knows, and the file-archive table "
                     "could not be found in it (%d candidate(s)); hot reload cannot run -- restart "
                     "the game to load the saved rf3.mc (or wait until the game reaches the title "
@@ -325,7 +334,7 @@ class _Game:
         if not self._scene_ok(g) or (self.ptr(g) == 0 and self._scan_needed_for_scene()):
             hits = [a for a in self._scan(SIG_SCENE_CONTEXT) if self._scene_ok(a) and self.ptr(a)]
             if len(hits) != 1:
-                raise HotReloadError(
+                raise HotReloadTechnicalError(
                     "this RF4S.exe build is not one the toolkit knows, and its script state could "
                     "not be found (%d candidate(s)); load a save first, or restart the game to "
                     "load the saved rf3.mc" % len(hits))
@@ -376,7 +385,7 @@ class _Game:
             size = self.u32(s + 24)
             loaded = self.u8(s + 28)
             if back != sc or mode != mode_expected:
-                raise HotReloadError("the game's %s script slot does not look as expected "
+                raise HotReloadTechnicalError("the game's %s script slot does not look as expected "
                                      "(unknown RF4S.exe build?)" % name)
             out.append((name, s, mode, bi, buf, size, loaded))
         return out
@@ -500,7 +509,7 @@ def reload_mc(data, pid=None, force=False, settle=0.25):
             if not old_ptr or rc == 0:
                 raise HotReloadError("rf3.mc is not loaded in the game yet (still on the title screen?)")
             if g.read(old_ptr, 4) != b"MYCF":
-                raise HotReloadError("the game's resident rf3.mc does not look like MYCF")
+                raise HotReloadTechnicalError("the game's resident rf3.mc does not look like MYCF")
             sc = g.scene()
             slots = g.slots(sc) if sc else []
             vms = g.vms(sc) if sc else []

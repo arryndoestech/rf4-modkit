@@ -26,7 +26,7 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    └── rf4s-modkit\       ← this folder (start.bat, rf4mod_gui.py, README.md, …)
    ```
 
-2. **Double-click `start.bat`** in this folder. The first time, it finds Python 3.10+
+2. **Double-click `start.bat`** in this folder. The first time, it finds 64-bit Python 3.10+
    (and offers to install it with winget if there is none), creates a private
    environment in `.venv` here and installs the three libraries into it; that takes
    a minute. After that it just starts the GUI. Keep its console window open while
@@ -235,6 +235,16 @@ If you see fewer-than-expected passes:
   the file (if any) it was operating on.
 
 ### Troubleshooting
+
+**Reporting a bug.** When something fails because of the toolkit itself (not a wrong value
+or a file that is open elsewhere, which the GUI explains), the GUI only says so, and the
+console window `start.bat` opened gets one block between two lines of `=`: what was being
+done, the toolkit version (the commit the zip was built from), the Python and Windows
+versions and the full error. Copy that whole block into the bug report.
+
+**Reload in game says the toolkit runs on 32-bit Python.** A 32-bit Python cannot reach
+the 64-bit game. Install 64-bit Python 3.10+ (python.org, *Windows installer (64-bit)*) and
+run `start.bat` again: it rebuilds `.venv` with it.
 
 **Windows: `python` not found.** Install Python 3.10+ from <https://python.org>;
 during install, tick *Add Python to PATH*. Or use the `py` launcher (`py -3.12`).

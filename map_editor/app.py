@@ -10,6 +10,7 @@ from rf4s_modkit import gamepaths, map_names, rf4m
 
 from . import data, render
 from .panel import MapEditorPanel
+from guiutil import err_text
 
 
 GROUP_MAPS_SETTING = "group_maps_by_area"      # settings.json, shared with the explorer
@@ -143,7 +144,7 @@ class MapExplorer:
         try:
             m = rf4m.Rf4mMap.load(path)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Load failed", str(e))
+            messagebox.showerror("Load failed", err_text(e))
             return False
         self.panel.tex_reader = data.folder_reader(path.parent)
         self.panel.set_map(m, path.stem)
@@ -163,6 +164,8 @@ def main(argv=None):
     import app_icon
     app_icon.prepare()
     root = tk.Tk()
+    import guiutil
+    guiutil.install_error_logging(root)
     app_icon.apply(root)
     MapExplorer(root, initial=argv[0] if argv else None)
     root.mainloop()

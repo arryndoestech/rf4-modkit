@@ -74,6 +74,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
+from guiutil import err_text
 ACTOR_NAMES_PATH = _refdata_path("rf4s_actor_names.json")   # vendored in modding/refdata/
 
 
@@ -319,7 +320,7 @@ class _GenHost:
         try:
             fn()
         except Exception as e:  # noqa: BLE001 - report the refusal, keep the view alive
-            messagebox.showerror("Not applied", f"{label}:\n{e}")
+            messagebox.showerror("Not applied", f"{label}:\n{err_text(e)}")
             return False
         self._changed(label)
         return True
@@ -822,7 +823,7 @@ class App:
         try:
             self.source = factory()
         except Exception as e:
-            messagebox.showerror("Open failed", str(e))
+            messagebox.showerror("Open failed", err_text(e))
             return
         self.root.title(f"RF4S Modding Toolkit — {self.source.label}")
         if game:
@@ -868,7 +869,7 @@ class App:
         try:
             data = p.read_bytes()
         except OSError as e:
-            messagebox.showerror("Open failed", str(e))
+            messagebox.showerror("Open failed", err_text(e))
             return None
         doc = self._open_in_tab(("file", str(p.resolve())), p.name, data, "new")
         if doc is not None:
@@ -1190,7 +1191,7 @@ class App:
             try:
                 data = loader()
             except Exception as e:
-                messagebox.showerror("Read failed", str(e))
+                messagebox.showerror("Read failed", err_text(e))
                 return
             self.tree.set(iid, "size", human(len(data)))
         self._open_in_tab(key, name, data, mode)
@@ -1616,7 +1617,7 @@ class App:
             objs = [o for o in _mw.parse_obj(text) if o.triangles]
             m = _model.parse(doc.cur_data)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Import OBJ", str(e))
+            messagebox.showerror("Import OBJ", err_text(e))
             return False
         if not objs:
             messagebox.showerror("Import OBJ", f"{pathlib.Path(f).name} has no faces.")
@@ -1630,7 +1631,7 @@ class App:
                 blob = _mw.import_obj(blob, si, text, object_name=oname)
             _model.parse(blob)                     # the result must read back
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Import OBJ", f"Nothing was changed:\n{e}")
+            messagebox.showerror("Import OBJ", f"Nothing was changed:\n{err_text(e)}")
             return False
         if blob == doc.cur_data:
             self.status.config(text=f"{pathlib.Path(f).name}: the geometry is unchanged")
@@ -1664,7 +1665,7 @@ class App:
             m = _model.parse(doc.cur_data)
             meshes = _mi.read_meshes(f, m)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Import from Blender", str(e))
+            messagebox.showerror("Import from Blender", err_text(e))
             return False
         if not meshes:
             messagebox.showerror("Import from Blender", f"{pathlib.Path(f).name} has no triangle meshes.")
@@ -1705,7 +1706,7 @@ class App:
                                            add=add or None, new=new or None)
             _model.parse(blob)                     # the result must read back
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Import from Blender", f"Nothing was changed:\n{e}")
+            messagebox.showerror("Import from Blender", f"Nothing was changed:\n{err_text(e)}")
             return False
         doc._glb_report = rep
         if blob == doc.cur_data:
@@ -1776,7 +1777,7 @@ class App:
         try:
             mats = _me.materials(doc.cur_data)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Materials", str(e))
+            messagebox.showerror("Materials", err_text(e))
             return False
         if changes is None:
             changes = self._material_dialog(mats)
@@ -1787,7 +1788,7 @@ class App:
             for mi, kw in sorted(changes.items()):
                 blob = _me.set_material(blob, mi, **kw)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Materials", f"Nothing was changed:\n{e}")
+            messagebox.showerror("Materials", f"Nothing was changed:\n{err_text(e)}")
             return False
         if blob == doc.cur_data:
             self.status.config(text="materials unchanged")
@@ -1940,7 +1941,7 @@ class App:
                 return
             blob = texture.encode_into(doc.cur_data, f, frame=frame)
         except Exception as e:
-            messagebox.showerror("Replace failed", str(e))
+            messagebox.showerror("Replace failed", err_text(e))
             return
         doc.cur_data = blob
         self._show(name, blob, doc)
@@ -2023,7 +2024,7 @@ class App:
                 try:
                     data = loader()
                 except Exception as e:  # noqa: BLE001
-                    self.status.config(text=f"navigate failed: {e}"); return
+                    self.status.config(text=f"navigate failed: {err_text(e)}"); return
                 doc.cur_name, doc.cur_data = name, data
                 doc.key, doc.saved = self._entry_key(name), data
                 self._show(name, data, doc)
@@ -2121,7 +2122,7 @@ class App:
                 on_open_scene=self._open_scene_editor)  # click NPC-spawn marker -> its script line
             nb.select(mapframe)              # open the map editor first
         except Exception as e:
-            self.status.config(text=f"map editor unavailable: {e}")
+            self.status.config(text=f"map editor unavailable: {err_text(e)}")
             nb.configure(style="TNotebook")  # the Chunks / Hex fallback shows its tabs
             return nb, None                  # not cached: the next map retries the build
         doc._map_view = {"nb": nb, "panel": panel, "mapframe": mapframe, "extra": []}
@@ -2143,7 +2144,7 @@ class App:
         try:
             self._build_events_tab(panel.nb if panel is not None else nb, name)
         except Exception as e:
-            self.status.config(text=f"events tab unavailable: {e}")
+            self.status.config(text=f"events tab unavailable: {err_text(e)}")
         if panel is not None:               # the editor alone, no Chunks / Hex tabs
             doc._export_kind = "map_png"
             self.export_btn.config(state="normal")
@@ -2238,7 +2239,7 @@ class App:
         try:
             container = script.Container(raw)
         except Exception as e:
-            info.config(text=f"rf3.mc failed to parse: {e}")
+            info.config(text=f"rf3.mc failed to parse: {err_text(e)}")
             return
 
         bank_index = container.n_primary + mid
@@ -2579,7 +2580,7 @@ class App:
             try:
                 written = _model.export_obj(m, d, stem)
             except Exception as e:  # noqa: BLE001
-                messagebox.showerror("Export OBJ", str(e)); return
+                messagebox.showerror("Export OBJ", err_text(e)); return
             self.status.config(text=f"exported {stem}.obj + {len(written) - 1} file(s) to {d}")
         gb = ttk.Button(bar, text="Export for Blender…",
                         command=lambda: self._export_model_glb(m, stem, state.get("skel")))
@@ -2717,7 +2718,7 @@ class App:
                     im = im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))),
                                    Image.BILINEAR)
             except Exception as e:  # noqa: BLE001
-                info.config(text=f"render failed: {e}"); return
+                info.config(text=f"render failed: {err_text(e)}"); return
             finally:
                 m.pose = None
             if skel_bar is not None:
@@ -2759,7 +2760,7 @@ class App:
         try:
             _gltf.export_glb(m, f, anim, stem)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Export for Blender", str(e)); return None
+            messagebox.showerror("Export for Blender", err_text(e)); return None
         what = f" with the motion {anim.name}" if anim is not None else " (rest pose, no motion)"
         self.status.config(text=f"Exported {pathlib.Path(f).name}{what}. In Blender: File > Import > RF4S "
                                 f"model / motions (the add-on in blender/), animate, File > Export > RF4S "
@@ -2793,7 +2794,7 @@ class App:
                 return None
             _gltf.export_glb(m, f, anims, stem)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Export all motions", str(e)); return None
+            messagebox.showerror("Export all motions", err_text(e)); return None
         finally:
             self.root.config(cursor="")
         size = pathlib.Path(f).stat().st_size
@@ -2820,7 +2821,7 @@ class App:
             try:
                 file_names = {a[1] for a in _gltf.list_animations(f)}
             except Exception as e:  # noqa: BLE001
-                messagebox.showerror("Import all motions", f"cannot read {pathlib.Path(f).name}:\n{e}")
+                messagebox.showerror("Import all motions", f"cannot read {pathlib.Path(f).name}:\n{err_text(e)}")
                 return None
             for stem_ in file_names & set(stems):
                 try:
@@ -2867,7 +2868,7 @@ class App:
                 try:
                     gamepaths.write_game_file(targets[fn], blob)
                 except OSError as e:
-                    messagebox.showerror("Import all motions", f"Could not write {targets[fn]}:\n{e}")
+                    messagebox.showerror("Import all motions", f"Could not write {targets[fn]}:\n{err_text(e)}")
                     break
                 written.append((fn, a))
             self.status.config(text=f"Installed {len(written)} motion(s) (originals in ModdingBackup) -- "
@@ -2924,7 +2925,7 @@ class App:
         try:
             anims = _gltf.list_animations(f)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Import motion", f"cannot read {pathlib.Path(f).name}:\n{e}")
+            messagebox.showerror("Import motion", f"cannot read {pathlib.Path(f).name}:\n{err_text(e)}")
             return None
         if not anims:
             messagebox.showerror("Import motion", f"{pathlib.Path(f).name} has no animation.")
@@ -2939,7 +2940,7 @@ class App:
             new = _gltf.import_animation(f, m, template=template, animation=anims[k][0])
             note = _gltf.frame_rate_note(f, anims[k][0])
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Import motion", str(e))
+            messagebox.showerror("Import motion", err_text(e))
             return None
         if note and not getattr(self, "_testing", False) and path is None:
             messagebox.showwarning("Import motion", f"{anims[k][1]}: {note}")
@@ -2993,7 +2994,7 @@ class App:
             try:
                 gamepaths.write_game_file(targets[file_name], blob)
             except OSError as e:
-                messagebox.showerror("Import motion", f"Could not write {targets[file_name]}:\n{e}")
+                messagebox.showerror("Import motion", f"Could not write {targets[file_name]}:\n{err_text(e)}")
                 return None
             self.status.config(text=f"Installed {file_name} ({len(blob):,} bytes) -- restart the game "
                                     f"to see it")
@@ -3041,7 +3042,7 @@ class App:
                 try:
                     a = _sk.parse(src.read_named(n) or b"")
                 except Exception as e:  # noqa: BLE001
-                    lab.config(text=f"cannot read: {e}"); return
+                    lab.config(text=f"cannot read: {err_text(e)}"); return
                 if not _sk.bound_bones(m, a)[0]:
                     lab.config(text="drives none of this model's bones"); return
                 state["skel"] = a
@@ -3082,7 +3083,7 @@ class App:
                 frames = _model.render_skeletal_animation(m, a, view.get(), 320, step=2)
                 _model.save_gif(frames, f, step=2)
             except Exception as e:  # noqa: BLE001
-                messagebox.showerror("Export GIF", str(e)); return
+                messagebox.showerror("Export GIF", err_text(e)); return
             finally:
                 self.root.config(cursor="")
             self.status.config(text=f"wrote {f} ({len(frames)} frames of {a.name})")
@@ -3109,7 +3110,7 @@ class App:
             try:
                 template = _sk.parse(src.read_named(n) or b"")
             except Exception as e:  # noqa: BLE001
-                messagebox.showerror("Import motion", f"cannot read {n}: {e}"); return
+                messagebox.showerror("Import motion", f"cannot read {n}: {err_text(e)}"); return
             new = self._import_motion_file(m, template)
             if new is None:
                 return
@@ -3197,7 +3198,7 @@ class App:
             frames = _model.render_animation(m, anim, view, 320, step=2)
             _model.save_gif(frames, f, step=2)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Export GIF", str(e)); return
+            messagebox.showerror("Export GIF", err_text(e)); return
         finally:
             self.root.config(cursor="")
         self.status.config(text=f"wrote {f} ({len(frames)} frames, one {anim.frame_count}-frame loop)")
@@ -3241,7 +3242,7 @@ class App:
             try:
                 im = texture.decode_bntx(data, idx)
             except texture.TextureError as e:
-                doc._bntx_lbl.config(text=str(e)); return
+                doc._bntx_lbl.config(text=err_text(e)); return
             if im is None:
                 doc._bntx_lbl.config(text="unsupported format (needs texture2ddecoder)"); return
             doc._pil = im.convert("RGBA")
@@ -3287,7 +3288,7 @@ class App:
                     return
             blob = texture.bntx_replace(doc.cur_data, idx, f)
         except Exception as e:  # noqa: BLE001 - surface any encode/size problem to the user
-            messagebox.showerror("Replace failed", str(e))
+            messagebox.showerror("Replace failed", err_text(e))
             return
         doc.cur_data = blob
         self._show(name, blob, doc)
@@ -4141,7 +4142,7 @@ class App:
             try:
                 x, y = int(sx.get(), 0), int(sy.get(), 0)
             except ValueError as e:
-                messagebox.showerror("Bad value", str(e)); return
+                messagebox.showerror("Bad value", err_text(e)); return
             if not (0 <= x <= 0xFFFF and 0 <= y <= 0xFFFF):
                 messagebox.showerror("Bad value", "x/y must be 0..65535 sub-units"); return
             f.spots[i].x, f.spots[i].y = x, y
@@ -4199,7 +4200,7 @@ class App:
             try:
                 a, b = int(ei.get(), 0), int(ew.get(), 0)
             except ValueError as e:
-                messagebox.showerror("Bad value", str(e)); return
+                messagebox.showerror("Bad value", err_text(e)); return
             if not (0 <= a <= 0x7FF):
                 messagebox.showerror("Bad value", "item id must be 0..2047 (engine uses 11 bits)"); return
             if not (0 <= b <= 255):
@@ -4388,7 +4389,7 @@ class App:
                 t.set(i, 0, int(cid_v.get(), 0), "u8")
                 t.set(i, 1, int(cat_v.get(), 0), "u8")
             except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", str(e)); return
+                messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
@@ -4496,7 +4497,7 @@ class App:
                 if off_v.get().strip() and rawval_v.get().strip():
                     t.set(i, int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
             except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", str(e)); return
+                messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
@@ -4534,7 +4535,7 @@ class App:
             try:
                 idx = t.append_record(t.record(src) if src is not None else None)
             except nlcl.NlclError as e:
-                messagebox.showerror("Add row failed", str(e)); return
+                messagebox.showerror("Add row failed", err_text(e)); return
             doc.cur_data = t.build()
             fill(); tv.selection_set(str(idx)); tv.see(str(idx)); on_sel()
             self.status.config(text=f"Added record {idx} ({'copy of ' + str(src) if src is not None else 'zero row'}); "
@@ -4550,7 +4551,7 @@ class App:
             try:
                 t.delete_record(i)
             except nlcl.NlclError as e:
-                messagebox.showerror("Delete row failed", str(e)); return
+                messagebox.showerror("Delete row failed", err_text(e)); return
             sel["i"] = None
             doc.cur_data = t.build()
             fill()
@@ -4670,7 +4671,7 @@ class App:
                 elif allyear.get():
                     t.set(i, 104, old & ~nlcl._CROP_SEASON_MASK, "u32")   # grow everywhere
             except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", str(e)); return
+                messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied crop {i} — Save…/Extract… to write a loose override")
@@ -4777,7 +4778,7 @@ class App:
                 for v, off, typ in evars:
                     t.set(i, off, int(v.get(), 0), typ)
             except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", str(e)); return
+                messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i)); render_sheet(i)
             self.status.config(text=f"Applied char {i} — Save… to write a loose override")
@@ -4933,6 +4934,8 @@ def main(argv=None):
     import app_icon
     app_icon.prepare()
     root = tk.Tk()
+    import guiutil
+    guiutil.install_error_logging(root)     # toolkit errors -> the console, with traceback
     app_icon.apply(root)
     found = gamepaths.find_bundle_dir()
     if not argv and (found is None or (not gamepaths.is_unpacked(found)

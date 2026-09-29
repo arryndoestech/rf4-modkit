@@ -17,6 +17,7 @@ from collections import Counter
 from tkinter import filedialog, messagebox, ttk
 
 from guiutil import shortcut_scope
+from guiutil import err_text
 
 from rf4s_modkit import (areagroup, flagstate, map_names, mapground, mobj_params, mobj_types, rf4m,
                          search_items)
@@ -412,7 +413,7 @@ class MapEditorPanel:
             with self.doc.edit(label, aspects):
                 fn()
         except Exception as e:  # noqa: BLE001 - report the refusal, keep the editor alive
-            messagebox.showerror("Not applied", f"{label}:\n{e}")
+            messagebox.showerror("Not applied", f"{label}:\n{err_text(e)}")
             return False
         return True
 
@@ -1474,7 +1475,7 @@ class MapEditorPanel:
         try:
             gamepaths.write_game_file(target, blank)
         except OSError as e:
-            messagebox.showerror("Empty over-model", f"Could not write {target}:\n{e}\n\n"
+            messagebox.showerror("Empty over-model", f"Could not write {target}:\n{err_text(e)}\n\n"
                                                      "(Is the game running with the file open?)")
             return False
         self._overmodel_changed(setname)
@@ -1519,7 +1520,7 @@ class MapEditorPanel:
             else:
                 target.unlink()
         except OSError as e:
-            messagebox.showerror("Restore over-model", f"Could not restore {target}:\n{e}")
+            messagebox.showerror("Restore over-model", f"Could not restore {target}:\n{err_text(e)}")
             return False
         self._overmodel_changed(setname)
         self.status(f"{name} restored -- " + reload_hint(False))
@@ -1546,7 +1547,7 @@ class MapEditorPanel:
                 return
             lay = self.ground_export_to(path, layer)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Ground art", str(e))
+            messagebox.showerror("Ground art", err_text(e))
             return
         self.viewtab.gstatus.config(text=f"Exported set {lay['set']} layer {layer}: {len(lay['tiles'])} tiles "
                                          f"({lay['cols']}x{lay['rows']}), image {lay['image_size'][0]}x"
@@ -1566,7 +1567,7 @@ class MapEditorPanel:
         try:
             names = self.ground_import_from(png, outdir, layer, self.viewtab.gfmt.get())
         except Exception as e:  # noqa: BLE001 - unstitch names the size it wanted
-            messagebox.showerror("Ground art", str(e))
+            messagebox.showerror("Ground art", err_text(e))
             return
         self.viewtab.gstatus.config(text=f"Wrote {len(names)} .texture files to {outdir}: install them "
                                          f"as loose overrides (rf4mod install) or repack.")
@@ -1840,7 +1841,7 @@ class MapEditorPanel:
         try:
             d.map.save(p)
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Save failed", str(e))
+            messagebox.showerror("Save failed", err_text(e))
             return False
         d.mark_saved("map")
         self.status(f"Saved {p}")
@@ -1868,7 +1869,7 @@ class MapEditorPanel:
         try:
             d.si.save(pathlib.Path(p))
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Save failed", str(e))
+            messagebox.showerror("Save failed", err_text(e))
             return False
         d.mark_saved("si")
         self.status(f"Saved {p}")
@@ -1895,7 +1896,7 @@ class MapEditorPanel:
         try:
             d.gen.save(pathlib.Path(p))
         except Exception as e:  # noqa: BLE001
-            messagebox.showerror("Save failed", str(e))
+            messagebox.showerror("Save failed", err_text(e))
             return False
         d.mark_saved("gen")
         self.status(f"Saved {p}")
@@ -1938,7 +1939,7 @@ class MapEditorPanel:
             try:
                 pathlib.Path(self.file_path).write_bytes(d._bytes("map"))
             except OSError as e:
-                messagebox.showerror("Save", f"Could not write {self.file_path}:\n{e}")
+                messagebox.showerror("Save", f"Could not write {self.file_path}:\n{err_text(e)}")
                 return False
             d.mark_saved("map")
             parts.remove("map")
@@ -1978,7 +1979,7 @@ class MapEditorPanel:
                 if gamepaths.write_game_file(targets[name], d._bytes(p)) is not None:
                     backed.append(name)
             except OSError as e:
-                messagebox.showerror("Save", f"Could not write {targets[name]}:\n{e}\n\n"
+                messagebox.showerror("Save", f"Could not write {targets[name]}:\n{err_text(e)}\n\n"
                                              "(Is the game running with the file open?)")
                 return False
             d.mark_saved(p)
@@ -2118,7 +2119,7 @@ class MapEditorPanel:
             try:
                 gamepaths.write_game_file(t, m.build())
             except OSError as e:
-                messagebox.showerror(title, f"Could not write {t}:\n{e}\n\n(Is the game running "
+                messagebox.showerror(title, f"Could not write {t}:\n{err_text(e)}\n\n(Is the game running "
                                             "with the file open?)")
                 return bool(written)
             written.append(f"{f} ({season})")

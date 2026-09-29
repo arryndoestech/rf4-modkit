@@ -20,6 +20,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from rf4s_modkit import gamepaths, mbundle
+from guiutil import err_text
 
 COPY_NAME = "Rune Factory 4 Special"
 
@@ -267,7 +268,7 @@ class _Setup:
         try:
             b = gamepaths.save(b)
         except ValueError as e:
-            messagebox.showerror("Game folder", str(e), parent=self.win)
+            messagebox.showerror("Game folder", err_text(e), parent=self.win)
             return
         self.saved = True
         if not gamepaths.is_unpacked(b):

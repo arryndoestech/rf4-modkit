@@ -21,6 +21,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from guiutil import FilterCombo, Tip, later
+from guiutil import err_text
 from rf4s_modkit import opcode_meta as meta
 from rf4s_modkit import script, scriptasm
 
@@ -1094,7 +1095,7 @@ class InstructionPicker:
             text = self.listing() if self.key else ""
         except Exception as e:  # noqa: BLE001 -- e.g. an opcode argument that names nothing
             text = ""
-            self.check_lbl.config(text="✗ %s" % e, foreground="#b00")
+            self.check_lbl.config(text="✗ %s" % err_text(e), foreground="#b00")
         self.preview.delete("1.0", "end")
         self.preview.insert("1.0", text)
         if getattr(self, "line_txt", None) is not None and self.key == ("ctl", "DIALOG"):

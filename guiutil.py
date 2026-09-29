@@ -7,6 +7,126 @@ import tkinter as tk
 from tkinter import ttk
 
 
+# ---- error log (the console window) -------------------------------------------------- #
+# Failures that are the toolkit's own fault (a bug, an unexpected game build, a Python that
+# cannot do the job) go to the console window start.bat keeps open, as one block with the
+# traceback and the versions, so a bug report is a copy-paste. The GUI only says that it
+# failed and where the details are. Problems the user can act on (a bad value, a file that
+# is open elsewhere, "the game is not running") keep their message in the GUI.
+
+_LOGGED = set()
+
+
+def modkit_version():
+    """'<commit> <date>' of the toolkit: VERSION (stamped by git archive into the release
+    zip), else the working copy's git HEAD, else 'unknown'."""
+    import pathlib
+    import subprocess
+    here = pathlib.Path(__file__).resolve().parent
+    try:
+        v = (here / "VERSION").read_text(encoding="utf-8").strip()
+        if v and "$Format" not in v:
+            return v
+    except OSError:
+        pass
+    try:
+        out = subprocess.run(["git", "-C", str(here), "log", "-1", "--format=%h %cs"],
+                             capture_output=True, text=True, timeout=5,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip() + " (working copy)"
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return "unknown"
+
+
+def log_error(context, exc=None, detail=None):
+    """Write one error block to the console (stderr): when, the toolkit / Python / Windows
+    versions, what was being done, `detail`, and the exception with its traceback."""
+    import datetime
+    import platform
+    import struct
+    import sys
+    import traceback
+    out = sys.stderr or sys.__stderr__
+    lines = ["", "=" * 78,
+             "RF4S modkit error  %s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+             "while: %s" % context,
+             "modkit %s | Python %s (%d-bit) | %s" % (
+                 modkit_version(), platform.python_version(), struct.calcsize("P") * 8,
+                 platform.platform())]
+    if detail:
+        lines.append(str(detail))
+    if exc is not None:
+        lines.append("".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).rstrip())
+    lines += ["=" * 78, "(copy everything between the lines into a bug report)", ""]
+    text = "\n".join(lines)
+    if out is not None:
+        try:
+            print(text, file=out, flush=True)
+            return
+        except (OSError, ValueError):
+            pass
+    try:                                    # no console (pythonw): keep it in a file instead
+        import pathlib
+        with open(pathlib.Path(__file__).resolve().parent / "modkit_errors.log", "a",
+                  encoding="utf-8") as f:
+            f.write(text + "\n")
+    except OSError:
+        pass
+
+
+def is_user_error(exc):
+    """True for a failure the user can act on, whose message is meant for them: the
+    toolkit's own error types (rf4s_modkit.*), a bad value (ValueError) and file problems
+    (OSError). Anything else -- KeyError, TypeError, AttributeError, ... -- is a bug."""
+    if getattr(exc, "technical", False):
+        return False
+    mod = type(exc).__module__ or ""
+    return (mod.startswith(("rf4s_modkit", "cutscene_editor", "map_editor"))
+            or isinstance(exc, (ValueError, OSError)))
+
+
+def err_text(exc, context=None):
+    """The text a GUI shows for a failure: the message itself when the user can act on it,
+    else a pointer to the console, where the full error is logged (once per exception)."""
+    if is_user_error(exc):
+        return str(exc)
+    if id(exc) not in _LOGGED:
+        _LOGGED.add(id(exc))
+        if context is None:
+            import inspect
+            fr = inspect.currentframe().f_back
+            context = "%s (%s)" % (fr.f_code.co_name, fr.f_code.co_filename.replace("\\", "/").rsplit("/", 1)[-1])
+        log_error(context, exc)
+    return ("%s -- this is a toolkit problem, not something you did. The details are in the "
+            "console window (the black window start.bat opened): please copy them into a bug "
+            "report." % (type(exc).__name__ + (": %s" % exc if str(exc) else "")))
+
+
+def install_error_logging(root=None):
+    """Send every error nothing else handles to the console log: Tk callbacks of `root`,
+    the main thread and worker threads. The GUI keeps running."""
+    import sys
+    import threading
+
+    def tk_hook(etype, value, tb):
+        value.__traceback__ = tb
+        log_error("a button / event handler", value)
+    if root is not None:
+        root.report_callback_exception = tk_hook
+
+    def main_hook(etype, value, tb):
+        value.__traceback__ = tb
+        log_error("the program", value)
+    sys.excepthook = main_hook
+
+    def thread_hook(args):
+        if args.exc_value is not None:
+            log_error("background thread %s" % getattr(args.thread, "name", "?"), args.exc_value)
+    threading.excepthook = thread_hook
+
+
 class Paned(tk.PanedWindow):
     """Drop-in for ttk.PanedWindow that does NOT re-lay-out its panes on every pixel of a
     sash drag.

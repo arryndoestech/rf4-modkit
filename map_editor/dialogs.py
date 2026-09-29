@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 from rf4s_modkit import mobj_params, rf4m
 
 from . import ui
+from guiutil import err_text
 
 
 def _toplevel(ed, title, geometry=None):
@@ -182,7 +183,7 @@ class ResizeDialog:
         try:
             w, h, kw = self._args()
         except (ValueError, IndexError) as e:
-            messagebox.showerror("Resize grid", str(e), parent=self.win)
+            messagebox.showerror("Resize grid", err_text(e), parent=self.win)
             return
         d = self.ed.doc
         side = self._sidecar_moves(w, h, *kw["origin"]) if kw["shift_entities"] else []

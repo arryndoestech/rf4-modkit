@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from guiutil import FilterCombo, Paned, ScrollFrame, Tip
+from guiutil import err_text
 from rf4s_modkit import script, scriptasm
 
 from . import catalog
@@ -240,7 +241,7 @@ class TriggersTab(ttk.Frame):
         try:
             tt = bank.type_table_full()
         except Exception as e:
-            self.lbl.config(text="type table unreadable (%s)" % e)
+            self.lbl.config(text="type table unreadable (%s)" % err_text(e))
             return
         total = 0
         for typ, (cnt, _off) in tt.items():
@@ -475,7 +476,7 @@ class TriggerDetail(ttk.Frame):
         try:
             keys = self.values()
         except ValueError as e:
-            self.warn.config(text="✗ " + str(e), foreground="#b00")
+            self.warn.config(text="✗ " + err_text(e), foreground="#b00")
             return
         probs = catalog.key_problems(self.typ, keys)
         changed = keys != [(t, v) for t, v in self.rec.subs]
@@ -488,7 +489,7 @@ class TriggerDetail(ttk.Frame):
         try:
             keys = self.values()
         except ValueError as e:
-            self.warn.config(text="✗ " + str(e), foreground="#b00")
+            self.warn.config(text="✗ " + err_text(e), foreground="#b00")
             return False
         if keys == [(t, v) for t, v in self.rec.subs]:
             return True
