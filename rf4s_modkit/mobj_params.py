@@ -406,8 +406,9 @@ MAPORE_RATE_RECORD = "see mobj_params source — verified layout above"
 
 # Kind semantics decoded from the spawn core (Map_HandleSpecialTriggerEntity) + the
 # gathering kind table:
-# stone family {1 small rock, 2 big rock, 22 boulder, 24 hard rock}, wood family
-# {3 branch, 4 stump, 5 log, 23 = its rare hard node}, 26..37 = ORE ROCKS,
+# stone family {1 Stone, 2 Rock, 22 Clay Stone}, wood family {3 Branch, 4 Stump,
+# 5 Broken Stump} (the game's names, char 459 + kind), 23 Rune Flower, 24 Rune Crystal,
+# 26..37 = ORE ROCKS,
 # 0..31 herb/grass band, 38+ = crop range (wild spawns come up fully grown).
 # TYPE 0 PLAYTEST-CORRECTED 2026-09-01: it is the ORE spawn point (was
 # mislabelled "weeds/grass") — its configs come from the MiningOreCfg table
@@ -432,10 +433,10 @@ FORAGE = {
                  "'Rune Crystal' at 1/128 (t2) / 1/64 (t3) / 1/32 (t4+). Playtest-corrected "
                  "2026-09-01 — the RE's neutral 'hard rock' label hid its identity.",
             params=list(_FOR)),
-    3: dict(name="wood_spawn", role="Wood family: weighted {3 branch, 4 stump, 5 log} "
-                 "(weights 300/110/200).", params=list(_FOR)),
-    4: dict(name="stone_spawn", role="Stone family: weighted {1 small rock, 2 big rock, 22 boulder} "
-                 "(weights 260/95/170).", params=list(_FOR)),
+    3: dict(name="wood_spawn", role="Wood family: each day a weighted pick of Branch (kind 3), "
+                 "Stump (4) or Broken Stump (5) (weights 300/110/200).", params=list(_FOR)),
+    4: dict(name="stone_spawn", role="Stone family: each day a weighted pick of Stone (kind 1), "
+                 "Rock (2) or Clay Stone (22) (weights 260/95/170).", params=list(_FOR)),
     5: dict(name="herb_pool32", role="Herb/grass: weighted pick over kinds 0..31 (per-kind crop-param "
                  "weights).", params=list(_FOR)),
     6: dict(name="wild_crop_pool64a", role="Wild CROP: weighted pick over kinds 38+ (64 pool), spawns "

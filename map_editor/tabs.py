@@ -822,7 +822,10 @@ class EncountersTab(ui.ScrollFrame):
         f = ttk.Frame(g)
         f.pack(fill="x", pady=(4, 0))
         ttk.Label(f, text="kind").grid(row=0, column=0, sticky="w")
-        self.kind = ui.FilterCombo(f, data.gate_choices(), lambda _t: self._commit_gate(), width=24)
+        self.kind = ui.FilterCombo(f, data.gate_choices(), lambda _t: self._commit_gate(), width=30)
+        ui.Tip(self.kind, "The gate actor. The two gates of each name differ only in HP; the "
+                          "800 HP Void .. Affection Gates (375-382) glide between their "
+                          "positions, the others stay put or, with 'teleports' ticked, teleport.")
         self.kind.grid(row=0, column=1, columnspan=3, sticky="we")
         self.v = {k: tk.StringVar() for k in ("weight", "cmin", "cmax", "delay", "level")}
         for r, c, lab, k, tip in (
@@ -867,11 +870,31 @@ class EncountersTab(ui.ScrollFrame):
         self.gprev.pack(side="left")
         self.gnext.pack(side="left")
         self.gpos_lbl.pack(side="left", padx=(4, 0))
-        ui.Tip(self.gpos_lbl, "A gate can have several positions; the spawner picks one at random. "
-                              "‹ › step through them.")
+        ui.Tip(self.gpos_lbl, "A gate can have several positions; the spawner picks one at random "
+                              "when you enter the map. ‹ › step through them.\n"
+                              "With 2 or more positions some gates keep moving: kinds 375-382 "
+                              "(the 800 HP Void .. Affection Gates), when visible, glide from "
+                              "position to position in list order and back to the first, about "
+                              "4 s a leg whatever its length (a dashed line with arrows on the "
+                              "map). A gate with 'teleports' ticked blinks out and reappears at "
+                              "a random one of its positions every 6 s or so (dotted lines) -- "
+                              "not kinds 375-382, which then jump to wrong places.")
         self.visible = tk.BooleanVar(value=False)
         vis = ttk.Checkbutton(f, text="visible gate", variable=self.visible, command=self._commit_gate)
-        vis.grid(row=5, column=0, columnspan=4, sticky="w", pady=(2, 0))
+        vis.grid(row=5, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        self.teleport = tk.BooleanVar(value=False)
+        tp = ttk.Checkbutton(f, text="teleports", variable=self.teleport, command=self._commit_gate)
+        tp.grid(row=5, column=2, columnspan=2, sticky="w", pady=(2, 0))
+        self.teleport_cb = tp
+        ui.Tip(tp, "Ticked: every 6 s or so the gate blinks out, stays away 1 s and reappears at a "
+                   "random one of its positions (it can be the same one) -- the Rune Prana "
+                   "gates. Needs 2 or more gate positions. Header flag high byte 1 (0x100).\n"
+                   "Greyed out for the gliding kinds (375-382): a gate that glides breaks when it "
+                   "also teleports, so pick the same gate with 1000 HP (383-390), as the game "
+                   "does. Picking a gliding kind unticks it.")
+        self.motion_lbl = ttk.Label(f, font=ui.HINT_FONT, foreground=ui.GOOD, wraplength=300,
+                                    justify="left")
+        self.motion_lbl.grid(row=8, column=0, columnspan=4, sticky="w")
         self.alt_lbl = ttk.Label(f, font=ui.HINT_FONT, wraplength=300, justify="left")
         self.alt_lbl.grid(row=7, column=0, columnspan=4, sticky="w", pady=(2, 0))
         ui.Tip(self.alt_lbl, "Each monster a gate spawns comes from its roster or its alternate "
@@ -883,7 +906,7 @@ class EncountersTab(ui.ScrollFrame):
         ui.Tip(vis, "Ticked: a gate you can see and break (header flag low byte 0).\n"
                     "Unticked: an invisible spawner -- the game spawns the gate hidden and "
                     "unhittable, and its monsters just appear (low byte 1; 700 of the game's "
-                    "1224 gates are like that). The flag's high byte is kept.")
+                    "1224 gates are like that). A hidden gate never glides.")
         gb = ttk.Frame(g)
         gb.pack(fill="x", pady=(4, 0))
         ttk.Button(gb, text="Add (copy)", command=self._add_gate).pack(side="left")
@@ -980,10 +1003,7 @@ class EncountersTab(ui.ScrollFrame):
         self.shared_file_lbl.config(text=self._shared_text(doc))
         for pi, ei, e in doc.gen.all_entries():
             nmon = sum(1 for s in e.spawns if gen.MONSTER_LO <= s.monster_id <= gen.MONSTER_HI)
-            hidden = "  (hidden)" if e.hdr.flag & 0xFF else ""
-            t.insert("", "end", iid=f"{pi}:{ei}",
-                     values=(f"{e.gate_kind}  {data.actor_name(e.gate_kind)}".strip() + hidden,
-                             e.weight, nmon))
+            t.insert("", "end", iid=f"{pi}:{ei}", values=(data.gate_list_label(e), e.weight, nmon))
         gi = self.ed.gate_index
         if gi is not None and t.exists(f"{gi[0]}:{gi[1]}"):
             t.selection_set(f"{gi[0]}:{gi[1]}")
@@ -1024,19 +1044,27 @@ class EncountersTab(ui.ScrollFrame):
             for v in self.v.values():
                 v.set("")
             self.visible.set(False)
+            self.teleport.set(False)
+            self.teleport_cb.state(["disabled"])
+            self.motion_lbl.config(text="")
             self.kind.var.set("")
             self.share_lbl.config(text="Select a gate.")
             self.pts_lbl.config(text="")
             self.alt_lbl.config(text="")
             self._show_gpos(None)
             return
-        self.kind.var.set(f"{e.gate_kind}  {data.actor_name(e.gate_kind)}".strip())
+        self.kind.var.set(data.gate_label(e.gate_kind))
         self.v["weight"].set(str(e.weight))
         self.v["cmin"].set(str(e.hdr.count_min))
         self.v["cmax"].set(str(e.hdr.count_max))
         self.v["delay"].set(str(e.hdr.spawn_delay))
         self.v["level"].set(str(e.hdr.param_a))
         self.visible.set(not e.hdr.flag & 0xFF)
+        self.teleport.set(bool(e.hdr.flag >> 8))
+        # a gliding kind can't teleport: greyed out (left on while a loaded file has it, to untick)
+        glides = gen.GLIDE_KIND_LO <= e.gate_kind <= gen.GLIDE_KIND_HI
+        self.teleport_cb.state(["disabled"] if glides and not self.teleport.get() else ["!disabled"])
+        self.motion_lbl.config(text=gen.gate_motion_text(e))
         if e.roster_alt is e.roster:
             self.alt_lbl.config(text="Alternate roster: the same as the roster.", foreground="")
         else:
@@ -1187,7 +1215,10 @@ class EncountersTab(ui.ScrollFrame):
             return
         # visible = flag low byte 0; hidden keeps its own non-zero low byte (else 1)
         low = e.hdr.flag & 0xFF
-        flag = (e.hdr.flag & 0xFF00) | (0 if self.visible.get() else (low or 1))
+        high = (e.hdr.flag & 0xFF00) or gen.TELEPORT_FLAG
+        # picking a gliding kind unticks 'teleports' (the two break each other)
+        tele = self.teleport.get() and not gen.GLIDE_KIND_LO <= kind <= gen.GLIDE_KIND_HI
+        flag = (high if tele else 0) | (0 if self.visible.get() else (low or 1))
         cur = (e.gate_kind, e.weight, e.hdr.count_min, e.hdr.count_max, e.hdr.spawn_delay, e.hdr.flag,
                e.hdr.param_a)
         new = (kind & 0xFFFF, vals["weight"] & 0xFFFF, vals["cmin"] & 0xFF, vals["cmax"] & 0xFF,

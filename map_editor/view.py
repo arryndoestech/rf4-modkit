@@ -259,7 +259,8 @@ class MapView(ttk.Frame):
             tags = (g,)
             if p.kind == "line":
                 it = c.create_line(*p.xy, fill=o.get("fill"), width=o.get("width", 1),
-                                   dash=o.get("dash", ""), tags=tags)
+                                   dash=o.get("dash", ""), arrow=o.get("arrow", "none"),
+                                   arrowshape=(10, 12, 4), tags=tags)
             elif p.kind == "rect":
                 it = c.create_rectangle(*p.xy, outline=o.get("outline", ""), fill=o.get("fill", ""),
                                         width=o.get("width", 1), dash=o.get("dash", ""),

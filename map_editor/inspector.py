@@ -11,9 +11,9 @@ import tkinter as tk
 from collections import Counter
 from tkinter import ttk
 
-from rf4s_modkit import emflags, map_names, mobj_params, mobj_types, rf4m
+from rf4s_modkit import emflags, gen, map_names, mobj_params, mobj_types, rf4m
 
-from . import attrs, data, ui
+from . import attrs, data, render, ui
 from .ui import commit_entry, hint, section
 
 
@@ -180,6 +180,13 @@ class EntityForm(Form):
             lab += f"\ntexture {tex}"
         elif name:
             lab += "\nno sprite of its own"
+        if tid in render.POOL_SPAWN_SHOWN:      # wood / stone spawn: drawn as the smallest roll
+            k = render.POOL_SPAWN_SHOWN[tid]
+            rolls = {3: (3, 4, 5), 4: (1, 2, 22)}[tid]
+            names = " / ".join(data.actor_name(mobj_params.GATHER_KIND_CHAR_BASE + r) or str(r)
+                               for r in rolls)
+            lab += (f"\ndrawn as a {data.actor_name(mobj_params.GATHER_KIND_CHAR_BASE + k)}; "
+                    f"the game rolls {names} each day")
         loot = data.chest_loot(rec)             # a treasure chest: its contents (row f8)
         event = data.chest_event(rec, self.doc.base)    # ... and the scene f10 runs when opened
         crate = data.crate_loot(rec, self.doc.map.mgrp())   # a crate: its area's pool + odds
@@ -750,8 +757,9 @@ class PointForm(Form):
                              + ", ".join(names) + ("…" if len(users) > 6 else ""))
         self.vx.set(str(x))
         self.vy.set(str(y))
+        moves = " ".join(gen.gate_motion_text(self.doc.gen.patterns[pi][ei]) for pi, ei in users[:1])
         self.note.config(text=("One of the places the gate actor can appear; the spawner picks "
-                               "one at random." if kind == "gpos" else
+                               "one at random." + (" " + moves if moves else "") if kind == "gpos" else
                                "Where the gate's monsters appear. Each roster monster has one "
                                "weight per spawn point."))
 

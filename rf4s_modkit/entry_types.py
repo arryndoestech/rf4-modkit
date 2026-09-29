@@ -172,7 +172,7 @@ ENTRY_TYPES = {
         "notes": "Corpus: 5 tail banks (Sechs Territory, Rune Prana), items 2..47 are crops (2 King Cabbage .. 47 Golden Tyrant Turnip). The meaning of record word 0 (100/101) was not resolved.",
     },
     6: {
-        "name": "MapSceneAll",
+        "name": "MapEnterScene",
         "summary": "Map-bank scene with no keys; every type-6 entry is walked and the last one runs.",
         "bank": "tail (slot 2)",
         "keys": [],
@@ -180,18 +180,18 @@ ENTRY_TYPES = {
         "consumer": _KICK2,
         "matcher": "Scene_TickDispatchType6NpcEvent (RF4S.exe+0x1F2C00)",
         "confidence": "verified",
-        "notes": "Runs on entering the map: Scene_FinalizeMajorTransition (RF4S.exe+0x140ECC picks the area music first) calls Map_OnEnter_QueueMapEvents (+0x1EE7C0), which queues game event 24 with the map id; event 24 = Scene_TickDispatchType6NpcEvent (g_npcAiEventKindDispatchTable_34 +0x4DB680). The event runs on a later frame, so the scene starts after the music was picked; music changed by the scene comes back when it ends unless FLG_BGM_NOT_RETURN = 1. Corrected 2026-09-29: this note said handler 23 / the every-morning event (kind 23 is a different handler).",
+        "notes": "The scene of the map the player walks INTO (type 7 is the one of the map they left). Runs on entering the map: Scene_FinalizeMajorTransition (RF4S.exe+0x140ECC picks the area music first) calls Map_OnEnter_QueueMapEvents (+0x1EE7C0), which queues game event 24 with the map id; event 24 = Scene_TickDispatchType6NpcEvent (g_npcAiEventKindDispatchTable_34 +0x4DB680). The event runs on a later frame, so the scene starts after the music was picked; music changed by the scene comes back when it ends unless FLG_BGM_NOT_RETURN = 1. Corrected 2026-09-29: this note said handler 23 / the every-morning event (kind 23 is a different handler).",
     },
     7: {
-        "name": "MapEnterScene",
-        "summary": "Map-bank scene run on map entry; no keys, last entry wins.",
+        "name": "MapLeaveScene",
+        "summary": "Map-bank scene of the map the player just LEFT, run as the next map loads; no keys, the first entry runs.",
         "bank": "tail (slot 2)",
         "keys": [],
-        "select": "last",
+        "select": "first",
         "consumer": _KICK2,
-        "matcher": "Npc_TickScriptActionDispatch (RF4S.exe+0x1EEE10), wrapper at RF4S.exe+0x1F2E50 = handler 24",
+        "matcher": "Npc_TickScriptActionDispatch (RF4S.exe+0x1EEE10), wrapper at RF4S.exe+0x1F2E50 = handler 25",
         "confidence": "verified",
-        "notes": "Map_OnEnter_QueueMapEvents (RF4S.exe+0x1EE7C0) loads the tail bank of the entered map and queues event kind 24 with the map id.",
+        "notes": "Map_OnEnter_QueueMapEvents (RF4S.exe+0x1EE7C0) first moves the previous map id into g_currentSceneTargetNpcId, then queues game event 25 (this type, handler RF4S.exe+0x1F2E50) before event 24 (type 6, the entered map). The handler loads the tail bank of g_currentSceneTargetNpcId -- the map that was LEFT -- and runs its first type-7 entry. Every shipped one (45) undoes something the map set up: boss rooms clear barrier flag 99, MAP_FIELD_25 restores the Night Stone's ambient colour, MAP_FIELD_27 resets the ten FLG_HUTAGO_* puzzle flags, MAP_CITY_06 closes the player's shop (MyShopAction 6). Corrected 2026-09-29: this type was named MapEnterScene and described as 'run on map entry, last entry wins, handler 24'.",
     },
     8: {
         "name": "GlobalScene8",
@@ -1152,8 +1152,8 @@ def recipe(type_id):
 
 
 def map_enter_type():
-    """The action type a map's ENTER scene is registered under (MapEnterScene)."""
+    """The action type a map's ENTER scene is registered under (MapEnterScene, type 6)."""
     for t, info in ENTRY_TYPES.items():
         if (info or {}).get("name") == "MapEnterScene":
             return int(t)
-    return 7
+    return 6

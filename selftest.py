@@ -978,6 +978,48 @@ def test_gen():
         _skip("gen positions", "no Gen file exposes gate positions")
 
 
+def test_fixed_point_fields():
+    """Fixed-point fields (nlcl.FIXED_FIELDS): shown as the shortest multiplier that converts
+    back to the same stored integer, typed as 1.5x or a whole number, range-checked by width;
+    the table editor and `param set` use it."""
+    print("param tables: fixed-point (Q12 / Q7) fields shown and edited as multipliers:")
+    from rf4s_modkit import nlcl
+    bad = [(b, r) for b in (12, 7) for r in list(range(-9000, 9000)) + [2 ** 31 - 1, -2 ** 31, 70000]
+           if nlcl.parse_value(nlcl.format_value(r, b), "s32", b) != r]
+    _check("every stored value round-trips through its multiplier text (Q12 and Q7)", not bad, bad[:5])
+    shown = [nlcl.format_value(r, 12) for r in (4096, 6144, 4710, 3686, -2048, 0)]
+    _check("multipliers read as designed: 4096 = 1x, 6144 = 1.5x, 4710 = 1.15x (not 1.1499x)",
+           shown == ["1\u00d7", "1.5\u00d7", "1.15\u00d7", "0.9\u00d7", "-0.5\u00d7", "0\u00d7"]
+           and nlcl.format_value(96, 7) == "0.75\u00d7", shown)
+    errs = []
+    for args in (("9x", "s16", 12), ("1.5x", "s32", None), ("abc", "s32", 12)):
+        try:
+            nlcl.parse_value(*args)
+            errs.append(None)
+        except nlcl.NlclError as e:
+            errs.append(str(e))
+    _check("a multiplier past a 16-bit field (Q4.12 tops out near 8x), a multiplier on a plain "
+           "field and a non-number are refused with a reason",
+           all(errs) and "7.99976" in errs[0] and "not a multiplier" in errs[1],
+           errs)
+    _check("the fixed-point fields are real schema fields of their tables",
+           all(f in {n for n, _o, _t in nlcl.FIELD_SCHEMAS[s]["fields"]}
+               for s, fs in nlcl.FIXED_FIELDS.items() for f in fs),
+           [(s, f) for s, fs in nlcl.FIXED_FIELDS.items() for f in fs
+            if f not in {n for n, _o, _t in nlcl.FIELD_SCHEMAS[s]["fields"]}])
+    src = pathlib.Path(BUNDLE_DIR) / "bundleMain" / "rf3ParamMagic.bin"
+    if not src.exists():
+        _skip("param set with a multiplier", "no rf3ParamMagic.bin"); return
+    import importlib, tempfile
+    rf4 = importlib.import_module("rf4mod")
+    t = nlcl.NlclTable(src.read_bytes())
+    rf4._param_assign(t, 0, "dmg_mult=1.25x", "rf3ParamMagic")
+    rf4._param_assign(t, 0, "mat_scalar=8192", "rf3ParamMagic")
+    row = t.row(0, "rf3ParamMagic")
+    _check("param set: dmg_mult=1.25x stores 5120, a whole number is stored as is",
+           row["dmg_mult"] == 5120 and row["mat_scalar"] == 8192, (row["dmg_mult"], row["mat_scalar"]))
+
+
 def test_param():
     print("param (NLCL):")
     files = [p for p in EXTRACTED.rglob("rf3*.bin") if nlcl.is_flat_nlcl(p.read_bytes()[:32])]
@@ -6549,8 +6591,8 @@ def test_cutscene_editor_authoring():
         _check("Triggers tab lists exactly the bank's entries", len(rows) == sum(
             cnt for cnt, _ in eb.type_table_full().values()))
         note = c.entry_shadow_note(eb, 7)
-        _check("entry_shadow_note warns that a second type-7 (last-wins) entry replaces the first",
-               note is not None and "LAST" in note)
+        _check("entry_shadow_note warns that a second type-7 (MapLeaveScene, first entry runs) entry "
+               "never runs", note is not None and "FIRST" in note and "never run" in note, note)
         iid = next(i for i, v in ex.triggers.rows.items() if v[1] is not None)
         ex.triggers.tree.selection_set(iid)
         ex.triggers.remove()
@@ -6566,8 +6608,16 @@ def test_cutscene_editor_authoring():
             "position": "append"}
         res2 = ex.open_new_scene_dialog(empty_idx)
         _check("open_new_scene_dialog (map editor's 'New scene on this map…') defaults to "
-               "MapEnterScene in that map's tail bank",
-               isinstance(res2, tuple) and [r.event_id for r in eb.entry_records(7)] == [res2[0]])
+               "MapEnterScene (type 6, run on entering the map) in that map's tail bank",
+               isinstance(res2, tuple) and [r.event_id for r in eb.entry_records(6)] == [res2[0]]
+               and not eb.entry_records(7))
+        from rf4s_modkit import entry_types as _et
+        _b7 = next((i for i, b in enumerate(c.banks) if b.kind == "tail" and b.entry_records(7)), None)
+        _sn = c.entry_shadow_note(_b7, 7, None) if _b7 is not None else "skip"
+        _check("type 6 is MapEnterScene and type 7 MapLeaveScene (the map just left, first entry "
+               "runs); appending a second leave scene is flagged as never running",
+               _et.type_name(6) == "MapEnterScene" and _et.type_name(7) == "MapLeaveScene"
+               and _et.map_enter_type() == 6 and (_sn == "skip" or "never run" in _sn), _sn)
         # --- Event Manager window: entries, conditions and actions ---
         emw = ex.open_event_manager()
         em = doc.em
@@ -6622,7 +6672,7 @@ def test_cutscene_editor_authoring():
             recipes = [t for t, v in entry_types.ENTRY_TYPES.items() if v.get("recipe")]
             kinds = {v.get("bank_kind") for v in entry_types.ENTRY_TYPES.values()}
             _check("catalogue carries registration recipes + machine-readable bank kinds",
-                   len(recipes) >= 10 and entry_types.map_enter_type() == 7
+                   len(recipes) >= 10 and entry_types.map_enter_type() == 6
                    and kinds <= set(entry_types.BANK_KINDS) and len(ce.recipe_types()) == len(recipes),
                    f"{len(recipes)} recipes, kinds={sorted(kinds)}")
         except Exception as e:
@@ -8118,6 +8168,104 @@ def test_map_editor_gate_ground():
            any("outside the" in i[2] for i in f16[0]) and f16[1] and f16[1][0] == "gpos", str(f16))
     _check("a clean map stays clean; a point dropped into solid rock is flagged",
            not l13[0] and len(found["pasted"]) == 1, str(found["pasted"]))
+
+
+def test_map_editor_gate_motion():
+    """Gates that move (gen.gate_motion): kinds 375-382 glide along their positions (GenM73,
+    Rune Prana, a dashed path with arrows), a nonzero flag high byte teleports (GenM05, dotted
+    lines between every two positions); the Gates tab's 'teleports' box writes flag 0x100."""
+    print("map editor: moving gates (glide / teleport):")
+    from rf4s_modkit import gen
+    from map_editor import render
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_DUNG_M05.rf4m").exists():
+        _skip("moving gates", "no extracted bundleMain"); return
+    got = {}
+    for nm in ("MAP_DUNG_M73", "MAP_DUNG_M05", "MAP_DUNG_L13"):
+        root, panel, errs = _headless_panel(nm, B)
+        try:
+            d = panel.doc
+            e = next(e for _pi, _ei, e in d.gen.all_entries())
+            lines = [p for p in render.gate_paths(d, 6) if p.kind == "line"]
+            got[nm] = (gen.gate_motion(e), len(lines), {p.opt.get("arrow") for p in lines},
+                       len(e.gate_pos.points))
+            tv = panel.encounters.gates
+            got[nm + " row"] = tv.set(tv.get_children()[0], "kind")
+            tab = panel.encounters
+            if nm == "MAP_DUNG_M73":
+                panel.set_active_gate((0, 0))
+                tab._show_gate()
+                got["greyed"] = tab.teleport_cb.instate(["disabled"])
+                # a file that already has both (made by hand): flagged, and the box can untick it
+                with d.edit("test", "gen"):
+                    d.gen.set_hdr(e, flag=gen.TELEPORT_FLAG)
+                root.update()
+                got["ticked"] = (gen.gate_motion(e), tab.motion_lbl.cget("text").startswith("Broken"),
+                                 any("glides (375..382)" in m for m in d.gen.validate()),
+                                 tab.teleport_cb.instate(["!disabled"]))
+            if nm == "MAP_DUNG_M05":
+                panel.set_active_gate((0, 0))
+                tab._show_gate()
+                got["m05 enabled"] = tab.teleport_cb.instate(["!disabled"])
+                tab.kind.var.set("375")             # switch to a gliding kind: teleport goes
+                tab._commit_gate()
+                root.update()
+                got["switched"] = (e.gate_kind, e.hdr.flag, gen.gate_motion(e),
+                                   tab.teleport.get(), tab.teleport_cb.instate(["disabled"]))
+        finally:
+            root.destroy()
+    m73, m05, l13 = got["MAP_DUNG_M73"], got["MAP_DUNG_M05"], got["MAP_DUNG_L13"]
+    _check("a Void..Affection Gate (375-382) with 8 positions glides: one dashed leg per position, "
+           "arrows", m73[0] == {"glide"} and m73[1] == m73[3] and m73[2] == {"last"}, m73)
+    _check("a gate with flag 0x100 teleports: dotted lines between every two of its 4 positions",
+           m05[0] == {"teleport"} and m05[1] == 6 and m05[2] == {None}, m05)
+    _check("a gate that stays put draws no path (Frozen Gate 385, 2 positions, MAP_DUNG_L13)",
+           not l13[0] and l13[1] == 0, l13)
+    from map_editor import data as _mdata
+    _ch = _mdata.gate_choices()
+    _check("the gate list says how each gate moves; the kind list gives each kind's HP and marks "
+           "the gliding kinds",
+           got["MAP_DUNG_M05 row"].endswith("· teleports") and got["MAP_DUNG_M73 row"].endswith("· glides")
+           and "·" not in got["MAP_DUNG_L13 row"].split("Frozen Gate", 1)[1].replace("(hidden)", "")
+           and any(c.startswith("377") and c.endswith("800 HP · glides") for c in _ch)
+           and any(c.startswith("385") and c.endswith("1000 HP") for c in _ch),
+           [got[k] for k in got if k.endswith(" row")])
+    _check("'teleports' is greyed out for a gliding kind and enabled for the others; picking a "
+           "gliding kind unticks it",
+           got["greyed"] and got["m05 enabled"]
+           and got["switched"] == (375, 0, {"glide"}, False, True), (got["greyed"], got["switched"]))
+    _check("a file that already has a gliding kind with the teleport flag is flagged as broken, "
+           "and the box stays enabled so it can be unticked",
+           got["ticked"] == ({"glide", "teleport"}, True, True, True), got["ticked"])
+
+
+def test_map_editor_pool_spawn_sprites():
+    """The wood / stone spawns (forage types 3 / 4) roll one of three things a day; the map and
+    the palette draw the smallest (Branch / Stone), and the Inspect tab says so."""
+    print("map editor: wood / stone spawn pictures:")
+    from map_editor import render as _render, palette as _palette
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if not (B / "MAP_FIELD_A3.rf4m").exists():
+        _skip("wood / stone spawn pictures", "no extracted bundleMain"); return
+    from map_editor import data as _mdata
+    root, panel, errs = _headless_panel("MAP_FIELD_A3", B, reader=_mdata.folder_reader(B))
+    try:
+        d = panel.doc
+        i = next(k for k, r in enumerate(d.map.mobj_records()) if r[0] & 0xFFFF == 4)
+        src = panel.view.st.sprites.source(d.objs[i])
+        panel.select(("mobj", i))
+        root.update()
+        note = panel.inspector.forms["mobj"].type_label.cget("text")
+        pal = panel.palette
+        pics = {t: pal.picture(t) is not None for t in (3, 4, 5)}
+    finally:
+        root.destroy()
+    _check("a stone spawn is drawn as the Stone (crop_001) and the Inspect tab names the three "
+           "daily rolls",
+           src is not None and src[0].startswith("crop_001")
+           and "drawn as a Stone" in note and "Rock" in note and "Clay Stone" in note, (src, note))
+    _check("the palette pictures the wood and stone spawns (Branch / Stone); the herb pool keeps "
+           "its marker", pics == {3: True, 4: True, 5: False}, pics)
 
 
 def test_map_editor_clipboard():
@@ -14070,7 +14218,7 @@ def run() -> int:
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
-              test_aibn, test_strings, test_gen, test_param, test_mapground,
+              test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
@@ -14079,7 +14227,7 @@ def run() -> int:
               test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
-              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
+              test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
               test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):

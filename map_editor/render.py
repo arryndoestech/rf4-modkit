@@ -10,8 +10,8 @@ import queue
 import threading
 from collections import OrderedDict
 
-from rf4s_modkit import (collisionstamp, flagstate, map_names, mapground, mobj_meshes, mobj_types, model,
-                         spritequad, texture)
+from rf4s_modkit import (collisionstamp, flagstate, gen, map_names, mapground, mobj_meshes, mobj_types,
+                         model, spritequad, texture)
 
 from . import attrs, ui
 
@@ -422,6 +422,12 @@ def _whole_frame(data, frame):
 MODEL_UNITS_PER_SUBUNIT = 2.0
 
 
+# the random wood / stone spawns (forage types 3 / 4) roll one of three things each day; the
+# editor draws the smallest: the Branch (kind 3; else Stump 4, Broken Stump 5) and the Stone
+# (kind 1; else Rock 2, Clay Stone 22)
+POOL_SPAWN_SHOWN = {3: 3, 4: 1}
+
+
 class Sprites:
     """A placed object's sprite as the game draws it: the texture's TextureCoordinator
     crop, sized and offset by its PolygonVertexes quad (rf4s_modkit.spritequad)."""
@@ -524,8 +530,10 @@ class Sprites:
         """The crop_NNN sprite a forage spawn grows (MapEntity_ResolveSpriteArchiveId: archive
         1366 + gatherable kind), when the record fixes it: an ore spawn (type 0) its
         MapOre_Rate config's rock (f10; not when f11 rolls a config each day), the rune
-        flower (1, kind 23), the rune crystal (2, kind 24), type 8 the kind in f10. The
-        random pools (3..7) grow a different thing each day: None, the marker stays."""
+        flower (1, kind 23), the rune crystal (2, kind 24), type 8 the kind in f10. The wood
+        and stone spawns (3 / 4) roll one of three things each day and are drawn as the
+        smallest (POOL_SPAWN_SHOWN: Branch / Stone). The herb pools (5..7) grow a different
+        thing each day: None, the marker stays."""
         from rf4s_modkit import mobj_params
         tid = p[0] & 0xFFFF
         w = lambda k: p[k] if len(p) > k else 0
@@ -539,6 +547,8 @@ class Sprites:
                 kind = cfg[w(10) & 0xFF][0]
         elif tid in (1, 2):
             kind = 22 + tid
+        elif tid in POOL_SPAWN_SHOWN:
+            kind = POOL_SPAWN_SHOWN[tid]
         elif tid == 8:
             kind = w(10) & 0x7F
         return mobj_params.gather_kind_sprite(kind) if kind is not None else None
@@ -757,6 +767,37 @@ def gate_sprite_shown(st, doc, x, y, users):
             and getattr(st, "sprites", None) is not None and st.sprites.gate_source() is not None)
 
 
+def gate_paths(doc, cp):
+    """The routes of the gates that move (gen.gate_motion), under their markers: a gliding
+    gate's loop through its positions in list order (dashed, arrows show the direction), a
+    teleporting gate's jumps between every two of its positions (dotted). One set of lines
+    per position table (the Rune Prana gates of one room share theirs)."""
+    out, done = [], set()
+    c = lambda x, y: ((x >> 3) * cp + cp // 2, (y >> 3) * cp + cp // 2)
+    for _pi, _ei, e in doc.gen.all_entries():
+        how = gen.gate_motion(e)
+        pts = [c(x, y) for x, y in e.gate_pos.points]
+        for kind in sorted(how):
+            key = (id(e.gate_pos), kind)
+            if key in done:
+                continue
+            done.add(key)
+            if kind == "glide":
+                legs = list(zip(pts, pts[1:] + pts[:1])) if len(pts) > 2 else [(pts[0], pts[1])]
+                for a, b in legs:
+                    if a != b:
+                        out.append(Prim("line", (*a, *b), fill=GATE_COLOR, width=2, dash=(6, 4),
+                                        arrow="last" if len(pts) > 2 else "both"))
+            else:
+                seen = set()
+                for i, a in enumerate(pts):
+                    for b in pts[i + 1:]:
+                        if a != b and (a, b) not in seen:
+                            seen.add((a, b))
+                            out.append(Prim("line", (*a, *b), fill=GATE_COLOR, width=1, dash=(2, 4)))
+    return out
+
+
 def overlay(group, st):
     """Primitives of one overlay group. `st` is the view state: doc, cp, layers (dict of
     bool), sel (selection key or None), active_gate (Entry | None), spawns, sprites."""
@@ -888,6 +929,7 @@ def overlay(group, st):
         if L.get("gates") and doc.gen is not None:
             gr = max(6, cp // 2 + 2)
             active = st.active_gate
+            out += gate_paths(doc, cp)
             for kind, off, x, y, users in doc.gate_points():
                 tx, ty = x >> 3, y >> 3
                 if not (0 <= tx < W and 0 <= ty < H):

@@ -200,13 +200,14 @@ def type_bank_kinds(type_id):
     return kinds or None
 
 
-MAP_ENTER_TYPE = 7      # MapEnterScene: the map-bank scene run on map entry (last entry wins)
+MAP_ENTER_TYPE = 6      # MapEnterScene: the map-bank scene run on entering the map (last entry wins)
 
 
 def map_enter_type():
     """The action type a map's ENTER scene is registered under -- the catalogue type named
-    MapEnterScene when the catalogue has it, else the engine-verified id 7 (tail bank of
-    the entered map, game-event handler 24, the LAST entry wins)."""
+    MapEnterScene when the catalogue has it, else the engine-verified id 6 (tail bank of
+    the entered map, game-event handler 24, the LAST entry wins). Type 7 is MapLeaveScene:
+    the scene of the map the player just left."""
     if _entry_types is not None:
         try:
             for t, info in getattr(_entry_types, "ENTRY_TYPES", {}).items():

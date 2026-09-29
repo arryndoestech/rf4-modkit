@@ -98,8 +98,8 @@ class PaletteTab(ttk.Frame):
 
     def picture(self, tid):
         """The PIL picture of a new record of type `tid`, fitted into the picture box, or
-        None (no sprite: map parameters, random forage, actors drawn as models only when
-        the model is there)."""
+        None (no sprite: map parameters, the herb pools, actors drawn as models only when
+        the model is there). The wood / stone spawns show a Branch / Stone, as on the map."""
         if Image is None or self.sprites.reader is None:
             return None
         rec = new_entity_record(tid)

@@ -3354,7 +3354,9 @@ def cmd_param_info(a):
         print("  " + "  ".join(["#"] + cols + (["name"] if sch.get("names") else [])))
         for i in range(lo, hi):
             row = t.row(i, stem)
-            vals = [str(i)] + [str(row[c]) for c in cols]
+            vals = [str(i)] + [str(row[c]) if nlcl.fixed_bits(stem, c) is None else
+                               f"{row[c]}({nlcl.format_value(row[c], nlcl.fixed_bits(stem, c))})"
+                               for c in cols]
             if sch.get("names"):
                 vals.append(namefn(row[nf] if nf else i))
             print("  " + "  ".join(vals))
@@ -3437,16 +3439,17 @@ def cmd_param_set(a):
 
 
 def _param_assign(t, rec, assign, stem):
-    """One `name=val | OFF=val | OFF:type=val` assignment (the `param set` grammar)."""
+    """One `name=val | OFF=val | OFF:type=val` assignment (the `param set` grammar). A
+    fixed-point field (nlcl.FIXED_FIELDS) also takes a multiplier: dmg_mult=1.5x."""
     key, val = assign.split("=", 1)
-    value = int(val, 0)
     if ":" in key:
         off_s, typ = key.split(":", 1)
-        t.set(rec, int(off_s, 0), value, typ)
+        t.set(rec, int(off_s, 0), nlcl.parse_value(val, typ), typ)
     elif key.lstrip("+").isdigit() or key.lstrip("+").lower().startswith("0x"):
-        t.set(rec, int(key, 0), value, "s32")
+        t.set(rec, int(key, 0), nlcl.parse_value(val, "s32"), "s32")
     else:
-        t.set_field(rec, key, value, stem)
+        typ = next((ty for n, _o, ty in (t.schema(stem) or {}).get("fields", ()) if n == key), "s32")
+        t.set_field(rec, key, nlcl.parse_value(val, typ, nlcl.fixed_bits(stem, key)), stem)
 
 
 def cmd_param_add(a):

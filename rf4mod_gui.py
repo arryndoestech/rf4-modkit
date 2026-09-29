@@ -74,7 +74,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-from guiutil import err_text
+from guiutil import Tip, err_text
 def _load_actor_names():
     """id -> name: the game's rf3TxtNpc (gamenames), else the built-in list."""
     from rf4s_modkit import gamenames
@@ -103,6 +103,16 @@ def _load_char_names() -> dict[int, str]:
     """{character id: name}: the game's rf3TxtNpc, else the built-in list."""
     from rf4s_modkit import gamenames
     return dict(gamenames.table("characters"))
+
+def _fixed_tip(text, typ, bits):
+    """Tooltip of a fixed-point field in the table editor: the stored integer and the scale."""
+    one = 1 << bits
+    try:
+        raw = nlcl.parse_value(text, typ, bits)
+        return (f"stored as {raw} ({one} = 1×, Q{bits}); type 1.5x for a multiplier or a whole "
+                f"number for the stored value")
+    except Exception:
+        return f"fixed-point field: {one} = 1× (Q{bits}); type 1.5x or a whole number"
 
 def _max_rows():
     """Rows shown in big tables before 'refine search' (Options: guiutil.list_rows)."""
@@ -2496,7 +2506,7 @@ class App:
         def new_scene():
             """'New scene on this map…': open the Cutscene Editor on this map's event (tail)
             bank and go straight into its New-scene dialog with the map-enter type preselected
-            (MapEnterScene, type 7 -- taken from the entry-type catalogue when it names it).
+            (MapEnterScene, type 6 -- taken from the entry-type catalogue when it names it).
             The scene lands in that editor's in-memory rf3.mc: its Save menu / Install
             write it (this tab keeps listing the shipped file)."""
             import cutscene_editor
@@ -2516,8 +2526,9 @@ class App:
         nsb = ttk.Button(frame, text="New scene on this map…", command=new_scene)
         nsb.pack(fill="x", padx=6, pady=(0, 2))
         ttk.Label(frame, foreground="#888", justify="left",
-                  text="New scene… = mint a map-enter scene (MapEnterScene, type 7) in this "
-                       "map's event bank via the editor's New-scene dialog").pack(fill="x", padx=6)
+                  text="New scene… = add a scene that plays when the player enters this map "
+                       "(MapEnterScene, type 6). Only the map's last one runs: if it already has "
+                       "one, the dialog says so").pack(fill="x", padx=6)
         if ta is None:
             ttk.Label(frame, justify="left", text="(no dialogue previews until rf3mc.<locale> "
                                                   "is in the source)").pack(fill="x", padx=6)
@@ -4585,6 +4596,8 @@ class App:
         ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
 
     def _view_param(self, name, data):
+        """Generic NLCL table view: named schema fields (fixed-point ones as multipliers,
+        nlcl.FIXED_FIELDS), raw offset edits, add / remove rows, CSV export (raw values)."""
         doc = self._doc
         t = nlcl.NlclTable(data)
         doc._param = t
@@ -4626,7 +4639,8 @@ class App:
                 nm = namefn(t.get(i, *name_off_typ) if name_off_typ else i)
                 if q and q not in str(i) and q not in nm.lower():
                     continue
-                vals = [i] + [t.get(i, off, typ) for _n, off, typ in fields]
+                vals = [i] + [nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, n))
+                              for n, off, typ in fields]
                 if sch and sch.get("names"):
                     vals.append(nm)
                 tv.insert("", "end", iid=str(i), values=vals)
@@ -4642,8 +4656,23 @@ class App:
         for idx, (fn, off, typ) in enumerate(fields):
             cell = ttk.Frame(grid); cell.grid(row=idx // 8, column=idx % 8, padx=2, pady=1)
             ttk.Label(cell, text=f"{fn}", font=("Segoe UI", 7)).pack()
-            v = tk.StringVar(); ttk.Entry(cell, textvariable=v, width=9).pack()
+            v = tk.StringVar(); en = ttk.Entry(cell, textvariable=v, width=9); en.pack()
+            bits = nlcl.fixed_bits(stem, fn)
+            if bits is not None:
+                Tip(en, lambda v=v, typ=typ, bits=bits: _fixed_tip(v.get(), typ, bits))
             evars.append((v, off, typ, fn))
+        if any(nlcl.fixed_bits(stem, fn) is not None for fn, _o, _t in fields):
+            one = {12: 4096, 7: 128}
+            hint_lbl = ttk.Label(ed, foreground="#777", justify="left", wraplength=600, text=(
+                "Fields shown as 1.5× are fixed-point multipliers: the file stores the value × "
+                + " / ".join(sorted({str(one.get(b, 1 << b)) for b in
+                                     nlcl.FIXED_FIELDS.get(stem, {}).values()}))
+                + " (so " + " / ".join(sorted({f"{one.get(b, 1 << b)} = 1×" for b in
+                                               nlcl.FIXED_FIELDS.get(stem, {}).values()}))
+                + "). Type a multiplier with x (1.5x) or the stored whole number (6144)."
+            ))
+            hint_lbl.pack(fill="x", padx=6)
+            hint_lbl.bind("<Configure>", lambda e, w=hint_lbl: w.config(wraplength=max(200, e.width - 8)))
         # generic offset editor (for raw edits beyond the shown fields)
         gen_row = ttk.Frame(ed); gen_row.pack(fill="x", padx=4, pady=(0, 2))
         ttk.Label(gen_row, text="raw  off:").pack(side="left")
@@ -4660,8 +4689,8 @@ class App:
             if not s:
                 return
             i = int(s[0]); sel["i"] = i
-            for v, off, typ, _fn in evars:
-                v.set(str(t.get(i, off, typ)))
+            for v, off, typ, fn in evars:
+                v.set(nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, fn)))
         tv.bind("<<TreeviewSelect>>", on_sel)
 
         def apply_edit():
@@ -4669,8 +4698,8 @@ class App:
                 return
             i = sel["i"]
             try:
-                for v, off, typ, _fn in evars:
-                    t.set(i, off, int(v.get(), 0), typ)
+                for v, off, typ, fn in evars:
+                    t.set(i, off, nlcl.parse_value(v.get(), typ, nlcl.fixed_bits(stem, fn)), typ)
                 if off_v.get().strip() and rawval_v.get().strip():
                     t.set(i, int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
             except (ValueError, nlcl.NlclError) as e:

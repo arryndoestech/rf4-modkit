@@ -1956,6 +1956,14 @@ class Container:
                                                                             recs[-1].event_id))
         if sel == "last":
             return "%s runs only the LAST entry: a scene inserted at index %d will never run" % (name, position)
+        keyless = False
+        try:
+            keyless = not (entry_types.ENTRY_TYPES.get(type_id) or {}).get("keys")
+        except Exception:
+            pass
+        if sel.startswith("first") and keyless and (position is None or position >= 1):
+            return ("%s runs only the FIRST entry: the new scene will never run (the one at pc "
+                    "0x%04x does); insert it at index 0 to replace it" % (name, recs[0].event_id))
         if sel.startswith("first") and position == 0:
             return ("%s takes the FIRST matching entry: the new entry at index 0 is checked before the "
                     "%d existing ones (wildcard keys would shadow them)" % (name, n))

@@ -51,11 +51,13 @@ most ONE pattern (268 of the 690 are empty). Layout, offsets absolute from file 
                         and its scene node bit 1 -- HIDDEN and unhittable, an invisible
                         spawner (700 of the 1224 shipped entries, e.g. every Yokmir
                         Forest gate but A04 / A08; as when the player has status
-                        0x40000); flag high byte != 0
-                        (value 256 in 16 shipped entries) enables the leader-report path.
+                        0x40000); flag high byte != 0 (value 256 in 16 shipped
+                        entries, Rune Prana): the gate TELEPORTS between its positions
+                        (see gate_motion).
     +8  u32 -> gate positions  {u32 n; n x (u16 x, u16 y)}   sub-units, tile = >>3;
                         Encounter_TickMonsterSpawnSlots picks one at random for the gate
-                        (n = 0 reads the dword after the count as a position)
+                        (n = 0 reads the dword after the count as a position); with 2+
+                        positions some gates then move between them (gate_motion)
     +12 u32 -> monster positions {u32 m; m x (u16 x, u16 y, u32 radius)}  the monster
                         appears at a random angle and distance 0..radius-1 sub-units from
                         (x, y) (only the low u16 is read); up to 63 random samples until the
@@ -126,6 +128,56 @@ NEW_GATE = {"kind": GATE_KIND_LO, "weight": 10, "count_min": 2, "count_max": 4,
             "spawn_delay": 120, "flag": 0, "param_a": 0, "radius": 32, "pick_weight": 5,
             "pos_weight": 10}
 MAX_INDEX7 = 128            # roster / monster-position indices are kept in 7 bits
+# Gates that move between their positions (verified 2026-09-29, both in the gate's behaviour
+# tick Companion_TickAI RF4S.exe+0x1E7870; shipped users are all in Rune Prana):
+#  GLIDE (RF4S.exe+0x1E9190): kinds 375..382 that are not hidden (flag low byte 0) slide from
+#    position to position in list order, wrapping to the first, eased (slow at each end),
+#    GLIDE_LEG_FRAMES per leg whatever its length (GenField85, GenM04 / M08 / M44 / M73).
+#  TELEPORT (RF4S.exe+0x1E8FF0): any kind with a nonzero flag HIGH byte rests TELEPORT_REST
+#    frames, blinks out (40), stays away 60 frames, reappears at a RANDOM position of its
+#    list (it can be the same one) and blinks in (40) (GenM05 / M77, kinds 383..390, flag
+#    0x100). The game stores 1 in the high byte (flag 0x100).
+#  The two do NOT combine: both keep their state in the behaviour task's bytes +229 / +230
+#  (glide: init flag / target index; teleport: stage / frame counter), and Companion_TickAI
+#  calls the teleport first and the glide right after. The glide's init leaves +229 = 1, so
+#  the teleport starts mid-blink with the glide's index as its counter, and while the gate is
+#  shown the glide indexes the position table with that counter (up to 60) -- past its end,
+#  towards garbage coordinates. A teleporting gate must be a non-gliding kind: every shipped
+#  one is 383..390 (the same gates, 1000 HP).
+GLIDE_KIND_LO, GLIDE_KIND_HI = 375, 382
+GLIDE_LEG_FRAMES = 256
+TELEPORT_REST = 240
+TELEPORT_FLAG = 0x100
+
+
+def gate_motion(e) -> set:
+    """How a gate moves between its positions in the game: a set of "glide" / "teleport"
+    (empty: it stays where the spawner put it). Both need 2+ positions."""
+    out = set()
+    if len(e.gate_pos.points) < 2:
+        return out
+    if GLIDE_KIND_LO <= e.gate_kind <= GLIDE_KIND_HI and not e.hdr.flag & 0xFF:
+        out.add("glide")
+    if e.hdr.flag >> 8:
+        out.add("teleport")
+    return out
+
+
+def gate_motion_text(e) -> str:
+    """One line on how the gate moves, or "" when it doesn't."""
+    m = gate_motion(e)
+    if not m:
+        return ""
+    if m == {"glide", "teleport"}:
+        return ("Broken: kinds 375-382 glide, and a gliding gate can't teleport -- the two share "
+                "their counters, so the gate jumps to wrong places. For a teleporting gate use "
+                "kind 383-390 (the same gates with 1000 HP), or untick 'teleports'.")
+    parts = []
+    if "glide" in m:
+        parts.append("glides along its positions in order (about 4 s a leg)")
+    if "teleport" in m:
+        parts.append("teleports to a random one of its positions every 6 s or so")
+    return "Moves: " + "; ".join(parts) + "."
 
 
 class GenError(Exception):
@@ -635,6 +687,11 @@ class GenTable:
                     out.append(f"{tag}: no gate positions -- the tick still picks index 0 and "
                                f"reads the dword after the count (the next block) as the gate "
                                f"position (GenN03 ships like this)")
+                if gate_motion(e) == {"glide", "teleport"}:
+                    out.append(f"{tag}: kind {e.gate_kind} glides (375..382) and its flag high "
+                               f"byte makes it teleport too -- the two share the gate's "
+                               f"counters, so it jumps to wrong places; use kind 383..390 for a "
+                               f"teleporting gate")
                 m = len(e.mon_pos.points)
                 if not m:
                     out.append(f"{tag}: no monster positions")

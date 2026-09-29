@@ -514,7 +514,14 @@ FIELD_SCHEMAS = {
             ("dmg_mult", 44, "s32"),     # Q12 overall damage multiplier (4096 = 1.0x)
             ("efflvl_mult", 48, "s32"),  # Q12 effect-level (charge/spell-tier) scaling
             ("elem_resist", 52, "s32"),  # Q12 (-> AttackInfo+308 via *24576>>12)
-            ("stagger", 56, "s32"),      # knockback/stagger (-> *30>>12)
+            ("stagger", 56, "s32"),      # Q12 hit-stun multiplier: the attack's stun word =
+                                         # stagger*30>>12 (+0x97250 -> AttackInfo+332);
+                                         # Combat_ResolveHit (+0xA3D..) scales it by the
+                                         # target's own Q12 factor (stats +68) into the
+                                         # target's stun timer (actor +576). 4096 = 1x = 30
+                                         # frames, the same as a plain weapon hit
+                                         # (Attack_PopulateAttackInfoFromWeaponAndStatus
+                                         # writes 30); 0 = the target does not flinch
             ("status_proc", 60, "s32"),  # status-infliction weight (-> *-10240>>12)
             ("elem0", 100, "u16"), ("elem1", 104, "u16"), ("elem2", 108, "u16"),
             ("elem3", 112, "u16"), ("elem4", 116, "u16"), ("elem5", 120, "u16"),
@@ -755,6 +762,77 @@ PREFIX_SCHEMAS = {
 # --------------------------------------------------------------------------- #
 CROP_SEASONS = ("spring", "summer", "fall", "winter")
 _CROP_SEASON_MASK = 0xFF000  # the 8 season bits (0x1000..0x80000)
+
+
+# ---- fixed-point fields ---------------------------------------------------------
+# Fields the exe reads as FIXED-POINT numbers: the stored integer is the value times
+# 2**bits and the game multiplies, then shifts right by `bits`. Q12 (bits 12: 4096 = 1.0)
+# is the engine's usual scale -- a 32-bit field is Q20.12, a 16-bit one Q4.12 -- and the
+# crop growth-rate multipliers are Q7 (128 = 1.0). Only fields whose reader was checked
+# are listed (see each schema's comments); the rest stay plain integers.
+# {table stem: {field: fraction bits}}
+FIXED_FIELDS = {
+    "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
+                                      "elem_resist", "stagger")},
+    "rf3NpcParam": {**{f"elem_{e}": 12 for e in ("fire", "water", "earth", "wind", "light",
+                                                 "dark", "none", "love")},
+                    **{f"res_{s}": 12 for s in ("poison", "seal", "paralysis", "sleep",
+                                                "fatigue", "cold", "faint", "drain")}},
+    "rf3UseItemParam": {f: 12 for f in ("hp_recover_pct", "rp_recover_pct", "buff_hp_pct",
+                                        "buff_rp_pct", "buff_str_pct", "buff_int_pct",
+                                        "buff_vit_pct", "level_scale")},
+    "rf3ParamSkill": {f: 12 for f in ("hp_growth", "rp_growth", "str_growth", "int_growth",
+                                      "vit_growth", "rp_discount")},
+    "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
+    "rf3ItemStrengthening": {"knockback_scale_q12": 12},
+    "rf3CropParam": {f: 7 for f in ("gmul_size", "gmul_1", "gmul_2", "gmul_3")},
+}
+MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplier
+
+
+def fixed_bits(stem: str, name: str):
+    """Fraction bits of a fixed-point field (12 for Q12, 7 for Q7), or None."""
+    return FIXED_FIELDS.get(stem, {}).get(name)
+
+
+def format_value(raw: int, bits=None) -> str:
+    """How a field value is shown: a multiplier ('1.5×') for a fixed-point field, else the
+    int. The multiplier is the SHORTEST decimal that converts back to the same stored integer
+    (4710 -> 1.15×, the value the designers typed, not 1.1499×); four decimals always do."""
+    if bits is None:
+        return str(raw)
+    one = 1 << bits
+    for nd in range(0, 5):
+        s = f"{raw / one:.{nd}f}"
+        if round(float(s) * one) == raw:
+            break
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return (s if s not in ("-0", "") else "0") + "\u00d7"
+
+
+def parse_value(text: str, typ: str = "s32", bits=None) -> int:
+    """A typed field value -> the stored integer. '1.5x' / '1.5×' is a multiplier (fixed-point
+    fields only), anything else a plain integer (0x.. allowed) stored as is. Checks the
+    field's width and names the multiplier range when a multiplier does not fit."""
+    t = str(text).strip()
+    if t.endswith(MULT_SIGNS):
+        if bits is None:
+            raise NlclError(f"{t!r}: this field is not a multiplier -- type a whole number")
+        try:
+            raw = round(float(t[:-1]) * (1 << bits))
+        except ValueError:
+            raise NlclError(f"{t!r} is not a number") from None
+        lo, hi = type_range(typ)
+        if not lo <= raw <= hi:
+            raise NlclError(f"{t} does not fit a {typ} field: {lo / (1 << bits):g}\u00d7 .. "
+                            f"{hi / (1 << bits):g}\u00d7")
+        return raw
+    try:
+        return int(t, 0)
+    except ValueError:
+        raise NlclError(f"{t!r} is not a whole number"
+                        + (" (for a multiplier add x, e.g. 1.5x)" if bits is not None else "")) from None
 
 
 def crop_season_decode(season: int) -> dict:

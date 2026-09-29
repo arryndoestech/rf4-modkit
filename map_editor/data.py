@@ -667,8 +667,64 @@ def monster_choices():
     return [f"{i}  {actor_name(i)}" for i in range(gen.MONSTER_LO, gen.MONSTER_HI + 1) if actor_name(i)]
 
 
+_GATE_HP = [None, None, {}]            # [bundle dir, (path, mtime), {kind: hp}]
+
+
+def gate_hp(kind):
+    """A gate kind's HP from the game's rf3NpcParam.bin (the copy the game loads), or None.
+    The two gates of each name (375..382 and 383..390) differ only in HP."""
+    from rf4s_modkit import gamenames, gamepaths, monster, nlcl
+    try:
+        b = gamepaths.find_bundle_dir()
+    except Exception:  # noqa: BLE001
+        b = None
+    if b is None:
+        return None
+    if _GATE_HP[0] != b:
+        hit = gamenames._first_loose(b, ["rf3NpcParam.bin"]).get("rf3NpcParam.bin")
+        if hit is None:
+            ex = gamepaths.extracted_dir(b)
+            if ex is not None and pathlib.Path(ex).is_dir():
+                hit = gamenames._first_loose(ex, ["rf3NpcParam.bin"]).get("rf3NpcParam.bin")
+        _GATE_HP[0], _GATE_HP[1], _GATE_HP[2] = b, (hit, None), {}
+    path, stamp = _GATE_HP[1]
+    if path is None:
+        return None
+    try:
+        now = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    if now != stamp:                        # (re)read: saving rf3NpcParam.bin shows at once
+        try:
+            t = nlcl.NlclTable.load(path)
+            _GATE_HP[2] = {k: t.row(k, monster.STEM)["hp"]
+                           for k in range(gen.GATE_KIND_LO, gen.GATE_KIND_HI + 1)}
+        except Exception:  # noqa: BLE001
+            _GATE_HP[2] = {}
+        _GATE_HP[1] = (path, now)
+    return _GATE_HP[2].get(kind)
+
+
+def gate_label(kind):
+    """'385  Frozen Gate · 1000 HP' -- '· glides' for the kinds that glide (375..382)."""
+    hp = gate_hp(kind)
+    out = f"{kind}  {actor_name(kind) or 'gate'}" + (f" · {hp} HP" if hp else "")
+    if gen.GLIDE_KIND_LO <= kind <= gen.GLIDE_KIND_HI:
+        out += " · glides"
+    return out
+
+
 def gate_choices():
-    return [f"{i}  {actor_name(i) or 'gate'}" for i in range(gen.GATE_KIND_LO, gen.GATE_KIND_HI + 1)]
+    return [gate_label(i) for i in range(gen.GATE_KIND_LO, gen.GATE_KIND_HI + 1)]
+
+
+def gate_list_label(e):
+    """A gate's row in the Gates list: kind, name, how it moves, hidden."""
+    how = gen.gate_motion(e)
+    move = ("  · BROKEN (glides + teleports)" if how == {"glide", "teleport"} else
+            "  · teleports" if "teleport" in how else "  · glides" if "glide" in how else "")
+    return (f"{e.gate_kind}  {actor_name(e.gate_kind)}".strip() + move
+            + ("  (hidden)" if e.hdr.flag & 0xFF else ""))
 
 
 _CHARS = None
