@@ -9,11 +9,11 @@ A single window:
   * Right : a type-aware viewer that adapts to whatever you select --
               .texture        -> decoded image (zoom)
               .png/.jpg/.gif/.bmp/.tif/.webp/.tga/.dds/.ico -> Pillow image (zoom)
-              TEXT / rf3mc.*   -> searchable string table
+              TEXT / rf3mc.*   -> text editor (every line; checked; Save / Save as…)
               .minterface/.plist/.mbundle/Manifest -> bplist tree
               .rf4m            -> chunk list + ATTR heatmap + record counts
               .bin (AIBN)      -> opcode disassembly
-              .strings         -> key/value table
+              .strings         -> text editor (keys and values)
               .model/.bfskl/.psbData -> NN container structure
               anything else    -> identification + hex preview
   * Buttons: Extract (save raw bytes) and Export (PNG/JSON/disasm where it applies).
@@ -557,7 +557,7 @@ class _Doc:
             "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
             "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
             "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
-            "_events_new_scene")
+            "_events_new_scene", "_text_tab")
 
     def __init__(self, frame, on_data=None):
         for name in self.VIEW:
@@ -2326,36 +2326,11 @@ class App:
         doc._events_new_scene = new_scene      # headless-test hook (the last built Events tab)
 
     def _view_textdb(self, name, data):
+        """A TEXT archive (rf3Txt* / rf4Txt* / rf3mc.<locale>): the text editor (text_tab.py)."""
+        import text_tab
         doc = self._doc
-        arc = textdb.TextArchive.parse(data)
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"{len(arc):,} strings").pack(side="left", padx=6)
-        ttk.Label(bar, text="Search:").pack(side="left")
-        sv = tk.StringVar()
-        ttk.Entry(bar, textvariable=sv, width=30).pack(side="left", padx=2)
-        tv = ttk.Treeview(doc.content, columns=("idx", "text"), show="headings")
-        tv.heading("idx", text="#"); tv.column("idx", width=70, anchor="e", stretch=False)
-        tv.heading("text", text="String"); tv.column("text", width=900)
-        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        texts = arc.texts()
-
-        def repop(*_):
-            tv.delete(*tv.get_children())
-            q = sv.get().lower()
-            n = 0
-            for i, s in enumerate(texts):
-                if q and q not in s.lower():
-                    continue
-                tv.insert("", "end", values=(i, s.replace("\n", "⏎")))
-                n += 1
-                if n >= MAX_TABLE_ROWS:
-                    tv.insert("", "end", values=("…", f"(showing first {MAX_TABLE_ROWS}; refine search)"))
-                    break
-        sv.trace_add("write", repop)
-        repop()
-        doc._export_kind = "textjson"; doc._export_arc = arc
+        doc._text_tab = text_tab.TextTab(self, doc, name, data)
+        doc._export_kind = "textjson"; doc._export_arc = doc._text_tab.m.arc
         self.export_btn.config(state="normal")
 
     # plain TEXT routed above; this handles `text` fmt files that are NOT TEXT magic
@@ -2466,19 +2441,13 @@ class App:
         self._view_hex(name, data)
 
     def _view_strings(self, name, data):
+        """A .strings file (Localization-<lang>.strings): the text editor (text_tab.py)."""
+        import text_tab
         doc = self._doc
         try:
-            d = strings_file.parse(data.decode("utf-8"))
+            doc._text_tab = text_tab.TextTab(self, doc, name, data)
         except Exception as e:
-            self._view_hex(name, data, error=str(e)); return
-        tv = ttk.Treeview(doc.content, columns=("key", "val"), show="headings")
-        tv.heading("key", text="Key"); tv.column("key", width=260)
-        tv.heading("val", text="Value"); tv.column("val", width=720)
-        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        for k, v in d.items():
-            tv.insert("", "end", values=(k, v.replace("\n", "⏎")))
+            self._view_hex(name, data, error=str(e))
 
     def _view_res(self, name, data):
         # A .model / .bntx embeds a Nintendo BNTX texture block (the map's over-model

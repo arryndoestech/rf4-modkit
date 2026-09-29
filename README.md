@@ -295,6 +295,22 @@ the dungeon); untick it for the plain file list. The choice is
 kept in `settings.json` and shared with the standalone map editor's map list (`rf4mod.py map`),
 which groups its maps the same way.
 
+**Editing text.** Every text file opens in a text editor: the TEXT archives, i.e. all
+`rf3Txt*` / `rf4Txt*` files and the cutscene dialogue `rf3mc.<locale>`, plus the
+`Localization-*.strings` files. The TEXT archives hold item, character, map, skill, quest,
+shop, menu, calendar and staff-roll names and descriptions. Click a line, change it below the
+list, and press *Apply* (Ctrl+Enter). The line is checked the way the game reads it (the same
+`＠` checks as the Cutscene Editor), and one the game could crash on is refused. Other
+checker problems are shown in orange, and changed lines in blue. *Show* narrows the list to
+changed lines or lines with problems. *＋ New line* appends a line whose number is its id.
+TEXT lines are addressed by number, so they can't be removed. `.strings` files also take
+*＋ New key…* and *Delete key*. *Revert line* goes back to the text as the file was opened.
+*Save* writes the file where the game loads it (`Bundle _mods` when the game only has it
+packed; the original is kept in `ModdingBackup`), or back to the file you opened from disk.
+*Save as…* writes anywhere. Dialogue shows in game the next time the line is shown. Other
+text needs a game restart, but the editors' character, item, map and skill names follow the
+saved file at once.
+
 **Tabs.** Clicking a file shows it in the current tab; **double-clicking opens it in a new
 tab**; Up / Down in the list show the next file in the tab you are browsing. A file that is
 already open just shows its tab, and a tab with unsaved changes is never replaced: a click
@@ -820,7 +836,7 @@ from Blender.
 |---|---|---|---|
 | Bundle archive | `.mbundle`, `Manifest.plist` | `rf4mod bundle` | ✅ full |
 | UI layout / config | `.minterface`, `.plist` | `rf4mod plist` | ✅ full (bplist) |
-| Game text | `rf3mc.*`, TEXT archives | `rf4mod text` | ✅ full |
+| Game text | `rf3mc.*`, TEXT archives, `.strings` | explorer text editor, Cutscene Editor, `rf4mod text` / `rf4mod strings` | ✅ full |
 | Engine UI text | `.strings` | `rf4mod strings` | ✅ full |
 | Textures | `.texture` | `rf4mod texture` | ✅ decode all; **encode from PNG into any template, in the template's own format**: BC7 / BC3 / BC1 are re-encoded by the built-in `bcenc` encoders at the **same size** (the file stays `bundle patch`-able in place), raw formats are kept, `--fmt RGBA8` (4×) / `BC7` / `BC3` / `BC1` force one; flipbook frames and strips; ✅ **any image size** (statically verified, not yet tried in game): the frame is stored at the PNG's size (the loader reads only format / width / height and uploads level 0; mip levels come from the driver), block formats need multiples of 4 (else `--fmt RGBA8`); the tool prints what the size change does in game — sprites with quad data (13,237 of 13,366 textures) keep their on-screen size and only stretch if the aspect changes, sprites without it grow/shrink with the pixels, **map ground tiles must keep their size** (fixed 512-px grid); `rf4mod map ground-export` / `ground-import` round-trip a whole ground layer as one PNG |
 | Maps | `.rf4m` | `rf4mod map` | ✅ chunk-level; `map validate` checks the game loader's rules **and the ground atlas against the ATTR grid**; `map resize-attr` resizes the tile grid and lists every derived artefact it invalidates |

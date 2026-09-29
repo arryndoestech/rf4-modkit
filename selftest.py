@@ -7064,6 +7064,87 @@ def test_blender_addon():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_text_tab():
+    """The explorer edits every text file: TEXT archives (rf3Txt* / rf4Txt* / rf3mc.<locale>)
+    line by line -- changed, added, reverted, never removed -- and .strings files key by key;
+    a line the game could crash on is refused; Save writes where the game loads the file, or
+    back to a file opened from disk; the tab is marked • until then."""
+    print("explorer text editor (TEXT archives and .strings):")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("text editor", "no tkinter: %s" % e); return
+    B = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    src_file = B / "rf3TxtItem_split2_1.eng"
+    if not src_file.is_file():
+        _skip("text editor", "no extracted bundleMain"); return
+    from rf4s_modkit import textdb, strings_file
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_text", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        app = gui.App(root, initial=str(B))
+        n = next(e[0] for e in app.source.entries if e[0].rsplit("/", 1)[-1] == src_file.name)
+        i = next(k for k, e in enumerate(app.source.entries) if e[0] == n)
+        app._reveal_entry(i); app._suppress_select = False; app._on_select(None)
+        root.update_idletasks()
+        doc = app._doc
+        tt = doc._text_tab
+        _check("a TEXT archive opens in the text editor with every line", tt is not None
+               and len(tt.m.rows) == 1108 and tt.m.rows[1] == "Cabbage", tt and len(tt.m.rows))
+        tt.show(1)
+        ok = tt.apply("Cabbage X")
+        root.update_idletasks()
+        edited = textdb.TextArchive.parse(doc.cur_data)
+        _check("Apply changes the line in the working copy; the tab is marked •; the row shows as changed",
+               ok and edited.text(1) == "Cabbage X" and app.tabbar.text(doc).endswith("•")
+               and "changed" in tt.tv.item(tt._iid(1), "tags"))
+        refused = not tt.apply("gift for ＠‡him", quiet=True)
+        _check("a line the game could crash on (＠‡ without its closing ＠) is refused",
+               refused and tt.m.rows[1] == "Cabbage X")
+        new = tt.new_row(text="Moon Cabbage")
+        _check("＋ New line appends at the next id", new == 1108 and len(textdb.TextArchive.parse(doc.cur_data)) == 1109
+               and textdb.TextArchive.parse(doc.cur_data).text(1108) == "Moon Cabbage", new)
+        tt.show(1); tt.revert()
+        tgt, kind = tt.target()
+        _check("Revert line restores the loaded text; Save aims at the copy the game loads",
+               tt.m.rows[1] == "Cabbage" and kind == "game" and tgt.name == src_file.name, (tgt, kind))
+        # a file opened from disk saves back to it
+        cp = tmp / src_file.name
+        cp.write_bytes(src_file.read_bytes())
+        d2 = app.open_file_tab(cp)
+        root.update_idletasks()
+        t2 = d2._text_tab
+        t2.show(2); t2.apply("King Cabbage II")
+        saved = t2.save()
+        back = textdb.TextArchive.parse(cp.read_bytes())
+        _check("Save writes a file opened from disk back to it; the tab is clean again",
+               saved == cp and back.text(2) == "King Cabbage II" and not d2.is_dirty()
+               and len(back) == 1108, (saved, back.text(2)))
+        # .strings
+        sp = tmp / "Localization-test.strings"
+        sp.write_text(strings_file.dumps({"Menu.Start": "Start", "Menu.Quit": "Quit"}), encoding="utf-8")
+        d3 = app.open_file_tab(sp)
+        root.update_idletasks()
+        t3 = d3._text_tab
+        t3.show("Menu.Start"); t3.apply('Begin "now"')
+        t3.new_row("Menu.Extra", "Extra")
+        t3.delete_key("Menu.Quit")
+        t3.save()
+        got = strings_file.parse(sp.read_text(encoding="utf-8"))
+        _check(".strings: values change, keys are added and deleted, and the saved file reads back",
+               got == {"Menu.Start": 'Begin "now"', "Menu.Extra": "Extra"}, got)
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_explorer_tabs():
     """rf4mod_gui tabs: every open file is a tab (_Doc) with its own working copy and view
     state. Clicking a file opens it in a new tab (unsaved edits elsewhere stay put);
@@ -13491,7 +13572,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_viewer_tabs, test_portraits,
+              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_text_tab, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()
