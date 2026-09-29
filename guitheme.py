@@ -23,6 +23,7 @@ DARK = {
     "bg": "#1f1f24", "panel": "#26262c", "field": "#2c2c33", "fg": "#e4e4ea", "muted": "#a8a8b2",
     "border": "#3a3a44", "button": "#34343c", "button_active": "#42424c", "select": "#35598f",
     "select_fg": "#ffffff", "disabled": "#76767f",
+    "thumb": "#5c5c68", "thumb_hover": "#747482", "thumb_press": "#8c8c9a", "trough": "#18181c",
 }
 
 _state = {"root": None, "mode": "light", "base_theme": None, "orig": {}, "bound": False}
@@ -226,7 +227,18 @@ def _style_dark(root):
     for w in ("TCheckbutton", "TRadiobutton"):
         st.configure(w, indicatorbackground=p["field"], indicatorforeground=p["fg"])
         st.map(w, background=[("active", p["bg"])], indicatorbackground=[("selected", p["select"])])
-    st.configure("TScrollbar", background=p["panel"], troughcolor=p["bg"], arrowcolor=p["fg"])
+    # a thumb that stands out from its track (lighter on hover / while dragged)
+    st.configure("TScrollbar", background=p["thumb"], troughcolor=p["trough"], arrowcolor=p["fg"],
+                 bordercolor=p["trough"], lightcolor=p["thumb"], darkcolor=p["thumb"], gripcount=0)
+    st.map("TScrollbar", background=[("pressed", p["thumb_press"]), ("active", p["thumb_hover"])],
+           lightcolor=[("pressed", p["thumb_press"]), ("active", p["thumb_hover"])],
+           darkcolor=[("pressed", p["thumb_press"]), ("active", p["thumb_hover"])])
+    # sliders (map editor opacity / darken ...): the same light handle on a dark track
+    st.configure("TScale", background=p["thumb"], troughcolor=p["trough"], bordercolor=p["border"],
+                 lightcolor=p["thumb"], darkcolor=p["thumb"], gripcount=0)
+    st.map("TScale", background=[("pressed", p["thumb_press"]), ("active", p["thumb_hover"])],
+           lightcolor=[("pressed", p["thumb_press"]), ("active", p["thumb_hover"])],
+           darkcolor=[("pressed", p["thumb_press"]), ("active", p["thumb_hover"])])
     st.configure("TLabelframe", background=p["bg"], bordercolor=p["border"])
     st.configure("TLabelframe.Label", background=p["bg"], foreground=p["fg"])
     st.configure("TProgressbar", background=p["select"], troughcolor=p["field"])

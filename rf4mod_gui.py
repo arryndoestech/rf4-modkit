@@ -1475,6 +1475,7 @@ class App:
                 "gen": self._view_gen,
                 "emf": self._view_emf,
                 "emdeb": self._view_emf,
+                "mycf": self._view_mycf,
                 "param": self._view_param,
                 "search_items": self._view_search_items,
                 "route": self._view_route,
@@ -2444,6 +2445,25 @@ class App:
         txt.config(state="disabled")
         doc._export_kind = "disasm"; doc._export_text = dis
         self.export_btn.config(state="normal")
+
+    def _view_mycf(self, name, data):
+        """rf3.mc (the cutscene / event scripts): selecting it opens the Cutscene Editor (the one
+        window, brought forward when it is open already); the tab says so and can reopen it."""
+        doc = self._doc
+        box = ttk.Frame(doc.content, padding=16)
+        box.pack(fill="both", expand=True)
+        ttk.Label(box, text="rf3.mc — the cutscene and event scripts", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        ttk.Label(box, wraplength=640, justify="left", foreground="#666", text=(
+            "Every scene, NPC talk and map event of the game, compiled for the script VM (the "
+            "dialogue text is in rf3mc.<locale>). It opens in the Cutscene Editor, which reads the "
+            "rf3.mc of this source (the copy the game loads) together with the dialogue text and "
+            "em.bin.")).pack(anchor="w", pady=(6, 10))
+        b = ttk.Button(box, text="Open in the Cutscene Editor", command=self.cmd_cutscene_editor)
+        b.pack(anchor="w")
+        from guiutil import Tip
+        Tip(b, "Open the Cutscene Editor window, or bring it to the front.")
+        if not getattr(self, "_testing", False):
+            self.root.after_idle(self.cmd_cutscene_editor)      # after the list has its selection
 
     def _view_emf(self, name, data):
         """em.bin / emdeb.bin -- the Event Manager: the game's trigger rules (what gates

@@ -6693,6 +6693,20 @@ def test_explorer_open_file():
         _check("Ctrl+S on a map opened from disk writes that file, nothing in the game folder",
                ok and f.read_bytes() != before and not leaked and not panel.doc.dirty("map"),
                (ok, leaked))
+        # rf3.mc opens the Cutscene Editor (one window; selecting it again brings that one forward)
+        mc = next((p for p in pathlib.Path(BUNDLE_DIR).glob("bundlePatch*/rf3.mc")), None)
+        if mc is not None:
+            app2 = gui.App(tk.Toplevel(root), initial=str(mc.parent))
+            n = next(e[0] for e in app2.source.entries if e[0].endswith("rf3.mc"))
+            i = next(k for k, e in enumerate(app2.source.entries) if e[0] == n)
+            app2._reveal_entry(i); app2._suppress_select = False; app2._on_select(None)
+            root.update()
+            ed = getattr(app2, "_cutscene_ed", None)
+            app2._on_select(None)
+            root.update()
+            _check("selecting rf3.mc opens the Cutscene Editor (one window, reused)",
+                   ed is not None and ed[0].winfo_exists() and app2._cutscene_ed is ed
+                   and ed[1].doc.container is not None, ed)
         _check("Open file… raised no callback errors", not errs, errs[:1])
     finally:
         try:
