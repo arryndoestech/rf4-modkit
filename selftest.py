@@ -1164,6 +1164,23 @@ def test_bin_editors():
             tvm = doc._param_tree
             res["magic"] = (tvm["columns"][:2], tvm.set("0", "used by"), tvm.set("25", "used by").split(";")[0],
                             "Orc Archer" in tvm.set("53", "used by"))
+        # rf3ScheduleID: spot kind + room name after the id; "kind 26" lists that kind's spots
+        if (B / "rf3ScheduleID.bin").exists():
+            d = (B / "rf3ScheduleID.bin").read_bytes()
+            app._show("rf3ScheduleID.bin", d); doc = app._doc
+            tvs = doc._param_tree
+            first = (tuple(tvs["columns"][:3]), tvs.set("30", "spot kind"), tvs.set("30", "room name"))
+            import tkinter.ttk as _ttk
+            ents = []
+
+            def _walk(w):
+                for c in w.winfo_children():
+                    if isinstance(c, _ttk.Entry) and not isinstance(c, _ttk.Combobox):
+                        ents.append(c)
+                    _walk(c)
+            _walk(doc.content)
+            ents[0].insert(0, "kind 26"); root.update()
+            res["sid"] = first + (list(tvs.get_children()) == [str(r) for r in range(30, 40)],)
         # recipe: item-id fields show names; the picker takes a name, "Name (id)" or an id
         if (B / "rf3RecipeAcce.bin").exists():
             d = (B / "rf3RecipeAcce.bin").read_bytes()
@@ -1207,6 +1224,10 @@ def test_bin_editors():
         _check("rf3ParamMagic: 'used by' follows the id -- row 0 Fireball, 25 Double Sonic (spell items), "
                "53 the Orc Archer's move (monster timeline via rf3NpcParam +280)",
                res["magic"] == (("#", "used by"), "Fireball", "Double Sonic", True), res["magic"])
+    if "sid" in res:
+        _check("rf3ScheduleID: 'spot kind' and 'room name' follow the id (record 30 = kind 26, 1 of 10, "
+               "Butler's Room); searching 'kind 26' lists exactly records 30..39",
+               res["sid"] == (("#", "spot kind", "room name"), "26  (1 of 10)", "Butler's Room", True), res["sid"])
     if "sched" in res:
         _check("rf3Schedule editor: opens on Herbert's normal-day routine (19 stops), Add puts a stop in "
                "time order, Remove restores the file, Copy makes another day's routine, Revert, "

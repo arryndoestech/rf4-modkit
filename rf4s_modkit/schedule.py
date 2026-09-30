@@ -149,6 +149,16 @@ def state_code(token) -> int:
     return v
 
 
+def kind_of_record(rec: int):
+    """(kind, position within the kind, spots in the kind) of an rf3ScheduleID record, or None
+    past the last kind (KIND_PREFIX is ascending, so a bisect finds the owning kind)."""
+    import bisect
+    if not (0 <= rec < KIND_PREFIX[-1]):
+        return None
+    k = bisect.bisect_right(KIND_PREFIX, rec) - 1
+    return k, rec - KIND_PREFIX[k], KIND_PREFIX[k + 1] - KIND_PREFIX[k]
+
+
 def kind_records(kind: int) -> range:
     """The rf3ScheduleID record indices a slice spot (kind) can resolve to."""
     if not (0 <= kind <= MAX_KIND):

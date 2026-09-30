@@ -5334,13 +5334,29 @@ class App:
             from rf4s_modkit import magicnames
             used = magicnames.names_for_game()
         used_col = ["used by"] if stem == "rf3ParamMagic" else []
-        cols = ["#"] + used_col + [f[0] for f in fields] + (["name"] if name_col else [])
+        # rf3ScheduleID: which spot kind (schedule stop target) each spot belongs to + its room
+        pre_cols, pre_vals = [], None
+        if stem == "rf3ScheduleID":
+            pre_cols = ["spot kind", "room name"]
+
+            def pre_vals(i):
+                kr = schedule.kind_of_record(i)
+                return [f"{kr[0]}  ({kr[1] + 1} of {kr[2]})" if kr else "",
+                        map_names.map_name(t.get(i, 0, "u16")) or ""]
+        cols = ["#"] + used_col + pre_cols + [f[0] for f in fields] + (["name"] if name_col else [])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
         for c in cols:
             tv.heading(c, text=c)
-            tv.column(c, width=160 if c == "name" else 300 if c == "used by" else 130 if c in item_f else 70,
-                      anchor="w")
+            tv.column(c, width={"name": 160, "used by": 300, "spot kind": 110, "room name": 200}.get(
+                c, 130 if c in item_f else 70), anchor="w")
+        if pre_cols:
+            kind_lbl = ttk.Label(doc.content, foreground="#555", padding=(6, 2), justify="left", text=(
+                "'spot kind' = the number a schedule stop uses to send an NPC here (RF4S.exe+0x4DCF70 "
+                "groups the spots into kinds); a kind with several spots picks one of them each day by "
+                "weight. Type 'kind 26' in the search box to list one kind's spots."))
+            kind_lbl.pack(fill="x")
+            kind_lbl.bind("<Configure>", lambda e: kind_lbl.config(wraplength=max(200, e.width - 16)))
         if used_col:
             used_lbl = ttk.Label(doc.content, foreground="#555", justify="left", padding=(6, 2))
             used_lbl.pack(fill="x")
@@ -5361,11 +5377,19 @@ class App:
             for i in range(t.entry_count):
                 nm = namefn(t.get(i, *name_off_typ) if name_off_typ else i)
                 vals = [i] + [cell_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]
-                if q and q not in str(i) and q not in nm.lower() and q not in used.get(i, "").lower() \
+                pre = pre_vals(i) if pre_cols else []
+                kq = re.fullmatch(r"kind\s*(\d+)", q) if pre_cols else None
+                if kq:
+                    kr = schedule.kind_of_record(i)
+                    if not kr or kr[0] != int(kq.group(1)):
+                        continue
+                elif q and q not in str(i) and q not in nm.lower() and q not in used.get(i, "").lower() \
+                        and not any(q in str(v).lower() for v in pre) \
                         and not any(q in str(v).lower() for (n, _o, _t), v in zip(fields, vals[1:]) if n in item_f):
                     continue
                 if used_col:
                     vals.insert(1, used.get(i, ""))
+                vals[1 + len(used_col):1 + len(used_col)] = pre
                 if name_col:
                     vals.append(nm)
                 tv.insert("", "end", iid=str(i), values=vals)
