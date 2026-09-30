@@ -13,15 +13,19 @@ Edges (source block -> target block, kind, label), from the block's last stateme
   SWITCH             one edge per table slot (0, 1, ...) plus the fall-through "default";
                      SWITCH_CLAMP never falls through, its last slot takes every larger value
   JMP_RAND           one edge per target;  JMP_WEIGHTED  the same, labelled with the weight
-  PROMPT_CHOICE(_F)  one edge per option (its text), PROMPT_CHOICE's slot 0 = "cancel"
+  PROMPT_CHOICE(_F)  one edge per option (its text); PROMPT_CHOICE's CANCEL slot is left
+                     out (never taken: the cancel key picks the last option)
   CALL               a "call" edge to the subroutine and the fall-through "return"
   RET_NZ             the fall-through "else" (the block also returns)
   RET                none (the block ends the scene or the subroutine)
 
-Layout: back edges (to a block still on the depth-first stack) are set aside; every other
-block goes one layer below its lowest predecessor (longest path), the order inside a layer
-is improved with barycentre sweeps, and x positions are relaxed towards the neighbours'
-centres without overlapping.
+Layout: the graph is split into groups -- the scene body and each CALLed subroutine (the
+blocks reached from its root without following a CALL) -- and each is laid out on its own:
+back edges (to a block still on the depth-first stack) are set aside, every other block goes
+one layer below its lowest predecessor (longest path), the order inside a layer is improved
+with barycentre sweeps, and each block sits under the median of its predecessors without
+overlapping. The scene body goes on top, the subroutines in rows below it; a CALL is drawn
+as a link to its subroutine's group, not as an arrow.
 """
 from __future__ import annotations
 
@@ -35,7 +39,7 @@ MAX_CHARS = 64            # characters per line
 
 class Block:
     __slots__ = ("start", "pcs", "edges", "returns", "layer", "order", "x", "y", "w", "h",
-                 "lines")
+                 "lines", "link")
 
     def __init__(self, start):
         self.start = start
@@ -46,6 +50,7 @@ class Block:
         self.order = 0.0
         self.x = self.y = self.w = self.h = 0.0
         self.lines = []            # [(pc | None, text)]
+        self.link = None           # a CALL block's subroutine (its last line links to it)
 
 
 def _leaders(scene):
@@ -93,8 +98,6 @@ def _edges(s, nxt, has, choice_text):
         return [(t, "case", "weighted %d" % k) for k, t in enumerate(tg) if t is not None]
     if m in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
         cancel = m == "PROMPT_CHOICE"
-        if cancel and tg and tg[0] is not None:
-            out.append((tg[0], "case", "cancel"))
         for k, item in enumerate(s.items or ()):
             ti = k + 1 if cancel else k
             if ti < len(tg) and tg[ti] is not None:
@@ -144,6 +147,10 @@ def build(scene, line_text=None, choice_text=None):
         if len(lines) > MAX_LINES:
             more = len(lines) - (MAX_LINES - 1)
             lines = lines[:MAX_LINES - 1] + [(None, "… %d more" % more)]
+        call = next((t for t, k, _l in b.edges if k == "call"), None)
+        if call is not None:
+            b.link = call
+            lines.append((None, "→ sub @%04x" % call))
         b.lines = lines
     # the entry block first (the scene's first statement may be a CALLed body before it)
     if scene.entry_pc in blocks:
@@ -151,16 +158,79 @@ def build(scene, line_text=None, choice_text=None):
     return blocks
 
 
-def back_edges(blocks, entry):
-    """{(src, dst)} of the edges that close a loop, found by an iterative depth-first walk
-    from the entry, then from any block it did not reach."""
-    back = set()
-    state = {}                                  # 1 = on the stack, 2 = done
-    roots = [entry] + [s for s in blocks if s != entry]
-    for r in roots:
-        if r not in blocks or r in state:
+class Group:
+    """One function of the graph: the scene body (the entry) or a CALLed subroutine."""
+    __slots__ = ("root", "starts", "callers", "x", "y", "w", "h", "title")
+
+    def __init__(self, root, starts, callers, title):
+        self.root = root
+        self.starts = starts
+        self.callers = callers      # number of CALL sites that reach this subroutine
+        self.title = title
+        self.x = self.y = self.w = self.h = 0.0
+
+
+GROUP_TITLE_H = 26.0              # room above a group's blocks for its title
+
+
+def groups(blocks, entry):
+    """[Group]: the scene body first, then every CALLed subroutine in the order the calls
+    are met. A group holds the blocks reached from its root without following a CALL; a
+    block reached from two groups belongs to the first. Blocks reached no such way end up
+    in a last "not reached from the entry" group."""
+    calls = {}
+    order = [entry] if entry in blocks else []
+    for b in blocks.values():
+        for t, k, _l in b.edges:
+            if k == "call":
+                calls[t] = calls.get(t, 0) + 1
+    owner = {}
+    out = []
+    i = 0
+    while i < len(order):
+        root = order[i]
+        i += 1
+        if root in owner:
             continue
-        stack = [(r, iter(blocks[r].edges))]
+        mine, stack = [], [root]
+        while stack:
+            s = stack.pop()
+            if s in owner or s not in blocks:
+                continue
+            owner[s] = root
+            mine.append(s)
+            for t, k, _l in blocks[s].edges:
+                if k == "call":
+                    if t not in order:
+                        order.append(t)
+                else:
+                    stack.append(t)
+        mine.sort()
+        n = calls.get(root, 0)
+        title = ("scene @%04x" % root) if root == entry else (
+            "sub @%04x  ·  called from %d place%s" % (root, n, "" if n == 1 else "s"))
+        out.append(Group(root, mine, n, title))
+    rest = sorted(s for s in blocks if s not in owner)
+    if rest:
+        out.append(Group(rest[0], rest, 0, "not reached from the entry"))
+    return out
+
+
+def _group_edges(sub, mine, s):
+    return [e for e in sub[s].edges if e[1] != "call" and e[0] in mine]
+
+
+def _layout_group(blocks, starts, root, hgap, vgap):
+    """Layered layout of one group in its own coordinates (top-left 0, 0); CALL edges and
+    edges leaving the group are ignored. Returns (back edges, width, height)."""
+    mine = set(starts)
+    sub = OrderedDict((s, blocks[s]) for s in starts)
+    back = set()
+    state = {}
+    for r in [root] + [s for s in starts if s != root]:
+        if r in state:
+            continue
+        stack = [(r, iter(_group_edges(sub, mine, r)))]
         state[r] = 1
         while stack:
             node, it = stack[-1]
@@ -174,95 +244,115 @@ def back_edges(blocks, entry):
                 back.add((node, t))
             elif t not in state:
                 state[t] = 1
-                stack.append((t, iter(blocks[t].edges)))
-    return back
-
-
-def layout(blocks, entry, size_of, hgap=40.0, vgap=56.0):
-    """Place the blocks: sets b.layer, b.x, b.y (top-left), b.w, b.h. size_of(block) ->
-    (w, h). Returns (set of back edges, total width, total height)."""
-    if not blocks:
-        return set(), 0.0, 0.0
-    back = back_edges(blocks, entry)
-    preds = {s: [] for s in blocks}
-    succs = {s: [] for s in blocks}
-    for s, b in blocks.items():
-        for t, _k, _l in b.edges:
-            if (s, t) not in back and t != s:
+                stack.append((t, iter(_group_edges(sub, mine, t))))
+    preds = {s: [] for s in sub}
+    succs = {s: [] for s in sub}
+    for s in sub:
+        for t, _k, _l in _group_edges(sub, mine, s):
+            if (s, t) not in back and t != s and t not in succs[s]:
                 succs[s].append(t)
                 preds[t].append(s)
     # longest-path layers over the acyclic part (Kahn's order)
-    indeg = {s: len(preds[s]) for s in blocks}
-    queue = [s for s in blocks if indeg[s] == 0]
-    queue.sort(key=lambda s: (s != entry, s))
-    layer = {s: 0 for s in blocks}
-    seen = 0
+    indeg = {s: len(preds[s]) for s in sub}
+    queue = [s for s in sub if indeg[s] == 0]
+    queue.sort(key=lambda s: (s != root, s))
+    layer = {s: 0 for s in sub}
     while queue:
         s = queue.pop(0)
-        seen += 1
         for t in succs[s]:
             layer[t] = max(layer[t], layer[s] + 1)
             indeg[t] -= 1
             if indeg[t] == 0:
                 queue.append(t)
     rows = {}
-    for s, b in blocks.items():
+    for s, b in sub.items():
         b.layer = layer[s]
         rows.setdefault(b.layer, []).append(s)
     nlayers = max(rows) + 1
     for i in range(nlayers):
         for k, s in enumerate(rows.get(i, [])):
-            blocks[s].order = float(k)
+            sub[s].order = float(k)
     # barycentre sweeps: down by predecessors, up by successors
-    for _sweep in range(6):
-        for i in (range(1, nlayers) if _sweep % 2 == 0 else range(nlayers - 2, -1, -1)):
-            nb = preds if _sweep % 2 == 0 else succs
+    for sweep in range(8):
+        down = sweep % 2 == 0
+        nb = preds if down else succs
+        for i in (range(1, nlayers) if down else range(nlayers - 2, -1, -1)):
             row = rows.get(i, [])
-            def key(s):
-                ns = [blocks[n].order for n in nb[s] if blocks[n].layer != blocks[s].layer]
-                return (sum(ns) / len(ns)) if ns else blocks[s].order
+
+            def key(s, nb=nb):
+                ns = [sub[n].order for n in nb[s]]
+                return (sum(ns) / len(ns)) if ns else sub[s].order
             row.sort(key=key)
             for k, s in enumerate(row):
-                blocks[s].order = float(k)
-    for b in blocks.values():
-        b.w, b.h = size_of(b)
-    # x: pack each layer, then relax towards the neighbours' centres
-    for i in range(nlayers):
-        x = 0.0
-        for s in rows.get(i, []):
-            blocks[s].x = x
-            x += blocks[s].w + hgap
+                sub[s].order = float(k)
+    # x: each layer goes under its predecessors (the median of their centres), keeping the
+    # order and the gaps, then shifts as a whole so its blocks sit, on the median, where they
+    # want to be -- nothing drifts sideways layer after layer
     def centre(s):
-        return blocks[s].x + blocks[s].w / 2
-    for _it in range(12):
-        for i in range(nlayers):
-            row = rows.get(i, [])
-            want = []
+        return sub[s].x + sub[s].w / 2
+    for i in range(nlayers):
+        row = rows.get(i, [])
+        want = []
+        for s in row:
+            ns = sorted(centre(n) for n in preds[s] if sub[n].layer < i)
+            want.append(ns[len(ns) // 2] - sub[s].w / 2 if ns else None)
+        x = None
+        for k, s in enumerate(row):
+            w = want[k]
+            if x is None:
+                x = w if w is not None else 0.0
+            elif w is not None:
+                x = max(x, w)
+            sub[s].x = x
+            x += sub[s].w + hgap
+        offs = sorted(want[k] - sub[s].x for k, s in enumerate(row) if want[k] is not None)
+        if offs:
+            shift = offs[len(offs) // 2]
             for s in row:
-                ns = preds[s] + succs[s]
-                want.append(sum(centre(n) for n in ns) / len(ns) - blocks[s].w / 2 if ns else blocks[s].x)
-            # keep order and gaps: push right, then pull left
-            for k, s in enumerate(row):
-                blocks[s].x = want[k]
-            for k in range(1, len(row)):
-                a, b = blocks[row[k - 1]], blocks[row[k]]
-                if b.x < a.x + a.w + hgap:
-                    b.x = a.x + a.w + hgap
-            for k in range(len(row) - 2, -1, -1):
-                a, b = blocks[row[k]], blocks[row[k + 1]]
-                if a.x + a.w + hgap > b.x:
-                    a.x = b.x - a.w - hgap
-    x0 = min(b.x for b in blocks.values())
-    for b in blocks.values():
+                sub[s].x += shift
+    x0 = min(b.x for b in sub.values())
+    for b in sub.values():
         b.x -= x0
     y = 0.0
     for i in range(nlayers):
         row = rows.get(i, [])
         for s in row:
-            blocks[s].y = y
-        y += (max(blocks[s].h for s in row) if row else 0) + vgap
-    width = max(b.x + b.w for b in blocks.values())
-    return back, width, y - vgap
+            sub[s].y = y
+        y += (max(sub[s].h for s in row) if row else 0) + vgap
+    return back, max(b.x + b.w for b in sub.values()), y - vgap
+
+
+def layout(blocks, entry, size_of, hgap=40.0, vgap=56.0, row_width=None):
+    """Place the blocks: sets b.layer, b.x, b.y (top-left), b.w, b.h, and lays the groups
+    (the scene body, then its subroutines) out in rows under one another. size_of(block) ->
+    (w, h). Returns (set of back edges, total width, total height, [Group])."""
+    if not blocks:
+        return set(), 0.0, 0.0, []
+    for b in blocks.values():
+        b.w, b.h = size_of(b)
+    gs = groups(blocks, entry)
+    back = set()
+    for g in gs:
+        gb, g.w, g.h = _layout_group(blocks, g.starts, g.root, hgap, vgap)
+        back |= gb
+        g.h += GROUP_TITLE_H
+    # the scene body on top; the subroutines in rows below it, wrapped at row_width
+    limit = row_width or max(2400.0, gs[0].w)
+    gap = 3 * hgap
+    x = y = row_h = 0.0
+    for n, g in enumerate(gs):
+        if n == 1 or (n > 1 and x > 0 and x + g.w > limit):
+            y += row_h + 2 * vgap
+            x = row_h = 0.0
+        g.x, g.y = x, y
+        x += g.w + gap
+        row_h = max(row_h, g.h)
+        for s in g.starts:
+            blocks[s].x += g.x
+            blocks[s].y += g.y + GROUP_TITLE_H
+    width = max(g.x + g.w for g in gs)
+    height = max(g.y + g.h for g in gs)
+    return back, width, height, gs
 
 
 def block_of(blocks, pc):
