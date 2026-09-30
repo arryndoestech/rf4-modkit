@@ -723,6 +723,11 @@ class MapEditorPanel:
             users = next((u for pk, off, _x, _y, u in self.doc.gate_points() if (pk, off) == tuple(key)), [])
             if users and self.gate_index not in users:
                 self.set_active_gate(users[0])
+            gl = getattr(self.encounters, "gates", None)       # the Gates list shows it picked
+            iid = f"{self.gate_index[0]}:{self.gate_index[1]}" if self.gate_index is not None else None
+            if gl is not None and iid and gl.exists(iid) and gl.selection() != (iid,):
+                gl.selection_set(iid)
+                gl.see(iid)
         self.sel = tuple(key) if key is not None else None
         rest = [tuple(k) for k in keep if k is not None and tuple(k) != self.sel]
         self.selection = rest + ([self.sel] if self.sel is not None else [])
@@ -731,6 +736,10 @@ class MapEditorPanel:
         self.view.invalidate("sel")
         if len(self.selection) > 1:
             self.status(MULTI_HINT % len(self.selection))
+        if key is None:                         # deselecting on the map also lets go of the gate
+            gl = getattr(self.encounters, "gates", None)       # picked in the Gates list
+            if gl is not None and gl.selection():
+                gl.selection_set(())
         self._update_gate_focus()
         if self.sel and self.sel[0] == "gpos":  # the Gates tab's positions list follows
             self.encounters._show_gpos(self.active_gate)
@@ -814,8 +823,9 @@ class MapEditorPanel:
         soon as the selection or the tab moves on (they used to stay)."""
         sel = self.sel
         on = bool(sel and sel[0] in ("gpos", "mpos"))
-        if not on and self.nb.select():
-            on = self.nb.tab(self.nb.select(), "text") == "Gates"
+        if not on and self.nb.select() and self.nb.tab(self.nb.select(), "text") == "Gates":
+            gl = getattr(self.encounters, "gates", None)       # a gate picked in the Gates list
+            on = bool(gl is not None and gl.selection())
         if getattr(self.view.st, "gate_focus", None) != on:
             self.view.st.gate_focus = on
             self.view.invalidate("gate")

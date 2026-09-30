@@ -972,9 +972,10 @@ class EncountersTab(ui.ScrollFrame):
         hint(b, "Gates (kind 359-390) are picked by weight; the roster lists the monsters a gate "
                 "spawns (id 48-254), each with a pick weight (its relative chance; stock uses 5 or 10) and one "
                 "weight per monster spawn point. On the map: "
-                "a visible gate's positions show the gate itself, a hidden spawner's (or any, with "
-                "sprites off) an orange G; pink dots = monster spawn points (the selected gate's are "
-                "outlined white). Drag them with the Select tool. Gates often share one roster, so a "
+                "an orange G marks a visible gate's positions (over the gate itself when sprites "
+                "are on), a gray G a hidden spawner's (the game draws no gate there); pink dots = "
+                "monster spawn points (the selected gate's are outlined white; clicking empty map "
+                "lets go of the gate). Drag them with the Select tool. Gates often share one roster, so a "
                 "monster added to one shows up in all of them until you 'Make private'.").pack(
             anchor="w", padx=6, pady=6)
         self.bind_wheel_tree()
@@ -1204,6 +1205,7 @@ class EncountersTab(ui.ScrollFrame):
             if (pi, ei) != self.ed.gate_index:
                 self.ed.set_active_gate((pi, ei))
             self._show_gate()
+        self.ed._update_gate_focus()            # the outline follows the list's selection
 
     def _commit_gate(self):
         e = self._entry()
@@ -1387,7 +1389,7 @@ class ViewTab(ui.ScrollFrame):
                "full extent shows even where its art is faint, invisible or covered.")
         ui.Tip(cb(L, "gate_art", "draw gates", 5, 1),
                "Draw each visible monster gate as the game shows it (the swirling orb). "
-               "Untick for the orange G at every gate position.")
+               "Untick for just the G markers (orange = visible gate, gray = hidden spawner).")
         ttk.Label(L, text="Other", font=ui.HINT_FONT).grid(row=6, column=0, columnspan=4, sticky="w", pady=(4, 0))
         cb(L, "mapj", "warps", 7, 0, render.WARP_COLOR)
         cb(L, "dest", "warp destinations", 7, 1)

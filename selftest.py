@@ -8646,6 +8646,42 @@ def test_map_editor_gate_motion():
     _check("a file that already has a gliding kind with the teleport flag is flagged as broken, "
            "and the box stays enabled so it can be unticked",
            got["ticked"] == ({"glide", "teleport"}, True, True, True), got["ticked"])
+    # G markers: orange for a visible gate, gray for a hidden spawner; a gate picked in the Gates
+    # list is outlined white until the map is clicked empty, which also clears the list
+    _Bg = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    if (_Bg / "MAP_DUNG_A04.rf4m").exists() and (_Bg / "MAP_DUNG_L13.rf4m").exists():
+        from map_editor import render as _rg
+        res_g = {}
+        for _m in ("MAP_DUNG_A04", "MAP_DUNG_L13"):
+            _root, _panel, _errs = _headless_panel(_m, _Bg)
+            try:
+                _c = _panel.view.canvas
+                _panel.view.flush(); _root.update()
+                res_g[_m] = {_c.itemcget(it, "fill") for it in _c.find_withtag("gate") if _c.type(it) == "polygon"}
+                if _m == "MAP_DUNG_A04":
+                    _tab = next(i for i in _panel.nb.tabs() if _panel.nb.tab(i, "text") == "Gates")
+                    _panel.nb.select(_tab); _root.update()
+                    _gl = _panel.encounters.gates
+                    _gl.selection_set(_gl.get_children()[0]); _root.update()
+                    _white = lambda: sum(1 for it in _c.find_withtag("gate") if _c.type(it) in ("polygon", "oval")
+                                         and _c.itemcget(it, "outline").lower() in ("#fff", "#ffffff"))
+                    _panel.view.flush(); _root.update(); _on = _white()
+                    _panel.select(None); _panel.view.flush(); _root.update()
+                    res_g["deselect"] = (_on > 0, _white(), tuple(_gl.selection()))
+                    # clicking one of its points on the map picks the gate in the list again
+                    _gp = next((k, o) for k, o, _x, _y, _u in _panel.doc.gate_points() if k == "gpos")
+                    _panel.select(_gp); _root.update()
+                    res_g["reselect"] = (len(_gl.selection()) == 1, _gl.selection()[0] if _gl.selection() else None)
+            finally:
+                _root.destroy()
+        _check("gate G markers are orange for visible gates (MAP_DUNG_A04) and gray for hidden spawners "
+               "(MAP_DUNG_L13)",
+               res_g["MAP_DUNG_A04"] == {_rg.GATE_COLOR} and res_g["MAP_DUNG_L13"] == {_rg.GATE_HIDDEN_COLOR},
+               {k: v for k, v in res_g.items() if k != "deselect"})
+        _check("a gate picked in the Gates list is outlined white; clicking the map empty clears the "
+               "outline and the list's selection", res_g["deselect"] == (True, 0, ()), res_g["deselect"])
+        _check("clicking a gate point on the map selects that gate in the Gates list (also right after "
+               "a deselect)", res_g["reselect"][0], res_g["reselect"])
 
 
 def test_map_editor_pool_spawn_sprites():

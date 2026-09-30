@@ -34,6 +34,7 @@ WARP_COLOR = "#ffd040"
 BORDER_COLOR = "#ff3030"        # the outline of every sprite ("sprite borders")
 SI_COLOR = "#ffe000"
 GATE_COLOR = "#ff8c1a"
+GATE_HIDDEN_COLOR = "#9a9a9a"            # an invisible gate (spawner): gray G
 MPOS_COLOR = "#ff5aa0"
 SPAWN_COLOR = "#c060ff"
 STAMP_COLOR = "#ff40c0"          # the collision the objects stamp into ATTR at load: blocks the player
@@ -769,7 +770,7 @@ def gate_visible(doc, users):
 
 
 def gate_sprite_shown(st, doc, x, y, users):
-    """Whether a gate position is drawn as the Gate actor (else as the orange "G"): a
+    """Whether a gate position is drawn as the Gate actor (with a small orange "G" on top): a
     visible gate, on the map, with the sprites and "draw gates" layers on and the gate model
     at hand."""
     return (bool(st.layers.get("sprites")) and st.layers.get("gate_art", True) and HAS_PIL
@@ -869,7 +870,7 @@ def overlay(group, st):
                     out.append(Prim("sprite", _sprite_rect(o, src, cp), key=("mobj", i), fn=src[0],
                                     frame=src[1], mirror=spritequad.mirrored(o)))
             # the monster gates (Gen*.bin gate positions) the game can show, as it draws the
-            # Gate actor -- they take the place of the "G" marker (see gate_sprite_shown)
+            # Gate actor, under a smaller "G" marker (see gate_sprite_shown)
             if L.get("gates") and doc.gen is not None:
                 gsrc = st.sprites.gate_source()
                 for kind, off, x, y, users in doc.gate_points():
@@ -954,11 +955,13 @@ def overlay(group, st):
                     out.append(Prim("oval", (cx - rr, cy - rr, cx + rr, cy + rr), key=(kind, off),
                                     fill=MPOS_COLOR, outline="#fff" if mine else "#000",
                                     width=2 if mine else 1))
-                elif gate_sprite_shown(st, doc, x, y, users):
-                    pass                        # drawn as the gate (sprites); selection rings it
                 else:
-                    out.append(Prim("poly", (cx, cy - gr, cx + gr, cy, cx, cy + gr, cx - gr, cy),
-                                    key=(kind, off), fill=GATE_COLOR,
+                    # orange G = a visible gate, gray G = an invisible spawner (no gate is drawn
+                    # or can be hit); over the drawn gate the G is smaller so the orb shows
+                    seen = gate_visible(doc, users)
+                    g = max(5, gr * 2 // 3) if gate_sprite_shown(st, doc, x, y, users) else gr
+                    out.append(Prim("poly", (cx, cy - g, cx + g, cy, cx, cy + g, cx - g, cy),
+                                    key=(kind, off), fill=GATE_COLOR if seen else GATE_HIDDEN_COLOR,
                                     outline="#fff" if mine else "#000", width=2))
                     out.append(Prim("text", (cx, cy), key=(kind, off), text="G", fill="#000",
                                     size=small, anchor="center", bold=True))
