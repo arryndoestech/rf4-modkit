@@ -1002,7 +1002,7 @@ class MapEditorPanel:
 
     def copied_record(self, r, dx=0, dy=0, src=None):
         """(record, notes) for an entity copied onto this map `dx`/`dy` sub-units from where
-        it was (src = the map it came from, None = this one): a chest / crate / herb pickup
+        it was (src = the map it came from, None = this one): a chest / crate / mushroom pickup
         gets an unused one-shot flag (data.fresh_flag), a knock-back vent's target moves with
         it, a warp point from another map keeps its destination (f10 is relative to the map
         id)."""

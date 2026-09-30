@@ -23,7 +23,7 @@ collision, but the per-frame tick skips objects with no flag and draws it anyway
 
 Some actors (types 20..195) also check a flag when the room loads and are simply not
 created (actor_state): chests 44 and crates 53 once their flag is set (-1 = none), a chest
-with a reveal offset (f9 != 0) stays hidden until flag f13 + f9 is set, and the herb pickup
+with a reveal offset (f9 != 0) stays hidden until flag f13 + f9 is set, and the mushroom pickup
 35, seal door 47, traveler 58, decoration 60 and theatre furniture 64..66 once theirs is.
 Example: MAP_CITY_04 (Dragon Lake) bridge = decoration f13 73, its wall = object f13 74.
 """

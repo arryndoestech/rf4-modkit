@@ -8458,6 +8458,14 @@ def test_map_editor_script_spawns():
            "(0 = by season, 12 = Yokmir Forest A04, 14 = Water Ruins, 17 = Junk Cheap Pole)",
            len(_fc) == 22 and _fc[0][0] == 0 and _fc[12] == (12, "12  Yokmir Forest A04")
            and _fc[14] == (14, "14  Water Ruins") and _fc[17] == (17, "17  Junk Cheap Pole"), _fc[:3])
+    # raw words 0 / 14 / 15 are the type and the X / Y position of every record (not "unused")
+    _check("raw words 0 / 14 / 15 are named type / X / Y for every MOBJ type, with a position note "
+           "(map-parameter types 9..19 have none); type 35 is the 'mushroom pickup'",
+           [_mp.param_name(35, f) for f in (0, 14, 15)] == ["type", "X", "Y"]
+           and _mp.param_name(200, 14) == "X" and "sub-units" in _mp.common_field_note(35, 14)
+           and "no position" in _mp.common_field_note(12, 14)
+           and _mt.mobj_display_name(35) == "mushroom pickup",
+           [_mp.param_name(35, f) for f in (0, 14, 15)])
     # type 35 = one-time item pickup: drawn as the dropped item's icon (item 48 = I_Crop24), at the
     # icon's own placement box like the forage sprites
     if (_B8 / "I_Crop24.texture").exists():
@@ -12014,7 +12022,7 @@ def test_map_editor_placed_objects():
     flag ids / forage / door / type-263 / inverted-gate checks, off-grid only warned where the
     player cannot reach, (0, 0) is a real position, the collision the objects stamp at load
     (refdata/rf4s_exe_collision.json) drawn and named in the Alt tooltip, and duplicate /
-    paste / Add giving chests, crates and herb pickups an unused flag, warning about shared
+    paste / Add giving chests, crates and mushroom pickups an unused flag, warning about shared
     ones, keeping a warp point's destination and moving a knock-back target."""
     print("map editor: placed objects (flags, validation, collision stamps, copy rules):")
     import types

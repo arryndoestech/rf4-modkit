@@ -244,6 +244,8 @@ class EntityForm(Form):
                 continue
             r = shown.index(fi)
             sz, m = meaning.get(fi, (4, ""))
+            if not m:
+                m = mobj_params.common_field_note(tid, fi)      # type / X / Y
             lab_w.config(text=mobj_params.param_name(tid, fi))
             lab_w.grid(row=r, column=0, sticky="w", padx=(0, 6))
             # a field with named values shows only its dropdown; "show all 16 raw fields"

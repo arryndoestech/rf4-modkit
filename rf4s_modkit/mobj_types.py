@@ -238,7 +238,7 @@ MOBJ_NOTES: dict[str, str] = {
     "gmk07_dummy":     "quake jitter — position shake (type 32, MapObj_InitQuakeJitter)",
     "gmk08_roll":      "rolling boulder hazard (type 33, MapObj_InitRollingBoulder)",
     "gmk09_water":     "water hazard, damaging (type 34, MapObj_InitWaterHazard)",
-    "gmk10_mushroom":  "one-time item pickup (chance roll, herb/mushroom family), sets its flag when taken (type 35)",
+    "gmk10_mushroom":  "one-time mushroom pickup (chance roll; drops a Mushroom, items 48..53), sets its flag when taken (type 35)",
     "gmk11_collection":"NPC-event-gated object (type 36, MapObj_InitNpcEventGatedObject)",
     "gmk12_redlight":  "red glow — pulsing light (type 37, MapObj_InitRedLightGlow)",
     "gmk13_bluelight": "blue glow — night light (type 38, MapObj_InitBlueLightGlow)",
@@ -313,7 +313,7 @@ MOBJ_DISPLAY: dict[int, str] = {
     32: "quake shake (unused)",  # gmk07_dummy
     33: "rolling boulder (unused)",  # gmk08_roll
     34: "water hazard (unused)",  # gmk09_water
-    35: "herb pickup",  # gmk10_mushroom
+    35: "mushroom pickup",  # gmk10_mushroom
     36: "NPC-event object (unused)",  # gmk11_collection
     37: "red glow",  # gmk12_redlight
     38: "blue glow (unused)",  # gmk13_bluelight
@@ -781,7 +781,10 @@ def mobj_draw_scale(type_id: int) -> float:
 
 # Types 20..195 whose handler reads f6 (scale); the rest of that band ignores it -- the road
 # edges 78..81 and the door band 82..195 included (hexrays read sweep of every handler,
-# 2026-09-26). Types 196+ (interactive objects, decorations) all read it.
+# 2026-09-26; re-checked 2026-09-30: every g_mapObjTypeInitTable handler 20..81 scanned for
+# record +24 / +28, MapObj_LoadSpriteAndCollision (82..195) reads neither, the shared
+# MapObj_SetupActorByTypeId reads only f0 and f14 / f15). Types 196+ (interactive objects,
+# decorations) all read it (Map_SpawnInteractiveObject reads +24 scale and +28 frame).
 MOBJ_SCALE_READERS = frozenset({20, 37, 38, 39, 40, 41, 44, 47, 48, 60, 64, 65, 66})
 
 

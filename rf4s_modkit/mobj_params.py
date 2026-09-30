@@ -652,9 +652,25 @@ def param_name(type_id, field):
     for key, names in PARAM_NAMES.items():
         if isinstance(key, tuple) and key[0] <= tid <= key[1] and field in names:
             return names[field]
+    if field in (0, 14, 15):                # every record: its type, and its X / Y position
+        return _CONV_NAMES[field]
     if any(f == field for f, _s, _m in params_for(tid)) and field in _CONV_NAMES:
         return _CONV_NAMES[field]
     return f"word {field}"
+
+
+def common_field_note(type_id, field):
+    """What words 0 / 14 / 15 hold for every MOBJ record, or '' for other fields."""
+    tid = type_id & 0xFFFF
+    if field == 0:
+        return "the object type (the game uses the low 16 bits)"
+    if field in (14, 15):
+        axis = "X" if field == 14 else "Y"
+        if 9 <= tid <= 19:
+            return (f"{axis} position -- map-parameter records (types 9..19) are read by the map "
+                    f"loader and have no position, so the game does not use it")
+        return f"{axis} position in sub-units (8 per tile)"
+    return ""
 
 
 def _per_type(tid):
@@ -911,7 +927,7 @@ def reads_flag(type_id):
 # Types whose own code SETS their f13 flag once and keeps it (opened / broken / picked up /
 # found / pressed / cleared): two records with one such flag act as one. {type: noun}
 ONE_SHOT_FLAG_TYPES = {
-    35: "herb pickup",      # Actor_SpawnOneTimeItemAndSetFlag RF4S.exe+0x149980: sets it on spawn
+    35: "mushroom pickup",  # Actor_SpawnOneTimeItemAndSetFlag RF4S.exe+0x149980: sets it on spawn
     44: "chest",            # Actor_InitFlagGatedTreasure +0x14B130: set when opened
     46: "switch",           # stays switched when f9 != 0 (a pressure plate, f9 = 0, lets go)
     47: "seal door",        # sets it when the room is cleared
@@ -967,7 +983,7 @@ ADD_DEFAULTS = {
     24: {8: 2, 9: 8},                  # fishing spot: 2 fish, 1-tile scatter
     30: {8: 32, 9: 120, 10: 100},      # wind zone: some force and a zone
     31: {8: 120, 9: 120, 10: 800},     # falling rocks: period, scatter, damage
-    35: {9: 2},                        # herb pickup: 48 + rand(0..5)
+    35: {9: 2},                        # mushroom pickup: 48 + rand(0..5)
 }
 
 MAPORE_RATE_ROWS = 25       # rows of the shipped MapOre_Rate table (type-0 f10 & 63 indexes it)
