@@ -1035,8 +1035,6 @@ class InstructionPicker:
         elif m == "JMP_WEIGHTED":
             self._rows_ui("weighted targets", [("weight", [], "1"), ("target", tg, tdef)], 2)
         elif m in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
-            if m == "PROMPT_CHOICE":
-                self.cancel = self._add("cancel target", "where B / Cancel goes", tg, tdef)
             self._rows_ui("options (line id → target)", [("line id", [], "0"), ("target", tg, tdef)], 2)
         else:
             ttk.Label(self.form, text="(no operands)", foreground="#777").grid(row=10, column=1, sticky="w")
@@ -1120,8 +1118,7 @@ class InstructionPicker:
         if m == "JMP_WEIGHTED":
             return "JMP_WEIGHTED " + ", ".join("(%s) -> %s" % (w, t) for w, t in rows)
         if m == "PROMPT_CHOICE":
-            return "PROMPT_CHOICE CANCEL -> %s, " % self.cancel.token() + ", ".join(
-                "#%s -> %s" % (i, t) for i, t in rows)
+            return "PROMPT_CHOICE " + ", ".join("#%s -> %s" % (i, t) for i, t in rows)
         if m == "PROMPT_CHOICE_FORCED":
             return "PROMPT_CHOICE_FORCED " + ", ".join("#%s -> %s" % (i, t) for i, t in rows)
         return m

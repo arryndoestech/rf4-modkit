@@ -26,7 +26,7 @@ SOURCE_SYNTAX_HELP = (
     "  BR_Z (REG_WIFE_ID == 11) -> L1   jump when the condition is FALSE (BR_NZ: when TRUE)\n"
     "  EVAL (FLG_EV_DONE = 1)          write a flag / register / arr[N]  (= += -= *= /= %= &&= ||=)\n"
     "  CALL L2  /  JMP L2  /  CALL 0x1234    labels in the listing; 0xPC = existing code in the bank\n"
-    "  PROMPT_CHOICE CANCEL -> L2, #123 -> L3, #124 -> L4   choice menu (PROMPT_CHOICE_FORCED: no cancel)\n"
+    "  PROMPT_CHOICE #123 -> L3, #124 -> L4   choice menu; cancel picks the last option (PROMPT_CHOICE_FORCED: can't cancel)\n"
     "  SWITCH (reg1) -> L1, L2, L3  /  JMP_WEIGHTED (3) -> L1, (1) -> L2  /  JMP_RAND L1, L2\n"
     "  BR_END (cond)  /  .raw <hex>  /  END     -- a listing that can fall off its end gets END added"
 )

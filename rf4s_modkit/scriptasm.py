@@ -16,7 +16,9 @@ Engine ground truth (IDB, RF4S.exe; all verified 2026-09-19):
   SWITCH_CLAMP 0xFFF6 `[op][expr][n][n pcs]`, PROMPT_CHOICE_FORCED 0xFFF5 `[op][n][n pcs]
   [n u32 items]`, PROMPT_CHOICE 0xFFF4 `[op][n][n+1 pcs][n u32 items]` (pc[0] = the
   CANCEL slot, taken only for a negative pick -- the UI's cancel key instead moves the
-  cursor to the last option, so shipped menus repeat the last target there; at most
+  cursor to the last option, so shipped menus repeat the last target there; the listing
+  writes `CANCEL -> x` only when it differs from that, and leaving it out assembles the
+  last option's target; at most
   `script.MAX_CHOICE_OPTIONS` = 128 options, 4 rows on screen; see script.choice_problems),
   JMP_RAND 0xFFF3 `[op][n][n pcs]`, JMP_WEIGHTED 0xFFF2 `[op][n][n pcs][n weight exprs]`.
   Everything <= 0xFFF0 is an action: `[op][argc][argc x u16 expr offset]`, and
@@ -51,7 +53,7 @@ The listing language (one statement per line, `;` comments, labels `name:`):
         EVAL (FLG_EV_DONE = 1)          ; write a game flag
         GivePlayerItem(258, reg0 + 1, 0) ; args: int, expression, name, regN, arr[N], @0xOFF
         CALL 0x1234                      ; absolute targets address existing code in the bank
-        PROMPT_CHOICE CANCEL -> L2, #123 -> L3, #124 -> L4
+        PROMPT_CHOICE #123 -> L3, #124 -> L4   ; cancel = the last option (CANCEL -> x optional)
         JMP_WEIGHTED (3) -> L1, (1) -> L2
         SWITCH (reg1) -> L1, L2, L3
         JMP_RAND L1, L2, L3
@@ -654,9 +656,10 @@ class Assembler:
                         raise AsmError("line %d: choice item id must be '#<string id>' (got %r)"
                                        % (line_no, left))
                     choices.append((_int_in(left[1:], 0, 0xFFFFFFFF, line_no, "choice string id"), tgt))
-            if op == 0xFFF4 and cancel is None:
-                raise AsmError("line %d: PROMPT_CHOICE needs a CANCEL -> target item "
-                               "(use PROMPT_CHOICE_FORCED for no cancel branch)" % line_no)
+            if op == 0xFFF4 and cancel is None and choices:
+                # the slot the game never takes (the cancel key picks the LAST option):
+                # fill it the way every shipped menu does
+                cancel = choices[-1][1]
             if op == 0xFFF5 and cancel is not None:
                 raise AsmError("line %d: PROMPT_CHOICE_FORCED has no cancel branch" % line_no)
             if not choices:
@@ -1068,7 +1071,10 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 body = "JMP_WEIGHTED " + ", ".join("%s -> %s" % (_cond_text(buf, e), tgt(t))
                                               for t, e in zip(st.code_targets, st.expr_refs))
             elif mn == "PROMPT_CHOICE":
-                parts = ["CANCEL -> %s" % tgt(st.code_targets[0] if st.code_targets else None)]
+                c0 = st.code_targets[0] if st.code_targets else None
+                last = st.code_targets[len(st.items)] if len(st.code_targets) > len(st.items) else None
+                # the CANCEL slot is never taken; written only when it isn't the default
+                parts = ["CANCEL -> %s" % tgt(c0)] if (c0 != last or not st.items) else []
                 for k, item in enumerate(st.items):
                     t = st.code_targets[k + 1] if k + 1 < len(st.code_targets) else None
                     parts.append("#%d -> %s" % (item, tgt(t)))

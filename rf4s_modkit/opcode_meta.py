@@ -533,7 +533,7 @@ _M.update({
     337: ("WaitForFade", "flow",
           "Block the scene until the current dual-screen fade started by FadeScreen (op 334) "
           "completes.", []),
-    375: ("TriggerWorldAction", "flow",
+    375: ("OpenMenu", "flow",
           "Fire a World_DispatchInteractionEvent by action id (see the "
           "TriggerWorldInteractionAction picker for the full list). Common ids: "
           "1 = Save menu, 2 = Load menu (dev-menu ONLY -- crashes mid-gameplay), "
@@ -3427,7 +3427,7 @@ ARG_HINTS = {
     "bgm id": "background-music track id",
     "map id": "destination map id (rf4s_rooms.csv)",
     "npc id": "character / NPC id",
-    "action id": "TriggerWorldAction dispatch id (see WORLD_INTERACTION_ACTIONS: 1=Save, "
+    "action id": "OpenMenu menu id (see WORLD_INTERACTION_ACTIONS: 1=Save, "
                  "2=Load, 3=MessageBoard, 11=Calendar, 12=Storage, 23=Fridge, 25=BackupSaveNow, "
                  "45=Bookshelf, 53=ShippingBin, 54=Safe, 55=Wardrobe, 56=Toolbox, 58=Forge, 71=Crafting)",
     "kind": "fade kind (16 = fade to black; other values: fade colour / direction)",
@@ -4629,7 +4629,7 @@ def render_action(op, arg_strs):
             else:                                 # target actor ref
                 decorated.append(raw)
         return "%s(%s)" % (mnemonic(op), ", ".join(opcode_arg_labels(op) + decorated))
-    # Auto-annotate any op that has an enum registry entry: TriggerWorldAction(3=MessageBoard),
+    # Auto-annotate any op that has an enum registry entry: OpenMenu(3=MessageBoard),
     # ShowStaffCredits(2=Credits (bottom)), etc. Falls back to the default rendering
     # if the argument is a non-literal expression or the value isn't in the enum.
     enum_hits = [(i, ENUM_ARG_VALUES[(op, i)]) for i in range(len(arg_strs))

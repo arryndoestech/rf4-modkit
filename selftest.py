@@ -3772,7 +3772,7 @@ def test_script():
     # (all 192 vanilla sites pass 75-89); its picker was wired to the FULL 83-entry
     # WORLD_INTERACTION_ACTIONS table, so a moder editing a "shop id" saw Save/Load/NameEntry
     # (non-shops that wouldn't open a shop). Scoped it to the shop subrange 75-89. Pin that op376's
-    # picker is shop-only while op375 (TriggerWorldAction) keeps the full action table.
+    # picker is shop-only while op375 (OpenMenu) keeps the full action table.
     _p376 = om.ENUM_ARG_VALUES.get((376, 1), {})
     _p375 = om.ENUM_ARG_VALUES.get((375, 0), {})
     _check("opcode_meta: op376 shop-id picker scoped to shops 75-89 (not the full action table)",
@@ -6024,7 +6024,7 @@ def test_script_authoring():
            and any(x.dialog_id == 8709 for x in sc4.stmts.values())
            and script.Container(c3.build()).banks[213].data == b3.data)
     rej = 0
-    for txt in ("Frobnicate 1", "JMP nowhere", "PROMPT_CHOICE #1->L0\nL0:\nEND", "BR_Z (reg0) L0",
+    for txt in ("Frobnicate 1", "JMP nowhere", "PROMPT_CHOICE CANCEL->L0\nL0:\nEND", "BR_Z (reg0) L0",
                 "DIALOG"):
         try:
             scriptasm.assemble(txt, 0x1000, resolver=c.asm_resolver)
@@ -6033,6 +6033,12 @@ def test_script_authoring():
         except Exception:
             pass
     _check("assemble rejects unknown ops / undefined labels / malformed choices cleanly", rej == 5)
+    # CANCEL is optional: the never-taken slot gets the last option's target, like every shipped menu
+    _region, _lbl = scriptasm.assemble("PROMPT_CHOICE #1->A, #2->B\nA:\nEND\nB:\nEND", 0x1000)
+    _st = script.decode_statement(bytes(0x1000) + bytes(_region), 0x1000)
+    _check("PROMPT_CHOICE without CANCEL assembles; its cancel slot = the last option's target",
+           _st is not None and _st.mnem == "PROMPT_CHOICE" and len(_st.code_targets) == 3
+           and _st.code_targets[0] == _st.code_targets[2], _st and _st.code_targets)
     # --- PROMPT_CHOICE engine limits (2026-09-24, RF4S.exe Script_VMStep 0xFFF4/5 + ChoiceDialog_*)
     _many = lambda k: "PROMPT_CHOICE_FORCED " + ", ".join("#%d->A" % i for i in range(k)) + "\nA:\nEND"
     try:
@@ -6841,16 +6847,30 @@ def test_cutscene_graph():
     bl = cfg.scene_graph(sc)
     pcs = [p for b in bl.values() for p in b.pcs]
     first = bl[sc.entry_pc]
-    back, w, h = cfg.layout(bl, sc.entry_pc, lambda b: (100.0, 20.0 * len(b.lines)))
+    back, w, h, _gs = cfg.layout(bl, sc.entry_pc, lambda b: (100.0, 20.0 * len(b.lines)))
     over = [(a, b2) for a in bl.values() for b2 in bl.values() if a is not b2
-            and a.layer == b2.layer and a.x < b2.x + b2.w and b2.x < a.x + a.w]
+            and a.y == b2.y and a.x < b2.x + b2.w and b2.x < a.x + a.w]
     _check("blocks cover every statement once; the entry's BR_Z gives a true and a false edge; "
            "no two blocks of a layer overlap; every edge goes down or is a loop",
            sorted(pcs) == sorted(sc.stmts) and next(iter(bl)) == sc.entry_pc
            and sorted(k for _t, k, _l in first.edges) == ["no", "yes"] and not over
            and all(bl[t].layer > b2.layer or (s, t) in back
-                   for s, b2 in bl.items() for t, _k, _l in b2.edges),
+                   for s, b2 in bl.items() for t, k, _l in b2.edges if k != "call"),
            (len(bl), [(hex(t), k, l) for t, k, l in first.edges], over[:2]))
+    # a scene that only CALLs the bank's shared subroutines (MAP_CITY_00 @1cca: 2 statements of
+    # its own, 480 with what it calls): the body is its own small group on top, each
+    # subroutine a titled group below, and no group spreads out of control
+    sc2 = script.disassemble_scene(c.banks[c.n_primary + 24], -1, 0x1CCA)
+    bl2 = cfg.scene_graph(sc2)
+    _b2, w2, h2, gs2 = cfg.layout(bl2, 0x1CCA, lambda b: (8.0 * max(len(t) for _p, t in b.lines) + 12,
+                                                         16.0 * len(b.lines) + 12))
+    owned = sorted(s for g in gs2 for s in g.starts)
+    _check("CALLed subroutines become their own groups: MAP_CITY_00 @1cca's body is 2 blocks on "
+           "top, 16 subroutines below, every block in one group, the layout stays compact",
+           gs2[0].root == 0x1CCA and len(gs2[0].starts) == 2 and gs2[0].y == 0
+           and sum(1 for g in gs2 if g.callers) == 16 and owned == sorted(bl2)
+           and bl2[0x1CCA].link == 0x332 and w2 < 12000,
+           ([(hex(g.root), len(g.starts), int(g.w)) for g in gs2[:4]], int(w2), int(h2)))
 
     def reader(n):
         f = _first(n)
@@ -6887,6 +6907,60 @@ def test_cutscene_graph():
         ex.toggle_banks()
         n2 = len(ex._paned.panes())
         first = str(ex._paned.panes()[0]) == str(ex.browser)
+        # the bank list: each scene lists the subroutines it CALLs; code nothing registers or
+        # calls is "unreached" (MAP_FARM_01 = map 8, MAP_DUNG_K01's @0708)
+        br = ex.browser
+        fpos = ex.doc.container.n_primary + 8
+        br._fill_bank(fpos)
+        subs = [br.tree.item(k, "text") for k in br.tree.get_children("s:%d:%d" % (fpos, 0x152))]
+        kpos = next(ex.doc.container.n_primary + i for i in range(900)
+                    if __import__("rf4s_modkit.map_names", fromlist=["m"]).map_file(i) == "MAP_DUNG_K01")
+        br._fill_bank(kpos)
+        k01 = br.tree.item("s:%d:%d" % (kpos, 0x708), "text")
+        # a line picked in the Script tab: the Graph scrolls to its block when shown again
+        ex.open_scene(ex.doc.container.n_primary + 24, 0x1CCA)
+        ex.nb.select(ex.view)
+        ex._tab_changed()
+        root.update()
+        far = max(pc for pc in ex.scene.stmts if pc < 0x1CCA)   # deep in a subroutine group
+        ex.select((far, None))
+        ex.nb.select(ex.graph)
+        ex._tab_changed()
+        root.update()
+        fb = g.blocks[cfg.block_of(g.blocks, far)]
+        cv = g.canvas
+        vx0, vy0 = cv.canvasx(0), cv.canvasy(0)
+        vx1, vy1 = vx0 + cv.winfo_width(), vy0 + cv.winfo_height()
+        bx, by = (fb.x + fb.w / 2) * g.zoom, (fb.y + fb.h / 2) * g.zoom
+        followed = vx0 <= bx <= vx1 and vy0 <= by <= vy1
+        # the path to the selected block (MAP_CITY_00 @1cca, a subroutine block): its ancestors
+        # include the scene's entry, which reaches it through a CALL; gold marks are drawn
+        fb_start = cfg.block_of(g.blocks, far)
+        anc, pedges = g.path_to(fb_start)
+        path_ok = (0x1CCA in anc and len(pedges) > 5
+                   and len(g.canvas.find_withtag("pathhl")) >= len(anc))
+        # drag the entry block: it moves, the move survives a redraw, Reset layout undoes it
+        eb = g.blocks[0x1CCA]
+        zz = g.zoom
+        px_ = int(eb.x * zz - g.canvas.canvasx(0) + 5)
+        py_ = int(eb.y * zz - g.canvas.canvasy(0) + 5)
+        _E = lambda x, y: type("E", (), {"x": x, "y": y})()
+        g._press(_E(px_, py_))
+        g._drag(_E(px_ + 50, py_ + 25))
+        g._drag(_E(px_ + 100, py_ + 50))
+        g._release(_E(px_ + 100, py_ + 50))
+        root.update()
+        off1 = g._moved.get(g._scene_key(), {}).get(0x1CCA)
+        g.render(force=True)
+        kept = (round(g.blocks[0x1CCA].x - g._base[0x1CCA][0]), round(g.blocks[0x1CCA].y - g._base[0x1CCA][1]))
+        g.reset_layout()
+        undone = (g._moved.get(g._scene_key()) is None
+                  and g.blocks[0x1CCA].x == g._base[0x1CCA][0])
+        # "Inspector" hides the right-hand pane and brings it back at the right
+        ex.toggle_inspector()
+        n3 = len(ex._paned.panes())
+        ex.toggle_inspector()
+        last = str(ex._paned.panes()[-1]) == str(ex._side) and len(ex._paned.panes()) == n0
     finally:
         if root is not None:
             root.destroy()
@@ -6894,6 +6968,20 @@ def test_cutscene_graph():
            n_lines > 20 and marked == 1 and "23 blocks" in info, (n_lines, marked, info))
     _check("the mouse wheel zooms the graph; 'Banks' hides the bank list and restores it on the left",
            zoomed and n1 == n0 - 1 and n2 == n0 and first, (zoomed, n0, n1, n2, first))
+    _check("the bank list shows each scene's CALLed subroutines and names unregistered, "
+           "uncalled code 'unreached'",
+           len(subs) == 7 and subs[0].startswith("calls sub @015e") and "unreached" in k01,
+           (subs[:2], k01))
+    _check("a line picked in the Script tab: the Graph scrolls its block into view",
+           followed, (hex(far), (int(bx), int(by)), (int(vx0), int(vy0), int(vx1), int(vy1))))
+    _check("the selected block's path is marked: every block that can lead to it (a subroutine's "
+           "callers included) and the arrows between them", path_ok,
+           (hex(fb_start), len(anc), len(pedges)))
+    _check("a block can be dragged; the move is kept across redraws and Reset layout undoes it",
+           off1 is not None and round(off1[0] * zz) == 100 and round(off1[1] * zz) == 50
+           and kept == (round(off1[0]), round(off1[1])) and undone, (off1, kept, undone))
+    _check("'Inspector' hides the arguments pane and restores it on the right",
+           n3 == n0 - 1 and last, (n0, n3, last))
 
 
 def test_cutscene_editor_authoring():

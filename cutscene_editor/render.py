@@ -96,7 +96,9 @@ class SceneText:
         cond = f"  {'val' if st.mnem == 'EVAL' else 'cond'}=({', '.join(exprs)})" if exprs else ""
         if st.mnem in CHOICE_OPS and st.items:
             parts = []
-            if st.mnem == "PROMPT_CHOICE" and st.code_targets:
+            opts = self.choice_options(st)
+            if (st.mnem == "PROMPT_CHOICE" and st.code_targets and opts
+                    and st.code_targets[0] != opts[-1][2]):   # the never-taken slot, if unusual
                 parts.append(f"CANCEL->{self.target(st.code_targets[0])}")
             for _k, item, tgt in self.choice_options(st):
                 txt = (self.dlg(item) or "").replace("\n", " / ")
@@ -418,8 +420,10 @@ class SceneText:
                     out.append("    %s — bit %d, %s (packed 0x%X)" % (name, bo, "flag" if w == 1 else "%d-bit" % w, enc))
             if st.mnem in CHOICE_OPS and st.items:
                 out += ["", "options:"]
-                if st.mnem == "PROMPT_CHOICE" and st.code_targets:
-                    out.append("    CANCEL -> %s" % self.target(st.code_targets[0]))
+                opts = self.choice_options(st)
+                if (st.mnem == "PROMPT_CHOICE" and st.code_targets and opts
+                        and st.code_targets[0] != opts[-1][2]):
+                    out.append("    CANCEL -> %s (never taken)" % self.target(st.code_targets[0]))
                 for _k, item, tgt in self.choice_options(st):
                     txt = (self.dlg(item) or "").replace("\n", " / ")
                     out.append("    #%d %s-> %s" % (item, ('"%s" ' % txt[:44]) if txt else "", self.target(tgt)))

@@ -8639,13 +8639,13 @@ Wait until the current screen fade (FadeScreen / FadeScreenToClear) has finished
 
 Set bit 1 of the scene context's state word (+120). Retail sets it before spawning a temporary rideable event actor.
 
-### `op 375` — TriggerWorldAction(action)
+### `op 375` — OpenMenu(menu)
 *handler:* `Script_VMOp_TriggerWorldInteractionAction`
 
-Opens a world interaction such as a menu (save, storage, shipping bin, crafting...) by id and waits until it has closed.
+Open one of the game's menu screens by id (save, name entry, calendar, storage, cooking, crafting, shipping bin, ...) and wait until it has closed.
 
 Args:
-  0. action (cases of World_DispatchInteractionEvent, e.g. 1 save menu, 2 load menu (debug only), 3 message board, 11 calendar, 12 storage, 23 fridge, 25 autosave, 45 bookshelf, 53 shipping bin, 54 safe, 55 wardrobe, 56 toolbox, 58 forge, 71 crafting)
+  0. menu (cases of World_DispatchInteractionEvent, e.g. 1 save menu, 2 load menu (debug only), 3 message board, 11 calendar, 12 storage, 23 fridge, 25 autosave, 45 bookshelf, 53 shipping bin, 54 safe, 55 wardrobe, 56 toolbox, 58 forge, 71 crafting)
      - `1` = Save
      - `2` = Load
      - `3` = MessageBoard
@@ -10164,12 +10164,12 @@ Args:
 ### `op 377` — ConsumeInteractionResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Read (and clear) the pending result of the last world interaction (e.g. a shop or TriggerWorldAction menu) into reg0. If nothing is pending, reg0 is left unchanged.
+Read (and clear) the pending result of the last world interaction (e.g. a shop or OpenMenu menu) into reg0. If nothing is pending, reg0 is left unchanged.
 
 ### `op 378` — ConsumeInteractionResult()
 *handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
-Read (and clear) the pending result of the last world interaction (e.g. a shop or TriggerWorldAction menu) into reg0. If nothing is pending, reg0 is left unchanged.
+Read (and clear) the pending result of the last world interaction (e.g. a shop or OpenMenu menu) into reg0. If nothing is pending, reg0 is left unchanged.
 
 ### `op 398` — BuildOutfitChoiceMask(invert)
 *handler:* `Script_VMOp_QueryUnlockedAlternatePoseMask`
@@ -11305,7 +11305,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 363 | `GetNpcBirthday` | 364 | `SetVar10` | 365 | `SetButtonIconSlot` |
 | 366 | `SetTextSlotEntries` | 367 | `GetVar14` | 369 | `TryMountPlayerOnHostActor` |
 | 370 | `SetSceneStateBit1` | 371 | `EvalCondScriptA` | 372 | `EvalCondScriptB` |
-| 373 | `DispatchCondScriptEntry` | 374 | `RunEmEntryAltAction` | 375 | `TriggerWorldAction` |
+| 373 | `DispatchCondScriptEntry` | 374 | `RunEmEntryAltAction` | 375 | `OpenMenu` |
 | 376 | `OpenShop` | 377 | `ConsumeInteractionResult` | 378 | `ConsumeInteractionResult` |
 | 379 | `PlayMusic` | 380 | `StopMusic` | 381 | `nop` |
 | 382 | `FadeMusicVolume` | 383 | `SetMusicLock` | 384 | `ResetMusicResumePositions` |

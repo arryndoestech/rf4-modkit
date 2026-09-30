@@ -608,10 +608,14 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
 
 - **Browser** (left) — banks grouped and named: *Characters* (`Nancy  (bank 19)`), *Villager
   behaviour*, *Maps* (`Map 274 · MAP_DUNG_A04 (Yokmir Forest)`), sub-events, quests. Each bank
-  lists its triggered scenes first, then subroutines. The search box finds scenes by **dialogue**
+  lists its triggered scenes first, each with the subroutines it CALLs under it (*calls sub
+  @015e · …*, a click opens the scene there), then any **unreached** code: pieces nothing in the
+  bank registers or calls (the engine may start one through the global scene index, or it is
+  left-over code). The search box finds scenes by **dialogue**
   (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
   jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked. The
-  toolbar's **◀ Banks** button hides the list to give the scene the full width.
+  toolbar's **◀ Banks** button hides the list to give the scene the full width; **Inspector ▶**
+  at its right end does the same for the Inspector.
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
@@ -652,7 +656,7 @@ rf3.mc -o out.mc` does only that).
 The **Source** tab shows the scene as a re-assemblable listing — labels,
 actions as calls (`GivePlayerItem(258, reg0 + 1, 0)`, `EndDialogue()`), control statements as
 keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `EVAL (FLG_X = 1)`,
-`PROMPT_CHOICE CANCEL -> L2, #123 -> L3`, `JMP L1`); *Check* reports the failing line inline and *Apply to
+`PROMPT_CHOICE #123 -> L3, #124 -> L4`, `JMP L1`); *Check* reports the failing line inline and *Apply to
 scene* re-assembles it in place: the new body takes the old entry's place and statements only
 the old body used are dropped. The
 **Triggers** tab lists the bank's type table (every registration with its decoded keys) and mints
@@ -662,10 +666,14 @@ which keys, the ordering caveat), its keys and a body; a note warns when a regis
 registrations. The **Overview** tab summarises the scene: speakers, every dialogue line,
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
 control flow. The **Graph** tab draws that control flow: the scene's basic blocks with their
-statements, green / red arrows for the branch taken when a guard is true / false, dashed ones
-for CALLs, orange for switch, choice and random slots, and loops up the right-hand side.
-The mouse wheel zooms, dragging pans and *Fit* shows the whole scene. A click selects a
-statement for the Inspector; a double click opens it in the Script tab.
+statements, green / red arrows for the branch taken when a guard is true / false, orange for
+switch, choice and random slots, and loops up the right-hand side. The scene body sits on top;
+every subroutine it CALLs is its own titled group below it, and a CALL block's
+"→ sub @xxxx" line scrolls to that group.
+The mouse wheel zooms, dragging the background pans and *Fit* shows the whole scene; a block
+can be dragged anywhere (kept for the session, *Reset layout* puts them back). A click selects
+a statement for the Inspector and marks in gold every block and arrow that can lead to it
+(through the CALLs too); a double click opens it in the Script tab.
 
 **Event Manager…** opens the em.bin window. em.bin holds the game's 272 rules, each asked "is this
 true right now?" to decide which talk plays, whether a shop is open or which event fires today:
