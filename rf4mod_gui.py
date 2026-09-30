@@ -83,6 +83,29 @@ def _load_actor_names():
     return lambda i: tbl.get(i, "")
 
 
+def _tk_photo(img, widget=None, bg="#202020"):
+    """A Tk PhotoImage of a PIL image, fast: the image is flattened onto the background it is
+    shown on (`widget`'s, else `bg`) and handed over opaque. Tk's photo image is slow with
+    transparent pixels (it tracks the transparent region): an RGBA portrait atlas with clear
+    areas took 1.5 s at half size, the same pixels opaque 0.01 s."""
+    if widget is not None:
+        try:
+            r, g, b = (v >> 8 for v in widget.winfo_rgb(widget.cget("background")))
+            bg = (r, g, b)
+        except (tk.TclError, AttributeError):
+            pass
+    if isinstance(bg, str):
+        from PIL import ImageColor
+        bg = ImageColor.getrgb(bg)
+    if img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info):
+        rgba = img.convert("RGBA")
+        base = Image.new("RGB", rgba.size, bg)
+        base.paste(rgba, mask=rgba.getchannel("A"))
+    else:
+        base = img.convert("RGB")
+    return ImageTk.PhotoImage(base, master=widget) if widget is not None else ImageTk.PhotoImage(base)
+
+
 def _load_item_names() -> dict[int, str]:
     """{item id: name}: the game's rf3TxtItem, else the built-in list."""
     from rf4s_modkit import gamenames
@@ -635,7 +658,7 @@ class _GenHost:
                 r = 8 if mine else 6
                 d.polygon((cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy),
                           fill="#f0a020" if lit else "#7a5a20", outline=edge)
-        self._photo = ImageTk.PhotoImage(img)
+        self._photo = _tk_photo(img, self._lbl)
         self._lbl.config(image=self._photo, text="")
 
     def _to_gen(self, ev):
@@ -3235,7 +3258,7 @@ class App:
                 m.pose = None
             if skel_bar is not None:
                 skel_bar(state)
-            state["photo"] = ImageTk.PhotoImage(im)
+            state["photo"] = _tk_photo(im, cv)
             if playing:
                 if len(cache) >= self.PLAY_CACHE_FRAMES:
                     cache.clear()
@@ -6416,7 +6439,7 @@ class App:
         # when shrinking so downscaled photos/atlases don't alias to noise.
         resample = Image.NEAREST if z >= 1 else Image.LANCZOS
         disp = doc._pil.resize((max(1, int(w * z)), max(1, int(h * z))), resample)
-        doc.cur_image = ImageTk.PhotoImage(disp)
+        doc.cur_image = _tk_photo(disp, doc._img_canvas)
         doc._img_canvas.delete("all")
         doc._img_canvas.create_image(0, 0, anchor="nw", image=doc.cur_image)
         doc._img_canvas.config(scrollregion=(0, 0, disp.width, disp.height))
