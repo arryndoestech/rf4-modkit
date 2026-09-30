@@ -6809,6 +6809,36 @@ def test_cutscene_bank_listing():
         ex.show_bank(bank - 76)                  # MAP_FIELD_36 (Daily Road)
         root.update_idletasks()
         info1 = ex.listing.info.cget("text")
+        # addresses follow the toolbar's "addresses": a column beside the Bank listing's and the
+        # Source tab's text, never in the text itself
+        import re as _re
+        ex.addr.set(False)
+        ex._view_mode()
+        ex.nb.select(ex.listing)
+        ex._tab_changed()
+        _no_addr = not any(_re.match(r"^\s*[0-9a-f]{4}: ", ln)
+                           for ln in ex.listing.text.get("1.0", "end").split("\n"))
+        _pcs_kept = sum(1 for _e, _pc in ex.listing.line_at if _pc is not None) > 0
+        _lcol_off = not ex.listing.addrcol.col.winfo_manager()
+        ex.addr.set(True)
+        ex._view_mode()
+        _lrows = ex.listing.addrcol.col.get("1.0", "end").split("\n")
+        _with_addr = (bool(ex.listing.addrcol.col.winfo_manager()) and _lcol_off
+                      and not any(_re.match(r"^\s*[0-9a-f]{4}: ", ln)
+                                  for ln in ex.listing.text.get("1.0", "end").split("\n"))
+                      and any(_re.fullmatch(r"[0-9a-f]{4}", x) for x in _lrows))
+        ex.nb.select(ex.source)
+        ex._tab_changed()
+        root.update_idletasks()
+        src = ex.source
+        _src_clean = not any(_re.match(r"^\s*[0-9a-f]{4}: ", ln)
+                             for ln in src.text.get("1.0", "end").split("\n"))
+        _g = [x for x in src.gutter.get("1.0", "end").split("\n") if x.strip()]
+        _gutter_ok = bool(src.gutter.winfo_manager()) and len(_g) > 3 and all(
+            _re.fullmatch(r"[0-9a-f]{4}", x) for x in _g)
+        ex.addr.set(False)
+        ex._view_mode()
+        _gutter_off = not src.gutter.winfo_manager()
         CE.set_bank_listing_setting(False)
         ex.show_bank_listing(False)
         tabs1 = [ex.nb.tab(t, "text") for t in ex.nb.tabs()]
@@ -6825,6 +6855,10 @@ def test_cutscene_bank_listing():
     _check("a double click on a statement opens its scene in the Script tab", opened, (line, entry))
     _check("the shown Bank listing follows a bank change", info0 != info1 and "Daily Road" in info1,
            (info0, info1))
+    _check("addresses follow the 'addresses' checkbox: a column beside the Bank listing and the "
+           "Source text, never in the text (a double click still finds its statement)",
+           _no_addr and _pcs_kept and _with_addr and _src_clean and _gutter_ok and _gutter_off,
+           (_no_addr, _pcs_kept, _with_addr, _src_clean, _gutter_ok, _gutter_off))
 
 
 def test_cutscene_graph():
@@ -6917,6 +6951,24 @@ def test_cutscene_graph():
                     if __import__("rf4s_modkit.map_names", fromlist=["m"]).map_file(i) == "MAP_DUNG_K01")
         br._fill_bank(kpos)
         k01 = br.tree.item("s:%d:%d" % (kpos, 0x708), "text")
+        # deleting a subroutine's only CALL leaves its code "unreached" (visible, not lost), and
+        # the CALL form offers it to call it again (MAP_FARM_01 @03fe CALLs @0128)
+        ex.open_scene(fpos, 0x3FE)
+        ex.select((0x3FE, None))
+        ex.delete_selected()
+        _orphan = [sc_.entry_pc for sc_ in script.disassemble_bank(ex.bank) if sc_.action_type < 0]
+        _pk = ex.ask_insert_instruction(True, preset=("ctl", "CALL"))
+        _offer = [d_ for d_ in _pk.t1.opts if d_.startswith("unreached @0128")]
+        if _offer:
+            _pk.t1.var.set(_offer[0])
+            _pk._rebuild()
+        ex.select((min(ex.scene.stmts), None))
+        _pk.where.set("before")
+        _pk.insert()
+        _pk.win.withdraw()
+        _back = [sc_.entry_pc for sc_ in script.disassemble_bank(ex.bank) if sc_.action_type < 0]
+        ex.undo()
+        ex.undo()
         # a line picked in the Script tab: the Graph scrolls to its block when shown again
         ex.open_scene(ex.doc.container.n_primary + 24, 0x1CCA)
         ex.nb.select(ex.view)
@@ -6978,6 +7030,9 @@ def test_cutscene_graph():
            "uncalled code 'unreached'",
            len(subs) == 7 and subs[0].startswith("calls sub @015e") and "unreached" in k01,
            (subs[:2], k01))
+    _check("a subroutine whose only CALL is deleted shows as 'unreached', and the CALL form offers "
+           "it to call it again", 0x128 in _orphan and _offer and 0x128 not in _back,
+           ([hex(x) for x in _orphan], _offer[:1], [hex(x) for x in _back]))
     _check("a line picked in the Script tab: the Graph scrolls its block into view",
            followed, (hex(far), (int(bx), int(by)), (int(vx0), int(vy0), int(vx1), int(vy1))))
     _check("the selected block is framed in gold, with only the arrows into and out of it",
@@ -13417,12 +13472,13 @@ def test_cutscene_editor_workflows():
                      and cx.inspector.del_btn.winfo_manager() == ""
                      and not hasattr(cx.inspector, "after_mb"))
             _no_del = cx.delete_selected() is False
-            _old_ask = dialogs_mod.ask_dialogue
-            dialogs_mod.ask_dialogue = lambda *a, **k: {"speaker": None, "text": "Label test"}
-            try:
-                _nl = cx.ask_insert_dialogue()           # "Add after" on a label
-            finally:
-                dialogs_mod.ask_dialogue = _old_ask
+            # "Add after" on a label, through the Add instruction window's DIALOG (a new line)
+            _pk = cx.ask_insert_instruction(False, preset=("ctl", "DIALOG"))
+            _pk.dlg_mode.set("new")
+            _pk._dialogue_mode()
+            _pk.dlg_form.set_text("Label test")
+            _nl = _pk.insert()
+            _pk.win.withdraw()
             _fl = _first_new(_lpc)
             _lab_ok = (_lrow and _btns and _no_del and _nl is not None and _fl is not None
                        and _fl.mnem == "DIALOG" and _fl.dialog_id == _nl)

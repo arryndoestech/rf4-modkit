@@ -2139,6 +2139,35 @@ def disassemble_bank(bank, discover=True):
         else:
             failed |= set(sc.stmts.keys())
             failed.add(st_off)
+    # Gap pass: code no scene covers whose start is not after a RET / FRAME -- the very start
+    # of the code area (just past the type table, byte 296) or code after a JMP. A subroutine
+    # whose last CALL was deleted ends up like that. Only walks that hold something real (an
+    # action, a line, a call, a menu) count: the compiler leaves thousands of lone
+    # unreachable RETs / JMPs after jumps, and 12 real pieces hide this way in the shipped game.
+    cov = bytearray(code_end)
+    for sc in scenes:
+        for pc, st in sc.stmts.items():
+            cov[pc:min(pc + st.size, code_end)] = b"\x01" * max(0, min(pc + st.size, code_end) - pc)
+    bank.type_table_full()
+    off = getattr(bank, "_table_end", 0)
+    while off < code_end:
+        if cov[off]:
+            off += 1
+            continue
+        start = off
+        while off < code_end and not cov[off]:
+            off += 1
+        if start % 2 or start in seen or start in failed:
+            continue
+        sc = disassemble_scene(bank, -1, start)
+        if not (sc.ok and sc.stmts):
+            continue
+        if any(st.op < 0xFFF0 or st.mnem in ("DIALOG", "CALL", "PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")
+               for st in sc.stmts.values()):
+            scenes.append(sc)
+            seen.add(start)
+        for pc, st in sc.stmts.items():
+            cov[pc:min(pc + st.size, code_end)] = b"\x01" * max(0, min(pc + st.size, code_end) - pc)
     return scenes
 
 

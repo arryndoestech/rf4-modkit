@@ -714,12 +714,13 @@ file opened with *Open rf3.mc…* is saved back where it was opened. *Save … a
 anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
 **Adding instructions without typing them.** Right-click in the script (or the Insert key): *Add
-instruction / dialogue line / statements, after or before* the selected one. The instruction choice
-opens a list of every instruction
+instruction after or before* the selected one. It opens a list of every instruction
 by category, searchable, with ✓ on the ones verified in game. Picking one shows its description and
 a form with one field per argument. Characters, maps, items, flags and named values are pickers.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,
-and choice menus, switches and random jumps take rows. Every x / y position has **📍 Pick on
+and choice menus, switches and random jumps take rows. DIALOG writes **a new line** (speaker,
+side, face, box style and text, added in every locale) or shows an existing one by id. Every x / y
+position has **📍 Pick on
 map…**: click the spot on the rendered map of the scene (1/8-tile units, as the script stores them).
 The listing the form makes is shown live and checked, and it can be edited by hand. *Insert* puts it
 after or before the selected statement, and the window stays open for the next one. The Inspector
@@ -801,7 +802,7 @@ canvas), `dialogs`, `em_window`, `catalog` (trigger types, bank names, grammar h
 `app` (the window).
 
 
-**Portrait faces.** *Add dialogue line* and a selected speaker cue both have a **Face**
+**Portrait faces.** *Add instruction* → DIALOG (a new line) and a selected speaker cue both have a **Face**
 button that shows the current face as a picture. Click it to see all of that speaker's faces
 and pick one. The face is the cue's first argument (`rf4s_modkit/portraits.py`, tables read
 from `RF4S.exe` into `refdata/portrait_faces.json`):
@@ -823,7 +824,7 @@ numbers the rest (`face 29`).
 `SetDialogueBoxStyle` (op 93) set the **message-box style**: 0 normal, 1 shout (jagged box that
 shakes, screen flash), 2 thought (cloud box that floats for about a second), 3 trembling (wavy box
 that shakes sideways), 4 tail only (no box, op 93 only). The style lasts until changed or the box
-closes. Their Inspector and *Add dialogue line* have a **Box style** picker that shows the game's
+closes. Their Inspector and *Add instruction* → DIALOG have a **Box style** picker that shows the game's
 own box art.
 
 The box's **tail** points at the side of the last speaker cue (`SetSpeaker(…, Left, …)` or
