@@ -1415,7 +1415,7 @@ class ViewTab(ui.ScrollFrame):
                    "default): hold Shift over one to see it -- the status line says when the "
                    "pointer is on one. On: it pops up on hover like the objects' tooltips.")
         hint(L, "Script spawns are placed by the map's event script (rf3.mc), not the map file: "
-                "NPCs (round) and map objects (square, drawn with their sprite); the "
+                "NPCs (round markers) and map objects (square markers); the "
                 "first time they are shown the script is scanned.", wrap=300).grid(
             row=12, column=0, columnspan=4, sticky="w", pady=(2, 0))
         # ---- flag state ----

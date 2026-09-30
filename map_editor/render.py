@@ -869,15 +869,6 @@ def overlay(group, st):
                 if src is not None:
                     out.append(Prim("sprite", _sprite_rect(o, src, cp), key=("mobj", i), fn=src[0],
                                     frame=src[1], mirror=spritequad.mirrored(o)))
-            # the map objects the map's event script places (SpawnMapEntity), drawn like the
-            # map's own; they are only there once that scene has run
-            if L.get("spawns"):
-                for i, sp in enumerate(st.spawns or ()):
-                    o = sp.get("obj")
-                    src = st.sprites.source(o) if o is not None else None
-                    if src is not None:
-                        out.append(Prim("sprite", _sprite_rect(o, src, cp), key=("spawn", i),
-                                        fn=src[0], frame=src[1], mirror=spritequad.mirrored(o)))
             # the monster gates (Gen*.bin gate positions) the game can show, as it draws the
             # Gate actor, under a smaller "G" marker (see gate_sprite_shown)
             if L.get("gates") and doc.gen is not None:

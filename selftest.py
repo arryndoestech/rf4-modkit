@@ -8407,6 +8407,12 @@ def test_map_editor_script_spawns():
            len(_ents) >= 4 and _t0["pos_x"] == 272 and _t0["pos_y"] == 30
            and _t0["params"][14:16] == [272, 30] and _t0["params"][6] == 4000
            and _t0["name"] is not None, str(_ents[:2]))
+    # the same type at the same spot from alternative branches is shown once (MAP_FIELD_40)
+    _bi40, _sp40 = med.script_spawns("MAP_FIELD_40")
+    _k40 = [(s["kind"], s.get("type_id", s.get("char_id")), s["x"], s["y"]) for s in _sp40]
+    _check("script spawns: one marker per type and spot, the alternatives counted (MAP_FIELD_40)",
+           _sp40 and len(_k40) == len(set(_k40)) and max(s["copies"] for s in _sp40) > 1,
+           str([(k, s["copies"]) for k, s in zip(_k40, _sp40)]))
     # a chest's f10 runs the map's type-2 scene keyed 1024 + f10 when opened
     # (WorldObject_OnBreakDropLoot RF4S.exe+0x1662C0): MAP_DUNG_G01 #16 has an empty loot row
     # and gives 3630 G through its key-1025 scene

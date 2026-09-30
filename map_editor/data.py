@@ -891,7 +891,19 @@ def script_spawns(name, container=None):
             out.append({"kind": "actor", "char_id": cid, "instance": inst,
                         "name": char_name(cid) or f"char#{cid}",
                         "x": x, "y": y, "entry_pc": sc.entry_pc, "pc": pc})
-    return bi, out
+    # the same character / object type at the same spot is one thing on the map: the script
+    # spawns it from alternative branches (MAP_FIELD_40's conditional objects), so keep the
+    # first and count the rest in "copies"
+    seen, unique = {}, []
+    for s in out:
+        k = (s["kind"], s.get("type_id", s.get("char_id")), s["x"], s["y"])
+        if k in seen:
+            seen[k]["copies"] += 1
+            continue
+        s["copies"] = 1
+        seen[k] = s
+        unique.append(s)
+    return bi, unique
 
 
 # op 157 SpawnMapEntity(type, x, y, facing, param, e1..e6) builds the same 16-word record a

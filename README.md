@@ -494,9 +494,9 @@ search spots (empty pools, one-byte weight wrap, spots off the grid).
 NPCs, monsters such as the hungry Silver Wolf in Sechs Territory (MAP_DUNG_L13), and
 interactibles such as char 269 "Search". Map objects come from `SpawnMapEntity`, which builds
 the same record as a `.rf4m` MOBJ. The *script spawns* layer shows both: actors as round
-markers, objects as square markers over their sprite. Clicking one opens its script line in
-the Cutscene editor. Objects only exist in game once their scene has run, and a spawn
-whose type or position the script computes can't be placed.
+markers, objects as square markers without their sprite, since they only exist in game
+once their scene has run. Clicking one opens its script line in the Cutscene editor. A
+spawn whose type or position the script computes can't be placed.
 
 Code: `map_editor/` -- `document` (files, undo, dirty tracking), `render` (ground loader,
 background, overlay primitives shared by canvas and PNG), `view` (canvas), `tools`,

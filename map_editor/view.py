@@ -758,12 +758,14 @@ class MapView(ttk.Frame):
                     return f"{what}  tile ({x >> 3}, {y >> 3})  used by {len(users)} gate(s)"
         if kind == "spawn" and self.st.spawns and i < len(self.st.spawns):
             sp = self.st.spawns[i]
+            more = (f"\nspawned by {sp['copies']} lines of the script (alternatives); click opens "
+                    f"the first") if sp.get("copies", 1) > 1 else ""
             if sp.get("kind") == "entity":
                 return (f"{sp['name']} (MOBJ type {sp['type_id'] & 0xFFFF})  tile ({sp['x'] >> 3}, "
                         f"{sp['y'] >> 3})\nplaced by the event script (SpawnMapEntity) once its "
-                        f"scene runs -- click to open the line")
+                        f"scene runs -- click to open the line" + more)
             return (f"{sp['name']} (char {sp['char_id']}, instance {sp['instance']})\n"
-                    f"placed by the event script -- click to open the line")
+                    f"placed by the event script -- click to open the line" + more)
         return None
 
     def show_tip(self, e, text):
