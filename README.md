@@ -437,9 +437,9 @@ and a sidebar with six tabs (it opens on View):
 
 | Tab | What it does |
 |---|---|
-| **View** | layer toggles (kept in `settings.json`, like the ground display, scenery and ATTR opacity, so every map and the next start open the same way: ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, monster gates, script spawns), **draw sprites** (on by default: each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite and shines through the ATTR fill; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity + **darken** (the ground drops by 0-80 %, 25 % by default, so the objects on it stand out), the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
+| **View** | layer toggles (kept in `settings.json`, like the ground display, scenery and ATTR opacity, so every map and the next start open the same way: ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, monster gates, script spawns, script areas), **draw sprites** (on by default: each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite and shines through the ATTR fill; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity + **darken** (the ground drops by 0-80 %, 25 % by default, so the objects on it stand out), the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
-| **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, monster gates, script spawns) and filterable; picking a row selects it and scrolls it into view |
+| **Objects** | everything on the map, grouped (entities, map parameters, warps, search spots, monster gates, script spawns, script areas) and filterable; picking a row selects it and scrolls it into view |
 | **Properties** | season tag (MSEA), MGRP as **Season** (follows the calendar / always …), **Weather** (rain and snow) and **Area** (the area group, by in-game name) plus the raw value (read only), with what the game makes of it (music, crate loot pool, the Gen table the gate spawner really loads, minimap group) and conflict warnings, also in Problems: a room whose gates would never appear, a group that points the spawner at a non-Gen archive, a fixed season contradicting a seasonal copy, extra season / group bits (each control changes only its own bits), the three MLIG tints with colour pickers (and which type-12 records override them), display layers (MTXN count), grid size + **Resize grid…** (width / height in tiles, shift right / down, what the new tiles are -- wall, empty, walkable or any value; objects, warps, search spots and gate positions move with the content in one undo step; Preview lists what else must be fixed: ground tiles, the minimap origin, seasonal copies, warps into the map), and a summary |
 | **Minimap** (docked under the tabs, shown whatever tab is open; **Hide minimap** / **Show minimap**, remembered; its details are in Properties) | the HUD minimap picture the game draws for this map's id (rf3MapMiniPos), with the map's footprint (red), the area its first visit uncovers (dashed magenta) and the part the editor shows now (dashed blue); click or drag on it to move the editor's view there; the other rooms on the picture are outlined, named on hover, and a click opens one in the editor. The Properties tab's Minimap section lists the sheet / resource, fog of war, where an interior's NPC icons go, the other maps on the same picture and the save-state picture swaps; blank and Sharance Maze pictures are noted |
 | **Gates** | the `Gen*.bin` (monster gates): gates (kind, weight, min / max alive, spawn delay; add a copy, remove, *make private* to unshare blocks), the selected gate's roster (add / replace / remove monsters), and adding gate positions / monster spawn points on the map. **Moving gates:** with 2+ gate positions, a visible Void .. Affection Gate of kinds 375-382 glides from position to position in list order (about 4 s a leg; drawn as a dashed loop with arrows), and a gate with *teleports* ticked blinks out and reappears at a random one of its positions every 6 s or so (dotted lines) -- the Rune Prana gates. The two don't combine: a teleporting gate must be a kind that doesn't glide (the game uses 383-390, the same gates with 1000 HP); so *teleports* is greyed out for the gliding kinds (picking one unticks it), and a file that has both anyway is flagged as broken. The gate list shows how each gate moves (*· glides*, *· teleports*); the *kind* list gives each kind's HP from `rf3NpcParam.bin` and marks the gliding kinds |
@@ -497,6 +497,12 @@ the same record as a `.rf4m` MOBJ. The *script spawns* layer shows both: actors 
 markers, objects as square markers without their sprite, since they only exist in game
 once their scene has run. Clicking one opens its script line in the Cutscene editor. A
 spawn whose type or position the script computes can't be placed.
+
+**Script areas:** the boxes the map's event script watches (`PlayerRegionTrigger`, type-3
+scenes). Such a scene runs while the player stands inside its box and the em.bin condition it
+names holds; MAP_FIELD_27's lantern puzzle, for example, has six, gated by
+`EV_HUTAGO_NOT_CLEAR`. The *script areas* layer draws each box as a dashed outline labelled with
+its condition; hovering says when it fires and clicking opens its scene in the Cutscene editor.
 
 Code: `map_editor/` -- `document` (files, undo, dirty tracking), `render` (ground loader,
 background, overlay primitives shared by canvas and PNG), `view` (canvas), `tools`,
@@ -604,7 +610,8 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   behaviour*, *Maps* (`Map 274 · MAP_DUNG_A04 (Yokmir Forest)`), sub-events, quests. Each bank
   lists its triggered scenes first, then subroutines. The search box finds scenes by **dialogue**
   (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
-  jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked.
+  jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked. The
+  toolbar's **◀ Banks** button hides the list to give the scene the full width.
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
@@ -654,7 +661,11 @@ which keys, the ordering caveat), its keys and a body; a note warns when a regis
 **shadow** the bank's existing scene of that type. *Change keys…* and *Remove* edit existing
 registrations. The **Overview** tab summarises the scene: speakers, every dialogue line,
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
-control flow.
+control flow. The **Graph** tab draws that control flow: the scene's basic blocks with their
+statements, green / red arrows for the branch taken when a guard is true / false, dashed ones
+for CALLs, orange for switch, choice and random slots, and loops up the right-hand side.
+The mouse wheel zooms, dragging pans and *Fit* shows the whole scene. A click selects a
+statement for the Inspector; a double click opens it in the Script tab.
 
 **Event Manager…** opens the em.bin window. em.bin holds the game's 272 rules, each asked "is this
 true right now?" to decide which talk plays, whether a shop is open or which event fires today:
@@ -777,8 +788,9 @@ headless drive of the editor (`test_cutscene_editor_authoring`, `test_cutscene_e
 
 Code: `cutscene_editor/` — `document` (the files, one undo history, unsaved tracking), `render`
 (story rows, listing lines, explanations, overview), `browser`, `view` (Script tab), `inspector`,
-`tabs` (Source / Triggers / Overview), `dialogs`, `em_window`, `catalog` (trigger types, bank
-names, grammar help, xrefs), `app` (the window).
+`tabs` (Source / Triggers / Overview), `cfg` + `graph` (the Graph tab's blocks, layout and
+canvas), `dialogs`, `em_window`, `catalog` (trigger types, bank names, grammar help, xrefs),
+`app` (the window).
 
 
 **Portrait faces.** *Add dialogue line* and a selected speaker cue both have a **Face**

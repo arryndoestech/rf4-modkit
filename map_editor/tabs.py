@@ -27,7 +27,8 @@ class ObjectsTab(ttk.Frame):
 
     GROUPS = (("mobj", "Entities"), ("param", "Map parameters"), ("warp", "Warps"),
               ("runtime", "Built into the game (read only)"),
-              ("si", "Search spots"), ("gate", "Monster gates"), ("spawn", "Script spawns"))
+              ("si", "Search spots"), ("gate", "Monster gates"), ("spawn", "Script spawns"),
+              ("region", "Script areas"))
 
     def __init__(self, parent, ed):
         super().__init__(parent)
@@ -106,6 +107,9 @@ class ObjectsTab(ttk.Frame):
             what = "object" if sp.get("kind") == "entity" else f"inst {sp['instance']}"
             rows["spawn"].append((("spawn", i), f"{sp['name']}  ({what})",
                                   f"({sp['x'] >> 3}, {sp['y'] >> 3})"))
+        for i, rg in enumerate(getattr(self.ed.view.st, "regions", None) or ()):
+            rows["region"].append((("region", i), f"{rg['cond_name'] or 'always'}  (scene @0x{rg['event_id']:04x})",
+                                   f"({rg['x0'] >> 3}, {rg['y0'] >> 3})-({rg['x1'] >> 3}, {rg['y1'] >> 3})"))
         for g, lab in self.GROUPS:
             items = [r for r in rows[g] if ok(r[1] + " " + lab)] if words else rows[g]
             if not items:
@@ -157,8 +161,8 @@ class ObjectsTab(ttk.Frame):
                                 "To keep players out of a warp, paint walls (ATTR 0x2) over its "
                                 "zone; the room it leads to is an ordinary map you can edit.",
                                 parent=self)
-        elif key is not None and key[0] == "spawn":
-            self.ed.status("Script spawns are placed by the map's event script, not the map file")
+        elif key is not None and key[0] in ("spawn", "region"):
+            self.ed.status("Script spawns and areas are set by the map's event script, not the map file")
         else:
             self.ed.status("Group headings cannot be deleted")
 
@@ -193,6 +197,9 @@ class ObjectsTab(ttk.Frame):
                             # re-selecting would drop the rest of a multi-selection
         if key[0] == "spawn":
             self.ed.open_spawn(key[1])
+            return
+        if key[0] == "region":
+            self.ed.open_region(key[1])
             return
         if key[0] == "runtime":                 # the game's own warp / wall: show it, explain
             rs = render.runtime_spawns(self.ed.doc)
@@ -1344,10 +1351,10 @@ class EncountersTab(ui.ScrollFrame):
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": True, "labels": False,
                   "sprite_borders": True, "gate_art": True, "mapj": True, "dest": True, "si": True,
-                  "gates": True, "spawns": False, "stamps": True}
+                  "gates": True, "spawns": False, "regions": False, "stamps": True}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
-                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn",
+                "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn", "regions": "region",
                 "stamps": "stamp"}
 LAYER_NAMES = {0: "0 ground", 1: "1 overlay"}
 VIEW_SETTING = "map_view"      # settings.json key: the View tab's choices, kept across maps and runs
@@ -1398,6 +1405,10 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "gates", "monster gates", 8, 1, render.GATE_COLOR)
         cb(L, "spawns", "script spawns", 9, 0, render.SPAWN_COLOR)
         cb(L, "grid", "tile grid lines", 9, 1)
+        ui.Tip(cb(L, "regions", "script areas", 10, 1, render.REGION_COLOR),
+               "The areas the map's event script watches (PlayerRegionTrigger scenes): its scene "
+               "runs while the player stands inside and the named em.bin condition holds. "
+               "Click one to open its scene.")
         ui.Tip(cb(L, "stamps", "object collision", 10, 0, render.STAMP_COLOR),
                "Hatched: the tiles the placed objects (trees, rocks, stones ...) stamp into the "
                "ATTR grid when the room loads -- collision the map file does not contain. "

@@ -131,6 +131,7 @@ class MapView(ttk.Frame):
         self.st.sel = None
         self.st.active_gate = None
         self.st.spawns = []
+        self.st.regions = []
         self.colors = attrs.assign_colors(doc.grid[2]) if doc.grid else {}
         self._colors_for = doc
         self.background.invalidate()
@@ -501,7 +502,7 @@ class MapView(ttk.Frame):
         w = self.warps_at(e)
         return w[0] if w else None
 
-    PICKABLE = ("mobj", "gpos", "mpos", "si", "spawn", "warp")
+    PICKABLE = ("mobj", "gpos", "mpos", "si", "spawn", "region", "warp")
 
     def pick_candidates(self, e, kinds=PICKABLE):
         """Everything a click here can select, in the order a click picks it: precise hits
@@ -756,6 +757,14 @@ class MapView(ttk.Frame):
                 if (pk, off) == k:
                     what = "gate position" if pk == "gpos" else "monster spawn point"
                     return f"{what}  tile ({x >> 3}, {y >> 3})  used by {len(users)} gate(s)"
+        regions = getattr(self.st, "regions", None) or []
+        if kind == "region" and i < len(regions):
+            rg = regions[i]
+            when = (f"while em.bin condition {rg['cond_name']} holds" if rg["cond"] >= 0
+                    else "every time (no condition)")
+            return (f"script area: tiles ({rg['x0'] >> 3}, {rg['y0'] >> 3})-({rg['x1'] >> 3}, "
+                    f"{rg['y1'] >> 3})\nthe event script's scene @0x{rg['event_id']:04x} runs when "
+                    f"the player stands inside, {when} -- click to open it")
         if kind == "spawn" and self.st.spawns and i < len(self.st.spawns):
             sp = self.st.spawns[i]
             more = (f"\nspawned by {sp['copies']} lines of the script (alternatives); click opens "

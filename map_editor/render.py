@@ -22,7 +22,7 @@ except ImportError:           # the editor still runs, with a plain-rectangle AT
     HAS_PIL = False
 
 # Overlay groups, bottom to top.
-GROUPS = ("under", "lift", "stamp", "grid", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
+GROUPS = ("under", "lift", "stamp", "grid", "region", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
 # canvas stacking, bottom to top: the ground texture ("bg"), the sprites ("under",
 # drawn as the game draws them, so they sit on the ground), the ATTR fill + cell edges
 # ("attr"), the selected object's sprite again ("lift", so it shines through the fill), then
@@ -37,6 +37,7 @@ GATE_COLOR = "#ff8c1a"
 GATE_HIDDEN_COLOR = "#9a9a9a"            # an invisible gate (spawner): gray G
 MPOS_COLOR = "#ff5aa0"
 SPAWN_COLOR = "#c060ff"
+REGION_COLOR = "#40d0c0"      # the event script's player areas (PlayerRegionTrigger)
 STAMP_COLOR = "#ff40c0"          # the collision the objects stamp into ATTR at load: blocks the player
 STAMP_WALK_COLOR = "#40e080"     # ... the stamp makes the tile walkable (the airship gangway)
 STAMP_MARK_COLOR = "#a8a8b4"     # ... stamped, walking unchanged (a tree's canopy ring: marker only)
@@ -965,6 +966,18 @@ def overlay(group, st):
                                     outline="#fff" if mine else "#000", width=2))
                     out.append(Prim("text", (cx, cy), key=(kind, off), text="G", fill="#000",
                                     size=small, anchor="center", bold=True))
+    elif group == "region":
+        # the player areas the map's event script watches: outline only, so the objects
+        # inside stay clickable; the label names the em.bin condition
+        if L.get("regions"):
+            for i, rg in enumerate(getattr(st, "regions", None) or ()):
+                x0, y0 = (rg["x0"] >> 3) * cp, (rg["y0"] >> 3) * cp
+                x1, y1 = ((rg["x1"] >> 3) + 1) * cp, ((rg["y1"] >> 3) + 1) * cp
+                out.append(Prim("rect", (x0, y0, x1, y1), key=("region", i), outline=REGION_COLOR,
+                                width=2, dash=(8, 4)))
+                out.append(label((x0 + x1) // 2, y0 - 2, ((x0 + x1) // 2, y1 + 2),
+                                 rg["cond_name"] or "script area", REGION_COLOR, lsize,
+                                 key=("region", i)))
     elif group == "spawn":
         if L.get("spawns"):
             sr = max(4, cp // 2)

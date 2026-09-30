@@ -906,6 +906,42 @@ def script_spawns(name, container=None):
     return bi, unique
 
 
+def script_regions(name, container=None):
+    """(bank index | None, [area dict]) for the map's PlayerRegionTrigger scenes (type-3 entries
+    of its event bank): the scene runs while the player stands inside the box and the em.bin
+    condition holds (Trigger_PollPlayerProximityAndQueueEvent, RF4S.exe+0x1F0920; the box
+    corners are min/max-normalised, in sub-units). Area keys: x0, y0, x1, y1 (sub-units,
+    inclusive), cond (em entry id, -1 = always), cond_name, event_id (the scene pc), index."""
+    mid = map_id(name)
+    cont = (container or rf3mc_container()) if mid is not None else None
+    if cont is None:
+        return None, []
+    bi = cont.n_primary + mid
+    if not 0 <= bi < len(cont.banks):
+        return None, []
+    try:
+        recs = cont.banks[bi].entry_records(3)
+    except Exception:
+        return bi, []
+    out = []
+    for r in recs:
+        v = [val for _tag, val in r.subs]
+        if len(v) < 4:
+            continue
+        cond = v[4] if len(v) > 4 else -1
+        cname = None
+        if cond >= 0:
+            try:
+                cname = script.emf_entry_name(cond)
+            except Exception:
+                cname = None
+        out.append({"x0": min(v[0], v[2]), "y0": min(v[1], v[3]),
+                    "x1": max(v[0], v[2]), "y1": max(v[1], v[3]),
+                    "cond": cond, "cond_name": cname or (f"condition {cond}" if cond >= 0 else None),
+                    "event_id": r.event_id, "index": r.index})
+    return bi, out
+
+
 # op 157 SpawnMapEntity(type, x, y, facing, param, e1..e6) builds the same 16-word record a
 # .rf4m MOBJ is (ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable, RF4S.exe+0x213E20):
 # w0 = type, w14/w15 = x/y in sub-units, w6 = param*40 (the f6 scale: 100 ~ 1:1),

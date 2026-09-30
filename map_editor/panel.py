@@ -73,6 +73,7 @@ class MapEditorPanel:
         self.prev_paint_tool = None
         self._spawns_for = None
         self._spawn_bank = None
+        self._regions_for = None
         self._pending = set()
         self._dialogs = []
         self.file_path = None       # set by the host for a map opened from disk: Save goes there
@@ -92,8 +93,11 @@ class MapEditorPanel:
         except tk.TclError:
             return False
         self._spawns_for = None
+        self._regions_for = None
         if self.doc is not None and self.view.st.layers.get("spawns"):
             self._load_spawns(quiet=True)
+        if self.doc is not None and self.view.st.layers.get("regions"):
+            self._load_regions()
         return True
 
     # ------------------------------------------------------------------ #
@@ -345,6 +349,7 @@ class MapEditorPanel:
         self.view.st.multi = ()
         self.gate_index = None
         self._spawns_for = None
+        self._regions_for = None
         self.view.set_doc(self.doc)
         if self.doc.grid:
             common = [v for v, _n in Counter(self.doc.grid[2]).most_common() if v]
@@ -365,6 +370,8 @@ class MapEditorPanel:
                      f"{self._count_flag_hidden(fs)} object(s) on this map hidden")
         if self.view.st.layers.get("spawns"):
             self._load_spawns()
+        if self.view.st.layers.get("regions"):
+            self._load_regions()
         self.inspector.show_selection(None)
         self.inspector.refresh(frozenset({"attr"}))
         self.objects.rebuild()
@@ -1304,6 +1311,29 @@ class MapEditorPanel:
         self.status(f"{sp['name']} ({what}) → event bank {bi}, line @0x{pc:04x}")
         ui.later(self.frame, lambda: self.on_open_scene(bi, epc, pc))
 
+    def _load_regions(self):
+        """The map's PlayerRegionTrigger areas (data.script_regions), for the script areas layer."""
+        if self.doc is None or self._regions_for is self.doc:
+            return
+        bank, regions = data.script_regions(self.doc.base)
+        self._regions_for = self.doc
+        self._region_bank = bank
+        self.view.st.regions = regions
+        self.view.invalidate("region")
+        self._schedule("objects")
+
+    def open_region(self, i):
+        rg = (self.view.st.regions or [])[i] if i < len(self.view.st.regions or []) else None
+        if rg is None:
+            return
+        what = rg["cond_name"] or "always"
+        if self.on_open_scene is None or getattr(self, "_region_bank", None) is None:
+            self.status(f"script area ({what}): no cutscene editor available here")
+            return
+        bi, pc = self._region_bank, rg["event_id"]
+        self.status(f"script area ({what}) → event bank {bi}, scene @0x{pc:04x}")
+        ui.later(self.frame, lambda: self.on_open_scene(bi, pc, pc))
+
     # ------------------------------------------------------------------ #
     # view settings
     # ------------------------------------------------------------------ #
@@ -1312,6 +1342,8 @@ class MapEditorPanel:
         self.viewtab.remember()
         if key == "spawns" and on:
             self._load_spawns()
+        if key == "regions" and on:
+            self._load_regions()
         g = LAYER_GROUPS[key]
         if g == "bg":
             self.view.invalidate("bg")

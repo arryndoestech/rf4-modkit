@@ -116,7 +116,7 @@ class SelectTool(Tool):
             return
         cands = self.view.pick_candidates(e)
         shift = bool(e.state & 0x0001)
-        movable = [k for k in cands if k[0] != "spawn"]
+        movable = [k for k in cands if k[0] not in ("spawn", "region")]
         if shift:
             # Shift+click: add the object to the selection, or (on release, if it was not a
             # drag) take a selected one out; on empty map a box that adds
@@ -146,6 +146,9 @@ class SelectTool(Tool):
             key = cands[0] if cands else None
             if key is not None and key[0] == "spawn":
                 ed.open_spawn(key[1])
+                return
+            if key is not None and key[0] == "region":
+                ed.open_region(key[1])
                 return
             ed.select(key)
             self._announce(key, cands)
@@ -299,6 +302,9 @@ class SelectTool(Tool):
             self.before_cycle = ed.sel          # a double-click may want this one back (double)
             if key[0] == "spawn":
                 ed.open_spawn(key[1])
+                return
+            if key[0] == "region":
+                ed.open_region(key[1])
                 return
             ed.select(key)
             self._announce(key, cycle)

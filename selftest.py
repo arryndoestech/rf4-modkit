@@ -6796,6 +6796,13 @@ def test_cutscene_bank_listing():
         ex.listing._open_line(ev)
         opened = (ex.scene is not None and ex.scene.entry_pc == entry
                   and ex.nb.select() == str(ex.view))
+        # the shown listing follows a bank change
+        ex.nb.select(ex.listing)
+        ex._tab_changed()
+        info0 = ex.listing.info.cget("text")
+        ex.show_bank(bank - 76)                  # MAP_FIELD_36 (Daily Road)
+        root.update_idletasks()
+        info1 = ex.listing.info.cget("text")
         CE.set_bank_listing_setting(False)
         ex.show_bank_listing(False)
         tabs1 = [ex.nb.tab(t, "text") for t in ex.nb.tabs()]
@@ -6810,6 +6817,83 @@ def test_cutscene_bank_listing():
     _check("it lists every scene of the bank (one header each), Find marks the matches",
            n_scenes > 3 and heads == n_scenes and hits >= 4, (n_scenes, heads, hits))
     _check("a double click on a statement opens its scene in the Script tab", opened, (line, entry))
+    _check("the shown Bank listing follows a bank change", info0 != info1 and "Daily Road" in info1,
+           (info0, info1))
+
+
+def test_cutscene_graph():
+    """The Graph tab: the scene's basic blocks and labelled edges (cutscene_editor.cfg), laid out
+    and drawn; a click on a line selects the statement."""
+    print("cutscene editor: control-flow graph:")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from cutscene_editor import cfg
+        from map_editor import data as _med
+        from rf4s_modkit import script
+    except Exception as e:
+        _skip("control-flow graph", f"cutscene_editor not importable ({e})"); return
+    c = _med.rf3mc_container(live=False)
+    if c is None:
+        _skip("control-flow graph", "rf3.mc not found"); return
+    bank = c.banks[c.n_primary + 196]                   # MAP_FIELD_36: GetDayOfWeek branches
+    sc = script.disassemble_bank(bank)[0]
+    bl = cfg.scene_graph(sc)
+    pcs = [p for b in bl.values() for p in b.pcs]
+    first = bl[sc.entry_pc]
+    back, w, h = cfg.layout(bl, sc.entry_pc, lambda b: (100.0, 20.0 * len(b.lines)))
+    over = [(a, b2) for a in bl.values() for b2 in bl.values() if a is not b2
+            and a.layer == b2.layer and a.x < b2.x + b2.w and b2.x < a.x + a.w]
+    _check("blocks cover every statement once; the entry's BR_Z gives a true and a false edge; "
+           "no two blocks of a layer overlap; every edge goes down or is a loop",
+           sorted(pcs) == sorted(sc.stmts) and next(iter(bl)) == sc.entry_pc
+           and sorted(k for _t, k, _l in first.edges) == ["no", "yes"] and not over
+           and all(bl[t].layer > b2.layer or (s, t) in back
+                   for s, b2 in bl.items() for t, _k, _l in b2.edges),
+           (len(bl), [(hex(t), k, l) for t, k, l in first.edges], over[:2]))
+
+    def reader(n):
+        f = _first(n)
+        return f.read_bytes() if f else None
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("graph tab", f"no display for Tk ({e})"); return
+        top = tk.Toplevel(root)
+        top.geometry("1200x800")
+        ex = ce.CutsceneExplorer(top, reader=reader)
+        ex.show_bank(ex.doc.container.n_primary + 196)
+        ex.nb.select(ex.graph)
+        ex._tab_changed()
+        root.update()
+        g = ex.graph
+        n_lines = len(g._line_items)
+        pc = next(iter(g._line_items.values()))
+        ex.select((pc, None))
+        root.update()
+        marked = len(g.canvas.find_withtag("selbox"))
+        info = g.info.cget("text")
+        # the plain mouse wheel zooms the graph
+        z0 = g.zoom
+        g._zoom_wheel(type("E", (), {"delta": 120, "x": 100, "y": 100})())
+        zoomed = g.zoom > z0
+        # "◀ Banks" hides the bank list and brings it back
+        n0 = len(ex._paned.panes())
+        ex.toggle_banks()
+        n1 = len(ex._paned.panes())
+        ex.toggle_banks()
+        n2 = len(ex._paned.panes())
+        first = str(ex._paned.panes()[0]) == str(ex.browser)
+    finally:
+        if root is not None:
+            root.destroy()
+    _check("the Graph tab draws the scene's blocks and marks the selected statement",
+           n_lines > 20 and marked == 1 and "23 blocks" in info, (n_lines, marked, info))
+    _check("the mouse wheel zooms the graph; 'Banks' hides the bank list and restores it on the left",
+           zoomed and n1 == n0 - 1 and n2 == n0 and first, (zoomed, n0, n1, n2, first))
 
 
 def test_cutscene_editor_authoring():
@@ -8407,6 +8491,13 @@ def test_map_editor_script_spawns():
            len(_ents) >= 4 and _t0["pos_x"] == 272 and _t0["pos_y"] == 30
            and _t0["params"][14:16] == [272, 30] and _t0["params"][6] == 4000
            and _t0["name"] is not None, str(_ents[:2]))
+    # PlayerRegionTrigger (type 3) boxes: MAP_FIELD_27's six areas gated by EV_HUTAGO_NOT_CLEAR
+    _bi27, _rg27 = med.script_regions("MAP_FIELD_27")
+    _check("script areas: MAP_FIELD_27's type-3 scenes give normalised sub-unit boxes with their "
+           "em.bin condition",
+           len(_rg27) == 6 and (_rg27[0]["x0"], _rg27[0]["y0"], _rg27[0]["x1"], _rg27[0]["y1"])
+           == (208, 150, 318, 164) and _rg27[0]["cond_name"] == "EV_HUTAGO_NOT_CLEAR"
+           and all(r["x0"] <= r["x1"] and r["y0"] <= r["y1"] for r in _rg27), str(_rg27[:2]))
     # the same type at the same spot from alternative branches is shown once (MAP_FIELD_40)
     _bi40, _sp40 = med.script_spawns("MAP_FIELD_40")
     _k40 = [(s["kind"], s.get("type_id", s.get("char_id")), s["x"], s["y"]) for s in _sp40]
@@ -14675,7 +14766,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
