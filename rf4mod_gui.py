@@ -2894,8 +2894,11 @@ class App:
         txt.config(state="disabled")
 
     def _view_psb(self, name, data):
-        """E-mote portrait (.psbData / .emtbytes): the part atlas on a zoomable canvas
-        (Export = PNG) with the PSB summary.  Repaint via `rf4mod psb replace-texture`.
+        """E-mote portrait (.psbData / .emtbytes), view only. Atlas tab: the PSB summary and the
+        part atlas on a zoomable canvas (Export = PNG) with every part outlined -- click one to
+        identify it. Parts tab: each part's rectangle, origin and z-order (double-click shows
+        it on the atlas). Tree tab: the whole PSB tree, expandable, text repaired for display;
+        Export as JSON. Repaint via `rf4mod psb replace-texture`.
         Returns False (caller falls back to the structure view) if it cannot decode."""
         doc = self._doc
         from rf4s_modkit import psb as _psb
@@ -2907,21 +2910,155 @@ class App:
             return False
         if img is None:
             return False
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         t = texs[0]
+        icons = {k: v for k, v in (t["icons"] or {}).items() if isinstance(v, dict)}
+        st = {"sel": None, "outline": tk.BooleanVar(value=True)}
+
+        def rect(ic):
+            x, y = float(ic.get("left", 0)), float(ic.get("top", 0))
+            return x, y, x + float(ic.get("width", 0)), y + float(ic.get("height", 0))
+
+        def zorder(ic):
+            md = ic.get("metadata")
+            return md.get("zorder", "") if isinstance(md, dict) else ""
+
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"E-mote atlas '{t['source']}'  {t['type']} {t['width']}x{t['height']}"
-                            f"  {len(t['icons'])} parts").pack(side="left", padx=6)
+                            f"  {len(icons)} parts").pack(side="left", padx=6)
         for z, lbl in ((0.25, "¼×"), (0.5, "½×"), (1, "1×"), (2, "2×")):
-            ttk.Button(bar, text=lbl, width=4,
-                       command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
-        info = tk.Text(doc.content, height=9, wrap="word", font=("Consolas", 9))
+            ttk.Button(bar, text=lbl, width=4, command=lambda z=z: zoom(z)).pack(side="left")
+        ttk.Checkbutton(bar, text="Outline parts", variable=st["outline"],
+                        command=lambda: outlines()).pack(side="left", padx=8)
+        part_lbl = ttk.Label(bar, foreground="#555"); part_lbl.pack(side="left", padx=4)
+
+        nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
+        atlas_tab = ttk.Frame(nb); nb.add(atlas_tab, text="Atlas")
+        info = tk.Text(atlas_tab, height=9, wrap="word", font=("Consolas", 9))
         info.insert("end", _psb.summary(ps, pathlib.PurePosixPath(name).name)); info.config(state="disabled")
         info.pack(fill="x")
         doc._pil = img
-        doc._img_canvas = self._make_image_canvas(doc=doc)
-        self._set_zoom(0.5, doc)
+        cv = doc._img_canvas = self._make_image_canvas(parent=atlas_tab, doc=doc)
+
+        def outlines():
+            cv.delete("part")
+            if not st["outline"].get():
+                return
+            z = getattr(doc, "zoom", 1) or 1
+            for nm, ic in icons.items():
+                x0, y0, x1, y1 = rect(ic)
+                sel = nm == st["sel"]
+                cv.create_rectangle(x0 * z, y0 * z, x1 * z, y1 * z, outline="#ffb347" if sel else "#5fb3ff",
+                                    width=2 if sel else 1, tags=("part",))
+
+        def zoom(z):
+            self._set_zoom(z, doc)
+            outlines()
+
+        def select_part(nm, show=False):
+            ic = icons.get(nm)
+            if ic is None:
+                return
+            st["sel"] = nm
+            x0, y0, x1, y1 = rect(ic)
+            part_lbl.config(text=f"part {nm}: {ic.get('width')}×{ic.get('height')} at ({ic.get('left')}, "
+                                 f"{ic.get('top')}), origin ({ic.get('originX')}, {ic.get('originY')}), "
+                                 f"z-order {zorder(ic)}")
+            if pt.exists(nm):
+                pt.selection_set(nm); pt.see(nm)
+            outlines()
+            if show:                                        # scroll the part into view
+                z = getattr(doc, "zoom", 1) or 1
+                w, h = img.width * z, img.height * z
+                cv.xview_moveto(max(0.0, (x0 * z - 40) / max(w, 1)))
+                cv.yview_moveto(max(0.0, (y0 * z - 40) / max(h, 1)))
+
+        def pick(e):
+            z = getattr(doc, "zoom", 1) or 1
+            x, y = cv.canvasx(e.x) / z, cv.canvasy(e.y) / z
+            hits = [((r[2] - r[0]) * (r[3] - r[1]), nm) for nm, ic in icons.items()
+                    for r in [rect(ic)] if r[0] <= x < r[2] and r[1] <= y < r[3]]
+            if hits:
+                select_part(min(hits)[1])                   # the smallest part under the pointer
+        cv.bind("<Button-1>", pick)
+
+        # ---- parts ------------------------------------------------------------------------
+        parts_tab = ttk.Frame(nb); nb.add(parts_tab, text=f"Parts ({len(icons)})")
+        pt = ttk.Treeview(parts_tab, columns=("n", "x", "y", "w", "h", "ox", "oy", "z"), show="headings")
+        for c, t_, w in (("n", "Part", 80), ("x", "Left", 70), ("y", "Top", 70), ("w", "Width", 70),
+                         ("h", "Height", 70), ("ox", "Origin X", 70), ("oy", "Origin Y", 70),
+                         ("z", "Z-order", 70)):
+            pt.heading(c, text=t_); pt.column(c, width=w, anchor="w")
+        _table_scrollbars(parts_tab, pt)
+        for nm, ic in icons.items():
+            pt.insert("", "end", iid=nm, values=(nm, ic.get("left"), ic.get("top"), ic.get("width"),
+                                                 ic.get("height"), ic.get("originX"), ic.get("originY"),
+                                                 zorder(ic)))
+        ttk.Label(parts_tab, foreground="#555", padding=(4, 2), text=(
+            "A part's rectangle on the atlas, the point it is placed by (origin) and its drawing order. "
+            "Double-click a part to show it on the atlas.")).grid(row=2, column=0, sticky="w")
+        pt.bind("<Double-Button-1>", lambda _e: (nb.select(atlas_tab), select_part(pt.selection()[0], True))
+                if pt.selection() else None)
+
+        # ---- tree -------------------------------------------------------------------------
+        tree_tab = ttk.Frame(nb); nb.add(tree_tab, text="Tree")
+        tbar = ttk.Frame(tree_tab); tbar.pack(fill="x", pady=2)
+        ttk.Label(tbar, foreground="#555", text="The whole PSB tree; expand a node to see its contents. "
+                                                "Japanese text is shown repaired (the file keeps its bytes)."
+                  ).pack(side="left")
+        ttk.Button(tbar, text="Export as JSON…", command=lambda: export_json()).pack(side="right")
+        tf = ttk.Frame(tree_tab); tf.pack(fill="both", expand=True)
+        tt = ttk.Treeview(tf, columns=("v",), show="tree headings")
+        tt.heading("#0", text="Key"); tt.heading("v", text="Value")
+        tt.column("#0", width=320, stretch=False); tt.column("v", width=560, stretch=False)
+        _table_scrollbars(tf, tt)
+        pending = {}
+
+        def brief(v):
+            if isinstance(v, dict):
+                return f"{{{len(v)} keys}}"
+            if isinstance(v, list):
+                return f"[{len(v)} items]"
+            if isinstance(v, _psb.Res):
+                return f"<{'extra ' if v.extra else ''}resource {v.index}, {ps.chunk_span(v)[1]:,} bytes>"
+            if isinstance(v, str):
+                return repr(_psb.repair_text(v))
+            return str(v)
+
+        def add(parent, key, v):
+            iid = tt.insert(parent, "end", text=_psb.repair_text(str(key)), values=(brief(v),))
+            if isinstance(v, (dict, list)) and v:
+                pending[iid] = v
+                tt.insert(iid, "end", text="…")             # placeholder until opened
+            return iid
+
+        def on_open(_e=None):
+            iid = tt.focus()
+            v = pending.pop(iid, None)
+            if v is None:
+                return
+            tt.delete(*tt.get_children(iid))
+            items = list(v.items()) if isinstance(v, dict) else [(f"[{i}]", x) for i, x in enumerate(v)]
+            for k, (kk, vv) in enumerate(items):
+                if k >= 2000:
+                    tt.insert(iid, "end", text="…", values=(f"{len(items) - 2000} more",)); break
+                add(iid, kk, vv)
+        tt.bind("<<TreeviewOpen>>", on_open)
+        for k, v in (ps.root.items() if isinstance(ps.root, dict) else []):
+            add("", k, v)
+
+        def export_json():
+            f = filedialog.asksaveasfilename(defaultextension=".json",
+                                             initialfile=pathlib.PurePosixPath(name).stem + ".json",
+                                             filetypes=[("JSON", "*.json")])
+            if f:
+                _psb.dump_json(ps, f)
+                self.status.config(text=f"Exported the PSB tree → {f}")
+
+        zoom(0.5)
         doc._export_kind = "png"
         self.export_btn.config(state="normal")
+        doc._psb_view = dict(psb=ps, icons=icons, parts=pt, tree=tt, select=select_part, pick=pick,
+                             canvas=cv, state=st, open=on_open, notebook=nb)          # (selftest)
         return True
 
     def _build_model_tab(self, nb, name, data):
@@ -3948,6 +4085,8 @@ class App:
             chart.create_text(pad_l - 6, pad_t, text=f"{top:,}", anchor="ne", fill=fg, font=("Segoe UI", 8))
             chart.create_text(pad_l - 6, h - pad_b, text="0", anchor="e", fill=fg, font=("Segoe UI", 8))
             for lvl in range(0, len(xp), 10):
+                if pad_l + lvl * bw > w - 44:           # keep clear of the "level" label
+                    continue
                 chart.create_text(pad_l + lvl * bw, h - pad_b + 4, text=str(lvl), anchor="n", fill=fg,
                                   font=("Segoe UI", 8))
             chart.create_text(w - 6, h - 4, text="level", anchor="se", fill=fg, font=("Segoe UI", 8))
@@ -4412,17 +4551,18 @@ class App:
         _table_scrollbars(low, sp_tv)
 
         row1 = ttk.Frame(foot); row1.pack(fill="x")
+        row1b = ttk.Frame(foot); row1b.pack(fill="x", pady=(4, 0))
         row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
         v_time, v_spot, v_rand = tk.StringVar(), tk.StringVar(), tk.BooleanVar()
         ttk.Label(row1, text="Time").pack(side="left")
         te = ttk.Entry(row1, textvariable=v_time, width=7); te.pack(side="left", padx=(2, 10))
         ttk.Label(row1, text="Spot kind").pack(side="left")
-        kc = ttk.Combobox(row1, textvariable=v_spot, values=kind_choices, width=48)
+        kc = ttk.Combobox(row1, textvariable=v_spot, values=kind_choices, width=40)
         kc.pack(side="left", padx=2)
         rcb = ttk.Checkbutton(row1, text="random departure", variable=v_rand); rcb.pack(side="left", padx=8)
-        apb = ttk.Button(row1, text="Apply to stop"); apb.pack(side="left", padx=2)
-        adb = ttk.Button(row1, text="Add stop"); adb.pack(side="left", padx=2)
-        rmb = ttk.Button(row1, text="Remove stop"); rmb.pack(side="left", padx=2)
+        apb = ttk.Button(row1b, text="Apply to stop"); apb.pack(side="left")
+        adb = ttk.Button(row1b, text="Add stop"); adb.pack(side="left", padx=4)
+        rmb = ttk.Button(row1b, text="Remove stop"); rmb.pack(side="left")
         ttk.Label(row2, text="Copy this routine to:").pack(side="left")
         copy_v = tk.StringVar()
         copy_cb = ttk.Combobox(row2, textvariable=copy_v, state="readonly", width=38,
@@ -4668,8 +4808,8 @@ class App:
         ttk.Label(row1, text="Friendship").pack(side="left")
         fp_cb = ttk.Combobox(row1, textvariable=fpv, width=6, values=("15", "9", "6")); fp_cb.pack(side="left", padx=2)
         add_b = ttk.Button(row1, text="Add to category"); add_b.pack(side="left", padx=(8, 2))
-        set_b = ttk.Button(row1, text="Set for selected"); set_b.pack(side="left", padx=2)
-        rm_b = ttk.Button(row1, text="Remove selected"); rm_b.pack(side="left", padx=2)
+        set_b = ttk.Button(row2, text="Set for selected"); set_b.pack(side="left")
+        rm_b = ttk.Button(row2, text="Remove selected"); rm_b.pack(side="left", padx=(4, 12))
         undo_b = ttk.Button(row2, text="Undo", state="disabled"); undo_b.pack(side="left")
         rv_b = ttk.Button(row2, text="Revert"); rv_b.pack(side="left", padx=4)
         sv_b = ttk.Button(row2, text="Save as…"); sv_b.pack(side="right")
@@ -5766,11 +5906,14 @@ class App:
                                 nlcl.flag_bits(stem, fn), done)
         doc._param_open_flags = open_flags          # (selftest)
         gpos = [0, 0]                               # (row, column); a picker takes 2 columns
+        # balanced rows: at most 8 columns each, split evenly (10 fields -> 5 + 5, not 8 + 2)
+        units = sum(2 if fn in pick_f else 1 for fn, _o, _t in fields if fn not in unused)
+        per_row = max(1, -(-units // -(-units // 8))) if units else 8
         for fn, off, typ in fields:
             if fn in unused:
                 continue
             span = 2 if fn in pick_f else 1
-            if gpos[1] + span > 8:
+            if gpos[1] + span > per_row and gpos[1] > 0:
                 gpos[:] = [gpos[0] + 1, 0]
             cell = ttk.Frame(grid); cell.grid(row=gpos[0], column=gpos[1], columnspan=span, padx=2, pady=1,
                                               sticky="w")
@@ -5994,6 +6137,10 @@ class App:
         grow_lbl = ttk.Label(ed, text=grow_text, foreground="#555", justify="left")
         grow_lbl.pack(fill="x", padx=6)
         grow_lbl.bind("<Configure>", lambda e: grow_lbl.config(wraplength=max(200, e.width - 16)))
+        # the edit form and the info line are laid out before the table, so a short window
+        # shrinks the table and never squeezes the buttons away
+        ed.pack_configure(side="bottom", before=top)
+        info.pack_configure(side="bottom", before=top)
 
     def _view_crop(self, name, data):
         """rf3CropParam — crop editor with READABLE season affinity (GUI twin of the

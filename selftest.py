@@ -1187,6 +1187,22 @@ def test_bin_editors():
             _walk(doc.content)
             ents[0].insert(0, "kind 26"); root.update()
             res["sid"] = first + (list(tvs.get_children()) == [str(r) for r in range(30, 40)],)
+        # E-mote portrait viewer: parts list, click-to-identify on the atlas, expandable tree
+        if (B / "00_PLAYER_M.psbData").exists():
+            import types as _types
+            app._show("00_PLAYER_M.psbData", (B / "00_PLAYER_M.psbData").read_bytes())
+            pv = getattr(app._doc, "_psb_view", None)
+            if pv:
+                ic = pv["icons"]["0000"]
+                z = getattr(app._doc, "zoom", 1)
+                pv["canvas"].xview_moveto(0); pv["canvas"].yview_moveto(0)
+                pv["pick"](_types.SimpleNamespace(x=(ic["left"] + ic["width"] / 2) * z,
+                                                  y=(ic["top"] + ic["height"] / 2) * z))
+                tt = pv["tree"]
+                src = next(i for i in tt.get_children("") if tt.item(i, "text") == "source")
+                tt.focus(src); pv["open"]()
+                res["psbview"] = (len(pv["parts"].get_children()), pv["state"]["sel"],
+                                  [tt.item(i, "text") for i in tt.get_children(src)])
         # generic table editor: names for ids / values, row names, Undo / Revert, About
         if (B / "rf3TxtCalendar_split2_1.bin").exists() and (B / "rf3ParamSkill.bin").exists():
             d = (B / "rf3TxtCalendar_split2_1.bin").read_bytes()
@@ -1247,6 +1263,10 @@ def test_bin_editors():
     _check("skill XP curve: a paint stroke across the chart sets every level it crosses (a straight "
            "line between the drag points), is one history step, and Undo restores the file",
            res.get("paint") == (True, 4, True), res.get("paint"))
+    if "psbview" in res:
+        _check("E-mote viewer: 00_PLAYER_M lists 85 parts, a click on part 0000's rectangle selects it, "
+               "the tree's 'source' node expands to 'tex'",
+               res["psbview"] == (85, "0000", ["tex"]), res["psbview"])
     if "generic" in res:
         _check("table editor: ids and values show names (calendar char 30 = (festival), 21 = Ventuswill, "
                "season 1 = Summer), the form picks 'Ventuswill (21)' / 'Spring (0)', a typed name sets the "
