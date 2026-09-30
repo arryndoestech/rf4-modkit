@@ -45,14 +45,23 @@ rf3Schedule.bin (custom binary, not NLCL):
 
 rf3ScheduleID.bin: NLCL, 3898 records x 12 B = the SPOTS (record base = archive + 28):
     +0 u16 room (872-room enum)   +2 i16 x   +4 i16 y   (tile units; << 12 = world Q12)
-    +6 u8 facing (x 256 = angle)  +7 u8 action (bit0 -> the plan's 0x200 'act' bit)
+    +6 u8 facing (x 256 = angle)  +7 u8 action (copied to the day plan +7)
     +8 u8 wander (jitter radius, tiles)   +9 u8 weight (pick weight within the kind)
-    +10 u8 flags (bit1 = eligible for the 25% kind-0 reroll of 0x2000-flagged NPCs; bit2 SET =
-    the spot is never picked unless the calendar state is 1 -- with bit2 clear the spot is
-    instead skipped while its map is overcrowded; re-read 2026-09-24, the old note had this
-    backwards)   +11 u8 busy (runtime, 0 on disk)
+    +10 u8 flags, copied to the day plan +5 (NpcSchedule_PrepareDailyOutfitActionsAndPosition
+        +0x2301A0; re-read 2026-09-30):
+        0x1 run -- on departure the plan bit sets the actor's run flag (control_flags 0x800000,
+            Npc_ToggleSchedulePendingDepartFlag via +0x22CC50) and the schedule's 0x200 bit
+            (+0x22D330 then uses the run-speed byte), so the NPC runs instead of walking;
+        0x2 replaceable -- for an NPC with table flag 0x2000, 25% of these stops become kind 0
+            (the player's room); while the NPC's override state is 2 the stop is handed to
+            NpcFriendshipTable_AddScheduleEntryAndLinkBackToNpc instead;
+        0x4 season 1 only -- the picker skips the spot unless calendar +16 (the season) is 1;
+        0x8 ignore crowding -- skips NpcSchedule_IsTargetMapOvercrowdedAndTriggerRedraw
+            (+0x230BF0), which otherwise drops a spot in rooms 28..48 / 130 once 18 NPCs are
+            there (the test runs for every spot the season gate lets through).
+    +11 u8 busy (runtime, 0 on disk)
     room/x/y/facing/wander are read by PlaceNpcAtSliceWithJitter, weight/flags/busy by
-    PickRandomScheduleSlotByKind; 'action' follows the IDB comment (its bit0 use is verified).
+    PickRandomScheduleSlotByKind.
     The picker sums the weights of one kind in a u8 (and walks the running total in a u8), so
     a kind's total weight must stay <= 255 or the roll wraps: spot_weight_problems() checks.
 

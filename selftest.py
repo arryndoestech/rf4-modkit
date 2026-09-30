@@ -1163,7 +1163,8 @@ def test_bin_editors():
             app._show("rf3ParamMagic.bin", d); doc = app._doc
             tvm = doc._param_tree
             res["magic"] = (tvm["columns"][:2], tvm.set("0", "used by"), tvm.set("25", "used by").split(";")[0],
-                            "Orc Archer" in tvm.set("53", "used by"))
+                            "Orc Archer" in tvm.set("53", "used by"), tvm.set("136", "used by"),
+                            tvm.set("171", "used by"))
         # rf3ScheduleID: spot kind + room name after the id; "kind 26" lists that kind's spots
         if (B / "rf3ScheduleID.bin").exists():
             d = (B / "rf3ScheduleID.bin").read_bytes()
@@ -1181,6 +1182,27 @@ def test_bin_editors():
             _walk(doc.content)
             ents[0].insert(0, "kind 26"); root.update()
             res["sid"] = first + (list(tvs.get_children()) == [str(r) for r in range(30, 40)],)
+        # generic table editor: names for ids / values, row names, Undo / Revert, About
+        if (B / "rf3TxtCalendar_split2_1.bin").exists() and (B / "rf3ParamSkill.bin").exists():
+            d = (B / "rf3TxtCalendar_split2_1.bin").read_bytes()
+            app._show("rf3TxtCalendar_split2_1.bin", d); doc = app._doc
+            tvc = doc._param_tree
+            shown = (tvc.set("0", "char_id"), tvc.set("1", "char_id"), tvc.set("12", "season"))
+            doc._param_select(1)
+            pv = doc._param_vars
+            form = (pv["char_id"].get(), pv["season"].get())
+            pv["season"].set("summer"); doc._param_apply()
+            moved = nlcl.NlclTable(doc.cur_data).get(1, 1, "u8")
+            doc._param_undo()
+            undone = doc.cur_data == d
+            pv["day"].set("9"); doc._param_apply(); doc._param_revert()
+            reverted = doc.cur_data == d
+            about = doc._param_about(); about_ok = "CALENDAR" in about.winfo_children()[0].get("1.0", "end")
+            about.destroy()
+            app._show("rf3ParamSkill.bin", (B / "rf3ParamSkill.bin").read_bytes())
+            tvk = app._doc._param_tree
+            res["generic"] = (shown, form, moved, undone, reverted, about_ok,
+                              tuple(tvk["columns"][:2]), tvk.set("6", "name"))
         # recipe: item-id fields show names; the picker takes a name, "Name (id)" or an id
         if (B / "rf3RecipeAcce.bin").exists():
             d = (B / "rf3RecipeAcce.bin").read_bytes()
@@ -1220,10 +1242,19 @@ def test_bin_editors():
     _check("skill XP curve: a paint stroke across the chart sets every level it crosses (a straight "
            "line between the drag points), is one history step, and Undo restores the file",
            res.get("paint") == (True, 4, True), res.get("paint"))
+    if "generic" in res:
+        _check("table editor: ids and values show names (calendar char 30 = (festival), 21 = Ventuswill, "
+               "season 1 = Summer), the form picks 'Ventuswill (21)' / 'Spring (0)', a typed name sets the "
+               "number, Undo and Revert restore the file, About shows the notes, rf3ParamSkill rows are "
+               "named by skill",
+               res["generic"] == (("(festival)", "Ventuswill", "Summer"), ("Ventuswill (21)", "Spring (0)"),
+                                  1, True, True, True, ("#", "name"), "Fire"), res["generic"])
     if "magic" in res:
         _check("rf3ParamMagic: 'used by' follows the id -- row 0 Fireball, 25 Double Sonic (spell items), "
-               "53 the Orc Archer's move (monster timeline via rf3NpcParam +280)",
-               res["magic"] == (("#", "used by"), "Fireball", "Double Sonic", True), res["magic"])
+               "53 the Orc Archer's move (monster timeline via rf3NpcParam +280), 136 Ancient Bone's "
+               "scripted action 4 (AI script op 0x26), 171 the staff's fire shot",
+               res["magic"] == (("#", "used by"), "Fireball", "Double Sonic", True,
+                                "Ancient Bone (boss move 4)", "staff shot: Fire, level 0-1"), res["magic"])
     if "sid" in res:
         _check("rf3ScheduleID: 'spot kind' and 'room name' follow the id (record 30 = kind 26, 1 of 10, "
                "Butler's Room); searching 'kind 26' lists exactly records 30..39",

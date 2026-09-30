@@ -163,7 +163,7 @@ FIELD_SCHEMAS = {
     "rf3ParamSkillExpMix": {"alias": "rf3ParamSkillExp"},
     "rf3ParamSkillExpSleep": {"alias": "rf3ParamSkillExp"},
     "rf3ItemList": {
-        "names": "item",   # row index IS the item id; resolve name via rf4s_item_names.json
+        "names": "item",   # row index IS the item id (names from the game's item names)
         # ADD ROW (2026-09-19): the loader ItemDatabase_AllocateAndInit (RF4S.exe+0x3FBE0)
         # stores only archive+28 (never the +24 count) and readers index by item id, which
         # the code bounds with the CONSTANT 1108 (0x454, e.g. Item_ComputeStackGoldValue
@@ -507,8 +507,8 @@ FIELD_SCHEMAS = {
         # Data-checked: action0 = Fire magic (flags 0x81, base15, mat 1.0x); action445 =
         # physical (atk 1.5x, mult 5x).
         "fields": [
-            ("flags", 28, "u32"),        # 0x80=magic; 0x01..0x40=Fire/Water/Earth/Wind/Light/Dark/Love;
-                                         # 0x200=ignore-def; 0x400=no-random; 0x200000=always-1-dmg
+            ("flags", 28, "u32"),        # element + behaviour bits: use Flags... (every bit the
+                                         # exe reads is named; FLAG_FIELDS lists the readers)
             ("base_dmg", 32, "s32"),
             ("atk_scalar", 36, "s32"),   # Q12, x attacker ATK_total
             ("mat_scalar", 40, "s32"),   # Q12, x attacker MAT_total
@@ -731,11 +731,11 @@ FIELD_SCHEMAS = {
         # rolls one of them per day weighted by `weight` (NpcSchedule_PickRandomScheduleSlotByKind
         # +0x2318E0). room/x/y/facing/wander are consumed by NpcSchedule_PlaceNpcAtSliceWithJitter
         # (+0x22EAA0: x,y tiles << 12; facing << 8; wander = jitter radius); weight/flags/busy by
-        # the picker (CORRECTED 2026-09-24: flags bit2 SET = the spot is skipped unless the
-        # calendar state is 1; with bit2 clear the spot is skipped when its map is
-        # overcrowded; busy = runtime scratch). The picker sums the weights of a kind in a u8,
-        # so a kind's total weight must stay <= 255 (schedule.spot_weight_problems checks it;
-        # shipped max 152). action bit0 feeds the plan's 0x200 bit (name per the IDB comment).
+        # the picker (busy = runtime scratch); the flag bits are in FLAG_FIELDS and
+        # schedule.py (re-read 2026-09-30: 0x1 run, 0x2 replaceable, 0x4 season 1 only,
+        # 0x8 ignore crowding). The picker sums the weights of a kind in a u8, so a kind's
+        # total weight must stay <= 255 (schedule.spot_weight_problems checks it; shipped
+        # max 152).
         "fields": [("room", 0, "u16"), ("x", 2, "s16"), ("y", 4, "s16"), ("facing", 6, "u8"),
                    ("action", 7, "u8"), ("wander", 8, "u8"), ("weight", 9, "u8"),
                    ("flags", 10, "u8"), ("busy", 11, "u8")],
@@ -853,29 +853,155 @@ FLAG_FIELDS = {
         0x2000: "Level up"}},
     "rf3ItemEquipmentParam": {"boots_word": {}, "special_bit": {}},
     "rf3ItemStrengthening": {"status_word": {}},
-    "rf3ScheduleID": {"flags": {}},
+    # rf3ScheduleID.flags: see rf4s_modkit/schedule.py (copied to the NPC's day plan +5)
+    "rf3ScheduleID": {"flags": {0x1: "Run", 0x2: "Replaceable", 0x4: "Season 1 only",
+                                0x8: "Ignore crowding"}},
     "rf3TxtShopNpc_split2_1": {"flag": {}},
     "rf4TxtQuestRequestDetailFormat_split2_1": {"flag": {}},
 }
 
 
-# ---- item-id fields --------------------------------------------------------------------
-# Fields that hold an item id (0 = none): the GUI shows the item's name and edits them with a
-# searchable item picker. The recipe ingredients may be a category item (1083 Minerals, 1088
-# Furs): any item of that category is accepted at the station. Matched by stem, then by the
-# PREFIX_SCHEMAS family prefix.
-ITEM_FIELDS = {
-    "rf3Recipe": ("result", "ing1", "ing2", "ing3", "ing4", "ing5", "ing6"),
-    "MapOre_Rate": ("item0", "item1", "item2", "rare_item"),
-    "rf3ItemList": ("base_item",),
+# ---- reference fields, value names, row names --------------------------------------------
+# What a number in a field (or a row index) stands for, so the GUI can show a name and edit with
+# a searchable picker. Only meanings stated as verified in the schema notes above are listed.
+# Kinds: "item" (0 = an empty slot; recipe ingredients may be a category item such as 1083
+# Minerals: any item of that category is accepted), "char", "room", "skill". Matched by stem
+# (aliases followed), then by the PREFIX_SCHEMAS family prefix.
+REF_FIELDS = {
+    "rf3Recipe": {f: "item" for f in ("result", "ing1", "ing2", "ing3", "ing4", "ing5", "ing6")},
+    "MapOre_Rate": {f: "item" for f in ("item0", "item1", "item2", "rare_item")},
+    "rf3ItemList": {"base_item": "item"},
+    "rf3TxtCalendar_split2_1": {"char_id": "char"},       # 30 = festival (VALUE_NAMES)
+    "rf3TxtShopNpc_split2_1": {"char_id": "char"},
+    "rf3TxtQuest_split3_1": {"client_id": "char"},
+    "rf3ParamSkillData": {"gov_skill": "skill"},
+    "rf3ParamMagic": {"Skill Type": "skill"},
+    "rf3ScheduleID": {"room": "room"},
 }
+_SEASONS = {0: "Spring", 1: "Summer", 2: "Fall", 3: "Winter"}
+# Named values of plain fields (shown as "Name (value)" and picked from a list).
+VALUE_NAMES = {
+    "rf3TxtCalendar_split2_1": {"season": _SEASONS, "char_id": {30: "(festival)"}},
+    "rf3TxtShopNpc_split2_1": {"slot": {
+        0: "unused", 1: "greeting", 2: "browse", 3: "ponder", 4: "decide", 5: "confirm",
+        6: "thanks", 7: "come again", 8: "decline", 9: "no space", 10: "no money",
+        11: "out of stock", 12: "sale 10%", 13: "sale 20%"}},
+    "rf3TxtQuest_split3_1": {"client_id": {0: "(placeholder)", 22: "Anonymous", 23: "Anonymous"}},
+}
+# What a row index is: "item" / "room" / "skill" / "fish" (rows 0..31 = item 985+row, 32..37 =
+# the rare remap, see the Fishing_rate_fish_Spring notes) / "level" (row L = level L -> L+1).
+ROW_NAMES = {
+    "rf3ParamSkill": "skill",
+    "rf3MapMiniPos": "room",
+    "Fishing_rate_fish_Spring": "fish",
+    "rf3Parameter": "level",
+    "Fishing_rate_lv_Spring": "bracket",
+}
+FISH_RARE_ITEMS = (1017, 1018, 1019, 893, 894, 934)
+
+
+def canonical_stem(stem: str) -> str:
+    """The schema key a file uses: aliases followed, family members mapped to their prefix."""
+    seen = set()
+    while stem in FIELD_SCHEMAS and "alias" in FIELD_SCHEMAS[stem] and stem not in seen:
+        seen.add(stem)
+        stem = FIELD_SCHEMAS[stem]["alias"]
+    if stem in FIELD_SCHEMAS:
+        return stem
+    return next((p for p in PREFIX_SCHEMAS if stem.startswith(p)), stem)
+
+
+def ref_kind(stem: str, name: str):
+    """'item' / 'char' / 'room' / 'skill' when the field holds such an id, else None."""
+    return REF_FIELDS.get(canonical_stem(stem), {}).get(name)
 
 
 def is_item_field(stem: str, name: str) -> bool:
     """True when the field holds an item id."""
-    if name in ITEM_FIELDS.get(stem, ()):
-        return True
-    return any(stem.startswith(p) and name in ITEM_FIELDS.get(p, ()) for p in PREFIX_SCHEMAS)
+    return ref_kind(stem, name) == "item"
+
+
+def value_names(stem: str, name: str) -> dict:
+    """{value: name} for a field with named values ({} when none)."""
+    return VALUE_NAMES.get(canonical_stem(stem), {}).get(name, {})
+
+
+def row_kind(stem: str):
+    """What a row index means for this table (see ROW_NAMES), or None."""
+    c = canonical_stem(stem)
+    sch = FIELD_SCHEMAS.get(c) or PREFIX_SCHEMAS.get(c) or {}
+    if sch.get("names") == "item" and not sch.get("name_field"):
+        return "item"
+    return ROW_NAMES.get(c)
+
+
+def fish_item(row: int):
+    """The fish item id of a Fishing_rate_fish_* row."""
+    if 0 <= row < 32:
+        return 985 + row
+    if 32 <= row < 32 + len(FISH_RARE_ITEMS):
+        return FISH_RARE_ITEMS[row - 32]
+    return None
+
+
+_NOTES_CACHE: dict = {}
+
+
+def schema_notes(stem: str) -> tuple[str, dict]:
+    """(table notes, {field: note}) read from this module's own schema comments: the comment
+    block that opens the table's entry, and the comment trailing a field tuple (plus the
+    comment lines right under it). Used for the GUI's "About this table" and column help."""
+    key = canonical_stem(stem)
+    if key in _NOTES_CACHE:
+        return _NOTES_CACHE[key]
+    import pathlib as _pl
+    try:
+        lines = _pl.Path(__file__).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return "", {}
+    start = next((k for k, ln in enumerate(lines) if re.match(r'\s{4}"%s": \{\s*$' % re.escape(key), ln)),
+                 None)
+    about, notes = [], {}
+    if start is not None:
+        # the comment block right above the key line (the family schemas keep theirs there) ...
+        j = start - 1
+        above = []
+        while j >= 0 and lines[j].strip().startswith("#"):
+            above.insert(0, lines[j].strip()[1:].strip())
+            j -= 1
+        # ... and every comment-only line of the entry before its field list
+        k = start + 1
+        while k < len(lines) and '"fields"' not in lines[k] and not lines[k].startswith("    }"):
+            code, _, cmt = lines[k].partition("#")
+            if cmt.strip() and (not code.strip() or code.strip().endswith(",")):
+                about.append(cmt.strip())
+            k += 1
+        if not about:
+            about = above
+        k = start + 1
+        depth = 1
+        last = None
+        while k < len(lines) and depth > 0:
+            ln = lines[k]
+            code, _, cmt = ln.partition("#")
+            depth += code.count("{") - code.count("}")
+            names = re.findall(r'\("([^"]+)",\s*\d+,\s*"\w+"\)', code)
+            if names:
+                last = names[-1] if len(names) == 1 else None
+                if last and cmt.strip():
+                    notes[last] = cmt.strip()
+            elif last and not code.strip() and cmt.strip():
+                notes[last] = (notes.get(last, "") + " " + cmt.strip()).strip()
+            else:
+                last = None
+            k += 1
+    sch = FIELD_SCHEMAS.get(key) or PREFIX_SCHEMAS.get(key) or {}
+    for f, lim in (sch.get("limits") or {}).items():
+        lo, hi, why = lim
+        notes[f] = (notes.get(f, "") + f"  Range {lo}..{hi}: {why}.").strip()
+    res = ("\n".join(about), notes)
+    _NOTES_CACHE[key] = res
+    return res
 
 
 def flag_bits(stem: str, name: str):

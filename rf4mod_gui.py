@@ -75,7 +75,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-from guiutil import Tip, err_text, wheel_handler
+from guiutil import Tip, err_text, later, wheel_handler
 def _load_actor_names():
     """id -> name: the game's rf3TxtNpc (gamenames), else the built-in list."""
     from rf4s_modkit import gamenames
@@ -106,8 +106,8 @@ def _parse_item(text: str, names: dict) -> int:
     hits = [i for i, n in names.items() if n and n.lower() == s.lower()]
     if len(hits) == 1:
         return hits[0]
-    raise ValueError(f"{s!r}: no single item has that name -- pick one from the list or type its id"
-                     if hits or s else "an item field is empty")
+    raise ValueError(f"{s!r}: no single entry has that name -- pick one from the list or type its number"
+                     if hits or s else "a name field is empty")
 
 
 def _item_picker(parent, var, names: dict, width=24):
@@ -4585,39 +4585,174 @@ class App:
                           fill_days=fill_days, npc_text=npc_text, state_label=state_label, st=st)
 
     def _view_gift_categories(self, name, data):
-        """rf3PresentCategory — the 21 shared gift categories referenced by NPC cross-refs."""
+        """rf3PresentCategory -- the 21 shared gift categories. A villager's gift list
+        (rf3PresentNpcNN) can point at a category instead of single items; when the villager
+        LOVES or LIKES the category, gifting one of its items grants that item's own friendship
+        value stored HERE (the category entry's code, gifts.py), and a DISLIKED category is -5.
+        Left: the categories with a preview and the villagers using them; right: the selected
+        category's items (value editable), who uses it, add / remove / set value, Undo, Revert."""
         doc = self._doc
         items = _load_item_names()
+        chars = _load_char_names()
         table = gifts.GiftTable.parse(data)
-        ttk.Label(doc.content, text=f"{len(table.groups)} shared gift categories (referenced by "
-                                     f"NPC gift tables via cross-ref)").pack(fill="x", padx=6, pady=2)
-        ed = ttk.Frame(doc.content); ed.pack(fill="x", padx=6, pady=2)
-        catv, itemv = tk.StringVar(value="0"), tk.StringVar()
-        ttk.Label(ed, text="category").pack(side="left")
-        ttk.Entry(ed, textvariable=catv, width=4).pack(side="left", padx=2)
-        ttk.Label(ed, text="item id").pack(side="left", padx=(6, 0))
-        ttk.Entry(ed, textvariable=itemv, width=6).pack(side="left", padx=2)
-        item_lbl = ttk.Label(ed, width=24, foreground="#666"); item_lbl.pack(side="left")
-        itemv.trace_add("write", lambda *_: item_lbl.config(
-            text=items.get(int(itemv.get()), "") if itemv.get().strip().isdigit() else ""))
-        txt = self._make_text_tab(None, None, mono=True, doc=doc)
+        ncat = len(table.groups)
 
-        def redraw():
-            cats = [g.get("disliked") or [] for g in table.groups]
-            txt.config(state="normal"); txt.delete("1.0", "end")
-            for idx in range(len(cats)):
-                ids = gifts.category_items(idx, cats)
-                names = ", ".join(items.get(i, str(i)) for i in ids)
-                txt.insert("end", f"cat {idx:>2} ({len(ids)}): {names}\n")
-            txt.config(state="disabled")
+        # which villagers point at each category, and in which tier
+        users = {i: {"loved": [], "liked": [], "disliked": []} for i in range(ncat)}
+        for nn in range(1, 28):
+            raw = _find_extracted(f"rf3PresentNpc{nn:02d}.bin")
+            if not raw:
+                continue
+            try:
+                nt = gifts.GiftTable.parse(raw)
+            except gifts.GiftError:
+                continue
+            who = chars.get(nn, "") or f"NPC {nn}"
+            for tier in gifts.TIERS:
+                for e in nt.tier(tier):
+                    if e.kind == "xref" and e.value in users and who not in users[e.value][tier]:
+                        users[e.value][tier].append(who)
+
+        def members(g):
+            return table.groups[g].get("disliked") or []           # a category keeps its items in off1
+
+        def fp_of(e):
+            return e.code - 0x10000 if e.code >= 0x8000 else e.code
+
+        def default_fp(g):
+            codes = [fp_of(e) for e in members(g) if e.kind == "item"]
+            return max(set(codes), key=codes.count) if codes else 9
+
+        # ---- layout -----------------------------------------------------------------------
+        head = ttk.Frame(doc.content, padding=(6, 4)); head.pack(fill="x")
+        ttk.Label(head, text="Gift categories", font=("Segoe UI", 11, "bold")).pack(anchor="w")
+        expl = ttk.Label(head, foreground="#555", justify="left", text=(
+            "A category is a shared list of items that villagers' gift lists can point to. When a villager "
+            "loves or likes a category, giving one of its items grants the friendship points set for that "
+            "item here (the villager's own list does not decide it); when they dislike it, the gift is "
+            "−5. Each category can hold up to 255 items; only direct items count (the game does not "
+            "follow a category inside a category)."))
+        expl.pack(fill="x")
+        expl.bind("<Configure>", lambda e: expl.config(wraplength=max(200, e.width - 16)))
+
+        foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        body = ttk.PanedWindow(doc.content, orient="horizontal"); body.pack(fill="both", expand=True, padx=6)
+        left = ttk.Frame(body); body.add(left, weight=2)
+        right = ttk.Frame(body); body.add(right, weight=3)
+
+        ct = ttk.Treeview(left, columns=("n", "items", "preview", "used"), show="headings",
+                          selectmode="browse", height=18)
+        for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("preview", "Contains", 260),
+                         ("used", "Used by", 260)):
+            ct.heading(c, text=t_); ct.column(c, width=w, anchor="w")
+        _table_scrollbars(left, ct)
+
+        title = ttk.Label(right, font=("Segoe UI", 10, "bold")); title.pack(anchor="w")
+        used_lbl = ttk.Label(right, foreground="#555", justify="left"); used_lbl.pack(fill="x", pady=(0, 4))
+        used_lbl.bind("<Configure>", lambda e: used_lbl.config(wraplength=max(200, e.width - 8)))
+        mf = ttk.Frame(right); mf.pack(fill="both", expand=True)
+        mt = ttk.Treeview(mf, columns=("item", "id", "fp"), show="headings", selectmode="extended", height=14)
+        for c, t_, w in (("item", "Item", 220), ("id", "Id", 60), ("fp", "Friendship when loved / liked", 190)):
+            mt.heading(c, text=t_); mt.column(c, width=w, anchor="w")
+        _table_scrollbars(mf, mt)
+
+        row1 = ttk.Frame(foot); row1.pack(fill="x")
+        row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
+        catv, itemv, fpv = tk.StringVar(value="0"), tk.StringVar(), tk.StringVar()
+        ttk.Label(row1, text="Item").pack(side="left")
+        ip = _item_picker(row1, itemv, items, width=30); ip.pack(side="left", padx=(2, 8))
+        ttk.Label(row1, text="Friendship").pack(side="left")
+        fp_cb = ttk.Combobox(row1, textvariable=fpv, width=6, values=("15", "9", "6")); fp_cb.pack(side="left", padx=2)
+        add_b = ttk.Button(row1, text="Add to category"); add_b.pack(side="left", padx=(8, 2))
+        set_b = ttk.Button(row1, text="Set for selected"); set_b.pack(side="left", padx=2)
+        rm_b = ttk.Button(row1, text="Remove selected"); rm_b.pack(side="left", padx=2)
+        undo_b = ttk.Button(row2, text="Undo", state="disabled"); undo_b.pack(side="left")
+        rv_b = ttk.Button(row2, text="Revert"); rv_b.pack(side="left", padx=4)
+        sv_b = ttk.Button(row2, text="Save as…"); sv_b.pack(side="right")
+        Tip(ip, "Pick an item or type part of its name (Down opens the filtered list); the id works too.")
+        Tip(fp_cb, "Friendship points the item gives a villager who loves or likes this category "
+                   "(the game's own values: 15, 9, 6). Once per day per villager; doubled on their "
+                   "birthday.")
+        Tip(set_b, "Give the selected items the friendship value above.")
+        Tip(rm_b, "Take the selected items out of the category (Delete key).")
+        Tip(undo_b, "Undo the last change (Ctrl+Z).")
+
+        # ---- fill -------------------------------------------------------------------------
+        def used_text(g, short=False):
+            u = users[g]
+            parts = [f"{tier}: {', '.join(u[tier])}" for tier in ("loved", "liked", "disliked") if u[tier]]
+            if short:
+                n = sum(len(v) for v in u.values())
+                if not n:
+                    return "(nobody)"
+                if u["disliked"] and not (u["loved"] or u["liked"]):
+                    return f"disliked by {len(u['disliked'])}"
+                return "; ".join(parts)
+            return "  ·  ".join(parts) if parts else "No villager's gift list uses this category."
+
+        def fill_cats():
+            keep = ct.selection()
+            ct.delete(*ct.get_children())
+            for g in range(ncat):
+                ids = [e.value for e in members(g) if e.kind == "item"]
+                prev = ", ".join(items.get(i, str(i)) for i in ids[:4]) + (" …" if len(ids) > 4 else "")
+                ct.insert("", "end", iid=str(g), values=(g, len(members(g)), prev, used_text(g, True)))
+            ct.selection_set(keep if keep else ("0",))
+
+        def cur():
+            s = ct.selection()
+            return int(s[0]) if s else 0
+
+        def fill_members(select=()):
+            g = cur()
+            catv.set(str(g))
+            mt.delete(*mt.get_children())
+            for k, e in enumerate(members(g)):
+                if e.kind == "item":
+                    mt.insert("", "end", iid=str(k), values=(items.get(e.value, "?"), e.value, f"{fp_of(e):+d}"))
+                else:                                       # not used by the shipped file
+                    mt.insert("", "end", iid=str(k), values=(gifts._fmt(e, items.get), "", "(ignored)"))
+            for k in select:
+                if mt.exists(str(k)):
+                    mt.selection_add(str(k)); mt.see(str(k))
+            title.config(text=f"Category {g} — {len(members(g))} items")
+            used_lbl.config(text="Used by  " + used_text(g))
+            if not fpv.get().strip():
+                fpv.set(str(default_fp(g)))
+
+        ct.bind("<<TreeviewSelect>>", lambda _e: (fpv.set(str(default_fp(cur()))), fill_members()))
+
+        # ---- edits ------------------------------------------------------------------------
+        history = []
+
+        def changed(msg, select=()):
+            doc.cur_data = table.build()
+            undo_b.config(state="normal" if history else "disabled")
+            fill_cats(); fill_members(select)
+            self.status.config(text=msg + " — Save as… to write the file")
+
+        def snapshot():
+            history.append(table.build())
+
+        def restore(blob):
+            new = gifts.GiftTable.parse(blob)
+            table.groups, table.build_date = new.groups, new.build_date
+
+        def parse_fp():
+            v = int(fpv.get().strip().lstrip("+"), 0)
+            if not -0x8000 <= v <= 0x7FFF:
+                raise ValueError("friendship must be -32768..32767 (the game reads it as signed 16-bit)")
+            return v
 
         def target():
+            """(category, item id) from the controls (the selftest drives catv / itemv)."""
             try:
-                g, it = int(catv.get()), int(itemv.get())
-            except ValueError:
-                messagebox.showerror("Gift categories", "category and item id must be numbers"); return None
-            if not 0 <= g < len(table.groups):
-                messagebox.showerror("Gift categories", f"category 0..{len(table.groups) - 1}"); return None
+                g = int(catv.get())
+                it = _parse_item(itemv.get(), items)
+            except ValueError as e:
+                messagebox.showerror("Gift categories", err_text(e)); return None
+            if not 0 <= g < ncat:
+                messagebox.showerror("Gift categories", f"category 0..{ncat - 1}"); return None
             return g, it
 
         def add():
@@ -4625,31 +4760,92 @@ class App:
             if tg is None:
                 return
             g, it = tg
-            lst = table.groups[g].get("disliked") or []
-            codes = [e.code for e in lst if e.kind == "item"]
-            code = max(set(codes), key=codes.count) if codes else 9   # the category's own code
             try:
-                table.add("disliked", gifts.Entry("item", it, code), g)
-            except gifts.GiftError as e:
+                fp = parse_fp() if fpv.get().strip() else default_fp(g)
+                before = table.build()
+                if any(e.kind == "item" and e.value == it for e in members(g)):
+                    raise gifts.GiftError(f"{items.get(it, it)} is already in category {g}")
+                lst = table.groups[g].get("disliked")
+                if lst is None:
+                    table.groups[g]["disliked"] = lst = []
+                lst.append(gifts.Entry("item", it, fp & 0xFFFF))
+                gifts.encode_target("item", it)
+                table.build()                               # validates the 255-entry limit
+            except (ValueError, gifts.GiftError) as e:
+                restore(before)
                 messagebox.showerror("Gift categories", err_text(e)); return
-            doc.cur_data = table.build(); redraw()
-            self.status.config(text=f"Added {items.get(it, it)} to category {g} — Save as… to write")
+            history.append(before)
+            ct.selection_set(str(g)); ct.see(str(g))
+            changed(f"Added {items.get(it, it)} to category {g} ({fp:+d})", (len(members(g)) - 1,))
 
         def remove():
-            tg = target()
-            if tg is None:
-                return
-            g, it = tg
-            n = table.remove("item", it, g)
-            doc.cur_data = table.build(); redraw()
-            self.status.config(text=(f"Removed {items.get(it, it)} from category {g}" if n else
-                                     f"{items.get(it, it)} is not in category {g}") + " — Save as… to write")
-        ttk.Button(ed, text="Add", command=add).pack(side="left", padx=(4, 0))
-        ttk.Button(ed, text="Remove", command=remove).pack(side="left", padx=4)
-        ttk.Button(ed, text="Save as…",
-                   command=lambda: self._save_blob_as(doc, table.build(), "gift categories")).pack(side="right")
+            sel = [int(k) for k in mt.selection()]
+            g = cur()
+            if not sel:                                     # (selftest / typed item) -> by item id
+                tg = target()
+                if tg is None:
+                    return
+                g, it = tg
+                sel = [k for k, e in enumerate(members(g)) if e.kind == "item" and e.value == it]
+                if not sel:
+                    self.status.config(text=f"{items.get(it, it)} is not in category {g}"); return
+            snapshot()
+            lst = members(g)
+            names = [items.get(lst[k].value, str(lst[k].value)) for k in sel]
+            table.groups[g]["disliked"] = [e for k, e in enumerate(lst) if k not in set(sel)]
+            changed(f"Removed {', '.join(names[:3])}{' …' if len(names) > 3 else ''} from category {g}")
+
+        def set_fp():
+            sel = [int(k) for k in mt.selection()]
+            if not sel:
+                self.status.config(text="Select items in the category first"); return
+            try:
+                fp = parse_fp()
+            except ValueError as e:
+                messagebox.showerror("Gift categories", err_text(e)); return
+            snapshot()
+            g = cur()
+            lst = members(g)
+            for k in sel:
+                lst[k] = gifts.Entry(lst[k].kind, lst[k].value, fp & 0xFFFF)
+            changed(f"{len(sel)} item(s) set to {fp:+d}", sel)
+
+        def undo(*_):
+            if history:
+                restore(history.pop())
+                changed("Undone")
+
+        def revert():
+            if table.build() != data:
+                snapshot(); restore(data); changed("Back to the file as opened")
+
+        def pick_member(_e=None):
+            sel = mt.selection()
+            if len(sel) == 1:
+                e = members(cur())[int(sel[0])]
+                if e.kind == "item":
+                    itemv.set(_item_text(e.value, items)); fpv.set(str(fp_of(e)))
+        mt.bind("<<TreeviewSelect>>", pick_member)
+        mt.bind("<Delete>", lambda _e: remove())
+        mt.bind("<Double-Button-1>", lambda _e: (pick_member(), fp_cb.focus_set(), fp_cb.select_range(0, "end")))
+        for w in (ct, mt):
+            w.bind("<Control-z>", undo)
+        ip.bind("<Return>", lambda _e: add())
+        add_b.config(command=add); set_b.config(command=set_fp); rm_b.config(command=remove)
+        undo_b.config(command=undo); rv_b.config(command=revert)
+        sv_b.config(command=lambda: self._save_blob_as(doc, table.build(), "gift categories"))
+        fill_cats(); fill_members()
+        # the category list gets half the width once the window is laid out (room for "Used by")
+        sash_done = {"d": False}
+
+        def first_layout(e):
+            if not sash_done["d"] and e.width > 400:
+                sash_done["d"] = True
+                later(body, lambda: body.sashpos(0, e.width // 2))
+        body.bind("<Configure>", first_layout, add="+")
         doc._gift_add, doc._gift_remove, doc._gift_vars = add, remove, (catv, itemv)   # (selftest)
-        redraw()
+        doc._gift = dict(cats=ct, members=mt, fp=fpv, set_fp=set_fp, undo=undo, revert=revert,
+                         users=users, table=lambda: table)
 
     def _view_montame(self, name, data):
         """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849)."""
@@ -5295,114 +5491,260 @@ class App:
         ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
 
     def _view_param(self, name, data):
-        """Generic NLCL table view: named schema fields (fixed-point ones as percentages,
-        nlcl.FIXED_FIELDS), raw offset edits, add / remove rows, CSV export (raw values)."""
+        """Generic NLCL table view, used by every table without a bespoke editor.
+
+        * ids show names: item / character / room / skill fields and named values (seasons,
+          shop line roles ...) from nlcl.REF_FIELDS / VALUE_NAMES, edited with a searchable
+          picker; a row-name column after the id when the row index means something
+          (nlcl.ROW_NAMES: skills, maps, fish, levels, items);
+        * help: hovering a column heading shows that field's note and "About this table..."
+          shows the table's notes (both read from the schema comments, nlcl.schema_notes);
+        * editing: the form under the table, or double-click a cell to edit it in place; Undo /
+          Revert; fixed-point fields as percentages; bit sets with a Flags... tick-box dialog;
+          raw offset edits; add / remove rows; unused columns hidden unless asked for."""
         doc = self._doc
+        from rf4s_modkit import gamenames
         t = nlcl.NlclTable(data)
         doc._param = t
         stem = pathlib.Path(name).stem
         sch = t.schema(stem)
-        # row-name fn (item names) if the schema asks for it
-        namefn = (lambda i: "")
-        if sch and sch.get("names") == "item":
-            tbl = _load_item_names()
-            namefn = lambda i: tbl.get(i, "")
         fields = sch["fields"] if sch else [(f"dw{k}", k * 4, "s32")
                                             for k in range(min(8, t.record_size // 4))]
-        # item-id fields show the item's name and are edited with an item picker
-        item_f = {n for n, _o, _t in fields if nlcl.is_item_field(stem, n)}
-        items = _load_item_names() if item_f else {}
+        about, notes = nlcl.schema_notes(stem) if sch else ("", {})
+
+        # ---- names ------------------------------------------------------------------------
+        name_tables = {}
+
+        def names_of(kind):
+            if kind not in name_tables:
+                if kind == "item":
+                    name_tables[kind] = _load_item_names()
+                elif kind in ("char", "skill"):
+                    name_tables[kind] = dict(gamenames.table("characters" if kind == "char" else "skills"))
+                elif kind == "room":
+                    name_tables[kind] = {i: n for i in range(872) for n in [map_names.map_name(i)] if n}
+                else:
+                    name_tables[kind] = {}
+            return name_tables[kind]
+        ref = {n: nlcl.ref_kind(stem, n) for n, _o, _t in fields}
+        vnames = {n: nlcl.value_names(stem, n) for n, _o, _t in fields}
+        pick_f = {n for n, _o, _t in fields if ref[n] or vnames[n]}
+        item_f = {n for n in pick_f if ref[n] == "item"}
+
+        def choices(n):
+            d = dict(names_of(ref[n])) if ref[n] else {}
+            d.update(vnames[n])
+            return d
 
         def cell_text(n, raw_v, typ):
-            if n in item_f:
-                return "" if raw_v == 0 else items.get(raw_v) or f"#{raw_v}"     # 0 = empty slot
+            if n in pick_f:
+                if n in item_f and raw_v == 0:
+                    return ""                                   # item 0 = an empty slot
+                nm = vnames[n].get(raw_v) or (names_of(ref[n]).get(raw_v) if ref[n] else None)
+                return nm or (f"#{raw_v}" if ref[n] else str(raw_v))
             if nlcl.flag_bits(stem, n) is not None:
                 return nlcl.format_flags(raw_v, typ)
             return nlcl.format_value(raw_v, nlcl.fixed_bits(stem, n))
 
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"NLCL {stem}: {t.entry_count} records × {t.record_size} B"
-                          + ("  (named fields)" if sch else "  (raw — edit by offset)"),
-                  ).pack(side="left", padx=6)
-        ttk.Label(bar, text="Search #/name:").pack(side="left")
-        sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
+        def edit_text(n, raw_v, typ):
+            if n in pick_f:
+                return _item_text(raw_v, choices(n))
+            return cell_text(n, raw_v, typ)
 
-        name_col = bool(sch and sch.get("names")) and sch.get("name_field") not in item_f
-        # rf3ParamMagic: what fires each row (spell item / monster move / timeline)
+        def parse_field(n, typ, text):
+            if n in pick_f:
+                return _parse_item(text, choices(n))
+            return nlcl.parse_value(text, typ, nlcl.fixed_bits(stem, n))
+
+        # the row-name column: the row index means something, or the schema names rows by a field
+        rk = nlcl.row_kind(stem) if sch else None
+        name_field = sch.get("name_field") if sch else None
+        name_off_typ = next(((o, ty) for n, o, ty in fields if n == name_field), None)
+
+        def row_name(i):
+            if name_off_typ and name_field not in pick_f:
+                return names_of("item").get(t.get(i, *name_off_typ), "")
+            if rk in ("item", "room", "skill"):
+                return names_of(rk).get(i, "")
+            if rk == "fish":
+                fi = nlcl.fish_item(i)
+                return names_of("item").get(fi, "") if fi is not None else ""
+            if rk == "level":
+                return f"Lv {i} → {i + 1}"
+            if rk == "bracket":
+                return f"size bracket {i}" + (" (smallest)" if i == 0 else "")
+            return ""
+        name_col = bool(rk) or bool(name_off_typ and name_field not in pick_f)
+
+        # ---- extra columns of particular tables -------------------------------------------
         used = {}
-        if stem == "rf3ParamMagic":
+        if stem == "rf3ParamMagic":                 # what fires each row
             from rf4s_modkit import magicnames
             used = magicnames.names_for_game()
         used_col = ["used by"] if stem == "rf3ParamMagic" else []
-        # rf3ScheduleID: which spot kind (schedule stop target) each spot belongs to + its room
         pre_cols, pre_vals = [], None
-        if stem == "rf3ScheduleID":
+        if stem == "rf3ScheduleID":                 # the spot kind each spot belongs to + its room
+
             pre_cols = ["spot kind", "room name"]
 
             def pre_vals(i):
                 kr = schedule.kind_of_record(i)
                 return [f"{kr[0]}  ({kr[1] + 1} of {kr[2]})" if kr else "",
                         map_names.map_name(t.get(i, 0, "u16")) or ""]
-        cols = ["#"] + used_col + pre_cols + [f[0] for f in fields] + (["name"] if name_col else [])
+
+        # ---- top bar ----------------------------------------------------------------------
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
+        ttk.Label(bar, text=f"{stem}: {t.entry_count} records × {t.record_size} B"
+                            + ("" if sch else "  (no field names — raw dwords, edit by offset)"),
+                  ).pack(side="left", padx=6)
+        ttk.Label(bar, text="Search:").pack(side="left")
+        sv = tk.StringVar(); se = ttk.Entry(bar, textvariable=sv, width=18); se.pack(side="left", padx=2)
+        Tip(se, "Matches the row number, the names and every shown value"
+                + ("; 'kind 26' lists one spot kind's spots" if pre_cols else "") + ".")
+        unused = [n for n, _o, _t in fields if n.startswith("unused") or n == "pad"]
+        show_unused = tk.BooleanVar(value=False)
+        if unused:
+            ttk.Checkbutton(bar, text=f"Show unused columns ({len(unused)})", variable=show_unused,
+                            command=lambda: set_display()).pack(side="left", padx=8)
+        if about or notes:
+            ttk.Button(bar, text="About this table…", command=lambda: show_about()).pack(side="right", padx=4)
+
+        cols = (["#"] + (["name"] if name_col else []) + used_col + pre_cols + [f[0] for f in fields])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
+        widths = {"name": 170, "used by": 300, "spot kind": 110, "room name": 200}
         for c in cols:
             tv.heading(c, text=c)
-            tv.column(c, width={"name": 160, "used by": 300, "spot kind": 110, "room name": 200}.get(
-                c, 130 if c in item_f else 70), anchor="w")
-        if pre_cols:
-            kind_lbl = ttk.Label(doc.content, foreground="#555", padding=(6, 2), justify="left", text=(
-                "'spot kind' = the number a schedule stop uses to send an NPC here (RF4S.exe+0x4DCF70 "
-                "groups the spots into kinds); a kind with several spots picks one of them each day by "
-                "weight. Type 'kind 26' in the search box to list one kind's spots."))
-            kind_lbl.pack(fill="x")
-            kind_lbl.bind("<Configure>", lambda e: kind_lbl.config(wraplength=max(200, e.width - 16)))
-        if used_col:
-            used_lbl = ttk.Label(doc.content, foreground="#555", justify="left", padding=(6, 2))
-            used_lbl.pack(fill="x")
-            used_lbl.bind("<Configure>", lambda e: used_lbl.config(wraplength=max(200, e.width - 16)))
-            used_lbl.config(text="'used by' = the player spell, the monsters (their attack timeline) or "
-                                 "the timeline that fires the row; an empty cell is fired from game code "
-                                 "(boss scripts, thrown items, traps ...). Select a row for the full list.")
+            tv.column(c, width=widths.get(c, 130 if c in pick_f else 70), anchor="w")
         _table_scrollbars(top, tv)              # wide tables scroll sideways (Shift + wheel too)
 
-        name_field = sch.get("name_field") if sch else None
-        name_off_typ = next(((o, ty) for n, o, ty in (sch["fields"] if sch else [])
-                             if n == name_field), None)
+        def set_display():
+            hide = set() if show_unused.get() else set(unused)
+            tv["displaycolumns"] = [c for c in cols if c not in hide]
+        set_display()
 
+        # the info line: column help while hovering a heading, else the row / table hint
+        info = ttk.Label(doc.content, foreground="#555", justify="left", padding=(6, 2))
+        info.pack(fill="x")
+        info.bind("<Configure>", lambda e: info.config(wraplength=max(200, e.width - 16)))
+        base_text = {"t": "Hover a column heading for what it means; double-click a cell to edit it."}
+        if pre_cols:
+            base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here "
+                              "(RF4S.exe+0x4DCF70 groups the spots into kinds); a kind with several "
+                              "spots picks one of them each day by weight. Type 'kind 26' in the search "
+                              "box to list one kind's spots.")
+        if used_col:
+            base_text["t"] = ("'used by' = the player spell, the monsters (their attack timeline) or the "
+                              "timeline that fires the row; an empty cell is fired from game code (boss "
+                              "scripts, thrown items, traps ...). Select a row for the full list.")
+        info.config(text=base_text["t"])
+        col_help = {"#": "The row number" + (f" ({rk} id)" if rk in ("item", "room", "skill") else ""),
+                    "name": "What the row is (from the game's names; not stored in this file).",
+                    "used by": "What fires this row (spell item, monster moves, timelines).",
+                    "spot kind": "The schedule spot kind this spot belongs to (fixed in the exe).",
+                    "room name": "The name of the spot's room."}
+        for n, _o, typ in fields:
+            bits = []
+            if notes.get(n):
+                bits.append(notes[n])
+            if n in pick_f:
+                bits.append("Shown by name; the file stores the number.")
+            if nlcl.fixed_bits(stem, n) is not None:
+                bits.append("Fixed-point: shown as a percentage.")
+            if nlcl.flag_bits(stem, n) is not None:
+                bits.append("A set of bits: use Flags… to tick them.")
+            col_help[n] = f"{typ} at +{_o}. " + " ".join(bits) if bits else f"{typ} at +{_o}."
+        hover = {"col": None}
+
+        def on_motion(e):
+            col = None
+            if tv.identify_region(e.x, e.y) == "heading":
+                cid = tv.identify_column(e.x)
+                try:
+                    col = tv["displaycolumns"][int(cid[1:]) - 1]
+                except (ValueError, IndexError):
+                    col = None
+                if col == "#all":
+                    col = None
+            if col == hover["col"]:
+                return
+            hover["col"] = col
+            info.config(text=f"{col}: {col_help.get(col, '')}" if col else base_text["t"])
+        tv.bind("<Motion>", on_motion, add="+")
+        tv.bind("<Leave>", lambda _e: (hover.update(col=None), info.config(text=base_text["t"])), add="+")
+
+        def show_about():
+            win = tk.Toplevel(doc.content)
+            win.title(f"About {stem}")
+            win.transient(doc.content.winfo_toplevel())
+            txt = tk.Text(win, wrap="word", width=96, height=30, font=("Consolas", 9))
+            sb = ttk.Scrollbar(win, orient="vertical", command=txt.yview)
+            txt.configure(yscrollcommand=sb.set)
+            sb.pack(side="right", fill="y"); txt.pack(fill="both", expand=True)
+            body = (about + "\n\n" if about else "") + "Fields:\n" + "\n".join(
+                f"  {n} ({ty} at +{o}): {notes.get(n, '')}" for n, o, ty in fields)
+            txt.insert("1.0", "The modkit's research notes for this table (RF4S.exe+RVA = where the "
+                              "game reads it).\n\n" + body)
+            txt.config(state="disabled")
+            ttk.Button(win, text="Close", command=win.destroy).pack(pady=4)
+            return win
+        doc._param_about = show_about                                          # (selftest)
+
+        # ---- rows -------------------------------------------------------------------------
         def fill(*_):
             tv.delete(*tv.get_children())
             q = sv.get().lower().strip()
+            kq = re.fullmatch(r"kind\s*(\d+)", q) if pre_cols else None
             shown = 0
             for i in range(t.entry_count):
-                nm = namefn(t.get(i, *name_off_typ) if name_off_typ else i)
-                vals = [i] + [cell_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]
-                pre = pre_vals(i) if pre_cols else []
-                kq = re.fullmatch(r"kind\s*(\d+)", q) if pre_cols else None
+                vals = [i] + ([row_name(i)] if name_col else []) + ([used.get(i, "")] if used_col else []) \
+                    + (pre_vals(i) if pre_cols else []) \
+                    + [cell_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]
                 if kq:
                     kr = schedule.kind_of_record(i)
                     if not kr or kr[0] != int(kq.group(1)):
                         continue
-                elif q and q not in str(i) and q not in nm.lower() and q not in used.get(i, "").lower() \
-                        and not any(q in str(v).lower() for v in pre) \
-                        and not any(q in str(v).lower() for (n, _o, _t), v in zip(fields, vals[1:]) if n in item_f):
+                elif q and not any(q in str(v).lower() for v in vals):
                     continue
-                if used_col:
-                    vals.insert(1, used.get(i, ""))
-                vals[1 + len(used_col):1 + len(used_col)] = pre
-                if name_col:
-                    vals.append(nm)
                 tv.insert("", "end", iid=str(i), values=vals)
                 shown += 1
                 if shown >= _max_rows():
                     break
         sv.trace_add("write", fill); fill()
 
+        # ---- history (Undo / Revert) --------------------------------------------------------
+        history = []
+
+        def snapshot():
+            history.append(t.build())
+            undo_b.config(state="normal")
+
+        def restore(blob):
+            t.__dict__.update(nlcl.NlclTable(blob).__dict__)
+            doc.cur_data = t.build()
+            keep = sel["i"]
+            fill()
+            if keep is not None and tv.exists(str(keep)):
+                tv.selection_set(str(keep)); tv.see(str(keep)); on_sel()
+
+        def undo(*_):
+            if history:
+                restore(history.pop())
+                undo_b.config(state="normal" if history else "disabled")
+                self.status.config(text="Undone")
+
+        def revert():
+            if t.build() != data:
+                snapshot()
+                restore(data)
+                self.status.config(text="Back to the file as opened")
+
+        # ---- edit form --------------------------------------------------------------------
         ed = ttk.LabelFrame(doc.content, text="Edit selected record")
         ed.pack(fill="x", padx=6, pady=4)
         grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=4)
         evars = []
-        flag_buttons = {}
+        sel = {"i": None}
 
         def open_flags(var, fn, typ):
             if sel["i"] is None:
@@ -5419,43 +5761,48 @@ class App:
             return _flag_dialog(doc.content, f"{stem} #{sel['i']} — {fn}", typ, cur,
                                 nlcl.flag_bits(stem, fn), done)
         doc._param_open_flags = open_flags          # (selftest)
-        gpos = [0, 0]                                   # (row, column); an item picker takes 2 columns
-        for idx, (fn, off, typ) in enumerate(fields):
-            span = 2 if fn in item_f else 1
+        gpos = [0, 0]                               # (row, column); a picker takes 2 columns
+        for fn, off, typ in fields:
+            if fn in unused:
+                continue
+            span = 2 if fn in pick_f else 1
             if gpos[1] + span > 8:
                 gpos[:] = [gpos[0] + 1, 0]
             cell = ttk.Frame(grid); cell.grid(row=gpos[0], column=gpos[1], columnspan=span, padx=2, pady=1,
                                               sticky="w")
             gpos[1] += span
-            ttk.Label(cell, text=f"{fn}", font=("Segoe UI", 7)).pack()
+            lbl = ttk.Label(cell, text=f"{fn}", font=("Segoe UI", 7)); lbl.pack()
+            if notes.get(fn):
+                Tip(lbl, notes[fn])
             v = tk.StringVar()
-            if fn in item_f:
-                en = _item_picker(cell, v, items)
-                Tip(en, "Pick an item or type part of its name (Down opens the filtered list); an id "
-                        "works too. Item 0 = an empty slot.")
+            if fn in pick_f:
+                en = _item_picker(cell, v, choices(fn))
+                Tip(en, (notes.get(fn, "") + "\n" if notes.get(fn) else "")
+                    + "Pick from the list or type part of a name (Down opens the filtered list); the "
+                      "number works too." + (" Item 0 = an empty slot." if fn in item_f else ""))
             else:
                 en = ttk.Entry(cell, textvariable=v, width=9)
+                bits = nlcl.fixed_bits(stem, fn)
+                if bits is not None:
+                    Tip(en, lambda v=v, typ=typ, bits=bits: _fixed_tip(v.get(), typ, bits))
+                elif notes.get(fn):
+                    Tip(en, notes[fn])
             en.pack()
+            en.bind("<Return>", lambda _e: apply_edit())
             if nlcl.flag_bits(stem, fn) is not None:
                 fb = ttk.Button(cell, text="Flags…", width=7,
                                 command=lambda v=v, fn=fn, typ=typ: open_flags(v, fn, typ))
                 fb.pack()
                 Tip(fb, "Set or clear each bit of this field with a tick box.")
-                flag_buttons[fn] = fb
-            bits = nlcl.fixed_bits(stem, fn)
-            if bits is not None:
-                Tip(en, lambda v=v, typ=typ, bits=bits: _fixed_tip(v.get(), typ, bits))
             evars.append((v, off, typ, fn))
         if any(nlcl.fixed_bits(stem, fn) is not None for fn, _o, _t in fields):
             one = {12: 4096, 7: 128}
+            fx = nlcl.FIXED_FIELDS.get(nlcl.canonical_stem(stem), {}).values()
             hint_lbl = ttk.Label(ed, foreground="#777", justify="left", wraplength=600, text=(
                 "Fields shown as a percentage are fixed-point values: the file stores the fraction × "
-                + " / ".join(sorted({str(one.get(b, 1 << b)) for b in
-                                     nlcl.FIXED_FIELDS.get(stem, {}).values()}))
-                + " (so " + " / ".join(sorted({f"{one.get(b, 1 << b)} = 100%" for b in
-                                               nlcl.FIXED_FIELDS.get(stem, {}).values()}))
-                + "). Type a percentage (150%) or the stored whole number (6144)."
-            ))
+                + " / ".join(sorted({str(one.get(b, 1 << b)) for b in fx}))
+                + " (so " + " / ".join(sorted({f"{one.get(b, 1 << b)} = 100%" for b in fx}))
+                + "). Type a percentage (150%) or the stored whole number (6144)."))
             hint_lbl.pack(fill="x", padx=6)
             hint_lbl.bind("<Configure>", lambda e, w=hint_lbl: w.config(wraplength=max(200, e.width - 8)))
         # generic offset editor (for raw edits beyond the shown fields)
@@ -5467,7 +5814,6 @@ class App:
                  values=list(nlcl._FMT.keys())).pack(side="left", padx=2)
         ttk.Label(gen_row, text="=").pack(side="left")
         rawval_v = tk.StringVar(); ttk.Entry(gen_row, textvariable=rawval_v, width=8).pack(side="left", padx=2)
-        sel = {"i": None}
 
         def on_sel(_e=None):
             s = tv.selection()
@@ -5477,33 +5823,108 @@ class App:
             if used_col:
                 from rf4s_modkit import magicnames
                 full = magicnames.full_text(i)
-                used_lbl.config(text=f"#{i} used by: " + ("  ·  ".join(full.splitlines()) if full else
-                                "no attack timeline fires it (fired from game code, or unused)"))
+                base_text["t"] = f"#{i} used by: " + ("  ·  ".join(full.splitlines()) if full else
+                                                      "no attack timeline fires it (fired from game code, or unused)")
+                if hover["col"] is None:
+                    info.config(text=base_text["t"])
             for v, off, typ, fn in evars:
-                raw_v = t.get(i, off, typ)
-                v.set(_item_text(raw_v, items) if fn in item_f else cell_text(fn, raw_v, typ))
+                v.set(edit_text(fn, t.get(i, off, typ), typ))
         tv.bind("<<TreeviewSelect>>", on_sel)
         doc._param_select = lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel())   # (selftest)
+
+        def changed(i, msg):
+            doc.cur_data = t.build()
+            fill()
+            if tv.exists(str(i)):
+                tv.selection_set(str(i)); tv.see(str(i)); on_sel()
+            self.status.config(text=msg + " — Save table… or Extract… to write")
 
         def apply_edit():
             if sel["i"] is None:
                 return
             i = sel["i"]
             try:
-                for v, off, typ, fn in evars:
-                    t.set(i, off, _parse_item(v.get(), items) if fn in item_f else
-                          nlcl.parse_value(v.get(), typ, nlcl.fixed_bits(stem, fn)), typ)
+                new = [(off, parse_field(fn, typ, v.get()), typ) for v, off, typ, fn in evars]
+                raw = None
                 if off_v.get().strip() and rawval_v.get().strip():
-                    t.set(i, int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
+                    raw = (int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
             except (ValueError, nlcl.NlclError) as e:
                 messagebox.showerror("Edit failed", err_text(e)); return
-            doc.cur_data = t.build()
-            fill()
-            tv.selection_set(str(i)); tv.see(str(i))
-            self.status.config(text=f"Applied record {i} — Save table… or Extract… to write")
+            before = t.build()
+            try:
+                for off, val, typ in new:
+                    t.set(i, off, val, typ)
+                if raw:
+                    t.set(i, *raw)
+            except (ValueError, nlcl.NlclError) as e:
+                t.__dict__.update(nlcl.NlclTable(before).__dict__)
+                messagebox.showerror("Edit failed", err_text(e)); return
+            if t.build() != before:
+                history.append(before); undo_b.config(state="normal")
+            changed(i, f"Applied record {i}")
         doc._param_apply = apply_edit                                         # (selftest)
         doc._param_vars = {fn: v for v, _o, _t, fn in evars}
         doc._param_tree = tv
+
+        # double-click a cell: edit that one field in place (Enter keeps, Esc cancels)
+        def edit_cell(e):
+            row = tv.identify_row(e.y)
+            cid = tv.identify_column(e.x)
+            if not row or not cid.startswith("#"):
+                return
+            try:
+                col = tv["displaycolumns"][int(cid[1:]) - 1]
+            except (ValueError, IndexError):
+                return
+            fld = next(((n, o, ty) for n, o, ty in fields if n == col), None)
+            if fld is None:
+                return "break"
+            n, off, typ = fld
+            if nlcl.flag_bits(stem, n) is not None:
+                doc._param_select(int(row))
+                open_flags(doc._param_vars[n], n, typ)
+                return "break"
+            x, y, w, h = tv.bbox(row, cid)
+            var = tk.StringVar(value=edit_text(n, t.get(int(row), off, typ), typ))
+            ent = (_item_picker(tv, var, choices(n)) if n in pick_f
+                   else ttk.Entry(tv, textvariable=var))
+            ent.place(x=x, y=y, width=max(w, 180 if n in pick_f else w), height=h)
+            ent.focus_set()
+            try:
+                ent.select_range(0, "end")
+            except tk.TclError:
+                pass
+            done_flag = {"d": False}
+
+            def done(keep):
+                if done_flag["d"]:
+                    return
+                done_flag["d"] = True
+                if keep:
+                    i = int(row)
+                    try:
+                        val = parse_field(n, typ, var.get())
+                        before = t.build()
+                        t.set(i, off, val, typ)
+                    except (ValueError, nlcl.NlclError) as err:
+                        ent.destroy()
+                        messagebox.showerror("Edit failed", err_text(err)); return
+                    if t.build() != before:
+                        history.append(before); undo_b.config(state="normal")
+                    ent.destroy()
+                    changed(i, f"Record {i}: {n} set")
+                    return
+                ent.destroy()
+            ent.bind("<Return>", lambda _e: done(True))
+            ent.bind("<KP_Enter>", lambda _e: done(True))
+            ent.bind("<Escape>", lambda _e: done(False))
+            ent.bind("<<ComboboxSelected>>", lambda _e: done(True))
+            ent.bind("<FocusOut>", lambda _e: done(True) if ent.winfo_exists() and not isinstance(
+                ent, ttk.Combobox) else None)
+            doc._param_cell = (ent, var, done)                                  # (selftest)
+            return "break"
+        tv.bind("<Double-Button-1>", edit_cell)
+        doc._param_edit_cell = edit_cell                                        # (selftest)
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -5515,33 +5936,27 @@ class App:
                 self.status.config(text=f"Saved param table → {f}")
 
         def export_csv():
-            """The table view (every record, schema columns + name column) as CSV."""
+            """Every record as CSV: the stored (raw) values plus the row-name column."""
             f = filedialog.asksaveasfilename(defaultextension=".csv",
                 initialfile=pathlib.Path(doc.cur_name).stem + ".csv",
                 filetypes=[("CSV", "*.csv"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_text(t.to_csv(stem, namefn), encoding="utf-8")
+                pathlib.Path(f).write_text(t.to_csv(stem, row_name if name_col else None), encoding="utf-8")
                 self.status.config(text=f"Exported {t.entry_count} records → {f}")
-        ttk.Button(gen_row, text="Export CSV…", command=export_csv).pack(side="right", padx=4)
-        ttk.Button(gen_row, text="Save table…", command=save_tbl).pack(side="right", padx=4)
-        ttk.Button(gen_row, text="Apply", command=apply_edit).pack(side="right", padx=4)
 
         # ---- add / remove rows (NlclTable.append_record / delete_record: entry_count,
         # byte_size and the NLCL footer are regenerated; whether the ENGINE reads the new row
         # is the schema's IDB-verified "grow" verdict, shown here and by `rf4mod param info`).
-        grow_text = t.grow_info(stem)[1]
-        ttk.Label(ed, text=grow_text, foreground="#555", wraplength=900).pack(fill="x", padx=6)
-
         def add_row():
             src = sel["i"]
+            before = t.build()
             try:
                 idx = t.append_record(t.record(src) if src is not None else None)
             except nlcl.NlclError as e:
                 messagebox.showerror("Add row failed", err_text(e)); return
-            doc.cur_data = t.build()
-            fill(); tv.selection_set(str(idx)); tv.see(str(idx)); on_sel()
-            self.status.config(text=f"Added record {idx} ({'copy of ' + str(src) if src is not None else 'zero row'}); "
-                                    f"{t.entry_count} records — Save table… to write")
+            history.append(before); undo_b.config(state="normal")
+            changed(idx, f"Added record {idx} ({'copy of ' + str(src) if src is not None else 'zero row'}); "
+                         f"{t.entry_count} records")
 
         def del_row():
             i = sel["i"]
@@ -5550,16 +5965,31 @@ class App:
             if not messagebox.askyesno("Delete row", f"Delete record {i}? Records {i + 1}.. shift down by one "
                                                      f"(the row index is the id in most tables)."):
                 return
+            before = t.build()
             try:
                 t.delete_record(i)
             except nlcl.NlclError as e:
                 messagebox.showerror("Delete row failed", err_text(e)); return
+            history.append(before); undo_b.config(state="normal")
             sel["i"] = None
-            doc.cur_data = t.build()
-            fill()
-            self.status.config(text=f"Deleted record {i}; {t.entry_count} records — Save table… to write")
-        ttk.Button(gen_row, text="Delete row", command=del_row).pack(side="right", padx=4)
-        ttk.Button(gen_row, text="Add row (copy of selected)", command=add_row).pack(side="right", padx=4)
+            changed(min(i, t.entry_count - 1), f"Deleted record {i}; {t.entry_count} records")
+
+        ttk.Button(gen_row, text="Apply", command=apply_edit).pack(side="left", padx=(12, 4))
+        btn_row = ttk.Frame(ed); btn_row.pack(fill="x", padx=4, pady=(2, 2))
+        for text_, cmd in (("Add row (copy of selected)", add_row), ("Delete row", del_row)):
+            ttk.Button(btn_row, text=text_, command=cmd).pack(side="left", padx=(0, 4))
+        undo_b = ttk.Button(btn_row, text="Undo", command=undo, state="disabled")
+        undo_b.pack(side="left", padx=(12, 4))
+        Tip(undo_b, "Undo the last change (Ctrl+Z).")
+        ttk.Button(btn_row, text="Revert", command=revert).pack(side="left", padx=4)
+        for text_, cmd in (("Export CSV…", export_csv), ("Save table…", save_tbl)):
+            ttk.Button(btn_row, text=text_, command=cmd).pack(side="right", padx=4)
+        tv.bind("<Control-z>", undo)
+        doc._param_undo, doc._param_revert = undo, revert                       # (selftest)
+        grow_text = t.grow_info(stem)[1]
+        grow_lbl = ttk.Label(ed, text=grow_text, foreground="#555", justify="left")
+        grow_lbl.pack(fill="x", padx=6)
+        grow_lbl.bind("<Configure>", lambda e: grow_lbl.config(wraplength=max(200, e.width - 16)))
 
     def _view_crop(self, name, data):
         """rf3CropParam — crop editor with READABLE season affinity (GUI twin of the
