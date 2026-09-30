@@ -6936,9 +6936,15 @@ def test_cutscene_graph():
         # the path to the selected block (MAP_CITY_00 @1cca, a subroutine block): its ancestors
         # include the scene's entry, which reaches it through a CALL; gold marks are drawn
         fb_start = cfg.block_of(g.blocks, far)
-        anc, pedges = g.path_to(fb_start)
-        path_ok = (0x1CCA in anc and len(pedges) > 5
-                   and len(g.canvas.find_withtag("pathhl")) >= len(anc))
+        pedges = g.adjacent_edges(fb_start)
+        anc = {p_ for p_, _k in pedges if p_ != fb_start}
+        path_ok = (pedges and all(p_ == fb_start or g.blocks[p_].edges[k][0] == fb_start
+                                  for p_, k in pedges)
+                   # one gold arrow per drawn adjacent edge (CALLs are links, not arrows) + 1 frame
+                   and len(g.canvas.find_withtag("pathhl"))
+                   == sum(1 for e_ in pedges if e_ in g._edge_geo) + 1
+                   and [int(t[7:]) for i in g.canvas.find_withtag("pathhl")
+                        for t in g.canvas.gettags(i) if t.startswith("pathbox")] == [fb_start])
         # drag the entry block: it moves, the move survives a redraw, Reset layout undoes it
         eb = g.blocks[0x1CCA]
         zz = g.zoom
@@ -6974,8 +6980,8 @@ def test_cutscene_graph():
            (subs[:2], k01))
     _check("a line picked in the Script tab: the Graph scrolls its block into view",
            followed, (hex(far), (int(bx), int(by)), (int(vx0), int(vy0), int(vx1), int(vy1))))
-    _check("the selected block's path is marked: every block that can lead to it (a subroutine's "
-           "callers included) and the arrows between them", path_ok,
+    _check("the selected block is framed in gold, with only the arrows into and out of it",
+           path_ok,
            (hex(fb_start), len(anc), len(pedges)))
     _check("a block can be dragged; the move is kept across redraws and Reset layout undoes it",
            off1 is not None and round(off1[0] * zz) == 100 and round(off1[1] * zz) == 50

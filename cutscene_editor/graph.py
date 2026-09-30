@@ -3,7 +3,7 @@
 Drag the background to pan, drag a block to move it (Reset layout puts every block back),
 the wheel zooms at the pointer (Ctrl+wheel scrolls up / down, Shift+wheel sideways), Fit shows
 the whole scene. The selected statement's block shows in gold every block and arrow that can
-lead to it (the path from the scene's start, CALLs included). A click on a line selects that statement (the Inspector shows it), a
+come into it or leave it, and a gold frame around it. A click on a line selects that statement (the Inspector shows it), a
 double click opens it in the Script tab. Green arrows = the branch taken when its guard is
 true, red = when it is false, orange = switch / choice / random slots; back edges (loops) run
 up the right-hand side of their group. The scene body is drawn on top and every CALLed
@@ -313,20 +313,14 @@ class GraphTab(ttk.Frame):
         bend = 22 if tb.layer - b.layer > 1 else 14      # long edge: bend through the gap
         return [(sx, sy), (sx, sy + 14), (tx, ty - bend), (tx, ty)], sx + 4, sy + 8
 
-    def path_to(self, target):
-        """(blocks, edges) that can lead to block `target`: every block with a path to it
-        (CALLs included, so a subroutine's callers count) and the drawn arrows between them.
-        edges = {(src, edge index)}."""
-        anc, stack = set(), [target]
-        while stack:
-            cur = stack.pop()
-            for p_, _k in self._preds.get(cur, ()):
-                if p_ not in anc:
-                    anc.add(p_)
-                    stack.append(p_)
-        on = anc | {target}
-        edges = {(p_, k) for t in on for p_, k in self._preds.get(t, ()) if p_ in anc}
-        return anc, edges
+    def adjacent_edges(self, s0):
+        """{(src, edge index)} of the arrows that end at block s0 (from its direct
+        predecessors) or start at it (to its direct successors)."""
+        out = set(self._preds.get(s0, ()))
+        b = self.blocks.get(s0)
+        if b is not None:
+            out |= {(s0, k) for k in range(len(b.edges))}
+        return out
 
     def _mark_selection(self, see=True):
         c = self.canvas
@@ -341,9 +335,8 @@ class GraphTab(ttk.Frame):
             return
         b = self.blocks[s]
         z = self.zoom
-        # the way to this block: gold arrows under the blocks, gold frames around them
-        anc, edges = self.path_to(s)
-        for (p_, k) in edges:
+        # the arrows into and out of this block, in gold under the blocks
+        for (p_, k) in self.adjacent_edges(s):
             pts = self._edge_geo.get((p_, k))
             if pts:
                 c.create_line(*[v * z for pt in pts for v in pt], fill=PATH, width=3,
@@ -351,11 +344,9 @@ class GraphTab(ttk.Frame):
                               arrowshape=(8 * z + 3, 9 * z + 3, 3 * z + 2))
         if c.find_withtag("pathhl"):
             c.tag_lower("pathhl", "block")
-        for a_ in anc | {s}:
-            ab = self.blocks[a_]
-            c.create_rectangle(ab.x * z - 2, ab.y * z - 2, (ab.x + ab.w) * z + 2,
-                               (ab.y + ab.h) * z + 2, outline=PATH,
-                               width=3 if a_ == s else 2, tags=("pathhl", "pathbox%d" % a_))
+        # and a gold frame around the block itself
+        c.create_rectangle(b.x * z - 2, b.y * z - 2, (b.x + b.w) * z + 2, (b.y + b.h) * z + 2,
+                           outline=PATH, width=3, tags=("pathhl", "pathbox%d" % s))
         idx = next((i for i, (p, _t) in enumerate(b.lines) if p == pc), None)
         if idx is not None and z >= 0.35:
             y = b.y + PAD + idx * self.line_h

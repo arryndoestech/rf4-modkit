@@ -672,8 +672,8 @@ every subroutine it CALLs is its own titled group below it, and a CALL block's
 "→ sub @xxxx" line scrolls to that group.
 The mouse wheel zooms, dragging the background pans and *Fit* shows the whole scene; a block
 can be dragged anywhere (kept for the session, *Reset layout* puts them back). A click selects
-a statement for the Inspector and marks in gold every block and arrow that can lead to it
-(through the CALLs too); a double click opens it in the Script tab.
+a statement for the Inspector, frames its block in gold and turns the arrows into and out of
+it gold; a double click opens it in the Script tab.
 
 **Event Manager…** opens the em.bin window. em.bin holds the game's 272 rules, each asked "is this
 true right now?" to decide which talk plays, whether a shop is open or which event fires today:
