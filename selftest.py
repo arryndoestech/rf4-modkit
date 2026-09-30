@@ -5267,12 +5267,12 @@ def test_behaviour_edits():
         t = nlcl.NlclTable.load(ff)
         r0, r2 = t.row(0, ff.stem), t.row(2, ff.stem)
         _check("Fishing_rate_fish schema: Masu Trout row spring 597 / size class 0; row 2 class 3; Spring2 alias",
-               r0["w_spring"] == 597 and r0["size_class"] == 0 and r2["size_class"] == 3
+               r0["Spring"] == 597 and r0["Size class"] == 0 and r2["Size class"] == 3
                and t.schema("Fishing_rate_fish_Spring2") is t.schema("Fishing_rate_fish_Spring"))
         lv = nlcl.NlclTable.load(fl)
         l0 = lv.row(0, fl.stem)
         _check("Fishing_rate_lv schema: bracket 0 = 80/96/110/120 per size class; Spring2 alias",
-               (l0["class0"], l0["class1"], l0["class2"], l0["class3"]) == (80, 96, 110, 120)
+               (l0["Size class 0"], l0["Size class 1"], l0["Size class 2"], l0["Size class 3"]) == (80, 96, 110, 120)
                and lv.schema("Fishing_rate_lv_Spring2") is not None)
     else:
         _skip("fishing schema checks", "no Fishing_rate_*.bin present")
@@ -8452,6 +8452,36 @@ def test_map_editor_script_spawns():
            and len(_ch) == 139 and _ch[1] == (1, "1  Stone") and _ch[72] == (72, "72  Turnip")
            and "ore rock" in _ch[30][1], _ch[:3])
     _B8 = pathlib.Path(BUNDLE_DIR) / "bundleMain"
+    # type 24 = fishing spot: its fish table (f11) is a dropdown named after the fish-table columns
+    _fc = _mp.param_choices(24, 11)
+    _check("a fishing spot's fish table (f11) offers the fish-table column names "
+           "(0 = by season, 12 = Yokmir Forest A04, 14 = Water Ruins, 17 = Junk Cheap Pole)",
+           len(_fc) == 22 and _fc[0][0] == 0 and _fc[12] == (12, "12  Yokmir Forest A04")
+           and _fc[14] == (14, "14  Water Ruins") and _fc[17] == (17, "17  Junk Cheap Pole"), _fc[:3])
+    # type 35 = one-time item pickup: drawn as the dropped item's icon (item 48 = I_Crop24), at the
+    # icon's own placement box like the forage sprites
+    if (_B8 / "I_Crop24.texture").exists():
+        from map_editor import render as _rnd, data as _md
+        _spr = _rnd.Sprites(); _spr.reader = _md.folder_reader(_B8)
+        _rec35 = [35, -1, -1, -1, -1, -1, 4096, 0, 50, 0, 0, 0, 0, 757, 133, 186]
+        _s35 = _spr.source({"type_id": 35, "params": _rec35})
+        _full = _rnd.spritequad.sprite_image((_B8 / "I_Crop24.texture").read_bytes(), 0)
+        _check("a one-time item pickup (type 35) is drawn with the item's icon I_Crop24 at its own "
+               "size, and its item kind is a named dropdown",
+               _s35 is not None and _s35[0] == "I_Crop24.texture" and tuple(_s35[2]) == tuple(_full[1])
+               and _mp.param_choices(35, 9)[0] == (0, "0  Mushroom (item 48)"), _s35)
+    if (_B8 / "MAP_DUNG_A04.rf4m").exists():
+        _rf, _pf, _ef = _headless_panel("MAP_DUNG_A04", _B8)
+        try:
+            _pf.select(("mobj", 24))
+            _rf.update()
+            _entf = next((w for w in _all_widgets(_pf.frame) if hasattr(w, "_pickers")), None)
+            _pkf = _entf._pickers.get(11) if _entf is not None else None
+            _check("the map editor shows MAP_DUNG_A04's fishing spot #24 as '12  Yokmir Forest A04'",
+                   _pkf is not None and _pkf[0].var.get() == "12  Yokmir Forest A04",
+                   _pkf[0].var.get() if _pkf else None)
+        finally:
+            _rf.destroy()
     if (_B8 / "MAP_DUNG_A04.rf4m").exists():
         _r8, _p8, _e8 = _headless_panel("MAP_DUNG_A04", _B8)
         try:

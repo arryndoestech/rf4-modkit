@@ -179,6 +179,11 @@ class EntityForm(Form):
             lab += f"\nsprite map_obj/{name}.bntx (archive {mobj_types.mobj_archive_id(tid)})"
         elif tex:
             lab += f"\ntexture {tex}"
+        elif tid == 35:                         # one-time pickup: drawn as the item it drops
+            items = mobj_params.PICKUP_KIND_ITEMS.get(rec[9])
+            icon = mobj_params.item_icon_texture(items[0]) if items else None
+            lab += (f"\ndrawn with the item's icon {icon}.texture (the game's dropped-item picture)"
+                    if icon else "\nno fixed item: drawn as a marker")
         elif name:
             lab += "\nno sprite of its own"
         if tid in render.POOL_SPAWN_SHOWN:      # wood / stone spawn: drawn as the smallest roll

@@ -697,14 +697,45 @@ FIELD_SCHEMAS = {
         #     species with all-zero zone weights never spawns. dw21 = size CLASS 0..3 = the
         #     column of Fishing_rate_lv_* used for the 10-bracket size roll.
         #   Fishing_RollCaughtLevelWeightedBySpecies (+0x183E60): reads dw21 only.
-        # dw8..dw20 are read by neither reader (and Fishing_RecomputeRodWeights reads no
-        # archive); they are exposed as unused8..unused20 and preserved verbatim.
+        # CORRECTED 2026-09-30: every dw0..dw20 is a weight COLUMN. The column is
+        # `zone_override - 1` when a caller passes one (an immediate scan cannot see this
+        # computed index, which is why dw8..dw20 were once called unused):
+        #   columns 0..7   2*season + wet (season from the map's MSEA, else the calendar;
+        #                  wet = weather 1..4) -- the normal case
+        #   columns 8..15  a fishing spot's "fish table" f11 = column + 1 (MOBJ type 24,
+        #                  FishingMng_TrySpawnFish passes the spot's +14 value); each column is
+        #                  named after the area of the shipped spots that use it (the map
+        #                  editor's fish-table dropdown shows the same names)
+        #   columns 16..20 the JUNK re-roll: Fishing_FinalizeCatch re-rolls a catch under
+        #                  500 mm in column 16 + the equipped pole's tier (Cheap / Beginner's /
+        #                  Skilled / Famous / Sacred Pole = items 584..588) and turns it into
+        #                  the result only when that is a Can / Boot / Rare Can (rows 32..34);
+        #                  shipped junk share 14 / 13 / 11 / 8 / 3 %
+        # The per-column weights are weights among the 38 species (a 0 never spawns).
         "fields": [
-            ("w_spring", 0, "s32"), ("w_spring_rain", 4, "s32"),
-            ("w_summer", 8, "s32"), ("w_summer_rain", 12, "s32"),
-            ("w_fall", 16, "s32"), ("w_fall_rain", 20, "s32"),
-            ("w_winter", 24, "s32"), ("w_winter_rain", 28, "s32"),
-        ] + [(f"unused{k}", 4 * k, "s32") for k in range(8, 21)] + [("size_class", 84, "u32")],
+            ("Spring", 0, "s32"),            # spring, clear weather
+            ("Spring rain", 4, "s32"),       # spring, rain / snow / storm (weather 1..4)
+            ("Summer", 8, "s32"),            # summer, clear weather
+            ("Summer rain", 12, "s32"),      # summer, wet weather
+            ("Fall", 16, "s32"),             # fall, clear weather
+            ("Fall rain", 20, "s32"),        # fall, wet weather
+            ("Winter", 24, "s32"),           # winter, clear weather (all of the L dungeon block)
+            ("Winter rain", 28, "s32"),      # winter, wet weather
+            ("Sercerezo Hill", 32, "s32"),            # fishing spots with fish table 9 (MAP_FIELD_99): sea -- Sand Flounder
+            ("Idra Cave B2", 36, "s32"),              # fish table 10 (MAP_DUNG_J38): mostly Squid
+            ("Idra Cave B1", 40, "s32"),              # fish table 11 (MAP_DUNG_J24): mostly Shrimp
+            ("Yokmir Forest A04", 44, "s32"),         # fish table 12 (MAP_DUNG_A04): river fish
+            ("Yokmir Forest A06", 48, "s32"),         # fish table 13 (MAP_DUNG_A06): an even mix
+            ("Water Ruins", 52, "s32"),               # fish table 14 (MAP_DUNG_B02/B10/B11/B14/B15, MAP_FIELD_12)
+            ("Maya Road", 56, "s32"),                 # fish table 15 (MAP_DUNG_K47)
+            ("Sechs Territory", 60, "s32"),           # fish table 16 (MAP_DUNG_L41)
+            ("Junk Cheap Pole", 64, "s32"),       # junk re-roll with the Cheap Pole (tier 0): only rows Can / Boot / Rare Can decide
+            ("Junk Beginner's Pole", 68, "s32"),  # junk re-roll, tier 1
+            ("Junk Skilled Pole", 72, "s32"),     # junk re-roll, tier 2
+            ("Junk Famous Pole", 76, "s32"),      # junk re-roll, tier 3
+            ("Junk Sacred Pole", 80, "s32"),      # junk re-roll, tier 4 (shipped: 3 % junk)
+            ("Size class", 84, "u32"),            # 0..3: the column of Fishing_rate_lv_* used for this fish's size / level roll
+        ],
     },
     "Fishing_rate_fish_Spring2": {"alias": "Fishing_rate_fish_Spring"},
     "Fishing_rate_lv_Spring": {
@@ -721,8 +752,12 @@ FIELD_SCHEMAS = {
         #     4*level + size_class - 1): class 0 level 0 reads the NLCL count field (10) and
         #     class 0 level L>0 reads row L-1's class3, every other class reads the column to
         #     its left. Reproduce this quirk when balancing; do not 'fix' the table for it.
-        "fields": [("class0", 0, "u32"), ("class1", 4, "u32"),
-                   ("class2", 8, "u32"), ("class3", 12, "u32")],
+        "fields": [
+            ("Size class 0", 0, "u32"),      # weight of this size bracket for fish of size class 0
+            ("Size class 1", 4, "u32"),      # ... size class 1
+            ("Size class 2", 8, "u32"),      # ... size class 2
+            ("Size class 3", 12, "u32"),     # ... size class 3
+        ],
     },
     "Fishing_rate_lv_Spring2": {"alias": "Fishing_rate_lv_Spring"},
     "rf3ScheduleID": {

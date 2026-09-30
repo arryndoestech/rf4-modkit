@@ -454,6 +454,8 @@ class Sprites:
         name = mobj_types.mobj_texture(p) if p else o.get("name")
         if p and (p[0] & 0xFFFF) < 9:          # forage: the gatherable it grows, when fixed
             name = self._forage_sprite(p)
+        if p and (p[0] & 0xFFFF) == 35:        # one-time item pickup: the dropped item's icon
+            name = self._pickup_sprite(p)
         if name == "fish" and len(p) > 15:     # the fish differs on water and on sand
             attr = self.cell(p[14] >> 3, p[15] >> 3) if self.cell else None
             name = mobj_types.fish_texture(0x8 if attr is None else attr)
@@ -552,6 +554,15 @@ class Sprites:
         elif tid == 8:
             kind = w(10) & 0x7F
         return mobj_params.gather_kind_sprite(kind) if kind is not None else None
+
+    @staticmethod
+    def _pickup_sprite(p):
+        """The item icon a one-time pickup (type 35) drops: item 48 (a Mushroom) for f9 = 0;
+        for the random kinds 1 / 2 the first of their items is drawn, like the wood / stone
+        pools. None for kind 3 (no fixed item: the marker stays)."""
+        from rf4s_modkit import mobj_params
+        items = mobj_params.PICKUP_KIND_ITEMS.get(p[9] if len(p) > 9 else 0)
+        return mobj_params.item_icon_texture(items[0]) if items else None
 
     def _model_source(self, name, view, px_per_unit=2.0):
         """(key, 0, quad) for an object the game draws as a 3D model: the .model rendered

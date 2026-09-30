@@ -148,9 +148,9 @@ GIMMICKS = {
     34: dict(name="gmk09_water", role="Water hazard — emits water Effect (kind 8) periodically",
              params=[(7, 2, "facing"), (8, 2, "frames between water bursts"),
                      (9, 4, "attack power of each burst")]),
-    35: dict(name="gmk10_mushroom", role="One-time item pickup (herb/mushroom): rolls a spawn chance, drops "
-                  "the item sprite, then SETS its flag so it never respawns "
-                  "(Actor_SpawnOneTimeItemAndSetFlag).",
+    35: dict(name="gmk10_mushroom", role="One-time item pickup (mushroom): rolls a spawn chance, drops "
+                  "the item (drawn with its item icon, e.g. I_Crop24 for item 48), then SETS its flag so "
+                  "it never respawns (Actor_SpawnOneTimeItemAndSetFlag).",
              params=[(8, 4, "spawn chance / 255 (MMIX roll)"),
                      (9, 4, "item kind: 0 = item 48, 1 = 48+rand(0..3), 2 = 48+rand(0..5), 3 = preset"),
                      _DIS4]),
@@ -377,7 +377,46 @@ def param_choices(type_id, field):
                 nm += " (ore rock)"
             out.append((k, "%d  %s" % (k, nm)))
         return out
+    if tid == 35 and field == 9:                    # one-time pickup: which item it drops
+        return [(0, "0  Mushroom (item 48)"), (1, "1  one of items 48..51 (Mushroom)"),
+                (2, "2  one of items 48..53 (Mushroom)"), (3, "3  none (reads an unset value)")]
+    if tid == 24 and field == 11:                   # fishing spot: which fish-table column
+        from .nlcl import FIELD_SCHEMAS
+        cols = [n for n, _o, _t in FIELD_SCHEMAS["Fishing_rate_fish_Spring"]["fields"]][:21]
+        return [(0, "0  by season and weather")] + [(k + 1, "%d  %s" % (k + 1, nm)) for k, nm in enumerate(cols)]
     return []
+
+# ---- item icons (a dropped item's picture) --------------------------------------------
+# Item_SpawnVisualTask (RF4S.exe+0x129A20) draws a dropped item with its icon, archive
+# item id + 16432 (items 48..53, the mushrooms, are rom:/item/I_Crop24..29). The path comes
+# from the exe's archive path table, so no file name is guessed here.
+ITEM_ICON_ARCHIVE_BASE = 16432
+_ITEM_ICONS: dict = {}
+
+
+def item_icon_texture(item_id: int):
+    """The .texture stem of an item's icon ('I_Crop24' for item 48), or None when the game
+    folder's RF4S.exe is not available."""
+    item_id = int(item_id)
+    if item_id not in _ITEM_ICONS:
+        stem = None
+        try:
+            import re
+            from . import exetables, magicnames
+            aid = ITEM_ICON_ARCHIVE_BASE + item_id
+            path = magicnames.archive_paths(exetables.exe_bytes(), aid, aid).get(aid, "")
+            m = re.fullmatch(r"rom:/.*/([^/]+)\.bntx", path)
+            stem = m.group(1) if m else None
+        except Exception:
+            stem = None
+        _ITEM_ICONS[item_id] = stem
+    return _ITEM_ICONS[item_id]
+
+
+# One-time item pickup (type 35, Actor_SpawnOneTimeItemAndSetFlag): f9 = 0 -> item 48, 1 -> one
+# of 48..51, 2 -> one of 48..53 (all "Mushroom"); 3 reads an unset local (no fixed item).
+PICKUP_KIND_ITEMS = {0: (48,), 1: (48, 49, 50, 51), 2: (48, 49, 50, 51, 52, 53)}
+
 
 # Gatherable kind -> crop sprite basename (archive 1366+kind; file names skip the
 # unused kind 25, so minerals shift by one — verified against file_toc.tsv).
