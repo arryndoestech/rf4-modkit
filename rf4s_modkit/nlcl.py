@@ -811,8 +811,27 @@ MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplie
 # Fields that are a set of independent bits: the GUI gives them one tick box per bit, the CLI
 # takes `field=+name,-name`. {table stem: {field: {mask: name}}}; an empty dict = a bit set
 # whose bits are not named yet (tick boxes "bit N"). Names only where the reader was checked:
-#   rf3ParamMagic.flags: the element bits read by Actor_ComputeDamageWithAtkScalarsAndElement
-#     Bonus (RF4S.exe+0x96B40) and the behaviour bits the hit code tests (see its schema).
+#   rf3ParamMagic.flags: copied to AttackInfo+320 (RF4S.exe+0x97250 / +0xED2D0). Every reader
+#     found by a byte scan of the exe for bit tests at +320..+323 and for loads of +320 followed
+#     by a test (2026-09-30):
+#     0x01..0x40 element (Actor_ComputeDamageWithAtkScalarsAndElementBonus +0x96B40,
+#       Combat_GetElementBonus +0x96140, the hit sounds); fire also shears Wooly 111/176.
+#     0x80 magic: the defender's MDF instead of DEF (Combat_ComputeDamage +0x95A70).
+#     0x100 a hit on the player takes RP/HP directly, no hit reaction (Combat_ResolveHit +0xA2A50).
+#     0x200 ignore DEF; 0x400 no +-12.5% variance; 0x200000 always 1 damage; 0x400000 an element
+#       resist is halved (all Combat_ComputeDamage).
+#     0x800 SE_HAMMER_HIT, 0x10000 STRM_HIT_WATER when no element (+0xA2680 sound router).
+#     0x1000 full stun: the stun ignores the target's resistance and rooted field monsters
+#       (48..199) can be knocked back (Combat_ResolveHit).
+#     0x2000 the turnip-and-stars hit effect (efc_kabu + efc_star, actions 116/117) and
+#       SE_NPC_HIT instead of the element spark -- the effect of hitting a villager.
+#     0x8000 grab: when the attacker is Marionetta (char 231) the hit grabs the target
+#       (Actor_OnGrabbedByMount).
+#     0x800000 / 0x1000000 / 0x2000000 / 0x4000000: on a Faint proc, 50% each to drop a Cabbage /
+#       Pumpkin / Potato / Turnip-or-Pink-Turnip (Combat_GetStatusProcMask +0x961B0).
+#     0x40000000 never a critical hit (Combat_ResolveHit's crit roll).
+#     No reader found for 0x4000, 0x20000, 0x40000, 0x80000, 0x100000, 0x8000000, 0x10000000,
+#     0x20000000, 0x80000000 (unused; the shipped file sets none of them).
 #   rf3UseItemParam.effect_bits: Item_UseOnActor (RF4S.exe+0xB4150) clears actor status bits
 #     `effect_bits & 0x3F` (cures), ORs `(effect_bits & 0x1FC0) >> 6` into the inflicted
 #     statuses and levels up on 0x2000; status order poison, seal, paralysis, sleep, fatigue,
@@ -821,8 +840,13 @@ _STATUS = ("poison", "seal", "paralysis", "sleep", "fatigue", "sickness", "faint
 FLAG_FIELDS = {
     "rf3ParamMagic": {"flags": {
         0x1: "Fire", 0x2: "Water", 0x4: "Earth", 0x8: "Wind", 0x10: "Light", 0x20: "Dark",
-        0x40: "Love", 0x80: "Magic", 0x200: "Ignore DEF", 0x400: "No random spread",
-        0x200000: "Always 1 damage"}},
+        0x40: "Love", 0x80: "Magic", 0x100: "Direct damage to player", 0x200: "Ignore DEF",
+        0x400: "No random spread", 0x800: "Hammer hit sound", 0x1000: "Full stun",
+        0x2000: "Turnip-and-stars hit effect", 0x8000: "Grab (Marionetta)",
+        0x10000: "Water hit sound", 0x200000: "Always 1 damage", 0x400000: "Half element resist",
+        0x800000: "Faint drop Cabbage", 0x1000000: "Faint drop Pumpkin",
+        0x2000000: "Faint drop Potato", 0x4000000: "Faint drop Turnip",
+        0x40000000: "No critical hits"}},
     "rf3UseItemParam": {"effect_bits": {
         **{1 << k: "Cure " + s for k, s in enumerate(_STATUS[:6])},
         **{1 << (6 + k): "Inflict " + s for k, s in enumerate(_STATUS)},

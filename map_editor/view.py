@@ -97,7 +97,11 @@ class MapView(ttk.Frame):
         c = self.canvas
         c.bind("<MouseWheel>", self._wheel)                 # zoom at the pointer (or scroll)
         c.bind("<Configure>", lambda _e: self._update_scrollregion(), add="+")
-        c.bind("<Shift-MouseWheel>", lambda e: c.xview_scroll(-(e.delta // 120) * 3, "units"))
+        # wheel amounts add up, so a trackpad's small steps scroll / zoom smoothly both ways
+        self._xwheel = guiutil.wheel_handler(lambda n: c.xview_scroll(n, "units"), 3)
+        self._ywheel = guiutil.wheel_handler(lambda n: c.yview_scroll(n, "units"), 3)
+        self._zoom_acc = 0.0
+        c.bind("<Shift-MouseWheel>", self._xwheel)
         c.bind("<Control-MouseWheel>", self._ctrl_wheel)    # the other one
         c.bind("<ButtonPress-2>", lambda e: c.scan_mark(e.x, e.y))
         c.bind("<B2-Motion>", lambda e: c.scan_dragto(e.x, e.y, gain=1))
@@ -634,17 +638,22 @@ class MapView(ttk.Frame):
 
     def _wheel(self, e):
         if wheel_mode() == "scroll":
-            self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
-        else:
-            self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
-        return "break"
+            return self._ywheel(e)
+        return self._zoom_wheel(e)
 
     def _ctrl_wheel(self, e):
         """Ctrl+wheel does what the plain wheel doesn't (the Options… window)."""
         if wheel_mode() == "scroll":
-            self.zoom_step(1 if e.delta > 0 else -1, (e.x, e.y))
-        else:
-            self.canvas.yview_scroll(-(e.delta // 120) * 3, "units")
+            return self._zoom_wheel(e)
+        return self._ywheel(e)
+
+    def _zoom_wheel(self, e):
+        """One zoom step per mouse notch (delta 120); a trackpad's small deltas add up."""
+        self._zoom_acc += e.delta / 120
+        while abs(self._zoom_acc) >= 1:
+            step = 1 if self._zoom_acc > 0 else -1
+            self._zoom_acc -= step
+            self.zoom_step(step, (e.x, e.y))
         return "break"
 
     # ---- hover -------------------------------------------------------------- #

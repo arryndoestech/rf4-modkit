@@ -190,6 +190,23 @@ GOOD = "#2a8"
 MUTED = "#888"
 
 
+def wheel_handler(scroll, per_notch):
+    """A <MouseWheel> / <Shift-MouseWheel> handler that scrolls in proportion to the wheel delta:
+    one mouse notch (delta 120) scrolls `per_notch` units, and a trackpad's many small deltas add
+    up smoothly in both directions (Tk's own `-delta/120` rounds them to 0 one way and to a
+    whole step the other). scroll(n) moves n units (negative = up / left)."""
+    acc = [0.0]
+
+    def handler(e):
+        acc[0] -= e.delta / 120 * per_notch
+        n = int(acc[0])                 # toward 0; the remainder carries into the next event
+        if n:
+            acc[0] -= n
+            scroll(n)
+        return "break"
+    return handler
+
+
 def later(widget, fn, ms=0):
     """widget.after / after_idle that is cancelled when `widget` is destroyed, so a
     callback never fires into a torn-down editor (Tk reports those as 'invalid command
@@ -735,13 +752,14 @@ class ScrollFrame(ttk.Frame):
             self.bind_wheel_tree(c)
 
     def _wheel(self, e):
-        self._n += -(e.delta // 120) * 2
+        self._n -= e.delta / 120 * 2        # fractional: a trackpad's small steps add up
         if not self._pending:
             self._pending = True
             later(self, self._flush, 15)
 
     def _flush(self):
-        n, self._n, self._pending = self._n, 0, False
+        n = int(self._n)
+        self._n, self._pending = self._n - n, False
         if n and self.body.winfo_height() > self.canvas.winfo_height():
             self.canvas.yview_scroll(n, "units")
 

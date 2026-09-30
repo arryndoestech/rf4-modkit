@@ -75,7 +75,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-from guiutil import Tip, err_text
+from guiutil import Tip, err_text, wheel_handler
 def _load_actor_names():
     """id -> name: the game's rf3TxtNpc (gamenames), else the built-in list."""
     from rf4s_modkit import gamenames
@@ -164,7 +164,9 @@ def _table_scrollbars(top, tv, widths=None):
     tv.grid(row=0, column=0, sticky="nsew")
     vs.grid(row=0, column=1, sticky="ns")
     hs.grid(row=1, column=0, sticky="ew")
-    tv.bind("<Shift-MouseWheel>", lambda e: (tv.xview_scroll(-1 if e.delta > 0 else 1, "units"), "break")[1])
+    # sideways: a Treeview x unit is 1 pixel, so a notch moves 100 px; rows: 3 per notch
+    tv.bind("<Shift-MouseWheel>", wheel_handler(lambda n: tv.xview_scroll(n, "units"), 100))
+    tv.bind("<MouseWheel>", wheel_handler(lambda n: tv.yview_scroll(n, "units"), 3))
     return vs, hs
 
 
@@ -1808,6 +1810,7 @@ class App:
                 "search_items": self._view_search_items,
                 "route": self._view_route,
                 "route_result": self._view_route_result,
+                "schedule": self._view_schedule,
             }.get(ft.fmt)
             # standard raster images (png/jpg/gif/bmp/tiff/webp/dds/ico) -> Pillow viewer
             if ft.fmt in IMAGE_FMTS:
@@ -4327,108 +4330,259 @@ class App:
         ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
 
     def _view_schedule(self, name, data):
-        """rf3Schedule — NPC daily-routine itineraries: one per (NPC, state), time -> spot kind
-        -> room (spots resolved through the sibling rf3ScheduleID.bin when it is extracted)."""
+        """rf3Schedule -- NPC daily routines. Pick an NPC and which kind of day (the game picks
+        one routine per NPC each day: a 6-day cycle, a bad-weather variant, festival / married
+        days). The table lists the stops (from - until, where); the spots of the selected stop's
+        kind (rf3ScheduleID) are listed below it. Edit, add or remove a stop, copy the routine to
+        another day, Revert, Save as...
+        Day rule: Schedule_GetNpcStateForToday (RF4S.exe+0x229160), state = (day of month - 1) % 6,
+        +6 on a rain / snow day while the NPC's map is outdoors, 12..15 festival / married."""
         doc = self._doc
-        sc = schedule.Schedule.parse(data)
-        cells = sc.ordered_cells()
-        scheds = [lst for _k, lst in cells]
+        st = {"sc": schedule.Schedule.parse(data)}
         sidbytes = _find_extracted("rf3ScheduleID.bin")
         spots = schedule.load_spots(sidbytes) if sidbytes else None
         chars = _load_char_names()
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"NPC daily schedules — {len(scheds)} (NPC, state) routines, "
-                            f"{sum(len(s) for s in scheds)} stops. Pick a schedule:"
-                  ).pack(side="left", padx=6)
-        sv = tk.IntVar(value=0)
-        sp = ttk.Spinbox(bar, from_=0, to=max(0, len(scheds) - 1), width=6, textvariable=sv)
-        sp.pack(side="left", padx=4)
-        who = ttk.Label(bar, text=""); who.pack(side="left", padx=8)
-        tv = ttk.Treeview(doc.content, columns=("time", "room", "name"), show="headings", height=20)
-        for c, w in (("time", 80), ("room", 80), ("name", 360)):
-            tv.heading(c, text={"time": "time", "room": "spot kind", "name": "location (rf3ScheduleID)"}[c])
-            tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
+        mname = map_names.map_name
 
-        def fill(*_):
-            tv.delete(*tv.get_children())
-            try:                       # IntVar.get() raises TclError mid-typing (empty / "1a")
-                i = sv.get()
-            except tk.TclError:
-                return
-            if not (0 <= i < len(scheds)):
-                return
-            (npc, state), _lst = cells[i]
-            who.config(text=f"npc {npc} {chars.get(npc, '')}  state {state} "
-                            f"({schedule.STATE_NAMES.get(state, '?')})")
-            for wp in scheds[i]:
-                tv.insert("", "end", values=(schedule.slot_to_time(wp.slot), wp.spot,
-                                             schedule.describe_kind(wp.spot, spots, map_names.map_name)
-                                             + ("  [random depart]" if wp.flags & 1 else "")))
-        sv.trace_add("write", fill); fill()
-        # ---- edit controls (2026-09-19): change / add / remove a stop of the shown schedule ----
-        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
+        def state_label(s):
+            if s < 6:
+                return f"Normal day: days {', '.join(str(s + 1 + 6 * k) for k in range(5))}"
+            if s < 12:
+                d = s - 6
+                return f"Rain / snow: days {', '.join(str(d + 1 + 6 * k) for k in range(5))}"
+            return {12: "Festival day", 13: "Festival 21 day", 14: "Married (spouse)",
+                    15: "Married: date day"}.get(s, f"State {s} (only set by scripts)")
+
+        def kind_short(k):
+            if not spots:
+                return f"spot kind {k}"
+            sp = schedule.kind_spots(k, spots)
+            if not sp:
+                return f"spot kind {k} (no spots)"
+            rooms = []
+            for s in sp:
+                nm = mname(s.room) or f"room {s.room}"
+                if nm not in rooms:
+                    rooms.append(nm)
+            where = ", ".join(rooms[:3]) + (f" +{len(rooms) - 3} more" if len(rooms) > 3 else "")
+            if len(sp) == 1:
+                return f"{where} @{sp[0].x},{sp[0].y}"
+            return f"one of {len(sp)} spots each day: {where}"
+
+        kind_choices = [f"{k}: {kind_short(k)}" for k in range(schedule.MAX_KIND + 1)]
+
+        def parse_kind(text):
+            s = str(text).strip().split(":", 1)[0].strip()
+            return int(s, 0)
+
+        # ---- pick the routine: NPC + kind of day --------------------------------------------
+        bar = ttk.Frame(doc.content, padding=(6, 4)); bar.pack(fill="x")
+        ttk.Label(bar, text="NPC:").pack(side="left")
+        npc_v, day_v = tk.StringVar(), tk.StringVar()
+        npc_cb = ttk.Combobox(bar, textvariable=npc_v, state="readonly", width=24)
+        npc_cb.pack(side="left", padx=(2, 10))
+        ttk.Label(bar, text="Day:").pack(side="left")
+        day_cb = ttk.Combobox(bar, textvariable=day_v, state="readonly", width=38)
+        day_cb.pack(side="left", padx=2)
+        count_lbl = ttk.Label(bar, foreground="#666"); count_lbl.pack(side="right")
+        hint = ttk.Label(doc.content, foreground="#666", justify="left", padding=(6, 0), text=(
+            "Each day the game picks one routine per NPC: normal days repeat every 6 days (day of "
+            "the month), on rain / snow days the NPC uses the rain routine while outdoors, and the "
+            "festival / married routines replace them for the main villagers. A stop lasts until "
+            "the next stop; a spot kind with several spots picks one of them each day."))
+        hint.pack(fill="x")
+        hint.bind("<Configure>", lambda e: hint.config(wraplength=max(200, e.width - 16)))
+
+        # controls sit at the bottom so a small window never cuts them off
+        foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        body = ttk.PanedWindow(doc.content, orient="vertical"); body.pack(fill="both", expand=True, padx=6)
+        top = ttk.Frame(body); body.add(top, weight=3)
+        tv = ttk.Treeview(top, columns=("time", "where", "kind"), show="headings", height=14)
+        for c, t_, w in (("time", "Time", 120), ("where", "Where", 520), ("kind", "Spot kind", 80)):
+            tv.heading(c, text=t_); tv.column(c, width=w, anchor="w", stretch=(c == "where"))
+        _table_scrollbars(top, tv)
+        low = ttk.LabelFrame(body, text="Spots of the selected stop's kind (rf3ScheduleID)")
+        body.add(low, weight=1)
+        sp_tv = ttk.Treeview(low, columns=("rec", "room", "pos", "facing", "wander", "weight"),
+                             show="headings", height=5)
+        for c, t_, w in (("rec", "Record", 60), ("room", "Room", 260), ("pos", "x, y", 90),
+                         ("facing", "Facing", 60), ("wander", "Wander", 60), ("weight", "Weight", 60)):
+            sp_tv.heading(c, text=t_); sp_tv.column(c, width=w, anchor="w")
+        _table_scrollbars(low, sp_tv)
+
+        row1 = ttk.Frame(foot); row1.pack(fill="x")
+        row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
         v_time, v_spot, v_rand = tk.StringVar(), tk.StringVar(), tk.BooleanVar()
-        ttk.Label(ctl, text="time (HH:MM)").pack(side="left")
-        ttk.Entry(ctl, textvariable=v_time, width=7).pack(side="left", padx=2)
-        ttk.Label(ctl, text="spot kind").pack(side="left", padx=(8, 2))
-        ttk.Entry(ctl, textvariable=v_spot, width=6).pack(side="left")
-        ttk.Checkbutton(ctl, text="random depart", variable=v_rand).pack(side="left", padx=6)
-        spot_lbl = ttk.Label(ctl, text="", foreground="steelblue"); spot_lbl.pack(side="left", padx=4)
-        v_spot.trace_add("write", lambda *_a: spot_lbl.config(
-            text=schedule.describe_kind(int(v_spot.get()), spots, map_names.map_name)[:60]
-            if v_spot.get().strip().isdigit() else ""))
+        ttk.Label(row1, text="Time").pack(side="left")
+        te = ttk.Entry(row1, textvariable=v_time, width=7); te.pack(side="left", padx=(2, 10))
+        ttk.Label(row1, text="Spot kind").pack(side="left")
+        kc = ttk.Combobox(row1, textvariable=v_spot, values=kind_choices, width=48)
+        kc.pack(side="left", padx=2)
+        rcb = ttk.Checkbutton(row1, text="random departure", variable=v_rand); rcb.pack(side="left", padx=8)
+        apb = ttk.Button(row1, text="Apply to stop"); apb.pack(side="left", padx=2)
+        adb = ttk.Button(row1, text="Add stop"); adb.pack(side="left", padx=2)
+        rmb = ttk.Button(row1, text="Remove stop"); rmb.pack(side="left", padx=2)
+        ttk.Label(row2, text="Copy this routine to:").pack(side="left")
+        copy_v = tk.StringVar()
+        copy_cb = ttk.Combobox(row2, textvariable=copy_v, state="readonly", width=38,
+                               values=[state_label(s) for s in range(schedule.COLS)])
+        copy_cb.pack(side="left", padx=2)
+        cpb = ttk.Button(row2, text="Copy"); cpb.pack(side="left", padx=2)
+        rvb = ttk.Button(row2, text="Revert"); rvb.pack(side="left", padx=(12, 2))
+        svb = ttk.Button(row2, text="Save as…"); svb.pack(side="right")
+        Tip(te, "HH:MM in 15-minute steps (06:00 = start of the day; 24:00 and later = after midnight).")
+        Tip(kc, "Where the NPC goes: a spot kind from rf3ScheduleID. Type the number or pick from "
+                "the list; a kind with several spots picks one of them each day (by weight).")
+        Tip(rcb, "The NPC leaves for the next stop at a random moment between this stop's time "
+                 "and the next one's, instead of exactly on time.")
+        Tip(cpb, "Replace (or create) the chosen day's routine of this NPC with a copy of the one "
+                 "shown.")
+        Tip(rvb, "Throw away every change: back to the file as it was opened.")
 
-        def _pick(_e=None):
-            sel = tv.selection()
-            if not sel:
-                return
-            t, spot, desc = tv.item(sel[0], "values")
-            v_time.set(t); v_spot.set(str(spot)); v_rand.set("[random depart]" in str(desc))
-        tv.bind("<<TreeviewSelect>>", _pick)
+        def npc_list():
+            return st["sc"].npcs()
 
-        def _edit(action):
+        def npc_text(n):
+            return f"{chars.get(n, '') or 'NPC'} ({n})"
+
+        def cur_npc():
             try:
-                i = sv.get()
-                (npc, state), _lst = cells[i]
-            except (tk.TclError, IndexError):
-                return
-            sel = tv.selection()
-            idx = tv.index(sel[0]) if sel else None
-            try:
-                slot = schedule.time_to_slot(v_time.get()) if v_time.get().strip() else None
-                spot = int(v_spot.get(), 0) if v_spot.get().strip() else None
-                flags = 1 if v_rand.get() else 0
-                if action == "apply":
-                    if idx is None:
-                        messagebox.showinfo("Schedule", "select a stop first"); return
-                    sc.set_slice(npc, state, idx, slot=slot, flags=flags, spot=spot)
-                elif action == "add":
-                    if slot is None or spot is None:
-                        messagebox.showinfo("Schedule", "give a time and a spot kind"); return
-                    sc.add_slice(npc, state, slot, spot, flags)
-                else:
-                    if idx is None:
-                        messagebox.showinfo("Schedule", "select a stop first"); return
-                    sc.remove_slice(npc, state, idx)
-                blob = sc.build()
-            except Exception as ex:  # noqa: BLE001 - the module explains what is wrong
-                messagebox.showerror("Edit failed", str(ex)); return
-            doc.cur_data = blob
-            self.status.config(text=f"schedule edited ({action}, npc {npc} state {state}) — Save… / Extract… to write")
+                return int(npc_v.get().rsplit("(", 1)[1].rstrip(")"))
+            except (IndexError, ValueError):
+                return None
+
+        def cur_state():
+            lbl = day_v.get()
+            return next((s for s in range(schedule.COLS) if state_label(s) == lbl), None)
+
+        def fill_npcs(keep=None):
+            ns = npc_list()
+            npc_cb.config(values=[npc_text(n) for n in ns])
+            n = keep if keep in ns else (ns[0] if ns else None)
+            if n is not None:
+                npc_v.set(npc_text(n))
+            sc = st["sc"]
+            count_lbl.config(text=f"{len(sc.cells)} routines, {sum(len(v) for v in sc.cells.values())} stops")
+
+        def fill_days(keep=None):
+            n = cur_npc()
+            states = sorted(s for (m, s) in st["sc"].cells if m == n)
+            day_cb.config(values=[state_label(s) for s in states])
+            s = keep if keep in states else (states[0] if states else None)
+            day_v.set(state_label(s) if s is not None else "")
             fill()
 
-        def _save():
+        def fill(select=None):
+            tv.delete(*tv.get_children())
+            sp_tv.delete(*sp_tv.get_children())
+            lst = st["sc"].get(cur_npc(), cur_state()) if cur_state() is not None else None
+            for k, wp in enumerate(lst or []):
+                nxt = lst[k + 1].slot if k + 1 < len(lst) else None
+                span = schedule.slot_to_time(wp.slot) + (f" – {schedule.slot_to_time(nxt)}" if nxt is not None else "")
+                where = kind_short(wp.spot) + ("   [random departure]" if wp.flags & 1 else "")
+                tv.insert("", "end", iid=str(k), values=(span, where, wp.spot))
+            if select is not None and tv.exists(str(select)):
+                tv.selection_set(str(select)); tv.see(str(select))
+
+        def show_spots(k):
+            sp_tv.delete(*sp_tv.get_children())
+            if not spots:
+                sp_tv.insert("", "end", values=("", "rf3ScheduleID.bin is not extracted", "", "", "", ""))
+                return
+            for r in schedule.kind_records(k):
+                if r < len(spots):
+                    s = spots[r]
+                    sp_tv.insert("", "end", values=(r, f"{mname(s.room) or 'room'} ({s.room})",
+                                                    f"{s.x}, {s.y}", f"{s.facing * 360 // 256}°",
+                                                    s.wander, s.weight))
+
+        def pick(_e=None):
+            sel = tv.selection()
+            lst = st["sc"].get(cur_npc(), cur_state())
+            if not sel or not lst:
+                return
+            wp = lst[int(sel[0])]
+            v_time.set(schedule.slot_to_time(wp.slot))
+            v_spot.set(kind_choices[wp.spot] if 0 <= wp.spot < len(kind_choices) else str(wp.spot))
+            v_rand.set(bool(wp.flags & 1))
+            show_spots(wp.spot)
+        tv.bind("<<TreeviewSelect>>", pick)
+        npc_cb.bind("<<ComboboxSelected>>", lambda _e: fill_days(cur_state()))
+        day_cb.bind("<<ComboboxSelected>>", lambda _e: fill())
+        kc.bind("<<ComboboxSelected>>", lambda _e: show_spots(parse_kind(v_spot.get())))
+
+        def changed(msg, select=None):
+            doc.cur_data = st["sc"].build()
+            self.status.config(text=msg + " — Save as… to write the file")
+            fill_npcs(cur_npc()); fill_days(cur_state()); fill(select)
+
+        def edit(action):
+            n, s = cur_npc(), cur_state()
+            if n is None or s is None:
+                return
+            sel = tv.selection()
+            idx = int(sel[0]) if sel else None
+            sc = st["sc"]
+            try:
+                slot = schedule.time_to_slot(v_time.get()) if v_time.get().strip() else None
+                spot = parse_kind(v_spot.get()) if v_spot.get().strip() else None
+                if action == "apply":
+                    if idx is None:
+                        messagebox.showinfo("Schedule", "Select a stop first."); return
+                    old = sc.get(n, s)[idx]
+                    new = sc.set_slice(n, s, idx, slot=slot, spot=spot,
+                                       flags=(old.flags & ~1) | (1 if v_rand.get() else 0))
+                    at = sc.get(n, s).index(new)
+                elif action == "add":
+                    if slot is None or spot is None:
+                        messagebox.showinfo("Schedule", "Give a time and a spot kind."); return
+                    at = sc.add_slice(n, s, slot, spot, 1 if v_rand.get() else 0)
+                else:
+                    if idx is None:
+                        messagebox.showinfo("Schedule", "Select a stop first."); return
+                    sc.remove_slice(n, s, idx)
+                    at = min(idx, len(sc.get(n, s)) - 1)
+                sc.build()                          # validates before the view changes
+            except (ValueError, schedule.ScheduleError) as ex:
+                messagebox.showerror("Schedule", err_text(ex)); return
+            changed(f"{npc_text(n)}, {state_label(s)}: stop {'changed' if action == 'apply' else action + 'ed' if action == 'add' else 'removed'}",
+                    at)
+
+        def copy_to():
+            n, s = cur_npc(), cur_state()
+            dst = next((k for k in range(schedule.COLS) if state_label(k) == copy_v.get()), None)
+            if n is None or s is None or dst is None or dst == s:
+                self.status.config(text="Pick another day to copy this routine to")
+                return
+            sc = st["sc"]
+            if sc.get(n, dst) is not None and not messagebox.askyesno(
+                    "Copy routine", f"Replace {npc_text(n)}'s '{state_label(dst)}' routine?"):
+                return
+            sc.cells[(n, dst)] = list(sc.get(n, s))
+            doc.cur_data = sc.build()
+            fill_npcs(n); fill_days(dst)
+            self.status.config(text=f"Copied to '{state_label(dst)}' — Save as… to write the file")
+
+        def revert():
+            st["sc"] = schedule.Schedule.parse(data)
+            doc.cur_data = data
+            fill_npcs(cur_npc()); fill_days(cur_state())
+            self.status.config(text="Back to the file as opened")
+
+        def save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
                                              initialfile=pathlib.Path(doc.cur_name).name,
                                              filetypes=[("schedule", "*.bin"), ("All", "*.*")])
             if f:
-                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
-        for lbl, act in (("Apply stop", "apply"), ("Add stop", "add"), ("Remove stop", "remove")):
-            ttk.Button(ctl, text=lbl, command=lambda a=act: _edit(a)).pack(side="left", padx=2)
-        ttk.Button(ctl, text="Save…", command=_save).pack(side="right", padx=2)
+                pathlib.Path(f).write_bytes(st["sc"].build()); self._mark_saved(doc)
+                self.status.config(text=f"Saved → {f}")
+        apb.config(command=lambda: edit("apply")); adb.config(command=lambda: edit("add"))
+        rmb.config(command=lambda: edit("remove")); cpb.config(command=copy_to)
+        rvb.config(command=revert); svb.config(command=save)
+        fill_npcs(); fill_days()
+        doc._sched = dict(npc=npc_v, day=day_v, tree=tv, spots=sp_tv, time=v_time, spot=v_spot,
+                          rand=v_rand, edit=edit, copy=copy_to, copy_var=copy_v, revert=revert,
+                          fill_days=fill_days, npc_text=npc_text, state_label=state_label, st=st)
 
     def _view_gift_categories(self, name, data):
         """rf3PresentCategory — the 21 shared gift categories referenced by NPC cross-refs."""
@@ -5174,12 +5328,26 @@ class App:
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
 
         name_col = bool(sch and sch.get("names")) and sch.get("name_field") not in item_f
-        cols = ["#"] + [f[0] for f in fields] + (["name"] if name_col else [])
+        # rf3ParamMagic: what fires each row (spell item / monster move / timeline)
+        used = {}
+        if stem == "rf3ParamMagic":
+            from rf4s_modkit import magicnames
+            used = magicnames.names_for_game()
+        used_col = ["used by"] if stem == "rf3ParamMagic" else []
+        cols = ["#"] + used_col + [f[0] for f in fields] + (["name"] if name_col else [])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
         for c in cols:
             tv.heading(c, text=c)
-            tv.column(c, width=160 if c == "name" else 130 if c in item_f else 70, anchor="w")
+            tv.column(c, width=160 if c == "name" else 300 if c == "used by" else 130 if c in item_f else 70,
+                      anchor="w")
+        if used_col:
+            used_lbl = ttk.Label(doc.content, foreground="#555", justify="left", padding=(6, 2))
+            used_lbl.pack(fill="x")
+            used_lbl.bind("<Configure>", lambda e: used_lbl.config(wraplength=max(200, e.width - 16)))
+            used_lbl.config(text="'used by' = the player spell, the monsters (their attack timeline) or "
+                                 "the timeline that fires the row; an empty cell is fired from game code "
+                                 "(boss scripts, thrown items, traps ...). Select a row for the full list.")
         _table_scrollbars(top, tv)              # wide tables scroll sideways (Shift + wheel too)
 
         name_field = sch.get("name_field") if sch else None
@@ -5193,9 +5361,11 @@ class App:
             for i in range(t.entry_count):
                 nm = namefn(t.get(i, *name_off_typ) if name_off_typ else i)
                 vals = [i] + [cell_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]
-                if q and q not in str(i) and q not in nm.lower() and not any(
-                        q in str(v).lower() for (n, _o, _t), v in zip(fields, vals[1:]) if n in item_f):
+                if q and q not in str(i) and q not in nm.lower() and q not in used.get(i, "").lower() \
+                        and not any(q in str(v).lower() for (n, _o, _t), v in zip(fields, vals[1:]) if n in item_f):
                     continue
+                if used_col:
+                    vals.insert(1, used.get(i, ""))
                 if name_col:
                     vals.append(nm)
                 tv.insert("", "end", iid=str(i), values=vals)
@@ -5280,6 +5450,11 @@ class App:
             if not s:
                 return
             i = int(s[0]); sel["i"] = i
+            if used_col:
+                from rf4s_modkit import magicnames
+                full = magicnames.full_text(i)
+                used_lbl.config(text=f"#{i} used by: " + ("  ·  ".join(full.splitlines()) if full else
+                                "no attack timeline fires it (fired from game code, or unused)"))
             for v, off, typ, fn in evars:
                 raw_v = t.get(i, off, typ)
                 v.set(_item_text(raw_v, items) if fn in item_f else cell_text(fn, raw_v, typ))

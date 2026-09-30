@@ -1135,6 +1135,35 @@ def test_bin_editors():
         steps = len(sk["history"])
         sk["undo"]()
         res["paint"] = (painted, steps, doc.cur_data == d)
+        # schedule: NPC + day pickers, add / remove a stop, copy to another day, revert
+        if (B / "rf3Schedule.bin").exists():
+            from rf4s_modkit import ident, schedule as _sch
+            d = (B / "rf3Schedule.bin").read_bytes()
+            app._show("rf3Schedule.bin", d); doc = app._doc
+            sd = doc._sched
+            first = (sd["npc"].get(), sd["day"].get(), len(sd["tree"].get_children()))
+            n0 = len(sd["tree"].get_children())
+            sd["tree"].selection_remove(*sd["tree"].selection())
+            sd["time"].set("12:15"); sd["spot"].set("80: whatever"); sd["rand"].set(False)
+            sd["edit"]("add")
+            lst = sd["st"]["sc"].get(1, 0)
+            added = len(lst) == n0 + 1 and any(w.slot == 49 and w.spot == 80 for w in lst) \
+                and [w.slot for w in lst] == sorted(w.slot for w in lst)
+            sd["tree"].selection_set(str(next(k for k, w in enumerate(lst) if w.slot == 49)))
+            sd["edit"]("remove")
+            removed = doc.cur_data == d
+            sd["copy_var"].set(sd["state_label"](16)); sd["copy"]()
+            copied = sd["st"]["sc"].get(1, 16) == sd["st"]["sc"].get(1, 0)
+            sd["revert"]()
+            res["sched"] = (first, added, removed, copied, doc.cur_data == d,
+                            ident.identify(d, filename="rf3Schedule.bin").fmt)
+        # rf3ParamMagic: a "used by" column after the id (spell item / monster timeline)
+        if (B / "rf3ParamMagic.bin").exists():
+            d = (B / "rf3ParamMagic.bin").read_bytes()
+            app._show("rf3ParamMagic.bin", d); doc = app._doc
+            tvm = doc._param_tree
+            res["magic"] = (tvm["columns"][:2], tvm.set("0", "used by"), tvm.set("25", "used by").split(";")[0],
+                            "Orc Archer" in tvm.set("53", "used by"))
         # recipe: item-id fields show names; the picker takes a name, "Name (id)" or an id
         if (B / "rf3RecipeAcce.bin").exists():
             d = (B / "rf3RecipeAcce.bin").read_bytes()
@@ -1174,6 +1203,16 @@ def test_bin_editors():
     _check("skill XP curve: a paint stroke across the chart sets every level it crosses (a straight "
            "line between the drag points), is one history step, and Undo restores the file",
            res.get("paint") == (True, 4, True), res.get("paint"))
+    if "magic" in res:
+        _check("rf3ParamMagic: 'used by' follows the id -- row 0 Fireball, 25 Double Sonic (spell items), "
+               "53 the Orc Archer's move (monster timeline via rf3NpcParam +280)",
+               res["magic"] == (("#", "used by"), "Fireball", "Double Sonic", True), res["magic"])
+    if "sched" in res:
+        _check("rf3Schedule editor: opens on Herbert's normal-day routine (19 stops), Add puts a stop in "
+               "time order, Remove restores the file, Copy makes another day's routine, Revert, "
+               "identified as 'schedule'",
+               res["sched"] == (("Herbert (1)", "Normal day: days 1, 7, 13, 19, 25", 19), True, True, True,
+                                True, "schedule"), res["sched"])
     if "recipe" in res:
         _check("rf3Recipe*: item fields show item names (Yarn <- Furs), the picker shows "
                "'Furs (1088)', a typed name sets the id, (none) clears it (file byte-exact after)",

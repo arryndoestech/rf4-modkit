@@ -138,6 +138,10 @@ def identify(data: bytes, *, filename: str | None = None) -> FileType:
         return FileType("route_result", "NPC path next-hop matrix (rf3RouteResult.bin)",
                         "binary", "route", True,
                         "hop[dst][src] nibbles over rf3route.bin; `route rebuild-result`")
+    if base == "rf3schedule.bin" or (data[:4] == b"\x30\x00\x12\x00" and data[4:8] == b"\x10\x00\x00\x00"):
+        return FileType("schedule", "NPC daily routines (rf3Schedule.bin: 48 NPCs x 18 day kinds)",
+                        "binary", "schedule", True,
+                        "stops = time + spot kind (rf3ScheduleID); `rf4mod schedule`")
     if ext == "sav":
         return FileType("sav", "Bundled scenario preset save (AS_*/JM_*/E3_DEMO)",
                         "save", None, False,

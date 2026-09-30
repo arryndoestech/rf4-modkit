@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import font as tkfont
 from tkinter import ttk
 
+import guiutil
 from rf4s_modkit import gamepaths, mobj_types
 
 from . import attrs, render, ui
@@ -339,7 +340,9 @@ class PaletteTab(ttk.Frame):
                                  if none else ""))
 
     def _wheel(self, e):
-        self.canvas.yview_scroll(-1 if e.delta > 0 else 1, "units")
+        if not hasattr(self, "_wheel_h"):
+            self._wheel_h = guiutil.wheel_handler(lambda n: self.canvas.yview_scroll(n, "units"), 1)
+        self._wheel_h(e)
 
     def refresh(self):
         """The map changed (objects added / removed, another map): names of the types on
