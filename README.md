@@ -727,7 +727,7 @@ unmodded game. Flag names come from your `emdeb.bin` and sound names from your
 `*_audio_data.bdat` in the same way.
 
 **Testing instructions in game (`optest.py`).** Verification is kept per argument, not only per
-instruction. In `rf4s_modkit/opcode_table.json` every argument has its own `human_verified` flag
+instruction. In `refdata/opcode_table.json` every argument has its own `human_verified` flag
 and a `tests` log (date, the call, what was seen). An argument whose value is a code can list
 `value_names`, for example ModifyPlayerResource's `resource`: `100` = `gold`, `105` = `stone`.
 The assembler reads the name (`ModifyPlayerResource(gold, add, 1234)`) and the pickers offer it. The
@@ -898,7 +898,7 @@ from Blender.
 | Maps | `.rf4m` | `rf4mod map` | ✅ chunk-level; `map validate` checks the game loader's rules **and the ground atlas against the ATTR grid**; `map resize-attr` resizes the tile grid and lists every derived artefact it invalidates |
 | Monster/NPC AI | `AI_*.bin` (AIBN) | `rf4mod ai` | ✅ full (token + text); `disasm --annotate` adds the verified operand meanings, `ai ops` / `ai actions` print the opcode and scripted-action references (every handler re-read 2026-09-17) |
 | Attack move timelines | `as_atk_*.bin` (690) | `rf4mod asatk` | ✅ decode (`show`/`summary`) + **assembler/editor**: `dump` → edit listing → `asm`, or point edits `set` / `insert --frame` / `delete`; byte-exact on every stock file; GUI Edit tab |
-| Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-entry` / the editor's New scene…); opcode names from `rf4s_modkit/opcode_table.json` |
+| Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-entry` / the editor's New scene…); opcode names from `refdata/opcode_table.json` |
 | Search-item spots | `SI_*.bin` (288) | GUI table editor, map editor | ✅ daily ground-pickup spots, item pools and weights (footer rebuilt) |
 | Monster / character templates | `rf3NpcParam.bin` | `rf4mod monster`, GUI monster editor | ✅ stats, drops, elements, AI; `monster clone` / `new` mint templates |
 | Saves | `rf4_sNN.sav` | `rf4mod save`, [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py) | ✅ named GameFlags, field get / set, CRC fix-up |

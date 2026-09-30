@@ -78,6 +78,7 @@ import threading
 from collections import OrderedDict
 
 from . import texture as _tex
+from .refdata import refdata_path
 
 LAYERS = (0, 1)          # ground, overlay: the only display layers the game builds
 FULL_TILE = 512
@@ -188,7 +189,7 @@ def _texmap():
     global _TEXMAP
     if _TEXMAP is None:
         try:
-            p = os.path.join(os.path.dirname(__file__), "map_texture_sets.json")
+            p = refdata_path("map_texture_sets.json")
             with open(p, encoding="utf-8") as f:
                 _TEXMAP = json.load(f)
         except Exception:
@@ -212,7 +213,7 @@ def _overmodels():
     global _OVERMODELS
     if _OVERMODELS is None:
         try:
-            p = os.path.join(os.path.dirname(__file__), "map_overmodels.json")
+            p = refdata_path("map_overmodels.json")
             with open(p, encoding="utf-8") as f:
                 _OVERMODELS = json.load(f)
         except Exception:

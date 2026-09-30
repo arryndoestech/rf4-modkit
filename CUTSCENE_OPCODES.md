@@ -6444,7 +6444,7 @@ kind 19 Chat By Friendship Level (schedule kind 19). An NPC idle/schedule BEHAVI
 ### `op 758` — NpcAction_Kind20_EquipElvishHarp()
 *handler:* `NpcAction_Kind20_EquipElvishHarp`
 
-kind 20 Equip Tool 506 (schedule kind 20). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
+kind 20 Equip Elvish Harp (schedule kind 20). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
 
 ### `op 759` — NpcAction_PlayKindIdleAnim()
 *handler:* `NpcAction_PlayKindIdleAnim`
@@ -6454,7 +6454,7 @@ Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC
 ### `op 760` — NpcAction_Kind22_EquipMagicBroom()
 *handler:* `NpcAction_Kind22_EquipMagicBroom`
 
-kind 22 Equip Tool 483 (schedule kind 22). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
+kind 22 Equip Magic Broom (schedule kind 22). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
 
 ### `op 761` — NpcAction_Kind23_EquipHeldTool()
 *handler:* `NpcAction_Kind23_EquipHeldTool`

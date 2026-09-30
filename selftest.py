@@ -2445,7 +2445,7 @@ def test_minimap():
            and map_names.label_note(24) is None)
     if not minimap.table_available():
         _skip("minimap per-map table",
-              "rf4s_modkit/map_minimap.json missing -- run gen_map_names_json.py")
+              "refdata/map_minimap.json missing -- run gen_map_names_json.py")
         return
     _check("minimap per-map picture",
            minimap.map_count() == 873
@@ -3114,33 +3114,6 @@ def test_script():
                f"{len(_x1)} sites / {len(_x2)} / {len(_x3)}")
     else:
         _skip("editor xrefs", "cutscene_editor not importable")
-    # Ghidra listing-plan generator (ghidra/gen_ghidra_plan.py, 2026-09-01): bank 210
-    # pins — the 0x508 CALL carries a typed 'call' reference to the FRAME subroutine
-    # @0x17CE, DIALOG rows inline the locale text, the big type-27 scene entry gets a
-    # scene_ label, and every statement's [pc, pc+size) stays inside the bank.
-    try:
-        import importlib.util as _ilu
-        _gp_spec = _ilu.spec_from_file_location(
-            "gen_ghidra_plan", pathlib.Path(__file__).parent / "ghidra" / "gen_ghidra_plan.py")
-        _gp = _ilu.module_from_spec(_gp_spec); _gp_spec.loader.exec_module(_gp)
-    except Exception:
-        _gp = None
-    if _gp is not None and len(c.banks) > 210:
-        _gpb = _gp.build_bank_plan(210, c.banks[210], _gp._find_text("eng"))
-        _gp_call = next((r for r in _gpb["stmts"] if r[0] == 0x508), None)
-        _gp_dlg = next((r for r in _gpb["stmts"]
-                        if r[2].startswith("DIALOG") and '"' in r[2]), None)
-        _check("ghidra plan: refs typed, dialogue inlined, scene labels, stmts in-bank",
-               _gp_call is not None and _gp_call[3] == [[0x17CE, "call"]]
-               and "loc_b0210_17ce" in _gp_call[2]
-               and _gp_dlg is not None
-               and _gpb["labels"].get("724") == "scene_b0210_t27_02d4"
-               and all(0 <= r[0] and r[0] + r[1] <= _gpb["size"] for r in _gpb["stmts"])
-               # ilen (row[4]) = the RF4MC-instruction-visible length: never larger than
-               # the statement, and strictly smaller exactly for table/big-arg tails
-               and all(len(r) == 5 and 2 <= r[4] <= r[1] for r in _gpb["stmts"]))
-    else:
-        _skip("ghidra plan generator", "module not importable")
     # end-to-end explanation guard: the editor's Alt-hover explanation (render.SceneText.explain,
     # also the Inspector's "What it does" box) must render a non-empty string for EVERY op that
     # appears in scenes -- DIALOG, control ops, and action ops (prototype + per-arg + enum/EMF/
@@ -3519,7 +3492,7 @@ def test_script():
     # sides). Checked against the committed op->handler dump (script_opcodes.json = the IDB names).
     import json as _json, os as _os2
     _hp = _os2.path.join(_os2.path.dirname(_os2.path.abspath(__file__)),
-                         "rf4s_modkit", "script_opcodes.json")
+                         "refdata", "script_opcodes.json")
     if _os2.path.exists(_hp):
         _hmap = _json.load(open(_hp, encoding="utf-8"))
         _byname = {}

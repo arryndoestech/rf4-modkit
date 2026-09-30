@@ -19,11 +19,11 @@ Two families are generated from the technical names rather than hand-listed:
   * the ``NoOp<NN>_StubReturn0`` no-ops -> ``nop`` (does nothing on PC).
 """
 import json
-import os
 import re
 
-_HERE = os.path.dirname(__file__)
-with open(os.path.join(_HERE, "script_opcodes.json"), encoding="utf-8") as _f:
+from .refdata import refdata_path
+
+with open(refdata_path("script_opcodes.json"), encoding="utf-8") as _f:
     TECHNICAL = {int(k): v for k, v in json.load(_f).items()}
 
 # ---- categories -------------------------------------------------------------------
@@ -4985,7 +4985,7 @@ for _k in ((470, 0), (471, 0), (472, 0), (528, 0), (291, 1)):
 # LAST so it wins over the text above; the pickers wired above stay keyed by (op, arg index).
 # Each row also carries returns / blocking / details / evidence and the human_verified flag
 # (OPCODE_TABLE.md is generated from it by gen_opcode_table.py).
-with open(os.path.join(_HERE, "opcode_table.json"), encoding="utf-8") as _f:
+with open(refdata_path("opcode_table.json"), encoding="utf-8") as _f:
     TABLE = json.load(_f)
 
 

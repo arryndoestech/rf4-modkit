@@ -1,6 +1,6 @@
 """In-game opcode tests: what is verified, value sweeps, and recording the results.
 
-Every argument in rf4s_modkit/opcode_table.json carries its own `human_verified` flag and a
+Every argument in refdata/opcode_table.json carries its own `human_verified` flag and a
 `tests` log, and an argument whose value is a code can list `value_names` (the names a
 listing writes and the assembler reads). An op counts as fully verified when the op and
 each of its arguments are.
@@ -27,7 +27,7 @@ import sys
 _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
-TABLE = _HERE / "rf4s_modkit" / "opcode_table.json"
+TABLE = _HERE / "refdata" / "opcode_table.json"
 NUMBER_LINE = 94412          # "The result: ＠数字０＠ points" (the number is SetVar3 slot 0)
 NAME_RE = re.compile(r"[A-Za-z_]\w*\Z")
 

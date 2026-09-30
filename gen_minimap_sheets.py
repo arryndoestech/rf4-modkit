@@ -190,7 +190,7 @@ def main(argv=None) -> int:
 
     from PIL import Image, ImageDraw
     if not minimap.table_available():
-        print("rf4s_modkit/map_minimap.json missing -- run gen_map_names_json.py first", file=sys.stderr)
+        print("refdata/map_minimap.json missing -- run gen_map_names_json.py first", file=sys.stderr)
         return 1
     textures = {p.stem: p for p in EXTRACTED.rglob("mini_map_*.texture")}
     maps = {p.stem.upper(): p for p in EXTRACTED.rglob("MAP_*.rf4m")}

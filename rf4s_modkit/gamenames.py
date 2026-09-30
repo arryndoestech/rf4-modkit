@@ -5,7 +5,7 @@ renames something (a file in Bundle/00_mods, or an edited bundleMain copy) shows
 picker and listing comment. The file used is the one the game loads (the same Bundle/**
 lookup: byte-sorted pre-order walk, earliest copy wins, so 00_mods beats bundleMain), else
 the extracted copy of a still-packed install. When neither exists, the lists shipped with
-the toolkit (refdata/, rf4s_modkit/map_names.json) are the default.
+the toolkit (refdata/) are the default.
 
     table(kind)   {id: name} for kind in KINDS
     name(kind, i) one name, or None
@@ -64,7 +64,7 @@ def _builtin(kind):
             d = json.loads(refdata_path("rf4s_item_names.json").read_text(encoding="utf-8"))
             return {int(k): v for k, v in d.items() if v}
         if kind == "maps":
-            rows = json.loads((pathlib.Path(__file__).with_name("map_names.json")).read_text(encoding="utf-8"))
+            rows = json.loads(refdata_path("map_names.json").read_text(encoding="utf-8"))
             return {i - 1: v.strip() for i, v in enumerate(rows) if i >= 1 and v}
         if kind == "skills":
             return dict(enumerate(_BUILTIN_SKILLS))

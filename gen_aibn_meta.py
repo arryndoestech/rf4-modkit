@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate rf4s_modkit/aibn_meta.json (AIBN opcode + scripted-action metadata) from the
+"""Regenerate refdata/aibn_meta.json (AIBN opcode + scripted-action metadata) from the
 verified opcode record file docs/monster_ai_opcodes.json.
 
     python gen_aibn_meta.py <path/to/monster_ai_opcodes.json>
@@ -61,7 +61,7 @@ def main(src_path):
                    "effect": "AND connector between two conditions: when the condition before it is true the next condition is evaluated; when false MonsterScript_SkipConditionalBlock leaves the block (else-pending bit 0x20000000 set)."}
     out = {"_source": "verified 2026-09-17 from the RF4S.exe IDB handlers; regenerate with gen_aibn_meta.py",
            "opcodes": ops, "scripted_actions": sas}
-    dst = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rf4s_modkit", "aibn_meta.json")
+    dst = os.path.join(os.path.dirname(os.path.abspath(__file__)), "refdata", "aibn_meta.json")
     json.dump(out, open(dst, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("wrote", dst, len(ops), "opcodes,", len(sas), "scripted actions")
 

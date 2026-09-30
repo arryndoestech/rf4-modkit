@@ -31,10 +31,10 @@ entrance is a MAPJ warp whose destination is an interior room, and the sign show
 room's name. So resolving a warp's destination id -> name marks where each sign is.
 """
 import json
-import pathlib
 
-_HERE = pathlib.Path(__file__).resolve().parent
-_NAMES = json.loads((_HERE / "map_names.json").read_text(encoding="utf-8"))
+from .refdata import refdata_path
+
+_NAMES = json.loads(refdata_path("map_names.json").read_text(encoding="utf-8"))
 
 # Destinations that are NOT a building sign -- outdoor areas / farm / fields / blanks.
 _NON_BUILDING_PREFIXES = ("Selphia:", "Selphia ", "Field", "Farm", "Room: Dummy", "BLANK", "JP")
@@ -81,7 +81,7 @@ def _files() -> list:
     global _FILES
     if _FILES is None:
         try:
-            _FILES = list(json.loads((_HERE / "map_overmodels.json").read_text(encoding="utf-8")))
+            _FILES = list(json.loads(refdata_path("map_overmodels.json").read_text(encoding="utf-8")))
         except (OSError, ValueError):
             _FILES = []
     return _FILES

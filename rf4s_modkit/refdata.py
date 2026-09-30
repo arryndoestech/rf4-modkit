@@ -6,7 +6,10 @@ rf4s_actor_names.json, rf4s_item_names.json) are vendored in
 tools/modding/refdata/, and only there. So are the small tables that exist only
 inside RF4S.exe (portrait_faces.json; rf4s_exe_tables.json = chest loot, crate
 pools, area BGM, extracted by gen_exe_tables_json.py): nothing reads the exe
-at run time.
+at run time. The toolkit's own tables live here too: the script-op tables
+(opcode_table.json, script_opcodes.json), the monster-AI op table
+(aibn_meta.json) and the map tables (map_names.json, map_overmodels.json,
+map_minimap.json, map_texture_sets.json).
 
 GAME DATA is never bundled: Bundle/ (the extracted bundleMain with maps,
 textures, em.bin/emdeb.bin) must always be supplied by the user from their

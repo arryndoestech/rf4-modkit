@@ -20,10 +20,10 @@ Units used by the operand records:
 from __future__ import annotations
 
 import json
-import os
 
-_HERE = os.path.dirname(__file__)
-with open(os.path.join(_HERE, "aibn_meta.json"), encoding="utf-8") as _f:
+from .refdata import refdata_path
+
+with open(refdata_path("aibn_meta.json"), encoding="utf-8") as _f:
     _DATA = json.load(_f)
 
 OPCODES: dict[int, dict] = {int(k, 16): v for k, v in _DATA["opcodes"].items()}

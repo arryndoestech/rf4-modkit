@@ -61,6 +61,8 @@ from __future__ import annotations
 import json
 import pathlib
 
+from .refdata import refdata_path
+
 ARCHIVE_ID_BASE = 12199          # nsFileArchive id of mini_map_00_city
 ARCHIVE_ID_MINIPOS = 11839       # rom:/map/rf3MapMiniPos.bin
 DUMMY_SHEET = 73                 # mini_map_99_dummy  -- the blank picture
@@ -149,8 +151,7 @@ VARIANT_RULES = {
 }
 BARN_MAP_IDS = range(77, 127)      # 5 barns x (L, R) x 5 rooms; (id-77)//5 = half-barn index
 
-_HERE = pathlib.Path(__file__).resolve().parent
-_TABLE_JSON = _HERE / "map_minimap.json"
+_TABLE_JSON = refdata_path("map_minimap.json")
 _RECORDS = None
 
 

@@ -308,7 +308,7 @@ class ReferenceWindow:
         acts, ctl = verified_ops()
         ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=(
             "Instructions a person has checked in game (%d so far). Mark more with "
-            "\"human_verified\": true in rf4s_modkit/opcode_table.json. Every instruction, "
+            "\"human_verified\": true in refdata/opcode_table.json. Every instruction, "
             "verified or not, is in the Instruction picker." % (len(acts) + len(ctl)))).pack(anchor="w", pady=(0, 4))
         rows = []
         for m in ctl:

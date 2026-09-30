@@ -84,7 +84,7 @@ def entry(map_id: int) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--minipos", help="rf3MapMiniPos.bin to bake into rf4s_modkit/map_minimap.json "
+    ap.add_argument("--minipos", help="rf3MapMiniPos.bin to bake into refdata/map_minimap.json "
                                       "(default: auto-detect under Bundle/)")
     ap.add_argument("--out", help=f"output path (default: {DOCS / 'map_names.json'})")
     ap.add_argument("--no-bake", action="store_true", help="use the vendored map_minimap.json as-is")
@@ -93,7 +93,7 @@ def main(argv=None) -> int:
     src = None if a.no_bake else (pathlib.Path(a.minipos) if a.minipos else find_minipos())
     if src is not None:
         n = minimap.bake(src)
-        print(f"baked rf4s_modkit/map_minimap.json from {src} ({n} records)")
+        print(f"baked refdata/map_minimap.json from {src} ({n} records)")
     elif not minimap.table_available():
         print("warning: no rf3MapMiniPos.bin found and no vendored map_minimap.json -- "
               "minimap fields will be null", file=sys.stderr)

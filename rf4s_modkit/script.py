@@ -22,16 +22,16 @@ DISPATCHABLE_ACTION_OPS; names in script_opcodes.json).
 """
 from __future__ import annotations
 import json
-import os
 import re
 import struct
 from collections import OrderedDict
 
-_HERE = os.path.dirname(__file__)
+from .refdata import refdata_path
+
 MAGIC = b"MYCF"
 
 # ---- opcode name table (dumped from g_scriptVMOpDispatchTable_400slots) -------------
-with open(os.path.join(_HERE, "script_opcodes.json"), "r", encoding="utf-8") as _f:
+with open(refdata_path("script_opcodes.json"), "r", encoding="utf-8") as _f:
     OPCODE_NAMES = {int(k): v for k, v in json.load(_f).items()}
 
 
