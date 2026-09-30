@@ -80,15 +80,17 @@ SHORTCUTS = [
             ("Ctrl+R", "save and put the scenes and dialogue into the running game"),
             ("Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)", "undo / redo"),
             ("Ctrl+F", "go to the scene search box"),
+            ("Enter in the scene search box", "search"),
+            ("Esc in a dialog", "close it"),
         ]),
         ("Script view (click a line first)", [
             ("Up / Down, Page Up / Page Down, Home / End", "move between lines"),
             ("Enter, or double-click a line", "edit it in the Inspector"),
             ("Insert", "add an instruction after the selected line"),
             ("Delete", "delete the selected line"),
+            ("F9", "set / remove a breakpoint for the script debugger"),
             ("Ctrl+C", "copy the line's text"),
-            ("Right-click", "add an instruction, a dialogue line or statements (after or before), "
-                            "copy, delete, Reference"),
+            ("Right-click", "add an instruction (after or before), copy, delete, toggle a breakpoint"),
             ("Hold Alt over a line", "explain the instruction"),
         ]),
         ("Inspector and dialogs", [
@@ -99,6 +101,19 @@ SHORTCUTS = [
             ("Double-click / Enter on a trigger", "open its scene"),
             ("Double-click / Enter in Find a line", "use that line"),
             ("Double-click in Callers", "go to the calling statement"),
+        ]),
+        ("Graph tab", [
+            ("Click a block", "select it and highlight the arrows into and out of it"),
+            ("Drag a block", "move it (Reset layout puts every block back)"),
+            ("Drag the background", "pan"),
+            ("Double-click a statement", "go to it in the Script tab"),
+            ("Wheel", "zoom at the pointer"),
+            ("Ctrl+wheel / Shift+wheel", "scroll up and down / sideways"),
+        ]),
+        ("Script debugger (🐞 Debug)", [
+            ("F9 in the Script view", "set / remove a breakpoint on the selected statement"),
+            ("Double-click a breakpoint", "open its statement"),
+            ("Double-click a variable (Variables tab)", "open the first statement that uses it"),
         ]),
         ("Bank listing tab (Options → Advanced)", [
             ("Enter / Shift+Enter in Find", "next / previous match"),

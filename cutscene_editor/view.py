@@ -41,6 +41,8 @@ class ScriptView(ttk.Frame):
         self.text.tag_configure("code", font=("Consolas", 10))
         self.text.tag_configure("selrow", background="#23405a")
         self.text.tag_configure("focusrow", background="#5a4a00")
+        self.text.tag_configure("bprow", background="#4a1616")     # a breakpoint
+        self.text.tag_configure("pcrow", background="#1e5a2a")     # where a script stopped
         self.text.tag_raise("sel")
         self.rows = []                 # display line (1-based) -> Row, as a list index line-1
         self._key_line = {}            # (pc, option) -> line
@@ -66,6 +68,7 @@ class ScriptView(ttk.Frame):
         t.bind("<Return>", lambda _e: (app.focus_editor(), "break")[1])
         t.bind("<Delete>", lambda _e: (app.delete_selected(), "break")[1])
         t.bind("<Insert>", lambda _e: (app.ask_insert_instruction(False), "break")[1])
+        t.bind("<F9>", lambda _e: (app.toggle_breakpoint(), "break")[1])
         t.bind("<Button-3>", self._context_menu)
         t.bind("<Motion>", self._motion)
         t.bind("<Leave>", lambda _e: self.hide_tip())
@@ -106,11 +109,30 @@ class ScriptView(ttk.Frame):
             if row.key is not None and row.key not in self._key_line:
                 self._key_line[row.key] = n
         t.config(state="disabled")
+        self.mark_debug()
         if keep_sel and self.sel in self._key_line:
             self._highlight(self.sel, see=False)
             t.yview_moveto(y)
         else:
             self.sel = None
+
+    def mark_debug(self):
+        """Tint the rows of statements with a breakpoint, and the row a script stopped at."""
+        app, t = self.app, self.text
+        t.tag_remove("bprow", "1.0", "end")
+        t.tag_remove("pcrow", "1.0", "end")
+        bank = app.bank_pos
+        bps = {pc for b, pc in getattr(app, "breakpoints", ()) if b == bank}
+        cur = getattr(app, "debug_current", None)
+        for key, ln in self._key_line.items():
+            if key[1] is not None:
+                continue
+            if key[0] in bps:
+                t.tag_add("bprow", "%d.0" % ln, "%d.0" % (ln + 1))
+            if cur is not None and cur == (bank, key[0]):
+                t.tag_add("pcrow", "%d.0" % ln, "%d.0" % (ln + 1))
+                t.see("%d.0" % ln)
+        t.tag_raise("pcrow")
 
     def _code_rows(self, st_text):
         sc = st_text.scene
@@ -156,6 +178,8 @@ class ScriptView(ttk.Frame):
         m.add_separator()
         m.add_command(label="Copy line  (Ctrl+C)", state=st, command=self.copy_row)
         m.add_command(label="Delete  (Del)", state=st, command=app.delete_selected)
+        m.add_separator()
+        m.add_command(label="Toggle breakpoint  (F9)", state=st, command=app.toggle_breakpoint)
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:
