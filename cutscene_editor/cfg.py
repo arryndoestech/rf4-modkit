@@ -33,8 +33,6 @@ from collections import OrderedDict
 
 from rf4s_modkit import script
 
-MAX_LINES = 14            # block text lines shown; the rest is "... N more"
-MAX_CHARS = 64            # characters per line
 
 
 class Block:
@@ -143,10 +141,7 @@ def build(scene, line_text=None, choice_text=None):
         for pc in b.pcs:
             txt = line_text(st[pc]) if line_text else st[pc].mnem
             txt = " ".join(txt.split())
-            lines.append((pc, txt[:MAX_CHARS - 1] + "…" if len(txt) > MAX_CHARS else txt))
-        if len(lines) > MAX_LINES:
-            more = len(lines) - (MAX_LINES - 1)
-            lines = lines[:MAX_LINES - 1] + [(None, "… %d more" % more)]
+            lines.append((pc, txt))           # every statement, in full: nothing is cut
         call = next((t for t, k, _l in b.edges if k == "call"), None)
         if call is not None:
             b.link = call
