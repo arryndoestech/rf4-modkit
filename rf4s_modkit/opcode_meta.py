@@ -4369,6 +4369,21 @@ EVENT_CHAR_IDS = _lazy(_event_char_ids)
 for _eco in ((153, 0), (154, 0), (155, 0), (156, 0)):
     ENUM_ARG_VALUES[_eco] = EVENT_CHAR_IDS
 
+
+def _map_entity_types():
+    """SpawnMapEntity (op 157) arg0: the map object type ids, named like the map editor names
+    a .rf4m MOBJ (the op builds the same record)."""
+    from . import mobj_types
+    out = {}
+    for tid in range(1024):
+        nm = mobj_types.mobj_display_name(tid)
+        if nm:
+            out[tid] = (nm, "Map object type %d: %s." % (tid, mobj_types.mobj_label(tid)))
+    return out
+
+
+ENUM_ARG_VALUES[(157, 0)] = _lazy(_map_entity_types)
+
 # op 10 SetSpeakerVoice: arg0 = a name-plate id in the character-name archive (the full list,
 # up to ~1000 -- the soldiers / customers / '???' plates sit above the 392 rf3NpcParam rows),
 # arg1 = the text-blip class (Script_VMOp_SetSpeakerVoice, RF4S.exe+0x20A240)

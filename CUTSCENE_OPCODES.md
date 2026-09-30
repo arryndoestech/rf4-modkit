@@ -8027,6 +8027,7 @@ Spawns a map entity (object, interactive object, decoration or special trigger) 
 
 Args:
   0. type (<20 special trigger; 20-195 placed object (pg_mobj); 196-335 interactive object; >=336 decoration)
+     - *(enum: 389 values — use the in-editor picker or the id database)*
   1. x
   2. y
   3. facing (x182)
