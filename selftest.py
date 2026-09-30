@@ -22,9 +22,9 @@ from rf4s_modkit import (  # noqa: E402
     mapground, search_items, mobj_types, emflags, emscript,
 )
 
-REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 from rf4s_modkit import gamepaths as _gamepaths  # noqa: E402
 BUNDLE_DIR = _gamepaths.bundle_dir()             # the game copy (rf4s_modkit.gamepaths)
+GAME_DIR = BUNDLE_DIR.parent                     # the game folder holding Bundle/
 
 
 def _private_settings():
@@ -813,7 +813,7 @@ def test_aibn():
 
 def test_strings():
     print("strings:")
-    p = _first("*.strings") or next(iter(REPO.glob("*.strings")), None)
+    p = _first("*.strings") or next(iter(GAME_DIR.glob("*.strings")), None)
     if not p:
         _skip("strings round-trip", "no .strings file present")
         return
@@ -4173,7 +4173,7 @@ def test_save():
             _rej += 1
     _check("save scalar set validates (season 0..3, u32 range)",
            _rej == 3 and _sy.set("season", 3).get("season") == 3)
-    p = next(iter(sorted(REPO.glob("rf4_s[0-9][0-9].sav"))), None)   # a real save next to Bundle/
+    p = next(iter(sorted(GAME_DIR.glob("rf4_s[0-9][0-9].sav"))), None)   # a real save next to Bundle/
     if p is None:
         _skip("save editor", "no real rf4_sNN.sav present")
         return
@@ -5538,7 +5538,7 @@ def test_bcenc_and_model_textures():
     embedded BNTX is relocation-fixed and handed to SpriteResourceRegistry_AcquireSlotForBfres
     (+0x1BE270) by GfxCTR_Model_BuildFromResource (+0x1B52C0, calls at +0x1B550B / +0x1B5595);
     the per-BRTI init (+0x3C6000) -> MGTexture_LoadFromPIXL (+0x3D2230) reads only the
-    format, width, height, access flags, name and mip-0 pointer -- docs/09 s3 and s4."""
+    format, width, height, access flags, name and mip-0 pointer."""
     print("bcenc / model textures:")
     import random
     import time
@@ -6704,7 +6704,7 @@ def test_portrait_faces():
 
 
 def test_textlint():
-    """rf4s_modkit.textlint: the game's text grammar (docs/48) -- what crashes, what shows
+    """rf4s_modkit.textlint: the game's text grammar -- what crashes, what shows
     wrongly -- and the shipped text passes."""
     print("textlint (game text checks):")
     from rf4s_modkit import textlint as tl

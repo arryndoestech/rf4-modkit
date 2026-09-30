@@ -642,7 +642,7 @@ class CutsceneExplorer:
 
     # ---- dialogue ---------------------------------------------------------------- #
     def check_text(self, text, what):
-        """Check a line the way the game reads it (rf4s_modkit.textlint, docs/48). Errors --
+        """Check a line the way the game reads it (rf4s_modkit.textlint). Errors --
         text the game can crash on -- refuse the edit; warnings let it through, with a note."""
         issues = textlint.lint(text)
         errs = [x for x in issues if x.level == "error"]

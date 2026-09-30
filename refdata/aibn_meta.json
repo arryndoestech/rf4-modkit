@@ -1,5 +1,5 @@
 {
- "_source": "verified 2026-09-17 from the RF4S.exe IDB handlers; regenerate with gen_aibn_meta.py",
+ "_source": "verified 2026-09-17 from the RF4S.exe IDB handlers",
  "opcodes": {
   "0x00": {
    "ida_name": "MonsterScript_Op00_StatementBlock",

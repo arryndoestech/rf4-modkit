@@ -77,12 +77,10 @@ choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod).
 
 Everything is grounded in the `RF4S.exe` loader code (reverse-engineered in IDA);
 code comments cite the IDA function names and `RF4S.exe+RVA` each fact was verified
-against. Comments of the form `docs/NN` refer to the numbered RF4S documentation set
-(e.g. `docs/09-file-formats.md`, `docs/15-modding-toolkit.md`), which is kept separately
-and is not part of this folder.
+against.
 
 ```
-tools/modding/
+rf4s-modkit/
 ├── rf4mod.py            # the command-line tool (start here)
 ├── rf4mod_gui.py        # the graphical asset explorer (Tkinter)
 ├── map_explorer.py      # launches the map editor (the map_editor/ package)
@@ -90,9 +88,9 @@ tools/modding/
 ├── script_explorer.py   # launches the cutscene editor (the cutscene_editor/ package)
 ├── cutscene_editor/     # the cutscene editor: rf3.mc + rf3mc.<locale> + em.bin, one undo history
 ├── gen_opcode_reference.py  # regenerates CUTSCENE_OPCODES.md + opcodes_list.csv from opcode_meta
-├── gen_map_names_json.py    # regenerates docs/map_names.json (map id -> name, MAP_* file, minimap sheet)
+├── gen_map_names_json.py    # writes out/map_names.json (map id -> name, MAP_* file, minimap sheet)
 ├── gen_exe_tables_json.py   # regenerates refdata/rf4s_exe_tables.json: chest loot, crate pools, area BGM (tables that exist only in RF4S.exe)
-├── gen_minimap_sheets.py    # renders docs/minimap_sheets/: every minimap picture with its rf3MapMiniPos rows drawn on
+├── gen_minimap_sheets.py    # renders out/minimap_sheets/: every minimap picture with its rf3MapMiniPos rows drawn on
 ├── CUTSCENE_OPCODES.md  # greppable reference: every reversed cutscene opcode + enum-arg values + em.bin ops
 ├── opcodes_list.csv  # flat list: op_dec, op_hex, mnemonic, handler, category, prototype, description (all 763 + control)
 ├── selftest.py          # validates the toolkit against your installed bundles
@@ -146,23 +144,21 @@ and any texture work, install both.
 ### Standard install (pip + virtualenv)
 
 The [Quick start](#quick-start-windows-fresh-python) above is enough on Windows. For
-an isolated environment, run this from the folder that contains `tools/` (the game
-folder, if you followed the Quick start):
+an isolated environment, run this from the toolkit folder (the one holding
+`rf4mod.py`):
 
 ```bash
-# 1. Unzip so this folder is tools/modding/ (see Quick start)
-
-# 2. Create + activate a virtualenv (optional but recommended)
+# 1. Create + activate a virtualenv (optional but recommended)
 python -m venv .venv
 # Windows (PowerShell):    .venv\Scripts\Activate.ps1
 # Windows (cmd):           .venv\Scripts\activate.bat
 # Linux/macOS:             source .venv/bin/activate
 
-# 3. Install the two third-party deps from requirements.txt
-pip install -r tools/modding/requirements.txt
+# 2. Install the two third-party deps from requirements.txt
+pip install -r requirements.txt
 
-# 4. Verify against your installed RF4S bundles (see "Bundle layout" below)
-python tools/modding/rf4mod.py selftest
+# 3. Verify against your installed RF4S bundles (see "Bundle layout" below)
+python rf4mod.py selftest
 # expect: "N/N checks passed"; checks that need extracted files are skipped
 ```
 
@@ -171,8 +167,8 @@ python tools/modding/rf4mod.py selftest
 ```bash
 conda create -n rf4s python=3.12
 conda activate rf4s
-pip install -r tools/modding/requirements.txt
-python tools/modding/rf4mod.py selftest
+pip install -r requirements.txt
+python rf4mod.py selftest
 ```
 
 ### Bundle layout
@@ -207,7 +203,7 @@ of these from the command line.
 ### Verifying the install
 
 ```bash
-python tools/modding/rf4mod.py selftest
+python rf4mod.py selftest
 ```
 
 The selftest exercises every reader/writer round-trip against your installed
@@ -271,8 +267,8 @@ paint strokes do not rebuild it). Zoom out, or turn the ground texture off in th
 ## GUI: the asset explorer
 
 ```bash
-python tools/modding/rf4mod_gui.py          # auto-loads Bundle/Manifest.plist
-python tools/modding/rf4mod_gui.py <path>   # open a manifest / bundle / folder / file
+python rf4mod_gui.py          # auto-loads Bundle/Manifest.plist
+python rf4mod_gui.py <path>   # open a manifest / bundle / folder / file
 ```
 
 A single-window explorer (Tkinter, stdlib) built on the same library. The left pane
@@ -388,7 +384,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
 | `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Gates** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
-| `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. See `docs/16`. |
+| `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. |
 | `rf3*.bin` (NLCL) | param-table grid editor (named fields where decoded); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown above the editor |
 | `em.bin` / `emdeb.bin` | identified + **Open Event Manager…** (the Cutscene editor's Event Manager window: value edits, add / remove entries, conditions and actions) |
 | `.strings` | key/value table |
@@ -406,9 +402,9 @@ a hex view if `Pillow`/`texture2ddecoder` aren't installed.
 ## Map Editor
 
 ```bash
-python tools/modding/map_explorer.py                 # browse all 872 maps
-python tools/modding/map_explorer.py MAP_DUNG_A04     # open one map (name or .rf4m path)
-python tools/modding/rf4mod.py mapview MAP_DUNG_A04   # same, via the CLI
+python map_explorer.py                 # browse all 872 maps
+python map_explorer.py MAP_DUNG_A04     # open one map (name or .rf4m path)
+python rf4mod.py mapview MAP_DUNG_A04   # same, via the CLI
 ```
 
 The editor (`map_editor.MapEditorPanel`) is **embedded in the main GUI**: selecting any
@@ -548,19 +544,19 @@ back** — the exporter takes its aspect from the map's current ATTR.
 ## Map ids, names and minimap sheets
 
 ```bash
-python tools/modding/gen_map_names_json.py      # (re)build docs/map_names.json from the vendored tables
-python tools/modding/gen_exe_tables_json.py     # (re)extract refdata/rf4s_exe_tables.json from RF4S.exe (only for a new game build)
-python tools/modding/gen_minimap_sheets.py      # render docs/minimap_sheets/ (needs Bundle/ + Pillow)
-python tools/modding/gen_minimap_sheets.py --labels names --clean --zoom 4   # vanilla pictures + room names -> docs/minimap_sheets_named/
+python gen_map_names_json.py      # (re)build out/map_names.json from the vendored tables
+python gen_exe_tables_json.py     # (re)extract refdata/rf4s_exe_tables.json from RF4S.exe (only for a new game build)
+python gen_minimap_sheets.py      # render out/minimap_sheets/ (needs Bundle/ + Pillow)
+python gen_minimap_sheets.py --labels names --clean --zoom 4   # vanilla pictures + room names -> out/minimap_sheets_named/
 ```
 
-`docs/minimap_sheets/` holds one annotated PNG per minimap picture (reveal rects, origins,
+`out/minimap_sheets/` holds one annotated PNG per minimap picture (reveal rects, origins,
 scale extents and the NPC-icon spots of interiors drawn over the sheet) plus an index README.
-`docs/minimap_sheets_named/` is the clean set: the plain picture at 2048 px with each room labelled
-by its name from `docs/map_names.json` (duplicates numbered `_01..N`), and `labels.csv` /
+`out/minimap_sheets_named/` is the clean set: the plain picture at 2048 px with each room labelled
+by its name from `out/map_names.json` (duplicates numbered `_01..N`), and `labels.csv` /
 `labels.json` mapping each label back to its map id.
 
-`docs/map_names.json` is the map-id registry: for every map id `0..873` the in-game name
+`out/map_names.json` is the map-id registry: for every map id `0..873` the in-game name
 (`rf3TxtMapName`, row = id + 1), the `MAP_*` file, a note where the HUD's location band
 deviates from that name, and the **minimap** block. The library behind it:
 
@@ -582,9 +578,9 @@ room-by-room fog-of-war reveal. Full field list: `rf4s_modkit/minimap.py`.
 ## Cutscene Editor
 
 ```bash
-python tools/modding/rf4mod_gui.py     # open the Manifest, then toolbar "Cutscenes"
-python tools/modding/script_explorer.py [folder with rf3.mc]   # or on its own
-python tools/modding/gen_opcode_reference.py   # (re)build CUTSCENE_OPCODES.md
+python rf4mod_gui.py     # open the Manifest, then toolbar "Cutscenes"
+python script_explorer.py [folder with rf3.mc]   # or on its own
+python gen_opcode_reference.py   # (re)build CUTSCENE_OPCODES.md
 ```
 
 Edits the game's cutscene/event scripts: **`rf3.mc`** (the compiled Script-VM bytecode —
@@ -814,7 +810,7 @@ on the side where that character's portrait should be. The game's own thought li
 follow one. The Inspector says where the tail will point, or why it won't show.
 
 **Text checks.** Every line you edit or add is checked the way the game reads it
-(`rf4s_modkit/textlint.py`; the grammar is in the RF4S docs, chapter 48, *Text control codes*):
+(`rf4s_modkit/textlint.py`):
 
 - **Refused**: a `＠‡A,B＠` gender switch without its comma, without the closing fullwidth
   `＠`, or with a side longer than 63 bytes. The game crashes on those.
@@ -901,7 +897,7 @@ from Blender.
 | Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-entry` / the editor's New scene…); opcode names from `refdata/opcode_table.json` |
 | Search-item spots | `SI_*.bin` (288) | GUI table editor, map editor | ✅ daily ground-pickup spots, item pools and weights (footer rebuilt) |
 | Monster / character templates | `rf3NpcParam.bin` | `rf4mod monster`, GUI monster editor | ✅ stats, drops, elements, AI; `monster clone` / `new` mint templates |
-| Saves | `rf4_sNN.sav` | `rf4mod save`, [`tools/save_editor/rf4s_save_editor.py`](../save_editor/rf4s_save_editor.py) | ✅ named GameFlags, field get / set, CRC fix-up |
+| Saves | `rf4_sNN.sav` | `rf4mod save` | ✅ named GameFlags, field get / set, CRC fix-up |
 | Event Manager triggers | `em.bin`, `emdeb.bin` | `rf4mod em` | ✅ conditions/actions decode; in-place edit; **structural**: add / remove entries, condition terms and actions from a readable spec (`em add / remove / add-cond / remove-cond / add-action / remove-action`; the container is rebuilt, stock re-serialises byte-exact) |
 | Skill XP curves | `rf3ParamSkillExp*.bin` | `rf4mod skill` | ✅ decode + `skill set FILE LEVEL XP` / `--scale PCT` (every level) |
 | Monster encounter tables | `Gen*.bin` (NLCL) | `rf4mod gen` | ✅ full: gates / weights / rosters / positions, add & remove gates and monsters (rebuilds the file + footer; all 690 stock files round-trip byte-exact) |
@@ -1083,7 +1079,7 @@ python rf4mod.py script add-entry rf3.mc --bank 248 --type 6 --stmt "FRAME 0 / D
 python rf4mod.py em show EV_BOSS_SP_DEAD    # decode a scene's "plays when" condition + effects
 python rf4mod.py em new-var FLG_MY_QUEST_DONE          # a NEW game flag (free bit of the 4096-bit store; sidecar emdeb_extra.json)
 python rf4mod.py em new-var REG_MY_COUNTER --width 4   # …or a register; usable in em conditions and cutscene listings at once
-python tools/modding/script_explorer.py     # …or edit cutscenes visually (story view, inspector, one undo history)
+python script_explorer.py     # …or edit cutscenes visually (story view, inspector, one undo history)
 
 # Inspect a map, then edit a placed-entity (MOBJ) record and save a new map
 python rf4mod.py map info MAP_DUNG_A04.rf4m
@@ -1109,7 +1105,7 @@ python rf4mod.py param add rf3TxtQuest_split3_1.bin --set client_id=2 category=1
 python rf4mod.py param remove fry.bin 53 -o fry.bin                    # delete a row (later rows shift down by one)
 python rf4mod.py param info rf3ItemList.bin                            # the 2nd line says whether an added row is ever read (here: capped at 1108 ids)
 
-# Event Manager structure: new trigger entries, condition terms and actions (see docs/19)
+# Event Manager structure: new trigger entries, condition terms and actions
 python rf4mod.py em add --clone EV_BOSS_SP_DEAD --cond-a "Season == 3 AND Hour > 20" --alt-action "REG_MAIN_SCENARIO += 2" -o em.bin   # prints the new id
 python rf4mod.py em add-cond EV_CMN_DAYTIME "FLG_RAIN == 0" --slot 0 -o em.bin        # AND a term onto OR-slot 0 (omit --slot for a new OR-slot)
 python rf4mod.py em add-action EV_BOSS_SP_DEAD "FLG_DATE_FES_NOW = (REG_MAIN_SCENARIO == 0)" --stream alt -o em.bin
@@ -1182,7 +1178,7 @@ Run `python rf4mod.py <group> -h` for full per-command help.
 ## Using the library directly
 
 ```python
-import sys; sys.path.insert(0, "tools/modding")
+import sys; sys.path.insert(0, ".")   # run from the toolkit folder
 from rf4s_modkit import textdb, mbundle
 
 arc = textdb.TextArchive.load("rf3mc.eng")
@@ -1204,7 +1200,7 @@ print(man.find_file("rf3.mc"))            # -> ('bundlePatch1.mbundle', {'size':
   takes ≈ 2.5 s (BC7) / 1 s (BC3) / 0.7 s (BC1) with numpy, ≈ 30 s / 6 s / 5 s without.
   `--fmt RGBA8` keeps the old lossless path (4 B/px: a 512² tile grows from 264 KB to 1 MB
   and needs a loose override or bundle repack; the container's DESC size, `_RLT` offset and
-  per-frame pointers are patched — docs/09 §3). **The PNG may have another size**: the loader
+  per-frame pointers are patched). **The PNG may have another size**: the loader
   reads only format / width / height / level 0 (the graphics driver builds the mipmaps), so
   the container is rebuilt around the new size and the tools say what the change does in
   game — a sprite with its own quad data keeps its on-screen size (a new aspect ratio
@@ -1218,14 +1214,12 @@ print(man.find_file("rf3.mc"))            # -> ('bundlePatch1.mbundle', {'size':
   (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game). The embedded BNTX is loaded by the same code as `.texture`
   (`GfxCTR_Model_BuildFromResource` hands it to `SpriteResourceRegistry_AcquireSlotForBfres`,
   RF4S.exe+0x1B5595), which reads only each BRTI's format / width / height / mip-0 pointer,
-  so nothing else in the container needs touching — docs/09 §4.
+  so nothing else in the container needs touching.
 - **Mesh editing**: `.model` geometry is read (OBJ / glTF export, preview renders, the map
   editor's scenery layer) **and written back** — shape geometry from OBJ (skin weights
   copied from the nearest original vertex) or from Blender's glTF (with the painted bone
   weights), new shapes (up to 32), hidden shapes, bone rest-pose moves and material
   settings (statically verified, not yet tried in game). Not possible: new materials or
   textures, a different skin type, new or re-parented bones. The format is not stock
-  BFRES -- the blocks are renamed and shifted -- so generic BFRES tools do not open it
-  (docs/09 §4).
-- **Save files** (`rf4_sNN.sav`) are handled by `rf4mod save` and the existing
-  [`tools/save_editor/rf4s_save_editor.py`](../save_editor/rf4s_save_editor.py).
+  BFRES -- the blocks are renamed and shifted -- so generic BFRES tools do not open it.
+- **Save files** (`rf4_sNN.sav`) are handled by `rf4mod save`.

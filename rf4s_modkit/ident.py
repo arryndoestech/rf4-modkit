@@ -2,8 +2,7 @@ r"""
 ident.py -- identify RF4S asset files by magic bytes.
 
 Every extension that ships in the bundles is covered. Magic bytes were sampled
-directly from the extracted corpus and cross-checked against the loader code
-(see docs/09-file-formats.md / docs/15-modding-toolkit.md).
+directly from the extracted corpus and cross-checked against the loader code.
 
 `identify(data)` returns a FileType describing the format, the modkit module that
 handles it (if any), and whether the toolkit can rewrite it.
@@ -145,7 +144,7 @@ def identify(data: bytes, *, filename: str | None = None) -> FileType:
     if ext == "sav":
         return FileType("sav", "Bundled scenario preset save (AS_*/JM_*/E3_DEMO)",
                         "save", None, False,
-                        "raw RF4 save image (CRC32 first); use rf4s_save_editor.py")
+                        "raw RF4 save image (CRC32 first); use rf4mod save")
     if ext == "bdat":
         return FileType("bdat", "Audio metadata table (pairs with voice bundles)",
                         "binary", None, False, "format not REd")

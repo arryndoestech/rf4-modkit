@@ -511,7 +511,7 @@ def problems(em):
     n = len(em.entries)
     names = em.names
     from .emflags import GAMEFLAGS_BITS_TOTAL
-    total_bits = GAMEFLAGS_BITS_TOTAL          # g_gameFlagsBuffer: zone 1 + zone 2 (docs/19 3)
+    total_bits = GAMEFLAGS_BITS_TOTAL          # g_gameFlagsBuffer: zone 1 + zone 2
 
     def check_operand(e, path, o, what):
         if o is None:

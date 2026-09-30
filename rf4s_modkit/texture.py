@@ -60,8 +60,8 @@ the header file-size fields are not read by the fixup, but they are kept consist
 
 Decoding (BC1/2/3/BC7) uses the optional `texture2ddecoder` package; raw color formats
 (RGBA8 / RGBA4444 / ABGR1555 / GL_RED) are decoded natively. Decoded images are rotated
-90deg CCW to match in-game orientation (the atlas is stored sideways -- see docs/09 s3 on
-the UV swap); encode applies the inverse rotation so decode->edit->encode is
+90deg CCW to match in-game orientation (the atlas is stored sideways: the
+UV swap); encode applies the inverse rotation so decode->edit->encode is
 orientation-stable.
 
 Encode: `encode_into` accepts ANY shipped .texture as template. The default (fmt=None or
@@ -102,7 +102,7 @@ Size in game (static survey of RF4S.exe, 2026-09-27; `size_warnings` turns it in
 
 BNTX inside .model: `bntx_info` walks the embedded container's BRTI pointer array (all
 offsets relative to the BNTX start), `decode_bntx` decodes one texture, `bntx_replace`
-splices a same-size re-encoded payload over the original level-0 bytes (see docs/09 s4) or,
+splices a same-size re-encoded payload over the original level-0 bytes or,
 for another size / payload size, rebuilds the BNTX with `_rebuild` -- a bare BNTX is the same
 container (BRTI = PIXL, BRTD = DESC, same offsets; _RLT offset at +0x18, file size +0x1C,
 +0x0C is the byte-order mark) -- and hands it to modelwrite.replace_embedded_file. 1,853 of
@@ -533,7 +533,7 @@ def bntx_replace(data: bytes, index: int, png, *, fmt: str | None = None) -> byt
     Same size and same payload size: IN PLACE -- the new level-0 bytes overwrite the old ones
     at data_off and only the BRTI format code (+0x1C) changes with the format; the mip
     pointer, image size, mip count, name, _DIC and both relocation tables are left untouched
-    (nothing else is read for the upload -- docs/09 s4). A block-linear (tileMode != 1)
+    (nothing else is read for the upload). A block-linear (tileMode != 1)
     texture is rewritten linear in its slot and its BRTI tile mode / image size set to match
     (the loader ignores both and uploads the slot linearly).
 

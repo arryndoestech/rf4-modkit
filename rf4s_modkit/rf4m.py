@@ -1315,7 +1315,7 @@ class Rf4mMap:
             stream += c.tag + struct.pack("<I", len(c.payload)) + c.payload
         # The MAPD size word is the TOTAL FILE SIZE (the walk bound
         # `buffer + buffer[4]` in Map_LoadById), i.e. 8 + chunk-stream length --
-        # NOT file_size-8. (docs/09 §2's "file_size - 8" is wrong; see docs/15.)
+        # NOT file_size-8.
         return MAGIC + struct.pack("<I", 8 + len(stream)) + bytes(stream)
 
     def save(self, path):

@@ -4,7 +4,7 @@ search_items.py -- RF4S `SI_*.bin` "search-item spot" tables (daily ground picku
 `SI_DUNG_*.bin`, `SI_FIELD_*.bin`, `SI_CITY_*.bin` (288 files in bundleMain) are
 per-map tables of "search spots": candidate positions where the engine may place a
 visible ground item each day -- the random pickups you find lying around town,
-fields and dungeons. (Earlier docs called these "interact-to-rummage" spots; the
+fields and dungeons. (They are not "interact-to-rummage" spots: the
 IDA-verified consumer shows they are spawned as ordinary visible item drops.)
 
 Engine chain (IDA-verified 2026-06-10)

@@ -22,7 +22,7 @@ Usage:
     python world_stitch.py --px 12 --min-comp 4   # bigger scale, skip tiny clusters
     python world_stitch.py --out C:/some/dir
 
-Outputs into --out (default tools/modding/world_out):
+Outputs into --out (default world_out/ next to this script):
     world_<family-set>_<N>.png   one per connected component (largest first)
     world_<family-set>_<N>.json  placements: {map: {x,y,w,h}} in tiles
 """
@@ -41,7 +41,6 @@ from rf4s_modkit import rf4m, mapground  # noqa: E402
 
 from PIL import Image
 
-REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 from rf4s_modkit import gamepaths  # noqa: E402
 BUNDLE = gamepaths.bundle_dir()
 ROOMS_CSV = [

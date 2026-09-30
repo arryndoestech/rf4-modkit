@@ -22,9 +22,8 @@ map_names     map id -> in-game name / MAP_* file; HUD location-band rules.
 minimap       map id -> mini_map_* picture, save-state swaps, placement (rf3MapMiniPos).
 res_container RES\\0 / BFRES / BNTX / PSB generic header walker + identifier.
 
-Everything here is grounded in the RF4S.exe loader code (see docs/09-file-formats.md
-and docs/15-modding-toolkit.md). Each module names the IDA function it was verified
-against.
+Everything here is grounded in the RF4S.exe loader code. Each module names the IDA
+function it was verified against.
 """
 
 __version__ = "1.0.0"

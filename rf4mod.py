@@ -14,7 +14,7 @@ Run `rf4mod <group> -h` for per-group help. Start with:
     rf4mod bundle list bundlePatch1.mbundle
     rf4mod text show bundleMain.mbundle/rf3mc.eng --range 0:20
 
-Install methods (see docs/15-modding-toolkit.md):
+Install methods:
   * loose file  -> `rf4mod install` (recommended; no repack)
   * in place    -> `rf4mod bundle patch` (same-or-smaller size)
   * repack      -> `rf4mod bundle add` / `rebuild` (updates Manifest.plist)
@@ -32,12 +32,9 @@ from rf4s_modkit import (  # noqa: E402
     mobj_types, script, emscript, asatk,
 )
 
-# Reference name tables are VENDORED in modding/refdata/ (self-contained share);
-# a full workspace's tools/ copies act as fallbacks (rf4s_modkit.refdata).
+# Reference name tables are VENDORED in refdata/ (rf4s_modkit.refdata).
 from rf4s_modkit.refdata import refdata_path as _refdata_path
 
-# Repo root = two levels up from tools/modding/. Bundle dir + extracted dir.
-REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 # The game copy's Bundle folder the user chose (rf4s_modkit.gamepaths); `rf4mod.py game
 # <folder>` sets it, the GUI asks for it on the first start.
 from rf4s_modkit import gamepaths  # noqa: E402
@@ -413,7 +410,7 @@ def cmd_text_decode(a):
 
 
 def _text_issues(strings, levels=("error",)):
-    """[(index, Issue)] for the given strings (rf4s_modkit.textlint, docs/48)."""
+    """[(index, Issue)] for the given strings (rf4s_modkit.textlint)."""
     from rf4s_modkit import textlint
     return [(i, x) for i, t in enumerate(strings) for x in textlint.lint(t) if x.level in levels]
 
@@ -439,7 +436,7 @@ def cmd_text_encode(a):
 
 
 def cmd_text_check(a):
-    """Every issue the game would have with an archive's lines (docs/48)."""
+    """Every issue the game would have with an archive's lines."""
     arc = textdb.TextArchive.load(_resolve(a.file))
     levels = ("error", "warning", "info") if a.all else ("error", "warning")
     found = _text_issues(arc.texts(a.enc), levels)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate docs/map_names.json -- the map-id registry: in-game name, .rf4m file, HUD-band
+"""Generate out/map_names.json -- the map-id registry: in-game name, .rf4m file, HUD-band
 notes and the minimap sheet / placement for every map id.
 
 Sources (vendored in rf4s_modkit/; the minimap table is re-baked from your bundle when found):
@@ -36,8 +36,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from rf4s_modkit import map_names, minimap  # noqa: E402
 
-REPO = pathlib.Path(__file__).resolve().parent.parent.parent      # tools/modding/../..
-DOCS = REPO / "docs"
+OUT = pathlib.Path(__file__).resolve().parent / "out"   # generated files (git-ignored)
 from rf4s_modkit import gamepaths  # noqa: E402
 BUNDLE_DIR = gamepaths.bundle_dir()
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
@@ -86,7 +85,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--minipos", help="rf3MapMiniPos.bin to bake into refdata/map_minimap.json "
                                       "(default: auto-detect under Bundle/)")
-    ap.add_argument("--out", help=f"output path (default: {DOCS / 'map_names.json'})")
+    ap.add_argument("--out", help=f"output path (default: {OUT / 'map_names.json'})")
     ap.add_argument("--no-bake", action="store_true", help="use the vendored map_minimap.json as-is")
     a = ap.parse_args(argv)
 
@@ -99,7 +98,7 @@ def main(argv=None) -> int:
               "minimap fields will be null", file=sys.stderr)
 
     table = {str(i): entry(i) for i in range(map_names.map_count())}
-    out = pathlib.Path(a.out) if a.out else DOCS / "map_names.json"
+    out = pathlib.Path(a.out) if a.out else OUT / "map_names.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(table, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     sheets = len({e["minimap"]["sheet"] for e in table.values() if e["minimap"]})

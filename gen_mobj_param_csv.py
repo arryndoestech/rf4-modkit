@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate MOBJ parameter spreadsheets from the IDA-verified mobj_params map.
 
-Writes two CSVs into docs/:
+Writes two CSVs into out/ (next to this script):
   * mobj_parameters.csv       — offset grid: one row per MOBJ type, one column per BYTE OFFSET
                                 in the 64-byte record (0x00, 0x04, ... 0x3C). Each cell says what
                                 that field is for that object, with its read width, so a row reads
@@ -17,8 +17,8 @@ import pathlib
 
 from rf4s_modkit import mobj_types as mt, mobj_params as mp
 
-DOCS = pathlib.Path(__file__).resolve().parent.parent.parent / "docs"
-DOCS.mkdir(parents=True, exist_ok=True)   # create docs/ if the checkout lacks it
+OUT = pathlib.Path(__file__).resolve().parent / "out"   # generated files (git-ignored)
+OUT.mkdir(parents=True, exist_ok=True)
 
 ids = [i for i in range(0, 420) if mt.mobj_name(i) or 0 <= i <= 19 or mp.params_for(i)]
 maxp = max((len(mp.params_for(i)) for i in ids), default=0)
@@ -43,7 +43,7 @@ def cell_for(type_id, field, pmap):
     return ""
 
 
-wide = DOCS / "mobj_parameters.csv"
+wide = OUT / "mobj_parameters.csv"
 with wide.open("w", newline="", encoding="utf-8") as f:
     w = csv.writer(f)
     w.writerow(["mobjName", "mobjID"]
@@ -56,7 +56,7 @@ with wide.open("w", newline="", encoding="utf-8") as f:
         w.writerow([name, i] + row + [mp.lane_for(i)[0], mp.role_for(i)])
 
 # ---- long / tidy ------------------------------------------------------------------
-long = DOCS / "mobj_parameters_long.csv"
+long = OUT / "mobj_parameters_long.csv"
 with long.open("w", newline="", encoding="utf-8") as f:
     w = csv.writer(f)
     w.writerow(["mobjID", "mobjName", "lane", "field", "byteOffset", "size", "meaning"])

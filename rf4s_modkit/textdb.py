@@ -5,8 +5,7 @@ The `TEXT` format is the game's universal string table. It is used both by the
 big localized catalogs that ship as bundle files (`rf3mc.eng`, `rf3mc.jpn`, ...,
 the prime translation targets) AND by the per-subsystem string archives loaded by
 numeric id through `nsFileArchive` (item names id 16356, item descriptions 16360,
-NPC/monster names 16369, dialogue, quest text, skill names, ...). See
-docs/09-file-formats.md §8 for the archive-id catalogue.
+NPC/monster names 16369, dialogue, quest text, skill names, ...).
 
 Layout (verified against the corpus and the loader, Text_CopyArchiveEntry @
 RF4S.exe+0x241310 via Text_LoadStringFromArchive @ +0x232290):

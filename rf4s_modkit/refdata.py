@@ -2,8 +2,8 @@
 
 The modding folder is SELF-CONTAINED for sharing: the name tables it needs
 (char_names.json, monster_species.json, char_models.json,
-rf4s_actor_names.json, rf4s_item_names.json) are vendored in
-tools/modding/refdata/, and only there. So are the small tables that exist only
+rf4s_actor_names.json, rf4s_item_names.json) are vendored in the
+toolkit's refdata/, and only there. So are the small tables that exist only
 inside RF4S.exe (portrait_faces.json; rf4s_exe_tables.json = chest loot, crate
 pools, area BGM, extracted by gen_exe_tables_json.py): nothing reads the exe
 at run time. The toolkit's own tables live here too: the script-op tables
@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pathlib
 
-_MODDING = pathlib.Path(__file__).resolve().parent.parent   # tools/modding/
+_MODDING = pathlib.Path(__file__).resolve().parent.parent   # the toolkit folder
 
 
 def refdata_path(name: str) -> pathlib.Path:

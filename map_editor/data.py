@@ -16,7 +16,6 @@ import struct
 from rf4s_modkit import chestloot, gamepaths, gen, map_names, script, textdb
 from rf4s_modkit.refdata import refdata_path
 
-REPO = pathlib.Path(__file__).resolve().parent.parent.parent.parent
 BUNDLE_DIR = gamepaths.bundle_dir()              # the game copy (rf4s_modkit.gamepaths)
 EXTRACTED = gamepaths.extracted_dir(BUNDLE_DIR)
 ROOMS_CSV_CANDIDATES = [

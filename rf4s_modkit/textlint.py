@@ -3,7 +3,7 @@ textlint.py -- check a game text line the way the engine will read it.
 
 The engine rewrites every string before drawing it (Text_PostProcessControlCodes,
 RF4S.exe+0x2325E0) and the font layout reads a few control bytes (NFFontLayoutDelegate
-vslot 1, +0x1B00F0). This module mirrors that grammar (docs/48-text-control-codes.md) so an
+vslot 1, +0x1B00F0). This module mirrors that grammar so an
 editor can tell, before the text reaches the game:
 
   error    -- the game can crash or cut the line off. Block the save.

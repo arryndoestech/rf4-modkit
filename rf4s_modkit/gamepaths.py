@@ -15,8 +15,7 @@ import pathlib
 
 TOOLKIT = pathlib.Path(__file__).resolve().parent.parent      # the folder holding rf4mod.py
 # the placeholder returned while no game is chosen: '<' and '>' can't be in a Windows file
-# name, so nothing is ever found under it and nothing can be written there (the old
-# <toolkit>/../../Bundle placeholder was a real game folder when the toolkit sat inside one)
+# name, so nothing is ever found under it and nothing can be written there
 NO_GAME_BUNDLE = TOOLKIT / "<no game folder chosen>" / "Bundle"
 
 

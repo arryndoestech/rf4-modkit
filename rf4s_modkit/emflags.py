@@ -21,7 +21,7 @@ emdeb.bin (magic ``EMDb``) layout used here:
 
 NOTE ON SAVE FILES: the bit_offset here is the *runtime* GameFlags bit-id. It does **not**
 map linearly to the on-disk save-file story-flag blob (the save uses a different
-serialization) -- see `docs`/memory. So this table names/locates flags for the *runtime*
+serialization). So this table names/locates flags for the *runtime*
 buffer and for the `em.bin` condition system; a save-file editor needs the (separate)
 save serialization mapping.
 """
@@ -42,7 +42,7 @@ EXTRA_FILENAME = "emdeb_extra.json"     # sidecar with modder-defined variables
 # +0 (GameFlags_TestZone2Bit, RF4S.exe+0x240F50; the calendar's festival-active bits live
 # there). New variables are therefore allocated only in the free tail of zone 1.
 GAMEFLAGS_BITS = 4096                    # end of zone 1 -- the allocatable region
-GAMEFLAGS_BITS_TOTAL = 6656              # full runtime store incl. zone 2 (docs/19 section 3)
+GAMEFLAGS_BITS_TOTAL = 6656              # full runtime store incl. zone 2
 
 # ---- zone 2 (absolute bits 4096..6655): the unnamed half -------------------------------------
 # emdeb.bin names nothing here and em.bin never references it. Every consumer adds the base
@@ -240,8 +240,8 @@ class EmFlagTable:
     # ---- modder-defined variables (sidecar emdeb_extra.json) -------------------
     # emdeb.bin is a debug symbol table the game never loads; a NEW variable is just
     # an unused bit range of the GameFlags store -- normally zone 1 (bits 3017..4095 are
-    # free in the shipped table; the save keeps the whole store, see docs/19 section 3).
-    # Zone 2 is allowed explicitly, outside the bits the game uses (docs/19 section 3b).
+    # free in the shipped table; the save keeps the whole store).
+    # Zone 2 is allowed explicitly, outside the bits the game uses.
     # The sidecar records the name so every tool -- the cutscene assembler/disassembler,
     # the em.bin condition grammar, the editors -- resolves it like a vanilla FLG_/REG_.
     def merge_extras(self, path, missing_ok=False):

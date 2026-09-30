@@ -11,6 +11,9 @@ toolkit_icon.png
 # ---- regenerated / scratch output ---------------------------------------------
 # map editor: rendered mesh images (rf4s_modkit.mobj_meshes.rasterize_cached)
 cache/
+# generator output (gen_map_names_json / gen_minimap_sheets / gen_mobj_param_csv, world_stitch)
+out/
+world_out/
 # selftest.py's cache of corpus scan results
 .selftest_cache.json
 # old backups and ad-hoc dumps

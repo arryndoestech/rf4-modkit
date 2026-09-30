@@ -95,7 +95,7 @@ class MapExplorer:
 
     def _pick_dir(self):
         d = filedialog.askdirectory(title="Folder of .rf4m maps",
-                                    initialdir=str(data.EXTRACTED if data.EXTRACTED.is_dir() else data.REPO))
+                                    initialdir=str(data.EXTRACTED if data.EXTRACTED.is_dir() else data.gamepaths.TOOLKIT))
         if d:
             self._all = sorted(pathlib.Path(d).rglob("*.rf4m"))
             self._refresh_list()

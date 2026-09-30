@@ -1913,7 +1913,7 @@ class Container:
         """Register a NEW scene trigger: add an entry to the bank's `type_id` list.
 
         `subs` = the entry's keys (ints, or (tag, value) pairs; -1 = wildcard), matched
-        by that type's engine matcher (entry_types.py / docs 18 section 3). The scene
+        by that type's engine matcher (entry_types.py). The scene
         body is either an existing pc (`event_pc`) or assembled from `listing` text
         (placed after the bank's last statement; END is added when it can fall off its
         end). `position` = index in the list (default: append; matchers take the FIRST

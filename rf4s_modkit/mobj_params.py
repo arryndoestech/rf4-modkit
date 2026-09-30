@@ -111,13 +111,13 @@ GIMMICKS = {
     22: dict(name="fe034", role="Ambient sound emitter (delegates to type-21)", params=list(_SND)),
     23: dict(name="fe035", role="Ambient sound emitter (delegates to type-21)", params=list(_SND)),
     24: dict(name="fe036", role="FISHING SPOT (zone): registers into g_fishingMngTask (16 slots); "
-                  "spot only registers while its flag is set (-1 = always). Fields per docs/13 (fishing).",
+                  "spot only registers while its flag is set (-1 = always).",
              params=[(8, 2, "max-fish cap (spot 0's value doubles as the map-wide cap)"),
                      (9, 2, "scatter radius, sub-units"),
                      (10, 2, "fast-swim flag (fish speed 200 su/f)"),
                      (11, 2, "fish_kind_seed: 0 = season/weather column, N = rate column N-1"), _DIS4]),
     25: dict(name="fe037", role="FISHING SPOT (fixed-species variant): forces one species instead of the "
-                  "season/weather table. Fields per docs/13 (fishing).",
+                  "season/weather table.",
              params=[(8, 2, "species = f8+985 when f10 == 0"), (9, 2, "scatter radius, sub-units"),
                      (10, 4, "species item id (0 = use f8+985)"), _DIS4]),
     26: dict(name="gmk00_eater", role="Animated 'eater' gimmick (frame-cycling + sfx)",
@@ -484,8 +484,7 @@ FORAGE = {
                  "weight column), spawns fully grown.", params=list(_FOR)),
     8: dict(name="gatherable", role="Spawns one chosen gatherable: the kind in f10 (a stone, stump, "
                  "herb, ore rock, crop ...; crop-range kinds spawn grown).",
-            params=_FOR + [(10, 4, "gatherable kind (0..138; its name is the game's char 459 + kind, "
-                                   "see docs/22 §1 kind table)")]),
+            params=_FOR + [(10, 4, "gatherable kind (0..138; its name is the game's char 459 + kind)")]),
 }
 
 

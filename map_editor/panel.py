@@ -47,7 +47,7 @@ def reload_hint(new_file):
     """What to do in the game to see a saved map. Overwriting a file the game already knows
     takes effect the next time the map loads; a NEW loose file (a Bundle/00_mods copy of a
     file the game only had packed) is only found once the game re-indexes its loose files,
-    i.e. after a restart (docs 15 section 1.5)."""
+    i.e. after a restart."""
     if new_file:
         return "restart the game to see it (a new file: the game looks for new files when it starts)"
     return "leave the map and enter it again to see it"

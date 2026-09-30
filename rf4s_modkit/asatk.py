@@ -16,7 +16,7 @@ chain into another move (their optional parameter pair is op 64, which has no ha
 
 Opcode meanings below were verified against every handler on 2026-09-17 (all tagged V); the
 older data-inferred table (HIT_WIN/VEL_FWD/EFFECT on op 45) was wrong in several places and is
-gone. Full write-up: docs/28-attack-move-timelines.md.
+gone.
 
 Editing (2026-09-19): `disassemble` emits a canonical `<mnemonic> <operand>` listing that
 `assemble` turns back into bytes (byte-exact for all 690 shipped files, including the two

@@ -7,7 +7,7 @@ g_monsterScriptOpcodeTable (RF4S.exe+0x4D9A00). All opcodes 0x00-0x92 are named 
 the IDB; the mnemonics below are the IDB names as re-read on 2026-09-17 (every handler
 verified from pseudocode: 0x14 backs away, 0x16 blink-teleports, 0x1E sidesteps, 0x2D waits,
 0x93/0x94 are the OR/AND connectors of condition chains). Operand meanings, units and the
-scripted-action table live in aibn_meta.py / aibn_meta.json. See docs/10-monster-ai-vm.md.
+scripted-action table live in aibn_meta.py / aibn_meta.json.
 
 Container:
     +0x00  "AIBN"          (0x4E424941 LE)

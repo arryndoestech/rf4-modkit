@@ -54,7 +54,6 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".jfif", ".gif", ".bmp", ".tif", ".tiff",
 
 from rf4s_modkit import assetcat, gamepaths  # noqa: E402
 
-REPO = pathlib.Path(__file__).resolve().parent.parent.parent
 # the game copy's Bundle folder the user chose (rf4s_modkit.gamepaths); main() asks for it
 # when none is chosen yet
 BUNDLE_DIR = gamepaths.bundle_dir()
@@ -1290,7 +1289,7 @@ class App:
 
     def cmd_open_folder(self):
         d = filedialog.askdirectory(title="Open a folder of files",
-                                    initialdir=str(EXTRACTED if EXTRACTED.is_dir() else REPO))
+                                    initialdir=str(EXTRACTED if EXTRACTED.is_dir() else gamepaths.TOOLKIT))
         if d:
             self.load_source(lambda: Source.from_folder(d))
 
@@ -5204,7 +5203,7 @@ class App:
             ttk.Label(doc.content, text="rf3route.bin is not extracted, so the matrix cannot be checked").pack(padx=6)
 
     def _view_search_items(self, name, data):
-        """SI_*.bin editor — daily ground-pickup spots (see docs/16).
+        """SI_*.bin editor — daily ground-pickup spots.
 
         Two-pane layout: SPOTS (left, position + assigned pool) and POOLS (right,
         first-class pool list + the selected pool's weighted entries). Pools can be

@@ -6,7 +6,7 @@ A `.mbundle` is a Muteki binary plist whose root is a dict
 game: bundleMain (4.7 GB), bundleMuteki, bundlePatch1, bundlePatch2,
 bundleVoiceEN, bundleVoiceJP.
 
-How the game finds files (verified in IDA -- see docs/15-modding-toolkit.md):
+How the game finds files (verified in IDA):
 
   * `Manifest.plist` = `{ "bundles": [ {bundleName, files}, ... ] }`; `files` maps
     each filename to `{ "size": N, "offset": M }`. At boot
@@ -424,8 +424,7 @@ def install_loose(game_root, filename: str, src_file, *, folder: str = MOD_FOLDE
 
 def loose_index(game_root) -> dict:
     """{file name, exact case: [paths under Bundle/, the winning one first]} the way the
-    game's `Bundle/**` index resolves them (IDB-verified, see the docs' modding-toolkit
-    chapter §1.5): each folder listing is sorted by raw bytes (case-sensitive: digits <
+    game's `Bundle/**` index resolves them (IDB-verified): each folder listing is sorted by raw bytes (case-sensitive: digits <
     upper case < '_' < lower case), sub-folders are walked where they sort, names starting
     with '.' are skipped, and the EARLIEST path of a name wins. Names are keys by their
     exact bytes -- `map_x.rf4m` and `MAP_X.rf4m` are different files to the game, and it

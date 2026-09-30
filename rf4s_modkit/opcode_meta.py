@@ -1641,7 +1641,7 @@ _M.update({
           []),
 })
 
-# ---- quest-request lifecycle ops decoded 2026-07-11 (507-536) — see docs/23 ---------
+# ---- quest-request lifecycle ops decoded 2026-07-11 (507-536) ---------------------
 _M.update({
     520: ("PostQuestGoalNumber", "quest",
           "Post a request-box GOAL-NUMBER quest (slot kind 8): an objective with NO target "
@@ -3309,7 +3309,7 @@ for _op, _tech in TECHNICAL.items():
         continue
     # quest-request populate family: PopulateQuestRequestKind<N><shape>
     # These runtime ops fill the current NPC's daily quest-request slot with a randomized
-    # "bring/craft/defeat" request built from template KIND N (see docs/23). The handler name
+    # "bring/craft/defeat" request built from template KIND N. The handler name
     # encodes the kind + the specifics (RandomCats / LiteralAlternates / TwoItems / Backref …).
     _qk = re.search(r"PopulateQuestRequestKind(\d+)(\w*)", _tech)
     if _qk:
@@ -3323,12 +3323,11 @@ for _op, _tech in TECHNICAL.items():
         # roll from categories (and some shapes -- SimpleNoAlts/TwoArgsNoItem -- carry no alts).
         if "Literal" in _qk.group(2):
             _d += (" A runtime quest generator whose alternate objective items are the EXPLICIT "
-                   "literal item ids passed as args (stored verbatim — NO random category roll). "
-                   "See docs/23.")
+                   "literal item ids passed as args (stored verbatim — NO random category roll).")
         else:
             _d += (" A runtime quest generator: rolls the objective item(s)/counts from the "
                    "request template (plus alternate items from categories where this shape has "
-                   "them). See docs/23. Args are template-specific (item ids and category ids).")
+                   "them). Args are template-specific (item ids and category ids).")
         # keep the handler's shape suffix in the mnemonic (WithRandomCats / WithLiteralAlternates
         # / ChainedRandom / Backref… ) -- different shapes are DIFFERENT handlers doing different
         # things, so collapsing them all to "PopulateQuestKind<N>" made distinct ops indistinguishable
@@ -3997,7 +3996,7 @@ def motion_range_for_anim(anim_id):
 # From bank 292 tail44 scene@0x023c prompt@0x032a `＊Debug Start` menu -- each
 # branch writes var:0x8000 to a specific value. These are the QA fast-forward
 # points; every ScriptedBeat in the QA test menu also STOREs var:0x8000 to a
-# specific number right before firing (see docs/21 "Rosetta Stone IV").
+# specific number right before firing.
 STORY_CHECKPOINTS = {
     # Debug-Start menu values (bank 292 tail44 pc@0x032a) -- 7 canonical fast-forwards
     0:   "Opening (post-OP done)",
@@ -4323,7 +4322,7 @@ for _cop2, _cmeta in META.items():
 # Engine resolution (Actor_RecomputeAllStats, RF4S.exe+0xAD440, IDA-verified 2026-08-18):
 #   model_toc = rf3NpcParam[+272] + (12584 if 48 <= rf3NpcParam[+256] <= 253 else 933)
 # where 933 = the rom:/chr block and 12584 = the rom:/mons block of the engine's baked filename
-# TOC (RF4S.exe .rdata +0x57AD30, 18179 x 256B UTF-16). tools/rf4_refdata/char_models.json is
+# TOC (RF4S.exe .rdata +0x57AD30, 18179 x 256B UTF-16). refdata/char_models.json is
 # generated from exactly that data (names from char_names.json); loaded here so the disassembly
 # and picker show "331=Captain [NPC_TRAVELER_M2]" instead of a bare number.
 def _load_char_models():
