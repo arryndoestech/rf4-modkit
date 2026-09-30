@@ -70,6 +70,23 @@ class SceneText:
                     return None
         return None
 
+    def choice_results(self, st):
+        """script.choice_results for a choice of this scene: None (reg0 untouched: no mask
+        before it) or [(option index, shown True / False / None)]."""
+        try:
+            stmts = list(self.scene.stmts.values())
+            idx = next(i for i, s in enumerate(stmts) if s.pc == st.pc)
+            return script.choice_results(self.bank.data, stmts, idx)
+        except Exception:  # noqa: BLE001 -- display aid only
+            return None
+
+    @staticmethod
+    def reg0_text(results, k):
+        """' (reg0 = k)' for a masked menu's option k ('hidden' when the mask hides it)."""
+        if results is None or k >= len(results):
+            return ""
+        return "  (reg0 = %d%s)" % (k, ", hidden" if results[k][1] is False else "")
+
     def choice_options(self, st):
         """[(option index, line id, target pc)] of a PROMPT_CHOICE(_FORCED)."""
         cancel = st.mnem == "PROMPT_CHOICE"
@@ -100,9 +117,11 @@ class SceneText:
             if (st.mnem == "PROMPT_CHOICE" and st.code_targets and opts
                     and st.code_targets[0] != opts[-1][2]):   # the never-taken slot, if unusual
                 parts.append(f"CANCEL->{self.target(st.code_targets[0])}")
-            for _k, item, tgt in self.choice_options(st):
+            res = self.choice_results(st)
+            for k, item, tgt in self.choice_options(st):
                 txt = (self.dlg(item) or "").replace("\n", " / ")
-                parts.append((f'"{txt[:60]}"' if txt else f"#{item}") + f"->{self.target(tgt)}")
+                parts.append((f'"{txt[:60]}"' if txt else f"#{item}") + f"->{self.target(tgt)}"
+                             + self.reg0_text(res, k).replace("  ", " "))
             return f"{head}{st.mnem}{cond}  " + " | ".join(parts)
         tg = ", ".join(self.target(t) for t in st.code_targets if t is not None)
         extra = f" {st.items[0]}" if st.mnem == "FRAME" and st.items else ""
@@ -267,14 +286,19 @@ class SceneText:
             segs = [("set ", "flow"), (cond, "cond")]
         elif m in CHOICE_OPS:
             head = "choice"
-            if m == "PROMPT_CHOICE" and st.code_targets:
-                head += " (cancel → %s)" % self.target(st.code_targets[0])
+            opts = self.choice_options(st)
+            if (m == "PROMPT_CHOICE" and st.code_targets and opts
+                    and st.code_targets[0] != opts[-1][2]):     # the never-taken slot, if unusual
+                head += " (cancel slot → %s, never taken)" % self.target(st.code_targets[0])
+            res = self.choice_results(st)
+            if res is not None:
+                head += " — the pick goes to reg0"
             rows.append(Row(addr(pc, st) + ind + [(head + ":", "flow")], key, st))
-            for k, item, tgt in self.choice_options(st):
+            for k, item, tgt in opts:
                 txt = self.dlg(item)
                 rows.append(Row(addr(pc, st, cont=True) + ind + [("      ▹ ", "flow"),
                                                    (("“%s”" % txt.replace("\n", " ⏎ ")) if txt is not None else "#%d" % item, "dlg"),
-                                                   ("  → %s" % self.target(tgt), "flow")],
+                                                   ("  → %s%s" % (self.target(tgt), self.reg0_text(res, k)), "flow")],
                                 (pc, k), st))
             return speaker
         elif m in ("SWITCH", "SWITCH_CLAMP"):

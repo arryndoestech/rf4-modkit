@@ -2171,6 +2171,33 @@ def disassemble_bank(bank, discover=True):
     return scenes
 
 
+def is_real_statement(st):
+    """An action, a dialogue line, a CALL or a menu -- not just flow (RET / JMP / FRAME ...)."""
+    return st.op < 0xFFF0 or st.mnem in ("DIALOG", "CALL", "PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")
+
+
+def unreached(scenes):
+    """[(scene, own pcs)] for the unregistered (discovered) scenes of one bank, judged by their
+    OWN code: the statements no registered scene reaches (nor an earlier row). A discovered
+    walk follows its jumps into code a registered scene already runs (MAP_F_ROOM_00's lone
+    `JMP` at 0x01aa leads into the whole Prince Points menu), so a row whose own code holds
+    nothing real (is_real_statement) is left out; its bytes stay where they are. `scenes` =
+    disassemble_bank(bank)."""
+    covered = set()
+    for sc in scenes:
+        if sc.action_type >= 0:
+            covered |= set(sc.stmts)
+    out = []
+    for sc in scenes:
+        if sc.action_type >= 0:
+            continue
+        own = [pc for pc in sc.stmts if pc not in covered]
+        if any(is_real_statement(sc.stmts[pc]) for pc in own):
+            out.append((sc, own))
+            covered |= set(own)
+    return out
+
+
 def iter_scenes(container, discover=True):
     """Yield every Scene in the container (all banks, all entry points)."""
     for bk in container.banks:
@@ -2437,6 +2464,28 @@ def _const_arg(buf, off):
         return None
 
 
+def _code_touches_mask(by_pc, start, _depth=0):
+    """True when the code reached from `start` (following jumps and nested CALLs, within the
+    decoded statements `by_pc`) runs a choice-visibility-mask op (610 / 611 / 612)."""
+    seen, stack = set(), [start]
+    while stack:
+        pc = stack.pop()
+        if pc in seen or pc not in by_pc:
+            continue
+        seen.add(pc)
+        st = by_pc[pc]
+        if st.op in (610, 611, 612):
+            return True
+        if st.mnem == "CALL":
+            if _depth < 8 and st.code_targets and _code_touches_mask(by_pc, st.code_targets[0], _depth + 1):
+                return True
+        else:
+            stack.extend(t for t in st.code_targets if t is not None)
+        if st.falls_through and not st.terminator:
+            stack.append(pc + st.size)
+    return False
+
+
 def _static_choice_mask(buf, stmts, idx, joins):
     """Visibility-mask bits the ops right before stmts[idx] leave KNOWN: {bit: 0/1}.
 
@@ -2453,14 +2502,27 @@ def _static_choice_mask(buf, stmts, idx, joins):
     j = idx - 1
     while j >= 0:
         s = stmts[j]
-        if s.op >= 0xFFF0 or s.pc + s.size != stmts[j + 1].pc:
+        # control ops that don't touch the mask are stepped over (the shipped idiom often
+        # sets the bits, then CALLs a helper or shows a line, then prompts)
+        if (s.op >= 0xFFF0 and s.mnem not in ("CALL", "DIALOG", "EVAL", "FRAME")) \
+                or s.pc + s.size != stmts[j + 1].pc:
             break
         run.append(s)
         if s.pc in joins:
             break
         j -= 1
     known, touched = {}, False
+    by_pc = None
     for s in reversed(run):
+        if s.mnem == "CALL":
+            # a helper that sets the mask itself (the shipped menus often do): the bits are
+            # then not known statically, but reg0 does get the pick
+            if by_pc is None:
+                by_pc = {x.pc: x for x in stmts}
+            if s.code_targets and _code_touches_mask(by_pc, s.code_targets[0]):
+                touched = True
+                known = {}
+            continue
         vals = [_const_arg(buf, a) for a in s.args]
         if s.op == 610:
             touched = True
@@ -2493,6 +2555,59 @@ def _static_choice_mask(buf, stmts, idx, joins):
                 else:
                     known[b] = 1 if val else 0
     return known, touched
+
+
+def _mask_set_on_a_path(stmts, idx):
+    """True when some path back from the choice at stmts[idx] -- through jumps, branches and
+    their rejoin points, up to the scene start or an earlier choice (a choice clears the mask)
+    -- runs a visibility-mask op, directly or in a CALLed helper. The shipped shop menus set
+    the mask, branch to one of three helpers, rejoin, then prompt."""
+    by_pc = {x.pc: x for x in stmts}
+    preds = {}
+    for x in stmts:
+        if x.falls_through and not x.terminator and x.pc + x.size in by_pc:
+            preds.setdefault(x.pc + x.size, []).append(x.pc)
+        if x.mnem != "CALL":
+            for t in x.code_targets:
+                if t is not None:
+                    preds.setdefault(t, []).append(x.pc)
+    seen, stack = set(), list(preds.get(stmts[idx].pc, ()))
+    while stack:
+        pc = stack.pop()
+        if pc in seen:
+            continue
+        seen.add(pc)
+        st = by_pc[pc]
+        if st.op in (610, 611, 612):
+            return True
+        if st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+            continue                      # that menu consumed (cleared) any earlier mask
+        if st.mnem == "CALL" and st.code_targets and _code_touches_mask(by_pc, st.code_targets[0]):
+            return True
+        stack.extend(preds.get(pc, ()))
+    return False
+
+
+def choice_results(buf, stmts, idx):
+    """What the choice at stmts[idx] writes to reg0. None when no visibility-mask op (610 /
+    611 / 612) comes right before it: the game then leaves reg0 UNTOUCHED and only the jump
+    target tells the options apart. Otherwise [(option index k, shown)] -- the pick's reg0 is
+    k (its ORIGINAL index, SceneEvent_FinalizeAndPickFromBitmap RF4S.exe+0x1F49C0) and shown
+    is True / False (the mask shows / hides the option) or None (not known statically)."""
+    st = stmts[idx]
+    joins = set()
+    for s0 in stmts:
+        joins.update(t for t in s0.code_targets if t is not None)
+    known, touched = _static_choice_mask(buf, stmts, idx, joins)
+    if not touched:
+        if not _mask_set_on_a_path(stmts, idx):
+            return None
+        known = {}                        # set further back (branches rejoin): bits unknown
+    out = []
+    for k in range(min(len(st.items), MAX_CHOICE_OPTIONS)):
+        v = known.get(k)
+        out.append((k, None if v is None else bool(v)))
+    return out
 
 
 def choice_problems(buf, stmts, text_count=None):

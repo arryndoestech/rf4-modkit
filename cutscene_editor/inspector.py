@@ -472,8 +472,15 @@ class Inspector(ScrollFrame):
         self._header("Choice (%d options)" % len(st.items or ()), st,
                      "Shows a choice menu and jumps to the picked option's target")
         self.primary = None
+        res = txt.choice_results(st)
+        if res is not None:
+            hint(f, "A visibility mask is set right before this menu, so picking an option also "
+                    "writes its number (counted from 0, hidden options included) to reg0 -- "
+                    "scenes then usually SWITCH on reg0. Without a mask reg0 is left as it was.",
+                 wrap=340).pack(anchor="w", padx=8, pady=(4, 0))
         for k, item, tgt in txt.choice_options(st):
-            box = section(f, "Option %d" % (k + 1) + ("  (selected)" if option == k else ""))
+            box = section(f, "Option %d" % (k + 1) + txt.reg0_text(res, k)
+                          + ("  (selected)" if option == k else ""))
             tv = tk.StringVar(value=(app.doc.text(item) or ""))
             e = commit_entry(box, tv, lambda item=item, tv=tv: (app.doc.text(item) is not None
                                                                 and tv.get() != app.doc.text(item)

@@ -1079,14 +1079,14 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                     t = st.code_targets[k + 1] if k + 1 < len(st.code_targets) else None
                     parts.append("#%d -> %s" % (item, tgt(t)))
                 body = "PROMPT_CHOICE " + ", ".join(parts)
-                note = _choice_note(st.items, dialog) if comments else ""
+                note = _choice_note(st.items, dialog, _choice_results(scene, bank, pc)) if comments else ""
             elif mn == "PROMPT_CHOICE_FORCED":
                 parts = []
                 for k, item in enumerate(st.items):
                     t = st.code_targets[k] if k < len(st.code_targets) else None
                     parts.append("#%d -> %s" % (item, tgt(t)))
                 body = "PROMPT_CHOICE_FORCED " + ", ".join(parts)
-                note = _choice_note(st.items, dialog) if comments else ""
+                note = _choice_note(st.items, dialog, _choice_results(scene, bank, pc)) if comments else ""
             else:
                 body = mn
         line = "    %s%s" % (addr, body)
@@ -1118,17 +1118,34 @@ def _cond_text(buf, off):
     return "(%s)" % t
 
 
-def _choice_note(items, dialog):
-    if dialog is None:
+def _choice_results(scene, bank, pc):
+    """script.choice_results for the choice at pc of `scene` (None: reg0 untouched)."""
+    try:
+        stmts = list(scene.stmts.values())
+        idx = next(i for i, s in enumerate(stmts) if s.pc == pc)
+        return script.choice_results(bank.data, stmts, idx)
+    except Exception:  # noqa: BLE001 -- a comment aid only
+        return None
+
+
+def _choice_note(items, dialog, results=None):
+    """The options' text for the listing comment; with `results` (script.choice_results, a
+    menu behind a visibility mask) each also says the reg0 its pick writes."""
+    if dialog is None and results is None:
         return ""
     out = []
-    for it in items:
+    for k, it in enumerate(items):
         try:
-            s = dialog(it)
+            s = dialog(it) if dialog is not None else None
         except Exception:
             s = None
-        if s:
-            out.append('"%s"' % s.replace("\n", " / ").replace('"', "'")[:40])
+        txt = ('"%s"' % s.replace("\n", " / ").replace('"', "'")[:40]) if s else "#%d" % it
+        if results is not None and k < len(results):
+            shown = results[k][1]
+            txt += " (reg0=%d%s)" % (k, "" if shown is not False else ", hidden")
+        elif not s:
+            continue
+        out.append(txt)
     return " | ".join(out)
 
 
