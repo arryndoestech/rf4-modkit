@@ -27,7 +27,7 @@ class ObjectsTab(ttk.Frame):
 
     GROUPS = (("mobj", "Entities"), ("param", "Map parameters"), ("warp", "Warps"),
               ("runtime", "Built into the game (read only)"),
-              ("si", "Search spots"), ("gate", "Monster gates"), ("spawn", "Script NPCs"))
+              ("si", "Search spots"), ("gate", "Monster gates"), ("spawn", "Script spawns"))
 
     def __init__(self, parent, ed):
         super().__init__(parent)
@@ -59,7 +59,7 @@ class ObjectsTab(ttk.Frame):
         self._syncing = False
         hint(self, "Double-click opens the Inspector; Del or right-click > Delete removes the "
                    "selected object (Ctrl+Z undoes it) -- also objects the map view does not show. "
-                   "Script NPCs appear once the 'script NPCs' layer is on (View tab); clicking one "
+                   "Script spawns appear once the 'script spawns' layer is on (View tab); clicking one "
                    "opens its script line.").pack(anchor="w", padx=4, pady=4)
 
     def rebuild(self):
@@ -103,7 +103,8 @@ class ObjectsTab(ttk.Frame):
             lab = "gate position" if kind == "gpos" else "monster point"
             rows["gate"].append(((kind, off), f"{lab}  ({len(users)} gate(s))", f"({x >> 3}, {y >> 3})"))
         for i, sp in enumerate(self.ed.view.st.spawns or ()):
-            rows["spawn"].append((("spawn", i), f"{sp['name']}  (inst {sp['instance']})",
+            what = "object" if sp.get("kind") == "entity" else f"inst {sp['instance']}"
+            rows["spawn"].append((("spawn", i), f"{sp['name']}  ({what})",
                                   f"({sp['x'] >> 3}, {sp['y'] >> 3})"))
         for g, lab in self.GROUPS:
             items = [r for r in rows[g] if ok(r[1] + " " + lab)] if words else rows[g]
@@ -157,7 +158,7 @@ class ObjectsTab(ttk.Frame):
                                 "zone; the room it leads to is an ordinary map you can edit.",
                                 parent=self)
         elif key is not None and key[0] == "spawn":
-            self.ed.status("Script NPCs are placed by the map's event script, not the map file")
+            self.ed.status("Script spawns are placed by the map's event script, not the map file")
         else:
             self.ed.status("Group headings cannot be deleted")
 
@@ -1395,7 +1396,7 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "dest", "warp destinations", 7, 1)
         cb(L, "si", "search spots", 8, 0, render.SI_COLOR)
         cb(L, "gates", "monster gates", 8, 1, render.GATE_COLOR)
-        cb(L, "spawns", "script NPCs", 9, 0, render.SPAWN_COLOR)
+        cb(L, "spawns", "script spawns", 9, 0, render.SPAWN_COLOR)
         cb(L, "grid", "tile grid lines", 9, 1)
         ui.Tip(cb(L, "stamps", "object collision", 10, 0, render.STAMP_COLOR),
                "Hatched: the tiles the placed objects (trees, rocks, stones ...) stamp into the "
@@ -1413,7 +1414,8 @@ class ViewTab(ui.ScrollFrame):
                    "explanation no longer pops up whenever the mouse passes over them. Off (the "
                    "default): hold Shift over one to see it -- the status line says when the "
                    "pointer is on one. On: it pops up on hover like the objects' tooltips.")
-        hint(L, "Script NPCs are placed by the map's event script (rf3.mc), not the map file; the "
+        hint(L, "Script spawns are placed by the map's event script (rf3.mc), not the map file: "
+                "NPCs (round) and map objects (square, drawn with their sprite); the "
                 "first time they are shown the script is scanned.", wrap=300).grid(
             row=12, column=0, columnspan=4, sticky="w", pady=(2, 0))
         # ---- flag state ----

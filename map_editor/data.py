@@ -13,7 +13,7 @@ import pathlib
 import re
 import struct
 
-from rf4s_modkit import chestloot, gamepaths, gen, map_names, script, textdb
+from rf4s_modkit import chestloot, gamepaths, gen, map_names, mobj_types, script, textdb
 from rf4s_modkit.refdata import refdata_path
 
 BUNDLE_DIR = gamepaths.bundle_dir()              # the game copy (rf4s_modkit.gamepaths)
@@ -870,7 +870,16 @@ def script_spawns(name, container=None):
     out = []
     for sc in scenes:
         for pc, st in sc.stmts.items():
-            if st.op >= 0xFFF0 or script.opcode_mnemonic(st.op) not in SPAWN_OPS:
+            if st.op >= 0xFFF0:
+                continue
+            mn = script.opcode_mnemonic(st.op)
+            if mn == ENTITY_OP:
+                ent = _entity_spawn(bank, st)
+                if ent is not None:
+                    ent.update(entry_pc=sc.entry_pc, pc=pc)
+                    out.append(ent)
+                continue
+            if mn not in SPAWN_OPS:
                 continue
             try:
                 v = [int(script.arg_repr(bank.data, a), 0) for a in st.args[:4]]
@@ -879,10 +888,39 @@ def script_spawns(name, container=None):
             if len(v) < 4:
                 continue
             cid, inst, x, y = v
-            out.append({"char_id": cid, "instance": inst,
+            out.append({"kind": "actor", "char_id": cid, "instance": inst,
                         "name": char_name(cid) or f"char#{cid}",
                         "x": x, "y": y, "entry_pc": sc.entry_pc, "pc": pc})
     return bi, out
+
+
+# op 157 SpawnMapEntity(type, x, y, facing, param, e1..e6) builds the same 16-word record a
+# .rf4m MOBJ is (ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable, RF4S.exe+0x213E20):
+# w0 = type, w14/w15 = x/y in sub-units, w6 = param*40 (the f6 scale: 100 ~ 1:1),
+# w7 = facing*182, w8..w13 = e1..e6, the rest 0; then it calls the map loader's spawners.
+ENTITY_OP = "SpawnMapEntity"
+
+
+def _entity_spawn(bank, st):
+    """The map object a SpawnMapEntity statement places, as a spawn dict with a decoded
+    MOBJ entry under "obj", or None when its type or position is computed."""
+    try:
+        v = [int(script.arg_repr(bank.data, a), 0) for a in st.args[:11]]
+    except (ValueError, TypeError):
+        return None
+    if len(v) < 3:
+        return None
+    v += [0] * (11 - len(v))
+    t, x, y, facing, param = v[:5]
+    rec = [t, 0, 0, 0, 0, 0, param * 40, (facing * 182) & 0xFFFFFFFF] + v[5:11] + [x, y]
+    rec[7] = rec[7] - (1 << 32) if rec[7] >= 1 << 31 else rec[7]
+    tid = t & 0xFFFF
+    obj = {"type_id": t, "category": mobj_types.mobj_kind(tid), "name": mobj_types.mobj_name(tid),
+           "archive_id": mobj_types.mobj_archive_id(tid), "scale": rec[6] / 4096.0,
+           "orientation_deg": (rec[7] % 65536) * 360.0 / 65536.0,
+           "pos_x": x, "pos_y": y, "params": rec}
+    return {"kind": "entity", "type_id": t, "instance": None,
+            "name": mobj_types.mobj_display_name(tid) or f"MOBJ {tid}", "x": x, "y": y, "obj": obj}
 
 
 # ---- slot saves (for the "show objects as in" flag source) -------------------- #

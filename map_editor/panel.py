@@ -1278,7 +1278,7 @@ class MapEditorPanel:
         if self.doc is None or self._spawns_for is self.doc:
             return
         if not quiet:
-            self.status("Scanning this map's event script for NPC spawns…")
+            self.status("Scanning this map's event script for spawns…")
             self.frame.update_idletasks()
         bank, spawns = data.script_spawns(self.doc.base)
         self._spawns_for = self.doc
@@ -1288,7 +1288,7 @@ class MapEditorPanel:
         # set_map scheduled, while the spawn list was still empty
         self.view.invalidate("spawn")
         if not quiet:
-            self.status(f"{len(spawns)} script-placed NPC(s) on this map" if bank is not None
+            self.status(f"{len(spawns)} script-placed NPC(s) / object(s) on this map" if bank is not None
                         else "No event script found for this map")
         self._schedule("objects")
 
@@ -1300,7 +1300,8 @@ class MapEditorPanel:
             self.status(f"{sp['name']}: no cutscene editor available here")
             return
         bi, epc, pc = self._spawn_bank, sp["entry_pc"], sp["pc"]
-        self.status(f"{sp['name']} (instance {sp['instance']}) → event bank {bi}, line @0x{pc:04x}")
+        what = "object" if sp.get("kind") == "entity" else f"instance {sp['instance']}"
+        self.status(f"{sp['name']} ({what}) → event bank {bi}, line @0x{pc:04x}")
         ui.later(self.frame, lambda: self.on_open_scene(bi, epc, pc))
 
     # ------------------------------------------------------------------ #

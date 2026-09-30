@@ -2146,6 +2146,13 @@ def test_mobj_types():
            and mobj_types.mobj_reads_scale(44) and not mobj_types.mobj_reads_scale(120)
            and mobj_types.mobj_f7_kind(29) == "angle" and mobj_types.mobj_f7_kind(300) == "frame"
            and mobj_types.mobj_f7_kind(51) is None)
+    # MapDecoration_ApplyVariantOverride: the MAP_FIELD_69 bridge railing (353) moves 289 quad
+    # units down onto its painted railing; its x scale is fixed (a negative f6 doesn't mirror it)
+    rail = {"type_id": 353, "pos_x": 336, "pos_y": 173, "params": [353, 0, 0, 0, 0, 0, -8192, 0]}
+    _rr = _sq.world_rect(rail, (-512.0, -384.0, 512.0, 384.0))
+    _check("per-type quad overrides: the bridge railing drops 289 quad units, x scale fixed",
+           abs(_rr[0] - (336 - 512 / 3)) < 1e-6 and abs(_rr[1] - (173 + (289 - 384) * 2 / 3)) < 1e-6
+           and not _sq.mirrored(rail), str(_rr))
     from rf4s_modkit import mobj_params as _mp
     _check("MOBJ parameters traced through the ticks (chandelier, storm, fall-through hole, "
            "pressure plate, inscribed stone 263 ...)",
@@ -8387,10 +8394,19 @@ def test_map_editor_script_spawns():
     bi, sp = med.script_spawns("MAP_DUNG_L13")
     if bi is None:
         _skip("script NPCs", "rf3.mc not found"); return
-    wolf = [s for s in sp if s["char_id"] == 79]
+    wolf = [s for s in sp if s.get("char_id") == 79]
     _check("MAP_DUNG_L13 shows the Silver Wolf its script spawns (SpawnEventActorVariant, "
            "sub-units 240, 290)",
            wolf and (wolf[0]["x"], wolf[0]["y"], wolf[0]["instance"]) == (240, 290, 100), str(sp))
+    # SpawnMapEntity (op 157) builds a MOBJ record: MAP_FIELD_36's script plants its trees
+    _bi36, _sp36 = med.script_spawns("MAP_FIELD_36")
+    _ents = [s for s in _sp36 if s.get("kind") == "entity"]
+    _t0 = _ents[0]["obj"] if _ents else None
+    _check("script map objects: MAP_FIELD_36's SpawnMapEntity trees become MOBJ records "
+           "(x/y sub-units in w14/w15, param*40 in w6)",
+           len(_ents) >= 4 and _t0["pos_x"] == 272 and _t0["pos_y"] == 30
+           and _t0["params"][14:16] == [272, 30] and _t0["params"][6] == 4000
+           and _t0["name"] is not None, str(_ents[:2]))
     # a chest's f10 runs the map's type-2 scene keyed 1024 + f10 when opened
     # (WorldObject_OnBreakDropLoot RF4S.exe+0x1662C0): MAP_DUNG_G01 #16 has an empty loot row
     # and gives 3630 G through its key-1025 scene

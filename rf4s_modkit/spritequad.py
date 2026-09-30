@@ -20,8 +20,15 @@ gate door on the gateway.
 
 Orientation: frames are stored sideways; texture.decode_to_image rotates them 90 deg CCW, so
 the drawn part of the decoded image is x = (1 - v) * H and y = W - u * W. The quad's x axis
-is the map's x; its y axis runs down the map (only two shipped placed textures have
-off-centre quads, both at a map edge, so the y sign is not independently confirmed).
+is the map's x; its y axis runs down the map. That is confirmed by the railing override in
+QUAD_OVERRIDE: MAP_FIELD_69's MOBJ 353 moved +289 quad units lands on its painted railing.
+
+Per-type overrides: after the quad is built, MapDecoration_ApplyVariantOverride
+(RF4S.exe+0x142A50, called by both spawners) handles a few archive ids specially. For them it
+forces the x scale to 1/3, i.e. f6 no longer scales or mirrors them horizontally; four of them
+get y forced too. Some also have their quad moved by Sprite_SetQuadVertsAndUVFromExtents
+(+0x1B85A0): with -1 extents that only shifts the finished quad, x + a6 and y - a7, in quad
+units, before the scale. See QUAD_OVERRIDE.
 """
 from __future__ import annotations
 
@@ -31,6 +38,19 @@ from . import texture
 
 PX_PER_SUBUNIT = 3          # mapground pixels per map sub-unit (24 per 8-sub-unit tile)
 SCALE_ONE = 4096            # MOBJ f6 value for 1:1
+
+# MapDecoration_ApplyVariantOverride, by MOBJ type (archive id - 17542):
+# type -> (y scale fixed too, quad shift x, quad shift y) in quad units, map y down.
+# Every listed type has its x scale fixed at 1:1 (f6 neither scales nor mirrors it in x).
+QUAD_OVERRIDE = {
+    213: (True, 0, 0), 249: (True, 0, 0), 369: (True, 0, 0), 370: (True, 0, 0),
+    217: (False, 60, 0), 297: (False, 60, 0),
+    342: (False, 0, 0),
+    348: (False, -2, 0),
+    353: (False, 0, 289),                     # MOBJ_FID_BRIDGE_OVER, the bridge railing
+    354: (False, -88, -366), 355: (False, -88, -366), 386: (False, -88, -366),
+    387: (False, 0.5, -12.5), 388: (False, 6.5, -14.5),
+}
 
 
 def _u64(b, o):
@@ -108,11 +128,20 @@ def world_rect(obj: dict, quad) -> tuple:
     """Sub-unit rectangle (x0, y0, x1, y1) a placed MOBJ's sprite covers on the map.
     obj is an Rf4mMap.decode_mobj() entry (pos_x/pos_y sub-units, params[6] = f6 scale)."""
     from .mobj_types import mobj_draw_scale
+    tid = obj.get("type_id", 0) & 0xFFFF
     f6 = _scale_word(obj)
-    s = abs(f6 or SCALE_ONE) / SCALE_ONE / PX_PER_SUBUNIT * mobj_draw_scale(obj.get("type_id", 0))
+    s = abs(f6 or SCALE_ONE) / SCALE_ONE / PX_PER_SUBUNIT * mobj_draw_scale(tid)
+    sx = sy = s
+    dx = dy = 0
+    ov = QUAD_OVERRIDE.get(tid)
+    if ov is not None:
+        fixed_y, dx, dy = ov
+        sx = 1 / PX_PER_SUBUNIT
+        if fixed_y:
+            sy = sx
     x0, y0, x1, y1 = quad
-    return (obj["pos_x"] + x0 * s, obj["pos_y"] + y0 * s,
-            obj["pos_x"] + x1 * s, obj["pos_y"] + y1 * s)
+    return (obj["pos_x"] + (x0 + dx) * sx, obj["pos_y"] + (y0 + dy) * sy,
+            obj["pos_x"] + (x1 + dx) * sx, obj["pos_y"] + (y1 + dy) * sy)
 
 
 def _scale_word(obj: dict) -> int:
@@ -125,7 +154,10 @@ def _scale_word(obj: dict) -> int:
 
 
 def mirrored(obj: dict) -> bool:
-    """Negative f6 mirrors the sprite horizontally (types that read f6)."""
+    """Negative f6 mirrors the sprite horizontally (types that read f6, except the
+    QUAD_OVERRIDE types, whose x scale is fixed)."""
+    if (obj.get("type_id", 0) & 0xFFFF) in QUAD_OVERRIDE:
+        return False
     return _scale_word(obj) < 0
 
 
