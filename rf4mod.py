@@ -1952,6 +1952,32 @@ def _game_mc_path():
     return t["rf3.mc"] if t and t["rf3.mc"].is_file() else None
 
 
+def cmd_script_log(a):
+    """Watch the running game and log the scene code it runs; check it against the editor."""
+    from rf4s_modkit import hotreload, scenelog
+    path = _resolve(a.file) if a.file else _game_mc_path()
+    if path is None:
+        raise SystemExit("no rf3.mc given and no game folder set")
+    c = script.Container(pathlib.Path(path).read_bytes())
+    try:
+        pid = a.pid or hotreload.pick_process()
+        log = scenelog.SceneLog(pid=pid, container=c)
+    except hotreload.HotReloadError as e:
+        raise SystemExit("cannot watch the game: %s" % e)
+    from cutscene_editor import catalog
+
+    def started(pos, pc):
+        print("  scene start: %s @%04x" % (catalog.bank_title(c.banks[pos]), pc), flush=True)
+    print("watching %s (pid %d) -- play the game; %s" % (
+        hotreload.EXE_NAME, log.g.pid,
+        "stops after %d s" % a.seconds if a.seconds else "Ctrl+C stops"), flush=True)
+    log.run(seconds=a.seconds, on_start=started)
+    print("\n".join(log.report()))
+    if a.out:
+        log.save(a.out)
+        print("saved the log to %s" % a.out)
+
+
 def cmd_script_reload(a):
     """Put a rf3.mc into the running game without a restart (any size)."""
     from rf4s_modkit import hotreload
@@ -4183,6 +4209,14 @@ def build_parser():
     scrl.add_argument("--force", action="store_true",
                       help="reload even while a scene is running (that scene will misbehave)")
     scrl.set_defaults(func=cmd_script_reload)
+    sclg = scsub.add_parser("log", help="watch the RUNNING game and log the scene code it runs, "
+                            "then check that the editor shows all of it (read only)")
+    sclg.add_argument("file", nargs="?", help="rf3.mc to check against (default: the one the game "
+                      "loads from the game folder)")
+    sclg.add_argument("--pid", type=int, help="the game process, when several RF4S.exe run")
+    sclg.add_argument("--seconds", type=float, help="stop after this long (default: Ctrl+C)")
+    sclg.add_argument("--out", help="also save the log as JSON")
+    sclg.set_defaults(func=cmd_script_log)
     sclv = scsub.add_parser("live", help="show what the running game holds of rf3.mc (read only)")
     sclv.add_argument("--pid", type=int, help="the game process, when several RF4S.exe run")
     sclv.set_defaults(func=cmd_script_live)

@@ -782,7 +782,7 @@ that the game fills with your language's `rf3mc.<locale>` at start and keeps in 
 past its line count shows line 0 ("Are you turning in for the night?"). So new or changed lines need
 this reload (the toolkit finds which language the game holds) or a restart. An `em.bin` change still needs a restart, and so does a file that
 is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]` and
-`rf4mod script live` (what the game currently holds). *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
+`rf4mod script live` (what the game currently holds). `rf4mod script log` watches the running game (read only) and lists every scene start and every piece of script code it saw run, flagging any the editor does not show or shows only as *unreached*. *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
@@ -1088,6 +1088,7 @@ python rf4mod.py script find rf3.mc "about to call you" --text rf3mc.eng   # →
 python rf4mod.py script dev-menus rf3.mc --text rf3mc.eng --bank 18  # the devs' ＊ test menus: event / festival / date → routine pc
 python rf4mod.py script space rf3.mc [--bank N]                     # bytecode room left per bank (64 KiB each; fullest first)
 python rf4mod.py script reload                                       # push the game folder's rf3.mc into the RUNNING game (no restart)
+python rf4mod.py script log --seconds 300 --out log.json            # watch the RUNNING game: log the scene code it runs, flag any the editor doesn't show
 python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng --friendly # read the scene (author names)
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)

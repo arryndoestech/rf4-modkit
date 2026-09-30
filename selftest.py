@@ -6893,6 +6893,134 @@ def test_choice_results():
     _check("the listing's comment names each masked option's reg0", "(reg0=6)" in line, line[-80:])
 
 
+def test_visibility_audit():
+    """Nothing that can run is hidden (every bank of the game's rf3.mc, ~1 minute):
+    1) every statement of every scene the bank list shows -- the registered scenes and the
+       real unreached code -- appears in the Story view, the listing (Source tab / Bank
+       listing) and the Graph, and the Bank listing shows the same scenes as the bank list;
+    2) every byte of code is shown, part of a stub the list skips on purpose (a lone JMP /
+       RET into shown code), or dead -- and no dead stretch decodes to real content (an
+       action, a line, a call, a menu), so nothing meaningful sits where no view shows it."""
+    print("cutscene views hide nothing that can run (every bank):")
+    try:
+        from cutscene_editor.document import ScriptDocument
+        from cutscene_editor.render import SceneText
+        from cutscene_editor import cfg, browser
+        from cutscene_editor.tabs import strip_addresses
+        from rf4s_modkit import script, scriptasm
+    except Exception as e:
+        _skip("visibility audit", f"cutscene_editor not importable ({e})"); return
+
+    def reader(n):
+        f = _first(n)
+        return f.read_bytes() if f else None
+    doc = ScriptDocument(reader)
+    doc.load_from_reader()
+    c = doc.container
+    if c is None:
+        _skip("visibility audit", "rf3.mc not found"); return
+    miss = {"story": [], "listing": [], "graph": [], "bank listing": []}
+    dead_real, n_scenes, n_stmts = [], 0, 0
+    code_bytes = shown_bytes = 0
+    for bi, bank in enumerate(c.banks):
+        try:
+            scenes = script.disassemble_bank(bank)
+        except Exception:
+            continue
+        rows = browser.scene_rows(bank)                       # what the bank list shows
+        keep = {id(sc_) for sc_, _o in script.unreached(scenes)}
+        listed = sorted({sc_.entry_pc for sc_ in scenes if sc_.action_type >= 0 or id(sc_) in keep})
+        if listed != sorted({sc_.entry_pc for sc_ in rows}):
+            miss["bank listing"].append((bi, "scene set differs"))
+        for sc in rows:
+            n_scenes += 1
+            want = set(sc.stmts)
+            n_stmts += len(want)
+            got = {r.key[0] for r in SceneText(doc, bank, sc).story_rows()
+                   if r.key is not None and isinstance(r.key[0], int)}
+            if want - got:
+                miss["story"].append((bi, hex(sc.entry_pc), len(want - got)))
+            try:
+                txt = scriptasm.scene_listing(sc, bank, dialog=doc.text, bank_no=bi)
+                _l, pcs = strip_addresses(txt.split("\n"))
+                lp = {x for x in pcs if x is not None}
+            except Exception:
+                lp = set()
+            if want - lp:
+                miss["listing"].append((bi, hex(sc.entry_pc), len(want - lp)))
+            gp = {x for b in cfg.scene_graph(sc).values() for x, _t in b.lines if x is not None}
+            if want - gp:
+                miss["graph"].append((bi, hex(sc.entry_pc), len(want - gp)))
+        # 2) bytes: shown / skipped stub / dead, and nothing real in the dead ones
+        bank.type_table_full()
+        te = getattr(bank, "_table_end", 0)
+        tt = bank.type_table()
+        code_end = min(tt.values()) if tt else len(bank.data)
+        if code_end <= te:
+            continue
+        cov = bytearray(code_end)
+        shown = [sc_ for sc_ in scenes if sc_.action_type >= 0 or id(sc_) in keep]
+        stubs = [sc_ for sc_ in scenes if sc_.action_type < 0 and id(sc_) not in keep]
+        for group, val in ((shown, 1), (stubs, 2)):
+            for sc_ in group:
+                for pc, st in sc_.stmts.items():
+                    for i in range(pc, min(pc + st.size, code_end)):
+                        if not cov[i]:
+                            cov[i] = val
+        code_bytes += code_end - te
+        shown_bytes += sum(1 for i in range(te, code_end) if cov[i] == 1)
+        off = te
+        while off < code_end:
+            if cov[off]:
+                off += 1
+                continue
+            s0 = off
+            while off < code_end and not cov[off]:
+                off += 1
+            q = s0
+            while q < off:
+                st = script.decode_statement(bank.data, q)
+                if st is None:
+                    q += 2
+                    continue
+                if script.is_real_statement(st):
+                    dead_real.append((bi, hex(q)))
+                    break
+                q += st.size
+    for view, bad in miss.items():
+        _check("%s: every runnable statement of the %d shown scenes (%d statements) appears"
+               % (view, n_scenes, n_stmts), not bad, bad[:5])
+    _check("no dead code stretch holds real content; %.2f%% of the %d code bytes are shown"
+           % (100.0 * shown_bytes / max(1, code_bytes), code_bytes),
+           not dead_real and shown_bytes > 0.99 * code_bytes, dead_real[:5])
+
+
+def test_scene_log():
+    """rf4mod script log (rf4s_modkit.scenelog): the samples of the running game are sorted
+    against what the editor shows -- checked offline with hand-made samples: a registered
+    statement is 'shown', real unreached code 'unreached', a stub the list skips 'not shown',
+    a pc inside a statement 'torn'."""
+    print("scene log (running-game logger) classification:")
+    from map_editor import data as _med
+    from rf4s_modkit import scenelog
+    c = _med.rf3mc_container(live=False)
+    if c is None:
+        _skip("scene log", "rf3.mc not found"); return
+    log = scenelog.SceneLog.__new__(scenelog.SceneLog)     # no game needed for the check
+    log.c, log.starts, log.bank_differs = c, [], set()
+    log.samples = {(308, 0x7456): 5,      # the Dragon Room's order-board scene (registered)
+                   (232, 0x4428): 2,      # real unreached code
+                   (308, 0x01AA): 2,      # the lone JMP stub the bank list skips
+                   (308, 0x7457): 2}      # the middle of a statement
+    got = log.classify()
+    _check("the logger sorts samples: shown / unreached / not shown / torn",
+           got == {(308, 0x7456): "shown", (232, 0x4428): "unreached",
+                   (308, 0x01AA): "not shown", (308, 0x7457): "torn"}, got)
+    rep = "\n".join(log.report())
+    _check("its report lists what needs a look (unreached, not shown, torn seen twice)",
+           "bank 232 @4428" in rep and "bank 308 @01aa" in rep and "bank 308 @7457" in rep, rep)
+
+
 def test_cutscene_graph():
     """The Graph tab: the scene's basic blocks and labelled edges (cutscene_editor.cfg), laid out
     and drawn; a click on a line selects the statement."""
@@ -14954,7 +15082,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
