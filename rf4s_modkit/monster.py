@@ -65,10 +65,6 @@ def ai_file(ai_id: int) -> str:
 # --------------------------------------------------------------------------- #
 # reference data (optional; empty if not found so the module runs standalone)
 # --------------------------------------------------------------------------- #
-def _refdata_dir() -> pathlib.Path:
-    return pathlib.Path(__file__).resolve().parent.parent.parent / "rf4_refdata"
-
-
 def load_species(path=None) -> dict:
     """char_id(int) -> species dict {name, tameable, region, boss, tier, ...}."""
     from .refdata import refdata_path as _rp

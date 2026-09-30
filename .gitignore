@@ -16,7 +16,6 @@ cache/
 # old backups and ad-hoc dumps
 *.bak
 *.bak.json
-_em_special_entries.txt
 
 # ---- game data: never commit (the toolkit reads it from your own copy) ---------
 Bundle/

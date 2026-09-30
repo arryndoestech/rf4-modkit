@@ -901,7 +901,7 @@ from Blender.
 | Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-entry` / the editor's New scene…); opcode names from `refdata/opcode_table.json` |
 | Search-item spots | `SI_*.bin` (288) | GUI table editor, map editor | ✅ daily ground-pickup spots, item pools and weights (footer rebuilt) |
 | Monster / character templates | `rf3NpcParam.bin` | `rf4mod monster`, GUI monster editor | ✅ stats, drops, elements, AI; `monster clone` / `new` mint templates |
-| Saves | `rf4_sNN.sav` | `rf4mod save`, [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py) | ✅ named GameFlags, field get / set, CRC fix-up |
+| Saves | `rf4_sNN.sav` | `rf4mod save`, [`tools/save_editor/rf4s_save_editor.py`](../save_editor/rf4s_save_editor.py) | ✅ named GameFlags, field get / set, CRC fix-up |
 | Event Manager triggers | `em.bin`, `emdeb.bin` | `rf4mod em` | ✅ conditions/actions decode; in-place edit; **structural**: add / remove entries, condition terms and actions from a readable spec (`em add / remove / add-cond / remove-cond / add-action / remove-action`; the container is rebuilt, stock re-serialises byte-exact) |
 | Skill XP curves | `rf3ParamSkillExp*.bin` | `rf4mod skill` | ✅ decode + `skill set FILE LEVEL XP` / `--scale PCT` (every level) |
 | Monster encounter tables | `Gen*.bin` (NLCL) | `rf4mod gen` | ✅ full: gates / weights / rosters / positions, add & remove gates and monsters (rebuilds the file + footer; all 690 stock files round-trip byte-exact) |
@@ -1228,4 +1228,4 @@ print(man.find_file("rf3.mc"))            # -> ('bundlePatch1.mbundle', {'size':
   BFRES -- the blocks are renamed and shifted -- so generic BFRES tools do not open it
   (docs/09 §4).
 - **Save files** (`rf4_sNN.sav`) are handled by `rf4mod save` and the existing
-  [`tools/rf4s_save_editor.py`](../rf4s_save_editor.py).
+  [`tools/save_editor/rf4s_save_editor.py`](../save_editor/rf4s_save_editor.py).
