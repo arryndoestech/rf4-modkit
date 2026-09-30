@@ -194,6 +194,41 @@ def eval_live(buf, off, regs, read_var):
     return None, False
 
 
+def statement_maps(template, game, doc):
+    """({game pc: editor pc}, {editor pc: game pc}) between two versions of one bank: the
+    game's bytes and the editor's (`template` = the editor's Bank, for its tables' layout).
+    Both are parsed with bankrelink (every statement as its bytes with the address fields
+    zeroed, plus its expressions: a layout-free signature), and the signature sequences are
+    aligned: equal runs map one to one, and so does a run replaced by one of the same length
+    (statements edited in place). Inserted / deleted statements have no partner."""
+    import copy
+    import difflib
+    from . import bankrelink
+
+    def model(data):
+        b = copy.copy(template)
+        b.data = bytearray(data)
+        b.__dict__.pop("_table_end", None)
+        return bankrelink.BankModel.parse_any(b)
+
+    def sig(s):
+        if isinstance(s, bankrelink.Stmt):
+            raw = bytearray(s.raw)
+            for off, _kind in s.fields:             # jump targets / expression offsets move
+                raw[off:off + 2] = b"\0\0"          # with every edit: compare without them
+            return bytes(raw), tuple(bytes(e) for e in s.exprs)
+        return "raw", bytes(s.raw)
+
+    mg, md = model(game), model(doc)
+    a, b = [sig(s) for s in mg.code], [sig(s) for s in md.code]
+    g2d = {}
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "equal" or (tag == "replace" and i2 - i1 == j2 - j1):
+            for k in range(i2 - i1):
+                g2d[mg.code[i1 + k].old_pc] = md.code[j1 + k].old_pc
+    return g2d, {d: g for g, d in g2d.items()}
+
+
 class VM:
     """One Script VM as read from the game."""
     __slots__ = ("addr", "state", "halted", "slot", "bank", "pc", "regs", "frame_base",
@@ -204,7 +239,7 @@ class VM:
 
 
 class Breakpoint:
-    __slots__ = ("bank", "pc", "size", "orig", "stub", "temp", "hits", "blob", "pending")
+    __slots__ = ("bank", "pc", "size", "orig", "stub", "temp", "hits", "blob", "pending", "doc_pc")
 
     def __init__(self, bank, pc, size, orig, temp=False):
         self.bank, self.pc, self.size, self.orig = bank, pc, size, orig
@@ -213,6 +248,7 @@ class Breakpoint:
         self.temp = temp                # a step's one-shot breakpoint
         self.hits = 0
         self.pending = None             # why it is not in the game (None: it is, or will be next poll)
+        self.doc_pc = None              # the editor's pc of its statement (an editor breakpoint)
 
     @property
     def resume_pc(self):            # where a parked VM stands: after the WaitPlain
@@ -232,6 +268,9 @@ class ScriptDebugger:
         self.left = []                  # what the last detach could not undo
         self.stub_top = {}              # bank -> next free stub base
         self._stubs = {}                # bank -> [(stub, bp pc, size, end)] every stub written
+        self.user = set()               # the editor's breakpoints {(bank, editor pc)} (the GUI sets it)
+        self.user_pending = {}          # (bank, editor pc) -> why it is not in the game
+        self._maps = {}                 # bank -> (bytes key, statement_maps(...)) cache
         self.slot_bank = {}             # slot address -> bank position (last read)
         self.mismatch = set()           # banks whose game copy differs from the editor's
         self.parked = {}                # VM address -> (bank, pc): the breakpoint it stopped at
@@ -355,16 +394,16 @@ class ScriptDebugger:
 
     # ---- breakpoints -------------------------------------------------------------------- #
     def add_breakpoint(self, bank, pc, temp=False):
-        """A breakpoint on the statement at `pc` of the editor's bank (a step's one-shot
-        breakpoint: of the game's bank). It waits (bp.pending) while the game's bytes there
-        differ."""
+        """A breakpoint on the statement at `pc` of the GAME's bank (the editor's while the
+        game has not loaded its scripts). The editor's breakpoints come in through `user`
+        (editor pcs) and are placed with the statement map (_apply_user)."""
         key = (bank, pc)
         if key in self.bps:
             if not temp:
                 self.bps[key].temp = False
             return self.bps[key]
         game = self.game_bank(bank)
-        src = game if (temp and game is not None) else bytes(self.c.banks[bank].data)
+        src = game if game is not None else bytes(self.c.banks[bank].data)
         st = script.decode_statement(src, pc)
         if st is None:
             raise DebugError("no statement starts at 0x%04x in bank %d" % (pc, bank))
@@ -394,6 +433,73 @@ class ScriptDebugger:
             floor = (len(game) + STUB_ALIGN - 1) // STUB_ALIGN * STUB_ALIGN
             if bp.stub is None or bp.stub - LIT_SIZE < floor:
                 self._alloc_stub(bp, floor)
+
+    # ---- the editor's breakpoints -> the game's statements ------------------------------- #
+    def pc_maps(self, bank):
+        """statement_maps() of `bank` (game vs editor), cached; None when both hold the same
+        bytes (the pcs are the same) or the game has not loaded its scripts."""
+        game = self.game_bank(bank)
+        if game is None:
+            return None
+        doc = bytes(self.c.banks[bank].data)
+        if game == doc:
+            return None
+        key = (len(game), hash(game), len(doc), hash(doc))
+        hit = self._maps.get(bank)
+        if hit is None or hit[0] != key:
+            hit = self._maps[bank] = (key, statement_maps(self.c.banks[bank], game, doc))
+        return hit[1]
+
+    def to_doc(self, bank, pc):
+        """The editor's pc of the statement at game pc `pc` (None: the editor has no such
+        statement any more)."""
+        m = self.pc_maps(bank) if bank is not None and pc is not None else None
+        return pc if m is None else m[0].get(pc)
+
+    def to_game(self, bank, pc):
+        """The game's pc of the editor's statement at `pc` (None: the game does not have it
+        yet -- a new or changed statement not saved + reloaded in game)."""
+        m = self.pc_maps(bank)
+        return pc if m is None else m[1].get(pc)
+
+    def _apply_user(self):
+        """Install the editor's breakpoints (`user`, editor pcs) at their statements' pcs in
+        the game -- an unsaved edit that moves a statement does not move it in the game, so
+        its breakpoint keeps firing there. One the game has no statement for waits in
+        user_pending. Breakpoints added directly (step, tests) are left alone."""
+        want, pending = {}, {}
+        for bank, dpc in self.user:
+            if self.game_bank(bank) is None:
+                pending[(bank, dpc)] = "the game has not loaded its scripts yet"
+                continue
+            gpc = self.to_game(bank, dpc)
+            if gpc is None:
+                pending[(bank, dpc)] = ("not in the game yet (a new or changed statement): "
+                                        "save + Reload in game")
+                continue
+            want[(bank, gpc)] = dpc
+        busy = set(self.parked.values())
+        for key in [k for k, b in self.bps.items()
+                    if b.doc_pc is not None and not b.temp and k not in want and k not in busy]:
+            self.remove_breakpoint(*key)
+        for key, dpc in want.items():
+            bp = self.bps.get(key)
+            if bp is None:
+                try:
+                    bp = self.add_breakpoint(*key)
+                except DebugError as e:
+                    pending[(key[0], dpc)] = str(e)
+                    continue
+            bp.temp, bp.doc_pc = False, dpc
+        self.user_pending = pending
+
+    def user_state(self, bank, dpc):
+        """(the Breakpoint in the game or None, why it waits or None) of the editor's
+        breakpoint (bank, editor pc)."""
+        if (bank, dpc) in self.user_pending:
+            return None, self.user_pending[(bank, dpc)]
+        bp = next((b for b in self.bps.values() if b.bank == bank and b.doc_pc == dpc and not b.temp), None)
+        return bp, (bp.pending if bp is not None else None)
 
     def _alloc_stub(self, bp, floor):
         """Give `bp` its stub (after the game's bank code and earlier stubs) and bytes."""
@@ -432,20 +538,25 @@ class ScriptDebugger:
         again; stubs start over after the (maybe longer) banks. One-shot step breakpoints
         and breakpoints a VM is parked on stay as they are."""
         self.mismatch = set()
+        self._maps = {}
         busy = set(self.parked.values())
-        for key in [k for k, b in self.bps.items() if b.temp and k not in busy]:
-            del self.bps[key]
+        # the editor's breakpoints are placed again from their editor pcs (_apply_user):
+        # the statements may sit elsewhere in the new file
+        for key in [k for k, b in self.bps.items() if (b.temp or b.doc_pc is not None) and k not in busy]:
+            self.remove_breakpoint(*key)
         for bank in {b.bank for b in self.bps.values()} - {k[0] for k in busy}:
             self.stub_top.pop(bank, None)
         for key, bp in self.bps.items():
             if key in busy:
                 continue
             bp.stub = None
-            st = script.decode_statement(bytes(self.c.banks[bp.bank].data), bp.pc)
+            game = self.game_bank(bp.bank)
+            src = game if game is not None else bytes(self.c.banks[bp.bank].data)
+            st = script.decode_statement(src, bp.pc)
             if st is None or st.size < 4:
                 bp.pending = "no statement of 4 bytes or more starts here any more"
                 continue
-            bp.size, bp.orig = st.size, bytes(self.c.banks[bp.bank].data[bp.pc:bp.pc + st.size])
+            bp.size, bp.orig = st.size, bytes(src[bp.pc:bp.pc + st.size])
             self._validate(bp)
         self._res_dirty = True
 
@@ -560,6 +671,9 @@ class ScriptDebugger:
         keep held VMs held. Called by poll(); returns the VMs."""
         g = self.g
         self._flags = None                      # variables are read fresh each poll
+        if self._look_at_resident():
+            self._revalidate()
+        self._apply_user()
         self._sync_resident()
         vms = self.vms()
         want = {}

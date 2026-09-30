@@ -42,6 +42,7 @@ class ScriptView(ttk.Frame):
         self.text.tag_configure("selrow", background="#23405a")
         self.text.tag_configure("focusrow", background="#5a4a00")
         self.text.tag_configure("bprow", background="#4a1616")     # a breakpoint
+        self.text.tag_configure("bpwait", background="#3a2e2e")    # one that cannot fire yet
         self.text.tag_configure("pcrow", background="#1e5a2a")     # where a script stopped
         self.text.tag_raise("sel")
         self.rows = []                 # display line (1-based) -> Row, as a list index line-1
@@ -120,15 +121,17 @@ class ScriptView(ttk.Frame):
         """Tint the rows of statements with a breakpoint, and the row a script stopped at."""
         app, t = self.app, self.text
         t.tag_remove("bprow", "1.0", "end")
+        t.tag_remove("bpwait", "1.0", "end")
         t.tag_remove("pcrow", "1.0", "end")
         bank = app.bank_pos
         bps = {pc for b, pc in getattr(app, "breakpoints", ()) if b == bank}
+        waits = {pc for b, pc in getattr(app, "pending_breakpoints", ()) if b == bank}
         cur = getattr(app, "debug_current", None)
         for key, ln in self._key_line.items():
             if key[1] is not None:
                 continue
             if key[0] in bps:
-                t.tag_add("bprow", "%d.0" % ln, "%d.0" % (ln + 1))
+                t.tag_add("bpwait" if key[0] in waits else "bprow", "%d.0" % ln, "%d.0" % (ln + 1))
             if cur is not None and cur == (bank, key[0]):
                 t.tag_add("pcrow", "%d.0" % ln, "%d.0" % (ln + 1))
                 t.see("%d.0" % ln)

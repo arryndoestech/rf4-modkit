@@ -1725,7 +1725,20 @@ class Container:
         lr = dict(lr)
         lr[pos] = pm
         self.last_relink = lr
+        # where each statement ITSELF went (no redirects: after an insert before X, jumps to X
+        # land on the new code -- last_relink -- but X is still X, a few bytes on); a deleted
+        # statement has no entry. The debugger's breakpoints follow this one.
+        own = {s.old_pc: m.newpc[s.old_pc] for s in m.code
+               if s.old_pc < m.FIRST_NEW_KEY and s.old_pc in (m.newpc or {})}
+        lm = self.last_moves if isinstance(self.last_moves, dict) else {}
+        if pos in lm:                                  # compose with an earlier relink
+            own = {a: own[b] for a, b in lm[pos].items() if b in own}
+        lm = dict(lm)
+        lm[pos] = own
+        self.last_moves = lm
         return m, result
+
+    last_moves = None
 
     last_frames = None
 

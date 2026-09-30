@@ -247,11 +247,7 @@ class DebuggerPanel:
             self.status.config(text="cannot attach: %s" % err_text(e), foreground="#b00")
             self.dbg = None
             return
-        for (bank, pc) in list(self.app.breakpoints):
-            try:
-                self.dbg.add_breakpoint(bank, pc)
-            except Exception as e:  # noqa: BLE001
-                self.app.status("breakpoint @%04x: %s" % (pc, err_text(e)))
+        self.dbg.user = set(self.app.breakpoints)   # placed in the game each poll
         self.dbg.freeze_clock = self.freeze.get()
         self.attach_btn.config(text="Detach")
         self.status.config(text="attached to %s (pid %d)" % ("RF4S.exe", self.dbg.g.pid), foreground="#080")
@@ -324,7 +320,12 @@ class DebuggerPanel:
         try:
             if self.app.doc.container is not None:
                 self.dbg.c = self.app.doc.container     # undo / redo / reload replace it
+            self.dbg.user = set(self.app.breakpoints)
             self._vms = self.dbg.poll()
+            pend = set(self.dbg.user_pending)
+            if pend != self.app.pending_breakpoints:    # the Script tab shows them dimmed
+                self.app.pending_breakpoints = pend
+                self.app.mark_debug()
         except Exception as e:  # noqa: BLE001 -- the game closed, a race, ...
             self.status.config(text="lost the game: %s" % err_text(e), foreground="#b00")
             self.detach()
@@ -356,7 +357,10 @@ class DebuggerPanel:
             pc = self.dbg.logical_pc(v)
             state = ("⏸ stopped at breakpoint" if v.addr in self.dbg.parked else
                      "⏸ paused" if v.addr in self.dbg.held else v.state_name())
-            rows[str(v.addr)] = (state, self._where(v), "%04x" % pc if pc is not None else "?")
+            dk = self._doc_key(v.bank, pc) if pc is not None and v.bank is not None else None
+            shown = "?" if pc is None else ("%04x" % pc if dk is None or dk[1] == pc
+                                           else "%04x (game %04x)" % (dk[1], pc))
+            rows[str(v.addr)] = (state, self._where(v), shown)
         _sync_rows(t, rows)
         stopped = sum(1 for v in self._vms if v.addr in self.dbg.held)
         self.lists.tab(0, text="Script VMs (%d%s)" % (len(rows), ", %d stopped" % stopped if stopped else ""))
@@ -434,8 +438,9 @@ class DebuggerPanel:
         with its live value (▶ = the statement it stands at uses it)."""
         rows = {}
         if v is not None and self.dbg is not None and v.bank is not None:
-            pc = self.dbg.logical_pc(v)
-            code = self._code(v.bank)
+            dk = self._doc_key(v.bank, self.dbg.logical_pc(v))
+            pc = dk[1] if dk else None
+            code = bytes(self.app.doc.container.banks[v.bank].data)   # the scene's offsets are the editor's
             sc = self._scene_of(v.bank, pc) if pc is not None else None
             here = set()
             encs = {}
@@ -517,7 +522,7 @@ class DebuggerPanel:
                 self.vm_tree.selection_set(str(v.addr))
                 self.show_in_editor(v)
         self._stopped &= set(self.dbg.parked)
-        cur = next(((self.dbg.parked[v.addr]) for v in self._vms if v.addr in self.dbg.parked), None)
+        cur = next((self._doc_key(*self.dbg.parked[v.addr]) for v in self._vms if v.addr in self.dbg.parked), None)
         if cur != self.app.debug_current:
             self.app.debug_current = cur
             self.app.mark_debug()
@@ -531,9 +536,11 @@ class DebuggerPanel:
         for bank, pc in sorted(self.app.breakpoints):
             st = script.decode_statement(c.banks[bank].data, pc) if c is not None else None
             name = "" if st is None else (st.mnem if st.op >= 0xFFF0 else script.opcode_mnemonic(st.op))
-            bp = self.dbg.bps.get((bank, pc)) if self.dbg is not None else None
-            if bp is not None and bp.pending:
-                name += "   (not in the game: %s)" % bp.pending
+            bp, why = self.dbg.user_state(bank, pc) if self.dbg is not None else (None, None)
+            if why:
+                name += "   (waits: %s)" % why
+            elif bp is not None and bp.pc != pc:
+                name += "   (in the game at %04x until you save + Reload in game)" % bp.pc
             rows["%d:%d" % (bank, pc)] = ("bank %d @%04x" % (bank, pc), name, bp.hits if bp else "")
         _sync_rows(self.bp_tree, rows)
         self.lists.tab(1, text="Breakpoints (%d)" % len(rows))
@@ -583,12 +590,22 @@ class DebuggerPanel:
         if note:
             self.status.config(text="step: " + note, foreground="#b60")
 
+    def _doc_key(self, bank, gpc):
+        """(bank, the editor's pc) of the game's statement at `gpc` (None when the editor no
+        longer has that statement)."""
+        dpc = self.dbg.to_doc(bank, gpc) if self.dbg is not None else gpc
+        return None if dpc is None else (bank, dpc)
+
     def show_in_editor(self, v=None):
         v = v or self._selected_vm()
         if v is None or self.dbg is None or v.bank is None:
             return
-        pc = self.dbg.logical_pc(v)
-        self.app.show_statement(v.bank, pc)
+        key = self._doc_key(v.bank, self.dbg.logical_pc(v))
+        if key is None:
+            self.status.config(text="the script stands at a statement the editor no longer has "
+                                    "(an unsaved edit removed or changed it)", foreground="#b60")
+            return
+        self.app.show_statement(*key)
 
     def _goto_bp(self):
         s = self.bp_tree.selection()
@@ -609,14 +626,10 @@ class DebuggerPanel:
     # the editor calls these when its breakpoint set changes
     def breakpoint_added(self, bank, pc):
         if self.dbg is not None:
-            try:
-                self.dbg.add_breakpoint(bank, pc)
-            except Exception as e:  # noqa: BLE001
-                self.app.status("breakpoint: %s" % err_text(e))
-                self.app.breakpoints.discard((bank, pc))
+            self.dbg.user = set(self.app.breakpoints)   # placed in the game on the next poll
         self.refresh_bps()
 
     def breakpoint_removed(self, bank, pc):
         if self.dbg is not None:
-            self.dbg.remove_breakpoint(bank, pc)
+            self.dbg.user = set(self.app.breakpoints)
         self.refresh_bps()

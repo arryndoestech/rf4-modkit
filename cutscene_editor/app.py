@@ -52,6 +52,7 @@ class CutsceneExplorer:
         self._em_window = None
         self.breakpoints = set()             # (bank position, pc): the script debugger's
         self._bp_ops = {}                    # breakpoint -> its statement's opcode (undo check)
+        self.pending_breakpoints = set()     # the debugger's: breakpoints that cannot fire yet
         self.debug_current = None            # (bank, pc) a script stopped at, or None
         self._debugger = None
         self._em_uses = None
@@ -655,6 +656,7 @@ class CutsceneExplorer:
         def run():
             if self.doc.container is not None:
                 self.doc.container.last_relink = None
+                self.doc.container.last_moves = None
             fn()
             self._follow_relink()
         try:
@@ -673,8 +675,11 @@ class CutsceneExplorer:
         scene and the selection to their new pcs before the views re-read them."""
         c = self.doc.container
         relink = getattr(c, "last_relink", None) if c is not None else None
-        if relink and self.breakpoints:
-            _moved, gone = self._follow_breakpoints(relink)
+        moves = getattr(c, "last_moves", None) if c is not None else None
+        if moves and self.breakpoints:
+            # a breakpoint belongs to its statement: it follows where the statement itself
+            # went (last_moves), not where jumps to it now land (last_relink)
+            _moved, gone = self._follow_breakpoints(moves)
             if gone:
                 self.status("%d breakpoint%s removed: the statement went away" % (gone, "" if gone == 1 else "s"))
         pm = (relink or {}).get(self.bank_pos)

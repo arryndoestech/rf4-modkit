@@ -7111,7 +7111,8 @@ def test_script_debugger():
     def debugger(g):
         d = _sd.ScriptDebugger.__new__(_sd.ScriptDebugger)
         d.__dict__.update(c=c, g=g, orig_bufs={}, left=[], bps={}, held=set(), _saved_wait={}, _released={},
-                          bufs={}, stub_top={}, _stubs={}, slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
+                          bufs={}, stub_top={}, _stubs={}, user=set(), user_pending={}, _maps={},
+                          slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
                           _res_orig=None, _res_base=None, _res_img=None, _res_dirty=True, _res_free=[],
                           _clock=None, _note=None, _flags=None, recovered=[])
         d._write_note = lambda owner=True: None             # no recovery note from a test
@@ -7266,6 +7267,282 @@ def test_script_debugger():
                              lambda e: 2 if e == enc else None) == (1, True))
     _check("a compound assignment is not evaluated (it would write)",
            _sd.eval_live(bytes([0x07, 0x17, 1, 0x94, 0]), 0, [0] * 10, None)[1] is False)
+
+
+def test_script_debugger_edits():
+    """The script debugger through edit / save / reload sequences: the real editor, debugger
+    window and engine against a simulated game (fake memory, a VM stepped like Script_VMStep,
+    'reload in game' like hot reload). A breakpoint follows its statement in the editor and
+    keeps firing where the statement is in the game until a reload moves it there too:
+    insert before it, reload, delete the insert (the reported bug), reload, an operand edited
+    in place, a breakpoint on a statement the game does not have yet (dimmed, fires after the
+    reload), its statement deleted, undo."""
+    print("script debugger through edits, saves and reloads (simulated game):")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from cutscene_editor import app as capp
+    except Exception as e:
+        _skip("script debugger edits", "no tkinter: %s" % e); return
+    import struct, time, tempfile
+    from rf4s_modkit import script, scriptdbg, hotreload
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("script debugger edits", "rf3.mc not extracted"); return
+    dirs = [mc.parent] + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
+                                     pathlib.Path(BUNDLE_DIR) / "bundlePatch2") if d.is_dir()]
+
+    def reader(n):
+        for d in dirs:
+            if (d / n).is_file():
+                return (d / n).read_bytes()
+
+    class Mem:
+        def __init__(self):
+            self.regions, self.next = {}, 0x10000000
+        def alloc(self, n):
+            b = self.next
+            self.regions[b] = bytearray(n)
+            self.next += (n + 0xFFFF) & ~0xFFFF
+            return b
+        def _at(self, a, n):
+            for b, r in self.regions.items():
+                if b <= a and a + n <= b + len(r):
+                    return r, a - b
+            raise KeyError(hex(a))
+        def read(self, a, n):
+            r, o = self._at(a, n)
+            return bytes(r[o:o + n])
+        def write(self, a, d):
+            r, o = self._at(a, len(d))
+            r[o:o + len(d)] = d
+
+
+    class Game:
+        pid, base, mc_id = 4242, 0x7000, 1
+
+        def __init__(self, file, bank_pos, n_primary):
+            m = self.m = Mem()
+            self.tail = bank_pos - n_primary
+            self.file = m.alloc(len(file) + 64); m.write(self.file, file)
+            self.entry = m.alloc(16); m.write(self.entry, struct.pack("<QH", self.file, 1))
+            self.sc = m.alloc(0x200)
+            self.slot = m.alloc(64); self.buf = m.alloc(0x10040)
+            blob = hotreload.McImage(file).bank_bytes(2, self.tail)
+            m.write(self.buf, blob); m.write(self.slot + 16, struct.pack("<Q", self.buf))
+            m.write(self.slot + 24, struct.pack("<I", len(blob)))
+            self.vm = m.alloc(0x100); m.write(self.vm + 0x20, struct.pack("<Q", self.slot))
+            self.stack = m.alloc(0x400); m.write(self.vm + 0x28, struct.pack("<Q", self.stack))
+
+        def reload(self, file):                    # what hotreload.reload_mc does
+            new = self.m.alloc(len(file) + 64); self.m.write(new, file)
+            self.m.write(self.entry, struct.pack("<Q", new))
+            blob = hotreload.McImage(file).bank_bytes(2, self.tail)
+            self.m.write(self.ptr(self.slot + 16), blob)
+            self.m.write(self.slot + 24, struct.pack("<I", len(blob)))
+
+        def read(self, a, n): return self.m.read(a, n)
+        def write(self, a, d): self.m.write(a, bytes(d))
+        def u8(self, a): return self.read(a, 1)[0]
+        def u32(self, a): return struct.unpack("<I", self.read(a, 4))[0]
+        def ptr(self, a):
+            try:
+                return struct.unpack("<Q", self.read(a, 8))[0]
+            except KeyError:
+                return 0
+        def alloc(self, n): return self.m.alloc(n)
+        def own_allocation(self, p): return len(self.m.regions.get(p, b""))
+        def free(self, p): pass
+        def suspend(self): pass
+        def resume(self): pass
+        def close(self): pass
+        def archive_entry(self, idx): return self.entry, self.ptr(self.entry), 1
+        def scene(self): return self.sc
+        def slots(self, sc):
+            return [("tail", self.slot, 2, self.tail, self.ptr(self.slot + 16), self.u32(self.slot + 24), 1)]
+        def vms(self, sc):
+            return [(self.vm, self.u32(self.vm + 0x70), 0, self.ptr(self.vm + 0x20), self.u32(self.vm + 0x3C))]
+
+        def run_from(self, pc, frames=6):
+            """Start the VM at pc and let the game run a few frames."""
+            v = self.vm
+            self.write(v + 0x3C, struct.pack("<I", pc)); self.write(v + 0x70, struct.pack("<I", 2))
+            self.write(v + 0x78, struct.pack("<I", 0))
+            for _ in range(frames):
+                self.frame()
+
+        def frame(self):
+            v = self.vm
+            st, wait, pc = self.u32(v + 0x70), self.u32(v + 0x78), self.u32(v + 0x3C)
+            if st != 2:
+                return
+            if wait:
+                self.write(v + 0x78, struct.pack("<I", max(0, wait - 200)))
+                return
+            code = self.read(self.ptr(self.slot + 16), 0x10000)
+            for _ in range(64):
+                op = struct.unpack_from("<H", code, pc)[0]
+                if op == 0xFFFA:
+                    pc = struct.unpack_from("<H", code, pc + 2)[0]
+                elif op == scriptdbg.WAIT_PLAIN:
+                    val, _ok = script.eval_expr(code, struct.unpack_from("<H", code, pc + 4)[0])
+                    self.write(v + 0x3C, struct.pack("<I", pc + 6)); self.write(v + 0x78, struct.pack("<I", val))
+                    return
+                elif op >= 0xFFF0:                   # any other control op: stop this run here
+                    self.write(v + 0x70, struct.pack("<I", 1)); self.write(v + 0x3C, struct.pack("<I", pc))
+                    return
+                else:
+                    pc += script.decode_statement(code, pc).size
+            self.write(v + 0x3C, struct.pack("<I", pc))
+
+
+
+    saved = (hotreload._Game, hotreload.pick_process, scriptdbg.recovery_path,
+             capp.CutsceneExplorer.debugger_docked_setting, capp.CutsceneExplorer.set_debugger_docked_setting)
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    scriptdbg.recovery_path = lambda: tmp / "recovery.json"          # never the user's settings folder
+    capp.CutsceneExplorer.debugger_docked_setting = classmethod(lambda c: True)
+    capp.CutsceneExplorer.set_debugger_docked_setting = classmethod(lambda c, on: None)
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        c0 = cx.doc.container
+        BANK = 308
+        plain = lambda st: st is not None and st.op < 0xFFF0 and st.size >= 4 and st.op != scriptdbg.WAIT_PLAIN
+        P = Q = None
+        for sc in script.disassemble_bank(c0.banks[BANK]):
+            items = sorted(sc.stmts.items())
+            for (p1, s1), (p2, s2), (p3, s3) in zip(items, items[1:], items[2:]):
+                if all(plain(s) for s in (s1, s2, s3)) and p2 == p1 + s1.size and p3 == p2 + s2.size:
+                    P, Q, ENTRY = p1, p2, sc.entry_pc
+                    break
+            if P:
+                break
+        print("bank %d: run from %04x, breakpoint on %04x" % (BANK, P, Q))
+
+        GAME = Game(bytes(c0.build()), BANK, c0.n_primary)
+        hotreload._Game = lambda pid=None: GAME
+        hotreload.pick_process = lambda choose=None: GAME.pid
+
+        def pump(n=6):
+            for _ in range(n):
+                root.update(); time.sleep(0.07)
+
+
+        def reload_in_game():
+            GAME.reload(bytes(cx.doc.container.build())); pump()
+
+
+        def fires(game_from, label, want_game, want_doc):
+            """Run the game from game pc `game_from`; the breakpoint must stop it at game pc
+            `want_game`, and the editor must mark its own pc `want_doc`."""
+            GAME.run_from(game_from); pump()
+            d = panel.dbg
+            parked = next(iter(d.parked.values()), None)
+            _check(label + ": stops at game %04x" % want_game, parked == (BANK, want_game), parked and "%04x" % parked[1])
+            _check(label + ": the editor marks %04x" % want_doc, cx.debug_current == (BANK, want_doc), cx.debug_current)
+            for v in d.vms():                        # let it go
+                d.resume(v)
+            GAME.frame(); pump(2)
+
+
+        def stmt_size(pc):
+            return script.decode_statement(cx.doc.container.banks[BANK].data, pc).size
+
+
+        cx.open_scene(BANK, ENTRY)
+        panel = cx.open_debugger()
+        panel.toggle_attach(); pump()
+        cx.set_breakpoint(BANK, Q, True); pump()
+        fires(P, "1 fresh breakpoint", Q, Q)
+
+        # 2. insert before the breakpoint (unsaved): the editor's row moves, the game's does not
+        cx.apply("insert", lambda: cx.doc.container.insert_before(BANK, Q, "ClosePortraits(2)")); pump()
+        ins = stmt_size(Q)
+        _check("2 the editor's breakpoint moved with its statement", (BANK, Q + ins) in cx.breakpoints, sorted(cx.breakpoints))
+        _check("2 not dimmed (it still fires in the game)", (BANK, Q + ins) not in cx.pending_breakpoints)
+        fires(P, "2 after an unsaved insert", Q, Q + ins)
+
+        # 3. save + reload in game: now the game has the inserted statement too
+        reload_in_game()
+        fires(P, "3 after reload", Q + ins, Q + ins)
+
+        # 4. delete the inserted statement (unsaved) -- the reported bug
+        cx.apply("delete", lambda: cx.doc.container.delete_statement(BANK, Q)); pump()
+        _check("4 the editor's breakpoint moved back", (BANK, Q) in cx.breakpoints, sorted(cx.breakpoints))
+        fires(P, "4 after an unsaved delete", Q + ins, Q)
+
+        # 5. reload again
+        reload_in_game()
+        fires(P, "5 after reload", Q, Q)
+
+        # 6. an operand edited in place (unsaved): still the same statement
+        st = script.decode_statement(cx.doc.container.banks[BANK].data, Q)
+        if st.args:
+            cx.apply("operand", lambda: cx.doc.container.set_action_arg_expr(BANK, Q, 0, __import__("rf4s_modkit.scriptasm", fromlist=["x"]).asm_expr("1"))); pump()
+            _check("6 breakpoint kept on an edited statement", (BANK, Q) in cx.breakpoints)
+            fires(P, "6 after an unsaved operand edit", Q, Q)
+            reload_in_game()
+
+        # 7. a breakpoint on a statement the game does not have yet: dimmed, fires after reload
+        cx.apply("insert 2", lambda: cx.doc.container.insert_before(BANK, Q, "ClosePortraits(2)")); pump()
+        cx.set_breakpoint(BANK, Q, True); pump()     # on the NEW statement
+        _check("7 a breakpoint on a new statement waits (dimmed)", (BANK, Q) in cx.pending_breakpoints,
+           sorted(cx.pending_breakpoints))
+        bp, why = panel.dbg.user_state(BANK, Q)
+        _check("7 ... and says why", why and "Reload" in why, why)
+        reload_in_game()
+        _check("7 after reload it is live", (BANK, Q) not in cx.pending_breakpoints)
+        GAME.run_from(P); pump()
+        parked = next(iter(panel.dbg.parked.values()), None)
+        _check("7 it fires on the new statement", parked == (BANK, Q), parked)
+        for v in panel.dbg.vms():
+            panel.dbg.resume(v)
+        GAME.frame(); pump(2)
+
+        def release_all():
+            for _ in range(6):                        # every stop on the way let go, to the end
+                for v in panel.dbg.vms():
+                    panel.dbg.resume(v)
+                GAME.frame(); pump(2)
+
+
+        release_all()
+        # 8. delete the breakpoint's own statement: the breakpoint goes, nothing stops in the game
+        cx.set_breakpoint(BANK, Q, False)
+        cx.set_breakpoint(BANK, Q + ins, True); pump()          # the original statement
+        cx.apply("delete bp stmt", lambda: cx.doc.container.delete_statement(BANK, Q + ins)); pump()
+        _check("8 the breakpoint went with its statement", not [k for k in cx.breakpoints if k[0] == BANK], sorted(cx.breakpoints))
+        GAME.run_from(P); pump()
+        _check("8 the game no longer stops there", not panel.dbg.parked, panel.dbg.parked)
+
+        # 9. undo brings the statement back; a breakpoint set on it now fires (game still has it)
+        cx.undo(); pump()
+        cx.set_breakpoint(BANK, Q + ins, True); pump()
+        GAME.run_from(P); pump()
+        parked = next(iter(panel.dbg.parked.values()), None)
+        _check("9 after undo a breakpoint on the restored statement fires", parked == (BANK, Q + ins), parked)
+        for v in panel.dbg.vms():
+            panel.dbg.resume(v)
+        GAME.frame(); pump(2)
+
+        # 10. detach leaves the game's slot as the reloaded file has it
+        panel.toggle_attach(); pump()
+
+
+        panel.toggle_attach(); pump()
+        _check("the sequences raised no callback errors and showed no error boxes", not errs and not box["msgs"],
+               (errs[:1], box["msgs"][:1]))
+    finally:
+        (hotreload._Game, hotreload.pick_process, scriptdbg.recovery_path,
+         capp.CutsceneExplorer.debugger_docked_setting, capp.CutsceneExplorer.set_debugger_docked_setting) = saved
+        try:
+            root.destroy()
+        except tk.TclError:
+            pass
 
 def test_scene_log():
     """rf4mod script log (rf4s_modkit.scenelog): the samples of the running game are sorted
@@ -15354,7 +15631,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log, test_script_debugger,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
