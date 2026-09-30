@@ -8672,6 +8672,14 @@ def test_map_editor_gate_motion():
                     _gp = next((k, o) for k, o, _x, _y, _u in _panel.doc.gate_points() if k == "gpos")
                     _panel.select(_gp); _root.update()
                     res_g["reselect"] = (len(_gl.selection()) == 1, _gl.selection()[0] if _gl.selection() else None)
+                    # clicking a monster spawn point selects its gate and the point in the list
+                    _pts = [(k, o) for k, o, _x, _y, _u in _panel.doc.gate_points() if k == "mpos"]
+                    _mp_key = _pts[-1] if _pts else None
+                    if _mp_key:
+                        _panel.select(None); _root.update()
+                        _panel.select(_mp_key); _root.update()
+                        _ml = _panel.encounters.mpts
+                        res_g["mpos"] = (bool(_gl.selection()), tuple(_ml.selection()) == (str(_mp_key[1]),))
             finally:
                 _root.destroy()
         _check("gate G markers are orange for visible gates (MAP_DUNG_A04) and gray for hidden spawners "
@@ -8682,6 +8690,9 @@ def test_map_editor_gate_motion():
                "outline and the list's selection", res_g["deselect"] == (True, 0, ()), res_g["deselect"])
         _check("clicking a gate point on the map selects that gate in the Gates list (also right after "
                "a deselect)", res_g["reselect"][0], res_g["reselect"])
+        if "mpos" in res_g:
+            _check("clicking a monster spawn point on the map selects its gate and that point in the "
+                   "Gates tab's spawn-point list", res_g["mpos"] == (True, True), res_g["mpos"])
 
 
 def test_map_editor_pool_spawn_sprites():

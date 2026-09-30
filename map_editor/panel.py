@@ -743,6 +743,12 @@ class MapEditorPanel:
         self._update_gate_focus()
         if self.sel and self.sel[0] == "gpos":  # the Gates tab's positions list follows
             self.encounters._show_gpos(self.active_gate)
+        elif self.sel and self.sel[0] == "mpos":  # ... and its spawn-point list
+            ml = getattr(self.encounters, "mpts", None)
+            iid = str(self.sel[1])
+            if ml is not None and ml.exists(iid) and ml.selection() != (iid,):
+                ml.selection_set(iid)
+                ml.see(iid)
         self.inspector.show_selection(self.sel)
         self.objects.reveal(self.sel)
         if self.sel is not None:
