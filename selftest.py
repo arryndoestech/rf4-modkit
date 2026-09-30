@@ -6995,6 +6995,252 @@ def test_visibility_audit():
            not dead_real and shown_bytes > 0.99 * code_bytes, dead_real[:5])
 
 
+
+def test_script_debugger():
+    """The script debugger (rf4s_modkit.scriptdbg) against a SIMULATED game -- fake process
+    memory with a real bank and one Script VM, stepped the way Script_VMStep does for what the
+    debugger relies on (the countdown, JMP, CALL, FRAME, RET, WaitPlain; any other statement
+    just runs). No RF4S.exe needed: a breakpoint stops the script, Step moves on at the first
+    press (also from ON a breakpoint and when the debugger polls before the game ran), Step
+    over a RET stops after the CALL, the final RET says the script ends, and Detach gives the
+    game its own rf3.mc and slot buffer back -- or keeps the buffer while a script is still in
+    debugger code. Plus the live-value evaluator against the static one."""
+    print("script debugger (simulated game):")
+    import struct as _st
+    from map_editor import data as _med
+    from rf4s_modkit import scriptdbg as _sd, script as _sc, hotreload as _hr
+    c = _med.rf3mc_container(live=False)
+    if c is None:
+        _skip("script debugger", "rf3.mc not found"); return
+    FILE = bytes(c.build())
+    BANK = 308                                              # the Dragon Room (tail 60)
+    TAIL = BANK - c.n_primary
+
+    class Mem:
+        def __init__(self):
+            self.regions, self.next = {}, 0x10000000
+        def alloc(self, n):
+            b = self.next
+            self.regions[b] = bytearray(n)
+            self.next += (n + 0xFFFF) & ~0xFFFF
+            return b
+        def _at(self, a, n):
+            for b, r in self.regions.items():
+                if b <= a and a + n <= b + len(r):
+                    return r, a - b
+            raise KeyError(hex(a))
+        def read(self, a, n):
+            r, o = self._at(a, n)
+            return bytes(r[o:o + n])
+        def write(self, a, d):
+            r, o = self._at(a, len(d))
+            r[o:o + len(d)] = d
+
+    class Game:                                              # the hotreload._Game surface used
+        pid, base, mc_id = 4242, 0x7000, 1
+        def __init__(self):
+            m = self.m = Mem()
+            self.file = m.alloc(len(FILE)); m.write(self.file, FILE)
+            self.entry = m.alloc(16); m.write(self.entry, _st.pack("<QH", self.file, 1))
+            self.sc = m.alloc(0x200)
+            self.slot = m.alloc(64); self.buf = m.alloc(0xFF30)      # the game's own buffer
+            m.write(self.buf, bytes(c.banks[BANK].data))
+            m.write(self.slot + 16, _st.pack("<Q", self.buf))
+            self.vm = m.alloc(0x100); m.write(self.vm + 0x20, _st.pack("<Q", self.slot))
+            self.stack = m.alloc(0x400); m.write(self.vm + 0x28, _st.pack("<Q", self.stack))
+        def read(self, a, n): return self.m.read(a, n)
+        def write(self, a, d): self.m.write(a, bytes(d))
+        def u8(self, a): return self.read(a, 1)[0]
+        def u32(self, a): return _st.unpack("<I", self.read(a, 4))[0]
+        def ptr(self, a):
+            try:
+                return _st.unpack("<Q", self.read(a, 8))[0]
+            except KeyError:
+                return 0
+        def alloc(self, n): return self.m.alloc(n)
+        def own_allocation(self, p): return len(self.m.regions.get(p, b""))
+        def free(self, p): pass
+        def suspend(self): pass
+        def resume(self): pass
+        def close(self): pass
+        def archive_entry(self, idx): return self.entry, self.ptr(self.entry), 1
+        def scene(self): return self.sc
+        def slots(self, sc):
+            return [("tail", self.slot, 2, TAIL, self.ptr(self.slot + 16), len(c.banks[BANK].data), 1)]
+        def vms(self, sc):
+            return [(self.vm, self.u32(self.vm + 0x70), 0, self.ptr(self.vm + 0x20), self.u32(self.vm + 0x3C))]
+        def frame(self):                                     # one frame of the game for our VM
+            v = self.vm
+            st, wait, pc = self.u32(v + 0x70), self.u32(v + 0x78), self.u32(v + 0x3C)
+            if st != 2:
+                return
+            if wait:
+                self.write(v + 0x78, _st.pack("<I", max(0, wait - 200)))
+                return
+            code = self.read(self.ptr(self.slot + 16), 0x10000)
+            for _ in range(64):
+                op = _st.unpack_from("<H", code, pc)[0]
+                if op == 0xFFFA:                             # JMP
+                    pc = _st.unpack_from("<H", code, pc + 2)[0]
+                elif op == 0xFFFE:                           # CALL: push frame base, return pc
+                    top, fb = self.u32(v + 0x34), self.u32(v + 0x6C)
+                    self.write(self.stack + 4 * top, _st.pack("<ii", fb, pc + 4))
+                    self.write(v + 0x34, _st.pack("<I", top + 2)); self.write(v + 0x6C, _st.pack("<I", top + 2))
+                    pc = _st.unpack_from("<H", code, pc + 2)[0]
+                elif op == 0xFFF1:                           # FRAME n
+                    top = self.u32(v + 0x34)
+                    self.write(v + 0x6C, _st.pack("<I", top))
+                    self.write(v + 0x34, _st.pack("<I", top + _st.unpack_from("<H", code, pc + 2)[0]))
+                    pc += 4
+                elif op == 0xFFFF:                           # RET
+                    fb = self.u32(v + 0x6C)
+                    if fb == 0:
+                        self.write(v + 0x70, _st.pack("<I", 1)); self.write(v + 0x3C, _st.pack("<I", pc))
+                        return
+                    pc = _st.unpack("<i", self.read(self.stack + 4 * (fb - 1), 4))[0]
+                    nfb = _st.unpack("<i", self.read(self.stack + 4 * (fb - 2), 4))[0]
+                    self.write(v + 0x34, _st.pack("<I", fb - 2)); self.write(v + 0x6C, _st.pack("<I", nfb))
+                elif op == _sd.WAIT_PLAIN:                   # parks: the literal's countdown
+                    val, _ok = _sc.eval_expr(code, _st.unpack_from("<H", code, pc + 4)[0])
+                    self.write(v + 0x3C, _st.pack("<I", pc + 6)); self.write(v + 0x78, _st.pack("<I", val))
+                    return
+                else:
+                    pc += _sc.decode_statement(code, pc).size
+            self.write(v + 0x3C, _st.pack("<I", pc))
+
+    def debugger(g):
+        d = _sd.ScriptDebugger.__new__(_sd.ScriptDebugger)
+        d.__dict__.update(c=c, g=g, orig_bufs={}, left=[], bps={}, held=set(), _saved_wait={}, _released={},
+                          bufs={}, stub_top={}, slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
+                          _res_orig=None, _res_base=None, _res_img=None, _res_dirty=True, _res_free=[],
+                          _clock=None, _note=None, _flags=None, recovered=[])
+        d._write_note = lambda owner=True: None             # no recovery note from a test
+        d._drop_note = lambda: None
+        d._set_clock = lambda frozen: None
+        d._look_at_resident()
+        return d
+
+    def at(g, pc, state, wait):
+        g.write(g.vm + 0x3C, _st.pack("<I", pc)); g.write(g.vm + 0x70, _st.pack("<I", state))
+        g.write(g.vm + 0x78, _st.pack("<I", wait))
+
+    code = bytes(c.banks[BANK].data)
+    plain = lambda st: st is not None and st.op < 0xFFF0 and st.size >= 4 and st.op != _sd.WAIT_PLAIN
+    P = Q = None
+    for sc in _sc.disassemble_bank(c.banks[BANK]):
+        items = sorted(sc.stmts.items())
+        for (p1, s1), (p2, s2), (p3, s3) in zip(items, items[1:], items[2:]):
+            if all(plain(s) for s in (s1, s2, s3)) and p2 == p1 + s1.size and p3 == p2 + s2.size:
+                P, Q = p1, p2
+                break
+        if P:
+            break
+
+    g = Game(); d = debugger(g)                              # a hit, then Step
+    d.add_breakpoint(BANK, P); d.poll()
+    at(g, P, 2, 0); g.frame(); d.poll(); v = d.vms()[0]
+    _check("a breakpoint stops the script there", v.addr in d.held and d.logical_pc(v) == P)
+    d.step(v); d.poll()                                      # polled before the game ran it
+    _check("a released script is not taken for a new hit before the game runs it",
+           d.vms()[0].addr not in d.held)
+    g.frame(); d.poll(); v = d.vms()[0]
+    _check("the first Step stops at the next statement", v.addr in d.held and d.logical_pc(v) == Q,
+           "%04x" % d.logical_pc(v))
+
+    g = Game(); d = debugger(g)                              # paused ON a breakpointed statement
+    at(g, P, 2, 1000); d.poll(); d.pause(d.vms()[0])
+    d.add_breakpoint(BANK, P); d.poll(); d.step(d.vms()[0])
+    for _ in range(10):
+        d.poll(); g.frame()
+    d.poll(); v = d.vms()[0]
+    _check("Step from a script standing ON a breakpoint goes on (not back into it)",
+           v.addr in d.held and d.logical_pc(v) == Q)
+
+    g = Game(); d = debugger(g)                              # looping back is a new hit
+    d.add_breakpoint(BANK, P); d.poll()
+    at(g, P, 2, 0); g.frame(); d.poll(); d.resume(d.vms()[0]); d.poll(); g.frame()
+    at(g, P, 2, 0); g.frame(); d.poll(); v = d.vms()[0]
+    _check("coming back to a breakpoint after Continue stops again",
+           v.addr in d.held and d.bps[(BANK, P)].hits == 2)
+
+    pick = None                                              # Step over a subroutine's RET
+    for sc in _sc.disassemble_bank(c.banks[BANK]):
+        for cpc, cst in sorted(sc.stmts.items()):
+            if cst.mnem != "CALL" or not cst.code_targets or not plain(_sc.decode_statement(code, cpc + 4)):
+                continue
+            q = cst.code_targets[0]
+            for _ in range(200):
+                st = _sc.decode_statement(code, q)
+                if st is None or st.code_targets or not st.falls_through:
+                    break
+                nx = _sc.decode_statement(code, q + st.size)
+                if plain(st) and nx is not None and nx.op == 0xFFFF:
+                    pick = (cpc, q)
+                    break
+                q += st.size
+            if pick:
+                break
+        if pick:
+            break
+    C, S = pick
+    g = Game(); d = debugger(g)
+    d.add_breakpoint(BANK, S); d.poll()
+    g.write(g.stack, _st.pack("<ii", 0, C + 4))
+    g.write(g.vm + 0x34, _st.pack("<I", 2)); g.write(g.vm + 0x6C, _st.pack("<I", 2))
+    at(g, S, 2, 0); g.frame(); d.poll()
+    note = d.step(d.vms()[0])
+    for _ in range(3):
+        d.poll(); g.frame()
+    d.poll(); v = d.vms()[0]
+    _check("Step over a subroutine's RET stops after the CALL", note is None and v.addr in d.held
+           and d.logical_pc(v) == C + 4, "%04x, want %04x" % (d.logical_pc(v), C + 4))
+    g = Game(); d = debugger(g)
+    d.add_breakpoint(BANK, S); d.poll()
+    at(g, S, 2, 0); g.frame(); d.poll()
+    note = d.step(d.vms()[0])
+    _check("Step onto the script's own last RET says it ends", note is not None and "ends" in note, note)
+
+    g = Game(); d = debugger(g)                              # Detach restores
+    d.add_breakpoint(BANK, P); d.poll()
+    at(g, P, 2, 0); g.frame(); d.poll()
+    swapped = g.ptr(g.slot + 16) != g.buf
+    left = d.detach()                                        # let go, still in the stub
+    _check("Detach keeps the buffer while a script is still in debugger code (and says so)",
+           swapped and g.ptr(g.slot + 16) != g.buf and left)
+    g.frame()
+    kept = debugger(g)._give_buffers_back(d.orig_bufs)
+    _check("... and the next attach gives the game's own buffer back, original bytes",
+           not kept and g.ptr(g.slot + 16) == g.buf and g.read(g.buf, len(code)) == code)
+    g = Game(); d = debugger(g)
+    d.add_breakpoint(BANK, P); d.poll()
+    at(g, P, 2, 0); g.frame(); d.poll(); d.resume(d.vms()[0]); g.frame(); g.frame()
+    left = d.detach()
+    _check("a clean Detach restores the rf3.mc pointer, the slot buffer and its bytes",
+           left == [] and g.ptr(g.entry) == g.file and g.ptr(g.slot + 16) == g.buf
+           and g.read(g.buf, len(code)) == code, left)
+
+    n = same = 0                                             # live values
+    for b in c.banks[240:320]:
+        buf = bytes(b.data)
+        for sc in _sc.disassemble_bank(b):
+            for st in sc.stmts.values():
+                for off in list(st.args if st.op < 0xFFF0 else []) + list(getattr(st, "expr_refs", None) or []):
+                    if off is None:
+                        continue
+                    v0, k0 = _sc.eval_expr(buf, off)
+                    if k0:
+                        n += 1
+                        same += _sd.eval_live(buf, off, [0] * 10, lambda e: 0) == (v0, True)
+    _check("the live evaluator agrees with the static one on constant expressions", n and same == n,
+           "%d/%d" % (same, n))
+    enc = c.pack_var(100, 3)
+    _check("the live evaluator reads registers and game variables",
+           _sd.eval_live(bytes([0x07, 0x19, 5, 0, 0x86, 0]), 0, [7] + [0] * 9, None) == (12, True)
+           and _sd.eval_live(bytes([0x02]) + _st.pack("<I", enc) + bytes([0x17, 2, 0x8C, 0]), 0, [0] * 10,
+                             lambda e: 2 if e == enc else None) == (1, True))
+    _check("a compound assignment is not evaluated (it would write)",
+           _sd.eval_live(bytes([0x07, 0x17, 1, 0x94, 0]), 0, [0] * 10, None)[1] is False)
+
 def test_scene_log():
     """rf4mod script log (rf4s_modkit.scenelog): the samples of the running game are sorted
     against what the editor shows -- checked offline with hand-made samples: a registered
@@ -15082,7 +15328,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log, test_script_debugger,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

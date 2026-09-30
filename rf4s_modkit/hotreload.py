@@ -579,9 +579,17 @@ def status(pid=None):
 def reload_mc(data, pid=None, force=False, settle=0.25):
     """Put `data` (a whole rf3.mc) into the running game in place of the resident copy.
     Returns a report dict. Raises HotReloadError (nothing is changed) when the file is not
-    valid, the game is not in a known state, or a scene is running (unless `force`)."""
+    valid, the game is not in a known state, or a scene is running (unless `force`), and
+    always while the script debugger holds a script stopped (its VM stands in the debugger's
+    code: swapping the bank under it would run whatever lands there)."""
     img = McImage(data)
     g = _Game(pid)
+    from . import scriptdbg
+    note = scriptdbg.read_recovery(g.pid)
+    if note and note.get("base") == g.base and note.get("held"):
+        g.close()
+        raise HotReloadError("the script debugger has %d script(s) stopped: Continue them (or "
+                             "Detach) first, then reload" % len(note["held"]))
     freed = []
     try:
         new_file = g.alloc(len(img.data) + 4160)

@@ -785,6 +785,24 @@ is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]
 `rf4mod script live` (what the game currently holds). `rf4mod script log` watches the running game (read only) and lists every scene start and every piece of script code it saw run, flagging any the editor does not show or shows only as *unreached*. *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
+**Script debugger** (*🐞 Debug* on the toolbar; docks below the tabs, *Undock* puts it in its own
+window). *Attach* connects to the running game (its memory; no native debugger, the exe is not
+changed). **F9** (or the right-click menu) sets a breakpoint on the selected Script-tab statement:
+a script that reaches it stops just before the statement runs, the editor opens that scene at it,
+and game time stands still while it waits (*Stop game time while a script is stopped*; the rest of
+the world keeps running). *Continue* lets it go on, *Step* runs one statement and stops at the next
+(a CALL runs whole; *Step into* stops inside it; stepping onto a RET stops after the CALL it returns
+to, and a script's last RET ends it). *Pause* holds a script that is waiting on its own countdown;
+idle scripts and scripts in the middle of a prompt, choice or dialogue can't be held there (set a
+breakpoint on the statement after it). The details show the registers, the stack and the statement
+the script stands at with the live value of every argument and condition; the *Variables* tab lists
+every FLG_/REG_ the scene uses with its value in the game. A RET can't take a breakpoint (it is too
+short), and a breakpoint on code the game doesn't run yet waits until you save and *Reload in game*.
+Breakpoints move with your edits and a MapEnterScene can be stopped too (the game's copy of the
+script file carries them). *Detach*, closing the debugger or closing the toolkit puts everything
+back as it was; if the toolkit is killed while attached, the next attach to that game cleans up. One
+debugger per game at a time, and *Reload in game* waits until no script is stopped.
+
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
 delete / set-val / set-target / set-speaker / entries / add-entry / remove-entry / set-entry /
 normalize`, `rf4mod em …`,

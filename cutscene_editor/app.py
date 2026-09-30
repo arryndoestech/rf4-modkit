@@ -50,6 +50,10 @@ class CutsceneExplorer:
             self.doc.locale = self._prefs["locale"]
         self.pad_locales = tk.BooleanVar(value=bool(self._prefs.get("pad_locales", True)))
         self._em_window = None
+        self.breakpoints = set()             # (bank position, pc): the script debugger's
+        self._bp_ops = {}                    # breakpoint -> its statement's opcode (undo check)
+        self.debug_current = None            # (bank, pc) a script stopped at, or None
+        self._debugger = None
         self._em_uses = None
         self._em_bank_uses = {}              # bank pos -> (bank bytes, [(entry id | None, ...)])
         self._build()
@@ -81,7 +85,12 @@ class CutsceneExplorer:
         paned.add(self.browser, weight=0, minsize=220, width=330)
         mid = ttk.Frame(paned)
         paned.add(mid, weight=4, minsize=300)
-        self.nb = ttk.Notebook(mid)
+        # the tabs, and below them the docked script debugger (when open)
+        self._mid_paned = Paned(mid, orient="vertical")
+        self._mid_paned.pack(fill="both", expand=True)
+        tabs = ttk.Frame(self._mid_paned)
+        self._mid_paned.add(tabs, weight=1, minsize=200)
+        self.nb = ttk.Notebook(tabs)
         self.nb.pack(fill="both", expand=True)
         self.view = ScriptView(self.nb, self)
         self.source = SourceTab(self.nb, self)
@@ -261,6 +270,10 @@ class CutsceneExplorer:
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
+        db = ttk.Button(bar, text="🐞 Debug", command=self.open_debugger)
+        db.pack(side="left", padx=4)
+        Tip(db, "The script debugger: attach to the running game, watch its scripts, stop at "
+                "breakpoints (F9 on a statement), step through them.")
         rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
         # laid out before everything else, so a narrow window squeezes the middle of the
         # toolbar, never the Reference button at its right end
@@ -659,7 +672,12 @@ class CutsceneExplorer:
         """A structural edit rebuilt the open bank (Container.last_relink): move the open
         scene and the selection to their new pcs before the views re-read them."""
         c = self.doc.container
-        pm = (getattr(c, "last_relink", None) or {}).get(self.bank_pos) if c is not None else None
+        relink = getattr(c, "last_relink", None) if c is not None else None
+        if relink and self.breakpoints:
+            _moved, gone = self._follow_breakpoints(relink)
+            if gone:
+                self.status("%d breakpoint%s removed: the statement went away" % (gone, "" if gone == 1 else "s"))
+        pm = (relink or {}).get(self.bank_pos)
         if pm is None:
             return
         if self.scene is not None and self.scene.entry_pc in pm:
@@ -669,6 +687,8 @@ class CutsceneExplorer:
 
     def _doc_changed(self, what):
         self._em_uses = None
+        if self.breakpoints:
+            self._check_breakpoints()
         self.refresh_scene()
         self._chrome()
         self._maps_pending = self._maps_pending or later(self.frame, self._tell_maps, 150)
@@ -1172,6 +1192,122 @@ class CutsceneExplorer:
         return self.ask_new_scene(default_type, pos=bank_index)
 
     # ---- Event Manager ----------------------------------------------------------------- #
+    # ---- the script debugger ------------------------------------------------------------ #
+    def open_debugger(self):
+        """The Script debugger (one per editor): docked below the tabs or in its own window."""
+        from .debugger import DebuggerPanel
+        if self._debugger is None:
+            self._debugger = DebuggerPanel(self)
+        self._debugger.show()
+        return self._debugger
+
+    def debug_dock_parent(self):
+        return self._mid_paned
+
+    def dock_debugger(self, body):
+        if str(body) not in map(str, self._mid_paned.panes()):
+            from .debugger import DOCK_HEIGHT
+            self._mid_paned.add(body, weight=0, minsize=150, height=DOCK_HEIGHT)
+
+    def undock_debugger(self, body):
+        if str(body) in map(str, self._mid_paned.panes()):
+            self._mid_paned.forget(body)
+
+    @classmethod
+    def debugger_docked_setting(cls):
+        """Where the script debugger opens: docked below the tabs (default) or in a window."""
+        return bool(cls._load_prefs().get("debugger_docked", True))
+
+    @classmethod
+    def set_debugger_docked_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["debugger_docked"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    def toggle_breakpoint(self):
+        """F9: a breakpoint on / off the selected statement."""
+        if self.sel is None or self.bank_pos is None or self.selected_label():
+            self.status("select a statement in the Script tab first")
+            return
+        pc = self.sel[0]
+        self.set_breakpoint(self.bank_pos, pc, (self.bank_pos, pc) not in self.breakpoints)
+
+    def set_breakpoint(self, bank, pc, on, quiet=False):
+        st = script.decode_statement(self.doc.container.banks[bank].data, pc)
+        if on and st is not None and st.op == 0xFFFF:
+            self.status("a script cannot be halted at a RET (it is 2 bytes, too short for the "
+                        "breakpoint's jump): put it on the statement before")
+            return
+        if on and (st is None or st.size < 4):
+            self.status("a breakpoint needs a statement of 4 bytes or more (%s is %d): put it on "
+                        "the statement before" % (st.mnem if st else "?", st.size if st else 0))
+            return
+        (self.breakpoints.add if on else self.breakpoints.discard)((bank, pc))
+        if on:
+            self._bp_ops[(bank, pc)] = st.op
+        else:
+            self._bp_ops.pop((bank, pc), None)
+        d = self._debugger
+        if d is not None:
+            (d.breakpoint_added if on else d.breakpoint_removed)(bank, pc)
+        self.mark_debug()
+        if not quiet:
+            self.status("breakpoint %s @0x%04x" % ("set" if on else "removed", pc))
+
+    def _follow_breakpoints(self, relink):
+        """A structural edit moved statements (Container.last_relink = {bank: {old pc: new
+        pc}}): move the breakpoints with them; one whose statement went away is removed."""
+        old, new = [], []
+        for bank, pm in (relink or {}).items():
+            for key in [k for k in self.breakpoints if k[0] == bank]:
+                to = pm.get(key[1])
+                if to != key[1]:
+                    old.append(key)
+                    if to is not None:
+                        new.append((bank, to))
+        for bank, pc in old:                    # all out first: one may move onto another's pc
+            self.set_breakpoint(bank, pc, False, quiet=True)
+        for bank, pc in new:
+            self.set_breakpoint(bank, pc, True, quiet=True)
+        moved = sum(1 for k in new if k in self.breakpoints)
+        return moved, len(old) - moved
+
+    def _check_breakpoints(self):
+        """After any change (undo / redo included): drop breakpoints that no longer sit on
+        their statement (a statement of the same kind, 4 bytes or more, at that pc)."""
+        c = self.doc.container
+        if c is None:
+            return
+        dropped = []
+        for bank, pc in list(self.breakpoints):
+            st = script.decode_statement(c.banks[bank].data, pc) if bank < len(c.banks) else None
+            if st is None or st.size < 4 or st.op != self._bp_ops.get((bank, pc), st.op):
+                self.set_breakpoint(bank, pc, False, quiet=True)
+                dropped.append(pc)
+        if dropped:
+            self.status("removed %d breakpoint%s whose statement changed: %s"
+                        % (len(dropped), "" if len(dropped) == 1 else "s",
+                           ", ".join("@%04x" % p for p in dropped)))
+
+    def mark_debug(self):
+        """Refresh the breakpoint dots / the stopped-at row in the Script tab."""
+        try:
+            self.view.mark_debug()
+        except tk.TclError:
+            pass
+
+    def show_statement(self, bank, pc):
+        """Open the scene holding statement `pc` of `bank` (a registered one if any) there."""
+        from .browser import scene_rows
+        c = self.doc.container
+        rows = scene_rows(c.banks[bank])
+        sc = next((s for s in rows if pc in s.stmts), None)
+        if sc is None:
+            self.status("no listed scene holds 0x%04x of bank %d" % (pc, bank))
+            return
+        self.open_scene(bank, sc.entry_pc, focus_pc=pc)
+
     def open_event_manager(self):
         if self.doc.em is None:
             messagebox.showerror("Event Manager", "em.bin / emdeb.bin were not found in the game source.")
