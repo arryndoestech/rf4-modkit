@@ -231,6 +231,7 @@ class ScriptDebugger:
         self.orig_bufs = {}             # slot address -> (the game's own buffer, ours)
         self.left = []                  # what the last detach could not undo
         self.stub_top = {}              # bank -> next free stub base
+        self._stubs = {}                # bank -> [(stub, bp pc, size, end)] every stub written
         self.slot_bank = {}             # slot address -> bank position (last read)
         self.mismatch = set()           # banks whose game copy differs from the editor's
         self.parked = {}                # VM address -> (bank, pc): the breakpoint it stopped at
@@ -405,7 +406,26 @@ class ScriptDebugger:
             raise DebugError("bank %d has no room for another breakpoint "
                              "(its code + stubs must stay below 64 KiB)" % bp.bank)
         bp.stub, bp.blob = stub, blob
-        self.stub_top[bp.bank] = top + (len(blob) + STUB_ALIGN - 1) // STUB_ALIGN * STUB_ALIGN
+        end = top + (len(blob) + STUB_ALIGN - 1) // STUB_ALIGN * STUB_ALIGN
+        self.stub_top[bp.bank] = end
+        # every stub ever written stays in the slot (never freed): a script may still be in
+        # one, or return into one (a CALL run from its copy), after its breakpoint is gone --
+        # a one-shot Step breakpoint is removed as soon as it is hit. Newer stubs win.
+        hist = [h for h in self._stubs.get(bp.bank, [])
+                if (h[0] - LIT_SIZE >= end or h[3] <= top)       # not overwritten now
+                and h[0] - LIT_SIZE >= floor]                     # not under the (grown) code
+        hist.append((stub, bp.pc, bp.size, end))
+        self._stubs[bp.bank] = hist
+
+    def _in_stub(self, bank, pc):
+        """(breakpoint pc, statement size, where in the stub) when `pc` lies in a stub ever
+        written for `bank`: 'wait' (the WaitPlain / parked), 'copy' (the statement copy),
+        'back' (the JMP back: the statement ran); None outside every stub."""
+        for stub, bpc, size, _end in self._stubs.get(bank, ()):
+            if stub - LIT_SIZE <= pc < stub + 6 + size + 4:
+                where = "wait" if pc < stub + 6 else "copy" if pc < stub + 6 + size else "back"
+                return bpc, size, where
+        return None
 
     def _revalidate(self):
         """The game's rf3.mc changed (a reload in game): check every breakpoint against it
@@ -1001,9 +1021,9 @@ class ScriptDebugger:
                 raise DebugError("cannot tell where the RET returns to (the stack does not "
                                  "hold a return address there)")
             ret = stack[fb - 1] & 0xFFFF
-            for bp in self.bps.values():
-                if bp.bank == vm.bank and bp.stub is not None and bp.resume_pc <= ret <= bp.resume_pc + bp.size:
-                    ret = bp.pc + bp.size        # returned into the copy: its JMP back
+            inside = self._in_stub(vm.bank, ret)
+            if inside is not None:
+                ret = inside[0] + inside[1]      # returns into a stub's copy: its JMP back goes on there
             nx = script.decode_statement(code, ret)
             if nx is None or nx.op != RET_OP:
                 return ret
@@ -1016,10 +1036,11 @@ class ScriptDebugger:
             return self.parked[vm.addr][1]
         if vm.at_bp is not None:
             return vm.at_bp.pc
-        for bp in self.bps.values():            # inside a stub
-            if bp.bank == vm.bank and bp.stub is not None and bp.stub <= vm.pc < bp.stub + 6 + bp.size + 4:
-                # at the JMP back (the statement copy ran): the statement after the original
-                return bp.pc + bp.size if vm.pc >= bp.stub + 6 + bp.size else bp.pc
+        inside = self._in_stub(vm.bank, vm.pc)  # in a stub (also one whose breakpoint is gone)
+        if inside is not None:
+            bpc, size, where = inside
+            # at the JMP back (the statement copy ran): the statement after the original
+            return bpc + size if where == "back" else bpc
         return vm.pc
 
     def detach(self):

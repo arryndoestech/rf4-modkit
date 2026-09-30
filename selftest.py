@@ -7111,7 +7111,7 @@ def test_script_debugger():
     def debugger(g):
         d = _sd.ScriptDebugger.__new__(_sd.ScriptDebugger)
         d.__dict__.update(c=c, g=g, orig_bufs={}, left=[], bps={}, held=set(), _saved_wait={}, _released={},
-                          bufs={}, stub_top={}, slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
+                          bufs={}, stub_top={}, _stubs={}, slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
                           _res_orig=None, _res_base=None, _res_img=None, _res_dirty=True, _res_free=[],
                           _clock=None, _note=None, _flags=None, recovered=[])
         d._write_note = lambda owner=True: None             # no recovery note from a test
@@ -7194,6 +7194,32 @@ def test_script_debugger():
     d.poll(); v = d.vms()[0]
     _check("Step over a subroutine's RET stops after the CALL", note is None and v.addr in d.held
            and d.logical_pc(v) == C + 4, "%04x, want %04x" % (d.logical_pc(v), C + 4))
+    # the CALL ran from a breakpoint's copy (Step into from a stop on the CALL), so the return
+    # address points into that stub -- and the breakpoint is gone by the time the RET comes
+    # (one-shot Step breakpoints are): Step still stops after the CALL, not "no statement"
+    g = Game(); d = debugger(g)
+    d.add_breakpoint(BANK, C); d.poll()
+    at(g, C, 2, 0); g.frame(); d.poll()
+    d.step(d.vms()[0], over=False)                           # Step into: runs the CALL copy
+    for _ in range(3):
+        d.poll(); g.frame()
+    d.poll()
+    d.remove_breakpoint(BANK, C)                             # its breakpoint goes away
+    ret_in_stub = _st.unpack("<i", g.read(g.stack + 4, 4))[0] >= len(code)
+    d.add_breakpoint(BANK, S); d.poll()
+    v = d.vms()[0]
+    if v.addr in d.held:
+        d.resume(v)
+    for _ in range(40):                                      # runs on to S
+        d.poll(); g.frame()
+    d.poll(); v = d.vms()[0]
+    note = d.step(v)
+    for _ in range(3):
+        d.poll(); g.frame()
+    d.poll(); v = d.vms()[0]
+    _check("Step over a RET that returns into a gone breakpoint's stub stops after the CALL",
+           ret_in_stub and note is None and v.addr in d.held and d.logical_pc(v) == C + 4,
+           "return address in a stub: %s, note: %s, at %04x" % (ret_in_stub, note, d.logical_pc(v)))
     g = Game(); d = debugger(g)
     d.add_breakpoint(BANK, S); d.poll()
     at(g, S, 2, 0); g.frame(); d.poll()
