@@ -18,17 +18,27 @@ def scene_rows(bank):
     """Scenes of a bank, one per entry pc: typed (triggered) scenes first, then the
     unreached code (found by the gap-fill scan: nothing in the bank registers or CALLs it),
     each in bytecode order."""
-    seen, typed, subs = set(), [], []
-    for sc in script.disassemble_bank(bank):
-        if sc.entry_pc in seen:
-            continue
-        seen.add(sc.entry_pc)
-        (typed if sc.action_type >= 0 else subs).append(sc)
+    seen, typed = set(), []
+    scenes = script.disassemble_bank(bank)
+    for sc in scenes:
+        if sc.action_type >= 0 and sc.entry_pc not in seen:
+            seen.add(sc.entry_pc)
+            typed.append(sc)
+    subs = []
+    for sc, own in script.unreached(scenes):      # judged by the code only they reach
+        if sc.entry_pc not in seen:
+            seen.add(sc.entry_pc)
+            sc.own_count = len(own)
+            subs.append(sc)
     return sorted(typed, key=lambda s: s.entry_pc) + sorted(subs, key=lambda s: s.entry_pc)
 
 
 def scene_label(doc, sc):
-    kind = catalog.type_label(sc.action_type).split("  ", 1)[-1] if sc.action_type >= 0 else "unreached"
+    if sc.action_type >= 0:
+        kind = catalog.type_label(sc.action_type).split("  ", 1)[-1]
+    else:
+        own = getattr(sc, "own_count", None)
+        kind = "unreached" + (" (%d statement%s)" % (own, "" if own == 1 else "s") if own else "")
     flag = "" if sc.ok else " ⚠"
     return f"@{sc.entry_pc:04x}  {kind}{flag} · {scene_preview(doc, sc)}"
 

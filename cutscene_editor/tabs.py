@@ -150,7 +150,11 @@ class BankListingTab(ttk.Frame):
             self.info.config(text="open a bank on the left")
             return
         parts, n = [], 0
-        for sc in script.disassemble_bank(bank):
+        scenes = script.disassemble_bank(bank)
+        keep = {id(sc_) for sc_, _own in script.unreached(scenes)}
+        for sc in scenes:
+            if sc.action_type < 0 and id(sc) not in keep:
+                continue                          # a stub into code a registered scene runs
             try:
                 txt = scriptasm.scene_listing(sc, bank, dialog=app.doc.text, bank_no=app.bank_pos)
             except Exception as e:  # noqa: BLE001 -- one broken scene must not hide the rest

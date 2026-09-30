@@ -362,10 +362,16 @@ class CutsceneExplorer:
             self.nb.select(TABS.index(tab))
         if focus_pc is not None:
             self.view.focus_pc(focus_pc)
+        own = None
+        if sc.action_type < 0:
+            own = next((len(o) for s_, o in script.unreached(script.disassemble_bank(bank))
+                        if s_.entry_pc == entry_pc), None)
         self.status("%s · scene @0x%04x · %d statements%s" % (
             catalog.bank_title(bank), entry_pc, len(sc.stmts),
-            " · unreached: nothing in this bank registers or CALLs it (the engine may still "
-            "start it through the global scene index, or it is left-over code)"
+            (" · unreached: %s of them only this reaches -- nothing in this bank registers or "
+             "CALLs it (the engine could still start it at a fixed address, or it is left-over "
+             "code); the rest is code a registered scene runs too"
+             % (own if own is not None else "none"))
             if sc.action_type < 0 else ""))
 
     def _render_visible_tab(self):

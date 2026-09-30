@@ -6861,6 +6861,38 @@ def test_cutscene_bank_listing():
            (_no_addr, _pcs_kept, _with_addr, _src_clean, _gutter_ok, _gutter_off))
 
 
+def test_choice_results():
+    """What a choice writes to reg0 (script.choice_results): only behind a visibility mask
+    (ops 610-612) does the pick go to reg0 as the option's index; the mask may be set right
+    before the menu, inside a CALLed helper, or before branches that rejoin (shop menus)."""
+    print("choice menus: reg0:")
+    from map_editor import data as _med
+    from rf4s_modkit import script, scriptasm
+    c = _med.rf3mc_container(live=False)
+    if c is None:
+        _skip("choice reg0", "rf3.mc not found"); return
+
+    def res(bank_i, pc):
+        b = c.banks[bank_i]
+        for sc in script.disassemble_bank(b):
+            if pc in sc.stmts:
+                stl = list(sc.stmts.values())
+                return script.choice_results(b.data, stl, [x.pc for x in stl].index(pc))
+        return "missing"
+    direct = res(1, 0x5006)             # SetChoiceVisibleBit x N right before the menu
+    rejoin = res(10, 0x20DA)            # SetChoiceVisibleMask, then 3 helpers that rejoin
+    plain = res(1, 0x06DA)              # no mask: reg0 untouched
+    _check("masked menus report reg0 = the option's index (set right before, or before "
+           "rejoining branches); an unmasked menu leaves reg0 alone",
+           isinstance(direct, list) and [k for k, _v in direct] == list(range(7))
+           and isinstance(rejoin, list) and len(rejoin) >= 7 and plain is None,
+           (direct and direct[:3], rejoin and rejoin[:2], plain))
+    b1 = c.banks[1]
+    sc = next(x for x in script.disassemble_bank(b1) if 0x5006 in x.stmts)
+    line = next(ln for ln in scriptasm.scene_listing(sc, b1).split("\n") if "5006:" in ln)
+    _check("the listing's comment names each masked option's reg0", "(reg0=6)" in line, line[-80:])
+
+
 def test_cutscene_graph():
     """The Graph tab: the scene's basic blocks and labelled edges (cutscene_editor.cfg), laid out
     and drawn; a click on a line selects the statement."""
@@ -6942,7 +6974,8 @@ def test_cutscene_graph():
         n2 = len(ex._paned.panes())
         first = str(ex._paned.panes()[0]) == str(ex.browser)
         # the bank list: each scene lists the subroutines it CALLs; code nothing registers or
-        # calls is "unreached" (MAP_FARM_01 = map 8, MAP_DUNG_K01's @0708)
+        # calls is "unreached" with the size of its own code (bank 232 @4428); a stub that only
+        # jumps into code a registered scene runs is not listed (MAP_DUNG_K01's @0708 / @0720)
         br = ex.browser
         fpos = ex.doc.container.n_primary + 8
         br._fill_bank(fpos)
@@ -6950,7 +6983,11 @@ def test_cutscene_graph():
         kpos = next(ex.doc.container.n_primary + i for i in range(900)
                     if __import__("rf4s_modkit.map_names", fromlist=["m"]).map_file(i) == "MAP_DUNG_K01")
         br._fill_bank(kpos)
-        k01 = br.tree.item("s:%d:%d" % (kpos, 0x708), "text")
+        k01_stubs = [k for k in br.tree.get_children("b:%d" % kpos)
+                     if "unreached" in br.tree.item(k, "text")]
+        br._fill_bank(232)
+        k01 = br.tree.item("s:%d:%d" % (232, 0x4428), "text") if br.tree.exists(
+            "s:%d:%d" % (232, 0x4428)) else ""
         # deleting a subroutine's only CALL leaves its code "unreached" (visible, not lost), and
         # the CALL form offers it to call it again (MAP_FARM_01 @03fe CALLs @0128)
         ex.open_scene(fpos, 0x3FE)
@@ -7028,8 +7065,9 @@ def test_cutscene_graph():
            zoomed and n1 == n0 - 1 and n2 == n0 and first, (zoomed, n0, n1, n2, first))
     _check("the bank list shows each scene's CALLed subroutines and names unregistered, "
            "uncalled code 'unreached'",
-           len(subs) == 7 and subs[0].startswith("calls sub @015e") and "unreached" in k01,
-           (subs[:2], k01))
+           len(subs) == 7 and subs[0].startswith("calls sub @015e")
+           and "unreached (28 statements)" in k01 and not k01_stubs,
+           (subs[:2], k01, k01_stubs))
     _check("a subroutine whose only CALL is deleted shows as 'unreached', and the CALL form offers "
            "it to call it again", 0x128 in _orphan and _offer and 0x128 not in _back,
            ([hex(x) for x in _orphan], _offer[:1], [hex(x) for x in _back]))
@@ -14916,7 +14954,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

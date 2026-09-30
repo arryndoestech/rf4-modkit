@@ -1037,8 +1037,8 @@ class InstructionPicker:
                 prev = ""
             out.append(("sub @%04x  (%d call%s) · %s" % (t, called[t], "" if called[t] == 1 else "s",
                                                           prev[:50]), "0x%04x" % t))
-        for sc in scenes:
-            if sc.action_type < 0 and sc.entry_pc not in called:
+        for sc, _own in script.unreached(scenes):
+            if sc.entry_pc not in called:
                 out.append(("unreached @%04x · %s" % (sc.entry_pc, scene_preview(app.doc, sc)[:50]),
                             "0x%04x" % sc.entry_pc))
         return out

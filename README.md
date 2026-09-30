@@ -610,8 +610,9 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   behaviour*, *Maps* (`Map 274 · MAP_DUNG_A04 (Yokmir Forest)`), sub-events, quests. Each bank
   lists its triggered scenes first, each with the subroutines it CALLs under it (*calls sub
   @015e · …*, a click opens the scene there), then any **unreached** code: pieces nothing in the
-  bank registers or calls (the engine may start one through the global scene index, or it is
-  left-over code). The search box finds scenes by **dialogue**
+  bank registers or calls, with the number of statements only they reach (a stub that just jumps
+  into code a registered scene runs is not listed; the engine could start one at a fixed
+  address, or it is left-over code). The search box finds scenes by **dialogue**
   (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
   jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked. The
   toolbar's **◀ Banks** button hides the list to give the scene the full width; **Inspector ▶**
