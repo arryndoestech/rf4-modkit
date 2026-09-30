@@ -10,6 +10,8 @@ Modules:
     view        the Script tab (selectable rows, keyboard, Alt-hover)
     inspector   the form for the selected statement
     tabs        Source, Triggers, Overview
+    cfg         a scene's basic blocks, edges and layered layout (no Tk)
+    graph       the Graph tab (control flow)
     dialogs     prompts (listing, dialogue, line picker, new scene) and the callers list
     em_window   the Event Manager window
     catalog     trigger-type catalogue, bank naming, grammar cheat-sheets, xrefs

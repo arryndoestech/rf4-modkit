@@ -28,7 +28,7 @@ from .render import SceneText
 from .tabs import OverviewTab, SourceTab, TriggersTab, count_statements
 from .view import ScriptView
 
-TABS = ("Script", "Source", "Triggers", "Overview")
+TABS = ("Script", "Graph", "Source", "Triggers", "Overview")
 
 
 class CutsceneExplorer:
@@ -75,6 +75,8 @@ class CutsceneExplorer:
         self._build_toolbar()
         paned = Paned(self.frame, orient="horizontal")
         paned.pack(fill="both", expand=True)
+        self._paned = paned
+        self._banks_hidden = False
         self.browser = Browser(paned, self)
         paned.add(self.browser, weight=0, minsize=220, width=330)
         mid = ttk.Frame(paned)
@@ -85,7 +87,9 @@ class CutsceneExplorer:
         self.source = SourceTab(self.nb, self)
         self.triggers = TriggersTab(self.nb, self)
         self.overview = OverviewTab(self.nb, self)
-        for w, t in zip((self.view, self.source, self.triggers, self.overview), TABS):
+        from .graph import GraphTab
+        self.graph = GraphTab(self.nb, self)
+        for w, t in zip((self.view, self.graph, self.source, self.triggers, self.overview), TABS):
             self.nb.add(w, text=t)
         from .tabs import BankListingTab
         self.listing = BankListingTab(self.nb, self)       # Options -> Advanced (off by default)
@@ -152,10 +156,25 @@ class CutsceneExplorer:
         missed still gets the tag when it takes the focus."""
         self._retag(w)
 
+    def toggle_banks(self):
+        """Collapse / restore the bank list (the Browser pane), like the main window's Files."""
+        if self._banks_hidden:
+            self._paned.insert(0, self.browser, weight=0, minsize=220, width=330)
+            self._banks_btn.config(text="◀ Banks")
+            self._banks_hidden = False
+        else:
+            self._paned.forget(self.browser)
+            self._banks_btn.config(text="Banks ▶")
+            self._banks_hidden = True
+
     def _build_toolbar(self):
         bar = ttk.Frame(self.frame, padding=(2, 2))
         bar.pack(fill="x")
         self.toolbar = bar
+        self._banks_btn = ttk.Button(bar, text="◀ Banks", width=9, command=self.toggle_banks)
+        self._banks_btn.pack(side="left", padx=(0, 6))
+        Tip(self._banks_btn, "Hide the bank list on the left to give the scene the full width "
+                             "(click again to bring it back).")
         ob = ttk.Button(bar, text="Open rf3.mc…", command=self.open_file)
         ob.pack(side="left")
         Tip(ob, "Open a rf3.mc cutscene container (its rf3mc.<locale> and em.bin are looked "
@@ -326,10 +345,23 @@ class CutsceneExplorer:
             self.view.focus_pc(focus_pc)
         self.status("%s · scene @0x%04x · %d statements" % (catalog.bank_title(bank), entry_pc, len(sc.stmts)))
 
+    def _render_visible_tab(self):
+        """The Graph and Bank listing tabs are only rebuilt while shown (each skips the work
+        when its scene / bank did not change); call after the scene or the bank changed."""
+        try:
+            cur = self.nb.select()
+        except tk.TclError:
+            return
+        if cur == str(self.listing):
+            self.listing.render()
+        elif cur == str(self.graph):
+            self.graph.render()
+
     def _show_scene(self):
         self.view.render(keep_sel=False)
         self.source.load(force=True)
         self.overview.render()
+        self._render_visible_tab()
         self.inspector.show(None)
         self.retag()
 
@@ -346,6 +378,7 @@ class CutsceneExplorer:
         self.view.render(keep_sel=True)
         self.source.load()
         self.overview.render()
+        self._render_visible_tab()
         self.triggers.refresh()
         self.browser.refresh_bank(self.bank_pos)
         if self.sel is not None and self.stmt(self.sel[0]) is None:
@@ -362,6 +395,11 @@ class CutsceneExplorer:
         self.sel = key
         self.view.set_selection(key)
         self.inspector.show(key)
+        try:
+            if self.nb.select() == str(self.graph):
+                self.graph.mark_selection()
+        except tk.TclError:
+            pass
 
     def goto(self, pc):
         """Select the statement at `pc` in the open scene (a branch / choice target)."""
@@ -423,8 +461,7 @@ class CutsceneExplorer:
         show the Inspector (the selected statement)."""
         try:
             on_triggers = self.nb.select() == str(self.triggers)
-            if self.nb.select() == str(self.listing):
-                self.listing.render()
+            self._render_visible_tab()
         except tk.TclError:
             return
         if on_triggers:
