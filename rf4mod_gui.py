@@ -27,6 +27,7 @@ Run:  python rf4mod_gui.py                 # auto-loads <repo>/Bundle/Manifest.p
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -86,6 +87,43 @@ def _load_item_names() -> dict[int, str]:
     """{item id: name}: the game's rf3TxtItem, else the built-in list."""
     from rf4s_modkit import gamenames
     return dict(gamenames.table("items"))
+
+
+def _item_text(i: int, names: dict) -> str:
+    """An item id as the editor shows it: "Minerals (1083)", "(none) (0)"."""
+    return f"{names.get(i) or ('(none)' if i == 0 else '?')} ({i})"
+
+
+def _parse_item(text: str, names: dict) -> int:
+    """The item id typed or picked in an item picker: "Name (id)", a bare id, or a name
+    (case ignored; must name exactly one item)."""
+    s = str(text).strip()
+    m = re.search(r"\((\d+)\)\s*$", s)
+    if m:
+        return int(m.group(1))
+    if re.fullmatch(r"(0x[0-9a-fA-F]+|\d+)", s):
+        return int(s, 0)
+    hits = [i for i, n in names.items() if n and n.lower() == s.lower()]
+    if len(hits) == 1:
+        return hits[0]
+    raise ValueError(f"{s!r}: no single item has that name -- pick one from the list or type its id"
+                     if hits or s else "an item field is empty")
+
+
+def _item_picker(parent, var, names: dict, width=24):
+    """A combobox of every item as "Name (id)"; typing filters the list (press Down to open
+    it). Read the value back with _parse_item."""
+    allv = [_item_text(i, names) for i in sorted(set(names) | {0})]
+    cb = ttk.Combobox(parent, textvariable=var, values=allv, width=width)
+
+    def filt(e):
+        if e.keysym in ("Up", "Down", "Return", "KP_Enter", "Escape", "Tab"):
+            return
+        q = var.get().strip().lower()
+        cb.config(values=[v for v in allv if q in v.lower()] if q else allv)
+    cb.bind("<KeyRelease>", filt)
+    cb.bind("<FocusOut>", lambda _e: cb.config(values=allv), add="+")
+    return cb
 
 
 def _find_extracted(basename: str):
@@ -5115,6 +5153,18 @@ class App:
         if sch and sch.get("names") == "item":
             tbl = _load_item_names()
             namefn = lambda i: tbl.get(i, "")
+        fields = sch["fields"] if sch else [(f"dw{k}", k * 4, "s32")
+                                            for k in range(min(8, t.record_size // 4))]
+        # item-id fields show the item's name and are edited with an item picker
+        item_f = {n for n, _o, _t in fields if nlcl.is_item_field(stem, n)}
+        items = _load_item_names() if item_f else {}
+
+        def cell_text(n, raw_v, typ):
+            if n in item_f:
+                return "" if raw_v == 0 else items.get(raw_v) or f"#{raw_v}"     # 0 = empty slot
+            if nlcl.flag_bits(stem, n) is not None:
+                return nlcl.format_flags(raw_v, typ)
+            return nlcl.format_value(raw_v, nlcl.fixed_bits(stem, n))
 
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
         ttk.Label(bar, text=f"NLCL {stem}: {t.entry_count} records × {t.record_size} B"
@@ -5123,13 +5173,13 @@ class App:
         ttk.Label(bar, text="Search #/name:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
 
-        fields = sch["fields"] if sch else [(f"dw{k}", k * 4, "s32")
-                                            for k in range(min(8, t.record_size // 4))]
-        cols = ["#"] + [f[0] for f in fields] + (["name"] if sch and sch.get("names") else [])
+        name_col = bool(sch and sch.get("names")) and sch.get("name_field") not in item_f
+        cols = ["#"] + [f[0] for f in fields] + (["name"] if name_col else [])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
         for c in cols:
-            tv.heading(c, text=c); tv.column(c, width=70 if c != "name" else 160, anchor="w")
+            tv.heading(c, text=c)
+            tv.column(c, width=160 if c == "name" else 130 if c in item_f else 70, anchor="w")
         _table_scrollbars(top, tv)              # wide tables scroll sideways (Shift + wheel too)
 
         name_field = sch.get("name_field") if sch else None
@@ -5142,13 +5192,11 @@ class App:
             shown = 0
             for i in range(t.entry_count):
                 nm = namefn(t.get(i, *name_off_typ) if name_off_typ else i)
-                if q and q not in str(i) and q not in nm.lower():
+                vals = [i] + [cell_text(n, t.get(i, off, typ), typ) for n, off, typ in fields]
+                if q and q not in str(i) and q not in nm.lower() and not any(
+                        q in str(v).lower() for (n, _o, _t), v in zip(fields, vals[1:]) if n in item_f):
                     continue
-                vals = [i] + [nlcl.format_flags(t.get(i, off, typ), typ)
-                              if nlcl.flag_bits(stem, n) is not None else
-                              nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, n))
-                              for n, off, typ in fields]
-                if sch and sch.get("names"):
+                if name_col:
                     vals.append(nm)
                 tv.insert("", "end", iid=str(i), values=vals)
                 shown += 1
@@ -5177,10 +5225,23 @@ class App:
             return _flag_dialog(doc.content, f"{stem} #{sel['i']} — {fn}", typ, cur,
                                 nlcl.flag_bits(stem, fn), done)
         doc._param_open_flags = open_flags          # (selftest)
+        gpos = [0, 0]                                   # (row, column); an item picker takes 2 columns
         for idx, (fn, off, typ) in enumerate(fields):
-            cell = ttk.Frame(grid); cell.grid(row=idx // 8, column=idx % 8, padx=2, pady=1)
+            span = 2 if fn in item_f else 1
+            if gpos[1] + span > 8:
+                gpos[:] = [gpos[0] + 1, 0]
+            cell = ttk.Frame(grid); cell.grid(row=gpos[0], column=gpos[1], columnspan=span, padx=2, pady=1,
+                                              sticky="w")
+            gpos[1] += span
             ttk.Label(cell, text=f"{fn}", font=("Segoe UI", 7)).pack()
-            v = tk.StringVar(); en = ttk.Entry(cell, textvariable=v, width=9); en.pack()
+            v = tk.StringVar()
+            if fn in item_f:
+                en = _item_picker(cell, v, items)
+                Tip(en, "Pick an item or type part of its name (Down opens the filtered list); an id "
+                        "works too. Item 0 = an empty slot.")
+            else:
+                en = ttk.Entry(cell, textvariable=v, width=9)
+            en.pack()
             if nlcl.flag_bits(stem, fn) is not None:
                 fb = ttk.Button(cell, text="Flags…", width=7,
                                 command=lambda v=v, fn=fn, typ=typ: open_flags(v, fn, typ))
@@ -5221,8 +5282,7 @@ class App:
             i = int(s[0]); sel["i"] = i
             for v, off, typ, fn in evars:
                 raw_v = t.get(i, off, typ)
-                v.set(nlcl.format_flags(raw_v, typ) if nlcl.flag_bits(stem, fn) is not None
-                      else nlcl.format_value(raw_v, nlcl.fixed_bits(stem, fn)))
+                v.set(_item_text(raw_v, items) if fn in item_f else cell_text(fn, raw_v, typ))
         tv.bind("<<TreeviewSelect>>", on_sel)
         doc._param_select = lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel())   # (selftest)
 
@@ -5232,7 +5292,8 @@ class App:
             i = sel["i"]
             try:
                 for v, off, typ, fn in evars:
-                    t.set(i, off, nlcl.parse_value(v.get(), typ, nlcl.fixed_bits(stem, fn)), typ)
+                    t.set(i, off, _parse_item(v.get(), items) if fn in item_f else
+                          nlcl.parse_value(v.get(), typ, nlcl.fixed_bits(stem, fn)), typ)
                 if off_v.get().strip() and rawval_v.get().strip():
                     t.set(i, int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
             except (ValueError, nlcl.NlclError) as e:
@@ -5241,6 +5302,9 @@ class App:
             fill()
             tv.selection_set(str(i)); tv.see(str(i))
             self.status.config(text=f"Applied record {i} — Save table… or Extract… to write")
+        doc._param_apply = apply_edit                                         # (selftest)
+        doc._param_vars = {fn: v for v, _o, _t, fn in evars}
+        doc._param_tree = tv
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob

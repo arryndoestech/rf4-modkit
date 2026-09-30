@@ -835,6 +835,25 @@ FLAG_FIELDS = {
 }
 
 
+# ---- item-id fields --------------------------------------------------------------------
+# Fields that hold an item id (0 = none): the GUI shows the item's name and edits them with a
+# searchable item picker. The recipe ingredients may be a category item (1083 Minerals, 1088
+# Furs): any item of that category is accepted at the station. Matched by stem, then by the
+# PREFIX_SCHEMAS family prefix.
+ITEM_FIELDS = {
+    "rf3Recipe": ("result", "ing1", "ing2", "ing3", "ing4", "ing5", "ing6"),
+    "MapOre_Rate": ("item0", "item1", "item2", "rare_item"),
+    "rf3ItemList": ("base_item",),
+}
+
+
+def is_item_field(stem: str, name: str) -> bool:
+    """True when the field holds an item id."""
+    if name in ITEM_FIELDS.get(stem, ()):
+        return True
+    return any(stem.startswith(p) and name in ITEM_FIELDS.get(p, ()) for p in PREFIX_SCHEMAS)
+
+
 def flag_bits(stem: str, name: str):
     """{mask: name} of a bit-set field ({} when its bits have no names yet), or None when the
     field is not a bit set."""

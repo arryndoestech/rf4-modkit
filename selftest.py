@@ -1135,6 +1135,18 @@ def test_bin_editors():
         steps = len(sk["history"])
         sk["undo"]()
         res["paint"] = (painted, steps, doc.cur_data == d)
+        # recipe: item-id fields show names; the picker takes a name, "Name (id)" or an id
+        if (B / "rf3RecipeAcce.bin").exists():
+            d = (B / "rf3RecipeAcce.bin").read_bytes()
+            app._show("rf3RecipeAcce.bin", d); doc = app._doc
+            row = doc._param_tree.set("1")
+            doc._param_select(1)
+            pv = doc._param_vars
+            shown = (row["result"], row["ing1"], row["ing2"], pv["ing1"].get(), "name" in row)
+            pv["ing2"].set("minerals"); doc._param_apply()
+            by_name = nlcl.NlclTable(doc.cur_data).get(1, 4, "u16")
+            pv["ing2"].set("(none) (0)"); doc._param_apply()
+            res["recipe"] = shown + (by_name, doc.cur_data == d)
         # strengthening: set a field of the selected row
         d = (B / "rf3ItemStrengthening.bin").read_bytes()
         app._show("rf3ItemStrengthening.bin", d); doc = app._doc
@@ -1162,6 +1174,10 @@ def test_bin_editors():
     _check("skill XP curve: a paint stroke across the chart sets every level it crosses (a straight "
            "line between the drag points), is one history step, and Undo restores the file",
            res.get("paint") == (True, 4, True), res.get("paint"))
+    if "recipe" in res:
+        _check("rf3Recipe*: item fields show item names (Yarn <- Furs), the picker shows "
+               "'Furs (1088)', a typed name sets the id, (none) clears it (file byte-exact after)",
+               res["recipe"] == ("Yarn", "Furs", "", "Furs (1088)", False, 1083, True), res["recipe"])
     _check("rf3ItemStrengthening: Set writes the chosen field of the selected item", res.get("str") == 123,
            res.get("str"))
     _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
