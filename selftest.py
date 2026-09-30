@@ -1003,6 +1003,11 @@ def test_fixed_point_fields():
            "field and a non-number are refused with a reason",
            all(errs) and "799.976" in errs[0] and "not a percentage" in errs[1],
            errs)
+    P = nlcl.PERCENT
+    pct = (nlcl.format_value(200, P), nlcl.parse_value("250%", "u16", P), nlcl.parse_value("1.5x", "u16", P),
+           nlcl.parse_value("120", "u16", P), nlcl.fixed_bits("rf3PriceTable", "Lv 10"))
+    _check("whole-percent fields (rf3PriceTable: 100 = 100%): 200 shows as 200%, 250% / 1.5x / 120 "
+           "store 250 / 150 / 120", pct == ("200%", 250, 150, 120, P), pct)
     _check("the fixed-point fields are real schema fields of their tables",
            all(f in {n for n, _o, _t in nlcl.FIELD_SCHEMAS[s]["fields"]}
                for s, fs in nlcl.FIXED_FIELDS.items() for f in fs),
@@ -1358,7 +1363,7 @@ def test_param():
         itxt = ti.to_csv(il.stem, lambda i: {29: "Turnip"}.get(i, ""))
         rows = itxt.splitlines()
         _check("NLCL to_csv named view (rf3PriceTable columns, rf3ItemList name column)",
-               head == ["#"] + [f"mult_lv{j}" for j in range(10)] and len(txt.splitlines()) == 11
+               head == ["#"] + [f"Lv {j}" for j in range(1, 11)] and len(txt.splitlines()) == 11
                and rows[0].endswith(",name") and rows[30].split(",")[0] == "29"
                and rows[30].endswith(",Turnip") and len(rows) == ti.entry_count + 1)
         rawh = t.to_csv(pt.stem, named=False).splitlines()[0]

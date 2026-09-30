@@ -232,13 +232,14 @@ def _flag_dialog(parent, title, typ, value, names, on_ok):
 
 def _fixed_tip(text, typ, bits):
     """Tooltip of a fixed-point field in the table editor: the stored integer and the scale."""
-    one = 1 << bits
+    one = nlcl.fixed_scale(bits)
+    kind = "whole percent" if bits == nlcl.PERCENT else f"Q{bits}"
     try:
         raw = nlcl.parse_value(text, typ, bits)
-        return (f"stored as {raw} ({one} = 100%, Q{bits}); type a percentage (150%) or a whole "
+        return (f"stored as {raw} ({one} = 100%, {kind}); type a percentage (150%) or a whole "
                 f"number for the stored value")
     except Exception:
-        return f"fixed-point field: {one} = 100% (Q{bits}); type 150% or a whole number"
+        return f"{one} = 100% ({kind}); type 150% or a whole number"
 
 def _max_rows():
     """Rows shown in big tables before 'refine search' (Options: guiutil.list_rows)."""
@@ -4636,6 +4637,12 @@ class App:
         expl.bind("<Configure>", lambda e: expl.config(wraplength=max(200, e.width - 16)))
 
         foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        # the selected category's title + users span the full width, so both lists below start
+        # and end at the same height
+        sel_head = ttk.Frame(doc.content, padding=(6, 2)); sel_head.pack(fill="x")
+        title = ttk.Label(sel_head, font=("Segoe UI", 10, "bold")); title.pack(anchor="w")
+        used_lbl = ttk.Label(sel_head, foreground="#555", justify="left"); used_lbl.pack(fill="x")
+        used_lbl.bind("<Configure>", lambda e: used_lbl.config(wraplength=max(200, e.width - 8)))
         body = ttk.PanedWindow(doc.content, orient="horizontal"); body.pack(fill="both", expand=True, padx=6)
         left = ttk.Frame(body); body.add(left, weight=2)
         right = ttk.Frame(body); body.add(right, weight=3)
@@ -4647,9 +4654,6 @@ class App:
             ct.heading(c, text=t_); ct.column(c, width=w, anchor="w")
         _table_scrollbars(left, ct)
 
-        title = ttk.Label(right, font=("Segoe UI", 10, "bold")); title.pack(anchor="w")
-        used_lbl = ttk.Label(right, foreground="#555", justify="left"); used_lbl.pack(fill="x", pady=(0, 4))
-        used_lbl.bind("<Configure>", lambda e: used_lbl.config(wraplength=max(200, e.width - 8)))
         mf = ttk.Frame(right); mf.pack(fill="both", expand=True)
         mt = ttk.Treeview(mf, columns=("item", "id", "fp"), show="headings", selectmode="extended", height=14)
         for c, t_, w in (("item", "Item", 220), ("id", "Id", 60), ("fp", "Friendship when loved / liked", 190)):
@@ -5796,13 +5800,13 @@ class App:
                 Tip(fb, "Set or clear each bit of this field with a tick box.")
             evars.append((v, off, typ, fn))
         if any(nlcl.fixed_bits(stem, fn) is not None for fn, _o, _t in fields):
-            one = {12: 4096, 7: 128}
-            fx = nlcl.FIXED_FIELDS.get(nlcl.canonical_stem(stem), {}).values()
+            fx = set(nlcl.FIXED_FIELDS.get(nlcl.canonical_stem(stem), {}).values())
+            ones = sorted({nlcl.fixed_scale(b) for b in fx})
             hint_lbl = ttk.Label(ed, foreground="#777", justify="left", wraplength=600, text=(
-                "Fields shown as a percentage are fixed-point values: the file stores the fraction × "
-                + " / ".join(sorted({str(one.get(b, 1 << b)) for b in fx}))
-                + " (so " + " / ".join(sorted({f"{one.get(b, 1 << b)} = 100%" for b in fx}))
-                + "). Type a percentage (150%) or the stored whole number (6144)."))
+                "Fields shown as a percentage: the file stores the fraction × "
+                + " / ".join(str(o) for o in ones)
+                + " (so " + " / ".join(f"{o} = 100%" for o in ones)
+                + f"). Type a percentage (150%) or the stored whole number ({ones[-1] * 3 // 2})."))
             hint_lbl.pack(fill="x", padx=6)
             hint_lbl.bind("<Configure>", lambda e, w=hint_lbl: w.config(wraplength=max(200, e.width - 8)))
         # generic offset editor (for raw edits beyond the shown fields)

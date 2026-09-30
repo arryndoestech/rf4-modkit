@@ -198,7 +198,8 @@ FIELD_SCHEMAS = {
         # g_itemDatabase->ptr_80 = archive 14825 + 28 (ItemDatabase_AllocateAndInit +0x3FBE0);
         # the count is never read and the category guard caps rows at 10.
         "grow": "fixed:10",
-        "fields": [(f"mult_lv{j}", j * 2, "u16") for j in range(10)],
+        # column j = the stack's stored level j = in-game Lv j+1 (items store shown level - 1)
+        "fields": [(f"Lv {j + 1}", j * 2, "u16") for j in range(10)],
     },
     "rf3NpcParam": {
         # 392 x 308-byte character/monster template DB, ROW INDEX == char_id. nlcl's
@@ -785,7 +786,10 @@ _CROP_SEASON_MASK = 0xFF000  # the 8 season bits (0x1000..0x80000)
 # is the engine's usual scale -- a 32-bit field is Q20.12, a 16-bit one Q4.12 -- and the
 # crop growth-rate multipliers are Q7 (128 = 1.0). Only fields whose reader was checked
 # are listed (see each schema's comments); the rest stay plain integers.
-# {table stem: {field: fraction bits}}
+# PERCENT marks a field stored as a plain whole percentage (100 = 100%; the game divides by 100),
+# shown and typed with the same '150%' / '1.5x' forms.
+# {table stem: {field: fraction bits or PERCENT}}
+PERCENT = "pct"
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
                                       "elem_resist", "stagger", "Psn Atk%", "Seal Atk%",
@@ -803,6 +807,8 @@ FIXED_FIELDS = {
     "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
     "rf3ItemStrengthening": {"knockback_scale_q12": 12},
     "rf3CropParam": {f: 7 for f in ("gmul_size", "gmul_1", "gmul_2", "gmul_3")},
+    # Item_ComputeStackGoldValue (RF4S.exe+0x454A0): gold = price * value / 100
+    "rf3PriceTable": {f"Lv {j}": PERCENT for j in range(1, 11)},
 }
 MULT_SIGNS = ("x", "X", "\u00d7")          # a trailing x / × marks a multiplier (1.5x = 150%)
 
@@ -1054,8 +1060,14 @@ def apply_flag_edit(current: int, text: str, names=None, typ: str = "u32") -> in
 
 
 def fixed_bits(stem: str, name: str):
-    """Fraction bits of a fixed-point field (12 for Q12, 7 for Q7), or None."""
-    return FIXED_FIELDS.get(stem, {}).get(name)
+    """Fraction bits of a fixed-point field (12 for Q12, 7 for Q7), PERCENT for a whole-percent
+    field, or None."""
+    return FIXED_FIELDS.get(canonical_stem(stem), {}).get(name)
+
+
+def fixed_scale(bits) -> int:
+    """The stored value that means 100%: 2**bits, or 100 for a PERCENT field."""
+    return 100 if bits == PERCENT else 1 << bits
 
 
 def format_value(raw: int, bits=None) -> str:
@@ -1065,7 +1077,7 @@ def format_value(raw: int, bits=None) -> str:
     the designers typed, not 114.99%); two decimals always do for Q12, fewer for Q7."""
     if bits is None:
         return str(raw)
-    one = 1 << bits
+    one = fixed_scale(bits)
     for nd in range(0, 7):
         s = f"{raw * 100 / one:.{nd}f}"
         if round(float(s) * one / 100) == raw:
@@ -1088,11 +1100,12 @@ def parse_value(text: str, typ: str = "s32", bits=None) -> int:
             v = float(t[:-1].strip())
         except ValueError:
             raise NlclError(f"{t!r} is not a number") from None
-        raw = round((v / 100 if pct else v) * (1 << bits))
+        one = fixed_scale(bits)
+        raw = round((v / 100 if pct else v) * one)
         lo, hi = type_range(typ)
         if not lo <= raw <= hi:
-            raise NlclError(f"{t} does not fit a {typ} field: {lo * 100 / (1 << bits):g}% .. "
-                            f"{hi * 100 / (1 << bits):g}%")
+            raise NlclError(f"{t} does not fit a {typ} field: {lo * 100 / one:g}% .. "
+                            f"{hi * 100 / one:g}%")
         return raw
     try:
         return int(t, 0)
