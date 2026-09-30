@@ -666,7 +666,10 @@ class _Field:
     def __init__(self, parent, row, label, hint, options, default, on_change, width=46):
         self.row = row
         self.opts = dict(options)
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="nw", padx=(0, 6), pady=2)
+        self.parts = []                         # the label, input and hint (hide / show)
+        lab = ttk.Label(parent, text=label)
+        lab.grid(row=row, column=0, sticky="nw", padx=(0, 6), pady=2)
+        self.parts.append(lab)
         self.var = tk.StringVar()
         if options:
             w = FilterCombo(parent, [d for d, _t in options], on_pick=lambda _t: on_change(), width=width,
@@ -678,10 +681,23 @@ class _Field:
             self.var.set(default)
         w.grid(row=row, column=1, sticky="we", pady=2)
         self.widget = w
+        self.parts.append(w)
+        Tip(w, (label[:1].upper() + label[1:]) + (": " + hint if hint else "")
+            + ". It fills in the listing below.")
         if hint:
-            ttk.Label(parent, text=hint, foreground="#777", wraplength=380, justify="left",
-                      font=("Segoe UI", 8)).grid(row=row + 1, column=1, sticky="w")
+            h = ttk.Label(parent, text=hint, foreground="#777", wraplength=380, justify="left",
+                          font=("Segoe UI", 8))
+            h.grid(row=row + 1, column=1, sticky="w")
+            self.parts.append(h)
         self.var.trace_add("write", lambda *_a: on_change())
+
+    def hide(self):
+        for w in self.parts:
+            w.grid_remove()
+
+    def show(self):
+        for w in self.parts:
+            w.grid()
 
     def token(self):
         v = self.var.get().strip()
@@ -697,6 +713,7 @@ class InstructionPicker:
         self.win.title("Cutscene Editor — Add an instruction")
         self.win.geometry("1150x700")
         self.key = None                 # ("op", n) | ("ctl", mnemonic)
+        self.dlg_mode = tk.StringVar(value="new")      # DIALOG: a new line or an existing one
         self.fields = []
         self.rows = []                  # repeating rows (targets / choice options)
         self.manual = False
@@ -711,9 +728,12 @@ class InstructionPicker:
         self.q = tk.StringVar()
         se = ttk.Entry(top, textvariable=self.q)
         se.pack(side="left", fill="x", expand=True, padx=4)
+        Tip(se, "Filter the instructions by name, opcode number or description.")
         self.only_ver = tk.BooleanVar(value=False)
-        ttk.Checkbutton(left, text="only instructions verified in game", variable=self.only_ver,
-                        command=self.fill_tree).pack(anchor="w")
+        vc = ttk.Checkbutton(left, text="only instructions verified in game", variable=self.only_ver,
+                             command=self.fill_tree)
+        vc.pack(anchor="w")
+        Tip(vc, "List only the instructions someone has checked in the running game.")
         tf = ttk.Frame(left)
         tf.pack(fill="both", expand=True, pady=(4, 0))
         self.tree = ttk.Treeview(tf, columns=("op", "v"), show="tree headings")
@@ -744,6 +764,8 @@ class InstructionPicker:
         ph.pack(fill="x")
         ttk.Label(ph, text="Listing (what gets inserted — you can also edit it by hand):").pack(side="left")
         self.rebuild_btn = ttk.Button(ph, text="Rebuild from the form", command=self._rebuild)
+        Tip(self.rebuild_btn, "Throw away your hand edits of the listing and write it again from "
+                              "the form.")
         self.preview = tk.Text(right, height=7, font=("Consolas", 10), wrap="none", undo=True)
         self.preview.pack(fill="both", expand=True)
         self.preview.bind("<Key>", self._typed)
@@ -752,9 +774,15 @@ class InstructionPicker:
         bb = ttk.Frame(right)
         bb.pack(fill="x", pady=(6, 0))
         self.where = tk.StringVar(value="after")
-        ttk.Radiobutton(bb, text="after the selected statement", value="after", variable=self.where).pack(side="left")
-        ttk.Radiobutton(bb, text="before it", value="before", variable=self.where).pack(side="left", padx=6)
-        ttk.Button(bb, text="Close", command=self.win.withdraw).pack(side="right")
+        ra = ttk.Radiobutton(bb, text="after the selected statement", value="after", variable=self.where)
+        ra.pack(side="left")
+        Tip(ra, "Insert goes right after the statement selected in the Script tab.")
+        rb_ = ttk.Radiobutton(bb, text="before it", value="before", variable=self.where)
+        rb_.pack(side="left", padx=6)
+        Tip(rb_, "Insert goes right before the selected statement (so also where a jump to it lands).")
+        cb = ttk.Button(bb, text="Close", command=self.win.withdraw)
+        cb.pack(side="right")
+        Tip(cb, "Hide this window (it keeps what you filled in).")
         ib = ttk.Button(bb, text="Insert", command=self.insert)
         ib.pack(side="right", padx=4)
         Tip(ib, "Insert the listing at the selected statement of the open scene (Ctrl+Enter). "
@@ -845,6 +873,7 @@ class InstructionPicker:
     def set_instruction(self, key):
         self.key = key
         self.manual = False
+        self.preview.config(state="normal")
         self.rebuild_btn.pack_forget()
         for w in self.form.winfo_children():
             w.destroy()
@@ -982,6 +1011,38 @@ class InstructionPicker:
             out.append(("0x%04x  %s%s" % (pc, (lab + ": ") if lab else "", what), "0x%04x" % pc))
         return out
 
+    def _subroutines(self):
+        """[(display, token)] for CALL: the subroutines of the open bank -- what any of its
+        scenes CALLs, and its unreached code (e.g. a subroutine whose last CALL was deleted,
+        so it can be called again) -- each with a one-line preview."""
+        app = self.app
+        bank = getattr(app, "bank", None)
+        if bank is None:
+            return []
+        from .render import scene_preview
+        try:
+            scenes = script.disassemble_bank(bank)
+        except Exception:  # noqa: BLE001 -- a picker convenience
+            return []
+        called = {}
+        for sc in scenes:
+            for _pc, st in sc.stmts.items():
+                if st.mnem == "CALL" and st.code_targets and st.code_targets[0] is not None:
+                    called[st.code_targets[0]] = called.get(st.code_targets[0], 0) + 1
+        out = []
+        for t in sorted(called):
+            try:
+                prev = scene_preview(app.doc, script.disassemble_scene(bank, -1, t))
+            except Exception:  # noqa: BLE001
+                prev = ""
+            out.append(("sub @%04x  (%d call%s) · %s" % (t, called[t], "" if called[t] == 1 else "s",
+                                                          prev[:50]), "0x%04x" % t))
+        for sc in scenes:
+            if sc.action_type < 0 and sc.entry_pc not in called:
+                out.append(("unreached @%04x · %s" % (sc.entry_pc, scene_preview(app.doc, sc)[:50]),
+                            "0x%04x" % sc.entry_pc))
+        return out
+
     def _cond(self, prefix="condition"):
         vars_ = variable_choices(self.app.doc)
         self.c_left = self._add(prefix + ": variable", "a flag / register name, or any expression",
@@ -1003,16 +1064,31 @@ class InstructionPicker:
         tg = self._targets()
         tdef = tg[0][1] if tg else "0x0000"
         if m == "DIALOG":
+            from . import dialogs
+            mr = ttk.Frame(self.form)
+            mr.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 4))
+            for val, lab, tip in (("new", "a new line", "Write a new line: its speaker, face, box "
+                                                        "style and text. Insert adds it in every locale."),
+                                  ("existing", "an existing line", "Show a line that already exists, "
+                                                                   "by its id (Find a line… searches them).")):
+                rb = ttk.Radiobutton(mr, text=lab, value=val, variable=self.dlg_mode,
+                                     command=self._dialogue_mode)
+                rb.pack(side="left", padx=(0, 10))
+                Tip(rb, tip)
+            # a new line: speaker (+ side, face), box style and text; added in every locale
+            self.dlg_form = dialogs.DialogueForm(self.form, reader=self.app.doc.reader,
+                                                 on_change=self._changed)
+            self.dlg_form.frame.grid(row=6, column=0, columnspan=3, sticky="we")
+            # an existing line by id
             self.line = self._add("line id", "the dialogue line (#id) in rf3mc.<locale>", [], "0", width=14)
-            b = ttk.Frame(self.form)
-            b.grid(row=99, column=1, sticky="w", pady=4)
-            ttk.Button(b, text="Find a line…", command=self._find_line).pack(side="left")
-            nb = ttk.Button(b, text="New line… (speaker + text)", command=self._new_line)
-            nb.pack(side="left", padx=4)
-            Tip(nb, "Write a new line with its speaker, face and box style (the Add dialogue line "
-                    "form); it is inserted straight away.")
+            self.line_btns = ttk.Frame(self.form)
+            self.line_btns.grid(row=99, column=1, sticky="w", pady=4)
+            fb = ttk.Button(self.line_btns, text="Find a line…", command=self._find_line)
+            fb.pack(side="left")
+            Tip(fb, "Search this locale's dialogue for a line and use its id.")
             self.line_txt = ttk.Label(self.form, foreground="#555", wraplength=520, justify="left")
             self.line_txt.grid(row=100, column=1, sticky="w")
+            self._dialogue_mode(rebuild=False)
         elif m == "EVAL":
             vars_ = variable_choices(self.app.doc)
             self.e_var = self._add("variable", "flag / register to change", vars_, vars_[10][1] if len(vars_) > 10 else "reg0")
@@ -1022,7 +1098,12 @@ class InstructionPicker:
             self._cond()
             if m != "RET_NZ":
                 self.t1 = self._add("target", "where to jump (a statement of this scene)", tg, tdef)
-        elif m in ("JMP", "CALL"):
+        elif m == "CALL":
+            subs = self._subroutines()
+            self.t1 = self._add("target", "a subroutine of this bank (every scene's CALL targets and "
+                                          "the unreached code), or a statement of this scene",
+                                subs + tg, subs[0][1] if subs else tdef)
+        elif m == "JMP":
             self.t1 = self._add("target", "a statement of this scene", tg, tdef)
         elif m == "FRAME":
             self.n = self._add("stack words", "an even number; the editor sizes it by itself", [], "2", width=14)
@@ -1098,6 +1179,16 @@ class InstructionPicker:
             last = max(last, min(rng[0], len(args)) if rng else 0)
             return scriptasm.action_line(op, [a or "0" for a in args[:last]])
         m = key
+        if m == "DIALOG" and self.dlg_mode.get() == "new":
+            spec, _err = self.dlg_form.value()
+            out = []
+            if spec and spec["speaker"] is not None:
+                out.append("op%d %d, 0" % (script.portrait_opcode(*spec["speaker"]), int(spec["face"] or 0)))
+            box = spec["box"] if spec else None
+            if box is not None:
+                out.append("op%d" % (94 + box) if 0 <= box <= 3 else "op93 %d" % box)
+            out.append("DIALOG #(new)")
+            return "\n".join(out)
         if m == "DIALOG":
             return "DIALOG #%s" % self.line.token()
         if m == "EVAL":
@@ -1141,8 +1232,11 @@ class InstructionPicker:
         except Exception as e:  # noqa: BLE001 -- e.g. an opcode argument that names nothing
             text = ""
             self.check_lbl.config(text="✗ %s" % err_text(e), foreground="#b00")
+        state = str(self.preview.cget("state"))
+        self.preview.config(state="normal")             # a new line's preview is read-only
         self.preview.delete("1.0", "end")
         self.preview.insert("1.0", text)
+        self.preview.config(state=state)
         if getattr(self, "line_txt", None) is not None and self.key == ("ctl", "DIALOG"):
             try:
                 t = self.app.doc.text(int(self.line.token().lstrip("#")))
@@ -1163,7 +1257,16 @@ class InstructionPicker:
     def text(self):
         return self.preview.get("1.0", "end").strip()
 
+    def _new_dialogue(self):
+        return self.key == ("ctl", "DIALOG") and self.dlg_mode.get() == "new"
+
     def check(self):
+        if self._new_dialogue():
+            _spec, err = self.dlg_form.value()
+            self.check_lbl.config(text=("✗ " + err) if err else
+                                  "✓ a new line: Insert adds it in every locale",
+                                  foreground="#b00" if err else "#080")
+            return not err
         text = self.text()
         if not text:
             return False
@@ -1182,6 +1285,21 @@ class InstructionPicker:
                                        "instruction goes after / before it)", foreground="#b00")
             return False
         pc, before = w
+        if self._new_dialogue():
+            if self.app.doc.textarc is None:
+                self.check_lbl.config(text="rf3mc.%s is not loaded" % self.app.doc.locale,
+                                      foreground="#b00")
+                return False
+            spec, _err = self.dlg_form.value()
+            nid = self.app._insert_dialogue(pc, spec["speaker"], spec["text"], spec.get("face", 0),
+                                            spec.get("box"), before)
+            if nid is not None:
+                self.check_lbl.config(text="✓ inserted line #%d — select another statement or "
+                                           "insert again (it goes after the new one)" % nid,
+                                      foreground="#080")
+                self.where.set("after")
+                self.dlg_form.set_text("")
+            return nid
         ok = self.app.insert_before(pc, self.text()) if before else self.app.insert_after(pc, self.text())
         if ok:
             self.check_lbl.config(text="✓ inserted — select another statement or insert again "
@@ -1195,9 +1313,25 @@ class InstructionPicker:
         if i is not None:
             self.line.var.set(str(i))
 
-    def _new_line(self):
-        before = self.where.get() == "before"
-        self.app.ask_insert_dialogue(before)
+    def _dialogue_mode(self, rebuild=True):
+        """Show the new-line form or the line-id field."""
+        new = self.dlg_mode.get() == "new"
+        if new:
+            self.dlg_form.frame.grid()
+            for w in (self.line_btns, self.line_txt):
+                w.grid_remove()
+            self.line.hide()
+        else:
+            self.dlg_form.frame.grid_remove()
+            for w in (self.line_btns, self.line_txt):
+                w.grid()
+            self.line.show()
+        try:
+            self.preview.config(state="disabled" if new else "normal")
+        except tk.TclError:
+            pass
+        if rebuild:
+            self._rebuild()
 
     def _source_tab(self):
         try:

@@ -33,49 +33,6 @@ def _run(win, focus):
     win.wait_window()
 
 
-def ask_listing(parent, title, prompt, check, initial=""):
-    """Multi-line listing prompt. `check(text)` returns an error string or None; OK only
-    closes on a listing that assembles. Returns the text or None."""
-    win = _modal(parent, title)
-    ttk.Label(win, text=prompt, justify="left", font=("Segoe UI", 9)).pack(anchor="w", padx=8, pady=(8, 2))
-    help_lbl = tk.Label(win, text=catalog.SOURCE_SYNTAX_HELP, justify="left", anchor="w",
-                        font=("Consolas", 8), bg="#1b1b22", fg="#e6e6ee", padx=6, pady=4)
-    body = ttk.Frame(win)
-    body.pack(fill="both", expand=True, padx=8)
-    txt = tk.Text(body, height=9, width=84, font=("Consolas", 10), undo=True, **DARK)
-    txt.pack(fill="both", expand=True)
-    txt.insert("1.0", initial or "")
-    err = ttk.Label(win, text="", foreground="#b02020", wraplength=640, justify="left")
-    err.pack(fill="x", padx=8, pady=(2, 0))
-    out = {"text": None}
-    shown = {"help": False}
-
-    def ok(_e=None):
-        t = txt.get("1.0", "end-1c")
-        if not t.strip():
-            err.config(text="type at least one statement (or Cancel)")
-            return "break"
-        e = check(t)
-        if e:
-            err.config(text=e)
-            return "break"
-        out["text"] = t
-        win.destroy()
-
-    def toggle():
-        (help_lbl.pack_forget() if shown["help"] else help_lbl.pack(fill="x", padx=8, pady=(0, 4), before=body))
-        shown["help"] = not shown["help"]
-    bb = ttk.Frame(win)
-    bb.pack(fill="x", padx=8, pady=6)
-    ttk.Button(bb, text="Insert", command=ok).pack(side="right", padx=2)
-    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
-    ttk.Button(bb, text="Syntax help", command=toggle).pack(side="left")
-    hint(bb, "Ctrl+Enter inserts").pack(side="left", padx=8)
-    win.bind("<Control-Return>", ok)
-    _run(win, txt)
-    return out["text"]
-
-
 def ask_spec(parent, title, prompt, validate, initial=""):
     """One-field prompt whose OK runs `validate(text)` first (errors inline)."""
     win = _modal(parent, title)
@@ -331,77 +288,78 @@ class BoxStylePicker:
             self.on_change(style)
 
 
-def ask_dialogue(parent, default_speaker=None, reader=None):
-    """'Add a dialogue line': optional speaker change (with the portrait's face) + the text.
-    Returns {'speaker': (slot, side) | None, 'face': face id, 'text': str} or None."""
-    win = _modal(parent, "Add a dialogue line")
-    frm = ttk.Frame(win, padding=8)
-    frm.pack(fill="both", expand=True)
-    ttk.Label(frm, text="Speaker").grid(row=0, column=0, sticky="w")
-    choices = speaker_choices()
-    spk = FilterCombo(frm, ["(keep the current speaker)"] + choices, None, width=32)
-    spk.var.set("(keep the current speaker)" if default_speaker is None else choices[default_speaker])
-    spk.grid(row=0, column=1, sticky="we", padx=4)
-    Tip(spk, "Pick a speaker to insert a SetSpeaker before the line, or keep the one already "
-             "speaking.")
-    side = tk.StringVar(value="left")
-    sr = ttk.Frame(frm)
-    sr.grid(row=1, column=1, sticky="w", padx=4)
-    for s in ("left", "right"):
-        ttk.Radiobutton(sr, text=s, value=s, variable=side).pack(side="left", padx=(0, 6))
-    ttk.Label(frm, text="Face").grid(row=2, column=0, sticky="w", pady=(4, 0))
-    face = FacePicker(frm, reader=reader)
-    face.frame.grid(row=2, column=1, sticky="w", padx=4, pady=(4, 0))
+class DialogueForm:
+    """A new dialogue line's fields, placed in `parent` (a frame): an optional speaker change
+    (with its side and the portrait's face), the message-box style and the text. The
+    Instruction picker shows it for DIALOG. value() -> (spec, error): spec = {'speaker':
+    (slot, side) | None, 'face': face id, 'box': box style | None, 'text': str}."""
 
-    def speaker_slot():
-        choice = spk.var.get().split()
+    KEEP = "(keep the current speaker)"
+
+    def __init__(self, parent, default_speaker=None, reader=None, on_change=None):
+        frm = self.frame = ttk.Frame(parent)
+        ttk.Label(frm, text="Speaker").grid(row=0, column=0, sticky="w")
+        choices = speaker_choices()
+        self.spk = FilterCombo(frm, [self.KEEP] + choices, None, width=32)
+        self.spk.var.set(self.KEEP if default_speaker is None else choices[default_speaker])
+        self.spk.grid(row=0, column=1, sticky="we", padx=4)
+        Tip(self.spk, "Pick a speaker to insert a SetSpeaker before the line, or keep the one "
+                      "already speaking.")
+        self.side = tk.StringVar(value="left")
+        sr = ttk.Frame(frm)
+        sr.grid(row=1, column=1, sticky="w", padx=4)
+        for sd in ("left", "right"):
+            r_ = ttk.Radiobutton(sr, text=sd, value=sd, variable=self.side)
+            r_.pack(side="left", padx=(0, 6))
+            Tip(r_, "Which side of the screen the new speaker's portrait stands on.")
+        ttk.Label(frm, text="Face").grid(row=2, column=0, sticky="w", pady=(4, 0))
+        self.face = FacePicker(frm, reader=reader)
+        self.face.frame.grid(row=2, column=1, sticky="w", padx=4, pady=(4, 0))
+        self.spk._on_pick = lambda _t: self.face.set_slot(self._slot())
+        self.spk.var.trace_add("write", lambda *_a: self.face.set_slot(self._slot()))
+        self.face.set_slot(self._slot())
+        ttk.Label(frm, text="Box style").grid(row=3, column=0, sticky="w", pady=(4, 0))
+        self.box = BoxStylePicker(frm, reader=reader, keep=True)
+        self.box.frame.grid(row=3, column=1, sticky="w", padx=4, pady=(4, 0))
+        ttk.Label(frm, text="Text").grid(row=4, column=0, sticky="nw", pady=(6, 0))
+        self.txt = tk.Text(frm, height=4, width=60, wrap="word", font=("Segoe UI", 10), undo=True)
+        self.txt.grid(row=4, column=1, sticky="nsew", padx=4, pady=(6, 0))
+        import text_tab
+        im = text_tab.insert_menu(frm, self.txt)
+        im.grid(row=4, column=2, sticky="nw", pady=(6, 0))
+        Tip(im, "Put a colour, a raise / lower, a button icon or a ＠ code at the cursor (written "
+                "as backslash escapes: \\red, \\btn(a) ...).")
+        hint(frm, "The text becomes a new line in every locale (the others get it untranslated "
+                  "until you edit them). The face applies when you pick a speaker.", wrap=460).grid(
+            row=5, column=1, sticky="w", padx=4)
+        frm.columnconfigure(1, weight=1)
+        frm.rowconfigure(4, weight=1)
+        if on_change is not None:
+            self.txt.bind("<<Modified>>", lambda _e: (self.txt.edit_modified(False), on_change()))
+            self.spk.var.trace_add("write", lambda *_a: on_change())
+            self.side.trace_add("write", lambda *_a: on_change())
+
+    def _slot(self):
+        choice = self.spk.var.get().split()
         return int(choice[0]) if choice and choice[0].isdigit() else None
-    spk._on_pick = lambda _t: face.set_slot(speaker_slot())
-    spk.var.trace_add("write", lambda *_a: face.set_slot(speaker_slot()))
-    face.set_slot(speaker_slot())
-    ttk.Label(frm, text="Box style").grid(row=8, column=0, sticky="w", pady=(4, 0))
-    box = BoxStylePicker(frm, reader=reader, keep=True)
-    box.frame.grid(row=8, column=1, sticky="w", padx=4, pady=(4, 0))
-    ttk.Label(frm, text="Text").grid(row=4, column=0, sticky="nw", pady=(6, 0))
-    txt = tk.Text(frm, height=5, width=60, wrap="word", font=("Segoe UI", 10), undo=True)
-    txt.grid(row=4, column=1, sticky="nsew", padx=4, pady=(6, 0))
-    import text_tab
-    im = text_tab.insert_menu(frm, txt)
-    im.grid(row=4, column=2, sticky="nw", pady=(6, 0))
-    Tip(im, "Put a colour, a raise / lower, a button icon or a ＠ code at the cursor (written as "
-            "backslash escapes: \\red, \\btn(a) ...).")
-    hint(frm, "The text becomes a new line in every locale (the others get it untranslated until "
-              "you edit them). The face applies when you pick a speaker.", wrap=460).grid(
-        row=5, column=1, sticky="w", padx=4)
-    frm.columnconfigure(1, weight=1)
-    frm.rowconfigure(4, weight=1)
-    err = ttk.Label(frm, text="", foreground="#b02020")
-    err.grid(row=6, column=1, sticky="w")
-    out = {}
 
-    def ok(_e=None):
+    def set_text(self, text):
+        self.txt.delete("1.0", "end")
+        self.txt.insert("1.0", text)
+
+    def value(self):
+        """(spec, None) for the filled form, or (None, what is wrong)."""
         from rf4s_modkit import textesc
         try:
-            t = textesc.from_edit(txt.get("1.0", "end-1c"))   # \red, \btn(a) ... -> the characters
+            t = textesc.from_edit(self.txt.get("1.0", "end-1c"))  # \red, \btn(a) ... -> characters
         except textesc.EscapeError as e:
-            err.config(text=str(e))
-            return "break"
+            return None, str(e)
         if not t.strip():
-            err.config(text="type the line's text")
-            return "break"
-        choice = spk.var.get().split()
-        s = None
-        if choice and choice[0].isdigit():
-            s = (int(choice[0]), 1 if side.get() == "right" else 0)
-        out.update(speaker=s, face=face.value() if s is not None else 0, box=box.value(), text=t)
-        win.destroy()
-    bb = ttk.Frame(frm)
-    bb.grid(row=9, column=0, columnspan=2, sticky="we", pady=(6, 0))
-    ttk.Button(bb, text="Add line", command=ok).pack(side="right", padx=2)
-    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
-    win.bind("<Control-Return>", ok)
-    _run(win, txt)
-    return out or None
+            return None, "type the line's text"
+        slot = self._slot()
+        s = (slot, 1 if self.side.get() == "right" else 0) if slot is not None else None
+        return {"speaker": s, "face": self.face.value() if s is not None else 0,
+                "box": self.box.value(), "text": t}, None
 
 
 def pick_line(parent, doc):

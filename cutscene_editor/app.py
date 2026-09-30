@@ -527,6 +527,8 @@ class CutsceneExplorer:
         self.view.show_ops = self.show_ops.get()
         self._save_prefs()
         self.view.render()
+        self.source.refresh_gutter()                  # the Source tab's address column
+        self._render_visible_tab()                    # the Bank listing, when shown
 
     def _fit_toolbar(self):
         """Open the window at least as wide as the toolbar needs (the dark theme and a larger
@@ -1000,17 +1002,6 @@ class CutsceneExplorer:
             return "at label %s" % script.scene_labels(self.scene).get(pc, "0x%04x" % pc)
         return "%s @0x%04x" % ("before" if before else "after", pc)
 
-    def ask_insert_listing(self, before=False):
-        w = self._insert_where(before)
-        if w is None:
-            return None
-        pc, before = w
-        text = dialogs.ask_listing(self.frame, "Insert " + self._where_text(pc, before), catalog.INSERT_PROMPT,
-                                   lambda t: self.assemble_check(t)[2])
-        if not text:
-            return None
-        return self.insert_before(pc, text) if before else self.insert_after(pc, text)
-
     _picker = None
     _reference = None
 
@@ -1040,20 +1031,6 @@ class CutsceneExplorer:
             r = self._reference = toolbox.ReferenceWindow(self)
         r.show(tab)
         return r
-
-    def ask_insert_dialogue(self, before=False):
-        w = self._insert_where(before)
-        if w is None:
-            return None
-        pc, before = w
-        if self.doc.textarc is None:
-            self.status("rf3mc.%s is not loaded" % self.doc.locale)
-            return None
-        spec = dialogs.ask_dialogue(self.frame, reader=self.doc.reader)
-        if not spec:
-            return None
-        ins = self.insert_dialogue_before if before else self.insert_dialogue_after
-        return ins(pc, spec["speaker"], spec["text"], spec.get("face", 0), spec.get("box"))
 
     def delete_selected(self):
         if self.sel is None:

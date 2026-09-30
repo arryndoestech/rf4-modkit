@@ -31,6 +31,62 @@ def count_statements(text):
 
 
 # --------------------------------------------------------------------------- #
+_ADDR = re.compile(r"^(\s*)([0-9a-fA-F]{4}): ")      # a listing line's "0123: " prefix
+
+
+def strip_addresses(lines):
+    """(lines without their "0123: " address prefix, [pc | None per line])."""
+    out, pcs = [], []
+    for ln in lines:
+        m = _ADDR.match(ln)
+        if m:
+            out.append(m.group(1) + ln[m.end():])
+            pcs.append(int(m.group(2), 16))
+        else:
+            out.append(ln)
+            pcs.append(None)
+    return out, pcs
+
+
+class AddressColumn:
+    """The statements' addresses (toolbar: "addresses") in a read-only column to the left of
+    a listing Text, scrolling with it -- so the text itself never carries them. Installs
+    itself as the Text's y-scroll handler (feeding `scrollbar` too)."""
+
+    def __init__(self, box, text, scrollbar):
+        self.text, self.sb = text, scrollbar
+        self.col = tk.Text(box, width=5, wrap="none", font=text.cget("font"), bg="#101015",
+                           fg="#6a6a7a", borderwidth=0, highlightthickness=0, state="disabled",
+                           takefocus=0, cursor="arrow", padx=4)
+        text.config(yscrollcommand=self._yscroll)
+        scrollbar.config(command=self._yview)
+        self.col.bind("<MouseWheel>", lambda e: (text.yview_scroll(-1 if e.delta > 0 else 1,
+                                                                   "units"), "break")[1])
+
+    def _yscroll(self, first, last):
+        self.sb.set(first, last)
+        self.col.yview_moveto(first)
+
+    def _yview(self, *a):
+        self.text.yview(*a)
+        self.col.yview_moveto(self.text.yview()[0])
+
+    def show(self, on):
+        if not on:
+            self.col.pack_forget()
+        elif not self.col.winfo_manager():
+            self.col.pack(side="left", fill="y", before=self.text)
+
+    def set_rows(self, rows):
+        """One entry per text line: an address (int) or None for a blank."""
+        c = self.col
+        c.config(state="normal")
+        c.delete("1.0", "end")
+        c.insert("1.0", "\n".join("%04x" % r if r is not None else "" for r in rows))
+        c.config(state="disabled")
+        c.yview_moveto(self.text.yview()[0])
+
+
 class BankListingTab(ttk.Frame):
     """The whole open bank as one read-only listing (Options -> Advanced): every scene, the
     ones no trigger registers included, one after another in the `rf4mod script listing
@@ -66,6 +122,7 @@ class BankListingTab(ttk.Frame):
         self.text.pack(side="left", fill="both", expand=True)
         sb.config(command=self.text.yview)
         xs.config(command=self.text.xview)
+        self.addrcol = AddressColumn(box, self.text, sb)
         self.text.tag_configure("cmt", foreground="#7c8c7c")
         self.text.tag_configure("head", foreground="#e0b060")
         self.text.tag_configure("hit", background="#4a4a10")
@@ -83,6 +140,7 @@ class BankListingTab(ttk.Frame):
         bank = getattr(app, "bank", None)
         key = (app.bank_pos, bytes(bank.data) if bank is not None else None, app.doc.locale)
         if not force and key == self._key:
+            self.show_addresses()
             return
         self._key = key
         t = self.text
@@ -98,9 +156,9 @@ class BankListingTab(ttk.Frame):
             except Exception as e:  # noqa: BLE001 -- one broken scene must not hide the rest
                 txt = "; scene @0x%04x: %s" % (sc.entry_pc, err_text(e))
             n += 1
-            for ln in txt.split("\n") + [""]:
-                m = re.match(r"^\s*([0-9a-fA-F]{4}):", ln)
-                self.line_at.append((sc.entry_pc, int(m.group(1), 16) if m else None))
+            shown, pcs = strip_addresses(txt.split("\n") + [""])
+            for ln, lnpc in zip(shown, pcs):
+                self.line_at.append((sc.entry_pc, lnpc))
                 parts.append(ln)
         t.insert("1.0", "\n".join(parts))
         for i, ln in enumerate(parts, 1):
@@ -111,7 +169,13 @@ class BankListingTab(ttk.Frame):
                 if c >= 0:
                     t.tag_add("cmt", "%d.%d" % (i, c), "%d.end" % i)
         self.info.config(text="%s · %d scenes · %d lines" % (catalog.bank_title(bank), n, len(parts)))
+        self.addrcol.set_rows([pc for _e, pc in self.line_at])
+        self.show_addresses()
         self._mark_all()
+
+    def show_addresses(self):
+        """The address column, while the toolbar's "addresses" is ticked."""
+        self.addrcol.show(bool(self.app.addr.get()) if hasattr(self.app, "addr") else False)
 
     def _mark_all(self):
         t = self.text
@@ -197,23 +261,33 @@ class SourceTab(ttk.Frame):
         self.box.pack(fill="both", expand=True)
         sb = ttk.Scrollbar(self.box)
         sb.pack(side="right", fill="y")
-        self.text = tk.Text(self.box, wrap="none", font=("Consolas", 10), undo=True,
-                            yscrollcommand=sb.set, **DARK)
+        self.text = tk.Text(self.box, wrap="none", font=("Consolas", 10), undo=True, **DARK)
         self.text.pack(side="left", fill="both", expand=True)
-        sb.config(command=self.text.yview)
+        # the statements' addresses sit in their own column, never in the text you edit;
+        # each follows its line through edits (a Text mark)
+        self.addrcol = AddressColumn(self.box, self.text, sb)
+        self.gutter = self.addrcol.col
+        for ev in ("<KeyRelease>", "<<Paste>>", "<<Cut>>", "<<Undo>>", "<<Redo>>"):
+            self.text.bind(ev, lambda _e: self._gutter_soon(), add="+")
         self.text.tag_configure("err", background="#5a1a1a")
         self.text.tag_configure("cmt", foreground="#7c8c7c")
         self._key = None
+        self._mark_pc = {}               # Text mark name -> statement pc
+        self._gutter_after = None
 
     def set_msg(self, s, kind="info"):
         self.msg.config(text=s, foreground={"ok": "#1d7a3a", "err": "#b02020"}.get(kind, "#0d5f8f"))
 
     def listing(self):
-        """The scene as a re-assemblable listing; a leading JMP to the very next label (a
-        file an older toolkit trampolined) is dropped, it is plumbing, not content."""
+        """The scene as a re-assemblable listing, without addresses; a leading JMP to the very
+        next label (a file an older toolkit trampolined) is dropped, it is plumbing, not content."""
+        return "\n".join(self._listing_lines()[0])
+
+    def _listing_lines(self):
+        """([line], [pc | None]) of the listing (the pcs feed the address column)."""
         app = self.app
         txt = scriptasm.scene_listing(app.scene, app.bank, dialog=app.doc.text, bank_no=app.bank_pos)
-        lines = txt.split("\n")
+        lines, pcs = strip_addresses(txt.split("\n"))
         for i, ln in enumerate(lines):
             s = ln.strip()
             if not s or s.startswith(";"):
@@ -223,8 +297,37 @@ class SourceTab(ttk.Frame):
                 nxt = next((l2.strip() for l2 in lines[i + 1:] if l2.strip()), "")
                 if nxt == m.group(1) + ":":
                     del lines[i]
+                    del pcs[i]
             break
-        return "\n".join(lines)
+        return lines, pcs
+
+    def _gutter_soon(self):
+        if self._gutter_after is not None:
+            try:
+                self.after_cancel(self._gutter_after)
+            except tk.TclError:
+                pass
+        self._gutter_after = self.after(120, self.refresh_gutter)
+
+    def refresh_gutter(self):
+        """Show / hide the address column (toolbar: "addresses") and fill it from the marks:
+        a line keeps its statement's address while you edit around it; a new line has none."""
+        self._gutter_after = None
+        on = bool(self.app.addr.get())
+        self.addrcol.show(on)
+        if not on:
+            return
+        n = int(self.text.index("end-1c").split(".")[0])
+        at = {}
+        for name, (order, pc) in self._mark_pc.items():
+            try:
+                ln = int(self.text.index(name).split(".")[0])
+            except tk.TclError:
+                continue
+            # a deleted line's mark lands on the next line: the later statement is that line's
+            if ln not in at or order > at[ln][0]:
+                at[ln] = (order, pc)
+        self.addrcol.set_rows([at[i][1] if i in at else None for i in range(1, n + 1)])
 
     def load(self, force=False):
         app = self.app
@@ -239,8 +342,21 @@ class SourceTab(ttk.Frame):
             self.set_msg("listing edited by hand — Check / Apply to scene applies it; Reload discards it")
             return
         self.text.delete("1.0", "end")
-        body = self.listing()
+        for name in list(self._mark_pc):
+            try:
+                self.text.mark_unset(name)
+            except tk.TclError:
+                pass
+        self._mark_pc = {}
+        lines, pcs = self._listing_lines()
+        body = "\n".join(lines)
         self.text.insert("1.0", body)
+        for i, pc in enumerate(pcs):
+            if pc is not None:
+                name = "stmt%d" % i
+                self.text.mark_set(name, "%d.0" % (i + 1))
+                self.text.mark_gravity(name, "right")    # text typed before it pushes it along
+                self._mark_pc[name] = (i, pc)
         for n, ln in enumerate(body.split("\n"), 1):
             c = ln.find(";")
             if c >= 0:
@@ -248,6 +364,7 @@ class SourceTab(ttk.Frame):
         self.text.edit_reset()
         self.text.edit_modified(False)
         self._key = key
+        self.refresh_gutter()
         n = len(app.scene.stmts)
         self.set_msg("%d statement%s — edit freely, Check, then Apply to scene" % (n, "" if n == 1 else "s"))
 

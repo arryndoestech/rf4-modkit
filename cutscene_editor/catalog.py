@@ -31,12 +31,6 @@ SOURCE_SYNTAX_HELP = (
     "  BR_END (cond)  /  .raw <hex>  /  END     -- a listing that can fall off its end gets END added"
 )
 
-INSERT_PROMPT = ("Statements to insert AFTER the selected one (full listing syntax, one per line):\n"
-                 "  GivePlayerItem(258, 1, 0)    EVAL (FLG_EV_DONE = 1)\n"
-                 "  BR_Z (REG_WIFE_ID == 11) -> L1  /  DIALOG #5  /  L1:\n"
-                 "Names: an opcode mnemonic (GivePlayerItem, SetSpeaker) or a number; FLG_/REG_ variable "
-                 "names come from emdeb.bin. Ctrl-Enter = OK.")
-
 def entry_keys_text(subs):
     """Keys as the New-scene / Re-key fields accept them: `5, -1` for plain (tag 1) keys,
     `(tag, value)` pairs for anything else. `subs` items are (tag, value) pairs (as
