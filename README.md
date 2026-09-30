@@ -723,7 +723,7 @@ side, face, box style and text, added in every locale) or shows an existing one 
 position has **📍 Pick on
 map…**: click the spot on the rendered map of the scene (1/8-tile units, as the script stores them).
 The listing the form makes is shown live and checked, and it can be edited by hand. *Insert* puts it
-after or before the selected statement, and the window stays open for the next one. The Inspector
+after or before the selected statement and closes the window (the new statement is selected). The Inspector
 offers the same character / map / item pickers and *Pick x / y on the map* for existing statements.
 For writing by hand, the **Source** tab holds the whole scene as editable listing text.
 

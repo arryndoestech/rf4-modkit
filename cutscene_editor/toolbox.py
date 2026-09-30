@@ -785,9 +785,9 @@ class InstructionPicker:
         Tip(cb, "Hide this window (it keeps what you filled in).")
         ib = ttk.Button(bb, text="Insert", command=self.insert)
         ib.pack(side="right", padx=4)
-        Tip(ib, "Insert the listing at the selected statement of the open scene (Ctrl+Enter). "
-                "The window stays open, so you can add several in a row; each lands after the "
-                "one before it.")
+        Tip(ib, "Insert the listing at the selected statement of the open scene (Ctrl+Enter) "
+                "and close this window; the new statement is selected in the script. If it "
+                "can't be inserted the window stays open and says why.")
         sb2 = ttk.Button(bb, text="Whole scene in the Source tab", command=self._source_tab)
         sb2.pack(side="right", padx=4)
         Tip(sb2, "Prefer typing? The Source tab has the whole scene as editable listing text.")
@@ -1294,17 +1294,16 @@ class InstructionPicker:
             nid = self.app._insert_dialogue(pc, spec["speaker"], spec["text"], spec.get("face", 0),
                                             spec.get("box"), before)
             if nid is not None:
-                self.check_lbl.config(text="✓ inserted line #%d — select another statement or "
-                                           "insert again (it goes after the new one)" % nid,
-                                      foreground="#080")
                 self.where.set("after")
                 self.dlg_form.set_text("")
+                self.check_lbl.config(text="")
+                self.win.withdraw()             # done: back to the script, the new line selected
             return nid
         ok = self.app.insert_before(pc, self.text()) if before else self.app.insert_after(pc, self.text())
         if ok:
-            self.check_lbl.config(text="✓ inserted — select another statement or insert again "
-                                       "(it goes after the new one)", foreground="#080")
             self.where.set("after")
+            self.check_lbl.config(text="")
+            self.win.withdraw()                 # done: back to the script, the new one selected
         return ok
 
     def _find_line(self):
