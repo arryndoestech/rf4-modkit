@@ -235,7 +235,14 @@ class DebuggerPanel:
             self.status.config(text="open rf3.mc first", foreground="#b00")
             return
         try:
-            self.dbg = scriptdbg.ScriptDebugger(self.app.doc.container, hotreload.pick_process())
+            # several games running: ask which (the Reload-in-game chooser; the pick is
+            # remembered while that game runs, so Reload in game uses the same one)
+            pid = hotreload.pick_process(lambda procs: self.app._choose_game(
+                procs, "Which one should the script debugger attach to?"))
+            if pid is None:
+                self.status.config(text="attach cancelled", foreground="#888")
+                return
+            self.dbg = scriptdbg.ScriptDebugger(self.app.doc.container, pid)
         except Exception as e:  # noqa: BLE001 -- not running, access denied, unknown build
             self.status.config(text="cannot attach: %s" % err_text(e), foreground="#b00")
             self.dbg = None

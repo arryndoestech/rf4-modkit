@@ -1597,13 +1597,13 @@ class CutsceneExplorer:
                     "dialogue text not reloaded: %s (restart the game for text changes)" % t))
         return True
 
-    def _choose_game(self, procs):
-        """Several RF4S.exe run: ask which one gets the reload (remembered while it runs)."""
+    def _choose_game(self, procs, question="Which one should get the scenes?"):
+        """Several RF4S.exe run: ask which one (remembered while it runs) -- for Reload in
+        game and for the script debugger's Attach."""
         win = tk.Toplevel(self.frame)
         win.title("Which game?")
         win.transient(self.frame.winfo_toplevel())
-        ttk.Label(win, text="%d copies of RF4S.exe are running.\nWhich one should get the "
-                            "scenes?" % len(procs),
+        ttk.Label(win, text="%d copies of RF4S.exe are running.\n%s" % (len(procs), question),
                   wraplength=520, justify="left").pack(anchor="w", padx=10, pady=(10, 6))
         lb = tk.Listbox(win, height=min(8, len(procs)), width=90, font=("Segoe UI", 9))
         for p in procs:
