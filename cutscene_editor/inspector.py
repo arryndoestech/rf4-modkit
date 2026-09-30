@@ -471,16 +471,6 @@ class Inspector(ScrollFrame):
         app, f = self.app, self.form
         self._header("Choice (%d options)" % len(st.items or ()), st,
                      "Shows a choice menu and jumps to the picked option's target")
-        if st.mnem == "PROMPT_CHOICE" and st.code_targets:
-            r = ttk.Frame(f)
-            r.pack(fill="x", padx=8, pady=(4, 0))
-            ttk.Label(r, text="Cancel slot (unused by the game)").pack(side="left")
-            t0 = st.code_targets[0]
-            cb = ttk.Button(r, text=txt.target(t0), command=lambda: app.goto(t0))
-            cb.pack(side="left", padx=4)
-            Tip(cb, "The CANCEL slot. The game never takes it: the cancel key moves the cursor "
-                    "to the LAST option (and picks it if already there), so the last option "
-                    "is the real cancel. Shipped menus repeat the last option's target here.")
         self.primary = None
         for k, item, tgt in txt.choice_options(st):
             box = section(f, "Option %d" % (k + 1) + ("  (selected)" if option == k else ""))

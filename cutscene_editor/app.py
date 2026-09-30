@@ -98,6 +98,8 @@ class CutsceneExplorer:
         side = ttk.Frame(paned, width=380)
         side.pack_propagate(False)
         paned.add(side, weight=0, minsize=300, width=380)
+        self._side = side
+        self._side_hidden = False
         self.inspector = Inspector(side, self)
         self.inspector.pack(fill="both", expand=True)
         # the Triggers tab's entry details share the right-hand slot with the Inspector
@@ -166,6 +168,18 @@ class CutsceneExplorer:
             self._paned.forget(self.browser)
             self._banks_btn.config(text="Banks ▶")
             self._banks_hidden = True
+
+    def toggle_inspector(self):
+        """Collapse / restore the right-hand pane (the Inspector, or the Triggers tab's entry
+        details that share it)."""
+        if self._side_hidden:
+            self._paned.add(self._side, weight=0, minsize=300, width=380)
+            self._side_btn.config(text="Inspector ▶")
+            self._side_hidden = False
+        else:
+            self._paned.forget(self._side)
+            self._side_btn.config(text="◀ Inspector")
+            self._side_hidden = True
 
     def _build_toolbar(self):
         bar = ttk.Frame(self.frame, padding=(2, 2))
@@ -254,6 +268,11 @@ class CutsceneExplorer:
         Tip(rb, "Look things up: flags & variables (name, id, description), the functions "
                 "verified in game, the codes dialogue text can hold, characters, maps and "
                 "items -- with the form an argument takes. Double-click copies.")
+        self._side_btn = ttk.Button(bar, text="Inspector ▶", width=11, command=self.toggle_inspector)
+        self._side_btn.pack(side="right", padx=(6, 0), before=rb)     # the right-most button
+        Tip(self._side_btn, "Hide the Inspector (the selected statement's arguments) on the "
+                            "right to give the scene -- the Graph above all -- the full width "
+                            "(click again to bring it back).")
         self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=("Segoe UI", 8))
         self.dirty_lbl.pack(side="right", padx=6, before=ob)
 
@@ -343,7 +362,11 @@ class CutsceneExplorer:
             self.nb.select(TABS.index(tab))
         if focus_pc is not None:
             self.view.focus_pc(focus_pc)
-        self.status("%s · scene @0x%04x · %d statements" % (catalog.bank_title(bank), entry_pc, len(sc.stmts)))
+        self.status("%s · scene @0x%04x · %d statements%s" % (
+            catalog.bank_title(bank), entry_pc, len(sc.stmts),
+            " · unreached: nothing in this bank registers or CALLs it (the engine may still "
+            "start it through the global scene index, or it is left-over code)"
+            if sc.action_type < 0 else ""))
 
     def _render_visible_tab(self):
         """The Graph and Bank listing tabs are only rebuilt while shown (each skips the work

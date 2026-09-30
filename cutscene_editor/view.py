@@ -164,8 +164,6 @@ class ScriptView(ttk.Frame):
         m.add_separator()
         m.add_command(label="Copy line  (Ctrl+C)", state=st, command=self.copy_row)
         m.add_command(label="Delete  (Del)", state=st, command=app.delete_selected)
-        m.add_separator()
-        m.add_command(label="Reference…", command=lambda: app.open_reference())
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:

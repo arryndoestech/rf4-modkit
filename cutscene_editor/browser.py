@@ -16,7 +16,8 @@ SEARCH_MODES = ("dialogue", "speaker", "opcode", "event manager entry", "bank #"
 
 def scene_rows(bank):
     """Scenes of a bank, one per entry pc: typed (triggered) scenes first, then the
-    discovered subroutines, each in bytecode order."""
+    unreached code (found by the gap-fill scan: nothing in the bank registers or CALLs it),
+    each in bytecode order."""
     seen, typed, subs = set(), [], []
     for sc in script.disassemble_bank(bank):
         if sc.entry_pc in seen:
@@ -27,9 +28,31 @@ def scene_rows(bank):
 
 
 def scene_label(doc, sc):
-    kind = catalog.type_label(sc.action_type).split("  ", 1)[-1] if sc.action_type >= 0 else "subroutine"
+    kind = catalog.type_label(sc.action_type).split("  ", 1)[-1] if sc.action_type >= 0 else "unreached"
     flag = "" if sc.ok else " ⚠"
     return f"@{sc.entry_pc:04x}  {kind}{flag} · {scene_preview(doc, sc)}"
+
+
+def called_subroutines(sc):
+    """The CALL targets a scene reaches (its own and those of the subroutines it calls), in
+    the order the calls appear: [(target pc, number of CALL sites)]."""
+    out = {}
+    for _pc, st in sc.stmts.items():
+        if st.mnem == "CALL" and st.code_targets and st.code_targets[0] in sc.stmts:
+            t = st.code_targets[0]
+            out[t] = out.get(t, 0) + 1
+    return list(out.items())
+
+
+def subroutine_label(doc, bank, target, n_calls):
+    """Row text for a subroutine under its scene: its address and a one-line preview."""
+    try:
+        sub = script.disassemble_scene(bank, -1, target)
+        prev = scene_preview(doc, sub)
+    except Exception:  # noqa: BLE001 -- a label only
+        prev = ""
+    calls = "" if n_calls == 1 else f" ({n_calls} calls)"
+    return f"calls sub @{target:04x}{calls} · {prev}"
 
 
 class Browser(ttk.Frame):
@@ -112,10 +135,18 @@ class Browser(ttk.Frame):
         doc = self.app.doc
         bank = doc.container.banks[pos]
         scenes = scene_rows(bank)
+        previews = {}                       # subroutine pc -> its label (shared by many scenes)
         for sc in scenes:
             sid = f"s:{pos}:{sc.entry_pc}"
             t.insert(iid, "end", iid=sid, text=scene_label(doc, sc))
             self._rows[sid] = ("scene", pos, sc.entry_pc)
+            # the subroutines it CALLs (the Graph tab draws each as its own group)
+            for target, n in called_subroutines(sc):
+                cid = f"c:{pos}:{sc.entry_pc}:{target}"
+                if (target, n) not in previews:
+                    previews[(target, n)] = subroutine_label(doc, bank, target, n)
+                t.insert(sid, "end", iid=cid, text=previews[(target, n)], tags=("dim",))
+                self._rows[cid] = ("sub", pos, sc.entry_pc, target)
         if not scenes:
             t.insert(iid, "end", text="(no scenes — Triggers tab: New scene…)", tags=("dim",))
 
@@ -148,6 +179,8 @@ class Browser(ttk.Frame):
         if row[0] == "bank":
             self.app.open_bank(row[1])
         elif row[0] == "result":
+            self.app.open_scene(row[1], row[2], focus_pc=row[3], reveal=False)
+        elif row[0] == "sub":                   # the calling scene, at the subroutine's start
             self.app.open_scene(row[1], row[2], focus_pc=row[3], reveal=False)
         else:
             self.app.open_scene(row[1], row[2])

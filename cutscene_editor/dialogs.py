@@ -608,7 +608,7 @@ def callers_window(parent, app, rows, dispatch, target):
     sb.pack(side="right", fill="y")
     for entry, atype, from_pc, mnem in rows:
         lb.insert("end", "%-12s @0x%04x  in scene @0x%04x (%s)"
-                  % (mnem, from_pc, entry, "type %d" % atype if atype >= 0 else "subroutine"))
+                  % (mnem, from_pc, entry, "type %d" % atype if atype >= 0 else "unreached"))
     if not rows:
         lb.insert("end", "(nothing in this bank leads here — started by the engine or by data)")
 
