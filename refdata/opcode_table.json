@@ -671,7 +671,7 @@
     {
      "name": "blip",
      "type": "text blip",
-     "values": "0 = male, 1 = female, 2 = monster/animal, 3 = dragon, 4+ = the player's own blip",
+     "values": "0 = male (normal), 1 = female (high), 2 = monster (slightly lower), 3 = dragon (Ventuswill), 4 and above = the player's own blip (female for Frey, male for Lest) -- all seen in game",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -680,6 +680,11 @@
        "date": "2026-10-02",
        "call": "SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 1, 2, 3 (user listening)",
        "observed": "0 a normal blip, 1 a high blip, 2 a slightly lower blip, 3 the dragon blip Ventuswill uses"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 4, 5 (user listening, player = Frey)",
+       "observed": "4 and 5 played the player's own blip: the female (high) blip for Frey; the user notes Lest gets the male blip"
       }
      ],
      "value_names": {
@@ -702,6 +707,11 @@
        "name": "dragon",
        "text": "the dragon blip (Ventuswill)",
        "human_verified": true
+      },
+      "4": {
+       "name": "player",
+       "text": "the player character's own blip (female for Frey, male for Lest)",
+       "human_verified": true
       }
      }
     }
@@ -712,7 +722,7 @@
    "description": "Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers. It does not remove a portrait already on screen (seen in game): clear it first if the voice should speak alone.",
    "details": "arg1 0..3 -> tick chime 16785916 (SE_WORDS_M) / 16785917 (SE_WORDS_F) / 16785918 (SE_WORDS_O) / 16785975 (SE_WORDS_D), written to entries[8] and the dialogue task's sfx slot (+36, pitch +40); >= 4 -> Dialogue_SetTickChimeSfxId with the player's blip (model 1217 male, 1233 female). If arg0 != host+108: Dialogue_LoadAndShowText(host+106, arg0, 2), clear name-hide bit, host+108 = arg0, g_lastDialogueEmoteId = 0.",
    "side_effects": "writes host+108, tick-chime sfx id",
-   "evidence": "RF4S.exe+0x20A240 (Script_VMOp_SetSpeakerVoice); corpus 857 uses, argc 2, arg0 15..999 (392, 21, 236 most common), arg1 0..3. In-game test 2026-10-02 (user): SetSpeakerVoice(738, 0) + DIALOG, SetSpeakerVoice(21, 3) + DIALOG (after SetSpeaker(MC, Left)) -> the name plate read 'Joyful Captain', then 'Ventuswill'; the MC's portrait from the earlier SetSpeaker stayed on screen (the op does not remove a portrait). In-game test 2026-10-02 (user): SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 1, 2, 3 (user listening) -> 0 a normal blip, 1 a high blip, 2 a slightly lower blip, 3 the dragon blip Ventuswill uses.",
+   "evidence": "RF4S.exe+0x20A240 (Script_VMOp_SetSpeakerVoice); corpus 857 uses, argc 2, arg0 15..999 (392, 21, 236 most common), arg1 0..3. In-game test 2026-10-02 (user): SetSpeakerVoice(738, 0) + DIALOG, SetSpeakerVoice(21, 3) + DIALOG (after SetSpeaker(MC, Left)) -> the name plate read 'Joyful Captain', then 'Ventuswill'; the MC's portrait from the earlier SetSpeaker stayed on screen (the op does not remove a portrait). In-game test 2026-10-02 (user): SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 1, 2, 3 (user listening) -> 0 a normal blip, 1 a high blip, 2 a slightly lower blip, 3 the dragon blip Ventuswill uses. In-game test 2026-10-02 (user): SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 4, 5 (user listening, player = Frey) -> 4 and 5 played the player's own blip: the female (high) blip for Frey; the user notes Lest gets the male blip.",
    "alias_of": null,
    "handler": "Script_VMOp_SetSpeakerVoice",
    "handler_rva": "0x20A240",

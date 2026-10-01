@@ -85,11 +85,12 @@ Set the speaker for the following DIALOG lines to a named voice: name plate plus
 Args:
   0. name_id (entry of the character-name archive (e.g. 21 Ventuswill, 236 Ethelwill, 392 '???', 738 Joyful Captain)) — verified in game
      - *(enum: 1000 values — use the in-editor picker or the id database)*
-  1. blip (0 = male, 1 = female, 2 = monster/animal, 3 = dragon, 4+ = the player's own blip) — verified in game
+  1. blip (0 = male (normal), 1 = female (high), 2 = monster (slightly lower), 3 = dragon (Ventuswill), 4 and above = the player's own blip (female for Frey, male for Lest) -- all seen in game) — verified in game
      - `0` = male
      - `1` = female
      - `2` = monster
      - `3` = dragon
+     - `4` = player
 
 ### `op 11` — SetSpeakerNameVisible(visible)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
