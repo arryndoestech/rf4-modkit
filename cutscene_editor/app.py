@@ -253,29 +253,25 @@ class CutsceneExplorer:
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         self.mode = tk.StringVar(value=self._prefs.get("mode") if self._prefs.get("mode") in ("story", "code")
                                  else "story")
-        for val, text, tip in (("story", "Story", "Readable: who says what, actions in words, "
-                                                   "branches as if / go to."),
-                               ("code", "Code", "The technical listing (the disassembly).")):
-            rb = ttk.Radiobutton(bar, text=text, value=val, variable=self.mode, style="Toolbutton",
-                                 command=self._view_mode)
-            rb.pack(side="left")
-            Tip(rb, tip)
         self.addr = tk.BooleanVar(value=bool(self._prefs.get("addresses", False)))
-        ac = ttk.Checkbutton(bar, text="addresses", variable=self.addr, command=self._view_mode)
-        ac.pack(side="left", padx=4)
-        Tip(ac, "Show each statement's byte address in the story view (the code view always has "
-                "labels).")
         self.show_ops = tk.BooleanVar(value=bool(self._prefs.get("opcodes", False)))
-        oc = ttk.Checkbutton(bar, text="opcodes", variable=self.show_ops, command=self._view_mode)
-        oc.pack(side="left", padx=4)
-        Tip(oc, "Show the raw opcode each statement is stored as, in hex (e.g. 0x005; control "
-                "ops as 0xFFFC), in both views.")
         self.file_offs = tk.BooleanVar(value=bool(self._prefs.get("file_offsets", False)))
-        fc = ttk.Checkbutton(bar, text="file offsets", variable=self.file_offs, command=self._view_mode)
-        fc.pack(side="left", padx=4)
-        Tip(fc, "Show each statement's byte offset in rf3.mc (hex: the bank's start in the file + "
-                "its address), in both views. With unsaved edits it is where the statement will be "
-                "in the saved file.")
+        vb = ttk.Menubutton(bar, text="View")
+        vm = tk.Menu(vb, tearoff=False)
+        vm.add_radiobutton(label="Story", value="story", variable=self.mode, command=self._view_mode)
+        vm.add_radiobutton(label="Code", value="code", variable=self.mode, command=self._view_mode)
+        vm.add_separator()
+        vm.add_checkbutton(label="Addresses", variable=self.addr, command=self._view_mode)
+        vm.add_checkbutton(label="Opcodes", variable=self.show_ops, command=self._view_mode)
+        vm.add_checkbutton(label="File offsets", variable=self.file_offs, command=self._view_mode)
+        vb["menu"] = vm
+        vb.pack(side="left", padx=4)
+        Tip(vb, "How the Script tab shows a scene. Story: readable -- who says what, actions in "
+                "words, branches as if / go to. Code: the technical listing (the disassembly). "
+                "Addresses: each statement's address in its bank. Opcodes: the raw opcode each "
+                "statement is stored as, in hex (control ops as 0xFFFC). File offsets: its byte "
+                "offset in rf3.mc (the bank's start + its address; with unsaved edits, where it "
+                "will be in the saved file). The columns show in both views.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")

@@ -326,7 +326,7 @@ it, or anything in it, whenever you like to free space; it is made again at the 
 **Display.** *Options…* → Appearance / General: the *text size* (100-200 %: every font and the list rows
 scale at once, in every open window) and how many *rows the big lists show*
 before "search to narrow" (5000 by default). The Cutscene Editor reopens with its last toolbar
-(locale, Story / Code, addresses, opcodes).
+(locale and the View menu: Story / Code, addresses, opcodes, file offsets).
 
 **Dark mode.** *Options…* → Appearance: *Light*, *Dark* or *Follow Windows* (your Windows app
 setting). It applies at once to every toolkit window, the map editor and the Cutscene Editor
@@ -620,9 +620,10 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
-  **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly; *addresses*
-  adds each statement's address in its bank, *file offsets* its byte offset in `rf3.mc` (hex; with
-  unsaved edits, where it will be in the saved file), *opcodes* the raw opcode. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
+  **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly. Both are in the
+  toolbar's **View** menu, with three columns: *Addresses* (each statement's address in its bank),
+  *Opcodes* (the raw opcode) and *File offsets* (its byte offset in `rf3.mc`, hex; with unsaved
+  edits, where it will be in the saved file). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
