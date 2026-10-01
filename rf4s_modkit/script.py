@@ -1982,6 +1982,61 @@ class Container:
                     "%d existing ones (wildcard keys would shadow them)" % (name, n))
         return None
 
+    def entry_key_conflicts(self, bank, type_id, subs, position=None, editing=None):
+        """Registering `subs` as a `type_id` entry of `bank` at `position` (None = append),
+        or giving entry `editing` these keys: (error or None, [warnings], [other bank
+        positions with the same type-2 keys]).
+
+        Error: a type whose dispatcher takes the FIRST matching entry already has an entry
+        with exactly these keys that it checks first -- the new one could never run. A
+        duplicate checked AFTER the new one is a warning (that scene stops running: the
+        deliberate way to replace a scene). Type 2 (ActorInteractScene) is looked up in the
+        tail bank, then the primary, then the global bank: the same key in a bank of the
+        other level shadows one way or the other, which is a warning naming those banks."""
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        subs = [tuple(s) if isinstance(s, (tuple, list)) else (1, s) for s in subs]
+        try:
+            from . import entry_types
+            sel = (entry_types.ENTRY_TYPES.get(type_id) or {}).get("select", "")
+            name = entry_types.type_name(type_id)
+            bad = entry_types.key_errors(type_id, subs)   # keys no entry can use (32-bit, type 2)
+        except ImportError:
+            sel, name, bad = "", "type %d" % type_id, []
+        if bad:
+            return "; ".join(bad), [], []
+        recs = bank.entry_records(type_id)
+        same = [r.index for r in recs if r.index != editing and [tuple(s) for s in r.subs] == subs]
+        err, warns, elsewhere = None, [], []
+        if same and sel.startswith("first"):
+            at = editing if editing is not None else (len(recs) if position is None else position)
+            before = [i for i in same if i < at]
+            after = [i for i in same if i >= at]
+            if before:
+                err = ("%s entry #%d already has exactly these keys and is checked first: this scene "
+                       "would never run -- pick other keys (or put it first to replace that one)"
+                       % (name, before[0]))
+            elif after:
+                warns.append("%s entry #%d has the same keys and is now checked after this one: that "
+                             "scene stops running" % (name, after[0] + (0 if editing is not None else 1)))
+        if type_id == 2 and subs:
+            rank = {"tail": 0, "primary": 1, "global": 2}      # the lookup order: lower wins
+            mine = rank.get(bank.kind, 1)
+            wins, loses = [], []
+            for pos, b in enumerate(self.banks):
+                if b is bank or b.kind == bank.kind:
+                    continue
+                if any([tuple(s) for s in r.subs] == subs for r in b.entry_records(2)):
+                    elsewhere.append(pos)
+                    (loses if rank.get(b.kind, 1) < mine else wins).append(b.kind)
+            if loses:
+                warns.append("%d %s bank(s) use this key too: where they are loaded, theirs runs "
+                             "instead of this scene" % (len(loses), " / ".join(sorted(set(loses)))))
+            if wins:
+                warns.append("the %s bank(s) use this key too: where this bank is loaded, this scene "
+                             "runs instead of theirs" % " / ".join(sorted(set(wins))))
+        return err, warns, elsewhere
+
     def remove_entry(self, bank, type_id, index):
         """Unregister the `index`-th entry of `type_id` (other entries keep their order;
         the scene's code stays -- other code may still use it). Returns (event pc, subs)

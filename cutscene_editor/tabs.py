@@ -734,8 +734,16 @@ class TriggerDetail(ttk.Frame):
         except ValueError as e:
             self.warn.config(text="✗ " + err_text(e), foreground="#b00")
             return
-        probs = catalog.key_problems(self.typ, keys)
         changed = keys != [(t, v) for t, v in self.rec.subs]
+        if changed:                     # keys that cannot work are refused on Apply: say so now
+            clash, more, _w = self.app.doc.container.entry_key_conflicts(
+                self.tab.bank_pos, self.typ, keys, editing=self.rec.index)
+            if clash:
+                self.warn.config(text="✗ " + clash, foreground="#b00")
+                return
+        else:
+            more = []
+        probs = catalog.key_problems(self.typ, keys, self.app.doc.em) + more
         self.warn.config(text=("⚠ " + "; ".join(probs)) if probs else ("● not applied yet" if changed else ""),
                          foreground="#b06000")
 

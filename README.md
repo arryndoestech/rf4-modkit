@@ -624,7 +624,9 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   toolbar's **View** menu, with three columns: *Addresses* (each statement's address in its bank),
   *Opcodes* (the raw opcode) and *File offsets* (its byte offset in `rf3.mc`, hex; with unsaved
   edits, where it will be in the saved file). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
-  Delete deletes. **Hold Alt over a line** for the full explanation (prototype, every argument
+  Delete deletes. **Several lines:** Ctrl+A selects all, Shift+click / Shift+arrows a range, Ctrl+click adds or
+  removes one; Ctrl+C copies them and Delete deletes them as one undo step (statements that end
+  a path -- RET, JMP, a menu's jump table -- are kept). **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
@@ -666,7 +668,13 @@ the old body used are dropped. The
 **new scenes**: pick when it plays (the trigger catalogue supplies a recipe per type: which bank,
 which keys, the ordering caveat), its keys and a body; a note warns when a registration would
 **shadow** the bank's existing scene of that type. *Change keys…* and *Remove* edit existing
-registrations. The **Overview** tab summarises the scene: speakers, every dialogue line,
+registrations. Keys are checked as you type: an entry that could never run is refused (exactly
+the keys of an entry checked before it; a type-2 event key outside 1..65535 or -1 -- spawned
+event actors carry a 16-bit key, and 0 marks a removed one; anything outside signed 32-bit),
+and odd keys warn (type-2 keys 1..47, which ops that take an actor read as villagers -- use
+48..65535; the same type-2 key in another level of the tail → primary → global lookup; an item,
+gossip topic, festival, em.bin condition, map or character that does not exist). `script
+add-entry` / `set-entry` refuse the same way (`--force` overrides). The **Overview** tab summarises the scene: speakers, every dialogue line,
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
 control flow. The **Graph** tab draws that control flow: the scene's basic blocks with their
 statements, green / red arrows for the branch taken when a guard is true / false, orange for

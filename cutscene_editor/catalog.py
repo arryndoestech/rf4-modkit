@@ -108,14 +108,25 @@ def type_key_names(type_id):
     return None
 
 
-def key_problems(type_id, subs):
-    """entry_types.key_problems (keys that can never match, e.g. -1 for type 2), or []."""
+def key_problems(type_id, subs, em=None):
+    """entry_types.key_problems (a -1 that is no wildcard, an id that does not exist: a map, a
+    character, an em.bin entry of `em` -- the open one), or []."""
     if _entry_types is None:
         return []
     try:
-        return list(_entry_types.key_problems(type_id, list(subs)))
+        return list(_entry_types.key_problems(type_id, list(subs), **key_context(em)))
     except Exception:
         return []
+
+
+def key_context(em=None):
+    """What key_problems checks ids against: the em.bin entry count and the game's maps and
+    characters (the names the toolkit reads from the game)."""
+    from rf4s_modkit import gamenames
+    from rf4s_modkit.map_names import map_name
+    return {"em_count": len(em.entries) if em is not None else None,
+            "map_ok": lambda v: bool(map_name(v)),
+            "char_ok": lambda v: bool(gamenames.name("characters", v))}
 
 
 def describe_keys(type_id, subs):

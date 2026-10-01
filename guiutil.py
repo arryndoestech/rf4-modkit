@@ -127,6 +127,62 @@ def install_error_logging(root=None):
     threading.excepthook = thread_hook
 
 
+# ---- dialogs open over the window you are working in ------------------------------------ #
+# Tk's message / file / input dialogs default their parent to the MAIN window, so an error in
+# the Cutscene Editor (a separate window) would pull the main window to the front. With this
+# installed, a dialog called without parent= opens over the last window that had the focus.
+_DIALOGS = {"messagebox": ("showinfo", "showwarning", "showerror", "askquestion", "askokcancel",
+                           "askyesno", "askyesnocancel", "askretrycancel"),
+            "filedialog": ("askopenfilename", "askopenfilenames", "asksaveasfilename",
+                           "askdirectory", "askopenfile", "asksaveasfile"),
+            "simpledialog": ("askstring", "askinteger", "askfloat")}
+_last_window = None
+
+
+def _note_focus(e):
+    global _last_window
+    try:
+        _last_window = e.widget.winfo_toplevel()
+    except (tk.TclError, AttributeError, KeyError):
+        pass
+
+
+def dialog_parent():
+    """The window a parent-less dialog should open over: the last one that had the focus, if
+    it is still on screen, else None (Tk's default)."""
+    w = _last_window
+    try:
+        if w is not None and w.winfo_exists() and w.winfo_viewable():
+            return w
+    except tk.TclError:
+        pass
+    return None
+
+
+def _with_parent(fn):
+    def call(*args, **kw):
+        if kw.get("parent") is None:
+            p = dialog_parent()
+            if p is not None:
+                kw["parent"] = p
+        return fn(*args, **kw)
+    call.__wrapped__ = fn
+    call._rf4_parented = True
+    return call
+
+
+def install_dialog_parents(root):
+    """Remember which window has the focus and default every standard dialog's parent to it."""
+    import importlib
+    root.bind_all("<FocusIn>", _note_focus, add="+")
+    for mod_name, names in _DIALOGS.items():
+        mod = importlib.import_module("tkinter." + mod_name)
+        for name in names:
+            fn = getattr(mod, name, None)
+            if fn is not None and not getattr(fn, "_rf4_parented", False):
+                setattr(mod, name, _with_parent(fn))
+
+
 class Paned(tk.PanedWindow):
     """Drop-in for ttk.PanedWindow that does NOT re-lay-out its panes on every pixel of a
     sash drag.

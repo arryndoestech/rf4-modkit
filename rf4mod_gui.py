@@ -6537,6 +6537,7 @@ def main(argv=None):
     import guiscale
     guiscale.install(root)                  # text size (Options), live
     guiutil.install_combo_keys(root)        # Up / Down step a dropdown's value
+    guiutil.install_dialog_parents(root)   # dialogs open over the window in use
     import guitheme
     guitheme.install(root)                  # light / dark (settings.json, Options...)
     app_icon.apply(root)

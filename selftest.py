@@ -1752,15 +1752,30 @@ def test_search_items():
 
 
 def test_entry_key_warnings():
-    """Keys that can never match are flagged when a trigger is added or re-keyed: type 2
-    compares a spawned event actor's unsigned 16-bit key exactly (no -1 wildcard)."""
-    print("entry key warnings (type 2 = exact unsigned 16-bit event key):")
+    """Keys that can never match are refused when a trigger is added or re-keyed, odd ones
+    warned: type 2 compares a spawned event actor's unsigned 16-bit key exactly (no -1
+    wildcard; 0 marks a removed actor), actor ops read 1..47 as villagers, keys are signed
+    32-bit, and typed keys (item, topic, festival, condition, map, npc) must name something."""
+    print("entry key checks (type 2 = exact unsigned 16-bit event key; typed key ranges):")
     from rf4s_modkit import entry_types as _et
-    kp = _et.key_problems
-    _check("type 2: -1, a negative, > 65535 and 0 are flagged; 1000 and 65535 are fine",
-           len(kp(2, [(1, -1)])) == 1 and "65535" in kp(2, [(1, -1)])[0] and len(kp(2, [-5])) == 1
-           and len(kp(2, [70000])) == 1 and len(kp(2, [0])) == 1
-           and kp(2, [(1, 1000)]) == [] and kp(2, [65535]) == [])
+    kp, ke = _et.key_problems, _et.key_errors
+    _check("type 2: -1, a negative, 0 and > 65535 are refused; 48 .. 65535 are fine; 1..47 warn "
+           "(actor ops read them as villagers)",
+           all(len(ke(2, [v])) == 1 for v in (-1, -5, 0, 70000)) and "65535" in ke(2, [(1, -1)])[0]
+           and all(ke(2, [v]) == [] and kp(2, [v]) == [] for v in (48, 1000, 65535))
+           and ke(2, [5]) == [] and len(kp(2, [5])) == 1)
+    _check("any type: a key outside signed 32-bit is refused",
+           len(ke(4, [2 ** 31])) == 1 and len(ke(4, [-2 ** 31 - 1])) == 1 and ke(4, [2 ** 31 - 1]) == [])
+    item_t = next(t for t, s in _et.ENTRY_TYPES.items() if any(isinstance(k, dict) and k.get("name") == "item"
+                                                                 for k in s.get("keys") or []))
+    topic_ix = next(k["index"] for k in _et.ENTRY_TYPES[60]["keys"] if k.get("name") == "topic")
+    _check("typed keys: an item id past 2047, a gossip topic past 10, an em.bin entry the file "
+           "does not have, an unknown map / character are warned; valid ones are not",
+           len(kp(60, [11])) == 1 and kp(60, [10]) == [] and topic_ix == 0
+           and any("item" in w for w in kp(item_t, [3000] * 3))
+           and len(kp(45, [300], em_count=272)) == 1 and kp(45, [100], em_count=272) == []
+           and len(kp(39, [99999], map_ok=lambda v: v < 1000)) == 1 and kp(39, [5], map_ok=lambda v: v < 1000) == []
+           and len(kp(28, [9999], char_ok=lambda v: v < 700)) == 1 and kp(28, [16582], char_ok=lambda v: v < 700) == [])
     wild = next(((t, k) for t, s in _et.ENTRY_TYPES.items() for k, ks in enumerate(s["keys"])
                  if isinstance(ks["index"], int) and ks.get("wildcard")), None)
     _check("a key the catalogue marks as a wildcard accepts -1 without a warning",
@@ -8926,6 +8941,23 @@ def test_remembered_options():
             n1, ok1 = offsets_ok()
             _check("file offsets point at each statement's opcode in rf3.mc, also after an insert moved "
                    "the later banks", n0 and ok0 == n0 and n1 and ok1 == n1, "%d/%d, %d/%d" % (ok0, n0, ok1, n1))
+        # dialogs without parent= open over the window last focused, not the main window
+        from tkinter import messagebox as _mbx
+        guiutil.install_dialog_parents(root)
+        wrapped_once = _mbx.showerror
+        guiutil.install_dialog_parents(root)
+        ed = tk.Toplevel(root)
+        ed.geometry("+-10000+-10000"); root.update()
+
+        class _Ev:
+            widget = ed
+        guiutil._note_focus(_Ev())
+        probe = guiutil._with_parent(lambda *a, **kw: kw.get("parent"))
+        _check("a dialog without parent= opens over the window in use (the editor), not the main "
+               "window; an explicit parent wins; installing twice wraps once",
+               probe("t", "m") is ed and probe("t", "m", parent=root) is root
+               and _mbx.showerror is wrapped_once and getattr(_mbx.showerror, "_rf4_parented", False))
+        ed.destroy()
         G.set_setting("cutscene_editor", None)
         G.set_setting("list_rows", 1234)
         rows_ok = guiutil.list_rows() == 1234
@@ -14034,6 +14066,164 @@ def _all_widgets(w):
         yield from _all_widgets(c)
 
 
+def test_entry_key_conflicts():
+    """Scene triggers with keys already in use (2026-10-01): an entry the dispatcher could never
+    reach (exact same keys, checked after an existing one, first-match type) is refused -- by
+    Container.entry_key_conflicts, the editor's New scene / Keys paths and the CLI (--force
+    overrides); one put first warns; types that collect every match are free; type 2 warns
+    across the tail -> primary -> global lookup."""
+    print("scene trigger keys already in use:")
+    from rf4s_modkit import script
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("trigger key conflicts", "rf3.mc not extracted"); return
+    c = script.Container(mc.read_bytes())
+    # a tail bank with two or more type-2 entries of different keys
+    pos = next(p for p, b in enumerate(c.banks) if b.kind == "tail"
+               and len({tuple(r.subs) for r in b.entry_records(2)}) >= 2)
+    recs = c.banks[pos].entry_records(2)
+    first = recs[0]
+    other = next(r for r in recs if tuple(r.subs) != tuple(first.subs))
+    err_app, w_app, _ = c.entry_key_conflicts(pos, 2, first.subs)
+    err_top, w_top, _ = c.entry_key_conflicts(pos, 2, first.subs, 0)
+    err_same, _w, _ = c.entry_key_conflicts(pos, 2, first.subs, editing=first.index)
+    err_edit, _w, _ = c.entry_key_conflicts(pos, 2, first.subs, editing=other.index)
+    _check("same keys, first-match type: appended (never runs) is refused, put first only warns, an "
+           "entry keeps its own keys, another later entry cannot take them",
+           err_app and "never run" in err_app and not err_top and any("stops running" in w for w in w_top)
+           and not err_same and (err_edit if other.index > first.index else not err_edit),
+           str((err_app, w_top, err_same, err_edit))[:200])
+    allt = next((t for t, v in __import__("rf4s_modkit.entry_types", fromlist=["x"]).ENTRY_TYPES.items()
+                 if isinstance(v, dict) and v.get("select") == "all"
+                 and any(len(b.entry_records(t)) for b in c.banks)), None)
+    if allt is not None:
+        bp = next(p for p, b in enumerate(c.banks) if b.entry_records(allt))
+        r0 = c.banks[bp].entry_records(allt)[0]
+        _check("a type that runs every matching entry accepts the same keys again",
+               c.entry_key_conflicts(bp, allt, r0.subs)[0] is None)
+    g = next(p for p, b in enumerate(c.banks) if b.kind == "global")
+    gerr, gw, gwhere = c.entry_key_conflicts(g, 2, first.subs)
+    _check("type 2 in the global bank: a key a map's bank already uses warns that theirs runs there",
+           gerr is None and pos in gwhere and any("theirs runs" in w for w in gw), str(gw)[:160])
+    terr, tw, _ = c.entry_key_conflicts(pos, 2, [(1, 54321)])
+    _check("an unused key in range raises nothing; one above 65535 is refused",
+           terr is None and not tw and c.entry_key_conflicts(pos, 2, [(1, 987654)])[0], str((terr, tw)))
+    # the editor refuses it, and nothing changes
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("trigger key conflicts (editor)", "no tkinter: %s" % e); return
+    box = _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda n: (_first(n).read_bytes() if _first(n) else None))
+        before = cx.doc.container.build()
+        n0 = len(cx.doc.undo_stack)
+        r = cx.add_entry(pos, 2, first.subs, "RET")
+        refused = r is None and cx.doc.container.build() == before and len(cx.doc.undo_stack) == n0
+        msg = box["msgs"][-1][1] if box["msgs"] else ""
+        ok_keys = cx.set_entry_keys(pos, 2, other.index, first.subs) if other.index > first.index else False
+        _check("the editor refuses a new scene (and a re-key) that could never run, saying why",
+               refused and "never run" in msg and ok_keys is False and cx.doc.container.build() == before,
+               msg[:120])
+    finally:
+        root.destroy()
+
+
+def test_cutscene_multi_select():
+    """Script view, several rows (2026-10-01): Ctrl+A selects every row, Ctrl+C copies them in
+    display order, Del deletes every selected statement that falls through as ONE undo step
+    (the path-ending ones are kept), Shift ranges and Ctrl toggles, and a single click goes
+    back to one row."""
+    print("cutscene editor: multi-row selection (Ctrl+A / Ctrl+C / Del):")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("multi-row selection", "no tkinter: %s" % e); return
+    from rf4s_modkit import script
+
+    def reader(n):
+        p = _first(n)
+        return p.read_bytes() if p else None
+    if not _first("rf3.mc"):
+        _skip("multi-row selection", "rf3.mc not extracted"); return
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        c = cx.doc.container
+        before = bytes(c.banks[48].data)
+        sc = max((s for s in script.disassemble_bank(c.banks[48]) if s.ok), key=lambda s: len(s.stmts))
+        cx.show_bank(48, sc.entry_pc)
+        root.update()
+        v = cx.view
+        keys = v._keys()
+        v.select_all()
+        _check("Ctrl+A selects every row of the scene", v.multi == keys and len(keys) > 3, "%d/%d" % (len(v.multi), len(keys)))
+        v.copy_row()
+        clip = root.clipboard_get().split("\n")
+        _check("Ctrl+C copies every selected row, one line each, in display order",
+               len(clip) == len(keys) and clip[0].strip() == v.text.get("%d.0" % v.line_of(keys[0]),
+                                                                        "%d.end" % v.line_of(keys[0])).strip())
+        stmts = dict(cx.scene.stmts)
+        ends = sum(1 for st in stmts.values() if not st.falls_through or st.terminator)
+        cx.delete_selected()
+        root.update()
+        left = list(cx.scene.stmts.values())
+        _check("Del deletes every selected statement that falls through as one edit; the ones that "
+               "end a path are kept", 0 < len(left) <= ends + 1
+               and all((not st.falls_through) or st.terminator or st.mnem == "FRAME" for st in left)
+               and cx.doc.undo_stack[-1]["label"].startswith("Delete "),
+               "%d left, %d path ends" % (len(left), ends))
+        cx.undo()
+        root.update()
+        _check("one Ctrl+Z brings the whole bank back byte for byte",       # undo rebuilds the container
+               bytes(cx.doc.container.banks[48].data) == before)
+        cx.show_bank(48, sc.entry_pc)
+        root.update()
+        keys = v._keys()
+        cx.select(keys[1])
+        v.extend(1); v.extend(1)
+        _check("Shift+Down grows a range from the anchor", v.multi == keys[1:4], str(v.multi[:4]))
+        v._anchor = keys[1]
+        v.select_keys(keys[1:4] + [keys[6]], keys[6], anchor=keys[6])
+        _check("Ctrl+click adds a row that is not next to the range", v.multi == keys[1:4] + [keys[6]])
+        # right-click inside the selection keeps it (and the menu says how many); outside, one row
+        menus = []
+        _popup = tk.Menu.tk_popup
+        tk.Menu.tk_popup = lambda m, *_a: menus.append(
+            [m.entrycget(i, "label") for i in range(m.index("end") + 1) if m.type(i) != "separator"])
+
+        class _E:
+            x_root = y_root = -5000
+
+        def _at(key):
+            ln = v.line_of(key)
+            v.text.see("%d.0" % ln); root.update()
+            bb = v.text.bbox("%d.0" % ln)
+            e = _E(); e.x, e.y = bb[0] + 5, bb[1] + 2
+            return e
+        try:
+            v._context_menu(_at(keys[2]))
+            inside = (len(v.multi), menus[-1][1:3])
+            v._context_menu(_at(keys[10]))
+            outside = (len(v.multi), v.sel == keys[10], menus[-1][1])
+        finally:
+            tk.Menu.tk_popup = _popup
+        _check("right-click inside a multi-selection keeps it and offers 'Copy / Delete 4 lines'; "
+               "outside it selects just that row",
+               inside == (4, ["Copy 4 lines  (Ctrl+C)", "Delete 4 lines  (Del)"])
+               and outside == (0, True, "Copy line  (Ctrl+C)"), str((inside, outside)))
+        cx.select(keys[2])
+        _check("a plain click goes back to one row", v.multi == [] and v.selected_keys() == [keys[2]])
+        _check("multi-row selection raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        root.destroy()
+
+
 def test_cutscene_editor_workflows():
     """Cutscene editor (2026-09-24 overhaul): the Inspector shows arguments in listing
     syntax, typed-constant args are set in place, one undo history covers rf3.mc and every
@@ -15738,7 +15928,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

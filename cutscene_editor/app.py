@@ -709,6 +709,7 @@ class CutsceneExplorer:
 
     def _doc_changed(self, what):
         self._em_uses = None
+        self.view.multi = []                 # pcs moved: a multi-selection would point elsewhere
         if self.breakpoints:
             self._check_breakpoints()
         self.refresh_scene()
@@ -1083,6 +1084,9 @@ class CutsceneExplorer:
     def delete_selected(self):
         if self.sel is None:
             return False
+        keys = self.view.selected_keys()
+        if len(keys) > 1:
+            return self.delete_statements(sorted({k[0] for k in keys if k[1] is None}))
         if self.selected_label():
             self.status("a label only marks a jump target -- select a statement to delete it")
             return False
@@ -1094,6 +1098,36 @@ class CutsceneExplorer:
         if ok:
             self.status("Deleted %s @0x%04x (whatever jumped to it now goes to the next statement; "
                         "Ctrl+Z undoes it)" % (name, pc))
+        return ok
+
+    def delete_statements(self, pcs):
+        """Delete several statements as ONE undoable edit (a multi-row selection + Del).
+        Statements that never fall through (RET, JMP, a choice's jump table ...) cannot be
+        deleted on their own -- they are kept, so 'select all + Del' leaves the scene's
+        skeleton instead of refusing everything."""
+        sts = [(pc, self.stmt(pc)) for pc in pcs]
+        doomed = [pc for pc, st in sts if st is not None and st.falls_through and not st.terminator]
+        kept = len(pcs) - len(doomed)
+        if not doomed:
+            self.status("nothing to delete: the selected statements all end a path (RET, JMP ...) "
+                        "-- retarget them instead")
+            return False
+        bank, pos = self.bank, self.bank_pos
+
+        def do():
+            c = self.doc.container
+            for pc in doomed:
+                moves = (c.last_moves or {}).get(pos)   # original pc -> where it is now
+                cur = pc if moves is None else moves.get(pc)
+                if cur is not None:
+                    c.delete_statement(bank, cur)
+        n = len(doomed)
+        ok = self.apply("Delete %d statements" % n, do)
+        if ok:
+            self.status("Deleted %d statement%s%s (whatever jumped to them now goes to the next "
+                        "statement; Ctrl+Z undoes it)" % (
+                            n, "" if n == 1 else "s",
+                            "; kept %d that end a path (RET, JMP ...)" % kept if kept else ""))
         return ok
 
     def show_callers(self):
@@ -1162,7 +1196,11 @@ class CutsceneExplorer:
             messagebox.showinfo("New scene", err)
             return None
         at = None if position in (None, "", "append", "last") else (0 if position == "first" else int(position))
-        note = self.shadow_note(bank, int(type_id), at)
+        clash, key_warns, _elsewhere = self.doc.container.entry_key_conflicts(bank, int(type_id), subs, at)
+        if clash:
+            messagebox.showinfo("New scene", clash)
+            return None
+        note = "; ".join([n for n in [self.shadow_note(bank, int(type_id), at)] if n] + key_warns)
         box = {}
 
         def do():
@@ -1172,7 +1210,7 @@ class CutsceneExplorer:
         event_pc, idx = box["r"]
         self.browser.refresh_bank(pos)
         self.open_scene(pos, event_pc)
-        warn = "; ".join([note] * bool(note) + catalog.key_problems(int(type_id), subs))
+        warn = "; ".join([note] * bool(note) + catalog.key_problems(int(type_id), subs, self.doc.em))
         self.status("new scene @0x%04x registered as %s entry #%d" % (event_pc, catalog.type_label(int(type_id)), idx)
                     + (("   ⚠ " + warn) if warn else ""))
         return event_pc, idx
@@ -1192,9 +1230,13 @@ class CutsceneExplorer:
             messagebox.showinfo("Keys", err_text(e))
             return False
         bank = self.doc.container.banks[pos]
+        clash, key_warns, _elsewhere = self.doc.container.entry_key_conflicts(bank, type_id, subs, editing=index)
+        if clash:
+            messagebox.showinfo("Keys", clash)
+            return False
         ok = self.apply("Keys of %s entry #%d" % (catalog.type_label(type_id), index),
                         lambda: self.doc.container.set_entry(bank, type_id, index, subs=subs))
-        warn = catalog.key_problems(type_id, subs)
+        warn = catalog.key_problems(type_id, subs, self.doc.em) + key_warns
         if ok and warn:
             self.status("keys changed   ⚠ " + "; ".join(warn))
         return ok
@@ -1844,6 +1886,7 @@ def main(argv=None):
     import guiscale
     guiscale.install(root)                  # text size (Options), live
     guiutil.install_combo_keys(root)
+    guiutil.install_dialog_parents(root)   # dialogs open over the window in use
     import guitheme
     guitheme.install(root)                  # light / dark (settings.json)
     root.title("RF4S Cutscene Editor")

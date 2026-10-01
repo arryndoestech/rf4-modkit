@@ -506,12 +506,18 @@ def ask_new_scene(parent, app, bank, default_type=None):
         t = cur_type()
         if t is None:
             return
-        parts = [app.shadow_note(bank, t, 0 if pv.get() == "first" else None)]
+        at = 0 if pv.get() == "first" else None
+        parts = [app.shadow_note(bank, t, at)]
+        clash = None
         try:
-            parts += catalog.key_problems(t, catalog.parse_entry_keys(kv.get()))
+            subs = catalog.parse_entry_keys(kv.get())
+            parts += catalog.key_problems(t, subs, app.doc.em)
+            clash, warns, _elsewhere = app.doc.container.entry_key_conflicts(bank, t, subs, at)
+            parts += warns
         except ValueError:
             pass
         note.config(text="\n".join(p for p in parts if p))
+        err.config(text=clash or "")
     type_cb._on_pick = lambda _t: on_type()
     pos.bind("<<ComboboxSelected>>", on_type)
     kv.trace_add("write", refresh_note)
@@ -525,6 +531,10 @@ def ask_new_scene(parent, app, bank, default_type=None):
             k = catalog.parse_entry_keys(kv.get())
         except ValueError as ex:
             err.config(text=str(ex))
+            return "break"
+        clash = app.doc.container.entry_key_conflicts(bank, t, k, 0 if pv.get() == "first" else None)[0]
+        if clash:
+            err.config(text=clash)
             return "break"
         text = body.get("1.0", "end-1c")
         if not text.strip():

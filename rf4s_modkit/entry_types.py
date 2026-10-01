@@ -939,7 +939,45 @@ def key_spec(type_id, k):
     return best
 
 
-def key_problems(type_id, subs):
+EVENT_KEY_MIN, EVENT_KEY_MAX = 48, 0xFFFF       # see key_errors / key_problems
+
+
+def key_errors(type_id, subs):
+    """Keys that make an entry impossible (refused by the editor and the CLI): a value that
+    does not fit the file's signed 32-bit key field, and for type 2 (ActorInteractScene) any
+    key no event actor can carry. Verified 2026-10-01 in RF4S.exe: SpawnEventActor and every
+    key-addressed op keep only the low 16 bits of the key (stored as a u16 in the event-actor
+    table), EventActor_GetKeyOfActor (+0x1D3540) returns it zero-extended, and
+    NpcAi_FindActionEntryByTargetForType2 (+0x221EC0) compares it with the entry's i32 key by
+    plain int equality -- so -1 and anything outside 0..65535 never match (spawning with -1
+    stores 65535: write 65535). 0 is what UnregisterEventActor writes into a removed record's
+    key, and the spawn lookup matches the first record with key 0, so it is refused too."""
+    out = []
+    for k, sub in enumerate(subs or ()):
+        v = sub[1] if isinstance(sub, (tuple, list)) else sub
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            continue
+        if not -0x80000000 <= v <= 0x7FFFFFFF:
+            out.append("key %d = %d does not fit: keys are signed 32-bit (-2147483648..2147483647)" % (k, v))
+        elif type_id == 2 and v == -1:
+            out.append("key 0 is -1: %s compares the event actor's key exactly and event keys are "
+                       "0..65535, so this entry never runs (spawning with -1 stores 65535 -- but the "
+                       "actor ops then cannot address it: use a key from %d to %d)"
+                       % (type_name(2), EVENT_KEY_MIN, EVENT_KEY_MAX))
+        elif type_id == 2 and not 0 < v <= EVENT_KEY_MAX:
+            out.append("key %d = %d can never match: event keys are stored as unsigned 16-bit, and 0 "
+                       "marks a removed event actor -- use a key from %d to %d"
+                       % (k, v, EVENT_KEY_MIN, EVENT_KEY_MAX))
+    return out
+
+
+# value ranges of the typed keys (warnings: an id that does not exist matches nothing)
+_NPC_PACKED = (16582, 16638)                        # "read the NPC id from that packed game flag"
+
+
+def key_problems(type_id, subs, em_count=None, map_ok=None, char_ok=None):
     """Warnings (list of str) for the keys `subs` (ints, or (tag, value) pairs) of a new or
     changed `type_id` entry. Entry keys are signed 32-bit, and -1 only means "any" where the
     type's matcher skips it (the catalogue's per-key `wildcard`). Type 2 (ActorInteractScene)
@@ -949,6 +987,8 @@ def key_problems(type_id, subs):
     unregistered record."""
     out = []
     spec = ENTRY_TYPES.get(type_id)
+    if em_count is None:
+        em_count = 272                                   # the shipped em.bin
     for k, sub in enumerate(subs or ()):
         v = sub[1] if isinstance(sub, (tuple, list)) else sub
         try:
@@ -957,21 +997,32 @@ def key_problems(type_id, subs):
             continue
         ks = key_spec(type_id, k)
         kname = (ks or {}).get("name", "key %d" % k)
+        wild = bool((ks or {}).get("wildcard", False))
         if type_id == 2:
-            if v == -1:
-                out.append("key %d is -1, but %s has no wildcard: it compares the event actor's key "
-                           "exactly, and event keys are 0..65535, so this entry never runs (a key "
-                           "spawned as -1 is stored as 65535 -- write 65535)" % (k, type_name(2)))
-            elif v < 0 or v > 0xFFFF:
-                out.append("key %d = %d can never match a spawned event actor: event keys are "
-                           "unsigned 16-bit (0..65535); only a special actor's id could match it"
-                           % (k, v))
-            elif v == 0:
-                out.append("key %d = 0: 0 is the key of an empty / unregistered event record; "
-                           "spawn event actors with keys 1..65535 (the game uses 100..1500)" % k)
-        elif v == -1 and spec is not None and ks is not None and not ks.get("wildcard", False):
-            out.append("key %d (%s) is -1, but %s compares it exactly (no wildcard): it only "
-                       "matches the value -1" % (k, kname, type_name(type_id)))
+            if 0 < v < EVENT_KEY_MIN:
+                out.append("key %d = %d: an event actor with this key talks fine, but ops that take an "
+                           "actor read 1..47 as a villager id, so they cannot address it -- keys %d..%d "
+                           "work everywhere (the game uses 100..1500)" % (k, v, EVENT_KEY_MIN, EVENT_KEY_MAX))
+            continue
+        if v == -1:
+            if spec is not None and ks is not None and not wild and kname != "npc":
+                out.append("key %d (%s) is -1, but %s compares it exactly (no wildcard): it only "
+                           "matches the value -1" % (k, kname, type_name(type_id)))
+            continue
+        if kname == "npc" and v not in _NPC_PACKED and (v < 0 or (char_ok is not None and not char_ok(v))):
+            out.append("key %d (npc) = %d is not a character the game has (or 16582 / 16638 = read the "
+                       "id from that packed flag)" % (k, v))
+        elif kname == "item" and not 0 <= v <= 0x7FF:
+            out.append("key %d (item) = %d is not an item id: the game compares the slot's 11-bit id "
+                       "(0..2047)" % (k, v))
+        elif kname == "condition" and not 0 <= v < em_count:
+            out.append("key %d (condition) = %d is not an em.bin entry (0..%d)" % (k, v, em_count - 1))
+        elif kname == "topic" and not 1 <= v <= 10:
+            out.append("key %d (topic) = %d: the daily gossip topic is 1..10" % (k, v))
+        elif kname == "festival" and not 0 <= v <= 31:
+            out.append("key %d (festival) = %d: festival ids are 5-bit (0..31)" % (k, v))
+        elif kname == "map" and v != 0 and map_ok is not None and not map_ok(v):
+            out.append("key %d (map) = %d is not a map the game has" % (k, v))
     return out
 
 

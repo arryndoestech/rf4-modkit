@@ -2248,10 +2248,12 @@ def _script_dialog_fn(a):
 def _entry_key_warnings(type_id, keys):
     """entry_types.key_problems for CLI key input (empty list when the catalogue is missing)."""
     try:
-        from rf4s_modkit import entry_types
+        from rf4s_modkit import entry_types, gamenames
+        from rf4s_modkit.map_names import map_name
     except ImportError:
         return []
-    return entry_types.key_problems(type_id, keys)
+    return entry_types.key_problems(type_id, keys, map_ok=lambda v: bool(map_name(v)),
+                                    char_ok=lambda v: bool(gamenames.name("characters", v)))
 
 
 def _parse_keys(s):
@@ -2438,6 +2440,9 @@ def cmd_script_add_entry(a):
         note = c.entry_shadow_note(a.bank, a.type, a.position)
     except Exception:
         note = None
+    clash, key_warns, _elsewhere = c.entry_key_conflicts(a.bank, a.type, keys, a.position)
+    if clash and not a.force:
+        sys.exit("error: %s (--force registers it anyway)" % clash)
     try:
         pc, idx = c.add_entry(a.bank, a.type, keys, event_pc=int(a.pc, 0) if a.pc else None,
                               listing=text, position=a.position)
@@ -2448,7 +2453,7 @@ def cmd_script_add_entry(a):
           f"in bank {a.bank}; wrote {a.out}")
     if note:
         print("warning: " + note)
-    for w in _entry_key_warnings(a.type, keys):
+    for w in _entry_key_warnings(a.type, keys) + key_warns + ([clash] if clash else []):
         print("warning: " + w)
 
 
@@ -2465,6 +2470,11 @@ def cmd_script_remove_entry(a):
 def cmd_script_set_entry(a):
     c = _script_load(a, resolver=False)
     keys = _parse_keys(a.keys) if a.keys is not None else None
+    clash, key_warns = None, []
+    if keys is not None:
+        clash, key_warns, _elsewhere = c.entry_key_conflicts(a.bank, a.type, keys, editing=a.index)
+        if clash and not a.force:
+            sys.exit("error: %s (--force sets them anyway)" % clash)
     try:
         c.set_entry(a.bank, a.type, a.index, subs=keys, event_pc=int(a.pc, 0) if a.pc else None)
     except script.ScriptError as e:
@@ -2472,7 +2482,7 @@ def cmd_script_set_entry(a):
     _script_write(c, a.out)
     rec = c.banks[a.bank].entry_records(a.type)[a.index]
     print(f"type {a.type} entry #{a.index}: pc 0x{rec.event_id:04x} keys {rec.subs}; wrote {a.out}")
-    for w in _entry_key_warnings(a.type, keys or ()):
+    for w in _entry_key_warnings(a.type, keys or ()) + key_warns + ([clash] if clash else []):
         print("warning: " + w)
 
 
@@ -4319,6 +4329,8 @@ def build_parser():
     scae.add_argument("--listing", help="listing file for a new scene body")
     scae.add_argument("--stmt", help="inline listing for a new scene body")
     scae.add_argument("--position", type=int, default=None, help="index in the list (default: append)")
+    scae.add_argument("--force", action="store_true", help="register even when an entry with the same keys "
+                      "is checked first (the new scene could never run)")
     scae.add_argument("-o", "--out", required=True); scae.set_defaults(func=cmd_script_add_entry)
     scre = scsub.add_parser("remove-entry", help="unregister a scene trigger (its code stays)")
     scre.add_argument("file"); scre.add_argument("--bank", type=int, required=True)
@@ -4328,6 +4340,8 @@ def build_parser():
     scse.add_argument("file"); scse.add_argument("--bank", type=int, required=True)
     scse.add_argument("--type", type=int, required=True); scse.add_argument("--index", type=int, required=True)
     scse.add_argument("--keys", default=None); scse.add_argument("--pc", default=None)
+    scse.add_argument("--force", action="store_true", help="set the keys even when an earlier entry has the "
+                      "same ones (this scene could never run)")
     scse.add_argument("-o", "--out", required=True); scse.set_defaults(func=cmd_script_set_entry)
     scnm = scsub.add_parser("normalize", help="rebuild banks an older toolkit edited by trampolining "
                             "(appended code folded back in place; same execution)")
