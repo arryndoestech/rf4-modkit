@@ -41,8 +41,6 @@ class ScriptView(ttk.Frame):
         sb.config(command=self.text.yview)
         for tag, col in TAGS.items():
             self.text.tag_configure(tag, foreground=col)
-        for i in range(SceneText.OPERAND_TAGS):          # operand hex: fixed width in both views
-            self.text.tag_configure("opd%d" % i, font=("Consolas", 9))
         self.text.tag_configure("hdr", font=("Segoe UI", 9, "bold"))
         self.text.tag_configure("lbl", font=("Consolas", 10, "bold"), spacing1=6)
         self.text.tag_configure("code", font=("Consolas", 10))
@@ -380,6 +378,7 @@ class ScriptView(ttk.Frame):
         else:                                       # keep the indentation: it shows the nesting
             s = "\n".join(self.text.get(f"{ln}.0", f"{ln}.end").rstrip() for ln in lines)
             msg = "copied %d rows" % len(lines)
+        s = s.replace(" ", " ")                # the columns' digit-wide padding -> plain spaces
         self.text.clipboard_clear()
         self.text.clipboard_append(s)
         self.app.status(msg)

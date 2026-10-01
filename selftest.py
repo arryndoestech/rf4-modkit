@@ -14072,8 +14072,8 @@ def _all_widgets(w):
 
 def test_statement_operands():
     """View -> Operands (2026-10-01): every statement's operands as stored -- an action's
-    arguments as their expression bytes, a control op's fields -- shown in hex at the end of
-    its row, one colour per operand, in both views, named in the Alt explanation."""
+    arguments as their expression bytes, a control op's fields -- shown in hex right after the
+    opcode (one group and one colour per operand), in both views, named in the Alt explanation."""
     print("statement operands (View -> Operands):")
     from rf4s_modkit import script
     mc = _first("rf3.mc")
@@ -14116,22 +14116,36 @@ def test_statement_operands():
         cx.show_bank(48, sc.entry_pc)
         res = {}
         for mode in ("story", "code"):
-            cx.mode.set(mode); cx.show_operands.set(True); cx._view_mode(); root.update()
+            cx.mode.set(mode); cx.show_ops.set(True); cx.show_operands.set(True); cx._view_mode(); root.update()
             rows = [r for r in cx.view.rows if r.st is not None and r.key and r.key[1] is None]
             act = next(r for r in rows if r.st.op < 0xFFF0 and len(r.st.args) >= 2)
             tags = [t for _s, t in act.segs if t and t.startswith("opd")]
-            hexs = "".join(s for s, t in act.segs if t and t.startswith("opd")).split()
-            want = [b for _l, o in script.statement_operands(cx.bank.data, act.st) for b in o]
+            groups = "".join(s for s, t in act.segs if t and t.startswith("opd")).split(" ")
+            groups = [g for g in groups if g]
+            if mode == "code":                          # monospace: the statement text lines up
+                starts = {sum(len(s_) for s_, _t in r.segs[:next(i for i, (_s, t) in enumerate(r.segs)
+                                                                   if t in ("act", "dlg"))])
+                          for r in rows
+                          if sum(len(o) for _l, o in script.statement_operands(cx.bank.data, r.st)) * 2
+                          + len(script.statement_operands(cx.bank.data, r.st)) <= ce.render.SceneText.OPERAND_PAD_MAX}
+                res["aligned"] = len(starts) == 1
+            want = [o.hex() for _l, o in script.statement_operands(cx.bank.data, act.st)]
+            seg_tags = [t for _s, t in act.segs]
+            first_opd = next(i for i, t in enumerate(seg_tags) if t and t.startswith("opd"))
+            text_at = next(i for i, (s_, t) in enumerate(act.segs) if t == "act" or "(" in s_)
             res[mode] = (len(tags) == len(act.st.args) and len(set(tags)) == min(len(tags), 6)
-                         and [int(x, 16) for x in hexs] == want)
-        cx.show_operands.set(False); cx._view_mode(); root.update()
-        none = not any(t and t.startswith("opd") for r in cx.view.rows for _s, t in r.segs)
+                         and groups == want                       # one hex group per operand
+                         and seg_tags[first_opd - 1] == "opc"     # right after the opcode
+                         and first_opd < text_at)                 # left of the statement
+        cx.show_operands.set(False); cx.show_ops.set(False); cx.mode.set("story")
+        cx._view_mode(); root.update()                  # (the toolbar is remembered: leave it plain)
+        none = not any(isinstance(t, str) and t.startswith("opd") for r in cx.view.rows for _s, t in r.segs)
         st = act.st
         from cutscene_editor.render import SceneText
         expl = SceneText(cx.doc, cx.bank, cx.scene).explain(st)
-        _check("both views end a statement's row with its operands, one colour each, the bytes as "
-               "stored; off again with the toggle; the Alt explanation names them",
-               res == {"story": True, "code": True} and none and "Operands (hex, as stored):" in expl
+        _check("both views show a statement's operands right after the opcode, one hex group and colour "
+               "each, the bytes as stored; off again with the toggle; the Alt explanation names them",
+               res == {"story": True, "code": True, "aligned": True} and none and "Operands (hex, as stored):" in expl
                and "arg 0 = " in expl, str((res, none)))
     finally:
         root.destroy()
@@ -14325,8 +14339,8 @@ def test_cutscene_multi_select():
         v.copy_row()
         clip = root.clipboard_get().split("\n")
         _check("Ctrl+C copies every selected row, one line each, in display order",
-               len(clip) == len(keys) and clip[0].strip() == v.text.get("%d.0" % v.line_of(keys[0]),
-                                                                        "%d.end" % v.line_of(keys[0])).strip())
+               len(clip) == len(keys) and clip[0].strip() == v.text.get(
+                   "%d.0" % v.line_of(keys[0]), "%d.end" % v.line_of(keys[0])).replace(" ", " ").strip())
         stmts = dict(cx.scene.stmts)
         ends = sum(1 for st in stmts.values() if not st.falls_through or st.terminator)
         cx.delete_selected()

@@ -22,6 +22,7 @@ CONTROL_PROTOS = {
 FLAG_OPS = {318: "SetPackedGameFlag", 443: "SetGameFlagBit",
             444: "SetGameFlagBitIfCond", 445: "QueryGameFlagBit"}
 CHOICE_OPS = ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")
+FIGURE_SPACE = " "             # as wide as a digit, so hex columns line up in any font
 SPEAKER_COLORS = ("#ffb4a8", "#9fd8ff", "#c8b4ff", "#a8f0b8", "#ffd88a", "#ffa8d8",
                   "#8af0e8", "#e8c89a", "#b8c8ff", "#f0f08a")
 
@@ -195,7 +196,8 @@ class SceneText:
     def raw_op(st):
         """'0x005  ' -- the raw opcode the statement is stored as, in hex (control ops as
         their 0xFFFx token), padded to one width, for the 'opcodes' toggle."""
-        return "%-8s" % ("0x%04X" % st.op if st.op >= 0xFFF0 else "0x%03X" % st.op)
+        s = "0x%04X" % st.op if st.op >= 0xFFF0 else "0x%03X" % st.op
+        return s + FIGURE_SPACE * (8 - len(s))         # digit-wide: lines up in proportional text too
 
     def file_offset_seg(self, pc):
         """The statement's byte offset in rf3.mc (the bank's start + pc; it follows edits, so
@@ -204,32 +206,43 @@ class SceneText:
 
     OPERAND_TAGS = 6                    # colours the operands cycle through (view.py: opd0..5)
 
+    OPERAND_PAD_MAX = 48                # the operand column is padded to its widest row, up to this
+
     def operand_segs(self, st):
-        """The statement's operands in hex, one colour each, for the end of its row:
-        '  │ 17 05 00 │ 02 1c 00 00 00 00'. [] when it has none (RET)."""
-        ops = script.statement_operands(self.bank.data, st)
-        if not ops:
-            return []
-        segs = [("   ", None)]
-        for i, (_label, data) in enumerate(ops):
-            segs.append(("│ ", "dim"))
-            segs.append((" ".join("%02x" % b for b in data) + " ", "opd%d" % (i % self.OPERAND_TAGS)))
-        return segs
+        """The statement's operands in hex, one group per operand and one colour each, for the
+        column after the opcode: ['170500 ', '021c00000000 ']. [] when it has none (RET)."""
+        return [(bytes(data).hex() + FIGURE_SPACE, "opd%d" % (i % self.OPERAND_TAGS))
+                for i, (_label, data) in enumerate(script.statement_operands(self.bank.data, st))]
 
     def operand_legend(self, st):
         """'arg 0 = 17 05 00' lines naming each operand (the Alt-hover explanation)."""
         return ["%s = %s" % (label, " ".join("%02x" % b for b in data) or "(none)")
                 for label, data in script.statement_operands(self.bank.data, st)]
 
-    @staticmethod
-    def add_operands(rows, segs_of):
-        """Append each statement's operands to its first row (key (pc, None))."""
-        done = set()
+    @classmethod
+    def add_operands(cls, rows, segs_of):
+        """Put each statement's operands into its first row (key (pc, None)) right after the
+        leading address / opcode columns, padded to one width (up to OPERAND_PAD_MAX) so the
+        statement text keeps lining up."""
+        done, picked = set(), []
         for r in rows:
             k = r.key
             if r.st is not None and k is not None and k[1] is None and k[0] not in done:
                 done.add(k[0])
-                r.segs = list(r.segs) + segs_of(r.st)
+                picked.append((r, segs_of(r.st)))
+        width = min(max((sum(len(s) for s, _t in segs) for _r, segs in picked), default=0),
+                    cls.OPERAND_PAD_MAX)
+        for r, segs in picked:
+            segs = list(segs)
+            used = sum(len(s) for s, _t in segs)
+            if used < width:                    # digit-wide spaces, in the opcode's font
+                segs.append((FIGURE_SPACE * (width - used), "opc"))
+            tags = [t for _s, t in r.segs]
+            if "opc" in tags:                   # right after the opcode: "0x005  op1 op2 ..."
+                at = len(tags) - tags[::-1].index("opc")
+            else:                               # else just before the statement itself
+                at = next((i for i, t in enumerate(tags) if t not in ("addr", "lbl")), len(tags))
+            r.segs = list(r.segs[:at]) + segs + list(r.segs[at:])
         return rows
 
     def story_rows(self, show_addr=False, show_ops=False, show_file_off=False, show_operands=False):
@@ -241,7 +254,7 @@ class SceneText:
             if show_addr:
                 segs.append(("%04x  " % pc, "addr"))
             if show_ops and st is not None:
-                segs.append((" " * 8, None) if cont else (self.raw_op(st), "opc"))
+                segs.append((FIGURE_SPACE * 8, "opc") if cont else (self.raw_op(st), "opc"))
             return segs
 
         # when it plays: trigger entries pointing at the scene + Event Manager gates
