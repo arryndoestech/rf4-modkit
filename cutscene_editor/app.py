@@ -59,8 +59,8 @@ class CutsceneExplorer:
         self._em_bank_uses = {}              # bank pos -> (bank bytes, [(entry id | None, ...)])
         self._build()
         self._fit_toolbar()
-        self.view.mode, self.view.show_addr, self.view.show_ops = (
-            self.mode.get(), self.addr.get(), self.show_ops.get())
+        self.view.mode, self.view.show_addr, self.view.show_ops, self.view.show_file_off = (
+            self.mode.get(), self.addr.get(), self.show_ops.get(), self.file_offs.get())
         if isinstance(parent, (tk.Tk, tk.Toplevel)):
             parent.protocol("WM_DELETE_WINDOW", self._on_close)
         self._share_with_maps()
@@ -134,9 +134,22 @@ class CutsceneExplorer:
             ("r", lambda e: self.reload_in_game()),
             ("f", lambda e: self.focus_search())],
             home=lambda: getattr(getattr(self, "view", None), "text", None))   # the Script rows
-        self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
+        self._names_job = self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
+        self.frame.bind("<Destroy>", self._cancel_names_watch, add="+")
 
     NAMES_EVERY_MS = 1000
+
+    def _cancel_names_watch(self, e=None):
+        """The name watcher re-arms itself every second: stop it with the editor, or a pending
+        call fires into a destroyed widget."""
+        if e is not None and e.widget is not self.frame:
+            return
+        job, self._names_job = getattr(self, "_names_job", None), None
+        if job:
+            try:
+                self.frame.after_cancel(job)
+            except tk.TclError:
+                pass
 
     def _watch_names(self):
         """Character / map / item names come from the game's text files (gamenames): when a
@@ -153,7 +166,7 @@ class CutsceneExplorer:
         elif gen != self._names_gen:
             self._names_gen = gen
             self.names_changed()
-        self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
+        self._names_job = self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
 
     def names_changed(self):
         self.browser.relabel()
@@ -257,6 +270,12 @@ class CutsceneExplorer:
         oc.pack(side="left", padx=4)
         Tip(oc, "Show the raw opcode each statement is stored as, in hex (e.g. 0x005; control "
                 "ops as 0xFFFC), in both views.")
+        self.file_offs = tk.BooleanVar(value=bool(self._prefs.get("file_offsets", False)))
+        fc = ttk.Checkbutton(bar, text="file offsets", variable=self.file_offs, command=self._view_mode)
+        fc.pack(side="left", padx=4)
+        Tip(fc, "Show each statement's byte offset in rf3.mc (hex: the bank's start in the file + "
+                "its address), in both views. With unsaved edits it is where the statement will be "
+                "in the saved file.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
@@ -545,6 +564,7 @@ class CutsceneExplorer:
         self.view.mode = self.mode.get()
         self.view.show_addr = self.addr.get()
         self.view.show_ops = self.show_ops.get()
+        self.view.show_file_off = self.file_offs.get()
         self._save_prefs()
         self.view.render()
         self.source.refresh_gutter()                  # the Source tab's address column
@@ -627,7 +647,8 @@ class CutsceneExplorer:
             d = dict(self._load_prefs())         # keep the Options keys (bank_listing ...)
             d.update({"locale": self.doc.locale, "pad_locales": bool(self.pad_locales.get()),
                       "mode": self.mode.get(), "addresses": bool(self.addr.get()),
-                      "opcodes": bool(self.show_ops.get())})
+                      "opcodes": bool(self.show_ops.get()),
+                      "file_offsets": bool(self.file_offs.get())})
             gamepaths.set_setting(self.PREFS_KEY, d)
         except Exception:  # noqa: BLE001 -- a convenience only
             pass

@@ -621,7 +621,8 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
   **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly; *addresses*
-  adds byte offsets. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
+  adds each statement's address in its bank, *file offsets* its byte offset in `rf3.mc` (hex; with
+  unsaved edits, where it will be in the saved file), *opcodes* the raw opcode. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or

@@ -197,12 +197,19 @@ class SceneText:
         their 0xFFFx token), padded to one width, for the 'opcodes' toggle."""
         return "%-8s" % ("0x%04X" % st.op if st.op >= 0xFFF0 else "0x%03X" % st.op)
 
-    def story_rows(self, show_addr=False, show_ops=False):
+    def file_offset_seg(self, pc):
+        """The statement's byte offset in rf3.mc (the bank's start + pc; it follows edits, so
+        it is where the statement will be in the saved file)."""
+        return ("%06x  " % (self.bank.file_off + pc), "addr")
+
+    def story_rows(self, show_addr=False, show_ops=False, show_file_off=False):
         sc = self.scene
         rows = []
 
         def addr(pc, st=None, cont=False):
-            segs = [("%04x  " % pc, "addr")] if show_addr else []
+            segs = [self.file_offset_seg(pc)] if show_file_off else []
+            if show_addr:
+                segs.append(("%04x  " % pc, "addr"))
             if show_ops and st is not None:
                 segs.append((" " * 8, None) if cont else (self.raw_op(st), "opc"))
             return segs

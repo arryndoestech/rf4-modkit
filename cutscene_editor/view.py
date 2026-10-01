@@ -26,6 +26,7 @@ class ScriptView(ttk.Frame):
         self.mode = "story"
         self.show_addr = False
         self.show_ops = False
+        self.show_file_off = False          # each statement's offset in rf3.mc, both views
         sb = ttk.Scrollbar(self)
         sb.pack(side="right", fill="y")
         self.text = tk.Text(self, wrap="word", font=("Segoe UI", 10), bg=BG, fg=FG,
@@ -98,7 +99,7 @@ class ScriptView(ttk.Frame):
             t.config(state="disabled")
             return
         st_text = SceneText(app.doc, bank, sc)
-        rows = (st_text.story_rows(self.show_addr, self.show_ops) if self.mode == "story"
+        rows = (st_text.story_rows(self.show_addr, self.show_ops, self.show_file_off) if self.mode == "story"
                 else self._code_rows(st_text))
         for n, row in enumerate(rows, 1):
             for s, tag in row.segs:
@@ -149,7 +150,8 @@ class ScriptView(ttk.Frame):
             for pc, st in seq:
                 lbl = st_text.labels.get(pc, "")
                 ops = [(st_text.raw_op(st), "opc")] if self.show_ops else []
-                rows.append(Row([("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops +
+                foff = [st_text.file_offset_seg(pc)] if self.show_file_off else []
+                rows.append(Row(foff + [("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops +
                                 [(st_text.code_line(st), "dlg" if st.mnem == "DIALOG" else "act")],
                                 (pc, None), st))
         return rows

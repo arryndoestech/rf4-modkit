@@ -8891,12 +8891,41 @@ def test_remembered_options():
         cx = ce.CutsceneExplorer(tk.Toplevel(root))
         cx.set_locale("deu")
         cx.pad_locales.set(False); cx._save_prefs()
-        cx.mode.set("code"); cx.addr.set(True); cx.show_ops.set(True); cx._view_mode()
+        cx.mode.set("code"); cx.addr.set(True); cx.show_ops.set(True); cx.file_offs.set(True); cx._view_mode()
         cx2 = ce.CutsceneExplorer(tk.Toplevel(root))
         got = (cx2.doc.locale, cx2.pad_locales.get(), cx2.mode.get(), cx2.addr.get(), cx2.show_ops.get(),
-               cx2.view.mode, cx2.view.show_addr, cx2.view.show_ops)
+               cx2.file_offs.get(), cx2.view.mode, cx2.view.show_addr, cx2.view.show_ops, cx2.view.show_file_off)
         _check("the Cutscene Editor reopens with its last toolbar settings",
-               got == ("deu", False, "code", True, True, "code", True, True), got)
+               got == ("deu", False, "code", True, True, True, "code", True, True, True), got)
+        # file offsets: the u16 at the shown offset of the built file is the statement's opcode,
+        # in a primary, a tail and the global bank -- also after an edit moved the later banks
+        from rf4s_modkit import script as _scr
+        from cutscene_editor.render import SceneText as _ST
+
+        def _reader(name):
+            p = _first(name)
+            return p.read_bytes() if p else None
+        cx2 = ce.CutsceneExplorer(tk.Toplevel(root), reader=_reader)
+        c = cx2.doc.container
+        if c is None:
+            _skip("file offsets", "rf3.mc not extracted")
+        else:
+            def offsets_ok():
+                built, n, ok = c.build(), 0, 0
+                for pos in (1, c.n_primary + 48, len(c.banks) - 1):
+                    for sc in [s for s in _scr.disassemble_bank(c.banks[pos]) if s.ok][:3]:
+                        st_text = _ST(cx2.doc, c.banks[pos], sc)
+                        for pc, st in sc.stmts.items():
+                            off = int(st_text.file_offset_seg(pc)[0], 16)
+                            n += 1
+                            ok += int.from_bytes(built[off:off + 2], "little") == (st.op & 0xFFFF)
+                return n, ok
+            n0, ok0 = offsets_ok()
+            first = next(s for s in _scr.disassemble_bank(c.banks[1]) if s.ok).entry_pc
+            cx2.apply("probe", lambda: c.insert_before(1, first, "ClosePortraits(2)"))
+            n1, ok1 = offsets_ok()
+            _check("file offsets point at each statement's opcode in rf3.mc, also after an insert moved "
+                   "the later banks", n0 and ok0 == n0 and n1 and ok1 == n1, "%d/%d, %d/%d" % (ok0, n0, ok1, n1))
         G.set_setting("cutscene_editor", None)
         G.set_setting("list_rows", 1234)
         rows_ok = guiutil.list_rows() == 1234
