@@ -276,9 +276,18 @@ _QUERY_TEXT = {
 }
 
 
-def query_info(names, qid):
+def query_info(names, qid, raw=False):
     """(label, value kind or None, note) for a query id. Kinds: 'bool', 'season',
-    'weather', 'char', 'map'. `note` flags queries RF4S never answers."""
+    'weather', 'char', 'map'. `note` flags queries RF4S never answers. `raw` labels it with
+    its emdeb name (SUBEV_ENABLE_ARTHUR) instead of the English description."""
+    lab, kind, note = _query_info(names, qid)
+    if raw:
+        en = names.query_name(qid) if names is not None else None
+        lab = en or "query %d" % qid
+    return lab, kind, note
+
+
+def _query_info(names, qid):
     en = names.query_name(qid) if names is not None else None
     note = ("RF4S doesn't answer this query: it always reads 0" if qid in UNHANDLED_QUERIES else "")
     if not en:
@@ -397,13 +406,13 @@ def operand_kind(names, o):
     return None
 
 
-def operand_text(names, o, kind=None):
-    """An operand in words: a query's label, a variable's name, or a value (named for
-    `kind` when it has names: 'Spring (0)')."""
+def operand_text(names, o, kind=None, raw=False):
+    """An operand in words: a query's label (its emdeb name with `raw`), a variable's name,
+    or a value (named for `kind` when it has names: 'Spring (0)')."""
     if o is None:
         return "?"
     if o.kind == "query":
-        return query_info(names, o.value)[0]
+        return query_info(names, o.value, raw)[0]
     if o.kind == "flag":
         rel = zone2_rel(o)
         v = names.flag_at(o.value)
@@ -422,8 +431,9 @@ CMP_WORDS = {"==": "is", "!=": "is not", ">": "is more than", ">=": "is at least
 WORDS_CMP = {v: k for k, v in CMP_WORDS.items()}
 
 
-def expr_text(names, x, entry_label=None):
-    """One requirement as a sentence."""
+def expr_text(names, x, entry_label=None, raw=False):
+    """One requirement as a sentence. `raw` names queries by their emdeb names (pass an
+    `entry_label` that gives entry names to name entries the same way)."""
     lab = entry_label or (lambda i: "#%d" % i)
     if x.kind == "true":
         return "always"
@@ -443,15 +453,15 @@ def expr_text(names, x, entry_label=None):
     if flipped:
         a, b = b, a
     ka, kb = operand_kind(names, a), operand_kind(names, b)
-    left = operand_text(names, a, kb)
+    left = operand_text(names, a, kb, raw)
     # on/off values read as a statement: "X" / "not: X", "FLG_Y is on" / "is off"
     if ka == "bool" and b is not None and b.kind in ("lit", "slit") and op in ("==", "!=") \
             and int(b.value) in (0, 1):
         truth = (int(b.value) == 1) == (op == "==")
         if a.kind == "flag":
             return "%s is %s" % (left, "on" if truth else "off")
-        return left if truth else "not: " + left[:1].lower() + left[1:]
-    right = operand_text(names, b, ka)
+        return left if truth else "not: " + (left if raw else left[:1].lower() + left[1:])
+    right = operand_text(names, b, ka, raw)
     words = ({">": "is less than", ">=": "is at most"}.get(op) if flipped else None) or CMP_WORDS.get(op, op)
     return "%s %s %s" % (left, words, right)
 
@@ -476,16 +486,16 @@ ACTION_CHOICES = [("set to", "SET"), ("add", "ADD"), ("subtract", "SUB"), ("mult
                   ("lower to at most (unsigned)", "MIN_U")]
 
 
-def action_text(names, a, entry_label=None):
+def action_text(names, a, entry_label=None, raw=False):
     lab = entry_label or (lambda i: "#%d" % i)
     if a.name == "CALL":
         return "also run the actions of “%s”" % lab(a.entry)
     kind = operand_kind(names, a.target)
-    t = operand_text(names, a.target)
+    t = operand_text(names, a.target, None, raw)
     if kind == "bool" and a.name == "SET" and a.value is not None and a.value.kind in ("lit", "slit") \
             and int(a.value.value) in (0, 1):
         return "turn %s %s" % (t, "on" if int(a.value.value) else "off")
-    v = operand_text(names, a.value, kind)
+    v = operand_text(names, a.value, kind, raw)
     return ACTION_WORDS.get(a.name, a.name + " {t} {v}").format(t=t, v=v)
 
 

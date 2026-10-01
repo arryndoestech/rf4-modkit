@@ -1230,6 +1230,19 @@ class CutsceneExplorer:
         d["debugger_docked"] = bool(on)
         gamepaths.set_setting(cls.PREFS_KEY, d)
 
+    @classmethod
+    def em_raw_names_setting(cls):
+        """Whether the Event Manager names entries and queries by their emdeb names
+        (EV_SUBEV_COM_49, SUBEV_ENABLE_ARTHUR) instead of English descriptions."""
+        return bool(cls._load_prefs().get("em_raw_names", False))
+
+    @classmethod
+    def set_em_raw_names_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["em_raw_names"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
     def toggle_breakpoint(self):
         """F9: a breakpoint on / off the selected statement."""
         if self.sel is None or self.bank_pos is None or self.selected_label():

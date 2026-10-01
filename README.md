@@ -688,6 +688,9 @@ true right now?" to decide which talk plays, whether a shop is open or which eve
   requirements ("Hour of the day is at least 6", "Dating Amber", "“The date is today” is true"),
   its other test (condition B), the actions scenes run, and who uses it (double-click a scene to
   open it, or an entry to go there). Hold **Alt** over a line for its exact em.bin form.
+  **Internal names** in the toolbar switches entries and game queries to their emdeb names
+  (`EV_SUBEV_COM_49`, `SUBEV_ENABLE_ARTHUR`), the names the cutscene editor shows; the choice is
+  remembered.
 - **Inspector** (right): edit the selected line with pickers — what a requirement checks (a game
   value, a variable, another entry), how ("is at least", "is less than"…), and against what (named
   values for seasons, characters, maps, on/off); what an action changes and how ("set to", "add"…).
@@ -796,7 +799,10 @@ to, and a script's last RET ends it). *Pause* holds a script that is waiting on 
 idle scripts and scripts in the middle of a prompt, choice or dialogue can't be held there (set a
 breakpoint on the statement after it). The details show the registers, the stack and the statement
 the script stands at with the live value of every argument and condition; the *Variables* tab lists
-every FLG_/REG_ the scene uses with its value in the game. A RET can't take a breakpoint (it is too
+every FLG_/REG_ the scene uses with its value in the game, and the *Text slots* tab the slots its
+dialogue's ＠ codes print (＠アイテム０＠, ＠キャラ１＠, ＠金２＠ …) or its SetVar statements fill, with the
+live value in words (the item, character, map, date) and whether the scene sets it -- a slot it only
+shows prints what an earlier scene left there. A RET can't take a breakpoint (it is too
 short), and a breakpoint on code the game doesn't run yet waits until you save and *Reload in game*.
 Breakpoints move with your edits and a MapEnterScene can be stopped too (the game's copy of the
 script file carries them). *Detach*, closing the debugger or closing the toolkit puts everything

@@ -96,6 +96,13 @@ BANK_LIMIT = 0x10000
 RET_OP = 0xFFFF
 RVA_CALENDAR_TASK = 0xE96008        # g_calendarTask (pointer)
 CAL_INNER, CAL_RUNNING = 0xB0, 0x3C # task -> calendar; its "time runs" byte
+# the text-slot banks (kind -> u32 array), from Globals_LookupChoiceCommitStateSlotByKindId
+# RF4S.exe+0x234D10 (no kind 12); one contiguous run. Kind 10 is the single u32 before kind 11.
+TEXT_SLOT_RVAS = {0: 0xE9C4E0, 1: 0xE9C520, 2: 0xE9C560, 3: 0xE9C5C0, 4: 0xE9C690, 5: 0xE9C760,
+                  6: 0xE9C830, 7: 0xE9C900, 8: 0xE9C9D0, 9: 0xE9CA10, 10: 0xE9CA50, 11: 0xE9CA54,
+                  13: 0xE9CA94, 14: 0xE9CAD4, 15: 0xE9CB14}
+TEXT_SLOT_COUNTS = {0: 16, 1: 16, 2: 24, 3: 52, 4: 52, 5: 52, 6: 52, 7: 52, 8: 16, 9: 16, 10: 1,
+                    11: 16, 13: 16, 14: 16, 15: 16}
 RECOVERY_NAME = "scriptdbg-recovery.json"
 
 
@@ -283,6 +290,7 @@ class ScriptDebugger:
         self._clock = None              # (address, old value) while the debugger stops time
         self._note = None               # the recovery note as last written
         self._flags = None              # the game-flag store as read this poll
+        self._slots = None              # the text slots as read this poll
         other =read_recovery(self.g.pid)
         if other and other.get("base") == self.g.base and other.get("owner") not in (None, os.getpid()) \
                 and _process_alive(other["owner"]):
@@ -377,6 +385,22 @@ class ScriptDebugger:
         if signed and width and v >> (width - 1):
             v -= 1 << width
         return v
+
+    def text_slots(self):
+        """{kind: [i32, ...]}: the live text slots the ＠…＠ dialogue codes print (SetVar0..15);
+        read once per poll. Engine-global, so they keep what the last scene left. None when
+        the memory can't be read."""
+        if self._slots is None:
+            g = self.g
+            lo = min(TEXT_SLOT_RVAS.values())
+            hi = max(TEXT_SLOT_RVAS[k] + 4 * n for k, n in TEXT_SLOT_COUNTS.items())
+            try:
+                raw = bytes(g.read(g.base + lo, hi - lo))
+            except Exception:  # noqa: BLE001 - not readable (yet): no values this poll
+                return None
+            self._slots = {k: list(struct.unpack_from("<%di" % TEXT_SLOT_COUNTS[k], raw, rva - lo))
+                           for k, rva in TEXT_SLOT_RVAS.items()}
+        return self._slots
 
     def game_bank(self, pos):
         """The bytes of bank `pos` in the game's own resident rf3.mc (None before the game
@@ -671,6 +695,7 @@ class ScriptDebugger:
         keep held VMs held. Called by poll(); returns the VMs."""
         g = self.g
         self._flags = None                      # variables are read fresh each poll
+        self._slots = None
         if self._look_at_resident():
             self._revalidate()
         self._apply_user()

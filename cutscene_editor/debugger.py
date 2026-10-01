@@ -213,6 +213,23 @@ class DebuggerPanel:
         Tip(self.var_tree, "Every game variable (FLG_ / REG_) the selected script's scene reads or "
                            "writes, with its value in the game right now. ▶ = the statement the "
                            "script stands at uses it. Double-click: the first statement using it.")
+        # the text slots its dialogue codes (＠アイテム０＠, ＠キャラ１＠ ...) print, live
+        slotf = ttk.Frame(nb, padding=2)
+        nb.add(slotf, text="Text slots")
+        self.slot_tree = ttk.Treeview(slotf, columns=("code", "value", "shows", "use", "first"),
+                                      show="headings", height=5 if docked else 12)
+        for col, lab, wd in (("code", "code", 150), ("value", "value", 80), ("shows", "shows", 200),
+                             ("use", "in this scene", 110), ("first", "used at", 70)):
+            self.slot_tree.heading(col, text=lab)
+            self.slot_tree.column(col, width=wd, anchor="w", stretch=col == "shows")
+        self.slot_tree.pack(fill="both", expand=True)
+        self.slot_tree.bind("<Double-Button-1>", lambda _e: self._goto_slot())
+        Tip(self.slot_tree, "The text slots the ＠…＠ codes in the selected script's dialogue print "
+                            "(＠アイテム０＠ = item slot 0, ＠キャラ１＠ = character slot 1, ＠金２＠ = gold "
+                            "slot 2 ...) and the ones its SetVar statements fill, with the value in the game "
+                            "right now. They are shared by every scene: a slot this scene shows but never "
+                            "sets prints what an earlier scene left in it. ▶ = the statement the script "
+                            "stands at uses it. Double-click: the first statement using it.")
         right = ttk.Frame(pw, padding=(6, 0))
         pw.add(right, weight=2)
         ttk.Label(right, text="Selected VM", font=("Segoe UI", 9, "bold")).pack(anchor="w")
@@ -462,6 +479,105 @@ class DebuggerPanel:
         _sync_rows(self.var_tree, rows)
         self.lists.tab(2, text="Variables (%d)" % len(rows))
 
+    def _slot_uses(self, bank_pos, sc, here_pc):
+        """{(kind, slot): [first pc, set, shown, here]} for the scene's SetVar writes and the
+        ＠ codes of its dialogue lines and choice options (constant slots only)."""
+        from rf4s_modkit import textlint
+        bank = self.app.doc.container.banks[bank_pos]
+        uses = {}
+
+        def use(key, spc, what):
+            u = uses.setdefault(key, [spc, False, False, False])
+            u[1 if what == "set" else 2] = True
+            u[3] = u[3] or spc == here_pc
+        for spc, st in sorted(sc.stmts.items()):
+            if st.op == 366:                          # SetTextSlotEntries(archive, slot, entries...)
+                slot = script.static_arg(bank, st, 1)
+                if slot is not None:
+                    for k in range(max(1, len(st.args) - 2)):
+                        use((13, slot + k), spc, "set")
+            elif st.op in textlint.SETVAR_KINDS:
+                slot = script.static_arg(bank, st, 0) if st.args else None
+                kinds = (0, 3) if st.op == 363 else textlint.SETVAR_KINDS[st.op]   # GetNpcBirthday
+                if slot is not None:
+                    for k in kinds:
+                        use((k, 0 if k == 10 else slot), spc, "set")
+            texts = []
+            if st.mnem == "DIALOG":
+                texts.append(self.app.doc.text(st.dialog_id))
+            for i in getattr(st, "items", None) or ():
+                texts.append(self.app.doc.text(i))
+            for t in texts:
+                for tok in textlint.tokens(t or ""):
+                    if tok.text == textlint.slot_code(10, 0):      # the child: kind 10, no digit
+                        use((10, 0), spc, "shown")
+                    elif tok.kind is not None:
+                        k = 13 if tok.kind == 14 else tok.kind
+                        use((k, tok.slot or 0), spc, "shown")
+        return uses
+
+    @staticmethod
+    def _slot_shows(kind, val):
+        """What a slot value prints, in words ('' when it is just the number)."""
+        try:
+            if kind == 0:
+                if val == 0:
+                    return "the player's name"
+                from rf4s_modkit import gamenames
+                return gamenames.name("characters", val) or ""
+            if kind in (1, 11):
+                from rf4s_modkit import gamenames
+                return gamenames.name("items", val) or ""
+            if kind == 2:
+                from rf4s_modkit.map_names import map_name
+                return map_name(val) or ""
+            if kind == 9:
+                from rf4s_modkit import emtext
+                season, day = divmod(val, 100)
+                return "%s %d" % (emtext.SEASONS[season], day) if season in emtext.SEASONS else ""
+            if kind == 15:
+                return "button icon U+%04X" % (0xE000 + val)
+        except Exception:  # noqa: BLE001 -- a name lookup is a display aid only
+            pass
+        return ""
+
+    def _fill_slots(self, v):
+        """The Text slots tab: the slots the selected script's scene sets or shows, live."""
+        from rf4s_modkit import textlint
+        rows = {}
+        if v is not None and self.dbg is not None and v.bank is not None:
+            dk = self._doc_key(v.bank, self.dbg.logical_pc(v))
+            pc = dk[1] if dk else None
+            sc = self._scene_of(v.bank, pc) if pc is not None else None
+            if sc is not None:
+                from rf4s_modkit.scriptdbg import TEXT_SLOT_COUNTS
+                live = self.dbg.text_slots()
+                for (kind, slot), (first, sets, shown, here) in sorted(self._slot_uses(v.bank, sc, pc).items()):
+                    if slot >= TEXT_SLOT_COUNTS.get(kind, 0):
+                        continue                             # past the bank: the game ignores it
+                    vals = live.get(kind) if live is not None else None
+                    if vals is None:
+                        value, shows = "?", ""
+                    elif kind == 13:
+                        arc = vals[slot]
+                        line = (live.get(14) or [0] * 16)[slot]
+                        value, shows = "%d / %d" % (arc, line), "text archive %d, line %d" % (arc or 15177, line)
+                    else:
+                        value, shows = vals[slot], self._slot_shows(kind, vals[slot])
+                    rows["%d:%d" % (kind, slot)] = (
+                        ("▶ " if here else "") + textlint.slot_code(kind, slot), value, shows,
+                        "set + shown" if sets and shown else ("set" if sets else "shown, not set"),
+                        "@%04x" % first)
+        _sync_rows(self.slot_tree, rows)
+        self.lists.tab(3, text="Text slots (%d)" % len(rows))
+
+    def _goto_slot(self):
+        s = self.slot_tree.selection()
+        v = self._selected_vm()
+        if s and v is not None and v.bank is not None:
+            first = self.slot_tree.item(s[0], "values")[4]
+            self.app.show_statement(v.bank, int(str(first).lstrip("@"), 16))
+
     def _goto_var(self):
         s = self.var_tree.selection()
         v = self._selected_vm()
@@ -477,6 +593,11 @@ class DebuggerPanel:
         except Exception as e:  # noqa: BLE001 -- a read racing the game; the next poll retries
             self.lists.tab(2, text="Variables (?)")
             self.app.status("variables: %s" % err_text(e))
+        try:
+            self._fill_slots(v)
+        except Exception as e:  # noqa: BLE001 -- same: the next poll retries
+            self.lists.tab(3, text="Text slots (?)")
+            self.app.status("text slots: %s" % err_text(e))
         d = self.detail
         lines = []
         if v is not None and self.dbg is not None:

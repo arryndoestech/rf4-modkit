@@ -114,6 +114,7 @@ SHORTCUTS = [
             ("F9 in the Script view", "set / remove a breakpoint on the selected statement"),
             ("Double-click a breakpoint", "open its statement"),
             ("Double-click a variable (Variables tab)", "open the first statement that uses it"),
+            ("Double-click a text slot (Text slots tab)", "open the first statement that sets or shows it"),
         ]),
         ("Bank listing tab (Options → Advanced)", [
             ("Enter / Shift+Enter in Find", "next / previous match"),

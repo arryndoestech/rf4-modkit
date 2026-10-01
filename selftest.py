@@ -7114,7 +7114,7 @@ def test_script_debugger():
                           bufs={}, stub_top={}, _stubs={}, user=set(), user_pending={}, _maps={},
                           slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
                           _res_orig=None, _res_base=None, _res_img=None, _res_dirty=True, _res_free=[],
-                          _clock=None, _note=None, _flags=None, recovered=[])
+                          _clock=None, _note=None, _flags=None, _slots=None, recovered=[])
         d._write_note = lambda owner=True: None             # no recovery note from a test
         d._drop_note = lambda: None
         d._set_clock = lambda frozen: None
@@ -7267,6 +7267,58 @@ def test_script_debugger():
                              lambda e: 2 if e == enc else None) == (1, True))
     _check("a compound assignment is not evaluated (it would write)",
            _sd.eval_live(bytes([0x07, 0x17, 1, 0x94, 0]), 0, [0] * 10, None)[1] is False)
+
+    # text slots: the banks the ＠ codes print, read live; the scene scan the Text slots tab lists
+    from types import SimpleNamespace as _NS
+    from rf4s_modkit import textlint as _tl
+    from cutscene_editor import debugger as _dbgp
+    g = Game(); d = debugger(g)
+    lo = min(_sd.TEXT_SLOT_RVAS.values())
+    blk = g.m.alloc(0x1000)
+    g.m.regions[g.base + lo] = g.m.regions.pop(blk)             # the slot run at its RVA
+    g.write(g.base + _sd.TEXT_SLOT_RVAS[1] + 4 * 2, _st.pack("<i", 178))      # item slot 2
+    g.write(g.base + _sd.TEXT_SLOT_RVAS[3] + 4 * 51, _st.pack("<i", 999))     # last number slot
+    g.write(g.base + _sd.TEXT_SLOT_RVAS[15], _st.pack("<i", 7))               # button slot 0
+    s = d.text_slots()
+    _check("text slots: every kind read from its RVA (item 2, number 51, button 0), no kind 12",
+           s[1][2] == 178 and s[3][51] == 999 and s[15][0] == 7 and 12 not in s
+           and all(len(s[k]) == n for k, n in _sd.TEXT_SLOT_COUNTS.items()))
+    codes = [(k, n) for k in _sd.TEXT_SLOT_COUNTS for n in range(min(_sd.TEXT_SLOT_COUNTS[k], 32))
+             if k != 14 and not (k == 3 and n > 50)]
+    back = [(k, n) for k, n in codes if [(t.kind if k != 10 else 10, t.slot or 0)
+                                         for t in _tl.tokens(_tl.slot_code(k, n))] in ([(k, n)], [(10, 0)])]
+    _check("every slot's ＠ code reads back as that slot", len(back) == len(codes),
+           str(sorted(set(codes) - set(back))[:4]))
+    from rf4s_modkit import textdb as _tdb
+    p = _first("rf3mc.eng")
+    txt = _tdb.TextArchive.load(str(p)) if p else None
+    found = None
+    if txt is not None:
+        from cutscene_editor.browser import scene_rows
+        for pos in range(len(c.banks)):
+            for sc in scene_rows(c.banks[pos]):
+                sets = [p for p, st in sc.stmts.items() if st.op == 343 and _sc.static_arg(c.banks[pos], st, 0) == 0]
+                shows = [p for p, st in sc.stmts.items() if st.mnem == "DIALOG"
+                         and "＠アイテム０＠" in (txt.text(st.dialog_id) or "")]
+                if sets and shows:
+                    found = (pos, sc, min(sets), min(shows))
+                    break
+            if found:
+                break
+    if found is None:
+        _skip("text slots scene scan", "no scene with SetVar1(0, ...) and ＠アイテム０＠ found")
+    else:
+        pos, sc, ps, pd = found
+        fake = _NS(app=_NS(doc=_NS(container=c, text=lambda i: txt.text(i))))
+        uses = _dbgp.DebuggerPanel._slot_uses(fake, pos, sc, pd)
+        u = uses.get((1, 0))
+        _check("the scene scan finds an item slot its SetVar1 fills and its dialogue prints, ▶ at the line",
+               u is not None and u[0] == min(ps, pd) and u[1] and u[2] and u[3], "bank %d %s" % (pos, u))
+    _check("slot values in words: item, map, season date, the player, a button",
+           _dbgp.DebuggerPanel._slot_shows(9, 305) == "Winter 5"
+           and _dbgp.DebuggerPanel._slot_shows(0, 0) == "the player's name"
+           and _dbgp.DebuggerPanel._slot_shows(15, 7) == "button icon U+E007"
+           and bool(_dbgp.DebuggerPanel._slot_shows(1, 178)))
 
 
 def test_script_debugger_edits():
@@ -14566,6 +14618,28 @@ def test_event_manager():
                str([str(c) for c in untipped[:3]]))
         _check("Alt-hover explains a line precisely (the raw em.bin form, the query's id)",
                "em.bin: Hour > 6" in w.explain(key) and "game query 3 Hour" in w.explain(key))
+        # Internal names: entries and queries by their emdeb names, and back
+        saved_pref = []
+        cx.set_em_raw_names_setting = lambda on: saved_pref.append(on)     # not the user's settings
+        ep = doc.em.by_name["EV_SUBEV_COM_49"].idx
+        w.open_entry(ep)
+        root.update()
+
+        def rule_text():
+            return "\n".join("".join(s for s, _t in r.segs) for r in w.rows)
+        eng = rule_text()
+        w.set_raw_names(True)
+        root.update()
+        raw = rule_text()
+        w.set_raw_names(False)
+        root.update()
+        _check("Internal names: the rule names the entry and its queries by emdeb name, and switches back",
+               "Arthur is free for a sub-event" in eng and "SUBEV_ENABLE_ARTHUR" not in eng
+               and "SUBEV_ENABLE_ARTHUR" in raw and "EV_SUBEV_COM_49" in raw.splitlines()[0]
+               and rule_text() == eng and saved_pref == [True, False]
+               and w.tree.item("e:%d" % ep, "text").startswith(
+                   "#%d %s" % (ep, emtext.entry_text("EV_SUBEV_COM_49"))),
+               raw.splitlines()[0])
         w.q.set("kiel love")
         root.update()
         w.open_first_match()

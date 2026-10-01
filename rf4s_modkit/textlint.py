@@ -229,6 +229,26 @@ def format_issues(issues, limit: int = 8) -> str:
     return "\n".join(lines)
 
 
+def slot_code(kind: int, slot: int) -> str:
+    """The ＠ code that prints text slot `slot` of `kind` (＠アイテム０＠, ＠３＠ ...); kind 14
+    (the line half of ＠その他n＠) is named by its kind-13 code."""
+    if kind == 10:
+        return AT + "子供ちゃん" + AT
+    if kind == 3:
+        dig = next((c for c, n in _BARE.items() if n == slot), None)
+        if dig is not None:
+            return AT + dig + AT
+        lit = "数字"
+    else:
+        lit = next((b for b, k, _top in _SLOTTED if k == (13 if kind == 14 else kind)), None)
+        if lit is None:
+            return "kind %d slot %d" % (kind, slot)
+    dig = next((c for c, n in _DIG.items() if n == slot and ord(c) > 0x7F), None)   # fullwidth
+    if dig is None:                       # past Ｖ (31): no single-digit code reaches it
+        return "%s%s %d%s" % (AT, lit, slot, AT)
+    return AT + lit + dig + AT
+
+
 def scene_slot_writes(scene, bank) -> dict:
     """{kind: set of slots | ALL} the scene's SetVar opcodes write (argument 0 = slot)."""
     from . import script

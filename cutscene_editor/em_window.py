@@ -66,6 +66,10 @@ class EventManagerWindow:
         self._problems = None
         self._tip = None
         self._hover = None
+        try:
+            self.raw_names = app.em_raw_names_setting()
+        except Exception:  # noqa: BLE001 - no prefs: English
+            self.raw_names = False
         self._build_toolbar()
         pane = Paned(win, orient="horizontal")
         pane.pack(fill="both", expand=True)
@@ -111,11 +115,32 @@ class EventManagerWindow:
         return em.entries[idx] if (idx is not None and 0 <= idx < len(em.entries)) else None
 
     def label(self, idx):
-        """An entry's English description, or its name."""
+        """An entry's English description, or its name (the name first with Internal names on)."""
         e = self.entry(idx)
         if e is None:
             return "#%d" % idx
-        return emtext.entry_text(e.name) or e.name or "(unnamed #%d)" % idx
+        english = emtext.entry_text(e.name)
+        if self.raw_names:
+            return e.name or english or "(unnamed #%d)" % idx
+        return english or e.name or "(unnamed #%d)" % idx
+
+    def other_label(self, idx):
+        """What label() leaves out: the name in English mode, the description in name mode."""
+        e = self.entry(idx)
+        if e is None:
+            return ""
+        return (emtext.entry_text(e.name) if self.raw_names else e.name) or ""
+
+    def set_raw_names(self, on):
+        """Name entries and queries by their emdeb names (EV_..., SUBEV_ENABLE_...) or in English."""
+        self.raw_names = bool(on)
+        try:
+            self.app.set_em_raw_names_setting(self.raw_names)
+        except Exception:  # noqa: BLE001 - a preference, not worth failing over
+            pass
+        self._bodies, self._choices_cache = {}, None
+        self.fill_browser(keep=True)
+        self.show_entry(self.idx, keep_sel=True)
 
     def problems(self):
         if self._problems is None:
@@ -163,6 +188,13 @@ class EventManagerWindow:
             b = ttk.Button(bar, text=text, command=cmd)
             b.pack(side="left", padx=(6, 0))
             Tip(b, tip)
+        self.raw_var = tk.BooleanVar(value=self.raw_names)
+        rn = ttk.Checkbutton(bar, text="Internal names", variable=self.raw_var,
+                             command=lambda: self.set_raw_names(self.raw_var.get()))
+        rn.pack(side="left", padx=(12, 0))
+        Tip(rn, "Show entries and game queries by their emdeb names (EV_SUBEV_COM_49, "
+                "SUBEV_ENABLE_ARTHUR) -- the names the cutscene editor and the game data use -- "
+                "instead of English descriptions. Variables always show their names.")
         sv = ttk.Button(bar, text="Save", command=self.app.save_all)
         sv.pack(side="right")
         Tip(sv, "Save every changed file into the game folder (Ctrl+S). em.bin is checked first.")
@@ -242,9 +274,9 @@ class EventManagerWindow:
                      self.em.format_entry(e)]
             for slots in (e.cond_a, e.cond_b):
                 for xs in slots or ():
-                    parts += [emtext.expr_text(names, x, self.label) for x in xs]
+                    parts += [emtext.expr_text(names, x, self.label, self.raw_names) for x in xs]
             for acts in (e.actions, e.alt_actions):
-                parts += [emtext.action_text(names, a, self.label) for a in acts or ()]
+                parts += [emtext.action_text(names, a, self.label, self.raw_names) for a in acts or ()]
             b = self._bodies[e.idx] = "\n".join(parts).lower()
         return b
 
@@ -394,7 +426,8 @@ class EventManagerWindow:
             return [("   ⚠ " + "; ".join(m for _l, m in ps), lvl)]
 
         rows.append(Row([("#%d  " % e.idx, "dim"), (self.label(e.idx), "h1")], ("entry",)))
-        rows.append(Row([(e.name or "(unnamed)", "dim"), (("   " + e.jp) if e.jp else "", "dim")], ("entry",)))
+        sub = self.other_label(e.idx) or ("" if self.raw_names else "(unnamed)")
+        rows.append(Row([(sub, "dim"), (("   " + e.jp) if e.jp else "", "dim")], ("entry",)))
         rows.append(Row([("", None)]))
         for which, slots, title in (("a", e.cond_a, None), ("b", e.cond_b, "Its other test (condition B)")):
             if which == "b" and not slots:
@@ -422,7 +455,7 @@ class EventManagerWindow:
                 for grp in emtext.groups_of(xs):
                     if len(grp) == 1:
                         xi, x = grp[0]
-                        rows.append(Row([(ind + "• ", "dim"), (_cap(emtext.expr_text(names, x, self.label)),
+                        rows.append(Row([(ind + "• ", "dim"), (_cap(emtext.expr_text(names, x, self.label, self.raw_names)),
                                                                       "link" if x.kind.endswith(("cond_a", "cond_b"))
                                                                       else "req")]
                                         + mark(("expr", which, si, xi)), ("expr", which, si, xi)))
@@ -430,7 +463,7 @@ class EventManagerWindow:
                         rows.append(Row([(ind + "• one of:", "or")], ("expr", which, si, grp[0][0])))
                         for xi, x in grp:
                             rows.append(Row([(ind + "      ◦ ", "dim"),
-                                             (_cap(emtext.expr_text(names, x, self.label)),
+                                             (_cap(emtext.expr_text(names, x, self.label, self.raw_names)),
                                               "link" if x.kind.endswith(("cond_a", "cond_b")) else "req")]
                                             + mark(("expr", which, si, xi)), ("expr", which, si, xi)))
         for stream, acts in (("main", e.actions), ("alt", e.alt_actions)):
@@ -440,7 +473,7 @@ class EventManagerWindow:
             rows.append(Row([("▶ %s:" % STREAM_TITLE[stream], "sec")], ("sec", stream)))
             for ai, a in enumerate(acts):
                 rows.append(Row([("   %d. " % (ai + 1), "dim"),
-                                 (_cap(emtext.action_text(names, a, self.label)), "link" if a.name == "CALL" else "act")]
+                                 (_cap(emtext.action_text(names, a, self.label, self.raw_names)), "link" if a.name == "CALL" else "act")]
                                 + mark(("act", stream, ai)), ("act", stream, ai)))
         # who uses it
         uses, refs = self.uses(e.idx), self.refs(e.idx)
@@ -788,7 +821,7 @@ class EventManagerWindow:
         self._title("Way %d of %d" % (si + 1, len(slots)),
                     "Condition %s holds this way when all of its requirements hold." % which.upper())
         for grp in emtext.groups_of(xs):
-            ttk.Label(b, text="• " + " OR ".join(_cap(emtext.expr_text(self.names, x, self.label)) for _i, x in grp),
+            ttk.Label(b, text="• " + " OR ".join(_cap(emtext.expr_text(self.names, x, self.label, self.raw_names)) for _i, x in grp),
                       wraplength=330, justify="left").pack(anchor="w", padx=10)
         self._buttons(b, [
             ("Add a requirement", lambda: self.add_requirement(which, si, len(xs) - 1, "and"),
@@ -821,7 +854,7 @@ class EventManagerWindow:
                   for i, (en, _jp) in enumerate(names.query_names)]
             vs = [emtext.variable_label(v) for v in names.flags.variables]
             vs += [text for text, _tok in emtext.zone2_choices()]     # the recovered zone-2 flags
-            es =["#%d  %s — %s" % (e.idx, self.label(e.idx), e.name or "") for e in self.em.entries]
+            es = [self.entry_choice(e.idx) for e in self.em.entries]
             self._choices_cache = (self.em, qs + vs, vs, es)
         return self._choices_cache[1:]
 
@@ -878,8 +911,7 @@ class EventManagerWindow:
         return self.operand_choice(o)
 
     def entry_choice(self, idx):
-        e = self.entry(idx)
-        return "#%d  %s — %s" % (idx, self.label(idx), (e.name if e else "") or "")
+        return "#%d  %s — %s" % (idx, self.label(idx), self.other_label(idx))
 
     @staticmethod
     def entry_of(text):
@@ -919,7 +951,7 @@ class EventManagerWindow:
         b = self.insp.body
         x = self._expr(e, key)
         _k, which, si, xi = key
-        self._title("Requirement", _cap(emtext.expr_text(self.names, x, self.label)))
+        self._title("Requirement", _cap(emtext.expr_text(self.names, x, self.label, self.raw_names)))
         self._row_problems(key)
         kind = ("value" if x.kind == "cmp" else "entry" if x.kind not in ("true", "false") else "fixed")
         mode = self._mode_var = tk.StringVar(master=self.win, value=kind)   # kept: Tk forgets GC'd vars
@@ -1036,7 +1068,7 @@ class EventManagerWindow:
         b = self.insp.body
         a = self._act(e, key)
         _k, stream, ai = key
-        self._title("Action %d" % (ai + 1), _cap(emtext.action_text(self.names, a, self.label)))
+        self._title("Action %d" % (ai + 1), _cap(emtext.action_text(self.names, a, self.label, self.raw_names)))
         self._row_problems(key)
         mode = self._mode_var = tk.StringVar(master=self.win, value="call" if a.name == "CALL" else "change")
         mf = ttk.Frame(b)
