@@ -3097,7 +3097,7 @@ _M.update({
     588: ('IsFurniturePlaced', 'query',
         'Query whether a furniture tile object with id [arg0] is active anywhere, in any room (it scans all 64 registry slots). reg0 = 1 if found, else 0.',
         ['furniture/tile-object id']),
-    590: ('BreakFurnitureIntoMaterials', 'item',
+    590: ('BreakFurniture', 'item',
         'Break the host furniture object: dirt-cloud puff, drop item 1022 (Lumber) and item 1023 (Material Stone) at its position, free its tile-object registry slot and destroy the object. Takes no arguments.',
         []),
     592: ('CanPlaceFurnitureInRoom', 'query',
@@ -3411,7 +3411,7 @@ ARG_HINTS = {
     "em entry id": "em.bin Event Manager entry id (0..271; named in emdeb.bin)",
     "flag id": "GameFlags bit id -- ENGINE base-relative (flag_id + g_gameFlagsBuffer[0]), "
                "not an emflags/emdeb offset",
-    "value": "value to write (0 = clear / false)",
+    "value": "the value to store (an id or a number; what it means depends on the slot's use)",
     "index": "slot index into the (engine-global) script-variable bank",
     "portrait slot": "which on-screen portrait slot to update",
     "portrait id": "portrait/face id to show",

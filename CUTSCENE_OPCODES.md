@@ -1443,7 +1443,7 @@ Args:
 ### `op 366` — SetTextSlotEntries(archive, slot, entries...)
 *handler:* `Script_VMOp_WriteVarArrayKind13AndKind14Multi`
 
-Fill the text slots that the ＠そn＠ dialogue token prints: slot n shows entry bank14[n] of archive bank13[n] (with ＠ replaced by the player's name). Used for the nickname choice lists ('What would you like me to call you?'); GetVar14 (op 367) reads the entries back.
+Fill the text slots that the ＠その他n＠ dialogue token prints: slot n shows entry bank14[n] of archive bank13[n] (with ＠ replaced by the player's name). Used for the nickname choice lists ('What would you like me to call you?'); GetVar14 (op 367) reads the entries back.
 
 Args:
   0. archive (0 = 15177 (the nickname list); corpus always 0)
@@ -5016,7 +5016,7 @@ Args:
 ### `op 275` — SetNpcPresenceState(npc, mode)
 *handler:* `ScriptVMOp275_SetNpcPresenceStateAndFlag768`
 
-Marks an NPC as present in town again (mode 1), used at the end of date/festival scenes. -1 removes its presence bit.
+Start (mode 1) or end (-1) dating a villager: sets / clears record +52 bit 22, the flag IsNpcPresent (op 274) and em.bin's PARTNER_<name> queries read. Each marriage candidate's successful confession scene ends with it.
 
 Args:
   0. npc
@@ -6864,7 +6864,7 @@ Move any monster companions in the party to the player's position (villager comp
 ### `op 214` — SetNpcStoryFlag(npc)
 *handler:* `Script_VMOp_SetNpcStoryFlag`
 
-Set the per-villager availability bit (GameFlags zone-2 bit 981 + char id) that marks a villager as present in town; 0 sets it for all villagers 1..23.
+Mark a villager as met (GameFlags zone-2 bit 981 + char id) -- the flag that stops their first-meeting introduction from playing; 0 marks every villager 1..23.
 
 Args:
   0. npc (1..47 (flag range covers 1..23); 0 = every loaded NPC 1..23)
@@ -6872,7 +6872,7 @@ Args:
 ### `op 215` — ClearNpcStoryFlag(npc)
 *handler:* `Script_VMOp_ClearPerNpcFlagBase981`
 
-Clear the per-NPC game flag 981+id - the counterpart of SetNpcStoryFlag (op 214).
+Clear a villager's met flag (GameFlags zone-2 bit 981 + id) - the counterpart of SetNpcStoryFlag (op 214); their first-meeting introduction can play again.
 
 Args:
   0. npc (1-23 (flag 981+id must stay below 1005))
@@ -6925,7 +6925,7 @@ Args:
 ### `op 340` — SetVar0(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind0`
 
-Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0.
+Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).
 
 Args:
   0. index (out of range -> ignored)
@@ -6934,7 +6934,7 @@ Args:
 ### `op 341` — SetVar0(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind0`
 
-Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0.
+Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).
 
 Args:
   0. index (out of range -> ignored)
@@ -6943,7 +6943,7 @@ Args:
 ### `op 343` — SetVar1(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind1`
 
-Stores a value in script-variable bank 1 at the given slot. Scenes use slot 0 to hand a value (often an item or NPC id) to text substitution and to later scenes.
+Stores a value in script-variable bank 1 at the given slot. Scenes use slot 0 to hand a value (often an item or NPC id) to text substitution and to later scenes. ＠アイテムn＠ prints slot n as an item name.
 
 Args:
   0. index (index >= 16 ignored)
@@ -6952,7 +6952,7 @@ Args:
 ### `op 345` — SetVar11(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind11`
 
-Store a value in slot [index] of engine variable bank 11 (16 slots). Read it back with GetVar11.
+Store a value in slot [index] of engine variable bank 11 (16 slots). Read it back with GetVar11. ＠セーブアイテムn＠ prints slot n as an item name.
 
 Args:
   0. index (0-15)
@@ -6961,7 +6961,7 @@ Args:
 ### `op 347` — SetVar2(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind2`
 
-Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2.
+Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
 
 Args:
   0. index (out of range -> ignored)
@@ -6970,7 +6970,7 @@ Args:
 ### `op 348` — SetVar2(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind2`
 
-Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2.
+Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
 
 Args:
   0. index (out of range -> ignored)
@@ -6979,7 +6979,7 @@ Args:
 ### `op 349` — SetVar3(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind3WithSaturation`
 
-Store a value in script-variable bank 3 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar3.
+Store a value in script-variable bank 3 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar3. ＠n＠ / ＠数字n＠ print slot n as a number.
 
 Args:
   0. index (out of range -> ignored) — verified in game
@@ -6988,7 +6988,7 @@ Args:
 ### `op 351` — SetVar4(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind4`
 
-Stores a value in script-variable bank 4 (52 slots). Shops and the smithy/pharmacy scenes use banks 4/5/6 slot by slot as parallel lists (e.g. price in bank 4) that a later menu reads back.
+Stores a value in script-variable bank 4 (52 slots). Shops and the smithy/pharmacy scenes use banks 4/5/6 slot by slot as parallel lists (e.g. price in bank 4) that a later menu reads back. ＠金n＠ prints slot n as a gold amount (red when the player has less).
 
 Args:
   0. index (index > 51 ignored)
@@ -6997,7 +6997,7 @@ Args:
 ### `op 353` — SetVar5(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind5`
 
-Store a value in script-variable bank 5 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar5; dialogue text codes also read this bank.
+Store a value in script-variable bank 5 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar5. ＠木n＠ prints slot n as a lumber amount (red when the player has less).
 
 Args:
   0. index (out of range -> ignored)
@@ -7006,7 +7006,7 @@ Args:
 ### `op 355` — SetVar6(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind6`
 
-Store a number in slot [index] of engine variable bank 6 (52 slots); used to fill the numbers shown by dialogue text codes (e.g. request amounts next to SetVar4/SetVar5). Read back with GetVar6.
+Store a number in slot [index] of engine variable bank 6 (52 slots). Read back with GetVar6. ＠石n＠ prints slot n as a material-stone amount (red when the player has less).
 
 Args:
   0. index (0-51)
@@ -7015,7 +7015,7 @@ Args:
 ### `op 357` — SetVar7(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind7`
 
-Store a number in script variable bank 7 [index] - the bank that dialogue text prints numbers from (e.g. order prices). Read back with GetVar7 (op 358).
+Store a number in script variable bank 7 [index]. Read back with GetVar7 (op 358). ＠王n＠ prints slot n as a Prince Points amount (red when the player has fewer).
 
 Args:
   0. index (0-51 (larger ignored))
@@ -7024,7 +7024,7 @@ Args:
 ### `op 359` — SetVar8(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind8`
 
-Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to.
+Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to. ＠モンn＠ prints slot n as that barn monster's given name.
 
 Args:
   0. index (0-15)
@@ -7033,7 +7033,7 @@ Args:
 ### `op 361` — SetVar9(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind9_WithNpcFallback`
 
-Store a value in slot [index] of engine variable bank 9 (16 slots). -1 stores the calendar date code of the festival currently running. There is no GetVar9 op: the bank is read by dialogue text codes and villager AI.
+Store a value in slot [index] of engine variable bank 9 (16 slots). -1 stores the calendar date code of the festival currently running. There is no GetVar9 op; villager AI also reads the bank. ＠カレンダーn＠ prints the calendar event on the date in slot n (season x 100 + day).
 
 Args:
   0. index (0-15)
@@ -7042,7 +7042,7 @@ Args:
 ### `op 364` — SetVar10(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind10`
 
-Stores a value in script-variable bank 10. There is no GetVar10: the bank is read by dialogue text substitution.
+Stores a value in script-variable bank 10. There is no GetVar10. ＠子供ちゃん＠ prints the name of the child it picks.
 
 Args:
   0. index (index >= 16 ignored)
@@ -7751,7 +7751,7 @@ Args:
   2. x (-1 = default / player position)
   3. y (-1 = default / player position)
 
-### `op 590` — BreakFurnitureIntoMaterials()
+### `op 590` — BreakFurniture()
 *handler:* `Script_VMOp_DropQuestBoxItems1022And1023AndDestroy`
 
 Break the furniture object running this script: a dust puff, it drops one Lumber (1022) and one Material Stone (1023) and disappears.
@@ -8921,7 +8921,7 @@ Stores the player's tile position in reg0 (x) and reg1 (y), and 1 in reg2.
 ### `op 216` — HasNpcStoryFlag(character)
 *handler:* `Script_VMOp_QueryNpcInCurrentArea`
 
-Check whether a villager has been unlocked in the story (the flag SetNpcStoryFlag sets). For child slots 24-47 it checks the child record instead.
+Check whether the player has met a villager (the flag SetNpcStoryFlag sets; it is what keeps the first-meeting introduction from replaying). For child slots 24-47 it checks the child record instead.
 
 Args:
   0. character (1-23 villagers (0 = player also maps to bit 981); 24-47 = child slots)
@@ -9244,7 +9244,7 @@ Args:
 ### `op 236` — IsNpcInRangeToChimeIn(npc, range)
 *handler:* `Script_VMOp_QueryNpcInteractEligible`
 
-Check whether another villager is around to chime in on the current conversation: reg0 = 1 if the NPC is present, awake and within range of the talking actor. The check alternates: it succeeds only on every other passing call.
+Check whether another villager is around to chime in on the current conversation: reg0 = 1 if the NPC has been met, is awake and within range of the talking actor. The check alternates: it succeeds only on every other passing call.
 
 Args:
   0. npc
@@ -9499,7 +9499,7 @@ Args:
 ### `op 257` — IsNpcGroupFreeToComment(npcs)
 *handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
-Check that every listed villager is free to make an ambient comment (present, awake, not busy, not blocked by a story gate). reg0 = 1 if all are.
+Check that every listed villager is free to make an ambient comment (met, present, awake, not busy, not blocked by a story gate). reg0 = 1 if all are.
 
 Args:
   0. npcs (variable count (from argc); 0 = the player's spouse (REG_WIFE_ID); ids >= 48 are skipped)
@@ -9507,7 +9507,7 @@ Args:
 ### `op 258` — IsNpcGroupFreeToComment(npcs)
 *handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
-Check that every listed villager is free to make an ambient comment (present, awake, not busy, not blocked by a story gate). reg0 = 1 if all are.
+Check that every listed villager is free to make an ambient comment (met, present, awake, not busy, not blocked by a story gate). reg0 = 1 if all are.
 
 Args:
   0. npcs (variable count (from argc); 0 = the player's spouse (REG_WIFE_ID); ids >= 48 are skipped)
@@ -9610,7 +9610,7 @@ Args:
 ### `op 273` — IsNpcPresent(npc)
 *handler:* `Script_VMOp_QueryNpcPresentFlag`
 
-Check whether a villager is flagged present (record +52 bit 22, set by op 275). With 0 it returns how many villagers are present.
+Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
 
 Args:
   0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0)
@@ -9644,7 +9644,7 @@ Args:
 ### `op 274` — IsNpcPresent(npc)
 *handler:* `Script_VMOp_QueryNpcPresentFlag`
 
-Check whether a villager is flagged present (record +52 bit 22, set by op 275). With 0 it returns how many villagers are present.
+Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
 
 Args:
   0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0)
@@ -10131,7 +10131,7 @@ Args:
 ### `op 363` — GetNpcBirthday(slot, character)
 *handler:* `Script_VMOp_GetCalendarEventMonthWithFallback`
 
-Look up a character's birthday: season into reg0, day into reg1, and also store 'season name' and day into text variable slots so the next DIALOG line can print '<season> <day>'.
+Look up a character's birthday: season into reg0, day into reg1, and also bank 0 [slot] = the season's name line and bank 3 [slot] = the day, so ＠キャラn＠ ＠n＠ in the next DIALOG line print '<season> <day>'.
 
 Args:
   0. slot (bank-0 index 0-15 / bank-3 index 0-51 for the text codes)
@@ -11377,7 +11377,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 580 | `GetGivenItemStats` | 581 | `CompareFishRecord` | 582 | `GetFishRecord` |
 | 583 | `nop` | 584 | `nop` | 585 | `nop` |
 | 586 | `nop` | 587 | `PlaceFurniture` | 588 | `HasMapEntityOfKind` |
-| 589 | `PickUpHostObject` | 590 | `BreakFurnitureIntoMaterials` | 591 | `ClearAllTileObjects` |
+| 589 | `PickUpHostObject` | 590 | `BreakFurniture` | 591 | `ClearAllTileObjects` |
 | 592 | `CanPlaceFurnitureInRoom` | 593 | `PickRandomPlacedFurniture` | 594 | `CommitGrabbedObject` |
 | 595 | `SetMinimapMarker` | 596 | `RollUniformIntegerLessThanN` | 597 | `RollShopCategoryItemReturnId` |
 | 598 | `RollRandomItemMatchingDisplayName` | 599 | `RollRandomDishItem` | 600 | `RollRandomEquipmentItem` |

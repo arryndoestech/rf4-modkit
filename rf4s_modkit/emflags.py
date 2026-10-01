@@ -60,8 +60,9 @@ ZONE2_BLOCKS = [
              "132-133; Minimap_BuildForMap swaps sheet 12199; Npc_ApplyScheduleState reads it"),
     (134, 134, "FIELD_98 bridge", "bridge MOBJs (342/353) on MAP_FIELD_98; set by bank 220, cleared "
                "by bank 258; Minimap_BuildForMap swaps the sheet on it"),
-    (136, 136, "story milestone shown", "set by Story_DrawMilestoneDiorama; gates a tree MOBJ on "
-               "MAP_FIELD_04"),
+    (136, 136, "Selphia Plain house shown", "set by Map_SpawnProgressWarpsAndWalls on entering Selphia "
+               "Plain (map 164) once Prince Point unlock 0x4000 is bought (it also spawns the warp to the "
+               "House, map 153); gates a tree MOBJ on MAP_FIELD_04"),
     (56, 56, "scene/event bit", "queried by script op 445 in banks 4 and 44"),
     (69, 647, "scene/event bit", "per-map scene bits: monster gates, switches, herbs, barriers "
               "(MOBJ types 44/45/47/217/263 ...) and script ops 443/445"),
@@ -70,9 +71,10 @@ ZONE2_BLOCKS = [
                "read by the town door MOBJs (types 82-85, 114-121)"),
     (752, 969, "daily-reset bit", "cleared EVERY DAY by Day_OnAdvance (752..969): breakable boxes "
                "that come back daily (type 53) and type-35 objects"),
-    (981, 1004, "NPC story/availability (981 + char)", "per-NPC bit for chars 0..23: "
-                "Script_VMOp_SetNpcStoryFlag / ClearPerNpcFlagBase981, the marriage commit, "
-                "Npc_IsInCurrentArea, NpcAi_ResolveVillagerBehavior"),
+    (981, 1004, "NPC met (981 + char)", "per-NPC bit for chars 0..23: the player has met the villager "
+                "-- the first-meeting talk (entry type 19) plays while it is clear, then sets it "
+                "(NpcAi_ResolveVillagerBehavior; read by Npc_IsMetFlagSet); script ops 214 / 215, the "
+                "marriage commit"),
     (1007, 1036, "birthday gift given (1007 + char)", "set when the player gives the NPC a gift ON "
                  "its birthday (NpcAi_OnReceivedThrownItem_AdvanceProgressAndDispatchReaction; script op 318 = 1007 + arg); "
                  "Calendar_IsEventActive tests it for the birthday rows (calendar kind = char id)"),
