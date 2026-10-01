@@ -15602,7 +15602,7 @@
    "optional_args_from": null,
    "returns": "reg0 = 1 if the accessory effect bit 0x40000 is set, else 0",
    "blocking": "no",
-   "description": "Check whether the player's equipped accessory carries special-effect bit 0x40000 (per the IDB, the Rosary effect). reg0 = 1 if so, else 0.",
+   "description": "Check whether the player wears the Rosary (accessory special bit 0x40000): reg0 = 1 if so, else 0.",
    "details": "Player_CheckStatusFlag(player, 0x40000) (+0xB24C0): returns mask & the accessory's special_bits (stats->equip_accessory, else the equip record's accessory slot +168 recomputed with Item_ComputeStats). Player null in state 0x401000 -> 0.",
    "side_effects": "",
    "evidence": "RF4S.exe+0x204F20: `vm[64] = Player_CheckStatusFlag(player, 0x40000) != 0`; corpus 7 uses followed by BR_Z reg0, in banks 212 and 444.",
@@ -15620,7 +15620,7 @@
     "0": 7
    },
    "confidence": "medium",
-   "notes": "Which accessory owns bit 0x40000 (Rosary per the IDB comment on Player_CheckStatusFlag) was not re-verified against rf3ItemEquipmentParam.",
+   "notes": "Bit 0x40000 of the accessory's special_bits = rf3ItemEquipmentParam +36 special_bit 262144, which only the Rosary (657) has; while it is worn, Encounter_SpawnMonsterFromTemplate sets behaviour bit 0x2 on spawned monsters. The forge's Rare Can (1019) bit 0x40000 is a different field and does not count. Shipped uses: bank 212's story scene (with the Rosary the MC says 'It's the effects of...＠アイテム０＠?' with item 657; without it the party clears the way) and Daily Road's entry scene (MAP_FIELD_36, 6 uses), which spawns a Shmooly and Flower Blossoms only while it is worn.",
    "change_reason": "Boolean query -> Is/Has verb per the naming rules, and the flag is the equipped ACCESSORY's special-effect bit, not a general player flag.",
    "human_verified": false,
    "example": {
@@ -29326,9 +29326,9 @@
     {
      "name": "menu",
      "type": "menu id",
-     "values": "cases of World_DispatchInteractionEvent, e.g. 1 save menu, 2 load menu (debug only), 3 message board, 11 calendar, 12 storage, 23 fridge, 25 autosave, 45 bookshelf, 53 shipping bin, 54 safe, 55 wardrobe, 56 toolbox, 58 forge, 71 crafting",
+     "values": "World_DispatchInteractionEvent cases (WORLD_INTERACTION_ACTIONS has every id): 1 save, 2 load, 3 request notebook, 4-9 name entry (hero, farm, fields 1-4), 10 shipping records, 11 calendar, 12 Storage, 14 chemistry, 16-22 cooking, 23 Fridge, 25/26 backup save, 28-42 name entry (barns, children), 45 Bookshelf, 51/57 monster name entry, 53 Shipping Box, 54 Weapon Box, 55 Closet, 56 Farm Tool Box, 58-73 forge / crafting table, 74 Shop Box, 75-89 shops, 90 birthday. 24, 27 and 52 open nothing; 0 is ignored; any other id (13, 15, 46-50, 91+) opens the save-data inheritance screen (pick a save to inherit items, levels, skills and monsters from)",
      "required_kind": "int",
-     "notes": "",
+     "notes": "corpus ids 1-90 and 200 (prince order 96 'inherit data' -> the inheritance screen)",
      "human_verified": false
     }
    ],
@@ -29336,7 +29336,7 @@
    "returns": null,
    "blocking": "yes: until the opened interaction/menu finishes",
    "description": "Open one of the game's menu screens by id (save, name entry, calendar, storage, cooking, crafting, shipping bin, ...) and wait until it has closed.",
-   "details": "First run (host+56 & 7 == 0): host+25 = id, World_DispatchInteractionEvent(host) (RF4S.exe+0x1F75B0, switches on host+25); on success host+56 = (host+56 & 0xF9) | 1; returns 1. Later runs: ScriptVMHelper_WaitForFadeAndSceneChange_ReturnDoneWhen3(host) until done, then clears g_focusMonsterFarmRecord and sets the scene task's +116 = 2; for id 53 (shipping bin) it scans 300 shipping slots and sets packed flag 2594 if item 29 or 30 was shipped. Every id reaches the menu system: World_DispatchInteractionEvent hands World_FireTrigger a launcher that calls Script_RunAction(menu id), which spawns the rf4MenuLauncher task (RF4S.exe+0x8C6D0); only 25/26 (backup save, no screen) and 24/27/52 (nothing) differ.",
+   "details": "First run (host+56 & 7 == 0): host+25 = id, World_DispatchInteractionEvent(host) (RF4S.exe+0x1F75B0, switches on host+25); on success host+56 = (host+56 & 0xF9) | 1; returns 1. Later runs: ScriptVMHelper_WaitForFadeAndSceneChange_ReturnDoneWhen3(host) until done, then clears g_focusMonsterFarmRecord and sets the scene task's +116 = 2; for id 53 (shipping bin) it scans 300 shipping slots and sets packed flag 2594 if item 29 or 30 was shipped. Every id reaches the menu system: World_DispatchInteractionEvent hands World_FireTrigger a launcher that calls Script_RunAction(menu id), which spawns the rf4MenuLauncher task (RF4S.exe+0x4C6D0); only 25/26 (backup save, no screen) and 24/27/52 (nothing) differ.",
    "side_effects": "opens menus; id 53 may set flag 2594",
    "evidence": "RF4S.exe+0x211AF0: `*(a1+25) = id; if (World_DispatchInteractionEvent(a1)) *(a1+56) = ... | 1; return 1;` / `v9 = ScriptVMHelper_WaitForFadeAndSceneChange_ReturnDoneWhen3(a1); ... if (id == 53) ... GameFlags_WritePacked_OrAchievement(2594, 1); return v9 == 0`; corpus: 253 uses, ids 1-200.",
    "alias_of": null,
@@ -29353,7 +29353,7 @@
     "1": 253
    },
    "confidence": "high",
-   "notes": "The id list in the current enum was not re-verified case by case.",
+   "notes": "Every id re-checked 2026-10-01 through World_DispatchInteractionEvent (+0x1F75B0) -> Script_DispatchAction (+0x4CCF0): the storage screens are containers of Inventory_GetContainerByTypeId (+0x6BE60) -- 54 is the Weapon Box, not a money safe; the forge / crafting ids follow the shipped scripts' choice lines.",
    "change_reason": "Renamed 2026-09-30 from TriggerWorldAction: every id opens a menu screen through Script_RunAction -> rf4MenuLauncher (pairs with OpenShop, op 376).",
    "human_verified": false,
    "example": {
@@ -33802,27 +33802,160 @@
     {
      "name": "slot",
      "type": "0..5",
-     "values": "0 weapon/tool (+72), 1 shield (+120), 2 body? (+216), 3 head? (+264), 4 boots (+312), 5 accessory (+168); other values fault (null record)",
+     "values": "0 weapon/tool, 1 shield, 2 body armor, 3 headgear, 4 shoes, 5 accessory (verified in game); other values fault (null record)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-01",
+       "call": "GetEquippedItemAttr(slot 0-5, attr 12/13/14) + SetVar1(0, reg0) + item-name line",
+       "observed": "reg0 named the item in each slot: 0 Poison Spear (weapon), 1 Platinum Shield, 2 Lamellar Vest (body), 3 White Ribbon (headgear), 4 Leather Boots, 5 Heart Pendant (accessory)"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "weapon",
+       "text": "weapon_or_tool",
+       "human_verified": true
+      },
+      "1": {
+       "name": "shield",
+       "text": "",
+       "human_verified": true
+      },
+      "2": {
+       "name": "body",
+       "text": "",
+       "human_verified": true
+      },
+      "3": {
+       "name": "head",
+       "text": "",
+       "human_verified": true
+      },
+      "4": {
+       "name": "shoes",
+       "text": "",
+       "human_verified": true
+      },
+      "5": {
+       "name": "accessory",
+       "text": "",
+       "human_verified": true
+      }
+     }
     },
     {
      "name": "attr",
      "type": "0..14",
-     "values": "0-8 enchantment id n, 9 upgrade attr A, 10 upgrade attr B, 11 upgrade-bound item id, 12 payload byte +6, 13 dword +8 bits 10-19, 14 dword +8 bits 0-9; other = reg1 untouched",
+     "values": "0-8 the forge upgrade slots, as item ids (verified: a Hammer Piece added at the forge appeared in 0). An upgrade goes into the slot numbered by the item's level BEFORE it (Lv.1 -> 0, Lv.9 -> 8) and raises the level by one (Item_AppendRuneToSlot / Item_ApplyMaterialUpgrade), so an item bought or found at a higher level has empty lower slots, and a Lv.10 item takes no more; ids are stored in 10 bits (an item id >= 1024 would be cut); 9/10/11 the three base materials the item came with, as item ids (a chest Poison Spear: Insect Horn / Insect Carapace / Bird's Feather, unchanged by the upgrade); 12 level_total = the materials' total level (the 30/60/90/120/150 stat-bonus tiers; a Lv.1 Hammer Piece made it 36 -> 37, and the spear's tier-30 M.ATK +5 shows in game); 13 quality_total = the materials' total quality points (25..200 tiers; the Hammer Piece's quality 9 made it 21 -> 30); both also raise the sell price. Neither is the item level, which this op cannot read; 14 dword +8 bits 0-9 = an item id whose base stats the item uses instead of its own (0 on every item tested); other values leave reg1 untouched",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-01",
+       "call": "GetEquippedItemAttr(0..5, 12/13/14) and (0, 9/10/11/0/1/2)",
+       "observed": "12/13/14: Poison Spear 36/21/0, Platinum Shield 7/18/0, White Ribbon 4/7/0, Lamellar Vest (Lv.9) 0/0/0, Leather Boots and Heart Pendant 0/0/0 -- 12 is not the level; spear 9/10/11 = 948 Insect Horn / 848 Insect Carapace / 861 Bird's Feather; spear 0/1/2 = 0"
+      },
+      {
+       "date": "2026-10-01",
+       "call": "upgrade the Poison Spear with a Hammer Piece (847), then GetEquippedItemAttr(0, 12/13/9/10/11/0/1/2)",
+       "observed": "attr 0: 0 -> 847 (the Hammer Piece); 1/2 stay 0; 9/10/11 unchanged 948/848/861 (the materials it came with); 12: 36 -> 37; 13: 21 -> 30"
+      },
+      {
+       "date": "2026-10-01",
+       "call": "upgrade the Poison Spear (Lv.2, Lv.3) with a Magnifying Glass, then a Bronze; GetEquippedItemAttr(0, 0/1/2)",
+       "observed": "0 = 847 Hammer Piece, 1 = 752 Magnifying Glass, 2 = 820 Bronze: each upgrade lands in the next slot (the level before it)"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "upgrade1",
+       "text": "upgrade slot 1 (item id): the upgrade made while the item was Lv.1",
+       "human_verified": true
+      },
+      "1": {
+       "name": "upgrade2",
+       "text": "upgrade slot 2 (item id): the upgrade made while the item was Lv.2",
+       "human_verified": true
+      },
+      "2": {
+       "name": "upgrade3",
+       "text": "upgrade slot 3 (item id): the upgrade made while the item was Lv.3",
+       "human_verified": true
+      },
+      "3": {
+       "name": "upgrade4",
+       "text": "upgrade slot 4 (item id): the upgrade made while the item was Lv.4",
+       "human_verified": false
+      },
+      "4": {
+       "name": "upgrade5",
+       "text": "upgrade slot 5 (item id): the upgrade made while the item was Lv.5",
+       "human_verified": false
+      },
+      "5": {
+       "name": "upgrade6",
+       "text": "upgrade slot 6 (item id): the upgrade made while the item was Lv.6",
+       "human_verified": false
+      },
+      "6": {
+       "name": "upgrade7",
+       "text": "upgrade slot 7 (item id): the upgrade made while the item was Lv.7",
+       "human_verified": false
+      },
+      "7": {
+       "name": "upgrade8",
+       "text": "upgrade slot 8 (item id): the upgrade made while the item was Lv.8",
+       "human_verified": false
+      },
+      "8": {
+       "name": "upgrade9",
+       "text": "upgrade slot 9 (item id): the upgrade made while the item was Lv.9",
+       "human_verified": false
+      },
+      "9": {
+       "name": "material1",
+       "text": "first base material (item id)",
+       "human_verified": true
+      },
+      "10": {
+       "name": "material2",
+       "text": "second base material (item id)",
+       "human_verified": true
+      },
+      "11": {
+       "name": "material3",
+       "text": "third base material (item id)",
+       "human_verified": true
+      },
+      "12": {
+       "name": "level_total",
+       "text": "total level of the materials in the item (byte +6): each upgrade adds the material's level (halved below forging skill 50, quartered below 30); >= 30/60/90/120/150 add the hidden bonus records 1108-1112 (weapons: ATK/M.ATK) or 1113-1117 (armor: DEF/M.DEF)",
+       "human_verified": true
+      },
+      "13": {
+       "name": "quality_total",
+       "text": "total quality points of the materials (dword +8 bits 10-19): each upgrade adds the material's rf3ItemList quality nibble (fewer below forging skill 50); >= 25/50/.../200 add one ATK, M.ATK, DEF or M.DEF bonus record (1118-1149) by item family",
+       "human_verified": true
+      },
+      "14": {
+       "name": "stats_from_item",
+       "text": "item id whose base stats replace the item's own (dword +8 bits 0-9, Item_ComputeStats); 0 = its own",
+       "human_verified": false
+      }
+     }
     }
    ],
    "optional_args_from": null,
-   "returns": "reg0 = item id in that slot, reg1 = attribute",
+   "returns": "reg0 = item id in that slot, reg1 = the attribute (see attr)",
    "blocking": "no",
-   "description": "Get the item equipped in one of the player's equipment slots and one attribute of it: reg0 = item id, reg1 = the chosen attribute.",
+   "description": "Get the item equipped in one of the player's equipment slots and one attribute of it: reg0 = item id, reg1 = the chosen attribute (an upgrade, a base material, or one of two hidden sell-price ratings).",
    "details": "Record = equip block (actor_inner field_2A0[984]) + 72/120/216/264/312/168 for slots 0-5. reg1: Item_GetEnchantmentSlotId (+0x42000) for 0-8, Item_AggregateUpgradeAttrA/B (+0x41CC0/+0x41DA0), Item_GetUpgradeBoundItemId (+0x41E20), raw payload fields for 12-14. reg0 = record id & 0x7FF for every attr.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20E1B0; corpus 234 uses, e.g. summing (0..5, 0) item ids in banks 24/132, and reg9/reg8 loops.",
+   "evidence": "RF4S.exe+0x20E1B0; corpus 234 uses, e.g. summing (0..5, 0) item ids in banks 24/132, and reg9/reg8 loops. In-game test 2026-10-01 (user): GetEquippedItemAttr(slot 0-5, attr 12/13/14) + SetVar1(0, reg0) + item-name line -> reg0 named the item in each slot: 0 Poison Spear (weapon), 1 Platinum Shield, 2 Lamellar Vest (body), 3 White Ribbon (headgear), 4 Leather Boots, 5 Heart Pendant (accessory). In-game test 2026-10-01 (user): GetEquippedItemAttr(0..5, 12/13/14) and (0, 9/10/11/0/1/2) -> attr 12/13/14: Poison Spear 36/21/0, Platinum Shield 7/18/0, White Ribbon 4/7/0, Lamellar Vest (Lv.9) 0/0/0, Leather Boots 0/0/0, Heart Pendant 0/0/0 -- so 12 is not the level (all but the vest are Lv.1). Spear attr 9/10/11 = 948 Insect Horn / 848 Insect Carapace / 861 Bird's Feather (item ids); attr 0/1/2 = 0. In-game test 2026-10-01 (user): upgrade the Poison Spear with a Hammer Piece (847), then GetEquippedItemAttr(0, 12/13/9/10/11/0/1/2) -> attr 0: 0 -> 847 (the Hammer Piece); 1/2 stay 0; 9/10/11 unchanged 948/848/861 (the materials it came with); 12: 36 -> 37; 13: 21 -> 30. In-game test 2026-10-01 (user): upgrade the Poison Spear (Lv.2, Lv.3) with a Magnifying Glass, then a Bronze; GetEquippedItemAttr(0, 0/1/2) -> 0 = 847 Hammer Piece, 1 = 752 Magnifying Glass, 2 = 820 Bronze: each upgrade lands in the next slot (the level before it).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryEquippedItemAttrByEquipSlot",
    "handler_rva": "0x20E1B0",
@@ -33839,7 +33972,7 @@
    "confidence": "medium",
    "notes": "Which of records 4/5 (slots 2/3) is body vs head was not settled. The accessory at +168 matches Player_CheckStatusFlag (RF4S.exe+0xB24C0).",
    "change_reason": "Returns values: Get verb per the naming rules.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 24,
     "pc": "0x1542",

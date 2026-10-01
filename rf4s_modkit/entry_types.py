@@ -217,14 +217,14 @@ ENTRY_TYPES = {
     },
     10: {
         "name": "MonsterTamed",
-        "summary": "Global scene run after the player tames a monster (game event kind 9); it opens the monster-farm menu.",
+        "summary": "Global scene run after the player tames a monster (game event kind 9); it opens name entry for the new monster.",
         "bank": "global (slot 0)",
         "keys": [],
         "select": "last",
         "consumer": _APPLY0,
         "matcher": "NpcAi_ProbeMovementFromType10Action (RF4S.exe+0x1F7160), game event kind 9",
         "confidence": "verified",
-        "notes": "Game event kind 9 is queued only by MonsterFarm_OnTameSuccessQueueEvent (RF4S.exe+0x1F1450) after MonsterFarm_RegisterTamedMonster returns 2; its callers are MonsterTame_TickReactionAndFinalize (RF4S.exe+0x1DE8A0) and Script_VMOp_TameEventMonster (RF4S.exe+0x212FA0). The single entry (PC 33088) runs OpenMenu(51) = the monster-farm menu. Corrected 2026-09-29: this type was the placeholder GlobalScene10, numbered old handler number 8, one too low.",
+        "notes": "Game event kind 9 is queued only by MonsterFarm_OnTameSuccessQueueEvent (RF4S.exe+0x1F1450) after MonsterFarm_RegisterTamedMonster returns 2; its callers are MonsterTame_TickReactionAndFinalize (RF4S.exe+0x1DE8A0) and Script_VMOp_TameEventMonster (RF4S.exe+0x212FA0). The single entry (PC 33088) runs OpenMenu(51) = name entry for the monster just tamed. Corrected 2026-09-29: this type was the placeholder GlobalScene10, numbered old handler number 8, one too low.",
     },
     11: {
         "name": "BarnFullMessage",

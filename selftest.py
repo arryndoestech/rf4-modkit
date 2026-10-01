@@ -14304,6 +14304,69 @@ def test_entry_key_conflicts():
         root.destroy()
 
 
+def test_cutscene_reload_from_disk():
+    """F5 / the reload button (2026-10-01): when another tool rewrote rf3.mc on disk, the
+    editor reads it again -- the changed scene shows, it stays on the same bank and scene
+    (by position when an insert moved the entry), the undo history goes, and unsaved edits
+    are dropped only after the user agrees."""
+    print("cutscene editor: reload rf3.mc from disk (F5):")
+    try:
+        import tkinter as tk
+        from tkinter import messagebox
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("reload from disk", "no tkinter: %s" % e); return
+    import shutil, tempfile
+    from rf4s_modkit import script
+    src = _first("rf3.mc")
+    if not src:
+        _skip("reload from disk", "rf3.mc not extracted"); return
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_reload_"))
+    f = tmp / "rf3.mc"
+    shutil.copyfile(src, f)
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    ask = messagebox.askyesno
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda n: (_first(n).read_bytes() if _first(n) else None))
+        cx.doc.load_file(f)
+        cx.browser.rebuild()
+        from cutscene_editor.browser import scene_rows
+        rows = scene_rows(cx.doc.container.banks[48])
+        nth = len(rows) // 2
+        cx.open_scene(48, rows[nth].entry_pc)
+        root.update()
+        # another tool puts a statement in front of that scene (its entry moves)
+        c = script.Container(f.read_bytes())
+        c.insert_before(c.banks[48], rows[nth].entry_pc, "Wait(4321)")
+        f.write_bytes(c.build())
+        # an unsaved edit: refusing the question keeps it and reloads nothing
+        cx.doc.add_line("reload test line")
+        cx._chrome()
+        messagebox.askyesno = lambda *a, **k: False
+        _check("with unsaved edits, saying No keeps them and reloads nothing",
+               cx.reload_from_disk() is False and cx.unsaved())
+        messagebox.askyesno = lambda *a, **k: True
+        ok = cx.reload_from_disk()
+        root.update()
+        sts = list(cx.scene.stmts.values()) if cx.scene is not None else []
+        _check("reloaded: same bank, the same scene (found by its place in the list), the "
+               "inserted statement shows", ok and cx.bank_pos == 48 and any(
+                   script.stmt_arg_strs(cx.bank.data, st) == ["4321"] for st in sts if st.op < 0xFFF0),
+               "bank %s, %d stmts" % (cx.bank_pos, len(sts)))
+        _check("reload drops the unsaved edit and the undo history",
+               not cx.unsaved() and not cx.doc.undo_stack)
+        f.unlink()
+        _check("a file that is gone: nothing reloaded, the open file stays",
+               cx.reload_from_disk() is False and cx.doc.container is not None)
+        _check("no Tk errors during the reloads", not errs, str(errs[:1]))
+    finally:
+        messagebox.askyesno = ask
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_cutscene_multi_select():
     """Script view, several rows (2026-10-01): Ctrl+A selects every row, Ctrl+C copies them in
     display order, Del deletes every selected statement that falls through as ONE undo step
@@ -16102,7 +16165,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_statement_operands, test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_statement_operands, test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_reload_from_disk, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

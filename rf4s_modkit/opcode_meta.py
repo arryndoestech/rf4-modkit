@@ -3429,7 +3429,8 @@ ARG_HINTS = {
     "npc id": "character / NPC id",
     "action id": "OpenMenu menu id (see WORLD_INTERACTION_ACTIONS: 1=Save, "
                  "2=Load, 3=MessageBoard, 11=Calendar, 12=Storage, 23=Fridge, 25=BackupSaveNow, "
-                 "45=Bookshelf, 53=ShippingBin, 54=Safe, 55=Wardrobe, 56=Toolbox, 58=Forge, 71=Crafting)",
+                 "45=Bookshelf, 53=ShippingBin, 54=WeaponBox, 55=Closet, 56=FarmToolBox, "
+                 "58=Forge_ShortSword, 71=Craft_Accessory)",
     "kind": "fade kind (16 = fade to black; other values: fade colour / direction)",
     "duration_ms": "fade length in milliseconds",
     "mode": "opcode-specific mode selector (see the action id list on the tooltip)",
@@ -3442,8 +3443,8 @@ ARG_HINTS = {
                       "the default (day 6 / kind 26) case",
     "shop id": "shop dispatch id (75-89 in vanilla) -- see WORLD_INTERACTION_ACTIONS. "
                "75=WeaponFarmTool, 76=Accessory, 77=ExcavatedEquipment, 78=Hospital, "
-               "79=Flower(alt), 80=Flower, 81/89=variants, 82=Furniture, 83=Ability, "
-               "84=Magic, 85=Jewel, 86=SakuTuner, 87=Yue, 88=Restaurant",
+               "79=Flower, 80=FlowerExpanded, 81=General, 82=GeneralExpanded, 83=Ability, "
+               "84=Magic, 85=Jewel, 86=SakuTuner, 87=Yue, 88=Restaurant, 89=FishMarket",
     "actor ctx": "actor / scene context reference (usually a `tag4(...)` constant holding an "
                  "actor slot pointer or a scene handle)",
     "duration (frames = arg0/100; 6000 ~= 1s)": "FadeScreenToClear / FadeScreen: animation "
@@ -3605,117 +3606,135 @@ _STAT_QUERY_OPS = {_op for _op, _t in TECHNICAL.items() if "QueryPlayerStatByCha
 # Author-facing name + arg labels for the query op (overrides the humanized fallback).
 
 
-# ---- TriggerWorldInteractionAction dispatch table (op 375) ------------------------
-# Reverse-engineered from World_DispatchInteractionEvent at RF4S.exe+0x1F75B0.
-# id -> (short label shown in the picker, one-line description)
-# Bank 252 @0x462a (dupe @ bank 292 @0x4c64) is a DEV MENU whose 34 choice labels
-# name each of these actions unambiguously. Anywhere a row is annotated
-# "[dev-menu]" below, the label came straight from the vanilla script text.
-# The remaining rows are from the World_DispatchInteractionEvent dispatch at
-# RF4S.exe+0x1F75B0 (behaviour was RE'd; naming is best-effort).
+# ---- OpenMenu dispatch table (op 375) -------------------------------------------
+# id -> (short label shown in the picker, one-line description).
+# Checked id by id against the exe on 2026-10-01: World_DispatchInteractionEvent
+# (RF4S.exe+0x1F75B0) maps the id to a trigger; most triggers call Script_RunAction(n),
+# and Script_DispatchAction (RF4S.exe+0x4CCF0) switches on n to build the screen:
+#   n 1-8   rf4StorageTask with a container type (Inventory_GetContainerByTypeId,
+#           RF4S.exe+0x6BE60; screen titles = rf3TxtMenuCommon lines 12-21)
+#   n 9     rf4FieldMenu (notebook), n 10 QuestMenu, n 11-28 rf4NameEntryTask
+#           (prompt per NameEntry_LoadDefaultByContext, RF4S.exe+0x3A180),
+#   n 29/56 rf4CalendarTask, n 31 rf4ShopTask, n 32-55 CraftStationMenuTask.
+# Labels name the screen the player sees; the cooking / forge / crafting labels are the
+# choice lines the shipped scripts put in front of each id.
 WORLD_INTERACTION_ACTIONS = {
-    1:  ("Save",                    "Save menu (writes diary/save). [dev-menu]"),
+    1:  ("Save",                    "The diary / save menu."),
     2:  ("Load",                    "Load menu (title-screen slot picker). WARNING: only safe "
                                     "from a dev-menu / title context -- loading mid-gameplay "
-                                    "leaves NPC AI state stale and crashes. [dev-menu]"),
-    3:  ("MessageBoard",            "Open the Bulletin Board / Message Board. [dev-menu]"),
-    4:  ("NameEntry_Hero",          "Open the software-keyboard to rename the main character (the {Hero} template). "
-                                    "In dev-menu use, paired with action 90 as an immediate follow-up. Dispatch goes "
-                                    "through the generic name-entry sub-id 11 (rf4NameEntryTask). Gated by "
-                                    "g_saveConfigFlags & 0x40 -- dev-only unless the flag is set. [dev-menu]"),
-    5:  ("NameEntry_Farm",          "Open the software-keyboard to rename the farm (the {Farm} template). "
-                                    "Dispatch through name-entry sub-id 14. [dev-menu]"),
-    6:  ("NameEntry(subId=15)",     "Software-keyboard name-entry via sub-id 15 (target unknown; not used by the dev menu)."),
-    7:  ("NameEntry(subId=16)",     "Software-keyboard name-entry via sub-id 16 (target unknown)."),
-    8:  ("NameEntry(subId=17)",     "Software-keyboard name-entry via sub-id 17 (target unknown)."),
-    9:  ("NameEntry(subId=18)",     "Software-keyboard name-entry via sub-id 18 (target unknown)."),
-    10: ("ShippingHistory",         "Open the Shipping History screen. [dev-menu]"),
-    11: ("Calendar",                "Open the Calendar screen. [dev-menu]"),
-    12: ("Storage",                 "Open a Storage / chest UI. [dev-menu]"),
-    14: ("Chemistry",               "Open the Chemistry crafting station "
-                                    "(fires ScriptAction_39 first, then _32). [dev-menu]"),
-    16: ("Cooking",                 "Open Cooking with no specific tool required. [dev-menu]"),
-    17: ("Cook_FryingPan",          "Open Cooking at the Frying Pan station. [dev-menu]"),
-    18: ("Cook_Pot",                "Open Cooking at the Pot station. [dev-menu]"),
-    19: ("Cook_Oven",               "Open Cooking at the Oven station. [dev-menu]"),
-    20: ("Cook_Mixer",              "Open Cooking at the Mixer station. [dev-menu]"),
-    21: ("Cook_Steamer",            "Open Cooking at the Steamer station. [dev-menu]"),
-    22: ("Cook_Knife",              "Open Cooking at the Knife station. [dev-menu]"),
-    23: ("Fridge",                  "Open the Fridge (item transfer). [dev-menu]"),
-    24: ("MonsterManagement",       "Open the Monster Management screen. [dev-menu] "
-                                    "(disp handler previously looked like a nop; the dev "
-                                    "menu proves it does open the monster-manage UI.)"),
-    25: ("BackupSaveNow",           "Autosave / rf3BackupSaveDataBuild -- writes a backup save immediately."),
-    26: ("BackupSaveNow",           "Autosave / rf3BackupSaveDataBuild (same as 25)."),
-    27: ("(cleanup only)",          "Clears pending state; no trigger fired."),
-    28: ("NameEntry_BarnA",         "Open the software-keyboard to rename shack A (the {Barn0} template). "
-                                    "Dispatch through name-entry sub-id 19. [dev-menu]"),
-    29: ("NameEntry_BarnB",         "Rename shack B ({Barn1}). Sub-id 20. [dev-menu]"),
-    30: ("NameEntry_BarnC",         "Rename shack C ({Barn2}). Sub-id 21. [dev-menu]"),
-    31: ("NameEntry_BarnD",         "Rename shack D ({Barn3}). Sub-id 22. [dev-menu]"),
-    32: ("NameEntry_BarnE",         "Rename shack E ({Barn4}). Sub-id 23. [dev-menu]"),
-    33: ("NameEntry_BarnF",         "Rename shack F ({Barn5}). Sub-id 24. [dev-menu]"),
-    34: ("NameEntry_BarnG",         "Rename shack G ({Barn6}). Sub-id 25. [dev-menu]"),
-    35: ("NameEntry_BarnH",         "Rename shack H ({Barn7}). Sub-id 26. [dev-menu]"),
-    36: ("NameEntry_BarnI",         "Rename shack I ({Barn8}). Sub-id 27. [dev-menu]"),
-    37: ("NameEntry_BarnJ",         "Rename shack J ({Barn9}). Sub-id 28. [dev-menu]"),
-    38: ("NameEntry_Child0",        "Open the software-keyboard to name the player's child (slot 0). Dev menu label: "
-                                    "'Name of child. If there are none, it will stop!' -- fails silently when no "
-                                    "child exists. Dispatch through name-entry sub-id 13 with sub166=0. [dev-menu]"),
-    39: ("NameEntry_Child1",        "Name child (slot 1). Sub-id 13 with sub166=1."),
-    40: ("NameEntry_Child2",        "Name child (slot 2). Sub-id 13 with sub166=2."),
-    41: ("NameEntry_Child3",        "Name child (slot 3). Sub-id 13 with sub166=3."),
-    42: ("NameEntry_Child4",        "Name child (slot 4). Sub-id 13 with sub166=4."),
-    43: ("Posts",                   "Open Posts (subscribed message-board threads). [dev-menu]"),
-    44: ("ScriptAction_10(v3)",     "Scripted action 10 (variant +164=3); shares handler with 3/43."),
-    45: ("Bookshelf",               "Open the Bookshelf. Gated: dev menu tests game-flag 56 first "
-                                    "and only fires this on the true branch. [dev-menu]"),
-    51: ("MonsterFarmMenu",         "Open the Monster Farm menu (GenericMenu 12)."),
-    52: ("(word write nop)",        "Zeroes the word at RF4S.exe+0xE94F74; no trigger fired."),
-    53: ("ShippingBin",             "Open the Shipping Bin. Also runs a Poison-Mushroom / "
-                                    "Toadstool ship-check for achievement 2594. [dev-menu]"),
-    54: ("Safe",                    "Open the Safe (money storage). [dev-menu]"),
-    55: ("Wardrobe",                "Open the Wardrobe (outfits). [dev-menu]"),
-    56: ("Toolbox",                 "Open the Toolbox (tool slot config). [dev-menu]"),
-    57: ("MonsterFarm(focused)",    "Focus a specific farm monster, then open the monster-farm menu."),
-    58: ("Forge",                   "Open the Forge crafting station. [dev-menu]"),
-    59: ("ScriptAction_41",         "Scripted action 41."),
-    60: ("ScriptAction_42",         "Scripted action 42."),
-    61: ("ScriptAction_43",         "Scripted action 43."),
-    62: ("ScriptAction_44",         "Scripted action 44."),
-    63: ("ScriptAction_46",         "Scripted action 46."),
-    64: ("ScriptAction_47",         "Scripted action 47."),
-    65: ("ScriptAction_45",         "Scripted action 45."),
-    66: ("ScriptAction_48",         "Scripted action 48."),
-    67: ("ScriptAction_53",         "Scripted action 53."),
-    68: ("ScriptAction_50",         "Scripted action 50."),
-    69: ("ScriptAction_51",         "Scripted action 51."),
-    70: ("ScriptAction_52",         "Scripted action 52."),
-    71: ("Crafting",                "Open the Crafting station (general crafting bench). [dev-menu]"),
-    72: ("ScriptAction_54",         "Scripted action 54."),
-    73: ("ScriptAction_55",         "Scripted action 55."),
-    74: ("ScriptAction_08",         "Scripted action 08."),
-    75: ("Shop_WeaponFarmTool",     "Weapon / Farm Tool shop (Bado's smithy). The dispatch handler still consults "
-                                    "g_storyProgressFlag9bit internally to pick the right stock/proprietor tier, "
-                                    "but the shop identity itself is fixed. [dev-menu]"),
-    76: ("Shop_Accessory",          "Accessory shop. [dev-menu]"),
-    77: ("Shop_ExcavatedEquipment", "Equipment shop -- 'Excavated Things' (dungeon/excavated gear). [dev-menu]"),
-    78: ("Shop_HospitalMedicine",   "Hospital -- Medicine counter. [dev-menu]"),
-    79: ("Shop_Interaction_4F",     "Shop interaction 4F (not in the dev shop menu; specific handler for kind 0x4F)."),
-    80: ("Shop_Flower",             "Flower shop. [dev-menu]"),
-    81: ("Shop_BaseIds_19_20_a",    "Shop, base ids 19-20 (variant a; not in the dev menu)."),
-    82: ("Shop_Furniture",          "Furniture shop. [dev-menu]"),
-    83: ("Shop_Ability",            "Ability shop. [dev-menu]"),
-    84: ("Shop_Magic",              "Magic shop. [dev-menu]"),
-    85: ("Shop_Jewel",              "Jewel shop. [dev-menu]"),
-    86: ("Shop_SakuTuner",          "Saku's shop (Tuner). [dev-menu]"),
-    87: ("Shop_Yue",                "Yue's shop. [dev-menu]"),
-    88: ("Shop_Restaurant",         "Restaurant. [dev-menu]"),
-    89: ("Shop_BaseId_57",          "Specific shop, base id 57 (not in the dev menu)."),
-    90: ("BirthdayEntry",           "The 'Enter your birthday.' input screen (observed in-game). Dev-menu "
-                                    "action paired with 4 (NameEntry_Hero) -- fired immediately after it in the "
-                                    "'Enter name of the main character' branch; internally runs ScriptAction_56 "
-                                    "with subId=56. [dev-menu]"),
+                                    "leaves NPC AI state stale and crashes."),
+    3:  ("MessageBoard",            "The request notebook (QuestMenu), message-board mode."),
+    4:  ("NameEntry_Hero",          "'Enter your name' for the main character, prefilled with the "
+                                    "current name. The opening follows it with 90 (birthday)."),
+    5:  ("NameEntry_Farm",          "'Enter the farm's name' (prefilled 'Selphia')."),
+    6:  ("NameEntry_Field1",        "'Enter the field's name' for the first extra field (prefilled "
+                                    "'Kardia'). Used by prince order 40."),
+    7:  ("NameEntry_Field2",        "'Enter the field's name' for the second extra field (prefilled "
+                                    "'Alvarna'). Used by prince order 40."),
+    8:  ("NameEntry_Field3",        "'Enter the field's name' for the third extra field (prefilled "
+                                    "'Sharance'). Used by prince order 40."),
+    9:  ("NameEntry_Field4",        "'Enter the field's name' for the fourth extra field (prefilled "
+                                    "'Norad'). Used by prince order 40."),
+    10: ("ShippingHistory",         "The notebook (rf4FieldMenu) on the shipping records "
+                                    "('Look at sale records.' at the shipping bin)."),
+    11: ("Calendar",                "The calendar screen."),
+    12: ("Storage",                 "The 'Storage' container screen (the storage trunk)."),
+    14: ("Chemistry",               "Chemistry Set crafting ('Mix some medicine.')."),
+    16: ("Cooking",                 "Cooking without a tool -- the Homemade recipes "
+                                    "('Cook something simple.')."),
+    17: ("Cook_FryingPan",          "Cooking with the frying pan."),
+    18: ("Cook_Pot",                "Cooking with the pot."),
+    19: ("Cook_Oven",               "Cooking with the oven."),
+    20: ("Cook_Mixer",              "Cooking with the mixer."),
+    21: ("Cook_Steamer",            "Cooking with the steamer."),
+    22: ("Cook_Knife",              "Cooking with the knife."),
+    23: ("Fridge",                  "The 'Fridge' container screen."),
+    24: ("(nothing)",               "Opens nothing in RF4S (the trigger is an empty function). The "
+                                    "developers' menu still lists it as the monster management "
+                                    "screen."),
+    25: ("BackupSaveNow",           "Writes a backup save immediately (rf3BackupSaveDataBuild); no screen."),
+    26: ("BackupSaveNow",           "Same as 25."),
+    27: ("(nothing)",               "Clears the pending id; no screen."),
+    28: ("NameEntry_BarnA",         "'Enter the barn's name' for barn A (the {Barn0} template)."),
+    29: ("NameEntry_BarnB",         "'Enter the barn's name' for barn B ({Barn1})."),
+    30: ("NameEntry_BarnC",         "'Enter the barn's name' for barn C ({Barn2})."),
+    31: ("NameEntry_BarnD",         "'Enter the barn's name' for barn D ({Barn3})."),
+    32: ("NameEntry_BarnE",         "'Enter the barn's name' for barn E ({Barn4})."),
+    33: ("NameEntry_BarnF",         "'Enter the barn's name' for barn F ({Barn5})."),
+    34: ("NameEntry_BarnG",         "'Enter the barn's name' for barn G ({Barn6})."),
+    35: ("NameEntry_BarnH",         "'Enter the barn's name' for barn H ({Barn7})."),
+    36: ("NameEntry_BarnI",         "'Enter the barn's name' for barn I ({Barn8})."),
+    37: ("NameEntry_BarnJ",         "'Enter the barn's name' for barn J ({Barn9})."),
+    38: ("NameEntry_Child0",        "'Enter your child's name' for child slot 0. Fails silently "
+                                    "when there is no child."),
+    39: ("NameEntry_Child1",        "'Enter your child's name' for child slot 1."),
+    40: ("NameEntry_Child2",        "'Enter your child's name' for child slot 2."),
+    41: ("NameEntry_Child3",        "'Enter your child's name' for child slot 3."),
+    42: ("NameEntry_Child4",        "'Enter your child's name' for child slot 4."),
+    43: ("Posts",                   "The request notebook (QuestMenu), posts mode."),
+    44: ("RequestNotebook(mode 3)", "The request notebook (QuestMenu) in a third mode; no shipped "
+                                    "script uses it."),
+    45: ("Bookshelf",               "The 'Bookshelf' container screen, with the Rune Ability page "
+                                    "on the left instead of the backpack."),
+    51: ("NameEntry_TamedMonster",  "'Enter the monster's name' for the monster just tamed (runs "
+                                    "from the tame event)."),
+    52: ("(nothing)",               "Zeroes a word in the game state; no screen."),
+    53: ("ShippingBin",             "The 'Shipping Box' container screen. Afterwards the op sets "
+                                    "packed flag 2594 if item 29 or 30 was shipped."),
+    54: ("WeaponBox",               "The 'Weapon Box' container screen (the safe furniture: "
+                                    "'It's my safe.')."),
+    55: ("Closet",                  "The 'Closet' container screen (the wardrobe furniture)."),
+    56: ("FarmToolBox",             "The 'Farm Tool Box' container screen (the toolbox furniture)."),
+    57: ("NameEntry_FarmMonster",   "'Enter the monster's name' for the farm monster the player is "
+                                    "talking to ('Change name.')."),
+    58: ("Forge_ShortSword",        "Forge: short swords ('Short Sword.')."),
+    59: ("Forge_LongSword",         "Forge: long swords ('Long Sword.')."),
+    60: ("Forge_Spear",             "Forge: spears ('Spear.')."),
+    61: ("Forge_AxeHammer",         "Forge: axes and hammers ('Axe or Hammer.')."),
+    62: ("Forge_Axe",               "Forge, station kind 13 -- by the recipe-category order the "
+                                    "'Axe' list; no shipped script uses it."),
+    63: ("Forge_DualBlades",        "Forge: dual blades ('Dual Blades.')."),
+    64: ("Forge_Fist",              "Forge: gloves ('Gloves.')."),
+    65: ("Forge_Staff",             "Forge: staffs ('Staff.')."),
+    66: ("Forge_FarmTool",          "Forge: farm tools ('Make a tool.')."),
+    67: ("Craft_Armor",             "Crafting table: armor ('Make armor.')."),
+    68: ("Craft_Shield",            "Crafting table: shields ('Make shields.')."),
+    69: ("Craft_Headgear",          "Crafting table: headgear ('Make headgear.')."),
+    70: ("Craft_Shoes",             "Crafting table: shoes ('Make shoes.')."),
+    71: ("Craft_Accessory",         "Crafting table: accessories ('Make accessories.')."),
+    72: ("Forge_UpgradeWeapon",     "Forge: upgrade a weapon ('Upgrade a weapon.')."),
+    73: ("Craft_UpgradeArmor",      "Crafting table: upgrade armor ('Upgrade armor.')."),
+    74: ("ShopBox",                 "The 'Shop Box' container screen (the player's shop)."),
+    75: ("Shop_WeaponFarmTool",     "Weapon / Farm Tool shop (Bado). The stock tier follows the "
+                                    "story progress."),
+    76: ("Shop_Accessory",          "Accessory shop (Bado)."),
+    77: ("Shop_ExcavatedEquipment", "Equipment shop -- 'Excavated Things' (Bado)."),
+    78: ("Shop_HospitalMedicine",   "Hospital -- medicine counter (Jones, Nancy, Dolce)."),
+    79: ("Shop_Flower",             "Flower shop, basic stock (Amber / Illuminata, 'Seeds & "
+                                    "Nutrients, please.' before prince order 11 'Lumi's Flower "
+                                    "Shop'). Shop lists 26/27 (27 -> 28 at prince rank 3+)."),
+    80: ("Shop_FlowerExpanded",     "Flower shop after prince order 11: lists 26/27 plus 29 "
+                                    "(30 at prince rank 3-4, 31 at rank 5)."),
+    81: ("Shop_General",            "General store, basic stock (Doug / Blossom, 'Show me seeds & "
+                                    "groceries.' before prince order 14 'Blossom's Groceries'). "
+                                    "Shop lists 19/20 plus 21 (22 at prince rank 2+)."),
+    82: ("Shop_GeneralExpanded",    "General store after prince order 14: lists 19/20, 21 or 22 "
+                                    "and 23 (24 at prince rank 3-4, 25 at rank 5). Not furniture -- "
+                                    "Blossom's furniture is the separate 'Show me furniture.' menu."),
+    83: ("Shop_Ability",            "Ability shop ('Got any Rune Abilities?')."),
+    84: ("Shop_Magic",              "Magic shop ('Can I see some Magic?')."),
+    85: ("Shop_Jewel",              "Jewel shop ('Can you show me some gems?')."),
+    86: ("Shop_SakuTuner",          "Saku's shop -- Tuner (Raven)."),
+    87: ("Shop_Yue",                "Yue's shop (Arthur)."),
+    88: ("Shop_Restaurant",         "Restaurant (Porcoline, Dylas)."),
+    89: ("Shop_FishMarket",         "Fish market ('I'd like to see some fish.')."),
+    90: ("BirthdayEntry",           "The 'Enter your birthday.' screen (the calendar in picker "
+                                    "mode). The opening runs it right after 4."),
+    200: ("InheritSave",            "The save-data inheritance screen: pick a save, then 'transfer "
+                                    "items, levels, skill levels and monsters from the saved data?' "
+                                    "(your current items are lost). Any id without its own case "
+                                    "(13, 15, 46-50, 91+) opens it; the shipped script uses 200 for "
+                                    "prince order 96."),
 }
 
 # op number for TriggerWorldInteractionAction (looked up once at import time)
@@ -3740,7 +3759,7 @@ SHOPKEEPER_NPCS = {
     13: ("Amber",               "Flower shop -> day 5 (Fri); kind 25 when GameFlag 875 packed"),
     14: ("Illuminata",          "Flower shop -> day 5 (Fri)"),
     15: ("Doug",                "General store -> day 5 (Fri); kind 24 when Scene condition 0x2D true"),
-    16: ("Blossom",             "Furniture -> day 5 (Fri)"),
+    16: ("Blossom",             "General store -> day 5 (Fri)"),
     17: ("Dolce",               "-> day 1 (Mon)"),
     18: ("Jones",               "Hospital -> day 1 (Mon)"),
     19: ("Nancy",               "Hospital -> day 1 (Mon)"),

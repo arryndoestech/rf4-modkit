@@ -161,7 +161,7 @@ FORGE_SPECIALS = {
     882: "LOVE toggle (bit 0x40): strips any element, sets love only when none was present",
     887: "ability bit 0x10000 (no reader found in RF4S.exe)",
     930: "ability bit 0x20000 (no reader found)",
-    1019: "ability bit 0x40000 (no reader found)",
+    1019: "ability bit 0x40000 (no reader found; NOT the Rosary's 0x40000, which is the accessory special_bits field op 148 tests)",
     94: "ability bit 0x80000: drop-rate up, -100 on the drop-roll baseline (ActorDrop_RollItemDropFromSlot +0x966C0)",
     95: "ability bit 0x80000: drop-rate up (as 94)",
     929: "ability bit 0x100000: on a spouse or child only, buffed ATK/DEF doubled, damage taken halved, element weakness halved",

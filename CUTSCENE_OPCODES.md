@@ -8645,16 +8645,16 @@ Set bit 1 of the scene context's state word (+120). Retail sets it before spawni
 Open one of the game's menu screens by id (save, name entry, calendar, storage, cooking, crafting, shipping bin, ...) and wait until it has closed.
 
 Args:
-  0. menu (cases of World_DispatchInteractionEvent, e.g. 1 save menu, 2 load menu (debug only), 3 message board, 11 calendar, 12 storage, 23 fridge, 25 autosave, 45 bookshelf, 53 shipping bin, 54 safe, 55 wardrobe, 56 toolbox, 58 forge, 71 crafting)
+  0. menu (World_DispatchInteractionEvent cases (WORLD_INTERACTION_ACTIONS has every id): 1 save, 2 load, 3 request notebook, 4-9 name entry (hero, farm, fields 1-4), 10 shipping records, 11 calendar, 12 Storage, 14 chemistry, 16-22 cooking, 23 Fridge, 25/26 backup save, 28-42 name entry (barns, children), 45 Bookshelf, 51/57 monster name entry, 53 Shipping Box, 54 Weapon Box, 55 Closet, 56 Farm Tool Box, 58-73 forge / crafting table, 74 Shop Box, 75-89 shops, 90 birthday. 24, 27 and 52 open nothing; 0 is ignored; any other id (13, 15, 46-50, 91+) opens the save-data inheritance screen (pick a save to inherit items, levels, skills and monsters from))
      - `1` = Save
      - `2` = Load
      - `3` = MessageBoard
      - `4` = NameEntry_Hero
      - `5` = NameEntry_Farm
-     - `6` = NameEntry(subId=15)
-     - `7` = NameEntry(subId=16)
-     - `8` = NameEntry(subId=17)
-     - `9` = NameEntry(subId=18)
+     - `6` = NameEntry_Field1
+     - `7` = NameEntry_Field2
+     - `8` = NameEntry_Field3
+     - `9` = NameEntry_Field4
      - `10` = ShippingHistory
      - `11` = Calendar
      - `12` = Storage
@@ -8667,10 +8667,10 @@ Args:
      - `21` = Cook_Steamer
      - `22` = Cook_Knife
      - `23` = Fridge
-     - `24` = MonsterManagement
+     - `24` = (nothing)
      - `25` = BackupSaveNow
      - `26` = BackupSaveNow
-     - `27` = (cleanup only)
+     - `27` = (nothing)
      - `28` = NameEntry_BarnA
      - `29` = NameEntry_BarnB
      - `30` = NameEntry_BarnC
@@ -8687,48 +8687,49 @@ Args:
      - `41` = NameEntry_Child3
      - `42` = NameEntry_Child4
      - `43` = Posts
-     - `44` = ScriptAction_10(v3)
+     - `44` = RequestNotebook(mode 3)
      - `45` = Bookshelf
-     - `51` = MonsterFarmMenu
-     - `52` = (word write nop)
+     - `51` = NameEntry_TamedMonster
+     - `52` = (nothing)
      - `53` = ShippingBin
-     - `54` = Safe
-     - `55` = Wardrobe
-     - `56` = Toolbox
-     - `57` = MonsterFarm(focused)
-     - `58` = Forge
-     - `59` = ScriptAction_41
-     - `60` = ScriptAction_42
-     - `61` = ScriptAction_43
-     - `62` = ScriptAction_44
-     - `63` = ScriptAction_46
-     - `64` = ScriptAction_47
-     - `65` = ScriptAction_45
-     - `66` = ScriptAction_48
-     - `67` = ScriptAction_53
-     - `68` = ScriptAction_50
-     - `69` = ScriptAction_51
-     - `70` = ScriptAction_52
-     - `71` = Crafting
-     - `72` = ScriptAction_54
-     - `73` = ScriptAction_55
-     - `74` = ScriptAction_08
+     - `54` = WeaponBox
+     - `55` = Closet
+     - `56` = FarmToolBox
+     - `57` = NameEntry_FarmMonster
+     - `58` = Forge_ShortSword
+     - `59` = Forge_LongSword
+     - `60` = Forge_Spear
+     - `61` = Forge_AxeHammer
+     - `62` = Forge_Axe
+     - `63` = Forge_DualBlades
+     - `64` = Forge_Fist
+     - `65` = Forge_Staff
+     - `66` = Forge_FarmTool
+     - `67` = Craft_Armor
+     - `68` = Craft_Shield
+     - `69` = Craft_Headgear
+     - `70` = Craft_Shoes
+     - `71` = Craft_Accessory
+     - `72` = Forge_UpgradeWeapon
+     - `73` = Craft_UpgradeArmor
+     - `74` = ShopBox
      - `75` = Shop_WeaponFarmTool
      - `76` = Shop_Accessory
      - `77` = Shop_ExcavatedEquipment
      - `78` = Shop_HospitalMedicine
-     - `79` = Shop_Interaction_4F
-     - `80` = Shop_Flower
-     - `81` = Shop_BaseIds_19_20_a
-     - `82` = Shop_Furniture
+     - `79` = Shop_Flower
+     - `80` = Shop_FlowerExpanded
+     - `81` = Shop_General
+     - `82` = Shop_GeneralExpanded
      - `83` = Shop_Ability
      - `84` = Shop_Magic
      - `85` = Shop_Jewel
      - `86` = Shop_SakuTuner
      - `87` = Shop_Yue
      - `88` = Shop_Restaurant
-     - `89` = Shop_BaseId_57
+     - `89` = Shop_FishMarket
      - `90` = BirthdayEntry
+     - `200` = InheritSave
 
 ### `op 376` — OpenShop(shopkeeper, shop_action, unused)
 *handler:* `Script_VMOp_BeginCalendarContextualInteraction`
@@ -8759,17 +8760,17 @@ Args:
      - `76` = Shop_Accessory
      - `77` = Shop_ExcavatedEquipment
      - `78` = Shop_HospitalMedicine
-     - `79` = Shop_Interaction_4F
-     - `80` = Shop_Flower
-     - `81` = Shop_BaseIds_19_20_a
-     - `82` = Shop_Furniture
+     - `79` = Shop_Flower
+     - `80` = Shop_FlowerExpanded
+     - `81` = Shop_General
+     - `82` = Shop_GeneralExpanded
      - `83` = Shop_Ability
      - `84` = Shop_Magic
      - `85` = Shop_Jewel
      - `86` = Shop_SakuTuner
      - `87` = Shop_Yue
      - `88` = Shop_Restaurant
-     - `89` = Shop_BaseId_57
+     - `89` = Shop_FishMarket
   2. unused (retail passes 0)
 
 ### `op 559` — StartFestivalContest(contest)
@@ -8903,7 +8904,7 @@ Args:
 ### `op 148` — HasPlayerAccessoryEffect40000()
 *handler:* `ScriptVMOp148_QueryPlayerFlag40000`
 
-Check whether the player's equipped accessory carries special-effect bit 0x40000 (per the IDB, the Rosary effect). reg0 = 1 if so, else 0.
+Check whether the player wears the Rosary (accessory special bit 0x40000): reg0 = 1 if so, else 0.
 
 ### `op 182` — GetEventActorTilePosition(event key)
 *handler:* `Script_VMOp_GetEventActorTilePosition`
@@ -10442,11 +10443,32 @@ Read the current weather code into reg0 (codes as in SetWeather).
 ### `op 456` — GetEquippedItemAttr(slot, attr)
 *handler:* `Script_VMOp_QueryEquippedItemAttrByEquipSlot`
 
-Get the item equipped in one of the player's equipment slots and one attribute of it: reg0 = item id, reg1 = the chosen attribute.
+Get the item equipped in one of the player's equipment slots and one attribute of it: reg0 = item id, reg1 = the chosen attribute (an upgrade, a base material, or one of two hidden sell-price ratings).
 
 Args:
-  0. slot (0 weapon/tool (+72), 1 shield (+120), 2 body? (+216), 3 head? (+264), 4 boots (+312), 5 accessory (+168); other values fault (null record))
-  1. attr (0-8 enchantment id n, 9 upgrade attr A, 10 upgrade attr B, 11 upgrade-bound item id, 12 payload byte +6, 13 dword +8 bits 10-19, 14 dword +8 bits 0-9; other = reg1 untouched)
+  0. slot (0 weapon/tool, 1 shield, 2 body armor, 3 headgear, 4 shoes, 5 accessory (verified in game); other values fault (null record)) — verified in game
+     - `0` = weapon
+     - `1` = shield
+     - `2` = body
+     - `3` = head
+     - `4` = shoes
+     - `5` = accessory
+  1. attr (0-8 the forge upgrade slots, as item ids (verified: a Hammer Piece added at the forge appeared in 0). An upgrade goes into the slot numbered by the item's level BEFORE it (Lv.1 -> 0, Lv.9 -> 8) and raises the level by one (Item_AppendRuneToSlot / Item_ApplyMaterialUpgrade), so an item bought or found at a higher level has empty lower slots, and a Lv.10 item takes no more; ids are stored in 10 bits (an item id >= 1024 would be cut); 9/10/11 the three base materials the item came with, as item ids (a chest Poison Spear: Insect Horn / Insect Carapace / Bird's Feather, unchanged by the upgrade); 12 level_total = the materials' total level (the 30/60/90/120/150 stat-bonus tiers; a Lv.1 Hammer Piece made it 36 -> 37, and the spear's tier-30 M.ATK +5 shows in game); 13 quality_total = the materials' total quality points (25..200 tiers; the Hammer Piece's quality 9 made it 21 -> 30); both also raise the sell price. Neither is the item level, which this op cannot read; 14 dword +8 bits 0-9 = an item id whose base stats the item uses instead of its own (0 on every item tested); other values leave reg1 untouched) — verified in game
+     - `0` = upgrade1
+     - `1` = upgrade2
+     - `2` = upgrade3
+     - `3` = upgrade4
+     - `4` = upgrade5
+     - `5` = upgrade6
+     - `6` = upgrade7
+     - `7` = upgrade8
+     - `8` = upgrade9
+     - `9` = material1
+     - `10` = material2
+     - `11` = material3
+     - `12` = level_total
+     - `13` = quality_total
+     - `14` = stats_from_item
 
 ### `op 470` — GetGuestNpcVariant(npc)
 *handler:* `Script_VMOp_GetGuestNpcVariant`

@@ -796,6 +796,11 @@ default), which runs every time you walk in. That scene starts while the warp's 
 still up, so the sweep waits half a second first. Otherwise a fade or anything else on screen
 would be hidden.
 
+**Reload from disk:** *⟲* next to *Open rf3.mc…* (F5) reads `rf3.mc`, its dialogue and `em.bin`
+again from disk, for when another tool (`optest.py`, `rf4mod script …`) changed the file while the
+editor was open. It stays on the same scene; unsaved edits and the undo history are dropped (it
+asks first).
+
 **No restart for scenes:** *⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
 game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the
 reload swaps that copy and the three bank buffers in place while the game is paused for a moment.

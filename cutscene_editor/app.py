@@ -136,6 +136,7 @@ class CutsceneExplorer:
             ("r", lambda e: self.reload_in_game()),
             ("f", lambda e: self.focus_search())],
             home=lambda: getattr(getattr(self, "view", None), "text", None))   # the Script rows
+        self.frame.bind_class(self._bindtag, "<F5>", lambda e: (self.reload_from_disk(), "break")[1])
         self._names_job = self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
         self.frame.bind("<Destroy>", self._cancel_names_watch, add="+")
 
@@ -218,6 +219,11 @@ class CutsceneExplorer:
         ob.pack(side="left")
         Tip(ob, "Open a rf3.mc cutscene container (its rf3mc.<locale> and em.bin are looked "
                 "up next to it, then in the loaded game source).")
+        rd = ttk.Button(bar, text="⟲", width=3, command=self.reload_from_disk)
+        rd.pack(side="left", padx=(2, 0))
+        Tip(rd, "F5: reload rf3.mc from disk -- its dialogue and em.bin too -- e.g. after "
+                "another tool (optest.py, rf4mod) changed it. Stays on the same scene. Unsaved "
+                "edits and the undo history are dropped (it asks first).")
         mb = ttk.Menubutton(bar, text="Save")
         m = tk.Menu(mb, tearoff=False)
         m.add_command(label="Save changes into the game folder", accelerator="Ctrl+S", command=self.save_all)
@@ -342,6 +348,52 @@ class CutsceneExplorer:
         self.browser.rebuild()
         self._show_scene()
         self.status("Opened %s: %d banks" % (pathlib.Path(f).name, len(self.doc.container.banks)))
+
+    def reload_from_disk(self):
+        """F5: read rf3.mc (and its dialogue and em.bin) again from disk -- e.g. after a
+        tool such as optest.py or the command line wrote it -- and stay on the same bank,
+        scene and statement where they still exist."""
+        self.flush_edits()
+        parts = self.unsaved()
+        if parts and not messagebox.askyesno(
+                "Reload from disk", "Unsaved changes to %s will be lost.\n\nReload rf3.mc from "
+                "disk anyway?" % ", ".join(parts), parent=self.parent):
+            return False
+        from .browser import scene_rows
+        pos = self.bank_pos
+        entry = self.scene.entry_pc if self.scene is not None else None
+        pc = self.sel[0] if self.sel is not None else None
+        old = [s.entry_pc for s in scene_rows(self.bank)] if self.bank is not None else []
+        nth = old.index(entry) if entry in old else None
+        try:
+            ok = self.doc.reload_from_disk()
+        except Exception as e:  # noqa: BLE001
+            messagebox.showerror("rf3.mc", "Could not read rf3.mc: %s" % err_text(e))
+            return False
+        if not ok:
+            self.status("rf3.mc was not found on disk -- nothing reloaded")
+            return False
+        w, self._em_window = self._em_window, None         # it shows the old em.bin
+        if w is not None and w.win.winfo_exists():
+            w.win.destroy()
+        self.bank = self.scene = self.bank_pos = None
+        self.sel = None
+        self.browser.rebuild()
+        c = self.doc.container
+        if pos is not None and pos < len(c.banks):
+            entries = [s.entry_pc for s in scene_rows(c.banks[pos])]
+            if entry in entries:
+                self.open_scene(pos, entry, focus_pc=pc)
+            elif nth is not None and nth < len(entries):  # the scene moved (an insert before it)
+                self.open_scene(pos, entries[nth])
+            else:
+                self.open_bank(pos)
+        else:
+            self._show_scene()
+        self._chrome()
+        self.status("Reloaded %s from disk: %d banks" % (
+            self.doc.path.name if self.doc.path else "rf3.mc", len(c.banks)))
+        return True
 
     # ------------------------------------------------------------------ #
     # navigation

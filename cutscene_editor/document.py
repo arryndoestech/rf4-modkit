@@ -66,6 +66,25 @@ class ScriptDocument:
         self.path = p
         self._install(c)
 
+    def reload_from_disk(self):
+        """Read rf3.mc again from where it came from (the opened file, else the game
+        source), and drop the cached dialogue and em.bin so they are re-read too. Unsaved
+        edits and the undo history are discarded. False when the file is not there."""
+        if self.path is not None:
+            raw = self.path.read_bytes() if self.path.is_file() else None
+        else:
+            raw = self.reader("rf3.mc") if self.reader else None
+        if not raw:
+            return False
+        c = script.Container(raw)
+        self.arcs.clear()
+        self._missing.clear()
+        self._saved_text.clear()
+        self._em = None
+        self._saved_em = None
+        self._install(c)
+        return True
+
     def _install(self, container):
         self.container = container
         self._saved_mc = container.build()
