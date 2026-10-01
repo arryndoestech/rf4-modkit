@@ -382,11 +382,13 @@ PORTRAIT_EMOTES = {
     187: "teary",    # ＊Teary Eyes (previously mislabelled 'SP2' -- SP2 is a Special
                      # FACE frame at id 254; this is the teary-eyed EMOTE bubble)
     188: "sweat",    # ＊Sweat (was '通常/normal'; row-0 rendering IS a small sweat drop)
-    189: "angry",    # ＊Angry / 怒り
+    189: "angry",    # ＊Angry / 怒り -- drawn as a small white puff (seen in game 2026-10-01)
     190: "!",        # ＊! (was '哀しみ/sad'; the row-0 sprite is the exclamation-mark bubble)
-    191: "smile",    # 笑顔 (also '?' in some rows)
-    192: "surprise", # 驚き
+    191: "?",        # seen in game 2026-10-01 (was 'smile', the row-0 table's 笑顔)
+    192: "!?",       # seen in game 2026-10-01 (was 'surprise', the row-0 table's 驚き)
 }
+# All seven were checked on the player's portrait on 2026-10-01 (SetSpeaker(MC, Left, 0, id)):
+# 186 blush, 187 teardrop, 188 sweat drop, 189 white puff, 190 !, 191 ?, 192 !?.
 # other mood categories that exist in the table (row/variant dependent): 照れ bashful,
 # 喜ぶ joy, 楽しい happy, 頬染め blush, 困る troubled/'?'.
 
@@ -1930,7 +1932,7 @@ _M.update({
           "Make the material stone counter in the screen corner slide in and show the player's "
           "current amount (sets the popup's last shown amount to -1). Takes no arguments.",
           []),
-    655: ("ShowPrincePointsCounter", "screen",
+    655: ("ShowPrincePointCounter", "screen",
           "Make the Prince Points counter in the screen corner slide in and show the player's "
           "current amount (sets the popup's last shown amount to -1). Takes no arguments.",
           []),
@@ -3405,8 +3407,8 @@ def arg_names(op):
 # Alt-hover tooltip in the cutscene editor.
 ARG_HINTS = {
     "face frame": "portrait face/expression frame (0 = neutral, 4 = open-mouth surprise)",
-    "emote/mood": "speech-bubble emote id 186-192 (188 normal, 189 anger, 190 sad/'!', "
-                  "191 smile/'?', 192 surprise); 0 = none",
+    "emote/mood": "emote icon over the portrait: 186 blush, 187 teardrop, 188 sweat drop, 189 white "
+                  "puff (angry), 190 '!', 191 '?', 192 '!?'; 0 = none; 0x1000000+n = a voice clip",
     "target": "target actor reference (0x0100_00xx handle); 0 = the current speaker",
     "em entry id": "em.bin Event Manager entry id (0..271; named in emdeb.bin)",
     "flag id": "GameFlags bit id -- ENGINE base-relative (flag_id + g_gameFlagsBuffer[0]), "
@@ -3575,7 +3577,7 @@ def tooltip(op, arg_values=None):
 # variable to read; for the skill case the 2nd arg is the skill id. IDA-verified from
 # Script_VMOp_QueryPlayerStatByCharCode (RF4S.exe+0x20D4B0).
 PLAYER_VAR_BY_CHARCODE = {
-    100: "Gold", 102: "ArmorDef", 103: "FarmTameCount",
+    100: "Gold", 102: "Level", 103: "Fodder",   # 102 level, 103 fodder in the barn bin (seen in game 2026-10-01)
     104: "Skill", 105: "Stone", 106: "Compost", 107: "MaxSkillLevel",
 }
 # Name tables that come from the game's text files (gamenames: the copy the game loads, else

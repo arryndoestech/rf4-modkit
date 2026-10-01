@@ -50,7 +50,7 @@ class Inspector(ScrollFrame):
         Tip(self.callers_btn, "Every CALL / jump / branch / choice in this bank that leads to the "
                               "selected statement or label (or to the scene when nothing is selected).")
         self._pack_actions(label=False)
-        self.explain_box = section(b, "What it does")
+        self.explain_box = section(b, "Description")
         self.explain = tk.Text(self.explain_box, height=12, wrap="word", font=("Consolas", 8),
                                relief="flat", bg="#f4f4f6")
         self.explain.pack(fill="both", expand=True)

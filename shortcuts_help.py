@@ -172,7 +172,7 @@ def open_help(parent):
         nb.add(f, text=title)
         tv = ttk.Treeview(f, columns=("what",), show="tree headings")
         tv.heading("#0", text="Shortcut")
-        tv.heading("what", text="What it does")
+        tv.heading("what", text="Action")
         tv.column("#0", width=300, stretch=False)
         tv.column("what", width=460)
         sb = ttk.Scrollbar(f, orient="vertical", command=tv.yview)

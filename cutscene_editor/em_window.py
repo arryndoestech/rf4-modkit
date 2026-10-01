@@ -1197,7 +1197,7 @@ class EventManagerWindow:
                       lambda: self.em.add_action(e.idx, stream, act, index=pos),
                       select=("act", stream, pos)) is None:
             return None
-        self.set_status("New action (runs entry #0, which does nothing) — pick what it does")
+        self.set_status("New action (runs entry #0, which does nothing) — pick the entry it runs")
         return pos
 
     def remove_way(self, which, si):

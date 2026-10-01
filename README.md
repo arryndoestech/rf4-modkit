@@ -435,7 +435,7 @@ season-specific and never copied; anything that can't be matched is listed befor
 **Layout.** A toolbar (Save menu, Undo / Redo, tools, zoom, Validate) above the map canvas
 and a sidebar with six tabs (it opens on View):
 
-| Tab | What it does |
+| Tab | Description |
 |---|---|
 | **View** | layer toggles (kept in `settings.json`, like the ground display, scenery and ATTR opacity, so every map and the next start open the same way: ATTR fill, cell edges, grid lines, each entity category, name labels, warps, warp destinations, search spots, monster gates, script spawns, script areas), **draw sprites** (on by default: each object's art drawn where and as large as the game draws it, in the game's depth order, right on the ground under the ATTR fill and the warps -- bridges, doors, walls, houses; a selected one gets a frame around its sprite and shines through the ATTR fill; **sprite borders** outlines every one in red above the ATTR fill, invisible walls included), **Show objects as in** (take the game flags from a slot save, any `rf4_sNN.sav`, or the running game: flag-gated objects such as the Dragon Lake bridge appear or turn into a dashed outline exactly as that save would show them), ground texture display + ATTR opacity + **darken** (the ground drops by 0-80 %, 25 % by default, so the objects on it stand out), the **scenery** layer (the map's over-model cards, drawn where the game puts them), ground-art export / import |
 | **Inspect** | options for the active tool + a form for whatever is selected: an **entity** (type picker with search, position, scale / rotation, and only the fields that type actually reads, each labelled with its meaning, flag names, ore config and the other entities wired to the same flag; *show all 16 raw fields* for everything else), a **warp** (zone, destination with search, arrival, facing, disable flag, *Open destination*), a **search spot** (position + drop pool with item search and live odds; warns when the weights wrap the game's one-byte sum), a **gate position / monster spawn point**, or -- with nothing selected -- the tile under the pointer |
@@ -640,7 +640,7 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   typed too) with a character / map / named-value picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
   every other offset are untouched); each **choice option**'s text, line id and destination.
   *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
-  on it, and *What it does* repeats the explanation.
+  on it, and *Description* repeats the explanation.
 
 Every structural edit — insert, delete, *Apply to scene*, a new scene, a wider argument, a
 changed trigger list — **rebuilds the whole bank** (`rf4s_modkit/bankrelink.py`): the new code

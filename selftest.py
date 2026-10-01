@@ -3140,7 +3140,7 @@ def test_script():
     else:
         _skip("editor xrefs", "cutscene_editor not importable")
     # end-to-end explanation guard: the editor's Alt-hover explanation (render.SceneText.explain,
-    # also the Inspector's "What it does" box) must render a non-empty string for EVERY op that
+    # also the Inspector's "Description" box) must render a non-empty string for EVERY op that
     # appears in scenes -- DIALOG, control ops, and action ops (prototype + per-arg + enum/EMF/
     # speaker decode, the FLG_/REG_ legend of a condition). ScriptDocument has no Tk in it, so
     # this runs headless. Bounded to the first 15 banks (~225 ops).
@@ -3220,8 +3220,14 @@ def test_script():
     # values fall in a real id-space -- NOT >= 0x8000 (no wired enum has keys that large). A picker
     # mostly decoding >= 0x8000 values is misaligned (op 437 arg1 held 0x8100+ present-category
     # refs under a CHAR_IDS picker -- removed). Guards against re-introducing a misplaced picker.
+    # An argument that takes two kinds of value is exempt: SetSpeaker's triggers name the
+    # seven emote icons (186-192) but mostly carry voice ids (0x1000000+n) -- both real.
+    def _two_kinds(_k):
+        _r = om.table_row(_k[0]) or {}
+        _a = (_r.get("args") or [])
+        return _k[1] < len(_a) and " or voice" in (_a[_k[1]].get("type") or "")
     _mis = [(_k, _pick_imp[_k], _pick_tot[_k]) for _k in _pick_tot
-            if _pick_tot[_k] >= 3 and _pick_imp.get(_k, 0) / _pick_tot[_k] >= 0.25]
+            if _pick_tot[_k] >= 3 and _pick_imp.get(_k, 0) / _pick_tot[_k] >= 0.25 and not _two_kinds(_k)]
     _check("every enum picker decodes plausible corpus values (no 0x8000+ misalignment)",
            not _mis, str(_mis[:6]))
     # regression guard: the action-opcode table is 763 slots (was wrongly capped at 400,

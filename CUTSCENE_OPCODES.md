@@ -33,9 +33,11 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 Show or change a character's E-mote portrait on the left or right side without touching the name plate, text blip, voice or emote icons. A DIALOG line must come after it (usually after the SetSpeaker… that names the speaker): the portrait belongs to the next line shown.
 
 Args:
-  0. character (0 = player; 1-23 villagers; 22/23 = child (resolved to GF_REG_CHILD_ID); 25 = no-op)
-  1. face (< 1000 = face index; 1000-1927 = raw expression entry; 255/254 = stock alternates of the outfit row)
-  2. side (0 = left, non-zero = right slot (bit 0 = flip bit))
+  0. character (0 = player; 1-23 villagers; 22/23 = child (resolved to GF_REG_CHILD_ID); 25 = no-op) — verified in game
+  1. face (< 1000 = face index; 1000-1927 = raw expression entry; 255/254 = stock alternates of the outfit row) — verified in game
+  2. side (0 = the left slot, any non-zero value = the right slot (seen in game for 1, 2, 3, 254). The code also sets a flip bit from bit 0, but no value mirrors the portrait on screen) — verified in game
+     - `0` = left
+     - `1` = right
 
 ### `op 6` — ShowPortraitWithEmote(character, side, expression, emote_or_voice)
 *handler:* `Script_VMOp_ShowPortraitWithEmote`
@@ -254,721 +256,1981 @@ Args:
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 17` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 18` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 19` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 20` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 21` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 22` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 23` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 24` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 25` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 26` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 27` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 28` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 29` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 30` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 31` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 32` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 33` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 34` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 35` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 36` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 37` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 38` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 39` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 40` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 41` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 42` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 43` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 44` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 45` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 46` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 47` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 48` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 49` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 50` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 51` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 52` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 53` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 54` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 55` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 56` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 57` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 58` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 59` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 60` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 61` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 62` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 63` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 64` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 65` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 66` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 67` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 68` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 69` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 70` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 71` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 72` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 73` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 74` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 75` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip or pops an emote icon. Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap)
-  2. trigger2 (as trigger1)
-  3. trigger3 (as trigger1)
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  2. trigger2 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
+  3. trigger3 (as trigger1) — verified in game
+     - `186` = blush
+     - `187` = teary
+     - `188` = sweat
+     - `189` = angry
+     - `190` = exclaim
+     - `191` = question
+     - `192` = exclaim_question
 
 ### `op 77` — SlidePortraitToX(character, x, speed)
 *handler:* `Script_VMOp_SlidePortraitToX`
@@ -1892,8 +3154,8 @@ Make the lumber counter in the screen corner slide in and show the player's curr
 
 Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
 
-### `op 655` — ShowPrincePointsCounter()
-*handler:* `Script_VMOp_ShowPrincePointsCounter`
+### `op 655` — ShowPrincePointCounter()
+*handler:* `Script_VMOp_ShowPrincePointCounter`
 
 Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
 
@@ -3877,8 +5139,8 @@ Args:
 Let a spawned event actor wander on its own: it stands in its idle animation for 90-217 frames, then walks in a random direction for 30-93 frames, and repeats, turning back when it strays about 42 tiles from where it stood when this op ran. Used right after SpawnEventActor / TurnEventActorIntoNpc for animals that should roam (the captive Woolies in Idra Cave B1). Leave it out to keep the actor standing still.
 
 Args:
-  0. event key
-  1. unused (shipped scripts pass 1; never read)
+  0. event key — verified in game
+  1. unused (shipped scripts pass 1; never read) — verified in game
 
 ### `op 178` — SetEventActorAuxYaw(event_key, angle)
 *handler:* `Script_VMOp_SetEventActorAuxYaw`
@@ -3911,7 +5173,7 @@ Args:
 Turn a spawned event actor into a peaceful, talkable NPC-like prop: it stops fighting altogether (no attacks on the player, no retaliation when hit, no attacks on other monsters), keeps its idle animation and stays where it is, and the player can now interact with it. Which scene talking runs is chosen by the actor's EVENT KEY: the type-2 entry with that key in the map's tail bank, then the primary bank, then the global bank (no entry = nothing happens). It is NOT removed, gets no villager features (schedule, gifts, friendship) and does not join the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.
 
 Args:
-  0. event_key (key given to SpawnEventActor)
+  0. event_key (key given to SpawnEventActor) — verified in game
 
 ### `op 183` — SetActorAIScript(actor, ai script)
 *handler:* `ScriptVM_Op_SetEntityLevelAndSpawnMonster`
@@ -4043,7 +5305,7 @@ Args:
 ### `op 211` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icons: 1 heart, 2 bones, 3 annoyed, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (bones, bad mood, sleepy, treasure chest, pause, heart, bones); 0 clears.
+Show an emote balloon icon over an actor (the player or an NPC), with a sound for some icons. Icons: 1 heart, 2 bones, 3 annoyed (scribble), 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22 bones (stays longer), 23 bad mood (scribble), 24 sleepy (growing Z), 25 treasure chest, 26 nothing (pauses the actor's action), 27 heart (pops in), 28 bones; any other id shows the anger mark; 0 clears it. All seen in game.
 
 Args:
   0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
@@ -4074,7 +5336,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws); 16-21 have no case in the PC build (the debug menu calls them Poison, Paralysis, Sealed, Fatigue, Cold, Healthy; untested); 26 pauses the actor's action) — verified in game
+  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (all seen in game); any other id (seen: 16-21, 29, 99) draws the anger mark like 10 (ActionConstructor_EmotionIcon RF4S.exe+0xC6920 starts from archive 2129, the anger mark, and only the listed ids replace it; the debug menu's names for 16-21 -- Poison, Paralysis, Sealed, Fatigue, Cold, Healthy -- have no icon on PC); 26 shows nothing and pauses the actor's action) — verified in game
      - `0` = none
      - `1` = heart
      - `2` = bones
@@ -4102,7 +5364,7 @@ Args:
 ### `op 212` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 
-Show an emote balloon icon (!, ?, sweat, heart...) over an actor, with its sound for some icons. 0 clears it. Icon 6 = the '!' bubble; 0 clears the icon Icons: 1 heart, 2 bones, 3 annoyed, 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22-28 variants (bones, bad mood, sleepy, treasure chest, pause, heart, bones); 0 clears.
+Show an emote balloon icon over an actor (the player or an NPC), with a sound for some icons. Icons: 1 heart, 2 bones, 3 annoyed (scribble), 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22 bones (stays longer), 23 bad mood (scribble), 24 sleepy (growing Z), 25 treasure chest, 26 nothing (pauses the actor's action), 27 heart (pops in), 28 bones; any other id shows the anger mark; 0 clears it. All seen in game.
 
 Args:
   0. actor (0 = player, -1 = the current interaction NPC, 1..47 NPC) — verified in game
@@ -4133,7 +5395,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (the effect texture each draws); 16-21 have no case in the PC build (the debug menu calls them Poison, Paralysis, Sealed, Fatigue, Cold, Healthy; untested); 26 pauses the actor's action) — verified in game
+  1. icon (0 = none; 1-15 and 22-28 = the icons listed under value names (all seen in game); any other id (seen: 16-21, 29, 99) draws the anger mark like 10 (ActionConstructor_EmotionIcon RF4S.exe+0xC6920 starts from archive 2129, the anger mark, and only the listed ids replace it; the debug menu's names for 16-21 -- Poison, Paralysis, Sealed, Fatigue, Cold, Healthy -- have no icon on PC); 26 shows nothing and pauses the actor's action) — verified in game
      - `0` = none
      - `1` = heart
      - `2` = bones
@@ -5942,20 +7204,20 @@ Args:
 ### `op 395` — TurnPlayerToAngle(facing, ease)
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
 
-Turns the player to face an angle in degrees, instantly (ease 0) or smoothly (ease 1-3). Does not wait; WaitPlayerMoveDone waits for the turn.
+Turn the player to face an angle: degrees clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
 
 Args:
-  0. facing (target facing)
-  1. ease (0 = snap; n = turn 1/2^n of the remaining angle per frame (corpus 0, 2, 1, 3))
+  0. facing (any angle in degrees, clockwise on screen from facing the camera: 0 = down (toward the camera), 45 = down-right, 90 = right, 180 = up (away from the camera), 270 = left (seen in game); the game stores 181 * degrees in a 65536-per-turn field, so angles land about 0.6 % short (180 -> 179.0 deg)) — verified in game
+  1. ease (0 = turn at once; n = turn 1/2^n of the remaining angle each frame, so a higher n is a slower, softer turn (seen in game for 0-4; the shipped scripts use 0-3)) — verified in game
 
 ### `op 396` — TurnPlayerToAngle(facing, ease)
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
 
-Turns the player to face an angle in degrees, instantly (ease 0) or smoothly (ease 1-3). Does not wait; WaitPlayerMoveDone waits for the turn.
+Turn the player to face an angle: degrees clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
 
 Args:
-  0. facing (target facing)
-  1. ease (0 = snap; n = turn 1/2^n of the remaining angle per frame (corpus 0, 2, 1, 3))
+  0. facing (any angle in degrees, clockwise on screen from facing the camera: 0 = down (toward the camera), 45 = down-right, 90 = right, 180 = up (away from the camera), 270 = left (seen in game); the game stores 181 * degrees in a 65536-per-turn field, so angles land about 0.6 % short (180 -> 179.0 deg)) — verified in game
+  1. ease (0 = turn at once; n = turn 1/2^n of the remaining angle each frame, so a higher n is a slower, softer turn (seen in game for 0-4; the shipped scripts use 0-3)) — verified in game
 
 ### `op 397` — SetPartyOutfit(outfit)
 *handler:* `Script_VMOp_SetPartyOutfitVariantAndSyncFriendship`
@@ -7198,10 +8460,10 @@ Args:
 ### `op 380` — StopMusic(fade)
 *handler:* `Script_VMOp_StopBGMWithCrossfade`
 
-Stop the current background music at once (the fade argument is never read). When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot). The next map change, and the 06:00 / 21:00 switch, pick the area music again unless SetMusicLock(1).
+Stop the current background music at once (the fade argument is never read: StopMusic(30000) still cut the music at once in game). When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot). The next map change, and the 06:00 / 21:00 switch, pick the area music again unless SetMusicLock(1).
 
 Args:
-  0. fade (corpus passes 0..30000 but the stop path never reads it)
+  0. fade (corpus passes 0..30000 but the stop path never reads it) — verified in game
 
 ### `op 382` — FadeMusicVolume(volume, time)
 *handler:* `Script_VMOp_SetSfxCaptureVolumeOverride`
@@ -7517,7 +8779,7 @@ Args:
 ### `op 417` — ModifyPlayerResource(resource, mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerResourceByCharCodeOp`
 
-Give, take or set gold, stone, compost, fodder or the player's level. E.g. pay 1000 gold = ModifyPlayerResource(gold, sub, 1000), reward = ModifyPlayerResource(gold, add, N).
+Give, take or set gold, stone, compost, fodder or the player's level, e.g. pay 1000 gold = ModifyPlayerResource(gold, sub, 1000). Stone and compost stay within 0..50,000 and gold within 0..2,000,000,000; 'set' on the level takes the 0-based value (set 49 = level 50). All five seen in game.
 
 Args:
   0. resource (100 'd' gold, 102 'f' player level, 103 'g' fodder, 105 'i' stone, 106 'j' compost; anything else does nothing) — verified in game
@@ -10238,15 +11500,15 @@ Get the result of the last item-pick menu: reg0 = chosen slot index (0-7), reg1 
 Get a player value chosen by a letter code (gold, level, fodder, a skill level, stone, compost, best skill level). reg0 = the value.
 
 Args:
-  0. code ('d' 100 gold, 'f' 102 player level (stored level + 1), 'g' 103 fodder in the barn bin, 'h' 104 level of skill [skill], 'i' 105 stone, 'j' 106 compost, 'k' 107 highest skill level; 0..39 = that skill's level; other = 0)
+  0. code ('d' 100 gold, 'f' 102 player level (stored level + 1), 'g' 103 fodder in the barn bin, 'h' 104 level of skill [skill], 'i' 105 stone, 'j' 106 compost, 'k' 107 highest skill level; 0..39 = that skill's level; other = 0) — verified in game
      - `100` = Gold
-     - `102` = ArmorDef
-     - `103` = FarmTameCount
+     - `102` = Level
+     - `103` = Fodder
      - `104` = Skill
      - `105` = Stone
      - `106` = Compost
      - `107` = MaxSkillLevel
-  1. skill (only read for 'h')
+  1. skill (only read for 'h') — verified in game
      - `0` = Short Sword
      - `1` = Long Sword
      - `2` = Spear
@@ -10953,10 +12215,10 @@ Args:
 ### `op 642` — AddTourists(amount)
 *handler:* `Script_AddTourists`
 
-Adds to the town's tourist count (Prince Point system), clamped to 0..99,999,999.
+Add to the town's tourist count (Prince Point system; it shows on the Order Symbol). A negative amount subtracts; the count stays within 0..99,999,999 (both limits seen in game).
 
 Args:
-  0. amount (corpus 10-250)
+  0. amount (any signed number (the shipped scripts use 10-250); GetTourists reads the count back) — verified in game
 
 ### `op 659` — MyShopAction(subcase, args...)
 *handler:* `SakuraEvent_DispatchAction`
@@ -11421,7 +12683,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 646 | `GetPrinceRank` | 647 | `GetPrinceOrderCost` | 648 | `GetShippingCompletionPercent` |
 | 649 | `GetShippingBoxGold` | 650 | `GetLifetimeShippedGold` | 651 | `AdvanceStoryProgress` |
 | 652 | `GetPreviousMapId` | 653 | `ShowLumberCounter` | 654 | `ShowStoneCounter` |
-| 655 | `ShowPrincePointsCounter` | 656 | `SetMapScrollSpeedX` | 657 | `SetMapScrollSpeedY` |
+| 655 | `ShowPrincePointCounter` | 656 | `SetMapScrollSpeedX` | 657 | `SetMapScrollSpeedY` |
 | 658 | `GetSceneWordPair112` | 659 | `MyShopAction` | 660 | `SetActorInvulnerable` |
 | 661 | `SetActorStatFlagRecompute` | 662 | `SetActorControlBit4000` | 663 | `MakeActorUntameable` |
 | 664 | `SetActorUnlimitedSight` | 665 | `SetActorFacing` | 666 | `IsGameClearedSysFlagSet` |

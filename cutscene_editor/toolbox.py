@@ -466,7 +466,7 @@ class ReferenceWindow:
         pw.pack(fill="both", expand=True)
         top = ttk.Frame(pw)
         det = tk.Text(pw, height=12, wrap="word", font=("Consolas", 9))
-        t = _Filtered(top, ("function", "opcode", "what it does"), (380, 110, 440), rows,
+        t = _Filtered(top, ("Function", "Opcode", "Description"), (380, 110, 440), rows,
                       on_select=lambda r: self._show_fn(det, r),
                       on_activate=lambda r: r and self.app.ask_insert_instruction(preset=r[3]), height=10)
         t.pack(fill="both", expand=True)

@@ -654,7 +654,7 @@
  "652": "Script_VMOp_QuerySceneA1Word348",
  "653": "Script_VMOp_ShowLumberCounter",
  "654": "Script_VMOp_ShowStoneCounter",
- "655": "Script_VMOp_ShowPrincePointsCounter",
+ "655": "Script_VMOp_ShowPrincePointCounter",
  "656": "Script_VMOp_SetMapUvScrollSpeedXTarget",
  "657": "Script_VMOp_SetMapUvScrollSpeedYTarget",
  "658": "Script_VMOp_QuerySceneA1WordPair112",
