@@ -10609,10 +10609,10 @@ Read the saved largest-fish size rank into reg0 (the fishing contest score).
 ### `op 588` — HasMapEntityOfKind(kind)
 *handler:* `Script_VMOp_QueryTileObjectActiveByItemId`
 
-Check whether a map entity (placed object such as a bed, bin or shipping box) of the given kind is currently active. reg0 = 1/0.
+Check whether a piece of furniture of the given kind is placed (active in the furniture registry): reg0 = 1/0. Scenes use it for 'you don't have a wardrobe yet' and similar lines.
 
 Args:
-  0. kind (e.g. 328 (double bed), 342 compost bin, 366/367, 370/375 fodder bins, 372 shipping box)
+  0. kind (furniture object id -- its sprite is rom:/chr/OBJ_*.bntx at archive id + 933: 325 OBJ_ARSENAL00, 327 / 328 bed / double bed, 335 bookshelf, 341 wardrobe (OBJ_CLOAK00), 343..352 OBJ_COMPO_00..09, 365 OBJ_FARMING00, 366 / 367 fridge, 370 fodder box (OBJ_KAIBA_A), 372 lumber / stone box (OBJ_MATERIAL), 375 OBJ_PASTURE, 380 / 381 shelf, 382 shipping bin (OBJ_SHIPMENT), 387 well)
 
 ### `op 592` — CanPlaceFurnitureInRoom(room)
 *handler:* `Script_VMOp_QueryTileObjectFreeOrFew`

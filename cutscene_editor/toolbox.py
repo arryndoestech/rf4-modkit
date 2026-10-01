@@ -226,6 +226,11 @@ class _Filtered(ttk.Frame):
         self._pending = later(self, self.fill, 150)
 
     def fill(self):
+        if self._pending is not None:       # a direct refill makes the scheduled one moot (it
+            try:                            # would wipe a selection made right after this)
+                self.after_cancel(self._pending)
+            except tk.TclError:
+                pass
         self._pending = None
         self.tree.delete(*self.tree.get_children())
         words = self.q.get().lower().split()
@@ -292,15 +297,157 @@ class ReferenceWindow:
             "emdeb.bin's variables: FLG_ = a 1-bit flag, REG_ = a number, EV_ = an event slot. "
             "id = the bit offset in the game-flags store, width = bits. Use the name in a "
             "condition or EVAL: BR_Z (FLG_X == 1) -> …, EVAL (REG_Y = 3). Zone-2 rows are the "
-            "recovered bits past emdeb's names. Double-click = copy the name.")).pack(anchor="w", pady=(0, 4))
-        rows = flag_rows(self.app.doc)
-        t = _Filtered(f, ("name", "kind", "id", "width", "values", "description"),
-                      (260, 70, 90, 50, 80, 380), rows,
-                      on_activate=lambda r: r and self.copy(r[6], r[0]))
+            "recovered bits past emdeb's names. reads / writes = how many statements of every "
+            "bank and em.bin entries use it (unsaved edits included); select a variable to list "
+            "them below, double-click a use to open it. Double-click a variable = copy its "
+            "name.")).pack(anchor="w", pady=(0, 4))
+        self._flag_base = flag_rows(self.app.doc)
+        pw = ttk.PanedWindow(f, orient="vertical")
+        pw.pack(fill="both", expand=True)
+        top, bot = ttk.Frame(pw), ttk.Frame(pw)
+        pw.add(top, weight=3)
+        pw.add(bot, weight=2)
+        self.flag_list = t = _Filtered(top, ("name", "kind", "id", "width", "reads", "writes", "description"),
+                                       (250, 60, 80, 45, 55, 55, 360), self._flag_rows(None),
+                                       on_select=self._show_var_uses,
+                                       on_activate=lambda r: r and self.copy(r[7], r[0]), height=12)
         t.pack(fill="both", expand=True)
+        self.uses_hdr = ttk.Label(bot, text="Used by: select a variable", font=("Segoe UI", 9, "bold"))
+        self.uses_hdr.pack(anchor="w", pady=(4, 2))
+        uf = ttk.Frame(bot)
+        uf.pack(fill="both", expand=True)
+        self.uses = ttk.Treeview(uf, columns=("where", "pc", "access", "statement"), show="headings", height=8)
+        for c, w in (("where", 330), ("pc", 60), ("access", 80), ("statement", 460)):
+            self.uses.heading(c, text=c)
+            self.uses.column(c, width=w, stretch=c in ("where", "statement"), anchor="w")
+        sb = ttk.Scrollbar(uf, command=self.uses.yview)
+        self.uses.config(yscrollcommand=sb.set)
+        self.uses.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        self.uses.bind("<Double-Button-1>", lambda _e: self._open_use())
+        self.uses.bind("<Return>", lambda _e: self._open_use())
+        Tip(self.uses, "Every statement (in any bank) and em.bin entry that reads or writes the "
+                       "selected variable. Double-click: open it.")
+        self._use_rows = {}
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(4, 0))
-        ttk.Button(b, text="Copy name", command=lambda: t.selected() and self.copy(t.selected()[6])).pack(side="left")
+        ttk.Button(b, text="Copy name", command=lambda: t.selected() and self.copy(t.selected()[7])).pack(side="left")
+        later(self.win, self._count_uses, 50)
+
+    def _flag_rows(self, index):
+        """The list rows: (name, kind, id, width, reads, writes, description, token, key).
+        key = (bit offset, width) of an emdeb variable (None for the zone-2 rows)."""
+        rows = []
+        for name, kind, bid, w, _rng, desc, tok in self._flag_base:
+            key = (int(bid), int(w)) if kind != "zone-2 bit" else None
+            if key is None:
+                r = w_ = "—"
+            elif index is None:
+                r = w_ = "…"
+            else:
+                u = index.get(key, ())
+                r = sum(1 for x in u if x[-2 if x[0] == "script" else 3] != "write") if u else 0
+                w_ = sum(1 for x in u if x[-2 if x[0] == "script" else 3] != "read") if u else 0
+            rows.append((name, kind, bid, w, r, w_, desc, tok, key))
+        return rows
+
+    def _count_uses(self):
+        """Fill the reads / writes columns (the first time scans every bank: a few seconds)."""
+        if not self.win.winfo_exists() or self.app.doc.container is None:
+            return
+        self.status.config(text="counting variable uses in every bank…")
+        self.win.update_idletasks()
+        try:
+            idx = self.app.var_index()
+        except Exception as e:  # noqa: BLE001 -- a display aid: leave the counts blank
+            self.status.config(text="could not count uses: %s" % err_text(e))
+            return
+        t = self.flag_list
+        sel = t.selected()
+        t.rows = self._flag_rows(idx)
+        t.fill()
+        if sel is not None:                 # a refill keeps the selected variable selected
+            for iid in t.tree.get_children():
+                if t.rows[int(iid)][0] == sel[0]:
+                    t.tree.selection_set(iid)
+                    t.tree.see(iid)
+                    break
+        self.status.config(text="")
+
+    def refresh_uses(self):
+        """After an edit: recount (the selection, and with it the 'Used by' list, follows)."""
+        if self.win.winfo_exists():
+            self._count_uses()
+
+    @staticmethod
+    def _stmt_text(bank, st):
+        if st.op < 0xFFF0:
+            args = script.stmt_arg_strs(bank.data, st)
+            return script.render_action(st.op, args) or "%s(%s)" % (script.opcode_mnemonic(st.op), ", ".join(args))
+        ex = [script.disasm_expr(bank.data, e)[0] for e in (getattr(st, "expr_refs", None) or []) if e is not None]
+        return st.mnem + ((" (" + ", ".join(ex) + ")") if ex else "")
+
+    def _show_var_uses(self, r):
+        from . import catalog
+        u = self.uses
+        u.delete(*u.get_children())
+        self._use_rows = {}
+        if not r or r[8] is None:
+            self.uses_hdr.config(text="Used by: (zone-2 bits are listed in the map editor's flag "
+                                      "reference)" if r else "Used by: select a variable")
+            return
+        uses = self.app.var_uses(*r[8])
+        c, em = self.app.doc.container, self.app.doc.em
+        n = 0
+        for x in uses:
+            if x[0] == "script":
+                _k, pos, entry, pc, acc, st = x
+                bank = c.banks[pos]
+                vals = ("%s · scene @%04x" % (catalog.bank_title(bank), entry), "%04x" % pc, acc,
+                        self._stmt_text(bank, st))
+            else:
+                _k, idx, where, acc = x
+                nm = em.entries[idx].name if em is not None and 0 <= idx < len(em.entries) else ""
+                vals = ("em.bin #%d %s" % (idx, nm or ""), "", acc, where)
+            iid = "u%d" % n
+            u.insert("", "end", iid=iid, values=vals)
+            self._use_rows[iid] = x
+            n += 1
+        nb = len({(x[1], x[2]) for x in uses if x[0] == "script"})
+        self.uses_hdr.config(text="Used by: %s — %d use%s in %d scene%s%s" % (
+            r[0], n, "" if n == 1 else "s", nb, "" if nb == 1 else "s",
+            ", %d in em.bin" % sum(1 for x in uses if x[0] == "em") if any(x[0] == "em" for x in uses) else ""))
+
+    def _open_use(self):
+        s = self.uses.selection()
+        x = self._use_rows.get(s[0]) if s else None
+        if x is None:
+            return
+        if x[0] == "script":
+            _k, pos, entry, pc, _acc, _st = x
+            self.app.open_scene(pos, entry, focus_pc=pc)
+            try:
+                self.app.frame.winfo_toplevel().lift()
+            except tk.TclError:
+                pass
+        else:
+            w = self.app.open_event_manager()
+            if w is not None:
+                w.open_entry(x[1])
+
+    def show_var(self, name):
+        """Select variable `name` in the Flags tab (the script view's 'Uses of …')."""
+        self.show(self.TABS[0])
+        t = self.flag_list
+        t.q.set(name)
+        t.fill()
+        for iid in t.tree.get_children():
+            if t.rows[int(iid)][0] == name:
+                t.tree.selection_set(iid)
+                t.tree.see(iid)
+                self._show_var_uses(t.rows[int(iid)])
+                return True
+        return False
 
     def _functions(self):
         f = ttk.Frame(self.nb, padding=6)

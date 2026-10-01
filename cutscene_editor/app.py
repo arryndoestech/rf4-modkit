@@ -56,7 +56,8 @@ class CutsceneExplorer:
         self.debug_current = None            # (bank, pc) a script stopped at, or None
         self._debugger = None
         self._em_uses = None
-        self._em_bank_uses = {}              # bank pos -> (bank bytes, [(entry id | None, ...)])
+        self._var_uses = None                # varuses index, rebuilt after edits
+        self._em_bank_uses = {}              # bank pos -> (bank bytes, em-op list, variable list)
         self._build()
         self._fit_toolbar()
         self.view.mode, self.view.show_addr, self.view.show_ops, self.view.show_file_off = (
@@ -703,13 +704,24 @@ class CutsceneExplorer:
         if pm is None:
             return
         if self.scene is not None and self.scene.entry_pc in pm:
+            # a copy, not the scene object itself: scene lists may be shared (cached by bank
+            # bytes), and the old bytes' scene must keep its entry
+            import copy
+            self.scene = copy.copy(self.scene)
             self.scene.entry_pc = pm[self.scene.entry_pc]
         if self.sel is not None:
             self.sel = (pm[self.sel[0]], self.sel[1]) if self.sel[0] in pm else None
 
     def _doc_changed(self, what):
-        self._em_uses = None
+        self._em_uses = self._var_uses = None
         self.view.multi = []                 # pcs moved: a multi-selection would point elsewhere
+        ref = self._reference
+        if ref is not None:                  # its use counts follow the edit (only that bank rescans)
+            try:
+                if ref.win.winfo_exists():
+                    later(self.frame, ref.refresh_uses, 200)
+            except tk.TclError:
+                pass
         if self.breakpoints:
             self._check_breakpoints()
         self.refresh_scene()
@@ -1081,6 +1093,26 @@ class CutsceneExplorer:
         r.show(tab)
         return r
 
+    def show_var_uses(self, name):
+        """The Reference window's Flags tab on variable `name`, with every statement and em.bin
+        entry that reads or writes it."""
+        return self.open_reference().show_var(name)
+
+    def statement_vars(self, pc):
+        """[(name, access)] of the named variables statement `pc` of the open scene uses."""
+        from rf4s_modkit import varuses
+        st = self.stmt(pc)
+        if st is None or self.bank is None:
+            return []
+        out = []
+        tbl = getattr(self.doc, "emf_vars", None)
+        for enc, acc in varuses.statement_var_access(self.bank.data, st):
+            off, width, _s = self.doc.container.unpack_var(enc)
+            nm = varuses.var_name(tbl, off, width)
+            if not nm.startswith("var@") and (nm, acc) not in out:
+                out.append((nm, acc))
+        return out
+
     def delete_selected(self):
         if self.sel is None:
             return False
@@ -1397,40 +1429,72 @@ class CutsceneExplorer:
         self._em_window = EventManagerWindow(self)
         return self._em_window
 
-    def _em_bank_scan(self, pos, bk):
-        """[(entry id or None, scene entry, pc, stmt)] for the em bridge ops (371-374, 444) in
-        one bank; None = the entry id is computed at run time (a variable, not a number)."""
-        out, seen = [], set()
+    def _bank_scan(self, pos, bk):
+        """One pass over a bank for both cross-bank indexes: ([(em entry id or None, scene
+        entry, pc, stmt)] for the em bridge ops (371-374, 444; None = an entry id computed at
+        run time), [(variable enc, access, scene entry, pc, stmt)] for every named variable
+        read or written (varuses))."""
+        from rf4s_modkit import varuses
+        em, var, seen = [], [], set()
         for sc in script.disassemble_bank(bk):
             for pc, st in sc.stmts.items():
-                if st.op not in script.EMF_ENTRY_OPS or pc in seen:
-                    continue
-                ai = script.EMF_ENTRY_OPS[st.op]
-                if ai >= len(st.args):
+                if pc in seen:
                     continue
                 seen.add(pc)
+                for enc, acc in varuses.statement_var_access(bk.data, st):
+                    var.append((enc, acc, sc.entry_pc, pc, st))
+                ai = script.EMF_ENTRY_OPS.get(st.op)
+                if ai is None or ai >= len(st.args):
+                    continue
                 try:
                     eid = int(script.arg_repr(bk.data, st.args[ai]))
                 except (ValueError, TypeError):
                     eid = None
-                out.append((eid, sc.entry_pc, pc, st))
+                em.append((eid, sc.entry_pc, pc, st))
+        return em, var
+
+    def _scans(self):
+        """[(bank pos, em list, variable list)] for every bank. A bank is re-scanned only when
+        its bytes changed (a full scan takes seconds; one bank a fraction of one)."""
+        cache, out = self._em_bank_uses, []
+        for pos, bk in enumerate(self.doc.container.banks):
+            data = bytes(bk.data)
+            hit = cache.get(pos)
+            if hit is None or hit[0] != data:
+                hit = cache[pos] = (data,) + self._bank_scan(pos, bk)
+            out.append((pos, hit[1], hit[2]))
         return out
 
     def _em_index(self):
-        """{entry id or None: [(bank pos, scene entry, pc, stmt)]}. Rebuilt after every edit, but
-        a bank is only re-scanned when its bytes changed (a full scan takes seconds; one bank
-        a fraction of one), so custom scenes are always counted."""
+        """{entry id or None: [(bank pos, scene entry, pc, stmt)]}. Rebuilt after every edit
+        (from the per-bank scans), so custom scenes are always counted."""
         if self._em_uses is None:
-            uses, cache = {}, self._em_bank_uses
-            for pos, bk in enumerate(self.doc.container.banks):
-                data = bytes(bk.data)
-                hit = cache.get(pos)
-                if hit is None or hit[0] != data:
-                    hit = cache[pos] = (data, self._em_bank_scan(pos, bk))
-                for eid, entry, pc, st in hit[1]:
+            uses = {}
+            for pos, em, _var in self._scans():
+                for eid, entry, pc, st in em:
                     uses.setdefault(eid, []).append((pos, entry, pc, st))
             self._em_uses = uses
         return self._em_uses
+
+    def var_index(self):
+        """{(bit offset, width): [use]} for every named variable -- a use is ('script', bank
+        pos, scene entry, pc, access, stmt) or ('em', entry index, where, access). Rebuilt after
+        an edit from the per-bank scans, so it follows unsaved changes."""
+        if self._var_uses is None:
+            from rf4s_modkit import varuses
+            c, uses = self.doc.container, {}
+            for pos, _em, var in self._scans():
+                for enc, acc, entry, pc, st in var:
+                    off, width, _sign = c.unpack_var(enc)
+                    uses.setdefault((off, width), []).append(("script", pos, entry, pc, acc, st))
+            if self.doc.em is not None:
+                for off, width, acc, idx, where in varuses.em_uses(self.doc.em):
+                    uses.setdefault((off, width), []).append(("em", idx, where, acc))
+            self._var_uses = uses
+        return self._var_uses
+
+    def var_uses(self, bit_offset, width):
+        return self.var_index().get((bit_offset, width), [])
 
     def em_uses(self, entry_idx):
         """[(bank pos, scene entry, pc, stmt)] of every scene op naming em entry `entry_idx`."""

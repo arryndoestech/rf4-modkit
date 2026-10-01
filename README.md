@@ -747,7 +747,12 @@ bit id, width, value range and Japanese label, plus the recovered zone-2 bits), 
 verified in game (with everything the opcode table knows about each), the **text codes** a
 dialogue line can hold (`＠０＠`, `＠キャラ０＠`, `＋blue＋` ..., what each shows and which instruction fills
 its slot: `SetVar3(0, n)` feeds `＠０＠`), and the character, map and
-item ids with the form an argument takes. Double-click copies.
+item ids with the form an argument takes. Double-click copies. **Where a variable is used:** the
+flags list counts each variable's reads and writes over every bank and em.bin (unsaved edits
+included); selecting one lists every statement and em.bin entry that reads or writes it, and a
+double-click opens it. In the script view, right-click a statement → *Uses of FLG_X…* for each
+variable it names. (Ops that change a register inside their own handler, e.g. op 536 moving
+REG_SUBEV_RSV into REG_SUBEV_NOW, are not counted: the script does not name the variable.)
 
 **Names come from your game.** Character, item, map and skill names are read from the game's
 own English text files (`rf3TxtNpc_split2_1.eng`, `rf3TxtItem_split2_1.eng`, `rf3TxtMapName.eng`,

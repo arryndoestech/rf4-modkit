@@ -208,6 +208,11 @@ class ScriptView(ttk.Frame):
                       command=app.delete_selected)
         m.add_separator()
         m.add_command(label="Toggle breakpoint  (F9)", state=st, command=app.toggle_breakpoint)
+        vars_ = app.statement_vars(app.sel[0]) if (has and not n) else []
+        if vars_:                                   # where else the statement's variables are used
+            m.add_separator()
+            for name in dict.fromkeys(nm for nm, _a in vars_):
+                m.add_command(label="Uses of %s…" % name, command=lambda nm=name: app.show_var_uses(nm))
         try:
             m.tk_popup(e.x_root, e.y_root)
         finally:

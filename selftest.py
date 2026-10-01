@@ -64,6 +64,7 @@ EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() el
 # mutate them (none do; edits go through the Container/bank-bytes APIs).
 QUICK = "--quick" in sys.argv
 import zlib as _zlib                                            # noqa: E402
+import copy as _copy_mod                                        # noqa: E402
 from rf4s_modkit import script as _script_mod                   # noqa: E402
 _DISASM_CACHE = {}
 _disassemble_bank_uncached = _script_mod.disassemble_bank
@@ -75,7 +76,9 @@ def _disassemble_bank_cached(bank, discover=True):
     if hit is None:
         hit = list(_disassemble_bank_uncached(bank, discover=discover))
         _DISASM_CACHE[key] = hit
-    return hit
+    # shallow copies: a caller that moves a scene's entry (the editor after an edit) must not
+    # change what the next caller of the same bytes gets (2026-10-01: an editor test did)
+    return [_copy_mod.copy(sc) for sc in hit]
 
 
 _script_mod.disassemble_bank = _disassemble_bank_cached
@@ -14035,7 +14038,8 @@ def test_cutscene_toolbox():
         r = cx.open_reference()
         _check("one Reference window per editor", cx.open_reference() is r)
         tabs = [r.nb.tab(i, "text") for i in range(len(r.nb.tabs()))]
-        trees = [w for w in _all_widgets(r.win) if w.winfo_class() == "Treeview"]
+        trees = [w for w in _all_widgets(r.win) if w.winfo_class() == "Treeview"
+                 and w is not getattr(r, "uses", None)]          # the Flags tab's 'Used by' list
         counts = [len(t.get_children()) for t in trees]
         _check("Reference: flags, verified functions, text codes, characters, maps, items all list something",
                tabs == ["Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items"]
@@ -14064,6 +14068,94 @@ def _all_widgets(w):
     for c in w.winfo_children():
         yield c
         yield from _all_widgets(c)
+
+
+def test_var_uses():
+    """Variable xrefs (2026-10-01): every read / write of a named FLG_ / REG_ in every bank and
+    in em.bin. `=` writes without reading, compound assignments read and write, everything
+    else reads; the Reference window counts and lists them, opens a use, and follows edits."""
+    print("variable uses across banks (FLG_ / REG_ xrefs):")
+    import struct as _st
+    from rf4s_modkit import script, varuses as vu, emscript
+    from rf4s_modkit.emflags import EmFlagTable
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("variable uses", "rf3.mc not extracted"); return
+    c = script.Container(mc.read_bytes())
+    emf = EmFlagTable.load()
+    a, b = c.pack_var(100, 1), c.pack_var(200, 8)
+    var = lambda e: b"\x02" + _st.pack("<I", e)
+    acc = lambda bs: [x for _e, x in vu.expr_var_access(bs + b"\x00", 0)]
+    _check("expressions: `=` writes, `+=` reads and writes, a comparison and a nested ref read",
+           acc(var(a) + b"\x16\x90") == ["write"] and acc(var(b) + b"\x17\x02\x94") == ["read+write"]
+           and acc(var(b) + b"\x17\x03\x8c") == ["read"]
+           and acc(var(b) + b"\x17\x05\x8c" + var(a) + b"\x8e") == ["read", "read"])
+    script.install_emflags_var_resolver(c, emf)
+    import re as _re
+    n = bad = 0
+    for bk in c.banks[::10]:                                   # every 10th bank vs the disassembly
+        for enc, ac, _entry, _pc, st in vu.bank_uses(bk):
+            off, w, _s = c.unpack_var(enc)
+            nm = vu.var_name(emf, off, w)
+            if nm.startswith("var@"):
+                continue
+            offs = (list(st.args) if st.op < 0xFFF0 else []) + [x for x in (st.expr_refs or []) if x is not None]
+            txt = " ".join(script.disasm_expr(bk.data, o)[0] for o in offs)
+            q = _re.escape(nm)
+            ok = {"write": bool(_re.search(r"\b%s = (?!=)" % q, txt)),
+                  "read+write": bool(_re.search(r"\b%s (\*|/|%%|\+|-|&&|\|\|)= " % q, txt)),
+                  "read": bool(_re.search(r"\b%s\b(?! (=|\*=|/=|%%=|\+=|-=|&&=|\|\|=) )" % q, txt))}[ac]
+            n += 1
+            bad += not ok
+    _check("the read / write verdict agrees with the disassembly on every use checked", n > 500 and bad == 0,
+           "%d checked, %d off" % (n, bad))
+    db = _first("emdeb.bin")
+    if _first("em.bin") and db:
+        em = emscript.EmScript.parse(_first("em.bin").read_bytes(), emscript.EmNames.parse(db.read_bytes()))
+        fes = next(v for v in emf.variables if v.name == "FLG_DATE_FES_NOW")
+        fin = em.by_name["EV_DATE_FINISH"].idx
+        _check("em.bin: EV_DATE_FINISH's alt action writes FLG_DATE_FES_NOW",
+               (fes.bit_offset, fes.bit_width, "write", fin, "alt action") in vu.em_uses(em))
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("variable uses (editor)", "no tkinter: %s" % e); return
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *x: errs.append(x)
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda nm: (_first(nm).read_bytes() if _first(nm) else None))
+        ref = cx.open_reference()
+        ref._count_uses()
+        row = next(r for r in ref.flag_list.rows if r[0] == "REG_MAIN_SCENARIO")
+        ok_sel = ref.show_var("REG_MAIN_SCENARIO")
+        listed = len(ref.uses.get_children())
+        _check("Reference: REG_MAIN_SCENARIO is read and written across banks and em.bin; selecting it "
+               "lists every use", row[4] > 50 and row[5] > 50 and ok_sel
+               and listed == len(cx.var_uses(*row[8])) and listed == row[4] + row[5]
+               - sum(1 for x in cx.var_uses(*row[8]) if x[-2 if x[0] == "script" else 3] == "read+write"),
+               "reads %s writes %s listed %d" % (row[4], row[5], listed))
+        first = next(i for i in ref.uses.get_children() if ref._use_rows[i][0] == "script")
+        ref.uses.selection_set(first)
+        ref._open_use()
+        root.update()
+        _k, pos, entry, pc, _a, _s = ref._use_rows[first]
+        _check("double-clicking a use opens that scene at the statement",
+               cx.bank_pos == pos and cx.scene.entry_pc == entry and cx.sel == (pc, None))
+        before = row[5]
+        cx.apply("probe", lambda: cx.doc.container.insert_after(pos, pc, "EVAL (REG_MAIN_SCENARIO = 1)"))
+        root.update()
+        ref._count_uses()
+        after = next(r for r in ref.flag_list.rows if r[0] == "REG_MAIN_SCENARIO")[5]
+        names = [nm for nm, _a in cx.statement_vars(cx.sel[0])] if cx.sel else []
+        _check("an unsaved edit is counted at once (one more write); the script view knows the "
+               "selected statement's variables", after == before + 1 and "REG_MAIN_SCENARIO" in names,
+               "%s -> %s, %s" % (before, after, names))
+        _check("variable uses raised no callback errors", not errs, str(errs[:1]))
+    finally:
+        root.destroy()
 
 
 def test_entry_key_conflicts():
@@ -14884,7 +14976,8 @@ def test_event_manager():
         pos = next(i for i, bk in enumerate(doc.container.banks)
                    if i > 300 and not list(script.disassemble_bank(bk)))
         cx.add_entry(pos, 7, [], "FRAME 0\nEvalCondScriptA(%d)\nEND" % new)
-        cx.add_entry(pos, 7, [], "FRAME 0\nEvalCondScriptA(reg0)\nEND")
+        # the same (no) keys: put first, or it could never run (refused)
+        cx.add_entry(pos, 7, [], "FRAME 0\nEvalCondScriptA(reg0)\nEND", "first")
         w.open_entry(new)
         root.update()
         text = "\n".join("".join(s for s, _t in r.segs) for r in w.rows)
@@ -15928,7 +16021,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

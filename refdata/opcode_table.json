@@ -41558,7 +41558,7 @@
     {
      "name": "kind",
      "type": "map entity kind",
-     "values": "e.g. 328 (double bed), 342 compost bin, 366/367, 370/375 fodder bins, 372 shipping box",
+     "values": "furniture object id -- its sprite is rom:/chr/OBJ_*.bntx at archive id + 933: 325 OBJ_ARSENAL00, 327 / 328 bed / double bed, 335 bookshelf, 341 wardrobe (OBJ_CLOAK00), 343..352 OBJ_COMPO_00..09, 365 OBJ_FARMING00, 366 / 367 fridge, 370 fodder box (OBJ_KAIBA_A), 372 lumber / stone box (OBJ_MATERIAL), 375 OBJ_PASTURE, 380 / 381 shelf, 382 shipping bin (OBJ_SHIPMENT), 387 well",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -41567,7 +41567,7 @@
    "optional_args_from": null,
    "returns": "reg0 = 1 if an active entity of that kind exists",
    "blocking": "no",
-   "description": "Check whether a map entity (placed object such as a bed, bin or shipping box) of the given kind is currently active. reg0 = 1/0.",
+   "description": "Check whether a piece of furniture of the given kind is placed (active in the furniture registry): reg0 = 1/0. Scenes use it for 'you don't have a wardrobe yet' and similar lines.",
    "details": "Scans the 64 slots of g_mapEntityRegistry_64slots for a record whose status word is negative (active) and whose kind word == arg; identical to MapEntity_AnyAliveOfKind (+0x1911A0), which the engine uses for the compost/shipping/fodder auto-deposit and which the bed sequence (op 204) calls with kind 328.",
    "side_effects": "",
    "evidence": "RF4S.exe+0x21AF00; RF4S.exe+0x1911A0 (same scan); corpus 45 uses, kinds 325..382 (328 x16, e.g. FLG_JUST_MARRIED_MODE -> HasMapEntityOfKind(328)).",
@@ -41585,8 +41585,8 @@
     "1": 45
    },
    "confidence": "medium",
-   "notes": "Whether the registry holds only the loaded map's entities was not traced; the kind ids are map-entity kinds, not item ids.",
-   "change_reason": "The op is the engine's MapEntity_AnyAliveOfKind check over map-entity kinds (bins, shipping box, bed), not a furniture-only test.",
+   "notes": "Kinds are the furniture ids of g_mapEntityRegistry_64slots (record word = id; TileObject_EnsureDefaultFurnitureObjects RF4S.exe+0x190E60 re-seeds 382 / 327 / 387 / 372), not item ids. Names read 2026-10-01 from the game's archive path table at id + 933; the shipped scripts test 325, 328, 335, 341, 343..352, 365..367, 370, 380..382.",
+   "change_reason": "The op is the engine's MapEntity_AnyAliveOfKind check over map-entity kinds (bins, shipping box, bed), not a furniture-only test.; 2026-10-01: kind names from the sprite archives (372 is the lumber / stone box, not the shipping box; 366 / 367 are fridges)",
    "human_verified": false,
    "example": {
     "bank": 401,
