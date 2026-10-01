@@ -3721,7 +3721,7 @@ def test_script():
     _e93 = om.ENUM_ARG_VALUES.get((93, 0), {})
     _check("opcode_meta: op93 = the message-box style (0 normal, 1 shout, 2 thought, 3 trembling, 4 tail only)",
            "box style" in _d93 and "talk_win" in _d93 and set(_e93) == {0, 1, 2, 3, 4}
-           and _e93[1][0] == "shout" and _e93[4][0] == "tail only")
+           and _e93[1][0] == "shout" and _e93[4][0] == "tail_only")   # names are identifiers (seen in game 2026-10-01)
     # accuracy pin (IDA-verified 2026-07-11, batch 3): three ops carried the generic auto-desc
     # "Rolls a value via the RNG (usually a random item id)" that was FLATLY WRONG -- op631 is a
     # deterministic name-seeded hash, op632 uses the DAILY-seeded (reload-safe) RNG not the global

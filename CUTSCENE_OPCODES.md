@@ -2578,12 +2578,12 @@ Close the dialogue box and both portraits at the end of a spoken exchange and cl
 Set the message-box style for the following lines: normal, shout, thought, trembling or tail-only. The general form of the fixed box-style ops 94-97 and the only way to get style 4.
 
 Args:
-  0. style (0 normal, 1 shout (jagged, shakes, flash), 2 thought (cloud, floats ~1 s), 3 trembling (wavy, sideways shake), 4 tail only (no box); 5-7 read unrelated art)
-     - `0` = normal box
+  0. style (0 normal, 1 shout (jagged; the screen shakes), 2 thought (cloud), 3 trembling (wobbly; the box shakes), 4 tail only (no box, text only); 5 and 6 show only the name plate, 7 stray art (all seen in game)) — verified in game
+     - `0` = normal
      - `1` = shout
      - `2` = thought
      - `3` = trembling
-     - `4` = tail only
+     - `4` = tail_only
 
 ### `op 94` — SetBoxNormal()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
@@ -2593,7 +2593,7 @@ Switch the message box to the normal style (style 0). Stays until another box-st
 ### `op 95` — SetBoxShout()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 
-Switch the message box to the shout style (style 1): a jagged box; the box and screen shake for 10 frames with a flash. Stays until another box-style op or the box closes.
+Switch the message box to the shout style (style 1): a jagged box, and the whole screen shakes when it appears (seen in game). Stays until another box-style op or the box closes.
 
 ### `op 96` — SetBoxThought()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
@@ -2603,7 +2603,7 @@ Switch the message box to the thought style (style 2): a cloud box with a bubble
 ### `op 97` — SetBoxTrembling()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 
-Switch the message box to the trembling style (style 3): a wavy box with a 10-frame sideways shake. Stays until another box-style op or the box closes.
+Switch the message box to the trembling style (style 3): a wobbly box that shakes sideways when it appears (seen in game). Stays until another box-style op or the box closes.
 
 ### `op 98` — ShakeDialogueBox(frames)
 *handler:* `Script_VMOp_ShakeDialogueBox`
@@ -3045,8 +3045,8 @@ Args:
 Set the camera zoom (pull-back distance), either easing to it or snapping.
 
 Args:
-  0. zoom (stored as zoom - 1500; magnification = 1 + zoom/1800; 0..400 in the corpus (200 typical))
-  1. snap (0 = ease to the new distance, non-zero = jump to it)
+  0. zoom (larger = closer: 0 is the normal view, 200 noticeably closer, 400 close (seen in game); stored as zoom - 1500, magnification = 1 + zoom/1800) — verified in game
+  1. snap (0 = glide to the new distance at a steady 8 units per frame; non-zero = jump to it at once (both seen in game)) — verified in game
 
 ### `op 203` — SetCameraMapBounds(apply_zoom)
 *handler:* `Script_VMOp_ApplyCameraMapBoundsAndZoom`

@@ -4614,11 +4614,14 @@ def render_action(op, arg_strs):
         except (ValueError, IndexError, TypeError):
             return None                          # non-literal (expression) arg -> default
         if code == 104 or code <= 39:            # skill-based ('h', or a bare skill index)
+            if code != 104:
+                return "%s(Skill, %s)" % (mnemonic(op), skill_name(code))
             try:
-                sid = _lit_int(arg_strs[1]) if code == 104 else code
-            except (ValueError, IndexError, TypeError):
-                sid = code
-            return "%s(Skill, %s)" % (mnemonic(op), skill_name(sid))
+                return "%s(Skill, %s)" % (mnemonic(op), skill_name(_lit_int(arg_strs[1])))
+            except (ValueError, TypeError):      # a register / expression: show it as written
+                return "%s(Skill, %s)" % (mnemonic(op), arg_strs[1])
+            except IndexError:
+                return "%s(Skill, ?)" % mnemonic(op)
         return "%s(%s)" % (mnemonic(op), PLAYER_VAR_BY_CHARCODE.get(code, "code%d" % code))
     # Portrait / SetSpeaker ops (16..75): resolve face-frame + emote-id numerics to canonical
     # mood names (the character and side come from the opcode: op = 16 + 2*character + side). So

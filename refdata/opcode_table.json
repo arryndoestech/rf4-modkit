@@ -19726,10 +19726,44 @@
     {
      "name": "style",
      "type": "box style",
-     "values": "0 normal, 1 shout (jagged, shakes, flash), 2 thought (cloud, floats ~1 s), 3 trembling (wavy, sideways shake), 4 tail only (no box); 5-7 read unrelated art",
+     "values": "0 normal, 1 shout (jagged; the screen shakes), 2 thought (cloud), 3 trembling (wobbly; the box shakes), 4 tail only (no box, text only); 5 and 6 show only the name plate, 7 stray art (all seen in game)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetDialogueBoxStyle(s) + DIALOG for s = 0..7, screenshots; shake watched by the user",
+       "observed": "0 normal, 1 jagged + screen shake, 2 cloud, 3 wobbly + box shake, 4 no box (text only), 5 and 6 only the name plate (no box, no text), 7 stray art (a 'Casting' label and a box piece at the top right)"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "normal",
+       "text": "the normal box (a soft wave along the top)",
+       "human_verified": true
+      },
+      "1": {
+       "name": "shout",
+       "text": "a jagged, spiky box; the whole screen shakes when it appears",
+       "human_verified": true
+      },
+      "2": {
+       "name": "thought",
+       "text": "a cloud box (round bumps along the top)",
+       "human_verified": true
+      },
+      "3": {
+       "name": "trembling",
+       "text": "an uneven wobbly box; the box itself shakes sideways when it appears",
+       "human_verified": true
+      },
+      "4": {
+       "name": "tail_only",
+       "text": "no box: only the text, floating higher up",
+       "human_verified": true
+      }
+     }
     }
    ],
    "optional_args_from": null,
@@ -19738,7 +19772,7 @@
    "description": "Set the message-box style for the following lines: normal, shout, thought, trembling or tail-only. The general form of the fixed box-style ops 94-97 and the only way to get style 4.",
    "details": "Passes arg0 (default: uninitialised byte when argc is 0) to Dialogue_SetSpeakerEmoteAndRetargetPortrait (+0x234E20): dialogue task +160 = style (window art talk_win<n>, tail talk_hige<n>), clears +161/+167, Dialogue_SetTimingState (+0x238350) arms the shake/float effect. Lasts until changed or the box closes. Returns 0.",
    "side_effects": "dialogue task +160/+161/+167",
-   "evidence": "RF4S.exe+0x2031D0 -> +0x234E20; corpus: 74 uses, values 4 (37x), 2 (29x), 0, 1.",
+   "evidence": "RF4S.exe+0x2031D0 -> +0x234E20; corpus: 74 uses, values 4 (37x), 2 (29x), 0, 1. In-game test 2026-10-02 (user): SetDialogueBoxStyle(s) + DIALOG for s = 0..7, screenshots; shake watched by the user -> 0 normal, 1 jagged + screen shake, 2 cloud, 3 wobbly + box shake, 4 no box (text only), 5 and 6 only the name plate (no box, no text), 7 stray art (a 'Casting' label and a box piece at the top right).",
    "alias_of": null,
    "handler": "ScriptVMOp_SetDialogueSpeakerEmoteByArg",
    "handler_rva": "0x2031D0",
@@ -19755,7 +19789,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 52,
     "pc": "0x0B30",
@@ -19784,7 +19818,7 @@
    "description": "Switch the message box to the normal style (style 0). Stays until another box-style op or the box closes.",
    "details": "Style 0 = opcode - 94. Dialogue_SetSpeakerEmoteAndRetargetPortrait (+0x234E20) stores the style at dialogue task +160; Dialogue_RetargetPortraitAndBubble (+0x2380B0) shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState (+0x238350) adds the effect. Lasts until changed or the box closes. The tail points at the side of the last speaker cue and only shows while a portrait for a named character is up on that side (DialogueBox_TickStateMachine +0x235BF0).",
    "side_effects": "dialogue task +160 (box style)",
-   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 2385 uses, always argc 0, placed right before the DIALOG line it styles.",
+   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 2385 uses, always argc 0, placed right before the DIALOG line it styles. In-game test 2026-10-02 (user): SetBoxNormal() + DIALOG (compared with SetDialogueBoxStyle(0)) -> the normal box -- the same as SetDialogueBoxStyle(0).",
    "alias_of": null,
    "handler": "ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode",
    "handler_rva": "0x203230",
@@ -19805,7 +19839,7 @@
    "confidence": "high",
    "notes": "Ops 94-97 share one handler and differ by an opcode-dependent value (style = opcode - 94), so they are not aliases; op 93 takes the style as an argument.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 98,
     "pc": "0x01DA",
@@ -19831,10 +19865,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Switch the message box to the shout style (style 1): a jagged box; the box and screen shake for 10 frames with a flash. Stays until another box-style op or the box closes.",
+   "description": "Switch the message box to the shout style (style 1): a jagged box, and the whole screen shakes when it appears (seen in game). Stays until another box-style op or the box closes.",
    "details": "Style 1 = opcode - 94. Dialogue_SetSpeakerEmoteAndRetargetPortrait (+0x234E20) stores the style at dialogue task +160; Dialogue_RetargetPortraitAndBubble (+0x2380B0) shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState (+0x238350) adds the effect. Lasts until changed or the box closes. The tail points at the side of the last speaker cue and only shows while a portrait for a named character is up on that side (DialogueBox_TickStateMachine +0x235BF0).",
    "side_effects": "dialogue task +160 (box style)",
-   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 2400 uses, always argc 0, placed right before the DIALOG line it styles.",
+   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 2400 uses, always argc 0, placed right before the DIALOG line it styles. In-game test 2026-10-02 (user): SetBoxShout() + DIALOG (compared with SetDialogueBoxStyle(1)) -> the jagged box; the whole screen shook -- the same as SetDialogueBoxStyle(1).",
    "alias_of": null,
    "handler": "ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode",
    "handler_rva": "0x203230",
@@ -19855,7 +19889,7 @@
    "confidence": "high",
    "notes": "Ops 94-97 share one handler and differ by an opcode-dependent value (style = opcode - 94), so they are not aliases; op 93 takes the style as an argument.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 461,
     "pc": "0x01C0",
@@ -19884,7 +19918,7 @@
    "description": "Switch the message box to the thought style (style 2): a cloud box with a bubble-trail tail that floats for about a second (does not delay the line). Stays until another box-style op or the box closes.",
    "details": "Style 2 = opcode - 94. Dialogue_SetSpeakerEmoteAndRetargetPortrait (+0x234E20) stores the style at dialogue task +160; Dialogue_RetargetPortraitAndBubble (+0x2380B0) shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState (+0x238350) adds the effect. Lasts until changed or the box closes. The tail points at the side of the last speaker cue and only shows while a portrait for a named character is up on that side (DialogueBox_TickStateMachine +0x235BF0).",
    "side_effects": "dialogue task +160 (box style)",
-   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 1129 uses, always argc 0, placed right before the DIALOG line it styles.",
+   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 1129 uses, always argc 0, placed right before the DIALOG line it styles. In-game test 2026-10-02 (user): SetBoxThought() + DIALOG (compared with SetDialogueBoxStyle(2)) -> the cloud box -- the same as SetDialogueBoxStyle(2).",
    "alias_of": null,
    "handler": "ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode",
    "handler_rva": "0x203230",
@@ -19905,7 +19939,7 @@
    "confidence": "high",
    "notes": "Ops 94-97 share one handler and differ by an opcode-dependent value (style = opcode - 94), so they are not aliases; op 93 takes the style as an argument.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 792,
     "pc": "0x017A",
@@ -19931,10 +19965,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Switch the message box to the trembling style (style 3): a wavy box with a 10-frame sideways shake. Stays until another box-style op or the box closes.",
+   "description": "Switch the message box to the trembling style (style 3): a wobbly box that shakes sideways when it appears (seen in game). Stays until another box-style op or the box closes.",
    "details": "Style 3 = opcode - 94. Dialogue_SetSpeakerEmoteAndRetargetPortrait (+0x234E20) stores the style at dialogue task +160; Dialogue_RetargetPortraitAndBubble (+0x2380B0) shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState (+0x238350) adds the effect. Lasts until changed or the box closes. The tail points at the side of the last speaker cue and only shows while a portrait for a named character is up on that side (DialogueBox_TickStateMachine +0x235BF0).",
    "side_effects": "dialogue task +160 (box style)",
-   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 635 uses, always argc 0, placed right before the DIALOG line it styles.",
+   "evidence": "RF4S.exe+0x203230: `Dialogue_SetSpeakerEmoteAndRetargetPortrait((u8)host[260] - 94); return 0;` (host+260 = current opcode); corpus 635 uses, always argc 0, placed right before the DIALOG line it styles. In-game test 2026-10-02 (user): SetBoxTrembling() + DIALOG (compared with SetDialogueBoxStyle(3)) -> the wobbly box; the box shook sideways -- the same as SetDialogueBoxStyle(3).",
    "alias_of": null,
    "handler": "ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode",
    "handler_rva": "0x203230",
@@ -19955,7 +19989,7 @@
    "confidence": "high",
    "notes": "Ops 94-97 share one handler and differ by an opcode-dependent value (style = opcode - 94), so they are not aliases; op 93 takes the style as an argument.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 194,
     "pc": "0x034C",
@@ -27024,18 +27058,32 @@
     {
      "name": "zoom",
      "type": "camera distance",
-     "values": "stored as zoom - 1500; magnification = 1 + zoom/1800; 0..400 in the corpus (200 typical)",
+     "values": "larger = closer: 0 is the normal view, 200 noticeably closer, 400 close (seen in game); stored as zoom - 1500, magnification = 1 + zoom/1800",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetCameraZoom(400, 1), (0, 1), (200, 0), then SetCameraMapBounds(0), screenshots in the Dragon Room",
+       "observed": "400 zoomed in clearly (the player larger), 0 was the normal wide view, 200 in between (after the ease), SetCameraMapBounds(0) went back to the normal view: a larger zoom = closer"
+      }
+     ]
     },
     {
      "name": "snap",
      "type": "0/1",
-     "values": "0 = ease to the new distance, non-zero = jump to it",
+     "values": "0 = glide to the new distance at a steady 8 units per frame; non-zero = jump to it at once (both seen in game)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetCameraZoom(400, 0) then SetCameraZoom(0, 1); the camera distance (player camera struct +64 current, +68 target) read from memory every 10 ms",
+       "observed": "snap 0: the target became -1100 at once and the current distance followed it by 8 units per frame (a steady ~0.8 s glide from -1500); snap 1: current and target both jumped to -1500 at once"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -27044,7 +27092,7 @@
    "description": "Set the camera zoom (pull-back distance), either easing to it or snapping.",
    "details": "snap != 0 -> Camera_SetDistanceAndZoomFactor((float)zoom) (+0x9D0B0; writes current +64 and target +68, recomputes g_cameraDistanceZoomFactor); snap == 0 -> player camera struct +68 = zoom - 1500 (target only, eases). Also sets host+116 |= 0x40000.",
    "side_effects": "camera distance",
-   "evidence": "RF4S.exe+0x20C220; corpus 56 uses (200 x22, 300, 150, 180; snap 1 x35).",
+   "evidence": "RF4S.exe+0x20C220; corpus 56 uses (200 x22, 300, 150, 180; snap 1 x35). In-game test 2026-10-02 (user): SetCameraZoom(400, 1), (0, 1), (200, 0), then SetCameraMapBounds(0), screenshots in the Dragon Room -> 400 zoomed in clearly (the player larger), 0 was the normal wide view, 200 in between (after the ease), SetCameraMapBounds(0) went back to the normal view: a larger zoom = closer. In-game test 2026-10-02 (user): SetCameraZoom(400, 0) then SetCameraZoom(0, 1); the camera distance (player camera struct +64 current, +68 target) read from memory every 10 ms -> snap 0: the target became -1100 at once and the current distance followed it by 8 units per frame (a steady ~0.8 s glide from -1500); snap 1: current and target both jumped to -1500 at once.",
    "alias_of": null,
    "handler": "Script_VMOp_SetCameraZoom",
    "handler_rva": "0x20C220",
@@ -27061,7 +27109,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 475,
     "pc": "0x02EE",
@@ -39393,8 +39441,15 @@
      "type": "screen y (pixels)",
      "values": "0 = default (110); corpus 50",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "no effect on the normal speaker box (seen in game 2026-10-02); which layout uses it is still open",
+     "human_verified": false,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetDialogueBoxY(50 / 200 / 0), each before a newly opened normal speaker box (SetSpeaker(MC) + DIALOG)",
+       "observed": "no change: every box sat at the normal height. The code applies it only to box layouts with a fixed Y; the one shipped use is in the opening, after a black screen, before any speaker line"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
