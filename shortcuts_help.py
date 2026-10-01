@@ -86,7 +86,7 @@ SHORTCUTS = [
         ("Script view (click a line first)", [
             ("Up / Down, Page Up / Page Down, Home / End", "move between lines"),
             ("Enter, or double-click a line", "edit it in the Inspector"),
-            ("Insert", "add an instruction after the selected line"),
+            ("Insert", "add an instruction after (or, chosen in the window, before) the selected line"),
             ("Delete", "delete the selected line"),
             ("F9", "set / remove a breakpoint for the script debugger"),
             ("Ctrl+C", "copy the line's text"),

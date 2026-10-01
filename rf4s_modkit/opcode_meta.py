@@ -1922,17 +1922,17 @@ _M.update({
           "toggle. NOTE: distinct from op 660 SetActorStatusFlag (a different handler that toggles "
           "the plain status bit 0x20, or 0x10000 for char 239, with NO stat recompute).",
           ["char id (0=player, <48=NPC, >=48=event)", "on (0=clear, else set)"]),
-    653: ("ClearShopSelectionA", "item",
-          "Reset shop selection slot A to 'none' (writes the no-selection sentinel into the current "
-          "shop task's work buffer). Takes no arguments.",
+    653: ("ShowLumberCounter", "screen",
+          "Make the lumber counter in the screen corner slide in and show the player's current "
+          "amount (sets the popup's last shown amount to -1). Takes no arguments.",
           []),
-    654: ("ClearShopSelectionB", "item",
-          "Reset shop selection slot B to 'none' (no-selection sentinel in the shop work buffer). "
-          "Takes no arguments.",
+    654: ("ShowStoneCounter", "screen",
+          "Make the material stone counter in the screen corner slide in and show the player's "
+          "current amount (sets the popup's last shown amount to -1). Takes no arguments.",
           []),
-    655: ("ClearShopSelectionC", "item",
-          "Reset shop selection slot C to 'none' (no-selection sentinel in the shop work buffer). "
-          "Takes no arguments.",
+    655: ("ShowPrincePointsCounter", "screen",
+          "Make the Prince Points counter in the screen corner slide in and show the player's "
+          "current amount (sets the popup's last shown amount to -1). Takes no arguments.",
           []),
 })
 

@@ -718,7 +718,8 @@ file opened with *Open rf3.mc…* is saved back where it was opened. *Save … a
 anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
 **Adding instructions without typing them.** Right-click in the script (or the Insert key): *Add
-instruction after or before* the selected one. It opens a list of every instruction
+instruction…*; the window inserts it after the selected one, or before it (a choice in the window,
+back to "after" once inserted). It opens a list of every instruction
 by category, searchable, with ✓ on the ones verified in game. Picking one shows its description and
 a form with one field per argument. Characters, maps, items, flags and named values are pickers.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,

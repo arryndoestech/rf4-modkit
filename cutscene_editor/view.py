@@ -68,7 +68,7 @@ class ScriptView(ttk.Frame):
         t.bind("<End>", lambda _e: self.move(10 ** 6))
         t.bind("<Return>", lambda _e: (app.focus_editor(), "break")[1])
         t.bind("<Delete>", lambda _e: (app.delete_selected(), "break")[1])
-        t.bind("<Insert>", lambda _e: (app.ask_insert_instruction(False), "break")[1])
+        t.bind("<Insert>", lambda _e: (app.ask_insert_instruction(), "break")[1])
         t.bind("<F9>", lambda _e: (app.toggle_breakpoint(), "break")[1])
         t.bind("<Button-3>", self._context_menu)
         t.bind("<Motion>", self._motion)
@@ -174,10 +174,9 @@ class ScriptView(ttk.Frame):
         m = tk.Menu(self.text, tearoff=False)
         has = app.sel is not None
         st = "normal" if has else "disabled"
-        m.add_command(label="Add instruction after…  (Insert)", state=st,
-                      command=lambda: app.ask_insert_instruction(False))
-        m.add_command(label="Add instruction before…", state=st,
-                      command=lambda: app.ask_insert_instruction(True))
+        # one entry: the instruction window has its own "after / before it" choice
+        m.add_command(label="Add instruction…  (Insert)", state=st,
+                      command=lambda: app.ask_insert_instruction())
         m.add_separator()
         m.add_command(label="Copy line  (Ctrl+C)", state=st, command=self.copy_row)
         m.add_command(label="Delete  (Del)", state=st, command=app.delete_selected)

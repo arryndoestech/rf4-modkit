@@ -7,13 +7,13 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 ## Contents
 
 - [Dialogue & portraits](#dialogue--portraits) (107 ops)
-- [Camera / screen](#camera--screen) (32 ops)
+- [Camera / screen](#camera--screen) (35 ops)
 - [Actors & player](#actors--player) (183 ops)
 - [Companions & party](#companions--party) (28 ops)
 - [Flags & variables](#flags--variables) (36 ops)
 - [Audio](#audio) (12 ops)
 - [Time & calendar](#time--calendar) (18 ops)
-- [Items, rewards, economy](#items-rewards-economy) (51 ops)
+- [Items, rewards, economy](#items-rewards-economy) (48 ops)
 - [Effects & world](#effects--world) (18 ops)
 - [Quests](#quests) (42 ops)
 - [Scene flow / control](#scene-flow--control) (23 ops)
@@ -1541,7 +1541,7 @@ Args:
 ### `op 610` — SetChoiceVisibleMask(choice visible...)
 *handler:* `Script_VMOp_SetSceneChoiceVisibleMaskFromArgs`
 
-Choose which options of the next choice menu are shown: one flag per option. The picked visible row is reported in reg0 as the option's original index. reg0 = 1 if any option is visible.
+Choose which options the next choice menu shows: one flag per option (arg i non-zero shows option i). Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.
 
 Args:
   0. choice visible... (arg i non-zero shows option i of the next PROMPT_CHOICE (i < 32; higher args wrap))
@@ -1549,7 +1549,7 @@ Args:
 ### `op 611` — ClearChoiceVisibleRange(start, count)
 *handler:* `Script_VMOp_ClearSceneChoiceVisibleMaskRange`
 
-Hide a run of choice options (start .. start+count-1) in the next choice prompt's visibility mask. reg0 = 1 if any option is still visible.
+Hide a run of options (start .. start+count-1) in the next choice menu's visibility mask. Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.
 
 Args:
   0. start (first option to hide (dword 0 only: 0..31))
@@ -1558,7 +1558,7 @@ Args:
 ### `op 612` — SetChoiceVisibleBit(index, visible)
 *handler:* `Script_VMOp_ToggleSceneChoiceVisibleBit`
 
-Show or hide one option of the next choice prompt. reg0 = 1 if any option is visible. The prompt shows only flagged options, returns the picked option's original index in reg0 and then clears the mask.
+Show or hide one option of the next choice menu (sets / clears its bit in the visibility mask). Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.
 
 Args:
   0. index (0..127 (>= 128 lands in dword 3))
@@ -1881,6 +1881,21 @@ Args:
 *handler:* `Script_VMOp_QueryActiveItemPickupIcon`
 
 Wait until the staff-credits roll started by ShowStaffCredits (op 617) has finished.
+
+### `op 653` — ShowLumberCounter()
+*handler:* `Script_VMOp_ShowLumberCounter`
+
+Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
+
+### `op 654` — ShowStoneCounter()
+*handler:* `Script_VMOp_ShowStoneCounter`
+
+Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
+
+### `op 655` — ShowPrincePointsCounter()
+*handler:* `Script_VMOp_ShowPrincePointsCounter`
+
+Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
 
 ### `op 656` — SetMapScrollSpeedX(speed, snap)
 *handler:* `Script_VMOp_SetMapUvScrollSpeedXTarget`
@@ -7861,21 +7876,6 @@ Args:
 
 Raise the Prince rank for every tourist threshold reached (up to rank 5) and pay out the rank-up gold. reg0 = promoted?, reg1 = new rank, reg2 = gold reward.
 
-### `op 653` — ClearShopSelectionA()
-*handler:* `Script_VMOp_ClearShopSelectedSlotIdxA`
-
-Reset shop menu selection slot A to 'nothing selected'.
-
-### `op 654` — ClearShopSelectionB()
-*handler:* `Script_VMOp_ClearShopSelectedSlotIdxB`
-
-Resets the second shop-menu selection slot to 'nothing selected'. Shop scenes call the A/B/C clears before opening a shop list.
-
-### `op 655` — ClearShopSelectionC()
-*handler:* `Script_VMOp_ClearShopSelectedSlotIdxC`
-
-Reset shop selection slot C to 'nothing selected'.
-
 ### `op 675` — ConvertMedalsToGold()
 *handler:* `Currency_ConvertMedalsToGold`
 
@@ -11398,8 +11398,8 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 643 | `ApplyPrinceOrder` | 644 | `GetPrinceOrderState` | 645 | `PromotePrinceRank` |
 | 646 | `GetPrinceRank` | 647 | `GetPrinceOrderCost` | 648 | `GetShippingCompletionPercent` |
 | 649 | `GetShippingBoxGold` | 650 | `GetLifetimeShippedGold` | 651 | `AdvanceStoryProgress` |
-| 652 | `GetPreviousMapId` | 653 | `ClearShopSelectionA` | 654 | `ClearShopSelectionB` |
-| 655 | `ClearShopSelectionC` | 656 | `SetMapScrollSpeedX` | 657 | `SetMapScrollSpeedY` |
+| 652 | `GetPreviousMapId` | 653 | `ShowLumberCounter` | 654 | `ShowStoneCounter` |
+| 655 | `ShowPrincePointsCounter` | 656 | `SetMapScrollSpeedX` | 657 | `SetMapScrollSpeedY` |
 | 658 | `GetSceneWordPair112` | 659 | `MyShopAction` | 660 | `SetActorInvulnerable` |
 | 661 | `SetActorStatFlagRecompute` | 662 | `SetActorControlBit4000` | 663 | `MakeActorUntameable` |
 | 664 | `SetActorUnlimitedSight` | 665 | `SetActorFacing` | 666 | `IsGameClearedSysFlagSet` |

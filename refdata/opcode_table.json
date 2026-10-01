@@ -28133,8 +28133,8 @@
      "    SetVar4(0, 3000)",
      "    SetVar5(0, 30)    ; <--",
      "    SetVar6(0, 25)",
-     "    ClearShopSelectionA()",
-     "    ClearShopSelectionB()"
+     "    ShowLumberCounter()",
+     "    ShowStoneCounter()"
     ]
    }
   },
@@ -28250,8 +28250,8 @@
      "    SetVar4(0, 3000)",
      "    SetVar5(0, 30)",
      "    SetVar6(0, 25)    ; <--",
-     "    ClearShopSelectionA()",
-     "    ClearShopSelectionB()",
+     "    ShowLumberCounter()",
+     "    ShowStoneCounter()",
      "    EVAL (reg9 = 351)"
     ]
    }
@@ -44899,20 +44899,20 @@
   "653": {
    "op": 653,
    "op_hex": "0x28D",
-   "mnemonic": "ClearShopSelectionA",
-   "previous_mnemonic": null,
-   "category": "item",
-   "prototype": "ClearShopSelectionA()",
+   "mnemonic": "ShowLumberCounter",
+   "previous_mnemonic": "ClearShopSelectionA",
+   "category": "screen",
+   "prototype": "ShowLumberCounter()",
    "args": [],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Reset shop menu selection slot A to 'nothing selected'.",
-   "details": "g_fMenuTask->work_buffer dword[463] = -1 (no null check on g_fMenuTask).",
-   "side_effects": "menu work buffer",
-   "evidence": "RF4S.exe+0x21DBC0; corpus: 10 uses, with ClearShopSelectionB/C before the shop scripts set their prices.",
+   "description": "Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).",
+   "details": "RF4S.exe+0x21DBC0: g_fMenuTask->work_buffer +0x73C (the lumber popup's last shown amount) = -1. The only other user of that field is LumberHud_TickPopupSlideAndDigits (RF4S.exe+0xDC820). The popup's tick runs from f_menu_Update (RF4S.exe+0xDB920, the update function Trigger_f_menu +0xD57D0 installs; it gets the same +0xB0 work buffer). It compares the field with the current amount every frame; while they differ it slides the counter in from the right edge and counts the digits toward the amount, and stores the amount once the slide-in finishes. With nothing changing, it slides out again after 240-360 frames (about 4-6 s). -1 never equals a real amount, so the counter appears even though nothing changed. No null check on g_fMenuTask.",
+   "side_effects": "HUD: the lumber counter popup",
+   "evidence": "RF4S.exe+0x21DBC0 writes -1 to work buffer +0x73C; an exe scan for that displacement finds only this op and LumberHud_TickPopupSlideAndDigits (compares it with g_playerLumber). Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots).",
    "alias_of": null,
-   "handler": "Script_VMOp_ClearShopSelectedSlotIdxA",
+   "handler": "Script_VMOp_ShowLumberCounter",
    "handler_rva": "0x21DBC0",
    "shares_handler_with": [],
    "size": [
@@ -44924,9 +44924,9 @@
    "arg_counts": {
     "0": 10
    },
-   "confidence": "medium",
-   "notes": "What 'slot A' selects is from the IDB reading (selected shop slot index).",
-   "change_reason": null,
+   "confidence": "high",
+   "notes": "",
+   "change_reason": "2026-10-01: it is not a shop selection -- the field is the lumber HUD popup's last shown amount (exe scan of its readers).",
    "human_verified": false,
    "example": {
     "bank": 377,
@@ -44935,8 +44935,8 @@
      "    SetVar4(0, 3000)",
      "    SetVar5(0, 30)",
      "    SetVar6(0, 25)",
-     "    ClearShopSelectionA()    ; <--",
-     "    ClearShopSelectionB()",
+     "    ShowLumberCounter()    ; <--",
+     "    ShowStoneCounter()",
      "    EVAL (reg9 = 351)",
      "    CALL L_3b78"
     ]
@@ -44945,20 +44945,20 @@
   "654": {
    "op": 654,
    "op_hex": "0x28E",
-   "mnemonic": "ClearShopSelectionB",
-   "previous_mnemonic": null,
-   "category": "item",
-   "prototype": "ClearShopSelectionB()",
+   "mnemonic": "ShowStoneCounter",
+   "previous_mnemonic": "ClearShopSelectionB",
+   "category": "screen",
+   "prototype": "ShowStoneCounter()",
    "args": [],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Resets the second shop-menu selection slot to 'nothing selected'. Shop scenes call the A/B/C clears before opening a shop list.",
-   "details": "g_fMenuTask->work_buffer dword[465] = -1 (no null check on the menu task).",
-   "side_effects": "shop menu selection",
-   "evidence": "RF4S.exe+0x21DBE0: `*((u32*)g_fMenuTask->work_buffer + 465) = -1`; corpus: 10 uses, with ClearShopSelectionA/C before SetVar4/5/6 price lists.",
+   "description": "Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).",
+   "details": "RF4S.exe+0x21DBE0: g_fMenuTask->work_buffer +0x744 (the material stone popup's last shown amount) = -1. The only other user of that field is StoneHud_TickPopupSlideAndDigits (RF4S.exe+0xDD000). The popup's tick runs from f_menu_Update (RF4S.exe+0xDB920, the update function Trigger_f_menu +0xD57D0 installs; it gets the same +0xB0 work buffer). It compares the field with the current amount every frame; while they differ it slides the counter in from the right edge and counts the digits toward the amount, and stores the amount once the slide-in finishes. With nothing changing, it slides out again after 240-360 frames (about 4-6 s). -1 never equals a real amount, so the counter appears even though nothing changed. No null check on g_fMenuTask.",
+   "side_effects": "HUD: the material stone counter popup",
+   "evidence": "RF4S.exe+0x21DBE0 writes -1 to work buffer +0x744; an exe scan for that displacement finds this op and StoneHud_TickPopupSlideAndDigits (compares it with g_playerStone); the two other +0x744 hits are a byte of the player's mount state, another struct. Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots).",
    "alias_of": null,
-   "handler": "Script_VMOp_ClearShopSelectedSlotIdxB",
+   "handler": "Script_VMOp_ShowStoneCounter",
    "handler_rva": "0x21DBE0",
    "shares_handler_with": [],
    "size": [
@@ -44972,7 +44972,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-01: it is not a shop selection -- the field is the material stone HUD popup's last shown amount (exe scan of its readers).",
    "human_verified": false,
    "example": {
     "bank": 377,
@@ -44980,8 +44980,8 @@
     "lines": [
      "    SetVar5(0, 30)",
      "    SetVar6(0, 25)",
-     "    ClearShopSelectionA()",
-     "    ClearShopSelectionB()    ; <--",
+     "    ShowLumberCounter()",
+     "    ShowStoneCounter()    ; <--",
      "    EVAL (reg9 = 351)",
      "    CALL L_3b78",
      "    GetPrinceOrderState(24, 0)"
@@ -44991,20 +44991,20 @@
   "655": {
    "op": 655,
    "op_hex": "0x28F",
-   "mnemonic": "ClearShopSelectionC",
-   "previous_mnemonic": null,
-   "category": "item",
-   "prototype": "ClearShopSelectionC()",
+   "mnemonic": "ShowPrincePointsCounter",
+   "previous_mnemonic": "ClearShopSelectionC",
+   "category": "screen",
+   "prototype": "ShowPrincePointsCounter()",
    "args": [],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Reset shop selection slot C to 'nothing selected'.",
-   "details": "RF4S.exe+0x21DC00: g_fMenuTask->work_buffer dword[467] = -1 (no null check).",
-   "side_effects": "menu work dword 467",
-   "evidence": "RF4S.exe+0x21DC00; corpus: 3 uses, with ClearShopSelectionA/B before shop menus.",
+   "description": "Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).",
+   "details": "RF4S.exe+0x21DC00: g_fMenuTask->work_buffer +0x74C (the Prince Points popup's last shown amount) = -1. The only other user of that field is PrincePointsHud_TickCounterPopup (RF4S.exe+0xDD800). The popup's tick runs from f_menu_Update (RF4S.exe+0xDB920, the update function Trigger_f_menu +0xD57D0 installs; it gets the same +0xB0 work buffer). It compares the field with the current amount every frame; while they differ it slides the counter in from the right edge and counts the digits toward the amount, and stores the amount once the slide-in finishes. With nothing changing, it slides out again after 240-360 frames (about 4-6 s). -1 never equals a real amount, so the counter appears even though nothing changed. No null check on g_fMenuTask.",
+   "side_effects": "HUD: the Prince Points counter popup",
+   "evidence": "RF4S.exe+0x21DC00 writes -1 to work buffer +0x74C; an exe scan for that displacement finds only this op and PrincePointsHud_TickCounterPopup (compares it with the Prince Points in g_princePointMenuState). Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots).",
    "alias_of": null,
-   "handler": "Script_VMOp_ClearShopSelectedSlotIdxC",
+   "handler": "Script_VMOp_ShowPrincePointsCounter",
    "handler_rva": "0x21DC00",
    "shares_handler_with": [],
    "size": [
@@ -45018,7 +45018,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-01: it is not a shop selection -- the field is the Prince Points HUD popup's last shown amount (exe scan of its readers).",
    "human_verified": false,
    "example": {
     "bank": 10,
@@ -45027,9 +45027,9 @@
      "L_201e:",
      "    CALL L_0bf2",
      "L_2022:",
-     "    ClearShopSelectionC()    ; <--",
-     "    ClearShopSelectionA()",
-     "    ClearShopSelectionB()",
+     "    ShowPrincePointsCounter()    ; <--",
+     "    ShowLumberCounter()",
+     "    ShowStoneCounter()",
      "    SetVar4(0, 500)"
     ]
    }
