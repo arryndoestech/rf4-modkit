@@ -14070,6 +14070,73 @@ def _all_widgets(w):
         yield from _all_widgets(c)
 
 
+def test_statement_operands():
+    """View -> Operands (2026-10-01): every statement's operands as stored -- an action's
+    arguments as their expression bytes, a control op's fields -- shown in hex at the end of
+    its row, one colour per operand, in both views, named in the Alt explanation."""
+    print("statement operands (View -> Operands):")
+    from rf4s_modkit import script
+    mc = _first("rf3.mc")
+    if not mc:
+        _skip("statement operands", "rf3.mc not extracted"); return
+    c = script.Container(mc.read_bytes())
+    n = bad = 0
+    kinds = set()
+    for bk in c.banks[::20]:
+        seen = set()
+        for sc in script.disassemble_bank(bk):
+            for pc, st in sc.stmts.items():
+                if pc in seen:
+                    continue
+                seen.add(pc)
+                n += 1
+                ops = script.statement_operands(bk.data, st)
+                kinds.add(st.mnem if st.op >= 0xFFF0 else "action")
+                if st.op < 0xFFF0:
+                    ok = len(ops) == len(st.args) and all(
+                        script.disasm_expr(o, 0)[0] == script.disasm_expr(bk.data, a)[0]
+                        for (_l, o), a in zip(ops, st.args))
+                else:
+                    ex = [lab for lab, _o in ops if lab in ("value", "condition") or lab.startswith("weight")]
+                    ok = sum(len(o) for lab, o in ops if lab not in ex) + 2 * len(ex) == st.size - 2
+                bad += not ok
+    _check("operands: an action's arguments are exactly its expressions; a control op's fields fill the "
+           "statement (expressions counted by their 2-byte reference)",
+           n > 10000 and bad == 0 and {"action", "DIALOG", "BR_Z", "CALL", "EVAL"} <= kinds,
+           "%d statements, %d off, kinds %s" % (n, bad, sorted(kinds)[:6]))
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+    except Exception as e:
+        _skip("statement operands (editor)", "no tkinter: %s" % e); return
+    root = tk.Tk(); root.withdraw()
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda nm: (_first(nm).read_bytes() if _first(nm) else None))
+        sc = max((s for s in script.disassemble_bank(cx.doc.container.banks[48]) if s.ok), key=lambda s: len(s.stmts))
+        cx.show_bank(48, sc.entry_pc)
+        res = {}
+        for mode in ("story", "code"):
+            cx.mode.set(mode); cx.show_operands.set(True); cx._view_mode(); root.update()
+            rows = [r for r in cx.view.rows if r.st is not None and r.key and r.key[1] is None]
+            act = next(r for r in rows if r.st.op < 0xFFF0 and len(r.st.args) >= 2)
+            tags = [t for _s, t in act.segs if t and t.startswith("opd")]
+            hexs = "".join(s for s, t in act.segs if t and t.startswith("opd")).split()
+            want = [b for _l, o in script.statement_operands(cx.bank.data, act.st) for b in o]
+            res[mode] = (len(tags) == len(act.st.args) and len(set(tags)) == min(len(tags), 6)
+                         and [int(x, 16) for x in hexs] == want)
+        cx.show_operands.set(False); cx._view_mode(); root.update()
+        none = not any(t and t.startswith("opd") for r in cx.view.rows for _s, t in r.segs)
+        st = act.st
+        from cutscene_editor.render import SceneText
+        expl = SceneText(cx.doc, cx.bank, cx.scene).explain(st)
+        _check("both views end a statement's row with its operands, one colour each, the bytes as "
+               "stored; off again with the toggle; the Alt explanation names them",
+               res == {"story": True, "code": True} and none and "Operands (hex, as stored):" in expl
+               and "arg 0 = " in expl, str((res, none)))
+    finally:
+        root.destroy()
+
+
 def test_var_uses():
     """Variable xrefs (2026-10-01): every read / write of a named FLG_ / REG_ in every bank and
     in em.bin. `=` writes without reading, compound assignments read and write, everything
@@ -16021,7 +16088,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_statement_operands, test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

@@ -62,6 +62,7 @@ class CutsceneExplorer:
         self._fit_toolbar()
         self.view.mode, self.view.show_addr, self.view.show_ops, self.view.show_file_off = (
             self.mode.get(), self.addr.get(), self.show_ops.get(), self.file_offs.get())
+        self.view.show_operands = self.show_operands.get()
         if isinstance(parent, (tk.Tk, tk.Toplevel)):
             parent.protocol("WM_DELETE_WINDOW", self._on_close)
         self._share_with_maps()
@@ -257,6 +258,7 @@ class CutsceneExplorer:
         self.addr = tk.BooleanVar(value=bool(self._prefs.get("addresses", False)))
         self.show_ops = tk.BooleanVar(value=bool(self._prefs.get("opcodes", False)))
         self.file_offs = tk.BooleanVar(value=bool(self._prefs.get("file_offsets", False)))
+        self.show_operands = tk.BooleanVar(value=bool(self._prefs.get("operands", False)))
         vb = ttk.Menubutton(bar, text="View")
         vm = tk.Menu(vb, tearoff=False)
         vm.add_radiobutton(label="Story", value="story", variable=self.mode, command=self._view_mode)
@@ -265,6 +267,7 @@ class CutsceneExplorer:
         vm.add_checkbutton(label="Addresses", variable=self.addr, command=self._view_mode)
         vm.add_checkbutton(label="Opcodes", variable=self.show_ops, command=self._view_mode)
         vm.add_checkbutton(label="File offsets", variable=self.file_offs, command=self._view_mode)
+        vm.add_checkbutton(label="Operands", variable=self.show_operands, command=self._view_mode)
         vb["menu"] = vm
         vb.pack(side="left", padx=4)
         Tip(vb, "How the Script tab shows a scene. Story: readable -- who says what, actions in "
@@ -272,7 +275,9 @@ class CutsceneExplorer:
                 "Addresses: each statement's address in its bank. Opcodes: the raw opcode each "
                 "statement is stored as, in hex (control ops as 0xFFFC). File offsets: its byte "
                 "offset in rf3.mc (the bank's start + its address; with unsaved edits, where it "
-                "will be in the saved file). The columns show in both views.")
+                "will be in the saved file). Operands: each statement's operands as stored, in hex at the end "
+                "of its row, one colour per operand (an action's arguments are their expression bytes; "
+                "hold Alt over the row to see which is which). The columns show in both views.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
@@ -562,6 +567,7 @@ class CutsceneExplorer:
         self.view.show_addr = self.addr.get()
         self.view.show_ops = self.show_ops.get()
         self.view.show_file_off = self.file_offs.get()
+        self.view.show_operands = self.show_operands.get()
         self._save_prefs()
         self.view.render()
         self.source.refresh_gutter()                  # the Source tab's address column
@@ -645,7 +651,8 @@ class CutsceneExplorer:
             d.update({"locale": self.doc.locale, "pad_locales": bool(self.pad_locales.get()),
                       "mode": self.mode.get(), "addresses": bool(self.addr.get()),
                       "opcodes": bool(self.show_ops.get()),
-                      "file_offsets": bool(self.file_offs.get())})
+                      "file_offsets": bool(self.file_offs.get()),
+                      "operands": bool(self.show_operands.get())})
             gamepaths.set_setting(self.PREFS_KEY, d)
         except Exception:  # noqa: BLE001 -- a convenience only
             pass

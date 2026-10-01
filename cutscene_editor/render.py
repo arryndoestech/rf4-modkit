@@ -202,7 +202,37 @@ class SceneText:
         it is where the statement will be in the saved file)."""
         return ("%06x  " % (self.bank.file_off + pc), "addr")
 
-    def story_rows(self, show_addr=False, show_ops=False, show_file_off=False):
+    OPERAND_TAGS = 6                    # colours the operands cycle through (view.py: opd0..5)
+
+    def operand_segs(self, st):
+        """The statement's operands in hex, one colour each, for the end of its row:
+        '  │ 17 05 00 │ 02 1c 00 00 00 00'. [] when it has none (RET)."""
+        ops = script.statement_operands(self.bank.data, st)
+        if not ops:
+            return []
+        segs = [("   ", None)]
+        for i, (_label, data) in enumerate(ops):
+            segs.append(("│ ", "dim"))
+            segs.append((" ".join("%02x" % b for b in data) + " ", "opd%d" % (i % self.OPERAND_TAGS)))
+        return segs
+
+    def operand_legend(self, st):
+        """'arg 0 = 17 05 00' lines naming each operand (the Alt-hover explanation)."""
+        return ["%s = %s" % (label, " ".join("%02x" % b for b in data) or "(none)")
+                for label, data in script.statement_operands(self.bank.data, st)]
+
+    @staticmethod
+    def add_operands(rows, segs_of):
+        """Append each statement's operands to its first row (key (pc, None))."""
+        done = set()
+        for r in rows:
+            k = r.key
+            if r.st is not None and k is not None and k[1] is None and k[0] not in done:
+                done.add(k[0])
+                r.segs = list(r.segs) + segs_of(r.st)
+        return rows
+
+    def story_rows(self, show_addr=False, show_ops=False, show_file_off=False, show_operands=False):
         sc = self.scene
         rows = []
 
@@ -237,6 +267,8 @@ class SceneText:
                 if pc in self.labels:                   # selectable: add beats at the label
                     rows.append(Row([("%s:" % self.labels[pc], "lbl")], (pc, "label"), st))
                 speaker = self._story_stmt(rows, pc, st, addr, speaker)
+        if show_operands:
+            self.add_operands(rows, self.operand_segs)
         return rows
 
     def _story_stmt(self, rows, pc, st, addr, speaker):
@@ -435,6 +467,7 @@ class SceneText:
                    "  line id = %d  (rf3mc.<locale>)" % st.dialog_id]
             if t:
                 out.append('    "%s"' % t.replace("\n", " "))
+            out += ["", "operand (hex, as stored): " + "; ".join(self.operand_legend(st))]
             return "\n".join(out)
         if st.op >= 0xFFF0:
             out = [CONTROL_PROTOS.get(st.mnem, st.mnem + "()"), "", script.control_tooltip(st.mnem) or ""]
@@ -461,6 +494,9 @@ class SceneText:
             tg = [self.target(t) for t in st.code_targets if t is not None]
             if tg:
                 out += ["", "targets: " + ", ".join(tg)]
+            leg = self.operand_legend(st)
+            if leg:
+                out += ["", "operands (hex, as stored):"] + ["    " + x for x in leg]
             return "\n".join(out)
         op = st.op
         out = [script.opcode_prototype(op), "", script.opcode_describe(op) or ""]
@@ -486,6 +522,9 @@ class SceneText:
         if nm:
             out += ["", "Event Manager entry: %s" % nm]
         out += ["", "op %d · %s" % (op, script.opcode_name(op))]
+        leg = self.operand_legend(st)
+        if leg:
+            out += ["", "Operands (hex, as stored):"] + ["  " + x for x in leg]
         return "\n".join(out)
 
     def arg_name(self, op, i, value=None):

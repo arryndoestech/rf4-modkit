@@ -16,7 +16,10 @@ from .render import Row, SceneText
 BG, FG = "#15151b", "#dcdce4"
 TAGS = {"addr": "#5c5c6a", "opc": "#7f8fa6", "hdr": "#ffd479", "hdrv": "#c9b27a", "lbl": "#ffb454",
         "dlg": "#e8e8ef", "act": "#8fb7d9", "flow": "#f0a868", "cond": "#e08fd0",
-        "dim": "#7c7c8a", "emf": "#7fd6a0", "warn": "#e06060", "narr": "#b0b0bc"}
+        "dim": "#7c7c8a", "emf": "#7fd6a0", "warn": "#e06060", "narr": "#b0b0bc",
+        # View -> Operands: one colour per operand, cycling (render.SceneText.operand_segs)
+        "opd0": "#ff9e64", "opd1": "#7dcfff", "opd2": "#c3e88d", "opd3": "#f7768e",
+        "opd4": "#bb9af7", "opd5": "#e0c070"}
 
 
 class ScriptView(ttk.Frame):
@@ -27,6 +30,7 @@ class ScriptView(ttk.Frame):
         self.show_addr = False
         self.show_ops = False
         self.show_file_off = False          # each statement's offset in rf3.mc, both views
+        self.show_operands = False          # each statement's operands in hex, one colour each
         sb = ttk.Scrollbar(self)
         sb.pack(side="right", fill="y")
         self.text = tk.Text(self, wrap="word", font=("Segoe UI", 10), bg=BG, fg=FG,
@@ -37,6 +41,8 @@ class ScriptView(ttk.Frame):
         sb.config(command=self.text.yview)
         for tag, col in TAGS.items():
             self.text.tag_configure(tag, foreground=col)
+        for i in range(SceneText.OPERAND_TAGS):          # operand hex: fixed width in both views
+            self.text.tag_configure("opd%d" % i, font=("Consolas", 9))
         self.text.tag_configure("hdr", font=("Segoe UI", 9, "bold"))
         self.text.tag_configure("lbl", font=("Consolas", 10, "bold"), spacing1=6)
         self.text.tag_configure("code", font=("Consolas", 10))
@@ -107,7 +113,7 @@ class ScriptView(ttk.Frame):
             t.config(state="disabled")
             return
         st_text = SceneText(app.doc, bank, sc)
-        rows = (st_text.story_rows(self.show_addr, self.show_ops, self.show_file_off) if self.mode == "story"
+        rows = (st_text.story_rows(self.show_addr, self.show_ops, self.show_file_off, self.show_operands) if self.mode == "story"
                 else self._code_rows(st_text))
         for n, row in enumerate(rows, 1):
             for s, tag in row.segs:
@@ -171,6 +177,8 @@ class ScriptView(ttk.Frame):
                 rows.append(Row(foff + [("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops + addr +
                                 [(line, "dlg" if st.mnem == "DIALOG" else "act")],
                                 (pc, None), st))
+        if self.show_operands:
+            st_text.add_operands(rows, st_text.operand_segs)
         return rows
 
     def _spk_tag(self, color, bold=True):

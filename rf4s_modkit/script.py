@@ -1061,6 +1061,55 @@ def decode_statement(buf, pc):
     return None
 
 
+def statement_operands(buf, st):
+    """[(label, bytes)] -- the operands of statement `st` as stored: for an action, each
+    argument's expression bytes (the statement holds only their offsets); for a control op,
+    its fields in order (a branch target, a line id, a choice count, its targets and line
+    ids ...) with a condition / value given as its expression bytes."""
+    pc = st.pc
+
+    def word(off, n=2):
+        return bytes(buf[off:off + n])
+
+    def expr(off):
+        if off is None or not 0 <= off < len(buf):
+            return b""
+        _t, size = disasm_expr(buf, off)
+        return bytes(buf[off:off + size])
+    if st.op < 0xFFF0:
+        return [("arg %d" % i, expr(off)) for i, off in enumerate(st.args)]
+    m, er, tg = st.mnem, list(st.expr_refs or []), list(st.code_targets or [])
+    if m in ("EVAL", "RET_NZ"):
+        return [("value" if m == "EVAL" else "condition", expr(er[0] if er else None))]
+    if m == "DIALOG":
+        return [("line id", word(pc + 2, 4))]
+    if m in ("BR_Z", "BR_NZ"):
+        return [("condition", expr(er[0] if er else None)), ("target", word(pc + 4))]
+    if m == "FRAME":
+        return [("slots", word(pc + 2))]
+    if m in ("CALL", "JMP"):
+        return [("target", word(pc + 2))]
+    if m in ("SWITCH", "SWITCH_CLAMP"):
+        return ([("value", expr(er[0] if er else None)), ("count", word(pc + 4))]
+                + [("case %d" % k, word(pc + 6 + 2 * k)) for k in range(len(tg))])
+    if m == "JMP_RAND":
+        return [("count", word(pc + 2))] + [("target %d" % k, word(pc + 4 + 2 * k)) for k in range(len(tg))]
+    if m == "JMP_WEIGHTED":
+        n = len(tg)
+        return ([("count", word(pc + 2))] + [("target %d" % k, word(pc + 4 + 2 * k)) for k in range(n)]
+                + [("weight %d" % k, expr(er[k] if k < len(er) else None)) for k in range(n)])
+    if m in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+        n = len(st.items or [])
+        nt = n + 1 if m == "PROMPT_CHOICE" else n
+        items_off = pc + 2 * n + (6 if m == "PROMPT_CHOICE" else 4)
+        out = [("count", word(pc + 2))]
+        out += [("cancel" if (m == "PROMPT_CHOICE" and k == 0) else
+                 "target %d" % (k - (1 if m == "PROMPT_CHOICE" else 0)), word(pc + 4 + 2 * k)) for k in range(nt)]
+        out += [("option %d line" % k, word(items_off + 4 * k, 4)) for k in range(n)]
+        return out
+    return []                                          # RET and other operand-less ops
+
+
 # ---- container ---------------------------------------------------------------------
 def _listing_of(specs):
     """Listing text for `specs` (listing text is the only statement format)."""

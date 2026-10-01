@@ -621,9 +621,12 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
   **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly. Both are in the
-  toolbar's **View** menu, with three columns: *Addresses* (each statement's address in its bank),
-  *Opcodes* (the raw opcode) and *File offsets* (its byte offset in `rf3.mc`, hex; with unsaved
-  edits, where it will be in the saved file). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
+  toolbar's **View** menu, with four columns: *Addresses* (each statement's address in its bank),
+  *Opcodes* (the raw opcode), *File offsets* (its byte offset in `rf3.mc`, hex; with unsaved
+  edits, where it will be in the saved file) and *Operands* (its operands as stored, in hex at the
+  end of the row, one colour per operand: an action's arguments are their expression bytes, e.g.
+  `03 0e 00 00 00` = actor 14, `1a 86 02 00` = 646; a control op's targets, line ids, counts and
+  conditions; Alt-hover names each one). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Several lines:** Ctrl+A selects all, Shift+click / Shift+arrows a range, Ctrl+click adds or
   removes one; Ctrl+C copies them and Delete deletes them as one undo step (statements that end
   a path -- RET, JMP, a menu's jump table -- are kept). **Hold Alt over a line** for the full explanation (prototype, every argument
