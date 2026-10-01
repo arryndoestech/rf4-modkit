@@ -3003,15 +3003,15 @@ Args:
 Shake the screen for a number of frames. A running shake is only replaced by an equal or stronger kind; kind 0 stops it.
 
 Args:
-  0. kind (0 = stop; 1 light 12-step, 2 medium 12-step signed, 3 short 4-step, 4 long 22-step, 5 = 4 at 2x amplitude, 6 rotational (needs a radius the script cannot set, ends at once))
-     - `0` = Stop
-     - `1` = Light jitter
-     - `2` = Medium jitter
-     - `3` = Short sharp jitter
-     - `4` = Long jitter
-     - `5` = Heavy jitter
-     - `6` = Rotational rumble
-  1. duration (0 = no limit (runs until ShakeCamera(0, 0) or a new shake))
+  0. kind (0 stop; 1 light up-and-down, 2 up-and-down, 3 bigger up-and-down, 4 a sideways semicircle sway, 5 a strong shake in all directions, 6 nothing; 7 and above nothing visible, but WaitForPlayerEffect still waits the duration (all seen in game). A running shake is only replaced by an equal or stronger kind) — verified in game
+     - `0` = stop
+     - `1` = vertical_light
+     - `2` = vertical
+     - `3` = vertical_big
+     - `4` = arc
+     - `5` = strong
+     - `6` = rotational
+  1. duration (frames (60 = 1 s; seen in game); 0 = no limit, until ShakeCamera(0, 0) or a stronger shake) — verified in game
 
 ### `op 199` — SetCameraTargetActor(actor, speed)
 *handler:* `Script_VMOp_SetCameraTargetActor`
@@ -9340,21 +9340,20 @@ Releases the barn monster being talked to: it disappears with an effect and its 
 ### `op 446` — SetWeather(weather, seasonal)
 *handler:* `Script_Action_SetWeather`
 
-Change the weather (e.g. make it rain for a scene, or clear it). If a dialogue box is open it is closed first and the op waits a frame.
+Change the weather for a scene (rain, snow, typhoon, Rooneys ...) or put it back with -1. If a dialogue box is open it is closed first and the op waits a frame. With the second argument non-zero the first is a daily-weather roll, not a weather code (1 then means cloudy, not rain).
 
 Args:
-  0. weather (0 Sunny, 1 Rain, 2 Snow, 3 Typhoon, 4 Blizzard, 5 Cloudy, 6 Rooney, 7 light rain, 8 light snow; -1 = restore the code saved by this script host)
-     - `-1` = (restore previous)
-     - `0` = Sunny
-     - `1` = Rain
-     - `2` = Snow
-     - `3` = Typhoon
-     - `4` = Blizzard
-     - `5` = Cloudy
-     - `6` = Rooney
-     - `7` = Rain (weak)
-     - `8` = Snow (weak)
-  1. seasonal (non-zero = let the seasonal promoter adjust the code (e.g. rain -> snow in winter))
+  0. weather (with seasonal 0: 0 sunny, 1 rain, 2 snow, 3 typhoon, 4 blizzard, 5 cloudy, 6 Rooney (floating Rooneys), 7 light rain, 8 light snow (all seen in game); 9 and above: nothing falling (seen for 9, 10); -1 = put back the weather from before this script's first SetWeather (seen). With seasonal non-zero the number is a daily-weather ROLL instead, see seasonal) — verified in game
+     - `0` = sunny
+     - `1` = rain
+     - `2` = snow
+     - `3` = typhoon
+     - `4` = blizzard
+     - `5` = cloudy
+     - `6` = rooney
+     - `7` = light_rain
+     - `8` = light_snow
+  1. seasonal (0 = arg 0 is the weather code. Non-zero = arg 0 is a daily-weather roll that Weather_PromoteRollToWeatherCode (RF4S.exe+0x19D4F0) turns into a code, with a 50 % chance value: 0 sunny, 1 cloudy, 2 rain (1/64 light rain), 3 typhoon, 4 Rooney (rolls 0-4 seen in game), 5-7 chance between sunny / cloudy / rain; then winter turns rain into snow and a typhoon into a blizzard, and late autumn (day > 20) gives rain a 25 % chance of snow) — verified in game
 
 ### `op 448` — SetWeatherTransition(on)
 *handler:* `Script_Action_SetWeatherTransitionFlag`

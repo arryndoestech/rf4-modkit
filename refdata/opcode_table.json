@@ -26764,18 +26764,69 @@
     {
      "name": "kind",
      "type": "jitter kind",
-     "values": "0 = stop; 1 light 12-step, 2 medium 12-step signed, 3 short 4-step, 4 long 22-step, 5 = 4 at 2x amplitude, 6 rotational (needs a radius the script cannot set, ends at once)",
+     "values": "0 stop; 1 light up-and-down, 2 up-and-down, 3 bigger up-and-down, 4 a sideways semicircle sway, 5 a strong shake in all directions, 6 nothing; 7 and above nothing visible, but WaitForPlayerEffect still waits the duration (all seen in game). A running shake is only replaced by an equal or stronger kind",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "ShakeCamera(k, 60) + WaitForPlayerEffect for k = 1..6; ShakeCamera(2, 0) stopped after 3 s by ShakeCamera(0, 0); ShakeCamera(4, 0) then ShakeCamera(1, 30) after 1 s; ShakeCamera(1, 240) + WaitForPlayerEffect (gaps timed)",
+       "observed": "1-3 shook up and down (1 lightest, 3 biggest), 4 swayed right-left in a semicircle, 5 shook strongly in all directions, 6 did nothing (gap 0 s vs ~0.95 s for 1-5); duration 0 shook until ShakeCamera(0, 0) (3 s); a weaker kind 1 did not replace a running kind 4; 240 frames held WaitForPlayerEffect ~4 s (the next box came when the shake ended)"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "stop",
+       "text": "stops the shake",
+       "human_verified": true
+      },
+      "1": {
+       "name": "vertical_light",
+       "text": "a light up-and-down shake (the lightest)",
+       "human_verified": true
+      },
+      "2": {
+       "name": "vertical",
+       "text": "an up-and-down shake, stronger than 1",
+       "human_verified": true
+      },
+      "3": {
+       "name": "vertical_big",
+       "text": "an up-and-down shake, the biggest of 1-3",
+       "human_verified": true
+      },
+      "4": {
+       "name": "arc",
+       "text": "sways right-left-right in a semicircle",
+       "human_verified": true
+      },
+      "5": {
+       "name": "strong",
+       "text": "a strong shake in all directions",
+       "human_verified": true
+      },
+      "6": {
+       "name": "rotational",
+       "text": "does nothing: the rotation needs a radius a script cannot set, so it ends at once",
+       "human_verified": true
+      }
+     }
     },
     {
      "name": "duration",
      "type": "frames",
-     "values": "0 = no limit (runs until ShakeCamera(0, 0) or a new shake)",
+     "values": "frames (60 = 1 s; seen in game); 0 = no limit, until ShakeCamera(0, 0) or a stronger shake",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "ShakeCamera(k, 60) + WaitForPlayerEffect for k = 1..6; ShakeCamera(2, 0) stopped after 3 s by ShakeCamera(0, 0); ShakeCamera(4, 0) then ShakeCamera(1, 30) after 1 s; ShakeCamera(1, 240) + WaitForPlayerEffect (gaps timed)",
+       "observed": "1-3 shook up and down (1 lightest, 3 biggest), 4 swayed right-left in a semicircle, 5 shook strongly in all directions, 6 did nothing (gap 0 s vs ~0.95 s for 1-5); duration 0 shook until ShakeCamera(0, 0) (3 s); a weaker kind 1 did not replace a running kind 4; 240 frames held WaitForPlayerEffect ~4 s (the next box came when the shake ended)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -26784,7 +26835,7 @@
    "description": "Shake the screen for a number of frames. A running shake is only replaced by an equal or stronger kind; kind 0 stops it.",
    "details": "host+116 |= 0x40000; PlayerEffect_RequestJitterByKind(kind, frames) (+0x244DF0): spawns the effect task if needed; kind 0 zeroes the work buffer; else if kind >= current kind: work[16] = kind, [22] = max frames, [24] = 0, [18] = active. PlayerEffect_TickJitterByKind ends the effect when frame counter >= max frames (never when max is 0).",
    "side_effects": "spawns/updates the player-effect task",
-   "evidence": "RF4S.exe+0x20BF20 -> +0x244DF0; tick function PlayerEffect_TickJitterByKind (switch on kind-1, tables at +0x4DE1C0 / +0x4CFEA0 / +0x4DAC18, kind 6 uses the radius at work+0 which RequestJitter never sets); corpus: 329 uses, kinds 3/4/2/5, durations 12/16/8/0/60.",
+   "evidence": "RF4S.exe+0x20BF20 -> +0x244DF0; tick function PlayerEffect_TickJitterByKind (switch on kind-1, tables at +0x4DE1C0 / +0x4CFEA0 / +0x4DAC18, kind 6 uses the radius at work+0 which RequestJitter never sets); corpus: 329 uses, kinds 3/4/2/5, durations 12/16/8/0/60. In-game test 2026-10-02 (user): ShakeCamera(k, 60) + WaitForPlayerEffect for k = 1..6; ShakeCamera(2, 0) stopped after 3 s by ShakeCamera(0, 0); ShakeCamera(4, 0) then ShakeCamera(1, 30) after 1 s; ShakeCamera(1, 240) + WaitForPlayerEffect (gaps timed) -> 1-3 shook up and down (1 lightest, 3 biggest), 4 swayed right-left in a semicircle, 5 shook strongly in all directions, 6 did nothing (gap 0 s vs ~0.95 s for 1-5); duration 0 shook until ShakeCamera(0, 0) (3 s); a weaker kind 1 did not replace a running kind 4; 240 frames held WaitForPlayerEffect ~4 s (the next box came when the shake ended). In-game test 2026-10-02 (user): ShakeCamera(7, 60) and ShakeCamera(8, 60) + WaitForPlayerEffect (gaps timed) -> no visible shake (user), but the next box came ~0.95 s later like kinds 1-5: an invisible 60-frame effect that WaitForPlayerEffect still waits out.",
    "alias_of": null,
    "handler": "Script_OpRequestCameraJitterEffect",
    "handler_rva": "0x20BF20",
@@ -26801,7 +26852,7 @@
    "confidence": "high",
    "notes": "Duration 0 (27 corpus uses) keeps shaking until a later ShakeCamera(0, ...) or a stronger request.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 1080,
     "pc": "0x01D6",
@@ -26830,7 +26881,7 @@
    "description": "Wait until the running screen-shake / player effect task ends. In the shipped scripts it always follows ShakeCamera.",
    "details": "RF4S.exe+0x20BFD0: host+116 |= 0x40000; returns g_currentPlayerEffectTask && work_buffer != 0.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x20BFD0; corpus: 15 uses, no args, always after ShakeCamera(n, frames).",
+   "evidence": "RF4S.exe+0x20BFD0; corpus: 15 uses, no args, always after ShakeCamera(n, frames). In-game test 2026-10-02 (user): ShakeCamera(k, 60) + WaitForPlayerEffect for k = 1..6; ShakeCamera(2, 0) stopped after 3 s by ShakeCamera(0, 0); ShakeCamera(4, 0) then ShakeCamera(1, 30) after 1 s; ShakeCamera(1, 240) + WaitForPlayerEffect (gaps timed) -> after ShakeCamera(k, 60) the script waited ~1 s, after ShakeCamera(1, 240) ~4 s, after ShakeCamera(6, ...) not at all, and right after ShakeCamera(0, 0) not at all: it waits until the shake ends.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerEffectActive",
    "handler_rva": "0x20BFD0",
@@ -26847,7 +26898,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 589,
     "pc": "0x0158",
@@ -41380,27 +41431,88 @@
     {
      "name": "weather",
      "type": "weather code",
-     "values": "0 Sunny, 1 Rain, 2 Snow, 3 Typhoon, 4 Blizzard, 5 Cloudy, 6 Rooney, 7 light rain, 8 light snow; -1 = restore the code saved by this script host",
+     "values": "with seasonal 0: 0 sunny, 1 rain, 2 snow, 3 typhoon, 4 blizzard, 5 cloudy, 6 Rooney (floating Rooneys), 7 light rain, 8 light snow (all seen in game); 9 and above: nothing falling (seen for 9, 10); -1 = put back the weather from before this script's first SetWeather (seen). With seasonal non-zero the number is a daily-weather ROLL instead, see seasonal",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetWeather(w, 0) for w = 0..8, SetWeather(1, 1), SetWeather(-1, 0) on Selphia: Airship Way (autumn), screenshots",
+       "observed": "0 clear, 1 rain, 2 snow, 3 heavy slanted rain, 4 heavy snow, 5 nothing falling, 6 floating Rooneys, 7 faint rain, 8 a few flakes; SetWeather(1, 1) gave no rain (roll 1 = cloudy, see the seasonal argument); -1 brought back the weather from before the test"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "sunny",
+       "text": "clear",
+       "human_verified": true
+      },
+      "1": {
+       "name": "rain",
+       "text": "rain streaks",
+       "human_verified": true
+      },
+      "2": {
+       "name": "snow",
+       "text": "snowflakes",
+       "human_verified": true
+      },
+      "3": {
+       "name": "typhoon",
+       "text": "heavy slanted rain",
+       "human_verified": true
+      },
+      "4": {
+       "name": "blizzard",
+       "text": "heavy snow",
+       "human_verified": true
+      },
+      "5": {
+       "name": "cloudy",
+       "text": "no rain or snow",
+       "human_verified": true
+      },
+      "6": {
+       "name": "rooney",
+       "text": "floating Rooneys",
+       "human_verified": true
+      },
+      "7": {
+       "name": "light_rain",
+       "text": "a few faint streaks",
+       "human_verified": true
+      },
+      "8": {
+       "name": "light_snow",
+       "text": "a few flakes",
+       "human_verified": true
+      }
+     }
     },
     {
      "name": "seasonal",
      "type": "flag",
-     "values": "non-zero = let the seasonal promoter adjust the code (e.g. rain -> snow in winter)",
+     "values": "0 = arg 0 is the weather code. Non-zero = arg 0 is a daily-weather roll that Weather_PromoteRollToWeatherCode (RF4S.exe+0x19D4F0) turns into a code, with a 50 % chance value: 0 sunny, 1 cloudy, 2 rain (1/64 light rain), 3 typhoon, 4 Rooney (rolls 0-4 seen in game), 5-7 chance between sunny / cloudy / rain; then winter turns rain into snow and a typhoon into a blizzard, and late autumn (day > 20) gives rain a 25 % chance of snow",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetWeather(w, 0) for w = 0..8, SetWeather(1, 1), SetWeather(-1, 0) on Selphia: Airship Way (autumn), screenshots",
+       "observed": "0 clear, 1 rain, 2 snow, 3 heavy slanted rain, 4 heavy snow, 5 nothing falling, 6 floating Rooneys, 7 faint rain, 8 a few flakes; SetWeather(1, 1) gave no rain (roll 1 = cloudy, see the seasonal argument); -1 brought back the weather from before the test"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "while a dialogue / scripted event / effect belt is active (closes the dialogue first)",
-   "description": "Change the weather (e.g. make it rain for a scene, or clear it). If a dialogue box is open it is closed first and the op waits a frame.",
+   "description": "Change the weather for a scene (rain, snow, typhoon, Rooneys ...) or put it back with -1. If a dialogue box is open it is closed first and the op waits a frame. With the second argument non-zero the first is a daily-weather roll, not a weather code (1 then means cloudy, not rain).",
    "details": "While g_currentDialogueTaskPtr, g_activeScriptedEventState or the effect-belt word is set: closes the dialogue (state 6 -> 7), tears down both portraits (host+88/+96, host+108 = -1, host+304 = 0) and returns 1. Otherwise: scene controller +116 = 1; weather work bytes set; weather -1 -> code = host+240, else host+240 = current code; prev (+104) = current; weather_code = code; code 0 clears the transition byte; seasonal != 0 -> data_8[64] = 50, data_8[60] = code, Weather_PromoteRollToWeatherCode (+0x19D4F0).",
    "side_effects": "weather; closes the dialogue box and portraits",
-   "evidence": "RF4S.exe+0x21A810; corpus: 47 uses, 0 (37x), -1, 1, 2; seasonal 0 (34x) / 1 (12x).",
+   "evidence": "RF4S.exe+0x21A810; corpus: 47 uses, 0 (37x), -1, 1, 2; seasonal 0 (34x) / 1 (12x). In-game test 2026-10-02 (user): SetWeather(w, 0) for w = 0..8, SetWeather(1, 1), SetWeather(-1, 0) on Selphia: Airship Way (autumn), screenshots -> 0 clear, 1 rain, 2 snow, 3 heavy slanted rain, 4 heavy snow, 5 nothing falling, 6 floating Rooneys, 7 faint rain, 8 a few flakes; SetWeather(1, 1) gave no rain (roll 1 = cloudy, see the seasonal argument); -1 brought back the weather from before the test. In-game test 2026-10-02 (user): SetWeather(r, 1) for rolls 0, 2, 3, 4; SetWeather(9, 0), SetWeather(10, 0); SetWeather(-1, 0) on Airship Way (autumn night) -> roll 0 clear, roll 2 rain, roll 3 heavy slanted rain (typhoon), roll 4 floating Rooneys; codes 9 and 10 showed nothing falling (no effect of their own); -1 restored the earlier weather.",
    "alias_of": null,
    "handler": "Script_Action_SetWeather",
    "handler_rva": "0x21A810",
@@ -41417,7 +41529,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 380,
     "pc": "0x07BA",
