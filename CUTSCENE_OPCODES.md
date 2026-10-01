@@ -8765,16 +8765,16 @@ Args:
 ### `op 325` — GetLumber()
 *handler:* `Script_VMOp_GetPlayerLumber`
 
-Get the player's lumber count. reg0 = lumber.
+Get the player's lumber count. reg0 = lumber (seen in game). GetPlayerVariable has no lumber code; this is the only way to read it.
 
 ### `op 326` — ModifyLumber(mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerLumber`
 
-Add to, subtract from or set the player's lumber. The operation is chosen by the kind of the first argument (null = add, zero = subtract, self = set).
+Add to, subtract from or set the player's lumber. The mode is add / sub / set (a plain number does nothing). Add caps at 50,000, subtract stops at 0, but set caps at 9,999 (all seen in game). Lumber has its own ops; GetPlayerVariable / ModifyPlayerResource have no lumber code.
 
 Args:
-  0. mode (the operation comes from the argument's KIND, not its value: null leaf (listed 'null', kind 4) = add (cap 50000), zero leaf (listed '0', token 0x12, kind 5) = subtract (floor 0), self leaf (listed 'self', kind 6) = set (cap 9999); a plain number (kind 0) does nothing)
-  1. amount
+  0. mode (the operation comes from the argument's KIND, not its value: null leaf (listed 'null', kind 4) = add (cap 50000), zero leaf (listed '0', token 0x12, kind 5) = subtract (floor 0), self leaf (listed 'self', kind 6) = set (cap 9999); a plain number (kind 0) does nothing) — verified in game
+  1. amount — verified in game
 
 ### `op 417` — ModifyPlayerResource(resource, mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerResourceByCharCodeOp`

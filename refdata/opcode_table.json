@@ -34452,10 +34452,10 @@
    "optional_args_from": null,
    "returns": "reg0 = lumber",
    "blocking": "no",
-   "description": "Get the player's lumber count. reg0 = lumber.",
+   "description": "Get the player's lumber count. reg0 = lumber (seen in game). GetPlayerVariable has no lumber code; this is the only way to read it.",
    "details": "reg0 = g_playerLumber.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204080; corpus 8 uses, in building-cost checks next to GetPlayerVariable(100/105).",
+   "evidence": "RF4S.exe+0x204080; corpus 8 uses, in building-cost checks next to GetPlayerVariable(100/105). In-game test 2026-10-02 (user): GetLumber after each of ModifyLumber(add, 10) / (sub, 10) / (set, 777) / (set, 20000) / (add, 99999) / (sub, 99999) / (1, 100) / restore -> read the user's lumber (50000) and every change above.",
    "alias_of": null,
    "handler": "Script_VMOp_GetPlayerLumber",
    "handler_rva": "0x204080",
@@ -34472,7 +34472,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 377,
     "pc": "0x0158",
@@ -34501,7 +34501,14 @@
      "values": "the operation comes from the argument's KIND, not its value: null leaf (listed 'null', kind 4) = add (cap 50000), zero leaf (listed '0', token 0x12, kind 5) = subtract (floor 0), self leaf (listed 'self', kind 6) = set (cap 9999); a plain number (kind 0) does nothing",
      "required_kind": "mode",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetLumber after each of ModifyLumber(add, 10) / (sub, 10) / (set, 777) / (set, 20000) / (add, 99999) / (sub, 99999) / (1, 100) / restore",
+       "observed": "50000 (the user's lumber, at the cap) -> 50000 (add held at the cap) -> 49990 -> 777 -> 9999 (set caps at 9,999) -> 50000 (add caps at 50,000) -> 0 (sub stops at 0) -> 0 (a plain number as the mode does nothing) -> restored 50000"
+      }
+     ]
     },
     {
      "name": "amount",
@@ -34509,16 +34516,23 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetLumber after each of ModifyLumber(add, 10) / (sub, 10) / (set, 777) / (set, 20000) / (add, 99999) / (sub, 99999) / (1, 100) / restore",
+       "observed": "50000 (the user's lumber, at the cap) -> 50000 (add held at the cap) -> 49990 -> 777 -> 9999 (set caps at 9,999) -> 50000 (add caps at 50,000) -> 0 (sub stops at 0) -> 0 (a plain number as the mode does nothing) -> restored 50000"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Add to, subtract from or set the player's lumber. The operation is chosen by the kind of the first argument (null = add, zero = subtract, self = set).",
+   "description": "Add to, subtract from or set the player's lumber. The mode is add / sub / set (a plain number does nothing). Add caps at 50,000, subtract stops at 0, but set caps at 9,999 (all seen in game). Lumber has its own ops; GetPlayerVariable / ModifyPlayerResource have no lumber code.",
    "details": "op = kind slot of arg0 (stack top-2): 4 -> lumber += amount (cap 50000); 5 -> lumber -= amount (0 if it would go negative); 6 -> lumber = min(amount, 9999); anything else -> no change.",
    "side_effects": "g_playerLumber",
-   "evidence": "RF4S.exe+0x2040A0; corpus 11 uses: 8 x ModifyLumber(0, reg2) where the '0' is the 0x12 zero leaf (bank 6 +0x3EE6: arg bytes `12 00` / `09 00` = zero leaf, reg2) = subtract the building cost, and 3 x (null, 9999/reg0) = add.",
+   "evidence": "RF4S.exe+0x2040A0; corpus 11 uses: 8 x ModifyLumber(0, reg2) where the '0' is the 0x12 zero leaf (bank 6 +0x3EE6: arg bytes `12 00` / `09 00` = zero leaf, reg2) = subtract the building cost, and 3 x (null, 9999/reg0) = add. In-game test 2026-10-02 (user): GetLumber after each of ModifyLumber(add, 10) / (sub, 10) / (set, 777) / (set, 20000) / (add, 99999) / (sub, 99999) / (1, 100) / restore -> 50000 (the user's lumber, at the cap) -> 50000 (add held at the cap) -> 49990 -> 777 -> 9999 (set caps at 9,999) -> 50000 (add caps at 50,000) -> 0 (sub stops at 0) -> 0 (a plain number as the mode does nothing) -> restored 50000.",
    "alias_of": null,
    "handler": "Script_VMOp_ModifyPlayerLumber",
    "handler_rva": "0x2040A0",
@@ -34535,7 +34549,7 @@
    "confidence": "high",
    "notes": "Listing trap for all mode ops: the zero leaf (token 0x12, kind 5 = subtract) prints as '0', indistinguishable from a literal 0 in the listing.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 210,
     "pc": "0x020A",
@@ -39627,7 +39641,7 @@
    "description": "Get a player value chosen by a letter code (gold, level, fodder, a skill level, stone, compost, best skill level). reg0 = the value.",
    "details": "'d' g_playerGold; 'f' player->stats->base_stats.level + 1; 'g' *(u16*)(g_farmMonsterMng+252); 'h' player->skills[skill].level; 'i' g_playerStone; 'j' g_playerCompost; 'k' max over the 40 skills; default code <= 39 -> skills[code].level. No bounds check on the 'h' skill index.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20D4B0; corpus 120 uses: 104 (79; skill 37 / 0 / 13...), 100 (24), 105 (8), 102 (4), 107 (3), 103, 106; lumber is read by GetLumber (op 325) instead. In-game test 2026-10-01 (user): GetPlayerVariable(102, 0) around ModifyPlayerResource(level, ...) -> read 138 (the player's level), 139 after +1, 50 after set 49: code 102 = the player's level (stored level + 1). In-game test 2026-10-01 (user): GetPlayerVariable(103, 0) around ModifyPlayerResource(fodder, ...) -> read 9987, 9997 after +10, 500 after set 500: code 103 = the fodder in the barn bin. In-game test 2026-10-01 (user): GetPlayerVariable(105, 0) around ModifyPlayerResource(stone, ...) -> read 50000, 49990 after -10, 777 after set 777: code 105 = the stone in storage. In-game test 2026-10-01 (user): GetPlayerVariable(106, 0) around ModifyPlayerResource(compost, ...) -> read 49973 (the user's compost), then each change: code 106 = the compost in storage. In-game test 2026-10-01 (user): GetPlayerVariable(100, 0); (104, 0/1/2); (0/1/2, 0); (107, 0); (200, 0) -> 100 -> 19311398 = the HUD's gold; 104 with skill 0/1/2 -> 52/14/24 = Short Sword / Long Sword / Spear in the skills menu; codes 0/1/2 directly -> the same 52/14/24; 107 -> 90 = the highest skill (Fire and Cooking are 90); 200 -> 0. Together with the earlier level / fodder / stone / compost reads every code group is seen.",
+   "evidence": "RF4S.exe+0x20D4B0; corpus 120 uses: 104 (79; skill 37 / 0 / 13...), 100 (24), 105 (8), 102 (4), 107 (3), 103, 106; lumber is read by GetLumber (op 325) instead. In-game test 2026-10-01 (user): GetPlayerVariable(102, 0) around ModifyPlayerResource(level, ...) -> read 138 (the player's level), 139 after +1, 50 after set 49: code 102 = the player's level (stored level + 1). In-game test 2026-10-01 (user): GetPlayerVariable(103, 0) around ModifyPlayerResource(fodder, ...) -> read 9987, 9997 after +10, 500 after set 500: code 103 = the fodder in the barn bin. In-game test 2026-10-01 (user): GetPlayerVariable(105, 0) around ModifyPlayerResource(stone, ...) -> read 50000, 49990 after -10, 777 after set 777: code 105 = the stone in storage. In-game test 2026-10-01 (user): GetPlayerVariable(106, 0) around ModifyPlayerResource(compost, ...) -> read 49973 (the user's compost), then each change: code 106 = the compost in storage. In-game test 2026-10-01 (user): GetPlayerVariable(100, 0); (104, 0/1/2); (0/1/2, 0); (107, 0); (200, 0) -> 100 -> 19311398 = the HUD's gold; 104 with skill 0/1/2 -> 52/14/24 = Short Sword / Long Sword / Spear in the skills menu; codes 0/1/2 directly -> the same 52/14/24; 107 -> 90 = the highest skill (Fire and Cooking are 90); 200 -> 0. Together with the earlier level / fodder / stone / compost reads every code group is seen. In-game test 2026-10-02 (user): GetPlayerVariable(101, 0) -> 0: code 101 ('e') has no case (lumber has GetLumber).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerStatByCharCode",
    "handler_rva": "0x20D4B0",
