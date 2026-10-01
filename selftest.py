@@ -3783,7 +3783,7 @@ def test_script():
     _check("opcode_meta: enum pickers wired + decode (item/char/room/skill/effect/shake/...)",
            _pickers >= 200 and om.enum_arg_label(423, 0, 258) == "Pineapple Juice"
            and om.enum_arg_label(644, 0, 29) == "Effect-applied flag"
-           and om.enum_arg_label(197, 0, 6) == "Rotational rumble",
+           and om.enum_arg_label(197, 0, 6) == "rotational",   # the in-game names (2026-10-02)
            f"{_pickers} picker slots")
     # accuracy guard: every enum picker must be wired to an arg index that actually exists on the
     # op (ai < label count). A picker on arg3 of a 3-arg op (indices 0-2) would silently never
@@ -4354,6 +4354,13 @@ def test_monster():
     m = monster.sheet(t, 48)
     _check("monster Orc(48) core stats",
            m["hp"] == 48 and m["model"] == 756 and m["ai_file"] == "AI_m00.bin")
+    # boss / guest AI scripts are not a plain AI_m{n} run (2026-10-02): ai 169 = archive 170
+    _amb = monster.sheet(t, 228)
+    _check("monster AI file names follow the archive table (Ambrosia's caterpillar ai 169 = AI_mb40_1.bin)",
+           _amb["ai_script"] == 169 and _amb["ai_file"] == "AI_mb40_1.bin"
+           and monster.sheet(t, 229)["ai_file"] == "AI_mb40_2.bin")
+    _check("rf3NpcParam +276 transform_into / +292 home_map (Ambrosia 228 -> 229, Yokmir Forest 271)",
+           t.row(228, "rf3NpcParam").get("transform_into") == 229 and t.row(48, "rf3NpcParam").get("home_map") == 271)
     # ATK = flat_atk + STR, MAT = flat_mat + INT, DEF/MDF = flat + VIT/2 (Actor_RecomputeAllStats)
     _check("monster Orc(48) ATK/DEF/MAT/MDF from flat + STR/INT/VIT",
            (m["atk"], m["def"], m["mat"], m["mdf"]) == (13, 4, 5, 4)

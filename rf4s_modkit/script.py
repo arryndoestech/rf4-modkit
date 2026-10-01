@@ -2629,6 +2629,12 @@ def _static_choice_mask(buf, stmts, idx, joins):
             break
         j -= 1
     known, touched = {}, False
+    # A menu pick clears the whole mask (SceneEvent_FinalizeAndPickFromBitmap RF4S.exe+0x1F49C0
+    # zeroes +244..+260), so when no path back from the start of this run sets a bit since the
+    # scene start or the previous menu, every bit the run leaves alone is 0: setting bits 0 and 2
+    # only hides option 1 (seen in game 2026-10-02).
+    if run and not _mask_set_on_a_path(stmts, j + 1):
+        known = {b: 0 for b in range(128)}
     by_pc = None
     for s in reversed(run):
         if s.mnem == "CALL":

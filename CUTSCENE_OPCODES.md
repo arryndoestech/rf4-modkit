@@ -80,17 +80,16 @@ Args:
 ### `op 10` — SetSpeakerVoice(name_id, blip)
 *handler:* `Script_VMOp_SetSpeakerVoice`
 
-Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers.
+Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers. It does not remove a portrait already on screen (seen in game): clear it first if the voice should speak alone.
 
 Args:
-  0. name_id (entry of the character-name archive (e.g. 21 Ventuswill, 236 Ethelwill, 392 '???', 738 Joyful Captain))
+  0. name_id (entry of the character-name archive (e.g. 21 Ventuswill, 236 Ethelwill, 392 '???', 738 Joyful Captain)) — verified in game
      - *(enum: 1000 values — use the in-editor picker or the id database)*
-  1. blip (0 = male, 1 = female, 2 = monster/animal, 3 = dragon, 4+ = the player's own blip)
-     - `0` = male blip
-     - `1` = female blip
-     - `2` = monster blip
-     - `3` = dragon blip
-     - `4` = player's blip
+  1. blip (0 = male, 1 = female, 2 = monster/animal, 3 = dragon, 4+ = the player's own blip) — verified in game
+     - `0` = male
+     - `1` = female
+     - `2` = monster
+     - `3` = dragon
 
 ### `op 11` — SetSpeakerNameVisible(visible)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
@@ -98,7 +97,7 @@ Args:
 Hides (0) or shows (non-zero) the speaker-name label for the following DIALOG lines. Authors wrap sound-effect lines such as "*MUNCH*" in SetSpeakerNameVisible(0) ... SetSpeakerNameVisible(1).
 
 Args:
-  0. visible (0 = hide the name label, non-zero = show it)
+  0. visible (0 = hide the name label, non-zero = show it) — verified in game
      - `0` = hide name
      - `1` = show name
 
@@ -2820,11 +2819,11 @@ Args:
 ### `op 612` — SetChoiceVisibleBit(index, visible)
 *handler:* `Script_VMOp_ToggleSceneChoiceVisibleBit`
 
-Show or hide one option of the next choice menu (sets / clears its bit in the visibility mask). Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.
+Show or hide one option of the next choice menu by setting / clearing its bit in the visibility mask. The mask only counts once a bit is set: then only the options with set bits show; while it is empty every option shows (seen in game). Careful: with an option hidden the menu jumps by visible position (the 2nd shown option takes the 2nd listed target), so shipped scripts send every option to one label and branch on reg0.
 
 Args:
-  0. index (0..127 (>= 128 lands in dword 3))
-  1. visible (non-zero shows the option, 0 hides it)
+  0. index (0..127 (>= 128 lands in dword 3)) — verified in game
+  1. visible (non-zero shows the option, 0 hides it) — verified in game
 
 ### `op 613` — CalcChoicePrescroll(option)
 *handler:* `Script_VMOp_CalcChoiceDialogPrescrollFromVisibleMask`
@@ -2848,7 +2847,7 @@ Args:
 Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu.
 
 Args:
-  0. value 1 (-> var bank 4 slot 0 while the row is highlighted)
+  0. value 1 (-> var bank 4 slot 0 while the row is highlighted) — verified in game
   1. value 2 (-> var bank 5 slot 0)
   2. value 3 (-> var bank 6 slot 0)
 
@@ -8208,8 +8207,8 @@ Args:
 Stores a value in script-variable bank 1 at the given slot. Scenes use slot 0 to hand a value (often an item or NPC id) to text substitution and to later scenes. ＠アイテムn＠ prints slot n as an item name.
 
 Args:
-  0. index (index >= 16 ignored)
-  1. value
+  0. index (index >= 16 ignored) — verified in game
+  1. value — verified in game
 
 ### `op 345` — SetVar11(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind11`
@@ -8226,8 +8225,8 @@ Args:
 Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
 
 Args:
-  0. index (out of range -> ignored)
-  1. value
+  0. index (out of range -> ignored) — verified in game
+  1. value — verified in game
 
 ### `op 348` — SetVar2(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind2`
@@ -8235,8 +8234,8 @@ Args:
 Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
 
 Args:
-  0. index (out of range -> ignored)
-  1. value
+  0. index (out of range -> ignored) — verified in game
+  1. value — verified in game
 
 ### `op 349` — SetVar3(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind3WithSaturation`
@@ -8414,7 +8413,7 @@ Args:
 Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.
 
 Args:
-  0. values... (reg0, reg1, ... reg9 in order (args past 10 ignored))
+  0. values... (reg0, reg1, ... reg9 in order (args past 10 ignored)) — verified in game
 
 ### `op 629` — SetRegisters(values...)
 *handler:* `Script_VMOp_ExportArgsAsCtxOutArray10`
@@ -8422,7 +8421,7 @@ Args:
 Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.
 
 Args:
-  0. values... (reg0, reg1, ... reg9 in order (args past 10 ignored))
+  0. values... (reg0, reg1, ... reg9 in order (args past 10 ignored)) — verified in game
 
 ### `op 651` — AdvanceStoryProgress(progress)
 *handler:* `Script_VMOp_AdvanceStoryProgressMax`
@@ -11598,22 +11597,22 @@ Reads the player's size records for a fish: reg0 = the biggest one caught, reg1 
 Args:
   0. fish
 
-### `op 434` — GetItemGoldValue(item)
-*handler:* `Script_VMOp_QueryItemBaseGoldValueQuality0`
+### `op 434` — GetItemSellPrice(item)
+*handler:* `Script_VMOp_QueryItemSellPrice`
 
-Put an item's base price (one unit, lowest level) into reg0, e.g. to show prices in a scripted menu.
+Get an item's sell price for one unit at level 1 (the 'Sell:' on the item screen) into reg0, e.g. to show prices in a scripted menu. Seen in game.
 
 Args:
-  0. item (0-1107)
+  0. item (0-1107) — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 435` — GetItemBuyPrice(item)
 *handler:* `Script_VMOp_QueryItemBuyPrice`
 
-Get an item's base shop buy price (item metadata +8). reg0 = price.
+Get an item's shop buy price (the 'Buy:' on the item screen) into reg0. Seen in game.
 
 Args:
-  0. item
+  0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 436` — IsItemStackable(item)
@@ -11643,10 +11642,10 @@ reg0 = 1 if the player has any item of the given category in the backpack (first
 Args:
   0. category (item-metadata byte +4 (corpus 32))
 
-### `op 440` — GetNpcParamField292(char)
-*handler:* `Script_VMOp_QueryNpcParamSpeciesByCharId`
+### `op 440` — GetMonsterHomeMap(char)
+*handler:* `Script_VMOp_GetMonsterHomeMap`
 
-Sets reg0 to a 16-bit value from the character's rf3NpcParam record (offset 292). It is 0 for villagers and 161-726 for monsters, shared by monster families; what it means is not known. The monster-hunt request scripts copy it into script variable bank 2 before the request text.
+Get a monster's home map from its rf3NpcParam record (offset 292) into reg0: the map hunting requests send the player to ('Go to ＠マップ０＠ and get rid of ...', via SetVar2). 0 for villagers.
 
 Args:
   0. char (no bounds check)
@@ -11762,7 +11761,7 @@ Args:
 Read the character id of a party member into reg0 (0 if the slot is empty).
 
 Args:
-  0. slot (0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player))
+  0. slot (0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player)) — verified in game
 
 ### `op 482` — GetPartyMemberId(slot)
 *handler:* `Script_VMOp_QueryPartyMemberDwordAt8`
@@ -11770,7 +11769,7 @@ Args:
 Read the character id of a party member into reg0 (0 if the slot is empty).
 
 Args:
-  0. slot (0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player))
+  0. slot (0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player)) — verified in game
 
 ### `op 487` — IsCurrentNpcInParty()
 *handler:* `Script_VMOp_QueryCurrentInteractionNpcInActiveParty`
@@ -12181,7 +12180,7 @@ Args:
 Roll a random integer from 0 to n-1 into reg0.
 
 Args:
-  0. n (exclusive upper bound; 0 gives 0)
+  0. n (exclusive upper bound; 0 gives 0) — verified in game
 
 ### `op 609` — RollRandomPointInRadiusAroundCenter(x, y, radius)
 *handler:* `Script_VMOp_RollRandomPointInRadiusAroundCenter`
@@ -12608,9 +12607,9 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 424 | `GivePlayerItem` | 425 | `ForcePlayerHoldItem` | 426 | `IsPlayerHoldingItem` |
 | 427 | `SetWeaponSkillsToLevel30` | 428 | `TakeItem` | 429 | `TakeItemFromBackpack` |
 | 430 | `ConsumeHeldItem` | 431 | `HasItem` | 432 | `GetSeedCropInfo` |
-| 433 | `GetFishSizeRecords` | 434 | `GetItemGoldValue` | 435 | `GetItemBuyPrice` |
+| 433 | `GetFishSizeRecords` | 434 | `GetItemSellPrice` | 435 | `GetItemBuyPrice` |
 | 436 | `IsItemStackable` | 437 | `IsItemInCategoryList` | 438 | `HasItemOfCategory` |
-| 439 | `ReleaseFarmMonster` | 440 | `GetNpcParamField292` | 441 | `IsConfirmButtonDown` |
+| 439 | `ReleaseFarmMonster` | 440 | `GetMonsterHomeMap` | 441 | `IsConfirmButtonDown` |
 | 442 | `IsStickInputActive` | 443 | `SetFlagBit` | 444 | `SetFlagBitIfCond` |
 | 445 | `GetFlagBit` | 446 | `SetWeather` | 447 | `GetWeather` |
 | 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` | 450 | `GetWeatherStreak` |

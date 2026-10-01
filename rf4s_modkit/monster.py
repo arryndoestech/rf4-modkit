@@ -57,8 +57,23 @@ def id_semantics(char_id: int) -> str:
     return "?"
 
 
+_AI_FILES = None
+
+
 def ai_file(ai_id: int) -> str:
-    """AI script id -> AIBN filename. The AIBN archive id = ai_id + 1 (Orc ai 0 -> AI_m00)."""
+    """AI script id -> AIBN filename. AI id n is archive n + 1 (Orc ai 0 -> AI_m00.bin), and the
+    archive names are not a plain AI_m{n} sequence: the boss and guest scripts sit in between
+    (Ambrosia's caterpillar, ai 169 -> AI_mb40_1.bin), so the name comes from
+    refdata/ai_files.json (the rom:/AI/ entries of the exe's archive path table, in order)."""
+    global _AI_FILES
+    if _AI_FILES is None:
+        try:
+            from .refdata import refdata_path as _rp
+            _AI_FILES = json.loads(pathlib.Path(_rp("ai_files.json")).read_text(encoding="utf-8"))["files"]
+        except Exception:  # noqa: BLE001 -- the table is optional
+            _AI_FILES = []
+    if 0 <= ai_id < len(_AI_FILES):
+        return _AI_FILES[ai_id]
     return f"AI_m{ai_id:02d}.bin"
 
 

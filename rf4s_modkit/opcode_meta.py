@@ -1812,13 +1812,13 @@ _M.update({
 # Decompiled + verified. Scripts use these to branch dialogue on what the player owns / an item's
 # stats. All resolve the item from g_itemDatabase and write results to the VM output(s).
 _M.update({
-    434: ("GetItemGoldValue", "query",
+    434: ("GetItemSellPrice", "query",
           "Read an item's base gold value — a single unit at quality 0 — into the VM output. arg0 "
           "= item id. Use it to show or compute a price in a scripted menu.",
           ["item id"]),
     435: ("GetItemBuyPrice", "query",
           "Read an item's base BUY price into the VM output (the metadata buy-price field, the "
-          "amount a shop charges before any modifier). arg0 = item id. Contrast GetItemGoldValue "
+          "amount a shop charges before any modifier). arg0 = item id. Contrast GetItemSellPrice "
           "(op 434), which is the SELL value.",
           ["item id"]),
     436: ("IsItemStackable", "query",

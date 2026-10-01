@@ -258,6 +258,16 @@ FIELD_SCHEMAS = {
             ("res_paralysis", 192, "s16"), ("res_sleep", 196, "s16"),
             ("res_fatigue", 200, "s16"), ("res_cold", 204, "s16"),
             ("res_faint", 208, "s16"), ("res_drain", 212, "s16"),
+            # +276: the form this monster transforms into (Raccoon 189 -> 221, Magnuto 220 <-> 221,
+            # Ambrosia 228 -> 229). Actor_RecomputeAllStats copies it to the actor (+0x224) but
+            # nothing reads it: the transforms themselves are AI scripted actions 0 / 2 / 11
+            # with the target id hard-coded (Ambrosia's caterpillar calls action 11 at <= 65 %
+            # HP, AI_mb40_1.bin). Informational: editing it changes nothing in game.
+            ("transform_into", 276, "u16"),
+            # +292: the monster's home map (Orc -> Yokmir Forest, Wooly -> Selphia Plain);
+            # op 440 GetMonsterHomeMap reads it for hunting requests ("Go to <map> and get
+            # rid of N <monster>"). 0 for villagers.
+            ("home_map", 292, "u16"),
         ],
     },
     "rf3CropParam": {

@@ -659,7 +659,14 @@
      "values": "entry of the character-name archive (e.g. 21 Ventuswill, 236 Ethelwill, 392 '???', 738 Joyful Captain)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetSpeakerVoice(738, 0) + DIALOG, SetSpeakerVoice(21, 3) + DIALOG (after SetSpeaker(MC, Left))",
+       "observed": "the name plate read 'Joyful Captain', then 'Ventuswill'; the MC's portrait from the earlier SetSpeaker stayed on screen (the op does not remove a portrait)"
+      }
+     ]
     },
     {
      "name": "blip",
@@ -667,16 +674,45 @@
      "values": "0 = male, 1 = female, 2 = monster/animal, 3 = dragon, 4+ = the player's own blip",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 1, 2, 3 (user listening)",
+       "observed": "0 a normal blip, 1 a high blip, 2 a slightly lower blip, 3 the dragon blip Ventuswill uses"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "male",
+       "text": "the normal text blip",
+       "human_verified": true
+      },
+      "1": {
+       "name": "female",
+       "text": "a high text blip",
+       "human_verified": true
+      },
+      "2": {
+       "name": "monster",
+       "text": "a slightly lower text blip",
+       "human_verified": true
+      },
+      "3": {
+       "name": "dragon",
+       "text": "the dragon blip (Ventuswill)",
+       "human_verified": true
+      }
+     }
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers.",
+   "description": "Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers. It does not remove a portrait already on screen (seen in game): clear it first if the voice should speak alone.",
    "details": "arg1 0..3 -> tick chime 16785916 (SE_WORDS_M) / 16785917 (SE_WORDS_F) / 16785918 (SE_WORDS_O) / 16785975 (SE_WORDS_D), written to entries[8] and the dialogue task's sfx slot (+36, pitch +40); >= 4 -> Dialogue_SetTickChimeSfxId with the player's blip (model 1217 male, 1233 female). If arg0 != host+108: Dialogue_LoadAndShowText(host+106, arg0, 2), clear name-hide bit, host+108 = arg0, g_lastDialogueEmoteId = 0.",
    "side_effects": "writes host+108, tick-chime sfx id",
-   "evidence": "RF4S.exe+0x20A240 (Script_VMOp_SetSpeakerVoice); corpus 857 uses, argc 2, arg0 15..999 (392, 21, 236 most common), arg1 0..3.",
+   "evidence": "RF4S.exe+0x20A240 (Script_VMOp_SetSpeakerVoice); corpus 857 uses, argc 2, arg0 15..999 (392, 21, 236 most common), arg1 0..3. In-game test 2026-10-02 (user): SetSpeakerVoice(738, 0) + DIALOG, SetSpeakerVoice(21, 3) + DIALOG (after SetSpeaker(MC, Left)) -> the name plate read 'Joyful Captain', then 'Ventuswill'; the MC's portrait from the earlier SetSpeaker stayed on screen (the op does not remove a portrait). In-game test 2026-10-02 (user): SetSpeakerVoice(738, b) + a long DIALOG for b = 0, 1, 2, 3 (user listening) -> 0 a normal blip, 1 a high blip, 2 a slightly lower blip, 3 the dragon blip Ventuswill uses.",
    "alias_of": null,
    "handler": "Script_VMOp_SetSpeakerVoice",
    "handler_rva": "0x20A240",
@@ -693,7 +729,7 @@
    "confidence": "high",
    "notes": "'Voice' means the typewriter blip; no voice acting is involved. SetSpeakerNameAndBlip would be more literal, kept the established name.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 408,
     "pc": "0x01CC",
@@ -722,7 +758,14 @@
      "values": "0 = hide the name label, non-zero = show it",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetSpeakerNameVisible(0) + DIALOG, then SetSpeakerNameVisible(1) + DIALOG",
+       "observed": "0 hid the name plate, 1 brought it back"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -731,7 +774,7 @@
    "description": "Hides (0) or shows (non-zero) the speaker-name label for the following DIALOG lines. Authors wrap sound-effect lines such as \"*MUNCH*\" in SetSpeakerNameVisible(0) ... SetSpeakerNameVisible(1).",
    "details": "Writes the dialogue flags dword g_gameGlobalsSlotTable.entries[4] bit 0 = (arg0 == 0) (bit set = name hidden). DialogueBox_SpawnBubbleAndSpeakerNameSprites and the line/text loaders copy that bit into the name sprite's hidden flag. Dialogue_LoadAndShowText (used by the SetSpeaker* cues) clears the bit on every load and sets it only for name id 0xFFFF, so a later speaker cue shows the name again.",
    "side_effects": "dialogue flags word bit 0",
-   "evidence": "RF4S.exe+0x20A4F0: `entries[4] = entries[4] & ~1 | (arg0 == 0)`; corpus: 1428 uses, values 0 (804) / 1 (624), pairs around '*MUNCH*', '*SQUEEZE*', '*GURGLE*' lines.",
+   "evidence": "RF4S.exe+0x20A4F0: `entries[4] = entries[4] & ~1 | (arg0 == 0)`; corpus: 1428 uses, values 0 (804) / 1 (624), pairs around '*MUNCH*', '*SQUEEZE*', '*GURGLE*' lines. In-game test 2026-10-02 (user): SetSpeakerNameVisible(0) + DIALOG, then SetSpeakerNameVisible(1) + DIALOG -> 0 hid the name plate, 1 brought it back.",
    "alias_of": null,
    "handler": "ScriptVMOp11_SetSceneStateBit0FromArg",
    "handler_rva": "0x20A4F0",
@@ -748,7 +791,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 414,
     "pc": "0x0138",
@@ -33631,7 +33674,7 @@
    "description": "Sets reg0 = 1 when the player character is Lest (male), 0 when Frey (female). Scripts branch on it for gendered lines, nicknames and animations.",
    "details": "reg0 = (player actor control_flags +568 & 0x8000000) != 0; 0 when there is no player or in state 0x401000. Bit 0x8000000 SET = Lest: Player_SetCharacterVariantLestOrFrey (RF4S.exe+0x166060) sets it on the arg != 0 path together with model 1217 and scale 4096 (Frey: model 1233, scale 3904, bit clear), op 400 then loads the default name entry 0 'Lest' of rf3TxtNpc for that path, the save writer stores the Frey byte as 0 when the bit is set (RF4S.exe+0x7DC8B), and the text code at RF4S.exe+0x233EDF picks 16369[620] 'Prince' when the bit is set, [621] 'Princess' otherwise.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204490: `v2 = !(flags & 0x401000) && g_playerActor && (g_playerActor->control_flags & 0x8000000); *(a2+64) = v2`; RF4S.exe+0x7DC8B: `test [r13+238h], 8000000h; mov g_saveBody_genderIsFrey, r14b; jnz; mov g_saveBody_genderIsFrey, 1`; corpus: 876 uses; bank 1: `BR_Z reg0 == 1` falls through to SetNpcNicknameForPlayer(tag3(1), 185 'Prince') and branches to (tag3(1), 99 'Princess') (rf3TxtHeroNickName.eng), i.e. reg0 = 1 is the male player.",
+   "evidence": "RF4S.exe+0x204490: `v2 = !(flags & 0x401000) && g_playerActor && (g_playerActor->control_flags & 0x8000000); *(a2+64) = v2`; RF4S.exe+0x7DC8B: `test [r13+238h], 8000000h; mov g_saveBody_genderIsFrey, r14b; jnz; mov g_saveBody_genderIsFrey, 1`; corpus: 876 uses; bank 1: `BR_Z reg0 == 1` falls through to SetNpcNicknameForPlayer(tag3(1), 185 'Prince') and branches to (tag3(1), 99 'Princess') (rf3TxtHeroNickName.eng), i.e. reg0 = 1 is the male player. In-game test 2026-10-02 (user): IsPlayerMale() with Frey -> reg0 = 0.",
    "alias_of": null,
    "handler": "Script_VMOp_GetPlayerIsFreyVariant",
    "handler_rva": "0x204490",
@@ -33648,7 +33691,7 @@
    "confidence": "high",
    "notes": "Older descriptions that read this op as 'IsFrey' (its old name) had the branches backwards.",
    "change_reason": "Polarity was inverted: bit 0x8000000 set means Lest, so reg0 = 1 for the male player (save writer, Prince/Princess text code and the corpus nickname branch all agree). Named to pair with op 400 SetPlayerMale.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 202,
     "pc": "0x0280",
@@ -35608,7 +35651,14 @@
      "values": "index >= 16 ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar1(0, 403) + SetVar3(0, 7) / (1, 3) + DIALOG #401 ('There's ＠アイテム０＠ x ＠０＠ ...')",
+       "observed": "the line read 'There's Poison Spear x 7 inside. I'll need at least 3 today.'"
+      }
+     ]
     },
     {
      "name": "value",
@@ -35616,7 +35666,14 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar1(0, 403) + SetVar3(0, 7) / (1, 3) + DIALOG #401 ('There's ＠アイテム０＠ x ＠０＠ ...')",
+       "observed": "the line read 'There's Poison Spear x 7 inside. I'll need at least 3 today.'"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35625,7 +35682,7 @@
    "description": "Stores a value in script-variable bank 1 at the given slot. Scenes use slot 0 to hand a value (often an item or NPC id) to text substitution and to later scenes. ＠アイテムn＠ prints slot n as an item name.",
    "details": "bank1 = Globals_LookupChoiceCommitStateSlotByKindId(1); if (bank && index < 16) bank[index] = value. No clamp. The script-variable banks are engine-global u32 arrays reached through Globals_LookupChoiceCommitStateSlotByKindId(kind) (RF4S.exe+0x234D10); they persist across scenes, are also written by the choice-commit system, and some banks are read by the dialogue text-substitution codes (Text_PostProcessControlCodes).",
    "side_effects": "script-variable bank 1",
-   "evidence": "RF4S.exe+0x208FB0: `mov ecx, 1; call Globals_LookupChoiceCommitStateSlotByKindId; cmp r9d, 10h; jnb; mov [rax+rcx*4], r10d` (+0x209027..+0x20903F); corpus: 1308 uses, index 0 in 789, values like 235/252/253 or reg0.",
+   "evidence": "RF4S.exe+0x208FB0: `mov ecx, 1; call Globals_LookupChoiceCommitStateSlotByKindId; cmp r9d, 10h; jnb; mov [rax+rcx*4], r10d` (+0x209027..+0x20903F); corpus: 1308 uses, index 0 in 789, values like 235/252/253 or reg0. In-game test 2026-10-02 (user): SetVar1(0, 403) + SetVar3(0, 7) / (1, 3) + DIALOG #401 ('There's ＠アイテム０＠ x ＠０＠ ...') -> the line read 'There's Poison Spear x 7 inside. I'll need at least 3 today.'.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind1",
    "handler_rva": "0x208FB0",
@@ -35642,7 +35699,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 416,
     "pc": "0x0138",
@@ -35816,7 +35873,14 @@
      "values": "out of range -> ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
+       "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      }
+     ]
     },
     {
      "name": "value",
@@ -35824,7 +35888,14 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
+       "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35833,7 +35904,7 @@
    "description": "Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.",
    "details": "bank = Lookup(2); if index <= 23: bank[index] = value. Banks are engine-global state slots looked up with Globals_LookupChoiceCommitStateSlotByKindId (+0x234D10) - kinds 0-3 in the game-globals slot table, the rest in dedicated arrays - shared with the choice-commit system and read by NPC behaviour AI and dialogue-text substitution codes, so values persist across scenes.",
    "side_effects": "script-variable bank 2",
-   "evidence": "RF4S.exe+0x2091B0; corpus 1988 uses, index 0 nearly always (values tag4(..), REG_DATE_MAP, reg0).",
+   "evidence": "RF4S.exe+0x2091B0; corpus 1988 uses, index 0 nearly always (values tag4(..), REG_DATE_MAP, reg0). In-game test 2026-10-02 (user): SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?') -> the line read 'How would you like to go to Selphia: Observatory?'.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind2",
    "handler_rva": "0x2091B0",
@@ -35852,7 +35923,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 418,
     "pc": "0x0138",
@@ -35881,7 +35952,14 @@
      "values": "out of range -> ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
+       "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      }
+     ]
     },
     {
      "name": "value",
@@ -35889,7 +35967,14 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
+       "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35924,7 +36009,7 @@
     "lines": [
      "L_0128:",
      "    GetVar0(0)",
-     "    GetNpcParamField292(reg0)",
+     "    GetMonsterHomeMap(reg0)",
      "    SetVar2_348(0, reg0)    ; <--",
      "    CALL L_014c",
      "    DIALOG #62594    ; \"Request: Go to [＠マップ０＠] / and get rid of [＠０＠] ＠キャラ０＠. / Reward: ＠アイテム…\"",
@@ -40780,10 +40865,10 @@
   "434": {
    "op": 434,
    "op_hex": "0x1B2",
-   "mnemonic": "GetItemGoldValue",
-   "previous_mnemonic": null,
+   "mnemonic": "GetItemSellPrice",
+   "previous_mnemonic": "GetItemGoldValue",
    "category": "query",
-   "prototype": "GetItemGoldValue(item)",
+   "prototype": "GetItemSellPrice(item)",
    "args": [
     {
      "name": "item",
@@ -40791,18 +40876,25 @@
      "values": "0-1107",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetItemSellPrice(i) and GetItemBuyPrice(i) for Poison Spear 403, Cabbage 1, Hammer Piece 847, Onion 7, Lumber 1022",
+       "observed": "sell / buy 900 / 75200, 680 / 2800, 118 / 940, 800 / 6700, 40 / 500 -- the rf3ItemList prices, and the Poison Spear's item screen ('Sell: 900G Buy: 75200G')"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": "reg0 = the item's base gold value (1 unit, level 0)",
    "blocking": "no",
-   "description": "Put an item's base price (one unit, lowest level) into reg0, e.g. to show prices in a scripted menu.",
+   "description": "Get an item's sell price for one unit at level 1 (the 'Sell:' on the item screen) into reg0, e.g. to show prices in a scripted menu. Seen in game.",
    "details": "RF4S.exe+0x2115F0: builds a slot {id & 0x7FF | 0x800, zero level bytes} and returns Item_ComputeStackGoldValue(slot, 0, 0) (+0x454A0).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x2115F0; corpus: 10 uses, items 318-326, stored with SetVar3 for price text.",
+   "evidence": "RF4S.exe+0x2115F0; corpus: 10 uses, items 318-326, stored with SetVar3 for price text. In-game test 2026-10-02 (user): GetItemSellPrice(i) and GetItemBuyPrice(i) for Poison Spear 403, Cabbage 1, Hammer Piece 847, Onion 7, Lumber 1022 -> sell / buy 900 / 75200, 680 / 2800, 118 / 940, 800 / 6700, 40 / 500 -- the rf3ItemList prices, and the Poison Spear's item screen ('Sell: 900G Buy: 75200G').",
    "alias_of": null,
-   "handler": "Script_VMOp_QueryItemBaseGoldValueQuality0",
+   "handler": "Script_VMOp_QueryItemSellPrice",
    "handler_rva": "0x2115F0",
    "shares_handler_with": [],
    "size": [
@@ -40817,7 +40909,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 10,
     "pc": "0x1E78",
@@ -40825,9 +40917,9 @@
      "L_1e74:",
      "    CALL L_0fa6",
      "L_1e78:",
-     "    GetItemGoldValue(320)    ; <--",
+     "    GetItemSellPrice(320)    ; <--",
      "    SetVar3(0, reg0)",
-     "    GetItemGoldValue(322)",
+     "    GetItemSellPrice(322)",
      "    SetVar3(1, reg0)"
     ]
    }
@@ -40846,16 +40938,23 @@
      "values": "",
      "required_kind": "item",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetItemSellPrice(i) and GetItemBuyPrice(i) for Poison Spear 403, Cabbage 1, Hammer Piece 847, Onion 7, Lumber 1022",
+       "observed": "sell / buy 900 / 75200, 680 / 2800, 118 / 940, 800 / 6700, 40 / 500 -- the rf3ItemList prices, and the Poison Spear's item screen ('Sell: 900G Buy: 75200G')"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": "reg0 = metadata +8 (buy price)",
    "blocking": "no",
-   "description": "Get an item's base shop buy price (item metadata +8). reg0 = price.",
+   "description": "Get an item's shop buy price (the 'Buy:' on the item screen) into reg0. Seen in game.",
    "details": "Copies g_itemDatabase->metadata[id] into the scratch copy and returns its dword +8. No bounds check on the id.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x211710; corpus 4 uses (items 790-793, then `reg0 *= 4` -> SetVar4 for a price display).",
+   "evidence": "RF4S.exe+0x211710; corpus 4 uses (items 790-793, then `reg0 *= 4` -> SetVar4 for a price display). In-game test 2026-10-02 (user): GetItemSellPrice(i) and GetItemBuyPrice(i) for Poison Spear 403, Cabbage 1, Hammer Piece 847, Onion 7, Lumber 1022 -> sell / buy 900 / 75200, 680 / 2800, 118 / 940, 800 / 6700, 40 / 500 -- the rf3ItemList prices, and the Poison Spear's item screen ('Sell: 900G Buy: 75200G').",
    "alias_of": null,
    "handler": "Script_VMOp_QueryItemBuyPrice",
    "handler_rva": "0x211710",
@@ -40872,7 +40971,7 @@
    "confidence": "medium",
    "notes": "The 'buy price' label for metadata +8 was not re-derived; GetItemGoldValue (op 434) is the sell value.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 474,
     "pc": "0x0E3C",
@@ -41109,10 +41208,10 @@
   "440": {
    "op": 440,
    "op_hex": "0x1B8",
-   "mnemonic": "GetNpcParamField292",
-   "previous_mnemonic": "GetNpcSpecies",
+   "mnemonic": "GetMonsterHomeMap",
+   "previous_mnemonic": "GetNpcParamField292",
    "category": "query",
-   "prototype": "GetNpcParamField292(char)",
+   "prototype": "GetMonsterHomeMap(char)",
    "args": [
     {
      "name": "char",
@@ -41126,12 +41225,12 @@
    "optional_args_from": null,
    "returns": "reg0 = rf3NpcParam[char].+292 (signed 16-bit)",
    "blocking": "no",
-   "description": "Sets reg0 to a 16-bit value from the character's rf3NpcParam record (offset 292). It is 0 for villagers and 161-726 for monsters, shared by monster families; what it means is not known. The monster-hunt request scripts copy it into script variable bank 2 before the request text.",
+   "description": "Get a monster's home map from its rf3NpcParam record (offset 292) into reg0: the map hunting requests send the player to ('Go to ＠マップ０＠ and get rid of ...', via SetVar2). 0 for villagers.",
    "details": "reg0 = *(s16*)(nsFileArchive_GetData(14812) + 28 + 308*char + 292). Shipped values: villagers 0; e.g. Orc 271, High Orc 454, Orc Archer 271, Goblin 284, Hobgoblin 541.",
    "side_effects": "",
    "evidence": "RF4S.exe+0x212C20: `*(a2+64) = *(s16*)(308LL * v6 + v7 + 292)` with v7 = nsFileArchive_GetData(14812) + 28; rf3NpcParam.bin record 48 (Orc) = 271, 49 (High Orc) = 454; corpus: 22 uses, GetVar0(0) -> this -> SetVar2(0, reg0) before the 'get rid of ...' request line.",
    "alias_of": null,
-   "handler": "Script_VMOp_QueryNpcParamSpeciesByCharId",
+   "handler": "Script_VMOp_GetMonsterHomeMap",
    "handler_rva": "0x212C20",
    "shares_handler_with": [],
    "size": [
@@ -41144,7 +41243,7 @@
     "1": 22
    },
    "confidence": "low",
-   "notes": "",
+   "notes": "home map confirmed from the data: Orc -> Yokmir Forest, Wooly -> Selphia Plain, Raccoon -> Rune Prana, Magnuto -> Demon's Den, Ambrosia -> Yokmir Forest (2026-10-02); not yet tested in game",
    "change_reason": "Nothing shows the field is a species (values are not name ids and repeat across unrelated monsters), so the name states what is read.",
    "human_verified": false,
    "example": {
@@ -41153,7 +41252,7 @@
     "lines": [
      "L_0128:",
      "    GetVar0(0)",
-     "    GetNpcParamField292(reg0)    ; <--",
+     "    GetMonsterHomeMap(reg0)    ; <--",
      "    SetVar2_348(0, reg0)",
      "    CALL L_014c",
      "    DIALOG #62594    ; \"Request: Go to [＠マップ０＠] / and get rid of [＠０＠] ＠キャラ０＠. / Reward: ＠アイテム…\""
@@ -43776,7 +43875,14 @@
      "values": "0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetPartyMemberId(0) / (1), with no party, then with Vishnal recruited",
+       "observed": "no party: 0 / 0; with Vishnal: 1 / 0 (the debug output played his voice V_VIZ_...)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -43785,7 +43891,7 @@
    "description": "Read the character id of a party member into reg0 (0 if the slot is empty).",
    "details": "reg0 = *(u32*)(actor + 8) of (&g_playerActor)[slot + 1], or 0 when empty.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x212370; corpus: op 481 520 uses, op 482 144 uses (always 1).",
+   "evidence": "RF4S.exe+0x212370; corpus: op 481 520 uses, op 482 144 uses (always 1). In-game test 2026-10-02 (user): GetPartyMemberId(0) / (1), with no party, then with Vishnal recruited -> no party: 0 / 0; with Vishnal: 1 / 0 (the debug output played his voice V_VIZ_...).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPartyMemberDwordAt8",
    "handler_rva": "0x212370",
@@ -43804,7 +43910,7 @@
    "confidence": "high",
    "notes": "True alias pair 481/482.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 971,
     "pc": "0x017A",
@@ -43833,7 +43939,14 @@
      "values": "0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetPartyMemberId(0) / (1), with no party, then with Vishnal recruited",
+       "observed": "no party: 0 / 0; with Vishnal: 1 / 0 (the debug output played his voice V_VIZ_...)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -50350,7 +50463,14 @@
      "values": "exclusive upper bound; 0 gives 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "RollUniformIntegerLessThanN(3) four times, (1000) once",
+       "observed": "2, 2, 1, 2 and 424: always below n"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -50359,7 +50479,7 @@
    "description": "Roll a random integer from 0 to n-1 into reg0.",
    "details": "If n != 0: advance the MMIX RNG and reg0 = (hi32(state) * n) >> 32; else reg0 = 0.",
    "side_effects": "RNG state",
-   "evidence": "RF4S.exe+0x21B490; corpus 404 uses (100 x178, 6, 2, 300, 240...).",
+   "evidence": "RF4S.exe+0x21B490; corpus 404 uses (100 x178, 6, 2, 300, 240...). In-game test 2026-10-02 (user): RollUniformIntegerLessThanN(3) four times, (1000) once -> 2, 2, 1, 2 and 424: always below n.",
    "alias_of": null,
    "handler": "Script_VMOp_RollUniformIntegerLessThanN",
    "handler_rva": "0x21B490",
@@ -50376,7 +50496,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 382,
     "pc": "0x0332",
@@ -51179,7 +51299,14 @@
      "values": "0..127 (>= 128 lands in dword 3)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "menus of #335 / #336 / #337: (a) SetChoiceVisibleBit(1, 0) only; (b) bits 0 and 2 set; (c) bits 0, 1, 2 set then 1 cleared",
+       "observed": "(a) all three rows showed (clearing a bit of an empty mask does nothing); (b) and (c) showed only rows 0 and 2: once any bit is set, only the rows with set bits show. With a row hidden, picking the 2nd visible row (#337) jumped to row 1's branch: the jump target is taken by visible position"
+      }
+     ]
     },
     {
      "name": "visible",
@@ -51187,16 +51314,23 @@
      "values": "non-zero shows the option, 0 hides it",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "menus of #335 / #336 / #337: (a) SetChoiceVisibleBit(1, 0) only; (b) bits 0 and 2 set; (c) bits 0, 1, 2 set then 1 cleared",
+       "observed": "(a) all three rows showed (clearing a bit of an empty mask does nothing); (b) and (c) showed only rows 0 and 2: once any bit is set, only the rows with set bits show. With a row hidden, picking the 2nd visible row (#337) jumped to row 1's branch: the jump target is taken by visible position"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": "reg0 = 1 if any mask bit is set, 0 if none (0 = no mask: every option shows)",
    "blocking": "no",
-   "description": "Show or hide one option of the next choice menu (sets / clears its bit in the visibility mask). Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.",
+   "description": "Show or hide one option of the next choice menu by setting / clearing its bit in the visibility mask. The mask only counts once a bit is set: then only the options with set bits show; while it is empty every option shows (seen in game). Careful: with an option hidden the menu jumps by visible position (the 2nd shown option takes the 2nd listed target), so shipped scripts send every option to one label and branch on reg0.",
    "details": "dword = min(index >> 5, 3); bit 1 << (index & 31) set/cleared in host+244[dword]; reg0 = any of the 4 dwords non-zero. A mask with bits only past the menu's last option opens an empty menu that crashes on confirm.",
    "side_effects": "host+244 choice mask",
-   "evidence": "RF4S.exe+0x21C5C0; corpus 1433 uses: indices 0..39, visible = 1 / reg0 / flag expressions, set for every option before a PROMPT_CHOICE + SWITCH reg0.; SceneEvent_FinalizeAndPickFromBitmap RF4S.exe+0x1F49C0 (reg0 = original index, clears the mask) and Script_VMStep 0xFFF4/0xFFF5 (jumps via the visible row)",
+   "evidence": "RF4S.exe+0x21C5C0; corpus 1433 uses: indices 0..39, visible = 1 / reg0 / flag expressions, set for every option before a PROMPT_CHOICE + SWITCH reg0.; SceneEvent_FinalizeAndPickFromBitmap RF4S.exe+0x1F49C0 (reg0 = original index, clears the mask) and Script_VMStep 0xFFF4/0xFFF5 (jumps via the visible row). In-game test 2026-10-02 (user): menus of #335 / #336 / #337: (a) SetChoiceVisibleBit(1, 0) only; (b) bits 0 and 2 set; (c) bits 0, 1, 2 set then 1 cleared -> (a) all three rows showed (clearing a bit of an empty mask does nothing); (b) and (c) showed only rows 0 and 2: once any bit is set, only the rows with set bits show. With a row hidden, picking the 2nd visible row (#337) jumped to row 1's branch: the jump target is taken by visible position.",
    "alias_of": null,
    "handler": "Script_VMOp_ToggleSceneChoiceVisibleBit",
    "handler_rva": "0x21C5C0",
@@ -51213,7 +51347,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 26,
     "pc": "0x0408",
@@ -51352,7 +51486,14 @@
      "values": "-> var bank 4 slot 0 while the row is highlighted",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE",
+       "observed": "the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350)"
+      }
+     ]
     },
     {
      "name": "value 2",
@@ -51377,7 +51518,7 @@
    "description": "Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu.",
    "details": "Stores min(argc, 3) args at host+124/+128/+132 and sets host+120 |= 0x400. The next DIALOG then takes Dialogue_HandleScriptActionShowLine's deferred path: it is queued (44-byte record in g_dialoguePendingLineQueue, only if its row's mask bit is set) and the bit is cleared. While the menu is open the highlighted row's line is shown and its values are written to var banks 4/5/6 slot 0; the queue is emptied when the menu closes.",
    "side_effects": "host+120 bit 0x400; host+124..+135",
-   "evidence": "RF4S.exe+0x21C790; corpus: 1839 uses (1809 with one arg 0), each followed by its DIALOG.",
+   "evidence": "RF4S.exe+0x21C790; corpus: 1839 uses (1809 with one arg 0), each followed by its DIALOG. In-game test 2026-10-02 (user): ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE -> the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350).",
    "alias_of": null,
    "handler": "Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm",
    "handler_rva": "0x21C790",
@@ -52033,7 +52174,14 @@
      "values": "reg0, reg1, ... reg9 in order (args past 10 ignored)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetRegisters(11, 22, 33), reg0..reg2 shown",
+       "observed": "11 / 22 / 33"
+      }
+     ]
     }
    ],
    "optional_args_from": 0,
@@ -52042,7 +52190,7 @@
    "description": "Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.",
    "details": "For i < argc: vm+64+4*i = arg i while i < 10. Registers are flat scratch, not saved across CALL.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21D390; corpus: op 628 1856 uses (1842 with one arg, globalvars), op 629 144 uses (localvars).",
+   "evidence": "RF4S.exe+0x21D390; corpus: op 628 1856 uses (1842 with one arg, globalvars), op 629 144 uses (localvars). In-game test 2026-10-02 (user): SetRegisters(11, 22, 33), reg0..reg2 shown -> 11 / 22 / 33.",
    "alias_of": null,
    "handler": "Script_VMOp_ExportArgsAsCtxOutArray10",
    "handler_rva": "0x21D390",
@@ -52064,7 +52212,7 @@
    "confidence": "high",
    "notes": "True alias pair 628/629.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 446,
     "pc": "0x09BC",
@@ -52093,7 +52241,14 @@
      "values": "reg0, reg1, ... reg9 in order (args past 10 ignored)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetRegisters(11, 22, 33), reg0..reg2 shown",
+       "observed": "11 / 22 / 33"
+      }
+     ]
     }
    ],
    "optional_args_from": 0,
