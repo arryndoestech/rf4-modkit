@@ -745,7 +745,21 @@ class CutsceneExplorer:
         if self.doc.undo_stack and (not steps or self.doc.undo_stack[-1] is not steps[-1]):
             self.doc.undo_stack[-1]["view_after"] = (self.bank_pos, self.scene.entry_pc if self.scene else None)
         self.status(label)
+        self._warn_freezes(label)
         return True
+
+    def _warn_freezes(self, what):
+        """After an edit: warn when a menu in the open scene is followed by its last option's
+        line, which freezes the game (script.choice_line_freezes)."""
+        if self.scene is None:
+            return
+        stmts = self.scene.stmts
+        stmts = sorted(stmts.values() if isinstance(stmts, dict) else stmts, key=lambda x: x.pc)
+        hits = script.choice_line_freezes(stmts)
+        if hits:
+            messagebox.showwarning("This scene will freeze", "%s was applied, but:\n\n%s" % (
+                what, "\n\n".join("Menu at 0x%04x: %s" % (pc, script.freeze_text(line, dp))
+                                  for pc, dp, line in hits)), parent=self.frame)
 
     def _follow_relink(self):
         """A structural edit rebuilt the open bank (Container.last_relink): move the open

@@ -6098,6 +6098,13 @@ def test_script_authoring():
     _mt_ok = _L("SetChoiceVisibleMask 1, 1, 0\nPROMPT_CHOICE_FORCED #1->A, #2->B, #3->B\nA:\nEND\nB:\nEND")
     _check("choice lint: per-option targets under a mask that shifts rows warn (jump = visible row)",
            _lv(_mt) == ["warning"] and _mt_ok == [], f"{_mt} / {_mt_ok}")
+    # the 2026-10-02 freeze: the next line after a menu is its last option's line (latched)
+    _fz = _L("PROMPT_CHOICE_FORCED #1->A, #2->B\nA:\nSetVar3(0, 1)\nJMP C\nB:\nSetVar3(0, 2)\n"
+             "C:\nDIALOG #2\nEND")
+    _fz_ok = _L("PROMPT_CHOICE_FORCED #1->A, #2->B\nA:\nDIALOG #3\nDIALOG #2\nEND\nB:\nDIALOG #1\nEND")
+    _check("choice lint: the menu's last option line as the next DIALOG warns (the scene freezes)",
+           _lv(_fz) == ["warning"] and "#2" in _fz[0][2] and "freezes" in _fz[0][2] and _fz_ok == [],
+           f"{_fz} / {_fz_ok}")
     try:                                              # the shipped 40-option menu: decodes + lints clean
         _b252 = c.banks[252]
         _st40 = script.decode_statement(_b252.data, 0x08a2)

@@ -2733,6 +2733,56 @@ def choice_results(buf, stmts, idx):
     return out
 
 
+def _first_dialogs_after(stmts, starts):
+    """{(pc, line id)} of the first DIALOG on every path from the pcs `starts`, following
+    fall-through, jumps, branches and CALLs (into the helper and past it); a path stops at
+    its first DIALOG, a menu, or a RET / END."""
+    by_pc = {s.pc: s for s in stmts}
+    found, seen, stack = set(), set(), [p for p in starts if p is not None]
+    while stack:
+        pc = stack.pop()
+        if pc in seen or pc not in by_pc:
+            continue
+        seen.add(pc)
+        s = by_pc[pc]
+        if s.mnem == "DIALOG":
+            found.add((s.pc, s.dialog_id))
+            continue
+        if s.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+            continue
+        stack.extend(t for t in s.code_targets if t is not None)
+        if s.falls_through and not s.terminator:
+            stack.append(s.pc + s.size)
+    return found
+
+
+def choice_line_freezes(stmts):
+    """[(menu pc, [DIALOG pcs], line id)]: menus whose next DIALOG (on some path) shows the
+    menu's LAST option line, which freezes the scene. Dialogue_HandleScriptActionShowLine
+    (RF4S.exe+0x1F43B0) starts a line only when its id differs from the one it latched last
+    (g_currentSceneContext+68); the menu passes every option through it, the last one last,
+    and the pick (SceneEvent_FinalizeAndPickFromBitmap) does not clear the latch, so that
+    DIALOG never starts and waits forever. Seen in game 2026-10-02 (three menus froze;
+    writing -1 to the latch released each); no shipped menu does it."""
+    out = []
+    for st in stmts:
+        if st.mnem not in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") or not st.items:
+            continue
+        opt_tg = st.code_targets[1:] if st.mnem == "PROMPT_CHOICE" else list(st.code_targets)
+        same = sorted({pc for pc, line in _first_dialogs_after(stmts, opt_tg) if line == st.items[-1]})
+        if same:
+            out.append((st.pc, same, st.items[-1]))
+    return out
+
+
+def freeze_text(line, dialog_pcs):
+    """The warning for a choice_line_freezes hit."""
+    return ("DIALOG #%d at %s right after this menu shows the menu's LAST option line: the game "
+            "only starts a line whose id differs from the last one it started, and the options "
+            "were started last, so this line never starts and the scene freezes (no input). Show "
+            "a different line first" % (line, ", ".join("0x%04x" % pc for pc in dialog_pcs)))
+
+
 def choice_problems(buf, stmts, text_count=None):
     """Static checks on PROMPT_CHOICE / PROMPT_CHOICE_FORCED against how RF4S.exe runs them.
 
@@ -2746,7 +2796,7 @@ def choice_problems(buf, stmts, text_count=None):
     divides by the row count; ChoiceDialog_ConfirmViaScrollArrow (+0x239670) is the cancel
     key (it moves the cursor to the LAST row); Text_LoadStringFromArchive (+0x232290) loads
     entry 0 for an out-of-range id."""
-    out = []
+    out = [(pc, "warning", freeze_text(line, dpcs)) for pc, dpcs, line in choice_line_freezes(stmts)]
     joins = set()
     for s in stmts:
         joins.update(t for t in s.code_targets if t is not None)
