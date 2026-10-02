@@ -36215,6 +36215,11 @@
        "date": "2026-10-02",
        "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
        "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2_348(0, 36) + DIALOG #6145",
+       "observed": "'How would you like to go to Selphia: Observatory?' (same as op 347)"
       }
      ]
     },
@@ -36230,6 +36235,11 @@
        "date": "2026-10-02",
        "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
        "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2_348(0, 36) + DIALOG #6145",
+       "observed": "'How would you like to go to Selphia: Observatory?' (same as op 347)"
       }
      ]
     }
@@ -36294,6 +36304,11 @@
        "date": "2026-10-02",
        "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
        "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2_348(0, 36) + DIALOG #6145",
+       "observed": "'How would you like to go to Selphia: Observatory?' (same as op 347)"
       }
      ]
     },
@@ -36309,6 +36324,11 @@
        "date": "2026-10-02",
        "call": "SetVar2(0, 36) + DIALOG #6145 ('How would you like to go to ＠マップ０＠?')",
        "observed": "the line read 'How would you like to go to Selphia: Observatory?'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar2_348(0, 36) + DIALOG #6145",
+       "observed": "'How would you like to go to Selphia: Observatory?' (same as op 347)"
       }
      ]
     }
@@ -36319,7 +36339,7 @@
    "description": "Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.",
    "details": "bank = Lookup(2); if index <= 23: bank[index] = value. Banks are engine-global state slots looked up with Globals_LookupChoiceCommitStateSlotByKindId (+0x234D10) - kinds 0-3 in the game-globals slot table, the rest in dedicated arrays - shared with the choice-commit system and read by NPC behaviour AI and dialogue-text substitution codes, so values persist across scenes.",
    "side_effects": "script-variable bank 2",
-   "evidence": "RF4S.exe+0x2091B0; corpus 1988 uses, index 0 nearly always (values tag4(..), REG_DATE_MAP, reg0).",
+   "evidence": "RF4S.exe+0x2091B0; corpus 1988 uses, index 0 nearly always (values tag4(..), REG_DATE_MAP, reg0). In-game test 2026-10-02 (user): SetVar2_348(0, 36) + DIALOG #6145 -> 'How would you like to go to Selphia: Observatory?' (same as op 347).",
    "alias_of": 347,
    "handler": "Script_VMOp_WriteVarArrayKind2",
    "handler_rva": "0x2091B0",
@@ -36338,7 +36358,7 @@
    "confidence": "high",
    "notes": "True alias of op 347 (same handler, no opcode-dependent branch). 211 corpus uses.",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 166,
     "pc": "0x0134",
@@ -40573,6 +40593,11 @@
        "date": "2026-10-02",
        "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
        "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs",
+       "observed": "12 / 22 / 30: two Cabbages at level 3 (same as op 423)"
       }
      ]
     },
@@ -40593,6 +40618,11 @@
        "date": "2026-10-02",
        "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
        "observed": "5 Cabbages arrived (0 -> 5)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs",
+       "observed": "12 / 22 / 30: two Cabbages at level 3 (same as op 423)"
       }
      ]
     },
@@ -40608,6 +40638,11 @@
        "date": "2026-10-02",
        "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
        "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs",
+       "observed": "12 / 22 / 30: two Cabbages at level 3 (same as op 423)"
       }
      ]
     }
@@ -40672,6 +40707,11 @@
        "date": "2026-10-02",
        "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
        "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs",
+       "observed": "12 / 22 / 30: two Cabbages at level 3 (same as op 423)"
       }
      ]
     },
@@ -40692,6 +40732,11 @@
        "date": "2026-10-02",
        "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
        "observed": "5 Cabbages arrived (0 -> 5)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs",
+       "observed": "12 / 22 / 30: two Cabbages at level 3 (same as op 423)"
       }
      ]
     },
@@ -40707,6 +40752,11 @@
        "date": "2026-10-02",
        "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
        "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs",
+       "observed": "12 / 22 / 30: two Cabbages at level 3 (same as op 423)"
       }
      ]
     }
@@ -40717,7 +40767,7 @@
    "description": "Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.",
    "details": "Record = id & 0x7FF | count << 11, quality-1 memset into 9 bytes (stackables) or 1 byte; if the pending record staged by op 421 has id 1 its attribute fields are merged and it is cleared. Inventory_AddItemToPage(backpack) (+0x46640), then (rune_ability); both full: status 0x4000 or a held item -> ItemDrop_SpawnInWorld at the player + sfx 0x100226D + Action 0x13; else Item_SpawnVisualTask + Player_AttachHeldItem.",
    "side_effects": "player inventory / dropped item / held item; clears the op-421 staging record",
-   "evidence": "RF4S.exe+0x20F890; corpus 2248 uses (count 1 x2147, 9 x95; quality 1 x2201, 10 x34).",
+   "evidence": "RF4S.exe+0x20F890; corpus 2248 uses (count 1 x2147, 9 x95; quality 1 x2201, 10 x34). In-game test 2026-10-02 (user): GivePlayerItem_424(1 Cabbage, 2, 3) on an empty bag; HasItem(1, n, -1 / 3 / 4) read-outs -> 12 / 22 / 30: two Cabbages at level 3 (same as op 423).",
    "alias_of": 423,
    "handler": "Script_VMOp_GivePlayerItemWithStackAndQuality",
    "handler_rva": "0x20F890",
@@ -40736,7 +40786,7 @@
    "confidence": "high",
    "notes": "True alias of op 423 (same handler, no opcode-dependent branch). 1 corpus use (257, 1, 1).",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 215,
     "pc": "0x8B1E",
@@ -44372,6 +44422,11 @@
        "date": "2026-10-02",
        "call": "GetPartyMemberId(0) / (1), with no party, then with Vishnal recruited",
        "observed": "no party: 0 / 0; with Vishnal: 1 / 0 (the debug output played his voice V_VIZ_...)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "with Forte and Margaret in the party: GetPartyMemberId(0) / (1) and GetPartyMemberId_482(0) / (1)",
+       "observed": "both opcodes: slot 0 = 4 (Forte), slot 1 = 7 (Margaret)"
       }
      ]
     }
@@ -44436,6 +44491,11 @@
        "date": "2026-10-02",
        "call": "GetPartyMemberId(0) / (1), with no party, then with Vishnal recruited",
        "observed": "no party: 0 / 0; with Vishnal: 1 / 0 (the debug output played his voice V_VIZ_...)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "with Forte and Margaret in the party: GetPartyMemberId(0) / (1) and GetPartyMemberId_482(0) / (1)",
+       "observed": "both opcodes: slot 0 = 4 (Forte), slot 1 = 7 (Margaret)"
       }
      ]
     }
@@ -44446,7 +44506,7 @@
    "description": "Read the character id of a party member into reg0 (0 if the slot is empty).",
    "details": "reg0 = *(u32*)(actor + 8) of (&g_playerActor)[slot + 1], or 0 when empty.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x212370; corpus: op 481 520 uses, op 482 144 uses (always 1).",
+   "evidence": "RF4S.exe+0x212370; corpus: op 481 520 uses, op 482 144 uses (always 1). In-game test 2026-10-02 (user): with Forte and Margaret in the party: GetPartyMemberId(0) / (1) and GetPartyMemberId_482(0) / (1) -> both opcodes: slot 0 = 4 (Forte), slot 1 = 7 (Margaret).",
    "alias_of": 481,
    "handler": "Script_VMOp_QueryPartyMemberDwordAt8",
    "handler_rva": "0x212370",
@@ -44465,7 +44525,7 @@
    "confidence": "high",
    "notes": "True alias pair 481/482.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 397,
     "pc": "0x0AE2",
@@ -51983,6 +52043,11 @@
        "date": "2026-10-02",
        "call": "ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE",
        "observed": "the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
+       "observed": "each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines"
       }
      ]
     },
@@ -51992,7 +52057,14 @@
      "values": "-> var bank 5 slot 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
+       "observed": "each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines"
+      }
+     ]
     },
     {
      "name": "value 3",
@@ -52000,16 +52072,23 @@
      "values": "-> var bank 6 slot 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
+       "observed": "each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines"
+      }
+     ]
     }
    ],
    "optional_args_from": 0,
    "returns": null,
    "blocking": "no",
-   "description": "Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu.",
+   "description": "Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu. Values 1-3 print through ＠金０＠ / ＠木０＠ / ＠石０＠ (shipped line 8858). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).",
    "details": "Stores min(argc, 3) args at host+124/+128/+132 and sets host+120 |= 0x400. The next DIALOG then takes Dialogue_HandleScriptActionShowLine's deferred path: it is queued (44-byte record in g_dialoguePendingLineQueue, only if its row's mask bit is set) and the bit is cleared. While the menu is open the highlighted row's line is shown and its values are written to var banks 4/5/6 slot 0; the queue is emptied when the menu closes.",
    "side_effects": "host+120 bit 0x400; host+124..+135",
-   "evidence": "RF4S.exe+0x21C790; corpus: 1839 uses (1809 with one arg 0), each followed by its DIALOG. In-game test 2026-10-02 (user): ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE -> the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350).",
+   "evidence": "RF4S.exe+0x21C790; corpus: 1839 uses (1809 with one arg 0), each followed by its DIALOG. In-game test 2026-10-02 (user): ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE -> the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350). In-game test 2026-10-02 (user): ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858 -> each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines.",
    "alias_of": null,
    "handler": "Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm",
    "handler_rva": "0x21C790",
@@ -52027,7 +52106,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 446,
     "pc": "0x0AE0",
@@ -52671,6 +52750,11 @@
        "date": "2026-10-02",
        "call": "SetRegisters(11, 22, 33), reg0..reg2 shown",
        "observed": "11 / 22 / 33"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetRegisters_629(7); SetVar3(0, reg0 + 6290)",
+       "observed": "6297: reg0 = 7 (same as op 628)"
       }
      ]
     }
@@ -52738,6 +52822,11 @@
        "date": "2026-10-02",
        "call": "SetRegisters(11, 22, 33), reg0..reg2 shown",
        "observed": "11 / 22 / 33"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetRegisters_629(7); SetVar3(0, reg0 + 6290)",
+       "observed": "6297: reg0 = 7 (same as op 628)"
       }
      ]
     }
@@ -52748,7 +52837,7 @@
    "description": "Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.",
    "details": "For i < argc: vm+64+4*i = arg i while i < 10. Registers are flat scratch, not saved across CALL.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21D390; corpus: op 628 1856 uses (1842 with one arg, globalvars), op 629 144 uses (localvars).",
+   "evidence": "RF4S.exe+0x21D390; corpus: op 628 1856 uses (1842 with one arg, globalvars), op 629 144 uses (localvars). In-game test 2026-10-02 (user): SetRegisters_629(7); SetVar3(0, reg0 + 6290) -> 6297: reg0 = 7 (same as op 628).",
    "alias_of": 628,
    "handler": "Script_VMOp_ExportArgsAsCtxOutArray10",
    "handler_rva": "0x21D390",
@@ -52767,7 +52856,7 @@
    "confidence": "high",
    "notes": "True alias pair 628/629.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 963,
     "pc": "0x0188",
@@ -56860,7 +56949,7 @@
    "returns": null,
    "blocking": "yes: until an option is picked",
    "description": "Present a choice menu with NO cancel key -- one of the N options must be picked (the cancel key does nothing). Same UI as PROMPT_CHOICE: each option is a full u32 rf3mc.<locale> text id (no flag bits; an id past the archive shows entry 0), 4 rows on screen with a wrap-around scrolling list, at most 128 options (the rest are silently dropped); option text goes through the normal ＠ substitution pass. Branches to targets[picked VISIBLE ROW]. reg0 is written ONLY when a visibility mask is set (ops 610/611/612): then only flagged options appear, reg0 = the picked option's ORIGINAL index, the mask is cleared, and the shipped idiom is all targets -> one label + SWITCH on reg0. A mask whose set bits all lie past option N-1 opens an EMPTY menu that crashes on confirm (divide by zero); an all-zero mask shows every option. An unmasked prompt leaves reg0 UNTOUCHED -- shipped scenes carry a GetPlayerPosition result in reg0/reg1 across a Yes/No prompt (the deck-fight chase). CalcChoicePrescroll (613) sets the initially highlighted row. Layout: [op][N][N u16 targets][N u32 items]; size 6N+4. IDA-verified 2026-09-24 (Script_VMStep case 0xFFF5, SceneEvent_FinalizeAndPickFromBitmap, ChoiceDialog_TickStateMachine). Trap (proven in game 2026-10-02): the game only starts a line whose id differs from the last one it started (g_currentSceneContext+68), and a menu's options go through the same call, so after PROMPT_CHOICE / PROMPT_CHOICE_FORCED that id is the menu's LAST option. A DIALOG of that same line right after the menu is never started and the scene softlocks (state stuck, no input); writing -1 to +68 released it at once, three times. Never follow a menu with its last option's line.",
-   "evidence": "Script_VMStep case 0xFFF5: choice_begin(N, 0); items at pc+2*(N+2)+4*i; pc = targets[pick]. In-game test 2026-10-02 (user): PROMPT_CHOICE_FORCED #1306 Yes -> F0, #1307 No -> F1, #94412 -> F2: cancel, cancel, confirm -> 820: both cancels did nothing (cursor stayed on Yes, menu stayed open); confirm took the 1st option's target.",
+   "evidence": "Script_VMStep case 0xFFF5: choice_begin(N, 0); items at pc+2*(N+2)+4*i; pc = targets[pick]. In-game test 2026-10-02 (user): PROMPT_CHOICE_FORCED #1306 Yes -> F0, #1307 No -> F1, #94412 -> F2: cancel, cancel, confirm -> 820: both cancels did nothing (cursor stayed on Yes, menu stayed open); confirm took the 1st option's target. In-game test 2026-10-02 (user): reg0 = 7 from SetRegisters, then an unmasked PROMPT_CHOICE_FORCED, pick row 2, SetVar3(0, reg0 + 900) -> 907: an unmasked menu leaves reg0 untouched.",
    "uses": 1727,
    "confidence": "high",
    "human_verified": true,

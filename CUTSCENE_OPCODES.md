@@ -2855,12 +2855,12 @@ Args:
 ### `op 615` — ArmChoiceOption(value 1, value 2, value 3)
 *handler:* `Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm`
 
-Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu.
+Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu. Values 1-3 print through ＠金０＠ / ＠木０＠ / ＠石０＠ (shipped line 8858). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).
 
 Args:
   0. value 1 (-> var bank 4 slot 0 while the row is highlighted) — verified in game
-  1. value 2 (-> var bank 5 slot 0)
-  2. value 3 (-> var bank 6 slot 0)
+  1. value 2 (-> var bank 5 slot 0) — verified in game
+  2. value 3 (-> var bank 6 slot 0) — verified in game
 
 ### `op 623` — SetDialogueAutoAdvance(mode)
 *handler:* `Script_VMOp_SetDialogueAutoAdvanceTimingMode`
