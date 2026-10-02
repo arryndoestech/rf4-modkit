@@ -1906,7 +1906,7 @@ Args:
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Slot 25 has no portrait art: only the name plate changes, the previous portrait stays up.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
@@ -1939,7 +1939,7 @@ Args:
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Slot 25 has no portrait art: only the name plate changes, the previous portrait stays up.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
@@ -2170,7 +2170,7 @@ Args:
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. CRASHES THE GAME: slot 29 has no portrait art and the portrait code dereferences the missing sprite (in-game 2026-10-02, op 74; op 75 takes the same path). Unused by the shipped scripts.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
@@ -2203,7 +2203,7 @@ Args:
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
 
-Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. CRASHES THE GAME: slot 29 has no portrait art and the portrait code dereferences the missing sprite (in-game 2026-10-02, op 74; op 75 takes the same path). Unused by the shipped scripts.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
