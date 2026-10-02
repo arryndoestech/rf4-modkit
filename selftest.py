@@ -14243,7 +14243,18 @@ def test_var_uses():
     try:
         cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda nm: (_first(nm).read_bytes() if _first(nm) else None))
         ref = cx.open_reference()
+
+        def _wait_counts():                       # the index is built on a worker thread
+            import time as _t
+            t0 = _t.time()
+            while (cx._var_uses is None or cx._var_thread is not None) and _t.time() - t0 < 180:
+                root.update()
+                _t.sleep(0.02)
+            for _ in range(20):                   # let the poll hand the result to the window
+                root.update()
+                _t.sleep(0.01)
         ref._count_uses()
+        _wait_counts()
         row = next(r for r in ref.flag_list.rows if r[0] == "REG_MAIN_SCENARIO")
         ok_sel = ref.show_var("REG_MAIN_SCENARIO")
         listed = len(ref.uses.get_children())
@@ -14263,6 +14274,7 @@ def test_var_uses():
         cx.apply("probe", lambda: cx.doc.container.insert_after(pos, pc, "EVAL (REG_MAIN_SCENARIO = 1)"))
         root.update()
         ref._count_uses()
+        _wait_counts()
         after = next(r for r in ref.flag_list.rows if r[0] == "REG_MAIN_SCENARIO")[5]
         names = [nm for nm, _a in cx.statement_vars(cx.sel[0])] if cx.sel else []
         _check("an unsaved edit is counted at once (one more write); the script view knows the "

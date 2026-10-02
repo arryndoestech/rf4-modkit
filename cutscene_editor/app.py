@@ -57,6 +57,9 @@ class CutsceneExplorer:
         self._debugger = None
         self._em_uses = None
         self._var_uses = None                # varuses index, rebuilt after edits
+        self._var_gen = 0                    # bumped by every edit (a background scan checks it)
+        self._var_thread = None
+        self._var_waiters = []
         self._em_bank_uses = {}              # bank pos -> (bank bytes, em-op list, variable list)
         self._build()
         self._fit_toolbar()
@@ -789,6 +792,7 @@ class CutsceneExplorer:
 
     def _doc_changed(self, what):
         self._em_uses = self._var_uses = None
+        self._var_gen += 1
         self.view.multi = []                 # pcs moved: a multi-selection would point elsewhere
         ref = self._reference
         if ref is not None:                  # its use counts follow the edit (only that bank rescans)
@@ -1556,17 +1560,57 @@ class CutsceneExplorer:
         pos, scene entry, pc, access, stmt) or ('em', entry index, where, access). Rebuilt after
         an edit from the per-bank scans, so it follows unsaved changes."""
         if self._var_uses is None:
-            from rf4s_modkit import varuses
-            c, uses = self.doc.container, {}
-            for pos, _em, var in self._scans():
-                for enc, acc, entry, pc, st in var:
-                    off, width, _sign = c.unpack_var(enc)
-                    uses.setdefault((off, width), []).append(("script", pos, entry, pc, acc, st))
-            if self.doc.em is not None:
-                for off, width, acc, idx, where in varuses.em_uses(self.doc.em):
-                    uses.setdefault((off, width), []).append(("em", idx, where, acc))
-            self._var_uses = uses
+            self._var_uses = self._build_var_index()
         return self._var_uses
+
+    def _build_var_index(self):
+        from rf4s_modkit import varuses
+        c, uses = self.doc.container, {}
+        for pos, _em, var in self._scans():
+            for enc, acc, entry, pc, st in var:
+                off, width, _sign = c.unpack_var(enc)
+                uses.setdefault((off, width), []).append(("script", pos, entry, pc, acc, st))
+        if self.doc.em is not None:
+            for off, width, acc, idx, where in varuses.em_uses(self.doc.em):
+                uses.setdefault((off, width), []).append(("em", idx, where, acc))
+        return uses
+
+    def var_index_async(self, done):
+        """Call done(index, error) once the variable index exists, building it on a worker
+        thread so the windows stay usable: the first build disassembles every bank (seconds).
+        An edit during the build discards it and starts again."""
+        if self._var_uses is not None:
+            done(self._var_uses, None)
+            return
+        self._var_waiters.append(done)
+        if self._var_thread is not None:
+            return
+        import threading
+        gen, box = self._var_gen, {}
+
+        def work():
+            try:
+                box["idx"] = self._build_var_index()
+            except Exception as e:  # noqa: BLE001 -- handed to the waiters
+                box["err"] = e
+        th = self._var_thread = threading.Thread(target=work, daemon=True)
+        th.start()
+
+        def poll():
+            if th.is_alive():
+                later(self.frame, poll, 100)
+                return
+            self._var_thread = None
+            waiters, self._var_waiters = self._var_waiters, []
+            if gen != self._var_gen:               # edited meanwhile: scan again
+                for w in waiters:
+                    self.var_index_async(w)
+                return
+            if "idx" in box and self._var_uses is None:
+                self._var_uses = box["idx"]
+            for w in waiters:
+                w(self._var_uses if "idx" in box else None, box.get("err"))
+        later(self.frame, poll, 100)
 
     def var_uses(self, bit_offset, width):
         return self.var_index().get((bit_offset, width), [])

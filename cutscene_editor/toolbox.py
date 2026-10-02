@@ -149,9 +149,9 @@ def op_info_text(op):
     L = [meta.prototype(op), ""]
     fam = meta.OPCODE_ARGS.get(op)
     if fam:
-        L.append("opcode %d = %s" % (op, ", ".join("%s %s" % (a["name"], a["value"]) for a in fam)))
-    L.append("category: %s    opcode: %d (0x%03X)    %s" % (
-        meta.category_label(op), op, op, "✓ verified in game" if r.get("human_verified") else "not yet verified in game"))
+        L.append("opcode 0x%03X = %s" % (op, ", ".join("%s %s" % (a["name"], a["value"]) for a in fam)))
+    L.append("category: %s    opcode: 0x%03X    %s" % (
+        meta.category_label(op), op, "✓ verified in game" if r.get("human_verified") else "not yet verified in game"))
     L += ["", meta.describe(op) or ""]
     args = r.get("args") or []
     if fam or args:
@@ -332,7 +332,17 @@ class ReferenceWindow:
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(4, 0))
         ttk.Button(b, text="Copy name", command=lambda: t.selected() and self.copy(t.selected()[7])).pack(side="left")
-        later(self.win, self._count_uses, 50)
+        self._counting = False               # the reads / writes counts start when this tab shows
+        self.nb.bind("<<NotebookTabChanged>>", lambda _e: self._flags_tab_shown(), add="+")
+
+    def _flags_tab_shown(self):
+        try:
+            current = self.nb.tab(self.nb.select(), "text")
+        except tk.TclError:
+            return
+        if current == self.TABS[0] and not self._counting:
+            self._counting = True
+            self._count_uses()
 
     def _flag_rows(self, index):
         """The list rows: (name, kind, id, width, reads, writes, description, token, key).
@@ -352,15 +362,19 @@ class ReferenceWindow:
         return rows
 
     def _count_uses(self):
-        """Fill the reads / writes columns (the first time scans every bank: a few seconds)."""
+        """Fill the reads / writes columns. The first time scans every bank (seconds), on a
+        worker thread (app.var_index_async), so the window stays usable meanwhile."""
         if not self.win.winfo_exists() or self.app.doc.container is None:
             return
-        self.status.config(text="counting variable uses in every bank…")
-        self.win.update_idletasks()
-        try:
-            idx = self.app.var_index()
-        except Exception as e:  # noqa: BLE001 -- a display aid: leave the counts blank
-            self.status.config(text="could not count uses: %s" % err_text(e))
+        if self.app._var_uses is None:
+            self.status.config(text="counting variable uses in every bank…")
+        self.app.var_index_async(self._apply_counts)
+
+    def _apply_counts(self, idx, err):
+        if not self.win.winfo_exists():
+            return
+        if err is not None or idx is None:  # a display aid: leave the counts blank
+            self.status.config(text="could not count uses: %s" % (err_text(err) if err else "no index"))
             return
         t = self.flag_list
         sel = t.selected()
@@ -376,7 +390,7 @@ class ReferenceWindow:
 
     def refresh_uses(self):
         """After an edit: recount (the selection, and with it the 'Used by' list, follows)."""
-        if self.win.winfo_exists():
+        if self.win.winfo_exists() and self._counting:
             self._count_uses()
 
     @staticmethod
@@ -395,6 +409,11 @@ class ReferenceWindow:
         if not r or r[8] is None:
             self.uses_hdr.config(text="Used by: (zone-2 bits are listed in the map editor's flag "
                                       "reference)" if r else "Used by: select a variable")
+            return
+        if self.app._var_uses is None:           # still counting: fill in when it is done
+            self.uses_hdr.config(text="Used by: %s — counting uses in every bank…" % r[0])
+            self.app.var_index_async(lambda _i, _e: self.win.winfo_exists() and self._show_var_uses(r)
+                                     if self.flag_list.selected() == r else None)
             return
         uses = self.app.var_uses(*r[8])
         c, em = self.app.doc.container, self.app.doc.em
@@ -458,10 +477,11 @@ class ReferenceWindow:
             "\"human_verified\": true in refdata/opcode_table.json. Every instruction, "
             "verified or not, is in the Instruction picker." % (len(acts) + len(ctl)))).pack(anchor="w", pady=(0, 4))
         rows = []
+        ctl_hex = {r["mnemonic"]: r.get("op_hex", "") for r in meta.TABLE["control"].values()}
         for m in ctl:
-            rows.append((m, "control", CONTROL_HELP.get(m, ""), ("ctl", m)))
+            rows.append((m, ctl_hex.get(m, ""), CONTROL_HELP.get(m, ""), ("ctl", m)))
         for op in acts:
-            rows.append((meta.prototype(op), "0x%03X  (%d)" % (op, op), meta.describe(op) or "", ("op", op)))
+            rows.append((meta.prototype(op), "0x%03X" % op, meta.describe(op) or "", ("op", op)))
         pw = ttk.PanedWindow(f, orient="vertical")
         pw.pack(fill="both", expand=True)
         top = ttk.Frame(pw)
@@ -968,7 +988,7 @@ class InstructionPicker:
                     continue
                 seen_fam.add(m)
                 ops = [o for o in meta.OPCODE_ARGS if meta.mnemonic(o) == m]
-                optxt = "%d–%d" % (min(ops), max(ops))
+                optxt = "0x%03X–0x%03X" % (min(ops), max(ops))
                 ver = all(meta.human_verified(o) for o in ops)
             else:
                 optxt = "0x%03X" % op
