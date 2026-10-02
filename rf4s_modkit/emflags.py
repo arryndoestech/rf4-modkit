@@ -78,7 +78,7 @@ ZONE2_BLOCKS = [
     (1007, 1036, "birthday gift given (1007 + char)", "set when the player gives the NPC a gift ON "
                  "its birthday (NpcAi_OnReceivedThrownItem_AdvanceProgressAndDispatchReaction; script op 318 = 1007 + arg); "
                  "Calendar_IsEventActive tests it for the birthday rows (calendar kind = char id)"),
-    (1037, 1060, "NPC hidden (1037 + char)", "Npc_SetHiddenFlag / Npc_IsHidden, chars 0..23; the "
+    (1037, 1060, "NPC daily greeting done (1037 + char)", "Npc_SetDailyGreetingDone / Npc_IsDailyGreetingDone, chars 0..23; the "
                  "whole range is cleared daily (PackedFlags_ClearRange24 from Day_UpdateNpcDailyFlags)"),
     (1062, 1708, "recipe learned (1062 + recipe_no)", "CraftData_IsRecipeLearned / "
                  "CraftData_LearnRecipeTask; recipe numbers 1..646. 1403 = 1062 + 341, the "

@@ -326,7 +326,7 @@ ENTRY_TYPES = {
             {"index": "0+", "name": "timeslot", "meaning": "0 morning (calendar hour 6..9), 1 daytime (10..17), 2 evening/night", "wildcard": True},
         ],
         "select": "first",
-        "consumer": _APPLY1 + "; Npc_SetHiddenFlag(id) marks the greeting as done and scene flag 0x200 is set",
+        "consumer": _APPLY1 + "; Npc_SetDailyGreetingDone(id) marks the greeting as done and scene flag 0x200 is set",
         "matcher": "Npc_FindActionOperand_FromSubList88_Type22_WithSubBytePredicate (RF4S.exe+0x221290) from NpcAi_ResolveVillagerBehavior step 0",
         "confidence": "verified",
         "notes": "Every villager second bank (225..247) has exactly the keys 0, 1, 2.",

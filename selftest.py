@@ -6693,9 +6693,9 @@ def test_emflags_extras():
     _check("add_variable: zone-2 bits the game uses are refused; free zone-2 bits allowed; auto-allocation stays in zone 1",
            z_rej == 2 and z_ok.bit_offset == _ef.ZONE2_BASE + 1800 and z_auto.bit_offset < _ef.GAMEFLAGS_BITS,
            f"{z_rej}/2 refused, auto -> bit {z_auto.bit_offset}")
-    _check("zone-2 map labels: birthday-gift / hidden / recipe blocks decode with the char or recipe number",
+    _check("zone-2 map labels: birthday-gift / daily-greeting / recipe blocks decode with the char or recipe number",
            "Forte" in _ef.zone2_text(1011) and "birthday" in _ef.zone2_text(1011)
-           and "hidden" in _ef.zone2_text(1042) and "recipe 341" in _ef.zone2_text(1403)
+           and "daily greeting done" in _ef.zone2_text(1042) and "recipe 341" in _ef.zone2_text(1403)
            and "shop-door" in _ef.zone2_text(745) and "PAST THE END" in _ef.zone2_text(2600),
            _ef.zone2_text(1011))
     p = _first("rf3.mc")

@@ -1306,7 +1306,7 @@
    "description": "Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.",
    "details": "RF4S.exe+0x207F70: slot = (opcode-16)>>1 = 0, side = opcode & 1 = 0. Descriptor {+8 slot, +10 face, +12/+13 first two non-voice triggers, +14 side} -> EmotePortrait_ShowFromDescriptor (+0x207370): side picks portrait slot v1[22]/v1[24] and sets flip bit 0x80000 in v1[29]; a new portrait spawns via EmotePortrait_SpawnPositioned (+0x1D8110) at x -64 (side 0) or 464 (side 1). Blip: Dialogue_PickChimeClassForSpeaker (+0x1EF040) -> sound id 0x10021FC..0x1002237 written to the dialogue task. When slot != host+108 and the dispatch succeeded: Dialogue_LoadAndShowText(host+106, the player's saved name (Dialogue_LoadAndShowText entry 0 -> Save_GetPlayerNameOrDefault; '???' before main-scenario progress 2), side) (+0x2344B0), whose a3 writes the side into entries[4] bit 0x100 (message-box tail left/right); then host+108 = slot. Triggers >= 0x1F0 are played immediately.",
    "side_effects": "latches host+108 = speaker slot; writes the dialogue blip sound id; sets the message-box tail side; may play a voice sfx",
-   "evidence": "RF4S.exe+0x207F70 (switch 0x18..0x1C name remap, side = opcode&1), +0x207370 (+14 side -> portrait slot / flip bit), +0x1D8110 (x -64 vs 464), +0x2344B0 (a3 -> entries[4] bit 0x100); corpus: 19908 uses; player lines use the even (left) op 19,908x vs 28x odd, NPC lines mostly the odd (right) op. In-game test 2026-09-29 (user): SetSpeaker(MC, Left, 3, 0) + DIALOG shows the MC's portrait with a happy face (face 3). In-game test 2026-09-29 (user): SetSpeaker + DIALOG right after FadeScreen(-16, 18000) without WaitForFade waited until the fade was complete (blocking claim confirmed); the box was hidden under the black overlay, only the advance arrow showed. In-game test 2026-10-01 (user): SetSpeaker(MC, Left, 0, t1[, t2[, t3]]) + DIALOG: t = 186..192 each, 186+190, 186+190+191, voice 0x10001C0, 190+voice -> 186 blush, 187 teardrop, 188 sweat drop, 189 white puff, 190 !, 191 ?, 192 !? over the portrait; 186+190 shows both; 186+190+191 shows blush and ! only (the third icon is dropped); 0x10001C0 alone and as trigger2 after 190 played the voice V_PLAW_SURPRISE_ARE with no icon of its own. In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 0, 0) + DIALOG, in a run of all ops 16..73 in order -> the player's portrait (Lest) on the left with the save name on the plate; a new speaker on one side leaves the other side's portrait up, the same speaker switching sides moves its portrait. In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 0, 0x10001C0) + DIALOG on Lest -> the debug log printed 'Playing voice V_PLAM_SURPRISE_ARE for character V_PLAM': the player clip plays Lest's set on a male player (V_PLAW on Frey, 2026-10-01).",
+   "evidence": "RF4S.exe+0x207F70 (switch 0x18..0x1C name remap, side = opcode&1), +0x207370 (+14 side -> portrait slot / flip bit), +0x1D8110 (x -64 vs 464), +0x2344B0 (a3 -> entries[4] bit 0x100); corpus: 19908 uses; player lines use the even (left) op 19,908x vs 28x odd, NPC lines mostly the odd (right) op. In-game test 2026-09-29 (user): SetSpeaker(MC, Left, 3, 0) + DIALOG shows the MC's portrait with a happy face (face 3). In-game test 2026-09-29 (user): SetSpeaker + DIALOG right after FadeScreen(-16, 18000) without WaitForFade waited until the fade was complete (blocking claim confirmed); the box was hidden under the black overlay, only the advance arrow showed. In-game test 2026-10-01 (user): SetSpeaker(MC, Left, 0, t1[, t2[, t3]]) + DIALOG: t = 186..192 each, 186+190, 186+190+191, voice 0x10001C0, 190+voice -> 186 blush, 187 teardrop, 188 sweat drop, 189 white puff, 190 !, 191 ?, 192 !? over the portrait; 186+190 shows both; 186+190+191 shows blush and ! only (the third icon is dropped); 0x10001C0 alone and as trigger2 after 190 played the voice V_PLAW_SURPRISE_ARE with no icon of its own. In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 0, 0) + DIALOG, in a run of all ops 16..73 in order -> the player's portrait (Lest) on the left with the save name on the plate; a new speaker on one side leaves the other side's portrait up, the same speaker switching sides moves its portrait. In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 0, 0x10001C0) + DIALOG on Lest -> the debug log printed 'Playing voice V_PLAM_SURPRISE_ARE for character V_PLAM': the player clip plays Lest's set on a male player (V_PLAW on Frey, 2026-10-01). In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 254, 0) / SetSpeaker(MC, Left, 1000, 0) before a DIALOG -> user: 'no portrait change' - both looked like the normal face (default-looking result, face values 254 / 1000 not confirmed).",
    "alias_of": null,
    "handler": "Script_VMOp_SetSpeaker",
    "handler_rva": "0x207F70",
@@ -23171,6 +23171,11 @@
        "date": "2026-10-02",
        "call": "GetActorTilePosition(0 player) / (4 Forte, in the party)",
        "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GetActorTilePosition(0) and GetActorTilePosition_136(0) back to back",
+       "observed": "398448 = 398448 (x 398, y 448): the twin gives the same position"
       }
      ]
     }
@@ -23235,6 +23240,11 @@
        "date": "2026-10-02",
        "call": "GetActorTilePosition(0 player) / (4 Forte, in the party)",
        "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GetActorTilePosition(0) and GetActorTilePosition_136(0) back to back",
+       "observed": "398448 = 398448 (x 398, y 448): the twin gives the same position"
       }
      ]
     }
@@ -23245,7 +23255,7 @@
    "description": "Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.",
    "details": "Id 0: player world_x/world_y >> 12 (with g_globalGameStateFlags & 0x401000 the player pointer is NULL and the read would fault). Id 1-47: actor+88/+92 >> 12, or npc entry +192/+196 when no actor, or 0/0 when the entry is missing. Id >= 48: registers untouched. Returns 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses.",
+   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorTilePosition(0) and GetActorTilePosition_136(0) back to back -> 398448 = 398448 (x 398, y 448): the twin gives the same position.",
    "alias_of": 135,
    "handler": "ScriptVMOp_QueryActorWorldPositionAsTile",
    "handler_rva": "0x1FB2A0",
@@ -23264,7 +23274,7 @@
    "confidence": "high",
    "notes": "True alias pair 135/136.",
    "change_reason": "Naming convention: non-blocking query that writes VM registers -> Get.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 124,
     "pc": "0x023A",
@@ -27731,7 +27741,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetActorHeldItem(4 Forte, 559 Cheap Hoe) / SetActorHeldItem_207(4, 328 Broadsword) / (4, 0) / (4, 1), screenshots of each",
+       "observed": "user: 'it matches' my reading of the screenshots: 559 -> Forte held a hoe; 328 (via twin op 207) -> a sword; 0 -> hands empty; 1 -> her own equipment back (something grey and square in hand) and the gifted White Ribbon on her head"
+      }
+     ]
     },
     {
      "name": "item",
@@ -27739,16 +27756,23 @@
      "values": "item to hold; 0 = remove; NPC only: 1 = its default equipment",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetActorHeldItem(4 Forte, 559 Cheap Hoe) / SetActorHeldItem_207(4, 328 Broadsword) / (4, 0) / (4, 1), screenshots of each",
+       "observed": "user: 'it matches' my reading of the screenshots: 559 -> Forte held a hoe; 328 (via twin op 207) -> a sword; 0 -> hands empty; 1 -> her own equipment back (something grey and square in hand) and the gifted White Ribbon on her head"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Make an NPC hold an item in their hand (or put it away), or give the player an item and equip it as their weapon. Used when a character pulls out a tool or hands something over.",
+   "description": "Make an NPC hold a tool or equipment item in hand (arg 1 >= 2), restore its configured equipment (1) or clear its held tool models (0); for the player (actor 0) give the item and equip it as the weapon. It works on the NPC's equipment models, not on a hand prop given by HandOrDropItem: after HandOrDropItem(Forte, Cabbage), SetActorHeldItem(Forte, 0) left the Cabbage in her hand (she pulled it out, GetNpcHeldItem still 1, in game). In game: item 559 put a hoe in Forte's hand, 328 a sword, 0 emptied it, 1 restored her own equipment (and her gifted White Ribbon appeared on her head).",
    "details": "NPC (arg0 1-47, spawned): arg1 >= 2 -> Npc_ClearActivePathTarget(actor, arg1 | 0x8000) (+0x160580), which for the negative int16 calls Actor_EquipStartingItemByNpcParam (+0xD4630) and puts that item's model in the hand; arg1 == 1 -> passes 0 (re-apply the NPC's configured equipment); arg1 == 0 -> destroys the three held-item model tasks (inner +248/+256/+264, flag 0x100) and zeroes the held ids +180/+182/+184. Player (arg0 0): arg1 != 0 -> add the item to the bag if absent (with the pending-interaction record) and equip it in the weapon slot (Player_OnEquipChanged +0xB2570); arg1 == 0 -> move the weapon back to the bag, clear the slot, Actor_RecomputeStats, re-apply the other equipment.",
    "side_effects": "NPC held-item models; player inventory and weapon slot",
-   "evidence": "RF4S.exe+0x1FEFB0 (Script_VMOp_CancelNpcPathOrPlayerEquipMainhand); corpus: op 206 55 uses (items 587/506/328/576, 0 to put away, followed by PlayActorAnim), op 207 1 use (REG_CHILD_ID, 532).",
+   "evidence": "RF4S.exe+0x1FEFB0 (Script_VMOp_CancelNpcPathOrPlayerEquipMainhand); corpus: op 206 55 uses (items 587/506/328/576, 0 to put away, followed by PlayActorAnim), op 207 1 use (REG_CHILD_ID, 532). In-game test 2026-10-02 (user): HandOrDropItem(4, 1); SetActorHeldItem(4, 0); GetNpcHeldItem(4) in the next statement -> GetNpcHeldItem still 1 (whether the hand emptied later is being checked). In-game test 2026-10-02 (user): HandOrDropItem(4, 1 Cabbage); SetActorHeldItem(4, 0) (screenshots before / after) -> Forte changed pose and held the Cabbage out instead of putting it away; GetNpcHeldItem stayed 1 (item 0 clears the equipment-model ids +180..+184, not the hand prop +178). In-game test 2026-10-02 (user): SetActorHeldItem(4 Forte, 559 Cheap Hoe) / SetActorHeldItem_207(4, 328 Broadsword) / (4, 0) / (4, 1), screenshots of each -> user: 'it matches' my reading of the screenshots: 559 -> Forte held a hoe; 328 (via twin op 207) -> a sword; 0 -> hands empty; 1 -> her own equipment back (something grey and square in hand) and the gifted White Ribbon on her head.",
    "alias_of": null,
    "handler": "Script_VMOp_CancelNpcPathOrPlayerEquipMainhand",
    "handler_rva": "0x1FEFB0",
@@ -27767,7 +27791,7 @@
    "confidence": "high",
    "notes": "True alias pair 206/207. Nothing here cancels a path despite the IDB name.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 136,
     "pc": "0x393A",
@@ -27796,7 +27820,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetActorHeldItem(4 Forte, 559 Cheap Hoe) / SetActorHeldItem_207(4, 328 Broadsword) / (4, 0) / (4, 1), screenshots of each",
+       "observed": "user: 'it matches' my reading of the screenshots: 559 -> Forte held a hoe; 328 (via twin op 207) -> a sword; 0 -> hands empty; 1 -> her own equipment back (something grey and square in hand) and the gifted White Ribbon on her head"
+      }
+     ]
     },
     {
      "name": "item",
@@ -27804,7 +27835,14 @@
      "values": "item to hold; 0 = remove; NPC only: 1 = its default equipment",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetActorHeldItem(4 Forte, 559 Cheap Hoe) / SetActorHeldItem_207(4, 328 Broadsword) / (4, 0) / (4, 1), screenshots of each",
+       "observed": "user: 'it matches' my reading of the screenshots: 559 -> Forte held a hoe; 328 (via twin op 207) -> a sword; 0 -> hands empty; 1 -> her own equipment back (something grey and square in hand) and the gifted White Ribbon on her head"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -27832,7 +27870,7 @@
    "confidence": "high",
    "notes": "True alias pair 206/207. Nothing here cancels a path despite the IDB name.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 126,
     "pc": "0x02AE",
@@ -27861,7 +27899,24 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(4 Forte, 1 Cabbage) in the Dragon Room",
+       "observed": "the Cabbage appeared in Forte's hand (screenshot); GetNpcHeldItem(4) = 1 right after"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4)",
+       "observed": "reg0 = 1; user: 'yes cabbage' (Forte held it)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(0 = player, 1 Cabbage); IsPlayerHoldingItem()",
+       "observed": "IsPlayerHoldingItem = 1; user: 'yes cabbage' (the player held it over the head)"
+      }
+     ]
     },
     {
      "name": "item",
@@ -27869,7 +27924,19 @@
      "values": "0-2047 (11 bits)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(4 Forte, 1 Cabbage) in the Dragon Room",
+       "observed": "the Cabbage appeared in Forte's hand (screenshot); GetNpcHeldItem(4) = 1 right after"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4)",
+       "observed": "reg0 = 1; user: 'yes cabbage' (Forte held it)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -27878,7 +27945,7 @@
    "description": "Put an item in a character's hands: an NPC holds it (e.g. before handing it over), or the player receives it held over their head - dropped at their feet if they are already holding something. reg0 tells whether it is held.",
    "details": "arg0 must be < 48. Builds an item slot {id & 0x7FF | 0x800 (amount 1), level bytes 0}; if g_pendingInteractionRecord_24B is set it is consumed (id 1 = its level/ingredient data copied in). NPC (1-47, spawned): Item_SpawnVisualTask + Npc_AttachHeldItem (+0x160450) -> the NPC holds it; reg0 = 1 (0 if the NPC/actor is missing). Player (0): if status_equip_flags & 0x4000 or the player already holds an item (stats held id 1..1107), the item is dropped at the player's feet (ItemDrop_SpawnInWorld +0xE9840, sfx 0x100226D, Action_TriggerActor 0x13) and reg0 = 0; else Item_SpawnVisualTask + Player_AttachHeldItem (+0x172170) - the player holds it over their head - and reg0 = 1.",
    "side_effects": "spawns an item task; consumes the pending-interaction item record; may drop an item in the world",
-   "evidence": "RF4S.exe+0x1FF420 (Script_Action_HandOrDropItem); corpus: op 208 96 uses (mostly (tag3(0) = player, reg0) followed by BR_Z reg0), op 209 23 uses ((npc, reg0) after GetNpcFavoriteItem, then the anim wait).",
+   "evidence": "RF4S.exe+0x1FF420 (Script_Action_HandOrDropItem); corpus: op 208 96 uses (mostly (tag3(0) = player, reg0) followed by BR_Z reg0), op 209 23 uses ((npc, reg0) after GetNpcFavoriteItem, then the anim wait). In-game test 2026-10-02 (user): HandOrDropItem(4 Forte, 1 Cabbage) in the Dragon Room -> the Cabbage appeared in Forte's hand (screenshot); GetNpcHeldItem(4) = 1 right after. In-game test 2026-10-02 (user): HandOrDropItem(0 = player, 1 Cabbage); IsPlayerHoldingItem() -> IsPlayerHoldingItem = 1; user: 'yes cabbage' (the player held it over the head).",
    "alias_of": null,
    "handler": "Script_Action_HandOrDropItem",
    "handler_rva": "0x1FF420",
@@ -27897,7 +27964,7 @@
    "confidence": "high",
    "notes": "True alias pair 208/209 (no opcode branch); op 209 had category 'item', op 208 'actor' - unified to item.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 384,
     "pc": "0x0202",
@@ -27926,7 +27993,24 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(4 Forte, 1 Cabbage) in the Dragon Room",
+       "observed": "the Cabbage appeared in Forte's hand (screenshot); GetNpcHeldItem(4) = 1 right after"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4)",
+       "observed": "reg0 = 1; user: 'yes cabbage' (Forte held it)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(0 = player, 1 Cabbage); IsPlayerHoldingItem()",
+       "observed": "IsPlayerHoldingItem = 1; user: 'yes cabbage' (the player held it over the head)"
+      }
+     ]
     },
     {
      "name": "item",
@@ -27934,7 +28018,19 @@
      "values": "0-2047 (11 bits)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(4 Forte, 1 Cabbage) in the Dragon Room",
+       "observed": "the Cabbage appeared in Forte's hand (screenshot); GetNpcHeldItem(4) = 1 right after"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4)",
+       "observed": "reg0 = 1; user: 'yes cabbage' (Forte held it)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -27943,7 +28039,7 @@
    "description": "Put an item in a character's hands: an NPC holds it (e.g. before handing it over), or the player receives it held over their head - dropped at their feet if they are already holding something. reg0 tells whether it is held.",
    "details": "arg0 must be < 48. Builds an item slot {id & 0x7FF | 0x800 (amount 1), level bytes 0}; if g_pendingInteractionRecord_24B is set it is consumed (id 1 = its level/ingredient data copied in). NPC (1-47, spawned): Item_SpawnVisualTask + Npc_AttachHeldItem (+0x160450) -> the NPC holds it; reg0 = 1 (0 if the NPC/actor is missing). Player (0): if status_equip_flags & 0x4000 or the player already holds an item (stats held id 1..1107), the item is dropped at the player's feet (ItemDrop_SpawnInWorld +0xE9840, sfx 0x100226D, Action_TriggerActor 0x13) and reg0 = 0; else Item_SpawnVisualTask + Player_AttachHeldItem (+0x172170) - the player holds it over their head - and reg0 = 1.",
    "side_effects": "spawns an item task; consumes the pending-interaction item record; may drop an item in the world",
-   "evidence": "RF4S.exe+0x1FF420 (Script_Action_HandOrDropItem); corpus: op 208 96 uses (mostly (tag3(0) = player, reg0) followed by BR_Z reg0), op 209 23 uses ((npc, reg0) after GetNpcFavoriteItem, then the anim wait).",
+   "evidence": "RF4S.exe+0x1FF420 (Script_Action_HandOrDropItem); corpus: op 208 96 uses (mostly (tag3(0) = player, reg0) followed by BR_Z reg0), op 209 23 uses ((npc, reg0) after GetNpcFavoriteItem, then the anim wait). In-game test 2026-10-02 (user): HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4) -> reg0 = 1; user: 'yes cabbage' (Forte held it).",
    "alias_of": 208,
    "handler": "Script_Action_HandOrDropItem",
    "handler_rva": "0x1FF420",
@@ -27962,7 +28058,7 @@
    "confidence": "high",
    "notes": "True alias pair 208/209 (no opcode branch); op 209 had category 'item', op 208 'actor' - unified to item.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 124,
     "pc": "0x028C",
@@ -29574,10 +29670,10 @@
   "232": {
    "op": 232,
    "op_hex": "0x0E8",
-   "mnemonic": "IsNpcHidden",
+   "mnemonic": "HasNpcGreetedToday",
    "previous_mnemonic": "QueryNpcHidden",
    "category": "query",
-   "prototype": "IsNpcHidden(npc)",
+   "prototype": "HasNpcGreetedToday(npc)",
    "args": [
     {
      "name": "npc",
@@ -29589,21 +29685,31 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "IsNpcHidden(4 Forte)",
+       "call": "HasNpcGreetedToday(4 Forte)",
        "observed": "0 (not hidden)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(1 Vishnal, 0); HasNpcGreetedToday(1)",
+       "observed": "1"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HasNpcGreetedToday(2 / 3 / 6 / 8) after SkipNpcDailyGreeting on Clorica (233) and Volkanon (234)",
+       "observed": "1, 1, 0, 0"
       }
      ]
     }
    ],
    "optional_args_from": null,
-   "returns": "reg0 = 1 if the NPC is hidden (HideNpc flag), else 0",
+   "returns": "reg0 = 1 if the NPC is hidden (SkipNpcDailyGreeting flag), else 0",
    "blocking": "no",
-   "description": "Check whether an NPC has been hidden with HideNpc (op 233).",
-   "details": "RF4S.exe+0x1FDFF0: arg0 < 0x30 -> reg0 = Npc_IsHidden(arg0) (+0x227300, zone-2 bit 1037+id, cleared daily).",
+   "description": "Check whether a villager's daily greeting counts as played (reg0 = 1/0): set by SkipNpcDailyGreeting (ops 233 / 234) or by the game after the greeting scene ran. Reads both flags: the daily GameFlags bit (cleared each morning) and the record bit (cleared by the next talk). In game: 1 right after op 233 / 234, 0 for untouched villagers; the talk-start code reads the same value.",
+   "details": "RF4S.exe+0x1FDFF0: arg0 < 0x30 -> reg0 = Npc_IsDailyGreetingDone(arg0) (+0x227300, zone-2 bit 1037+id, cleared daily).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x1FDFF0, +0x227300; corpus: unused. In-game test 2026-10-02 (user): IsNpcHidden(4 Forte) -> 0 (not hidden).",
+   "evidence": "RF4S.exe+0x1FDFF0, +0x227300; corpus: unused. In-game test 2026-10-02 (user): HasNpcGreetedToday(4 Forte) -> 0 (not hidden). In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1 Vishnal, 0); HasNpcGreetedToday(1) -> 1. In-game test 2026-10-02 (user): HasNpcGreetedToday(2 / 3 / 6 / 8) after SkipNpcDailyGreeting on Clorica (233) and Volkanon (234) -> 1, 1, 0, 0.",
    "alias_of": null,
-   "handler": "Script_VMOp_QueryNpcHidden",
+   "handler": "Script_VMOp_HasNpcGreetedToday",
    "handler_rva": "0x1FDFF0",
    "shares_handler_with": [],
    "size": [
@@ -29614,7 +29720,7 @@
    "banks": 0,
    "arg_counts": {},
    "confidence": "high",
-   "notes": "Unused in rf3.mc.",
+   "notes": "Unused in rf3.mc. Needs a non-default test: an NPC hidden with SkipNpcDailyGreeting (op 233).",
    "change_reason": "Boolean query -> Is prefix (verb convention).",
    "human_verified": true,
    "example": null
@@ -29622,10 +29728,10 @@
   "233": {
    "op": 233,
    "op_hex": "0x0E9",
-   "mnemonic": "HideNpc",
+   "mnemonic": "SkipNpcDailyGreeting",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "HideNpc(npc, unused)",
+   "prototype": "SkipNpcDailyGreeting(npc, unused)",
    "args": [
     {
      "name": "npc",
@@ -29633,7 +29739,24 @@
      "values": "1..47; >= 48 = no-op",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(1 Vishnal, 0) from the Dragon Room test",
+       "observed": "HasNpcGreetedToday(1) = 1 right after (the flag is set); whether Vishnal is visibly gone from town was not checked"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(2 Clorica, 0) from the Dragon Room entry scene; then talk to Clorica, Volkanon and Bado",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting_234(3 Volkanon, 0) from the Dragon Room entry scene; then talk to Volkanon",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      }
+     ]
     },
     {
      "name": "unused",
@@ -29641,18 +29764,35 @@
      "values": "never read; the corpus always passes 1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(1 Vishnal, 0) from the Dragon Room test",
+       "observed": "HasNpcGreetedToday(1) = 1 right after (the flag is set); whether Vishnal is visibly gone from town was not checked"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(2 Clorica, 0) from the Dragon Room entry scene; then talk to Clorica, Volkanon and Bado",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting_234(3 Volkanon, 0) from the Dragon Room entry scene; then talk to Volkanon",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Send an NPC away for the rest of the day (it disappears and does not come back until the next day), e.g. after it has said its piece.",
-   "details": "Npc_SetHiddenFlag(id) (+0x226E20): sets GameFlags zone-2 bit 1037 + id (the per-NPC hidden range that Day_UpdateNpcDailyFlags clears every day) and npc record +48 bit 0x20000; then the handler sets record +52 bit 0x20000000. arg1 is never read.",
+   "description": "Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.",
+   "details": "Npc_SetDailyGreetingDone(id) (+0x226E20): sets GameFlags zone-2 bit 1037 + id (the per-NPC hidden range that Day_UpdateNpcDailyFlags clears every day) and npc record +48 bit 0x20000; then the handler sets record +52 bit 0x20000000. arg1 is never read. Reader: NpcAi_ResolveVillagerBehavior (RF4S.exe+0x1F7E00) case 0: unless Npc_IsDailyGreetingDone(id), it picks the time slot (6-9 / 10-17 / other) and, when a type-22 entry matches, runs it and calls Npc_SetDailyGreetingDone.",
    "side_effects": "GameFlags zone-2 bit 1037+id; npc record +48 / +52 bits",
-   "evidence": "RF4S.exe+0x1FE050; RF4S.exe+0x226E20; corpus 234 uses, all argc 2 with arg1 = 1, typically at the end of an NPC's scene branch.",
+   "evidence": "RF4S.exe+0x1FE050; RF4S.exe+0x226E20; corpus 234 uses, all argc 2 with arg1 = 1, typically at the end of an NPC's scene branch. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1 Vishnal, 0); HasNpcGreetedToday(1) -> HasNpcGreetedToday read 1 right after (Vishnal away for the day). In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1 Vishnal, 0) from the Dragon Room test -> HasNpcGreetedToday(1) = 1 right after (the flag is set); whether Vishnal is visibly gone from town was not checked. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1..11 without 4) via op 233 and SkipNpcDailyGreeting_234(12..21) via op 234, then a walk through castle and town -> HasNpcGreetedToday read 1 for all 20, but user: 'I saw all villagers when I walked' - nobody disappeared. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(2 Clorica, 0) from the Dragon Room entry scene; then talk to Clorica, Volkanon and Bado -> live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged).",
    "alias_of": null,
-   "handler": "Script_VMOp_HideNpcAndSetFlag",
+   "handler": "Script_VMOp_SkipNpcDailyGreeting",
    "handler_rva": "0x1FE050",
    "shares_handler_with": [
     234
@@ -29669,7 +29809,7 @@
    "confidence": "medium",
    "notes": "The 'rest of the day' reading comes from the daily clear of bits 1037..1060 (emflags.ZONE2_BLOCKS); whether record +52 bit 0x20000000 is also reset daily was not traced.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 107,
     "pc": "0x2B98",
@@ -29677,7 +29817,7 @@
      "    DIALOG #40175    ; \"I will wait.\"",
      "    SetSpeaker(Vishnal, Right, 3, 0)",
      "    DIALOG #40176    ; \"I'll wait as long as it takes!\"",
-     "    HideNpc(actor(Vishnal), 1)    ; <--",
+     "    SkipNpcDailyGreeting(actor(Vishnal), 1)    ; <--",
      "    FinishCurrentSubEvent()",
      "    RET",
      "L_2ba6:"
@@ -29687,10 +29827,10 @@
   "234": {
    "op": 234,
    "op_hex": "0x0EA",
-   "mnemonic": "HideNpc",
+   "mnemonic": "SkipNpcDailyGreeting",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "HideNpc(npc, unused)",
+   "prototype": "SkipNpcDailyGreeting(npc, unused)",
    "args": [
     {
      "name": "npc",
@@ -29698,7 +29838,24 @@
      "values": "1..47; >= 48 = no-op",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(1 Vishnal, 0) from the Dragon Room test",
+       "observed": "HasNpcGreetedToday(1) = 1 right after (the flag is set); whether Vishnal is visibly gone from town was not checked"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(2 Clorica, 0) from the Dragon Room entry scene; then talk to Clorica, Volkanon and Bado",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting_234(3 Volkanon, 0) from the Dragon Room entry scene; then talk to Volkanon",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      }
+     ]
     },
     {
      "name": "unused",
@@ -29706,18 +29863,35 @@
      "values": "never read; the corpus always passes 1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(1 Vishnal, 0) from the Dragon Room test",
+       "observed": "HasNpcGreetedToday(1) = 1 right after (the flag is set); whether Vishnal is visibly gone from town was not checked"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting(2 Clorica, 0) from the Dragon Room entry scene; then talk to Clorica, Volkanon and Bado",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SkipNpcDailyGreeting_234(3 Volkanon, 0) from the Dragon Room entry scene; then talk to Volkanon",
+       "observed": "live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged)."
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Send an NPC away for the rest of the day (it disappears and does not come back until the next day), e.g. after it has said its piece.",
-   "details": "Npc_SetHiddenFlag(id) (+0x226E20): sets GameFlags zone-2 bit 1037 + id (the per-NPC hidden range that Day_UpdateNpcDailyFlags clears every day) and npc record +48 bit 0x20000; then the handler sets record +52 bit 0x20000000. arg1 is never read.",
+   "description": "Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.",
+   "details": "Npc_SetDailyGreetingDone(id) (+0x226E20): sets GameFlags zone-2 bit 1037 + id (the per-NPC hidden range that Day_UpdateNpcDailyFlags clears every day) and npc record +48 bit 0x20000; then the handler sets record +52 bit 0x20000000. arg1 is never read. Reader: NpcAi_ResolveVillagerBehavior (RF4S.exe+0x1F7E00) case 0: unless Npc_IsDailyGreetingDone(id), it picks the time slot (6-9 / 10-17 / other) and, when a type-22 entry matches, runs it and calls Npc_SetDailyGreetingDone.",
    "side_effects": "GameFlags zone-2 bit 1037+id; npc record +48 / +52 bits",
-   "evidence": "RF4S.exe+0x1FE050; RF4S.exe+0x226E20; corpus 234 uses, all argc 2 with arg1 = 1, typically at the end of an NPC's scene branch.",
+   "evidence": "RF4S.exe+0x1FE050; RF4S.exe+0x226E20; corpus 234 uses, all argc 2 with arg1 = 1, typically at the end of an NPC's scene branch. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1..11 without 4) via op 233 and SkipNpcDailyGreeting_234(12..21) via op 234, then a walk through castle and town -> HasNpcGreetedToday read 1 for all 20, but user: 'I saw all villagers when I walked' - nobody disappeared. In-game test 2026-10-02 (user): SkipNpcDailyGreeting_234(3 Volkanon, 0) from the Dragon Room entry scene; then talk to Volkanon -> live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged).",
    "alias_of": 233,
-   "handler": "Script_VMOp_HideNpcAndSetFlag",
+   "handler": "Script_VMOp_SkipNpcDailyGreeting",
    "handler_rva": "0x1FE050",
    "shares_handler_with": [
     233
@@ -29734,15 +29908,15 @@
    "confidence": "medium",
    "notes": "True alias of op 233 (same handler, no opcode-dependent branch). Corpus op 234 passes REG_WIFE_ID / REG_CHILD_ID.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 129,
     "pc": "0x0208",
     "lines": [
      "    DismissBothCompanions()",
      "    EVAL (var:0x14C = 1)",
-     "    HideNpc(actor(Ventuswill), 1)",
-     "    HideNpc_234(var:0x40FE, 1)    ; <--",
+     "    SkipNpcDailyGreeting(actor(Ventuswill), 1)",
+     "    SkipNpcDailyGreeting_234(var:0x40FE, 1)    ; <--",
      "    EVAL (var:0x48E = 0)",
      "    EVAL (var:0x48D = 0)",
      "    FinishCurrentSubEvent()"
@@ -31384,7 +31558,7 @@
    "description": "Sets reg0 to the char id of the NPC the player is currently talking to or interacting with (0xFFFF if none).",
    "details": "reg0 = (u16) *(current interaction actor + 8), or 0xFFFF when the pointer (qword at RF4S.exe+0xE3CB30) is null.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x200DB0: `v2 = qword_7FF7547BCB30 ? *(u32*)(qword+8) : 0xFFFF; *(a2+64) = (u16)v2`; corpus: 42 uses, e.g. before GetChildFriendPoints(reg0). In-game test 2026-10-02 (user): GetCurrentInteractionNpc() in a map-entry scene -> 65535 (talking to nobody).",
+   "evidence": "RF4S.exe+0x200DB0: `v2 = qword_7FF7547BCB30 ? *(u32*)(qword+8) : 0xFFFF; *(a2+64) = (u16)v2`; corpus: 42 uses, e.g. before GetChildFriendPoints(reg0). In-game test 2026-10-02 (user): GetCurrentInteractionNpc() in a map-entry scene -> 65535 (talking to nobody). In-game test 2026-10-02 (user): GetCurrentInteractionNpc() inside a talk-triggered scene (talking to an event actor Captain, char 331) -> 331.",
    "alias_of": null,
    "handler": "ScriptVMOp_QueryCurrentInteractionNpcCharId",
    "handler_rva": "0x200DB0",
@@ -31399,7 +31573,7 @@
     "0": 42
    },
    "confidence": "high",
-   "notes": "",
+   "notes": "Needs a non-default test: the scene running while talking to an NPC (a talk-triggered scene).",
    "change_reason": "consistency pass: QueryCurrentInteractionNpc -> GetCurrentInteractionNpc",
    "human_verified": true,
    "example": {
@@ -31998,7 +32172,7 @@
      "    WaitCameraAtMark()",
      "    SetSceneCast(0, actor(Kiel))",
      "    ReleaseNpcScriptedPlacement(actor(Kiel), 0)    ; <--",
-     "    HideNpc(actor(Kiel), 1)",
+     "    SkipNpcDailyGreeting(actor(Kiel), 1)",
      "    EVAL (var:0x47D = 0)",
      "    FinishCurrentSubEvent()"
     ]
@@ -32328,6 +32502,16 @@
        "date": "2026-10-02",
        "call": "GetNpcHeldItem(4 Forte), nothing in hand",
        "observed": "0"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(4, 1 Cabbage); GetNpcHeldItem(4)",
+       "observed": "1 = Cabbage, with the Cabbage visibly in Forte's hand"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4)",
+       "observed": "1 = Cabbage; user: 'yes cabbage'"
       }
      ]
     }
@@ -32338,7 +32522,7 @@
    "description": "Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.",
    "details": "reg0 = actor(+64)->+304->u16 +178 if it is 1..1107 (0x453), else 0; id 0 or >= 48 -> 0. The same field is zeroed by Npc_ResetActorPostTeleport (+0x160BD0) when the held prop is destroyed.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x205690; corpus op 277: 44 uses, e.g. GetNpcFavoriteItem(4) -> HandOrDropItem(4, reg0) -> ... -> GetNpcHeldItem(4) -> PlayActorAnim(4, 20, 0). In-game test 2026-10-02 (user): GetNpcHeldItem(4 Forte), nothing in hand -> 0.",
+   "evidence": "RF4S.exe+0x205690; corpus op 277: 44 uses, e.g. GetNpcFavoriteItem(4) -> HandOrDropItem(4, reg0) -> ... -> GetNpcHeldItem(4) -> PlayActorAnim(4, 20, 0). In-game test 2026-10-02 (user): GetNpcHeldItem(4 Forte), nothing in hand -> 0. In-game test 2026-10-02 (user): HandOrDropItem(4, 1 Cabbage); GetNpcHeldItem(4) -> 1 = Cabbage, with the Cabbage visibly in Forte's hand.",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcHeldItem",
    "handler_rva": "0x205690",
@@ -32353,7 +32537,7 @@
    "banks": 0,
    "arg_counts": {},
    "confidence": "high",
-   "notes": "Not a model id (the IDB name is wrong). Unused in rf3.mc (op 277 carries all 44 uses).",
+   "notes": "Not a model id (the IDB name is wrong). Unused in rf3.mc (op 277 carries all 44 uses). Needs a non-default test: an NPC holding a prop in hand (e.g. about to hand over a gift).",
    "change_reason": "Returns an item id: Get verb per the naming rules.",
    "human_verified": true,
    "example": null
@@ -32378,6 +32562,16 @@
        "date": "2026-10-02",
        "call": "GetNpcHeldItem(4 Forte), nothing in hand",
        "observed": "0"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem(4, 1 Cabbage); GetNpcHeldItem(4)",
+       "observed": "1 = Cabbage, with the Cabbage visibly in Forte's hand"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4)",
+       "observed": "1 = Cabbage; user: 'yes cabbage'"
       }
      ]
     }
@@ -32388,7 +32582,7 @@
    "description": "Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.",
    "details": "reg0 = actor(+64)->+304->u16 +178 if it is 1..1107 (0x453), else 0; id 0 or >= 48 -> 0. The same field is zeroed by Npc_ResetActorPostTeleport (+0x160BD0) when the held prop is destroyed.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x205690; corpus op 277: 44 uses, e.g. GetNpcFavoriteItem(4) -> HandOrDropItem(4, reg0) -> ... -> GetNpcHeldItem(4) -> PlayActorAnim(4, 20, 0).",
+   "evidence": "RF4S.exe+0x205690; corpus op 277: 44 uses, e.g. GetNpcFavoriteItem(4) -> HandOrDropItem(4, reg0) -> ... -> GetNpcHeldItem(4) -> PlayActorAnim(4, 20, 0). In-game test 2026-10-02 (user): HandOrDropItem_209(4 Forte, 1 Cabbage); GetNpcHeldItem_277(4) -> 1 = Cabbage; user: 'yes cabbage'.",
    "alias_of": 276,
    "handler": "Script_VMOp_GetNpcHeldItem",
    "handler_rva": "0x205690",
@@ -32405,9 +32599,9 @@
     "1": 44
    },
    "confidence": "high",
-   "notes": "True alias of op 276 (same handler, no opcode-dependent branch). 44 corpus uses.",
+   "notes": "True alias of op 276 (same handler, no opcode-dependent branch). 44 corpus uses. Needs a non-default test: an NPC holding a prop in hand (e.g. about to hand over a gift).",
    "change_reason": "Returns an item id: Get verb per the naming rules.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 23,
     "pc": "0x313A",
@@ -32567,9 +32761,9 @@
     "1": 88
    },
    "confidence": "high",
-   "notes": "State meanings from the 2026-09-25 trace (Day_UpdateNpcDailyFlags); not re-traced here.",
+   "notes": "State meanings from the 2026-09-25 trace (Day_UpdateNpcDailyFlags); not re-traced here. Needs a non-default test: a date arranged / running with that NPC.",
    "change_reason": "Returns a value (not a boolean) -> Get prefix per the verb convention.",
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 26,
     "pc": "0x09C8",
@@ -32738,9 +32932,9 @@
     "0": 107
    },
    "confidence": "high",
-   "notes": "",
+   "notes": "Needs a non-default test: a companion on a date with the player.",
    "change_reason": "consistency pass: QueryDateCompanionId -> GetDateCompanionId",
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 377,
     "pc": "0x1456",
@@ -33555,8 +33749,8 @@
      "    SetNpcActionDelay_303(6, 1200)",
      "    ApplyNpcScheduleState_297(var:0x40C6, -1)    ; <--",
      "    ApplyNpcScheduleState_297(6, -1)",
-     "    HideNpc(actor(Bado), 1)",
-     "    HideNpc_234(var:0x40C6, 1)"
+     "    SkipNpcDailyGreeting(actor(Bado), 1)",
+     "    SkipNpcDailyGreeting_234(var:0x40C6, 1)"
     ]
    }
   },
@@ -35285,9 +35479,9 @@
    "banks": 0,
    "arg_counts": {},
    "confidence": "medium",
-   "notes": "Op 327 treats 0x400 together with the character-change bit 0x8; the 'posing' meaning of 0x400 was not verified.",
+   "notes": "Op 327 treats 0x400 together with the character-change bit 0x8; the 'posing' meaning of 0x400 was not verified. Needs a non-default test: an actor in the state that sets status bit 0x400 (setter not found yet).",
    "change_reason": null,
-   "human_verified": true,
+   "human_verified": false,
    "example": null
   },
   "330": {
@@ -40065,10 +40259,10 @@
    "optional_args_from": null,
    "returns": "reg0 = number of monsters in the active kill-target list that are not hidden/defeated",
    "blocking": "no",
-   "description": "Put the number of monsters still standing in the current 'defeat the monsters' group into reg0.",
-   "details": "RF4S.exe+0x212A50: walks g_activeKillAggregateList (count byte +96, 8-byte entries) and counts entries whose actor byte +568 bit 4 (hidden/defeated) is clear.",
+   "description": "Put the number of monsters still alive on the current map into reg0: the map's tracked monster list (every spawned monster, minion, summon and gate spawn), counting those not flagged defeated. It is the count a sealed room waits on before it opens. CountLivingEnemies (op 408) is the same count without monster ids 141 / 142.",
+   "details": "RF4S.exe+0x212A50: walks g_activeKillAggregateList (count byte +96, 8-byte entries) and counts entries whose actor byte +568 bit 4 (hidden/defeated) is clear. The list is filled by Monster_SpawnLeveledAndTrackInKillList (+0x138C86), Monster_SpawnMinionAtActorPosition and the summon effects, and read by MonsterGate_TickSealDoorUntilClear (+0x14E90A), RoomClear_DetectAndTriggerExitSequence (+0xCCA1F), ExitPortal_TickWaitForRoomClear (+0x142354), companion targeting and the monster-AI op 0x8E.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x212A50; corpus: unused. In-game test 2026-10-02 (user): GetAliveKillTargetCount(), no defeat-the-monsters group -> 0.",
+   "evidence": "RF4S.exe+0x212A50; corpus: unused. In-game test 2026-10-02 (user): GetAliveKillTargetCount(), no defeat-the-monsters group -> 0. In-game test 2026-10-02 (user): Two Orcs (char 48) spawned with SpawnEventActor in the Dragon Room, both alive -> 0: event-spawned monsters are not in the map's monster (kill) list.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryActiveKillCount",
    "handler_rva": "0x212A50",
@@ -40081,9 +40275,9 @@
    "banks": 0,
    "arg_counts": {},
    "confidence": "high",
-   "notes": "Unused in rf3.mc.",
+   "notes": "Unused in rf3.mc. Needs a non-default test: monsters alive in the room (then kill one and re-check). Monsters spawned as event actors (SpawnEventActor) are not counted (in game: 0 with two event Orcs); test in a room with natural monster spawns.",
    "change_reason": "Returns a count -> Get prefix; name says what is counted (entries of the active kill-target list still alive).",
-   "human_verified": true,
+   "human_verified": false,
    "example": null
   },
   "408": {
@@ -40097,10 +40291,10 @@
    "optional_args_from": null,
    "returns": "reg0 = living enemy count",
    "blocking": "no",
-   "description": "Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts.",
+   "description": "Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts. Same list as GetAliveKillTargetCount (op 407), which also counts 141 / 142.",
    "details": "reg0 = (u8) KillAggregate_CountActiveExclude141_142() (RF4S.exe+0x1E60B0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x212AB0: `*(a2+64) = KillAggregate_CountActiveExclude141_142()`; corpus: 0 uses. In-game test 2026-10-02 (user): CountLivingEnemies() in the Dragon Room -> 0.",
+   "evidence": "RF4S.exe+0x212AB0: `*(a2+64) = KillAggregate_CountActiveExclude141_142()`; corpus: 0 uses. In-game test 2026-10-02 (user): CountLivingEnemies() in the Dragon Room -> 0. In-game test 2026-10-02 (user): Two Orcs (char 48) spawned with SpawnEventActor in the Dragon Room, both alive -> 0: event-spawned monsters are not in the map's monster (kill) list.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryKillAggregateActiveCountExclBoss",
    "handler_rva": "0x212AB0",
@@ -40113,9 +40307,9 @@
    "banks": 0,
    "arg_counts": {},
    "confidence": "medium",
-   "notes": "The callee's counting rule is taken from its IDB name and comment; not re-derived.",
+   "notes": "The callee's counting rule is taken from its IDB name and comment; not re-derived. Needs a non-default test: monsters alive in the room (and ids 141 / 142 for the difference). Monsters spawned as event actors (SpawnEventActor) are not counted (in game: 0 with two event Orcs); test in a room with natural monster spawns.",
    "change_reason": null,
-   "human_verified": true,
+   "human_verified": false,
    "example": null
   },
   "409": {
@@ -44992,8 +45186,8 @@
      "    CALL L_071c",
      "    DismissBothCompanions()    ; <--",
      "    EVAL (var:0x14C = 1)",
-     "    HideNpc(actor(Ventuswill), 1)",
-     "    HideNpc_234(var:0x40FE, 1)"
+     "    SkipNpcDailyGreeting(actor(Ventuswill), 1)",
+     "    SkipNpcDailyGreeting_234(var:0x40FE, 1)"
     ]
    }
   },
@@ -49948,9 +50142,9 @@
     "0": 96
    },
    "confidence": "high",
-   "notes": "Returns an event id, not a character id; there is no 'met today' check (the IDB name is wrong).",
+   "notes": "Returns an event id, not a character id; there is no 'met today' check (the IDB name is wrong). Needs a non-default test: a festival or birthday tomorrow (or today before 6:00).",
    "change_reason": null,
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 26,
     "pc": "0x0B9A",
@@ -50112,9 +50306,9 @@
     "0": 1
    },
    "confidence": "medium",
-   "notes": "The meaning of the global is the IDB's reading; the corpus switch is a festival favourite announcement, so it may hold another 'today's NPC' id.",
+   "notes": "The meaning of the global is the IDB's reading; the corpus switch is a festival favourite announcement, so it may hold another 'today's NPC' id. Needs a non-default test: a day with an active villager request.",
    "change_reason": null,
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 3,
     "pc": "0x0E02",
@@ -53135,9 +53329,9 @@
     "1": 23
    },
    "confidence": "high",
-   "notes": "",
+   "notes": "Needs a non-default test: a cleared Sharance Maze stage.",
    "change_reason": "Naming convention: boolean query -> Is.",
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 319,
     "pc": "0x15E0",
@@ -53956,7 +54150,7 @@
     "lines": [
      "    EVAL (var:0x33 = 0)",
      "    ApplyNpcScheduleState(actor(Ventuswill), -1)",
-     "    HideNpc(actor(Ventuswill), 1)",
+     "    SkipNpcDailyGreeting(actor(Ventuswill), 1)",
      "    AddTourists(250)    ; <--",
      "    AddPrincePoints(3000)",
      "    SetSaveConfigBit4()",
@@ -55381,7 +55575,7 @@
     "bank": 224,
     "pc": "0x0718",
     "lines": [
-     "    HideNpc(actor(Ventuswill), 1)",
+     "    SkipNpcDailyGreeting(actor(Ventuswill), 1)",
      "    AddTourists(250)",
      "    AddPrincePoints(3000)",
      "    SetSaveConfigBit4()    ; <--",
@@ -56692,9 +56886,9 @@
     "0": 1
    },
    "confidence": "medium",
-   "notes": "Only op 620 was checked as a writer of bit 1.",
+   "notes": "Only op 620 was checked as a writer of bit 1. Needs a non-default test: a save where a marriage has been completed.",
    "change_reason": "Naming convention (Has + boolean); bit 1 is the any-marriage-cleared system flag set by op 620.",
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 308,
     "pc": "0x1F24",

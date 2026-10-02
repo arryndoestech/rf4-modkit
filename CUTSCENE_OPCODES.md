@@ -5325,11 +5325,12 @@ Args:
 
 ### `op 206` — SetActorHeldItem(actor, item)
 *handler:* `Script_VMOp_CancelNpcPathOrPlayerEquipMainhand`
+*verified:* yes, in game
 
-Make an NPC hold an item in their hand (or put it away), or give the player an item and equip it as their weapon. Used when a character pulls out a tool or hands something over.
+Make an NPC hold a tool or equipment item in hand (arg 1 >= 2), restore its configured equipment (1) or clear its held tool models (0); for the player (actor 0) give the item and equip it as the weapon. It works on the NPC's equipment models, not on a hand prop given by HandOrDropItem: after HandOrDropItem(Forte, Cabbage), SetActorHeldItem(Forte, 0) left the Cabbage in her hand (she pulled it out, GetNpcHeldItem still 1, in game). In game: item 559 put a hoe in Forte's hand, 328 a sword, 0 emptied it, 1 restored her own equipment (and her gifted White Ribbon appeared on her head).
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5357,16 +5358,17 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. item (item to hold; 0 = remove; NPC only: 1 = its default equipment)
+  1. item (item to hold; 0 = remove; NPC only: 1 = its default equipment) — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 207` — SetActorHeldItem(actor, item)
 *handler:* `Script_VMOp_CancelNpcPathOrPlayerEquipMainhand`
+*verified:* yes, in game
 
 Make an NPC hold an item in their hand (or put it away), or give the player an item and equip it as their weapon. Used when a character pulls out a tool or hands something over.
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5394,7 +5396,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. item (item to hold; 0 = remove; NPC only: 1 = its default equipment)
+  1. item (item to hold; 0 = remove; NPC only: 1 = its default equipment) — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 211` — ShowActorEmote(actor, icon)
@@ -5706,13 +5708,14 @@ Args:
      - `26` = Mistress Trupin
   1. load (0 = only re-apply the schedule state; non-zero = force-load the NPC into the map)
 
-### `op 233` — HideNpc(npc, unused)
-*handler:* `Script_VMOp_HideNpcAndSetFlag`
+### `op 233` — SkipNpcDailyGreeting(npc, unused)
+*handler:* `Script_VMOp_SkipNpcDailyGreeting`
+*verified:* yes, in game
 
-Send an NPC away for the rest of the day (it disappears and does not come back until the next day), e.g. after it has said its piece.
+Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
 
 Args:
-  0. npc (1..47; >= 48 = no-op)
+  0. npc (1..47; >= 48 = no-op) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5740,15 +5743,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. unused (never read; the corpus always passes 1)
+  1. unused (never read; the corpus always passes 1) — verified in game
 
-### `op 234` — HideNpc(npc, unused)
-*handler:* `Script_VMOp_HideNpcAndSetFlag`
+### `op 234` — SkipNpcDailyGreeting(npc, unused)
+*handler:* `Script_VMOp_SkipNpcDailyGreeting`
+*verified:* yes, in game
 
-Send an NPC away for the rest of the day (it disappears and does not come back until the next day), e.g. after it has said its piece.
+Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
 
 Args:
-  0. npc (1..47; >= 48 = no-op)
+  0. npc (1..47; >= 48 = no-op) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5776,7 +5780,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. unused (never read; the corpus always passes 1)
+  1. unused (never read; the corpus always passes 1) — verified in game
 
 ### `op 244` — ShowNpcHeldItem(npc)
 *handler:* `Script_VMOp_BeginNpcItemShow`
@@ -8678,21 +8682,23 @@ Args:
 
 ### `op 208` — HandOrDropItem(holder, item)
 *handler:* `Script_Action_HandOrDropItem`
+*verified:* yes, in game
 
 Put an item in a character's hands: an NPC holds it (e.g. before handing it over), or the player receives it held over their head - dropped at their feet if they are already holding something. reg0 tells whether it is held.
 
 Args:
-  0. holder (0 = player, 1-47 = NPC/villager char id (see the character table))
-  1. item (0-2047 (11 bits))
+  0. holder (0 = player, 1-47 = NPC/villager char id (see the character table)) — verified in game
+  1. item (0-2047 (11 bits)) — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 209` — HandOrDropItem(holder, item)
 *handler:* `Script_Action_HandOrDropItem`
+*verified:* yes, in game
 
 Put an item in a character's hands: an NPC holds it (e.g. before handing it over), or the player receives it held over their head - dropped at their feet if they are already holding something. reg0 tells whether it is held.
 
 Args:
-  0. holder (0 = player, 1-47 = NPC/villager char id (see the character table))
+  0. holder (0 = player, 1-47 = NPC/villager char id (see the character table)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -8720,7 +8726,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. item (0-2047 (11 bits))
+  1. item (0-2047 (11 bits)) — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 210` — HandOrDropItemWithLevel(holder, item, level, amount)
@@ -10133,6 +10139,7 @@ Args:
 
 ### `op 136` — GetActorTilePosition(actor)
 *handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
+*verified:* yes, in game
 
 Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
 
@@ -10442,11 +10449,11 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 232` — IsNpcHidden(npc)
-*handler:* `Script_VMOp_QueryNpcHidden`
+### `op 232` — HasNpcGreetedToday(npc)
+*handler:* `Script_VMOp_HasNpcGreetedToday`
 *verified:* yes, in game
 
-Check whether an NPC has been hidden with HideNpc (op 233).
+Check whether a villager's daily greeting counts as played (reg0 = 1/0): set by SkipNpcDailyGreeting (ops 233 / 234) or by the game after the greeting scene ran. Reads both flags: the daily GameFlags bit (cleared each morning) and the record bit (cleared by the next talk). In game: 1 right after op 233 / 234, 0 for untouched villagers; the talk-start code reads the same value.
 
 Args:
   0. npc (0-47 (hidden bits exist for 0-23)) — verified in game
@@ -10990,6 +10997,7 @@ Args:
 
 ### `op 277` — GetNpcHeldItem(npc)
 *handler:* `Script_VMOp_GetNpcHeldItem`
+*verified:* yes, in game
 
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
 
@@ -11095,7 +11103,6 @@ Args:
 
 ### `op 280` — GetNpcDateState(npc)
 *handler:* `Script_VMOp_QueryNpcDateState`
-*verified:* yes, in game
 
 Read an NPC's date state into reg0: 0 none, 1 date promised for tomorrow, 2 date is today, 3 on the date, 4 the date went well, 5 declined today.
 
@@ -11167,7 +11174,6 @@ Args:
 
 ### `op 283` — GetDateCompanionId()
 *handler:* `Script_VMOp_QueryCompanionNpcId`
-*verified:* yes, in game
 
 Sets reg0 to the char id of the party companion who is on a date with the player (a companion whose date state is set), or 0 if none.
 
@@ -11292,7 +11298,6 @@ Args:
 
 ### `op 329` — IsPosing(actor)
 *handler:* `Script_VMOp_GetActorScriptedPoseActive`
-*verified:* yes, in game
 
 Check the actor's status bit 0x400 (per the IDB, 'scripted pose active'). reg0 = 1/0.
 
@@ -11502,15 +11507,13 @@ Read whether this script's barn monster has the 'also plant seeds' order into re
 
 ### `op 407` — GetAliveKillTargetCount()
 *handler:* `Script_VMOp_QueryActiveKillCount`
-*verified:* yes, in game
 
-Put the number of monsters still standing in the current 'defeat the monsters' group into reg0.
+Put the number of monsters still alive on the current map into reg0: the map's tracked monster list (every spawned monster, minion, summon and gate spawn), counting those not flagged defeated. It is the count a sealed room waits on before it opens. CountLivingEnemies (op 408) is the same count without monster ids 141 / 142.
 
 ### `op 408` — CountLivingEnemies()
 *handler:* `Script_VMOp_QueryKillAggregateActiveCountExclBoss`
-*verified:* yes, in game
 
-Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts.
+Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts. Same list as GetAliveKillTargetCount (op 407), which also counts 141 / 142.
 
 ### `op 409` — GetTamedMonsterCount()
 *handler:* `Script_VMOp_CountTamedMonstersWithFlag1000`
@@ -11863,7 +11866,6 @@ Read the current scene's four state bytes (scene +540..+543) into reg0..reg3.
 
 ### `op 567` — GetTomorrowsCalendarEvent()
 *handler:* `Script_VMOp_QueryTomorrowBirthdayNpcIfNotMet`
-*verified:* yes, in game
 
 Get the calendar event (festival / birthday row id) scheduled for tomorrow, if that event is enabled; reg0 = event id or 0. Before 6:00 'tomorrow' means today's date.
 
@@ -11886,7 +11888,6 @@ Args:
 
 ### `op 570` — GetTodaysRequestNpc()
 *handler:* `Script_VMOp_QueryTodayDailyRequestActiveNpcId`
-*verified:* yes, in game
 
 Read into reg0 the character id of the NPC whose daily request is active today (0 if none).
 
@@ -11981,7 +11982,6 @@ Sets reg0 to the difficulty: 0 = Easy, 1 = Normal, 2 = Hard (or Hell; the two ar
 
 ### `op 626` — IsMazeStageCleared(stage)
 *handler:* `Script_VMOp_QueryPlayerInventoryFlagBit`
-*verified:* yes, in game
 
 reg0 = 1 if the given Sharance Maze stage has been cleared.
 
@@ -12209,7 +12209,6 @@ Args:
 
 ### `op 694` — HasClearedAnyMarriage()
 *handler:* `Script_VMOp_QuerySaveConfigBit1`
-*verified:* yes, in game
 
 reg0 = 1 if a marriage has ever been completed on this system save (the flag MarkSpouseCleared sets).
 
@@ -12518,8 +12517,8 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 221 | `AdjustCurrentNpcFriendship` | 222 | `LockNpcPose` | 223 | `SetNpcEngaged` |
 | 224 | `SetNpcEngaged` | 225 | `StreamInNpc` | 226 | `GetActorMapId` |
 | 227 | `IsActorInMap` | 228 | `IsActorInMap` | 229 | `IsNpcOffScheduleRoute` |
-| 230 | `SetSceneCast` | 231 | `SetSceneCast` | 232 | `IsNpcHidden` |
-| 233 | `HideNpc` | 234 | `HideNpc` | 235 | `IsNpcNearbyToChimeIn` |
+| 230 | `SetSceneCast` | 231 | `SetSceneCast` | 232 | `HasNpcGreetedToday` |
+| 233 | `SkipNpcDailyGreeting` | 234 | `SkipNpcDailyGreeting` | 235 | `IsNpcNearbyToChimeIn` |
 | 236 | `IsNpcInRangeToChimeIn` | 237 | `GetNpcPairChimeInState` | 238 | `IsQuestNpcGroupAvailable` |
 | 239 | `IsQuestNpcGroupAvailable` | 240 | `IsNpcGroupPresentNearby` | 241 | `IsNpcGroupPresentNearby` |
 | 242 | `SetSceneFlag0x200` | 243 | `EndDialogueLock` | 244 | `ShowNpcHeldItem` |

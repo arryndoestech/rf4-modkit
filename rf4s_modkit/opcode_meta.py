@@ -615,8 +615,8 @@ _M.update({
           ["npc id"]),
     232: ("QueryNpcProbeStateAt7300", "query",
           "Query -> VM register: 1 if the NPC is hidden, else 0 (the handler "
-          "Script_VMOp_QueryNpcHidden returns Npc_IsHidden(npc_id), RF4S.exe+0x227300; "
-          "the query counterpart of HideNpc). Only fires for npc id < 48.",
+          "Script_VMOp_HasNpcGreetedToday returns Npc_IsDailyGreetingDone(npc_id), RF4S.exe+0x227300; "
+          "the query counterpart of SkipNpcDailyGreeting). Only fires for npc id < 48.",
           ["npc id"]),
     245: ("QueryGiftAffinity", "query",
           "Query -> VM register: "
@@ -994,7 +994,7 @@ _M.update({
 
 # ---- NPC visibility / animation / cutscene-teardown ops decoded 2026-07-11 (230-254) ----
 _M.update({
-    233: ("HideNpc", "actor",
+    233: ("SkipNpcDailyGreeting", "actor",
           "Hide an NPC — make it invisible/despawned and set its hidden state bit. arg0 = npc "
           "(char id). Removes the NPC from the scene; pair with a schedule refresh or "
           "SetNpcVisibleFlag to bring it back.",
@@ -1002,7 +1002,7 @@ _M.update({
     248: ("SetNpcVisibleFlag", "actor",
           "Toggle an NPC's visibility/interaction suppression bit (record +52 bit 0x800). "
           "arg0 = npc (char id), arg1 = visible: non-zero clears the suppress bit (NPC shown "
-          "/ interactive), 0 sets it (suppressed). Lighter than HideNpc — just flips the flag.",
+          "/ interactive), 0 sets it (suppressed).",
           ["npc (char id)", "visible (0=suppressed)"]),
     252: ("SetActorAnimSpeedScale", "actor",
           "Set an actor's animation speed multiplier. arg0 = actor (char id, 0 = player), "
@@ -1057,7 +1057,7 @@ _M.update({
 _M.update({
     232: ("QueryNpcHidden", "query",
           "Read whether an NPC is hidden (1 = hidden, 0 = visible) into the VM output. arg0 = "
-          "npc (char id). The query counterpart to HideNpc (op 233).",
+          "npc (char id). The query counterpart to SkipNpcDailyGreeting (op 233).",
           ["npc (char id)"]),
     273: ("QueryNpcPresent", "query",
           "Read whether an NPC is 'present' — its record's present-in-town bit (0x400000), "
@@ -2482,7 +2482,7 @@ _M.update({
     231: ('SetSceneCast', 'flow',
         'Scene-cast setup. For every villager 1..23 NOT named in args 1..n and for ALL eight entries of the event participant list (the args exempt only villagers) (and not in companion/equipped mode, actor+16 bit 0x200): record +48 bits 28/29 = mode, and actor control_flags bits 0x4 (hidden) and 0x20 = mode (with mode != 0 it also clears the emote at +0x140 and sets +0x23C bit 0x20). So mode 1 HIDES everyone except the listed participants and mode 0 un-hides them. Also sets ctx+116 bit 29 = mode, calls Npc_RefreshFromSchedule for those same NPCs when their ctx+352 placement-mask bit is set (listed villagers are never refreshed), and clears that mask.',
         ['mode (1 = hide non-participants, 0 = show all)', 'kept villager id … (1-23; the event-participant list is always processed)']),
-    234: ('HideNpc', 'actor',
+    234: ('SkipNpcDailyGreeting', 'actor',
         'Hide an NPC — make it invisible/despawned and set its hidden state bit. arg0 = npc (char id). Removes the NPC from the scene; pair with a schedule refresh or SetNpcVisibleFlag to bring it back.',
         ['npc (char id <48)', '(unused — handler reads only 1 arg; corpus passes 2)']),
     235: ('QueryNpcSeenToggle', 'query',
@@ -2510,7 +2510,7 @@ _M.update({
         "Stream an NPC into a given map and place it at a tile with no walk-on: sets the NPC actor's map id (actor+84, via Actor_SetFacingDirection which is misnamed) and record+188 to arg1, runs the schedule spawn/place, writes X/Y (tiles<<12) to actor+88/+92 and record+192/+196, stops its anim if not moving, then (for npc != 0) drops any held item and restores its idle pose.",
         ['npc (char id, <48)', 'map id', 'x (tiles)', 'y (tiles)']),
     249: ('SetNpcVisibleFlag', 'actor',
-        "Toggle an NPC's visibility/interaction suppression bit (record +52 bit 0x800). arg0 = npc (char id), arg1 = visible: non-zero clears the suppress bit (NPC shown / interactive), 0 sets it (suppressed). Lighter than HideNpc — just flips the flag.",
+        "Toggle an NPC's visibility/interaction suppression bit (record +52 bit 0x800). arg0 = npc (char id), arg1 = visible: non-zero clears the suppress bit (NPC shown / interactive), 0 sets it (suppressed).",
         ['npc (char id)', 'visible (0=suppressed)']),
     251: ('SyncActorAnimFrame', 'actor',
         'Force an actor to re-sync its animation frame from its widget after a programmatic state change (fixes a one-frame pose pop). arg0 = actor (char id, 0 = player). The regular-actor twin of EventActorResyncAnimFrame (op 168).',
@@ -4326,7 +4326,7 @@ for _cop, _cai in _CHAR_ID_ARG_OPS:
     ENUM_ARG_VALUES[(_cop, _cai)] = CHAR_IDS
 
 # Auto-extend the character decoder to EVERY plain char-id / npc-id arg (~150 actor/npc ops) so
-# the disassembly shows names throughout ("SlidePortraitToX(19=Nancy,...)", "HideNpc(8=Dylas)").
+# the disassembly shows names throughout ("SlidePortraitToX(19=Nancy,...)", "SkipNpcDailyGreeting(8=Dylas)").
 # Uses CHAR_IDS (0=player Lest/Frey) normally, or the no-0 variant where the label says 0 means
 # something else (all/current/count/input/-1). SKIPS: child ops (24-47 = the player's children, a
 # different id table), monster args (48+ species space), event-key, spouse-default, and variadic /
@@ -4748,7 +4748,7 @@ _AUDIT_2026_09_01 = {
     204: ('SleepInBed', 'flow',
         "Run the go-to-bed / sleep-to-next-day sequence. arg0 != 0 (retail always 1): the full blocking cinematic FSM - bed anim + voice line, spouse/child walk to the bedside, fade to black, Player_SleepInBed (save snapshot + Day_OnAdvance day rollover), position restore, fade back in, morning BGM/weather; pressing the skip button fast-forwards the fades. arg0 == 0: calls Player_SleepInBed immediately with no cinematic. Dev menu 'Sleep' passes [1].",
         ['cinematic (1=full sequence, 0=instant day advance)']),
-    233: ('HideNpc', 'actor',
+    233: ('SkipNpcDailyGreeting', 'actor',
         'Hide an NPC — make it invisible/despawned and set its hidden state bit. arg0 = npc (char id). Removes the NPC from the scene; pair with a schedule refresh or SetNpcVisibleFlag to bring it back.',
         ['npc (char id <48)', '(unused — handler reads only 1 arg; corpus passes 2)']),
     238: ('QueryQuestNpcsAvailable', 'quest',
