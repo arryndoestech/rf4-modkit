@@ -614,7 +614,7 @@
  "612": "Script_VMOp_ToggleSceneChoiceVisibleBit",
  "613": "Script_VMOp_CalcChoiceDialogPrescrollFromVisibleMask",
  "614": "Script_VMOp_SetDialogueSpeakerSideByte",
- "615": "Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm",
+ "615": "Script_VMOp_SetNextChoiceDescription",
  "616": "Script_VMOp_QueryAndSetCraftedItemFlagBit",
  "617": "Script_VMOp_SpawnOrConfigureItemPickupIconTaskStaff",
  "618": "Script_VMOp_QueryActiveItemPickupIcon",

@@ -52026,10 +52026,10 @@
   "615": {
    "op": 615,
    "op_hex": "0x267",
-   "mnemonic": "ArmChoiceOption",
+   "mnemonic": "SetNextChoiceDescription",
    "previous_mnemonic": null,
    "category": "dialogue",
-   "prototype": "ArmChoiceOption(value 1, value 2, value 3)",
+   "prototype": "SetNextChoiceDescription(value 1, value 2, value 3)",
    "args": [
     {
      "name": "value 1",
@@ -52041,12 +52041,12 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE",
+       "call": "SetNextChoiceDescription(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE",
        "observed": "the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350)"
       },
       {
        "date": "2026-10-02",
-       "call": "ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
+       "call": "SetNextChoiceDescription(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
        "observed": "each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines"
       }
      ]
@@ -52061,7 +52061,7 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
+       "call": "SetNextChoiceDescription(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
        "observed": "each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines"
       }
      ]
@@ -52076,7 +52076,7 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
+       "call": "SetNextChoiceDescription(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858",
        "observed": "each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines"
       }
      ]
@@ -52085,12 +52085,12 @@
    "optional_args_from": 0,
    "returns": null,
    "blocking": "no",
-   "description": "Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu. Values 1-3 print through ＠金０＠ / ＠木０＠ / ＠石０＠ (shipped line 8858). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).",
-   "details": "Stores min(argc, 3) args at host+124/+128/+132 and sets host+120 |= 0x400. The next DIALOG then takes Dialogue_HandleScriptActionShowLine's deferred path: it is queued (44-byte record in g_dialoguePendingLineQueue, only if its row's mask bit is set) and the bit is cleared. While the menu is open the highlighted row's line is shown and its values are written to var banks 4/5/6 slot 0; the queue is emptied when the menu closes.",
+   "description": "Make the next DIALOG the description of the next choice row instead of showing it: the Nth armed line describes row N of the following PROMPT_CHOICE / PROMPT_CHOICE_FORCED and is shown in the dialogue box while that row is highlighted. Takes 1 to 3 numbers, positional: value 1 prints through ＠金０＠, value 2 through ＠木０＠, value 3 through ＠石０＠ (shipped line 8858); values not passed are 0, and the shipped scripts mostly pass a single 0 (a description with no numbers). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).",
+   "details": "Stores min(argc, 3) args at host+124/+128/+132 and sets host+120 |= 0x400. The next DIALOG then takes Dialogue_HandleScriptActionShowLine's deferred path: it is queued (44-byte record in g_dialoguePendingLineQueue, only if its row's mask bit is set) and the bit is cleared. While the menu is open the highlighted row's line is shown and its values are written to var banks 4/5/6 slot 0; the queue is emptied when the menu closes. The defer flag is bit 0x400 of host+120, checked by the DIALOG handler before the SetDialogueSuppressed bit (0x8), so an armed line is queued even while dialogue is suppressed. The handler stores min(argc, 3) values; each queued line zeroes them.",
    "side_effects": "host+120 bit 0x400; host+124..+135",
-   "evidence": "RF4S.exe+0x21C790; corpus: 1839 uses (1809 with one arg 0), each followed by its DIALOG. In-game test 2026-10-02 (user): ArmChoiceOption(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE -> the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350). In-game test 2026-10-02 (user): ArmChoiceOption(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858 -> each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines.",
+   "evidence": "RF4S.exe+0x21C790; corpus: 1839 uses (1809 with one arg 0), each followed by its DIALOG. In-game test 2026-10-02 (user): SetNextChoiceDescription(0) + DIALOG #349 / #350 / #351 before DIALOG #333 + PROMPT_CHOICE -> the armed lines did not show as dialogue; in the menu each row showed its own line in the box (row 1 #349, row 2 #350). In-game test 2026-10-02 (user): SetNextChoiceDescription(111, 222, 333) + DIALOG #8858, (444, 555, 666) + #8863, (777, 888, 999) + #8858 ('＠金０＠ Gold, ＠木０＠ Lumber, and ＠石０＠ Stone Material.'), then a 3-option PROMPT_CHOICE_FORCED; first run: two rows both on #8858 -> each highlighted row showed its own three numbers (111/222/333, 444/555/666, 777/888/999). In the first run, row 2 on the same line as row 1 kept showing row 1's numbers: the box does not reload when the next row's description is the same line id, so neighbouring rows need different lines.",
    "alias_of": null,
-   "handler": "Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm",
+   "handler": "Script_VMOp_SetNextChoiceDescription",
    "handler_rva": "0x21C790",
    "shares_handler_with": [],
    "size": [
@@ -52114,9 +52114,9 @@
      "    DIALOG #108739    ; \"Let's go to the floating empire.\"",
      "    RET",
      "L_0ae0:",
-     "    ArmChoiceOption(0)    ; <--",
+     "    SetNextChoiceDescription(0)    ; <--",
      "    DIALOG #108740    ; \"Let's go to Selphia.\"",
-     "    ArmChoiceOption(0)",
+     "    SetNextChoiceDescription(0)",
      "    DIALOG #108741    ; \"Let's go to the forest with all the pretty butterflies.\""
     ]
    }
@@ -56740,7 +56740,7 @@
    "size": "6",
    "returns": null,
    "blocking": "yes: until the line has been shown and confirmed",
-   "description": "Show a dialogue line (by text id). The current SPEAKER (set by a SetSpeaker* portrait op, SetSpeakerVoice op 10, or nothing = narration) PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) — 917 shipped scenes rely on back-to-back lines under one speaker. If an ArmChoiceOption (op 615) precedes this line, it does NOT display: it queues as a choice option for a later PROMPT_CHOICE instead. Trap (proven in game 2026-10-02): the game only starts a line whose id differs from the last one it started (g_currentSceneContext+68), and a menu's options go through the same call, so after PROMPT_CHOICE / PROMPT_CHOICE_FORCED that id is the menu's LAST option. A DIALOG of that same line right after the menu is never started and the scene softlocks (state stuck, no input); writing -1 to +68 released it at once, three times. Never follow a menu with its last option's line.",
+   "description": "Show a dialogue line (by text id). The current SPEAKER (set by a SetSpeaker* portrait op, SetSpeakerVoice op 10, or nothing = narration) PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) — 917 shipped scenes rely on back-to-back lines under one speaker. If an SetNextChoiceDescription (op 615) precedes this line, it does NOT display: it queues as a choice option for a later PROMPT_CHOICE instead. Trap (proven in game 2026-10-02): the game only starts a line whose id differs from the last one it started (g_currentSceneContext+68), and a menu's options go through the same call, so after PROMPT_CHOICE / PROMPT_CHOICE_FORCED that id is the menu's LAST option. A DIALOG of that same line right after the menu is never started and the scene softlocks (state stuck, no input); writing -1 to +68 released it at once, three times. Never follow a menu with its last option's line.",
    "evidence": "Script_VMStep case 0xFFFC: host->show_dialogue_line(id); pc += 6 once it returns true. In-game test 2026-10-02 (user): DIALOG #94412 after SetVar3 / SetSpeaker, 20+ times in this run (and every test before) -> shows the line with the current speaker and waits for confirm.",
    "uses": 101424,
    "confidence": "high",

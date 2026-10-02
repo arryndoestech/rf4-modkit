@@ -2852,10 +2852,10 @@ Switch the dialogue box style: 0 normal, 1 the menu-style layout used by shop/me
 Args:
   0. mode (0 = normal, 1 = menu-style dialogue layout (all shipped uses), 2 = narration (no name label, no text blips))
 
-### `op 615` — ArmChoiceOption(value 1, value 2, value 3)
-*handler:* `Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm`
+### `op 615` — SetNextChoiceDescription(value 1, value 2, value 3)
+*handler:* `Script_VMOp_SetNextChoiceDescription`
 
-Mark the next DIALOG as the description line of the next choice row instead of showing it now, with up to three numbers the description can print. The description appears while that row is highlighted in the menu. Values 1-3 print through ＠金０＠ / ＠木０＠ / ＠石０＠ (shipped line 8858). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).
+Make the next DIALOG the description of the next choice row instead of showing it: the Nth armed line describes row N of the following PROMPT_CHOICE / PROMPT_CHOICE_FORCED and is shown in the dialogue box while that row is highlighted. Takes 1 to 3 numbers, positional: value 1 prints through ＠金０＠, value 2 through ＠木０＠, value 3 through ＠石０＠ (shipped line 8858); values not passed are 0, and the shipped scripts mostly pass a single 0 (a description with no numbers). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).
 
 Args:
   0. value 1 (-> var bank 4 slot 0 while the row is highlighted) — verified in game
@@ -12143,7 +12143,7 @@ Conditional RET (early-exit guard): evaluate the guard expression -- if it is no
 
 ### `0xFFFC` — DIALOG
 
-Show a dialogue line (by text id). The current SPEAKER (set by a SetSpeaker* portrait op, SetSpeakerVoice op 10, or nothing = narration) PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) — 917 shipped scenes rely on back-to-back lines under one speaker. If an ArmChoiceOption (op 615) precedes this line, it does NOT display: it queues as a choice option for a later PROMPT_CHOICE instead. Trap (proven in game 2026-10-02): the game only starts a line whose id differs from the last one it started (g_currentSceneContext+68), and a menu's options go through the same call, so after PROMPT_CHOICE / PROMPT_CHOICE_FORCED that id is the menu's LAST option. A DIALOG of that same line right after the menu is never started and the scene softlocks (state stuck, no input); writing -1 to +68 released it at once, three times. Never follow a menu with its last option's line.
+Show a dialogue line (by text id). The current SPEAKER (set by a SetSpeaker* portrait op, SetSpeakerVoice op 10, or nothing = narration) PERSISTS across consecutive DIALOG lines until the next speaker op or EndDialogue (op 92) — 917 shipped scenes rely on back-to-back lines under one speaker. If an SetNextChoiceDescription (op 615) precedes this line, it does NOT display: it queues as a choice option for a later PROMPT_CHOICE instead. Trap (proven in game 2026-10-02): the game only starts a line whose id differs from the last one it started (g_currentSceneContext+68), and a menu's options go through the same call, so after PROMPT_CHOICE / PROMPT_CHOICE_FORCED that id is the menu's LAST option. A DIALOG of that same line right after the menu is never started and the scene softlocks (state stuck, no input); writing -1 to +68 released it at once, three times. Never follow a menu with its last option's line.
 
 ### `0xFFFB` — EVAL
 
@@ -12447,7 +12447,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 604 | `RollRandomIngredientItem` | 605 | `RollRandomSeasoningItem` | 606 | `RollThreeFlowerItemsAvoidDup` |
 | 607 | `RollRandomFlowerSeedItem` | 609 | `RollRandomPointInRadiusAroundCenter` | 610 | `SetChoiceVisibleMask` |
 | 611 | `ClearChoiceVisibleRange` | 612 | `SetChoiceVisibleBit` | 613 | `CalcChoicePrescroll` |
-| 614 | `SetDialogueBoxMode` | 615 | `ArmChoiceOption` | 616 | `TestAndSetCraftedFlag` |
+| 614 | `SetDialogueBoxMode` | 615 | `SetNextChoiceDescription` | 616 | `TestAndSetCraftedFlag` |
 | 617 | `ShowStaffCredits` | 618 | `WaitStaffCreditsDone` | 619 | `IsPartyInviteAccepted` |
 | 620 | `MarkSpouseCleared` | 621 | `SetDifficulty` | 622 | `GetDifficulty` |
 | 623 | `SetDialogueAutoAdvance` | 624 | `SetDialogueHoldFrames` | 625 | `EnterSharanceMazeStage` |

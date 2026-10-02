@@ -77,7 +77,7 @@ CONTROL = {
                           "SetSpeaker* portrait op, SetSpeakerVoice op 10, or nothing = "
                           "narration) PERSISTS across consecutive DIALOG lines until the next "
                           "speaker op or EndDialogue (op 92) — 917 shipped scenes rely on "
-                          "back-to-back lines under one speaker. If an ArmChoiceOption (op 615) "
+                          "back-to-back lines under one speaker. If an SetNextChoiceDescription (op 615) "
                           "precedes this line, it does NOT display: it queues as a choice "
                           "option for a later PROMPT_CHOICE instead."),
     "SWITCH": ("flow", "Indexed jump table: evaluate the selector expression, then jump to "
@@ -1614,11 +1614,11 @@ _M.update({
           "Pick the row the next choice menu opens on (see the curated entry further down, "
           "which is the one in effect).",
           ["option index"]),
-    615: ("ArmChoiceOption", "dialogue",
+    615: ("SetNextChoiceDescription", "dialogue",
           "ARM the next DIALOG as a choice ROW DESCRIPTION: instead of displaying, that "
           "DIALOG's line is QUEUED (44-byte record in the global g_dialoguePendingLineQueue, "
           "128 slots) with up to 3 values (args past 3 are ignored; 0 = not stored), gated "
-          "on the row's visibility bit when a mask is set. Shape: [ArmChoiceOption(v..); "
+          "on the row's visibility bit when a mask is set. Shape: [SetNextChoiceDescription(v..); "
           "DIALOG line] x N, in row order, any time before the menu (often a separate "
           "scene). While the menu is open, the line queued for the HIGHLIGHTED visible row "
           "is shown in the dialogue box (on open and on every cursor move), and its values "
@@ -1627,7 +1627,7 @@ _M.update({
           "per-row numbers. The "
           "menu's own option text still comes from the PROMPT_CHOICE ids; the queue is "
           "emptied when the menu closes. 1,839 uses (1,834 followed by their DIALOG). "
-          "IDA-verified 2026-09-24 (Script_VMOp_SetUpToThreeChoiceDialogValuesAndArm, "
+          "IDA-verified 2026-09-24 (Script_VMOp_SetNextChoiceDescription, "
           "deferred path of Dialogue_HandleScriptActionShowLine, "
           "ChoiceDialog_CommitSelectionAndDispatchActions).",
           ["value 1 (-> SetVar4 slot 0)", "value 2 (-> SetVar5 slot 0)",
