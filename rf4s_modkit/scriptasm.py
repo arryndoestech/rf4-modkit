@@ -895,7 +895,8 @@ def assemble(text, base, resolver=None, fallthrough_to=None, auto_end=True):
 
 def lint_listing(text, base=0x1000, resolver=None, text_count=None):
     """Assemble `text` and run the engine-behaviour checks on the result (currently the
-    PROMPT_CHOICE checks, script.choice_problems). Raises AsmError like `assemble`;
+    PROMPT_CHOICE checks, script.choice_problems, and the SetDialogueSuppressed checks,
+    script.dialogue_suppress_problems). Raises AsmError like `assemble`;
     returns [(pc, 'error'|'warning', message)]. The statements are decoded back linearly
     from `base` up to the first expression-pool byte."""
     region, _labels = assemble(text, base, resolver=resolver)
@@ -910,7 +911,7 @@ def lint_listing(text, base=0x1000, resolver=None, text_count=None):
             if off is not None and base <= off < pool:
                 pool = off
         pc += st.size
-    return script.choice_problems(buf, stmts, text_count)
+    return script.choice_problems(buf, stmts, text_count) + script.dialogue_suppress_problems(buf, stmts)
 
 
 def operand_text(buf, off, op=None, ai=None):

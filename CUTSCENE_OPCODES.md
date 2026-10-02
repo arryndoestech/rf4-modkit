@@ -6,7 +6,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` â€
 
 ## Contents
 
-- [Dialogue & portraits](#dialogue--portraits) (107 ops)
+- [Dialogue & portraits](#dialogue--portraits) (108 ops)
 - [Camera / screen](#camera--screen) (35 ops)
 - [Actors & player](#actors--player) (158 ops)
 - [Companions & party](#companions--party) (28 ops)
@@ -16,7 +16,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` â€
 - [Items, rewards, economy](#items-rewards-economy) (48 ops)
 - [Effects & world](#effects--world) (18 ops)
 - [Quests](#quests) (42 ops)
-- [Scene flow / control](#scene-flow--control) (23 ops)
+- [Scene flow / control](#scene-flow--control) (22 ops)
 - [Queries](#queries) (147 ops)
 - [Other](#other) (8 ops)
 - [No-op (PC-port stub)](#no-op-pc-port-stub) (2 ops)
@@ -26,6 +26,16 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` â€
 - [Opcode index (by number)](#opcode-index-by-number)
 
 ## Dialogue & portraits
+
+### `op 1` â€” SetDialogueSuppressed(suppressed)
+*handler:* `Script_VMOp_SetDialogueSuppressed`
+
+Dialogue suppression switch: 1 makes every following DIALOG skip its line (nothing is shown), 0 turns lines back on. Sets bit 3 (0x8) of the scene control word (g_sceneAuxControlFlags = g_currentSceneContext+120) from bit 0 of the argument. With no box open a skipped DIALOG finishes at once; with a box still open (after its line was confirmed) the skipped DIALOG waits for that box to finish again, which never happens: the scene FREEZES. Close the box (EndDialogue) before turning it on, and turn it off again before the scene ends (only an engine reset of the scene context clears it). Unused by the shipped scripts.
+
+Args:
+  0. suppressed (1 = following DIALOG lines are skipped, 0 = shown again (only bit 0 counts)) â€” verified in game
+     - `0` = show_lines
+     - `1` = skip_lines
 
 ### `op 5` â€” ShowPortrait(character, face, side)
 *handler:* `Script_VMOp_ShowPortrait`
@@ -9665,14 +9675,6 @@ Args:
 
 ## Scene flow / control
 
-### `op 1` â€” SetSceneCtxBit3FromArg(value)
-*handler:* `Script_VMOp_SetContextBit8FromArg`
-
-Sets or clears bit 3 of the scene context's control word from bit 0 of the argument. Unused by the shipped scripts; its gameplay effect was not traced.
-
-Args:
-  0. value (bit 0 is copied; 0 = clear, 1 = set)
-
 ### `op 2` â€” Wait(duration)
 *handler:* `Script_VMOp_WaitUnitsAndAdvanceReaction`
 
@@ -12246,7 +12248,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 
 | op | mnemonic | op | mnemonic | op | mnemonic |
 |---:|:--|---:|:--|---:|:--|
-| 1 | `SetSceneCtxBit3FromArg` | 2 | `Wait` | 3 | `WaitReset` |
+| 1 | `SetDialogueSuppressed` | 2 | `Wait` | 3 | `WaitReset` |
 | 4 | `WaitPlain` | 5 | `ShowPortrait` | 6 | `ShowPortraitWithEmote` |
 | 7 | `ShowPortraitWithEmote` | 8 | `SetSpeakerName` | 9 | `SetSpeakerName` |
 | 10 | `SetSpeakerVoice` | 11 | `SetSpeakerNameVisible` | 12 | `SetSpeakerById` |

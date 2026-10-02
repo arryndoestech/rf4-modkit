@@ -1,6 +1,6 @@
 {
  "0": "BusInstance_SoLoud__vslot_002",
- "1": "Script_VMOp_SetContextBit8FromArg",
+ "1": "Script_VMOp_SetDialogueSuppressed",
  "2": "Script_VMOp_WaitUnitsAndAdvanceReaction",
  "3": "Script_VMOp_EndReactionResetAndWait",
  "4": "Script_VMOp_WaitPlain",

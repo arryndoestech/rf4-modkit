@@ -6102,6 +6102,15 @@ def test_script_authoring():
     _fz = _L("PROMPT_CHOICE_FORCED #1->A, #2->B\nA:\nSetVar3(0, 1)\nJMP C\nB:\nSetVar3(0, 2)\n"
              "C:\nDIALOG #2\nEND")
     _fz_ok = _L("PROMPT_CHOICE_FORCED #1->A, #2->B\nA:\nDIALOG #3\nDIALOG #2\nEND\nB:\nDIALOG #1\nEND")
+    _sh = "SetSpeaker(MC, Left, 0, 0)\nDIALOG #5\n"
+    _sp_ok = _L(_sh + "EndDialogue()\nSetDialogueSuppressed(1)\n" + _sh + "SetDialogueSuppressed(0)\n" + _sh + "END")
+    _sp_open = _L(_sh + "SetDialogueSuppressed(1)\n" + _sh + "SetDialogueSuppressed(0)\nEND")
+    _sp_left = _L("EndDialogue()\nSetDialogueSuppressed(1)\n" + _sh + "EndDialogue()\nEND")
+    _check("SetDialogueSuppressed lint: on with a box open warns (freeze), left on at the end warns, "
+           "closed first and turned off is clean",
+           _sp_ok == [] and _lv(_sp_open) == ["warning"] and "freezes" in _sp_open[0][2]
+           and _lv(_sp_left) == ["warning"] and "scene ends" in _sp_left[0][2],
+           f"{_sp_ok} / {_sp_open} / {_sp_left}")
     _check("choice lint: the menu's last option line as the next DIALOG warns (the scene freezes)",
            _lv(_fz) == ["warning"] and "#2" in _fz[0][2] and "freezes" in _fz[0][2] and _fz_ok == [],
            f"{_fz} / {_fz_ok}")

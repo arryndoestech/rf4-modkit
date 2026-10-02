@@ -56,29 +56,48 @@
   "1": {
    "op": 1,
    "op_hex": "0x001",
-   "mnemonic": "SetSceneCtxBit3FromArg",
+   "mnemonic": "SetDialogueSuppressed",
    "previous_mnemonic": null,
-   "category": "flow",
-   "prototype": "SetSceneCtxBit3FromArg(value)",
+   "category": "dialogue",
+   "prototype": "SetDialogueSuppressed(suppressed)",
    "args": [
     {
-     "name": "value",
+     "name": "suppressed",
      "type": "bool",
-     "values": "bit 0 is copied; 0 = clear, 1 = set",
+     "values": "1 = following DIALOG lines are skipped, 0 = shown again (only bit 0 counts)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "box 1; EndDialogue(); SetDialogueSuppressed(1); DIALOG 2; DIALOG 3; SetDialogueSuppressed(0); DIALOG 4 / box 5; SetDialogueSuppressed(1); DIALOG 6; SetDialogueSuppressed(0); DIALOG 7",
+       "observed": "1 then 4: lines 2 and 3 were skipped with no box open. After box 5 the scene froze on the finished box (state 6, +136 = 0, bit 3 set); clearing bit 3 by hand let DIALOG 6 start and the scene went on (6, 7)"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "show_lines",
+       "text": "lines shown (normal)",
+       "human_verified": true
+      },
+      "1": {
+       "name": "skip_lines",
+       "text": "every DIALOG skips its line",
+       "human_verified": true
+      }
+     }
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Sets or clears bit 3 of the scene context's control word from bit 0 of the argument. Unused by the shipped scripts; its gameplay effect was not traced.",
-   "details": "host+120 = (host+120 & ~8) | ((arg0 & 1) << 3). Needs argc >= 1, no kind check, never blocks, returns 0. Only bit 0 of the value matters.",
+   "description": "Dialogue suppression switch: 1 makes every following DIALOG skip its line (nothing is shown), 0 turns lines back on. Sets bit 3 (0x8) of the scene control word (g_sceneAuxControlFlags = g_currentSceneContext+120) from bit 0 of the argument. With no box open a skipped DIALOG finishes at once; with a box still open (after its line was confirmed) the skipped DIALOG waits for that box to finish again, which never happens: the scene FREEZES. Close the box (EndDialogue) before turning it on, and turn it off again before the scene ends (only an engine reset of the scene context clears it). Unused by the shipped scripts.",
+   "details": "host+120 = (host+120 & ~8) | ((arg0 & 1) << 3). Needs argc >= 1, no kind check, never blocks, returns 0. Reader: Dialogue_HandleScriptActionShowLine (RF4S.exe+0x1F43B0) `if (flags & 8) skip the start`, then it waits for the dialogue task's finished byte (+136), which the previous line already consumed, unless no dialogue task exists (then it returns done). Zeroed by SceneContext_ResetAndZeroQueue / ScriptTask_FirstTimeInit / Game_OnSceneUnload (memset of the scene context).",
    "side_effects": "scene ctx +120 bit 3",
-   "evidence": "RF4S.exe+0x1FAB00: `*(a1+120) ^= (*(a1+120) ^ (8 * arg0)) & 8`; corpus: 0 uses.",
+   "evidence": "RF4S.exe+0x1FAB00: `*(a1+120) ^= (*(a1+120) ^ (8 * arg0)) & 8`; corpus: 0 uses. In-game test 2026-10-02 (user): box 1; EndDialogue(); SetDialogueSuppressed(1); DIALOG 2; DIALOG 3; SetDialogueSuppressed(0); DIALOG 4 / box 5; SetDialogueSuppressed(1); DIALOG 6; SetDialogueSuppressed(0); DIALOG 7 -> 1 then 4: lines 2 and 3 were skipped with no box open. After box 5 the scene froze on the finished box (state 6, +136 = 0, bit 3 set); clearing bit 3 by hand let DIALOG 6 start and the scene went on (6, 7).",
    "alias_of": null,
-   "handler": "Script_VMOp_SetContextBit8FromArg",
+   "handler": "Script_VMOp_SetDialogueSuppressed",
    "handler_rva": "0x1FAB00",
    "shares_handler_with": [],
    "size": [
@@ -91,7 +110,7 @@
    "confidence": "medium",
    "notes": "Behaviour is certain; the reader of host+120 bit 3 was not traced, so the name stays technical.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "2": {

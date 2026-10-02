@@ -749,17 +749,19 @@ class CutsceneExplorer:
         return True
 
     def _warn_freezes(self, what):
-        """After an edit: warn when a menu in the open scene is followed by its last option's
-        line, which freezes the game (script.choice_line_freezes)."""
+        """After an edit: warn about scene patterns that freeze or break the game: a menu
+        followed by its last option's line (script.choice_line_freezes) and SetDialogueSuppressed
+        misuse (script.dialogue_suppress_problems)."""
         if self.scene is None:
             return
         stmts = self.scene.stmts
         stmts = sorted(stmts.values() if isinstance(stmts, dict) else stmts, key=lambda x: x.pc)
-        hits = script.choice_line_freezes(stmts)
-        if hits:
-            messagebox.showwarning("This scene will freeze", "%s was applied, but:\n\n%s" % (
-                what, "\n\n".join("Menu at 0x%04x: %s" % (pc, script.freeze_text(line, dp))
-                                  for pc, dp, line in hits)), parent=self.frame)
+        msgs = ["Menu at 0x%04x: %s" % (pc, script.freeze_text(line, dp))
+                for pc, dp, line in script.choice_line_freezes(stmts)]
+        msgs += ["0x%04x: %s" % (pc, m) for pc, _lvl, m in script.dialogue_suppress_problems(self.bank.data, stmts)]
+        if msgs:
+            messagebox.showwarning("Check this scene", "%s was applied, but:\n\n%s" % (
+                what, "\n\n".join(msgs)), parent=self.frame)
 
     def _follow_relink(self):
         """A structural edit rebuilt the open bank (Container.last_relink): move the open

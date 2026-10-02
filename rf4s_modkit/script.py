@@ -2783,6 +2783,107 @@ def freeze_text(line, dialog_pcs):
             "a different line first" % (line, ", ".join("0x%04x" % pc for pc in dialog_pcs)))
 
 
+SUPPRESS_OP = 1          # SetDialogueSuppressed
+END_DIALOGUE_OP = 92     # EndDialogue: closes the box
+
+
+def _graph(stmts):
+    by_pc = {s.pc: s for s in stmts}
+    succ, pred = {}, {}
+    for s in stmts:
+        nxt = [t for t in s.code_targets if t is not None]
+        if s.falls_through and not s.terminator:
+            nxt.append(s.pc + s.size)
+        succ[s.pc] = [t for t in nxt if t in by_pc]
+        for t in succ[s.pc]:
+            pred.setdefault(t, []).append(s.pc)
+    return by_pc, succ, pred
+
+
+def _suppress_value(buf, st):
+    """The literal SetDialogueSuppressed argument (bit 0), or None when it is computed."""
+    if not st.args or st.args[0] is None:
+        return None
+    v, ok = eval_expr(buf, st.args[0])
+    return (v & 1) if ok and v is not None else None
+
+
+def dialogue_suppress_problems(buf, stmts):
+    """[(pc, 'warning', message)] for SetDialogueSuppressed (op 1). While it is on, the DIALOG
+    handler (Dialogue_HandleScriptActionShowLine, RF4S.exe+0x1F43B0) skips starting each line
+    and waits for the open box's finished flag, which the previous line already used: with a
+    box still open the scene freezes (in game 2026-10-02); with the box closed (EndDialogue)
+    the line is skipped at once. Nothing but the engine's scene reset turns it off."""
+    by_pc, succ, pred = _graph(stmts)
+    out = []
+    for st in stmts:
+        if st.op != SUPPRESS_OP or _suppress_value(buf, st) == 0:
+            continue
+        # is a box open here? (a DIALOG / menu since the last EndDialogue on some path)
+        open_box, seen, stack = False, set(), list(pred.get(st.pc, ()))
+        while stack and not open_box:
+            pc = stack.pop()
+            if pc in seen:
+                continue
+            seen.add(pc)
+            x = by_pc[pc]
+            if x.op == END_DIALOGUE_OP:
+                continue
+            if x.mnem in ("DIALOG", "PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+                open_box = True
+                break
+            stack.extend(pred.get(pc, ()))
+        # what follows while it is on: a DIALOG before EndDialogue / turning it off, or the end
+        hits_dialog, leaks, seen, stack = [], False, set(), list(succ.get(st.pc, ()))
+        while stack:
+            pc = stack.pop()
+            if pc in seen:
+                continue
+            seen.add(pc)
+            x = by_pc[pc]
+            if x.op == SUPPRESS_OP and _suppress_value(buf, x) == 0:
+                continue
+            if x.mnem == "DIALOG":
+                hits_dialog.append(pc)
+                stack.extend(succ.get(pc, ()))
+                continue
+            if x.op == END_DIALOGUE_OP:
+                stack.extend(succ.get(pc, ()))     # box closed: later lines are only skipped
+                continue
+            if x.terminator and x.mnem in ("RET", "END"):
+                leaks = True
+            stack.extend(succ.get(pc, ()))
+        first = _first_after_closed(by_pc, succ, st.pc)
+        if open_box and first:
+            out.append((st.pc, "warning", "SetDialogueSuppressed(1) with a dialogue box still open: "
+                        "the next DIALOG (0x%04x) skips its line and waits for the open box to finish "
+                        "again, which never happens, so the scene freezes. Call EndDialogue() first"
+                        % first))
+        if leaks:
+            out.append((st.pc, "warning", "SetDialogueSuppressed(1) is still on where the scene ends: "
+                        "every later DIALOG in the game stays skipped until the engine resets the "
+                        "scene context. Turn it off with SetDialogueSuppressed(0) before the end"))
+    return out
+
+
+def _first_after_closed(by_pc, succ, start):
+    """The pc of the first DIALOG reached from `start` before any EndDialogue or
+    SetDialogueSuppressed, or None."""
+    seen, stack = set(), list(succ.get(start, ()))
+    while stack:
+        pc = stack.pop()
+        if pc in seen:
+            continue
+        seen.add(pc)
+        x = by_pc[pc]
+        if x.mnem == "DIALOG":
+            return pc
+        if x.op in (END_DIALOGUE_OP, SUPPRESS_OP):
+            continue
+        stack.extend(succ.get(pc, ()))
+    return None
+
+
 def choice_problems(buf, stmts, text_count=None):
     """Static checks on PROMPT_CHOICE / PROMPT_CHOICE_FORCED against how RF4S.exe runs them.
 

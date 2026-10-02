@@ -599,11 +599,11 @@ _M.update({
 # Full 763-slot table cross-checked; 711 already matched. Renames picked up + all
 # 12 previously-anonymous sub_ handlers RE'd and named. Total: 763/763 named.
 _M.update({
-    1:   ("SetSceneCtxBit3FromArg", "flow",
-          "Copies bit 0 of arg into bit 3 (0x8) of the scene ctx's control field "
-          "at +120. `ctx[+120] = (ctx[+120] & ~8) | ((arg & 1) << 3)`. Author use "
-          "unknown; likely a scene mode flag toggle.",
-          ["value"]),
+    1:   ("SetDialogueSuppressed", "dialogue",
+          "1 makes every following DIALOG skip its line, 0 shows lines again: bit 3 (0x8) of "
+          "the scene control word at ctx+120, read by the DIALOG handler. Turning it on while a "
+          "box is still open freezes the scene; see refdata/opcode_table.json.",
+          ["suppressed"]),
     215: ("ClearNpcStoryFlag", "flag",
           "Mirror of op 214 `SetNpcStoryFlag`: clears the 'NPC has appeared' "
           "flag bit `981 + arg` for one NPC. Uses the same NPC slot bounds "
