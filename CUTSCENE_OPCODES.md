@@ -1,14 +1,14 @@
 # RF4S Cutscene Opcode Reference
 
-Reverse-engineered `rf3.mc` cutscene Script VM opcodes (`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 763 slots).
+Reverse-engineered `rf3.mc` cutscene Script VM opcodes (`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 702 slots).
 
-Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — **726** named opcodes across 14 categories (plus 37 reserved/unused slots), the control-flow opcodes, the expression grammar, and the **em.bin** Event-Manager opcodes scenes bridge to. Do not edit by hand; re-run the generator to refresh. This is the GUI-free companion to the editor's Alt-hover tooltips.
+Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — **682** named opcodes across 14 categories (plus 20 reserved/unused slots), the control-flow opcodes, the expression grammar, and the **em.bin** Event-Manager opcodes scenes bridge to. Do not edit by hand; re-run the generator to refresh. This is the GUI-free companion to the editor's Alt-hover tooltips.
 
 ## Contents
 
 - [Dialogue & portraits](#dialogue--portraits) (107 ops)
 - [Camera / screen](#camera--screen) (35 ops)
-- [Actors & player](#actors--player) (183 ops)
+- [Actors & player](#actors--player) (158 ops)
 - [Companions & party](#companions--party) (28 ops)
 - [Flags & variables](#flags--variables) (36 ops)
 - [Audio](#audio) (12 ops)
@@ -19,7 +19,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 - [Scene flow / control](#scene-flow--control) (23 ops)
 - [Queries](#queries) (147 ops)
 - [Other](#other) (8 ops)
-- [No-op (PC-port stub)](#no-op-pc-port-stub) (21 ops)
+- [No-op (PC-port stub)](#no-op-pc-port-stub) (2 ops)
 - [Control opcodes (flow backbone)](#control-opcodes-flow-backbone) (15 ops)
 - [Expression operands (argument encoding)](#expression-operands-argument-encoding)
 - [Event Manager (em.bin) opcodes](#event-manager-embin-opcodes)
@@ -7618,131 +7618,6 @@ Args:
      - `37` = Bartering
   1. xp
 
-### `op 738` — NpcAction_Kind0_LieDownToSleep()
-*handler:* `NpcAction_Kind0_LieDownToSleep`
-
-kind 0 Lie Down To Sleep (schedule kind 0). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 739` — Npc_TickWanderBehavior()
-*handler:* `Npc_TickWanderBehavior`
-
-Npc Tick Wander Behavior. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 740` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 741` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 742` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 743` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 744` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 745` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 746` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 747` — NpcAction_Kind9_LookAroundIdle()
-*handler:* `NpcAction_Kind9_LookAroundIdle`
-
-kind 9 Look Around Idle (schedule kind 9). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 748` — NpcAction_Kind10_GreetThenBow()
-*handler:* `NpcAction_Kind10_GreetThenBow`
-
-kind 10 Greet Then Bow (schedule kind 10). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 749` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 750` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 751` — NpcAction_Kind13_GiftAndTeleportOut()
-*handler:* `NpcAction_Kind13_GiftAndTeleportOut`
-
-kind 13 Gift And Teleport Out (schedule kind 13). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 752` — NpcAction_Kind14_DelayedIdleAnim()
-*handler:* `NpcAction_Kind14_DelayedIdleAnim`
-
-kind 14 Delayed Idle Anim (schedule kind 14). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 753` — NpcAction_Kind15_SleepOrExitHome()
-*handler:* `NpcAction_Kind15_SleepOrExitHome`
-
-kind 15 Sleep Or Exit Home (schedule kind 15). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 754` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 755` — NpcAction_Kind17_EatFood()
-*handler:* `NpcAction_Kind17_EatFood`
-
-kind 17 Eat Food (schedule kind 17). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 756` — NpcAction_Kind18_RandomTimerIdleAnim()
-*handler:* `NpcAction_Kind18_RandomTimerIdleAnim`
-
-kind 18 Random Timer Idle Anim (schedule kind 18). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 757` — NpcAction_Kind19_ChatByFriendshipLevel()
-*handler:* `NpcAction_Kind19_ChatByFriendshipLevel`
-
-kind 19 Chat By Friendship Level (schedule kind 19). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 758` — NpcAction_Kind20_EquipElvishHarp()
-*handler:* `NpcAction_Kind20_EquipElvishHarp`
-
-kind 20 Equip Elvish Harp (schedule kind 20). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 759` — NpcAction_PlayKindIdleAnim()
-*handler:* `NpcAction_PlayKindIdleAnim`
-
-Play kind Idle Anim. An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 760` — NpcAction_Kind22_EquipMagicBroom()
-*handler:* `NpcAction_Kind22_EquipMagicBroom`
-
-kind 22 Equip Magic Broom (schedule kind 22). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 761` — NpcAction_Kind23_EquipHeldTool()
-*handler:* `NpcAction_Kind23_EquipHeldTool`
-
-kind 23 Equip Held Tool (schedule kind 23). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
-### `op 762` — NpcAction_Kind24_RandomGreetGesture()
-*handler:* `NpcAction_Kind24_RandomGreetGesture`
-
-kind 24 Random Greet Gesture (schedule kind 24). An NPC idle/schedule BEHAVIOR handler dispatched by the NPC AI tick — it is NOT a cutscene-script opcode (it takes an NPC behaviour-state block, not the script VM context) and won't appear in rf3.mc. Listed for completeness because it shares the tail of the scene action-handler table.
-
 ## Companions & party
 
 ### `op 311` — HealPartyFull()
@@ -12238,110 +12113,15 @@ Args:
 
 ## No-op (PC-port stub)
 
-### `op 0` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 76` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 272` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 381` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
 ### `op 388` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
 
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 391` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 491` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 505` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
+No-op: the do-nothing stub; the VM decodes and discards any args and moves on. This is THE nop: `nop` assembles to it, it takes no arguments (4 bytes, as in its 4 shipped uses), and the editor lists only it. The other no-op slots (0, 76, 272, 381, 693, ...) run the same stub and show as nop_N.
 
 ### `op 524` — NopCompleteSubEventGoals()
 *handler:* `Script_VMOp_PromoteAllPendingThrowEntriesToActive`
 
 Does nothing: the handler it shares with op 548 only works for opcodes >= 537. Use op 548 to complete sub-event goals.
-
-### `op 526` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 533` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 550` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 565` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 583` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 584` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 585` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 586` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 608` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 630` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 636` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
-
-### `op 693` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
-
-No-op: this dispatch slot is the shared do-nothing stub, so the VM decodes and discards any args and moves on.
 
 ## Control opcodes (flow backbone)
 
@@ -12456,7 +12236,9 @@ Scenes bridge to **em.bin** Event-Manager entries via the bridge action opcodes 
 
 These dispatch-table slots carry no author-facing opcode (reserved, removed in the PC port, or table padding):
 
-368, 702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 716, 717, 718, 719, 720, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 731, 732, 733, 734, 735, 736, 737
+368
+
+These slots hold the same do-nothing stub as `nop` (op 388); listings show them as `nop_N` so shipped banks rebuild byte-exact, but `nop` is the one to write: 0, 76, 272, 381, 391, 491, 505, 526, 533, 550, 565, 583, 584, 585, 586, 608, 630, 636, 693
 
 ## Opcode index (by number)
 
@@ -12464,97 +12246,96 @@ Every named action opcode by number (reserved slots omitted; see above).
 
 | op | mnemonic | op | mnemonic | op | mnemonic |
 |---:|:--|---:|:--|---:|:--|
-| 0 | `nop` | 1 | `SetSceneCtxBit3FromArg` | 2 | `Wait` |
-| 3 | `WaitReset` | 4 | `WaitPlain` | 5 | `ShowPortrait` |
-| 6 | `ShowPortraitWithEmote` | 7 | `ShowPortraitWithEmote` | 8 | `SetSpeakerName` |
-| 9 | `SetSpeakerName` | 10 | `SetSpeakerVoice` | 11 | `SetSpeakerNameVisible` |
-| 12 | `SetSpeakerById` | 13 | `SetSpeakerById` | 14 | `SetSpeakerByIdWithEmote` |
-| 15 | `SetSpeakerByIdWithEmote` | 16 | `SetSpeaker` | 17 | `SetSpeaker` |
-| 18 | `SetSpeaker` | 19 | `SetSpeaker` | 20 | `SetSpeaker` |
-| 21 | `SetSpeaker` | 22 | `SetSpeaker` | 23 | `SetSpeaker` |
-| 24 | `SetSpeaker` | 25 | `SetSpeaker` | 26 | `SetSpeaker` |
-| 27 | `SetSpeaker` | 28 | `SetSpeaker` | 29 | `SetSpeaker` |
-| 30 | `SetSpeaker` | 31 | `SetSpeaker` | 32 | `SetSpeaker` |
-| 33 | `SetSpeaker` | 34 | `SetSpeaker` | 35 | `SetSpeaker` |
-| 36 | `SetSpeaker` | 37 | `SetSpeaker` | 38 | `SetSpeaker` |
-| 39 | `SetSpeaker` | 40 | `SetSpeaker` | 41 | `SetSpeaker` |
-| 42 | `SetSpeaker` | 43 | `SetSpeaker` | 44 | `SetSpeaker` |
-| 45 | `SetSpeaker` | 46 | `SetSpeaker` | 47 | `SetSpeaker` |
-| 48 | `SetSpeaker` | 49 | `SetSpeaker` | 50 | `SetSpeaker` |
-| 51 | `SetSpeaker` | 52 | `SetSpeaker` | 53 | `SetSpeaker` |
-| 54 | `SetSpeaker` | 55 | `SetSpeaker` | 56 | `SetSpeaker` |
-| 57 | `SetSpeaker` | 58 | `SetSpeaker` | 59 | `SetSpeaker` |
-| 60 | `SetSpeaker` | 61 | `SetSpeaker` | 62 | `SetSpeaker` |
-| 63 | `SetSpeaker` | 64 | `SetSpeaker` | 65 | `SetSpeaker` |
-| 66 | `SetSpeaker` | 67 | `SetSpeaker` | 68 | `SetSpeaker` |
-| 69 | `SetSpeaker` | 70 | `SetSpeaker` | 71 | `SetSpeaker` |
-| 72 | `SetSpeaker` | 73 | `SetSpeaker` | 74 | `SetSpeaker` |
-| 75 | `SetSpeaker` | 76 | `nop` | 77 | `SlidePortraitToX` |
-| 78 | `SlidePortraitToX` | 79 | `SlidePortraitBy` | 80 | `SlidePortraitBy` |
-| 81 | `WaitPortraitSettled` | 82 | `WaitPortraitSettled` | 83 | `ClosePortraits` |
-| 84 | `SetPortraitField62` | 85 | `SetPortraitTargetY` | 86 | `SetPortraitTargetY` |
-| 87 | `JoltPortraitY` | 88 | `JoltPortraitY` | 89 | `SetPortraitTremble` |
-| 90 | `SetPortraitTremble` | 91 | `SetSceneBit` | 92 | `EndDialogue` |
-| 93 | `SetDialogueBoxStyle` | 94 | `SetBoxNormal` | 95 | `SetBoxShout` |
-| 96 | `SetBoxThought` | 97 | `SetBoxTrembling` | 98 | `ShakeDialogueBox` |
-| 99 | `TeleportActor` | 100 | `TeleportActor` | 101 | `PlaceActorAndFace` |
-| 102 | `PlaceActorAndFace` | 103 | `TurnActorToAngle` | 104 | `TurnActorToAngle` |
-| 105 | `GetEventActorIndexStub` | 106 | `RotateActorInPlace` | 107 | `TurnActorToFaceTarget` |
-| 108 | `TurnActorToFaceTarget` | 109 | `TurnActorToFaceTarget` | 110 | `FaceEventActor` |
-| 111 | `SetActorAuxYaw` | 112 | `SetActorAuxYaw` | 113 | `WaitActorAuxYaw` |
-| 114 | `WaitActorAuxYaw` | 115 | `MoveActorToTileLockAi` | 116 | `MoveActorToTileLockAi` |
-| 117 | `MoveActorToTileFaceTravel` | 118 | `MoveActorToTileFaceTravel` | 119 | `MoveNpcToTileKeepFacing` |
-| 120 | `MoveNpcToTileKeepFacing` | 121 | `MoveNpcToTileKeepAnim` | 122 | `MoveNpcToTileKeepAnim` |
-| 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` | 125 | `MoveActorByOffsetFaceTravel` |
-| 126 | `MoveActorByOffsetFaceTravel` | 127 | `MoveActorByOffsetKeepFacing` | 128 | `MoveActorByOffsetKeepFacing` |
-| 129 | `WaitActorMoveDone` | 130 | `WaitActorMoveDone` | 131 | `WaitActorNearMoveTarget` |
-| 132 | `WaitActorNearMoveTarget` | 133 | `PlayActorAnim` | 134 | `PlayActorAnim` |
-| 135 | `GetActorTilePosition` | 136 | `GetActorTilePosition` | 137 | `WaitActorAnimDone` |
-| 138 | `WaitActorAnimDone` | 139 | `ApplyEffectToActor` | 140 | `ApplyEffectToActor` |
-| 141 | `SetActorOpacity` | 142 | `MovePlayerToTile` | 143 | `MovePlayerToTileFaceTravel` |
-| 144 | `MovePlayerToTileKeepFacing` | 145 | `WaitPlayerMoveDone` | 146 | `EquipItemToPlayer` |
-| 147 | `RestorePlayerEquip` | 148 | `HasPlayerAccessoryEffect40000` | 149 | `PlayPlayerAnim` |
-| 150 | `TriggerActionAtTile` | 151 | `TriggerActionOnActor` | 152 | `WaitPlayerAnimDone` |
-| 153 | `SpawnEventActor` | 154 | `SpawnEventActorVariant` | 155 | `SpawnEventActorEx` |
-| 156 | `UnregisterEventActor` | 157 | `SpawnMapEntity` | 158 | `SetMapAmbientColor` |
-| 159 | `ResetMapAmbientColor` | 160 | `MoveEventActorToTile` | 161 | `MoveEventActorToTileKeepFacing` |
-| 162 | `TurnEventActorToAngle` | 163 | `TurnEventActorToFaceTarget` | 164 | `WaitEventActorMoveDone` |
-| 165 | `TriggerActionAtEventActor` | 166 | `ApplyEffectToEventActor` | 167 | `PlayEventActorAnim` |
-| 168 | `SkipEventActorAnimToEnd` | 169 | `WaitEventActorAnimDone` | 170 | `SetEventActorAnimSpeed` |
-| 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` | 173 | `SetEventActorInScriptFlag` |
-| 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` | 176 | `SetEventActorScale` |
-| 177 | `EnableEventActorWandering` | 178 | `SetEventActorAuxYaw` | 179 | `WaitEventActorAuxYaw` |
-| 180 | `KillEventActor` | 181 | `TurnEventActorIntoNpc` | 182 | `GetEventActorTilePosition` |
-| 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` | 185 | `PlayActorSplash` |
-| 186 | `SetCameraPosition` | 187 | `ReattachCameraToActor` | 188 | `HoldCameraInPlace` |
-| 189 | `ResetCameraToPlayer` | 190 | `SetCameraTarget` | 191 | `ResetCameraToActor` |
-| 192 | `ResetCameraToActor` | 193 | `SetCameraTargetToCurrentPosition` | 194 | `FocusCameraOnPlayer` |
-| 195 | `WaitCameraAtMark` | 196 | `WaitCameraNearMark` | 197 | `ShakeCamera` |
-| 198 | `WaitForPlayerEffect` | 199 | `SetCameraTargetActor` | 200 | `SetCameraTargetActor` |
-| 201 | `SetCameraSettleMode` | 202 | `SetCameraZoom` | 203 | `SetCameraMapBounds` |
-| 204 | `SleepInBed` | 205 | `RefreshMapTiles` | 206 | `SetActorHeldItem` |
-| 207 | `SetActorHeldItem` | 208 | `HandOrDropItem` | 209 | `HandOrDropItem` |
-| 210 | `HandOrDropItemWithLevel` | 211 | `ShowActorEmote` | 212 | `ShowActorEmote` |
-| 213 | `GetPlayerPosition` | 214 | `SetNpcStoryFlag` | 215 | `ClearNpcStoryFlag` |
-| 216 | `HasNpcStoryFlag` | 217 | `ApplyFriendshipDelta` | 218 | `GetNpcFriendshipLevel` |
-| 219 | `GetNpcFriendshipLevel` | 220 | `IsAllNpcFriendshipAtLeast` | 221 | `AdjustCurrentNpcFriendship` |
-| 222 | `LockNpcPose` | 223 | `SetNpcEngaged` | 224 | `SetNpcEngaged` |
-| 225 | `StreamInNpc` | 226 | `GetActorMapId` | 227 | `IsActorInMap` |
-| 228 | `IsActorInMap` | 229 | `IsNpcOffScheduleRoute` | 230 | `SetSceneCast` |
-| 231 | `SetSceneCast` | 232 | `IsNpcHidden` | 233 | `HideNpc` |
-| 234 | `HideNpc` | 235 | `IsNpcNearbyToChimeIn` | 236 | `IsNpcInRangeToChimeIn` |
-| 237 | `GetNpcPairChimeInState` | 238 | `IsQuestNpcGroupAvailable` | 239 | `IsQuestNpcGroupAvailable` |
-| 240 | `IsNpcGroupPresentNearby` | 241 | `IsNpcGroupPresentNearby` | 242 | `SetSceneFlag0x200` |
-| 243 | `EndDialogueLock` | 244 | `ShowNpcHeldItem` | 245 | `GetGiftAffinity` |
-| 246 | `StreamInNpcAtTile` | 247 | `GetApproachTile` | 248 | `SetNpcVisibleFlag` |
-| 249 | `SetNpcVisibleFlag` | 250 | `SkipActorAnimToEnd` | 251 | `SkipActorAnimToEnd` |
-| 252 | `SetActorAnimSpeedScale` | 253 | `SetActorAnimSpeedScale` | 254 | `SetActorAnimFrame` |
-| 255 | `GetActorAilmentState` | 256 | `SetActorStatusConditions` | 257 | `IsNpcGroupFreeToComment` |
-| 258 | `IsNpcGroupFreeToComment` | 259 | `PickRandomVillagers` | 260 | `GetHostActorHpState` |
-| 261 | `SetNpcRecordFlag80000000` | 262 | `GetCurrentInteractionNpc` | 263 | `ResetNpcToIdle` |
-| 264 | `ResetNpcToIdle` | 265 | `IsPlayerOrCompanionDowned` | 266 | `SetOrClearNpcSchedule` |
-| 267 | `SetOrClearNpcSchedule` | 268 | `IsNpcAtScheduledSpot` | 269 | `IsNpcAtScheduledSpot` |
-| 270 | `ReleaseNpcScriptedPlacement` | 271 | `ReleaseNpcScriptedPlacement` | 272 | `nop` |
+| 1 | `SetSceneCtxBit3FromArg` | 2 | `Wait` | 3 | `WaitReset` |
+| 4 | `WaitPlain` | 5 | `ShowPortrait` | 6 | `ShowPortraitWithEmote` |
+| 7 | `ShowPortraitWithEmote` | 8 | `SetSpeakerName` | 9 | `SetSpeakerName` |
+| 10 | `SetSpeakerVoice` | 11 | `SetSpeakerNameVisible` | 12 | `SetSpeakerById` |
+| 13 | `SetSpeakerById` | 14 | `SetSpeakerByIdWithEmote` | 15 | `SetSpeakerByIdWithEmote` |
+| 16 | `SetSpeaker` | 17 | `SetSpeaker` | 18 | `SetSpeaker` |
+| 19 | `SetSpeaker` | 20 | `SetSpeaker` | 21 | `SetSpeaker` |
+| 22 | `SetSpeaker` | 23 | `SetSpeaker` | 24 | `SetSpeaker` |
+| 25 | `SetSpeaker` | 26 | `SetSpeaker` | 27 | `SetSpeaker` |
+| 28 | `SetSpeaker` | 29 | `SetSpeaker` | 30 | `SetSpeaker` |
+| 31 | `SetSpeaker` | 32 | `SetSpeaker` | 33 | `SetSpeaker` |
+| 34 | `SetSpeaker` | 35 | `SetSpeaker` | 36 | `SetSpeaker` |
+| 37 | `SetSpeaker` | 38 | `SetSpeaker` | 39 | `SetSpeaker` |
+| 40 | `SetSpeaker` | 41 | `SetSpeaker` | 42 | `SetSpeaker` |
+| 43 | `SetSpeaker` | 44 | `SetSpeaker` | 45 | `SetSpeaker` |
+| 46 | `SetSpeaker` | 47 | `SetSpeaker` | 48 | `SetSpeaker` |
+| 49 | `SetSpeaker` | 50 | `SetSpeaker` | 51 | `SetSpeaker` |
+| 52 | `SetSpeaker` | 53 | `SetSpeaker` | 54 | `SetSpeaker` |
+| 55 | `SetSpeaker` | 56 | `SetSpeaker` | 57 | `SetSpeaker` |
+| 58 | `SetSpeaker` | 59 | `SetSpeaker` | 60 | `SetSpeaker` |
+| 61 | `SetSpeaker` | 62 | `SetSpeaker` | 63 | `SetSpeaker` |
+| 64 | `SetSpeaker` | 65 | `SetSpeaker` | 66 | `SetSpeaker` |
+| 67 | `SetSpeaker` | 68 | `SetSpeaker` | 69 | `SetSpeaker` |
+| 70 | `SetSpeaker` | 71 | `SetSpeaker` | 72 | `SetSpeaker` |
+| 73 | `SetSpeaker` | 74 | `SetSpeaker` | 75 | `SetSpeaker` |
+| 77 | `SlidePortraitToX` | 78 | `SlidePortraitToX` | 79 | `SlidePortraitBy` |
+| 80 | `SlidePortraitBy` | 81 | `WaitPortraitSettled` | 82 | `WaitPortraitSettled` |
+| 83 | `ClosePortraits` | 84 | `SetPortraitField62` | 85 | `SetPortraitTargetY` |
+| 86 | `SetPortraitTargetY` | 87 | `JoltPortraitY` | 88 | `JoltPortraitY` |
+| 89 | `SetPortraitTremble` | 90 | `SetPortraitTremble` | 91 | `SetSceneBit` |
+| 92 | `EndDialogue` | 93 | `SetDialogueBoxStyle` | 94 | `SetBoxNormal` |
+| 95 | `SetBoxShout` | 96 | `SetBoxThought` | 97 | `SetBoxTrembling` |
+| 98 | `ShakeDialogueBox` | 99 | `TeleportActor` | 100 | `TeleportActor` |
+| 101 | `PlaceActorAndFace` | 102 | `PlaceActorAndFace` | 103 | `TurnActorToAngle` |
+| 104 | `TurnActorToAngle` | 105 | `GetEventActorIndexStub` | 106 | `RotateActorInPlace` |
+| 107 | `TurnActorToFaceTarget` | 108 | `TurnActorToFaceTarget` | 109 | `TurnActorToFaceTarget` |
+| 110 | `FaceEventActor` | 111 | `SetActorAuxYaw` | 112 | `SetActorAuxYaw` |
+| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `MoveActorToTileLockAi` |
+| 116 | `MoveActorToTileLockAi` | 117 | `MoveActorToTileFaceTravel` | 118 | `MoveActorToTileFaceTravel` |
+| 119 | `MoveNpcToTileKeepFacing` | 120 | `MoveNpcToTileKeepFacing` | 121 | `MoveNpcToTileKeepAnim` |
+| 122 | `MoveNpcToTileKeepAnim` | 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` |
+| 125 | `MoveActorByOffsetFaceTravel` | 126 | `MoveActorByOffsetFaceTravel` | 127 | `MoveActorByOffsetKeepFacing` |
+| 128 | `MoveActorByOffsetKeepFacing` | 129 | `WaitActorMoveDone` | 130 | `WaitActorMoveDone` |
+| 131 | `WaitActorNearMoveTarget` | 132 | `WaitActorNearMoveTarget` | 133 | `PlayActorAnim` |
+| 134 | `PlayActorAnim` | 135 | `GetActorTilePosition` | 136 | `GetActorTilePosition` |
+| 137 | `WaitActorAnimDone` | 138 | `WaitActorAnimDone` | 139 | `ApplyEffectToActor` |
+| 140 | `ApplyEffectToActor` | 141 | `SetActorOpacity` | 142 | `MovePlayerToTile` |
+| 143 | `MovePlayerToTileFaceTravel` | 144 | `MovePlayerToTileKeepFacing` | 145 | `WaitPlayerMoveDone` |
+| 146 | `EquipItemToPlayer` | 147 | `RestorePlayerEquip` | 148 | `HasPlayerAccessoryEffect40000` |
+| 149 | `PlayPlayerAnim` | 150 | `TriggerActionAtTile` | 151 | `TriggerActionOnActor` |
+| 152 | `WaitPlayerAnimDone` | 153 | `SpawnEventActor` | 154 | `SpawnEventActorVariant` |
+| 155 | `SpawnEventActorEx` | 156 | `UnregisterEventActor` | 157 | `SpawnMapEntity` |
+| 158 | `SetMapAmbientColor` | 159 | `ResetMapAmbientColor` | 160 | `MoveEventActorToTile` |
+| 161 | `MoveEventActorToTileKeepFacing` | 162 | `TurnEventActorToAngle` | 163 | `TurnEventActorToFaceTarget` |
+| 164 | `WaitEventActorMoveDone` | 165 | `TriggerActionAtEventActor` | 166 | `ApplyEffectToEventActor` |
+| 167 | `PlayEventActorAnim` | 168 | `SkipEventActorAnimToEnd` | 169 | `WaitEventActorAnimDone` |
+| 170 | `SetEventActorAnimSpeed` | 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` |
+| 173 | `SetEventActorInScriptFlag` | 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` |
+| 176 | `SetEventActorScale` | 177 | `EnableEventActorWandering` | 178 | `SetEventActorAuxYaw` |
+| 179 | `WaitEventActorAuxYaw` | 180 | `KillEventActor` | 181 | `TurnEventActorIntoNpc` |
+| 182 | `GetEventActorTilePosition` | 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` |
+| 185 | `PlayActorSplash` | 186 | `SetCameraPosition` | 187 | `ReattachCameraToActor` |
+| 188 | `HoldCameraInPlace` | 189 | `ResetCameraToPlayer` | 190 | `SetCameraTarget` |
+| 191 | `ResetCameraToActor` | 192 | `ResetCameraToActor` | 193 | `SetCameraTargetToCurrentPosition` |
+| 194 | `FocusCameraOnPlayer` | 195 | `WaitCameraAtMark` | 196 | `WaitCameraNearMark` |
+| 197 | `ShakeCamera` | 198 | `WaitForPlayerEffect` | 199 | `SetCameraTargetActor` |
+| 200 | `SetCameraTargetActor` | 201 | `SetCameraSettleMode` | 202 | `SetCameraZoom` |
+| 203 | `SetCameraMapBounds` | 204 | `SleepInBed` | 205 | `RefreshMapTiles` |
+| 206 | `SetActorHeldItem` | 207 | `SetActorHeldItem` | 208 | `HandOrDropItem` |
+| 209 | `HandOrDropItem` | 210 | `HandOrDropItemWithLevel` | 211 | `ShowActorEmote` |
+| 212 | `ShowActorEmote` | 213 | `GetPlayerPosition` | 214 | `SetNpcStoryFlag` |
+| 215 | `ClearNpcStoryFlag` | 216 | `HasNpcStoryFlag` | 217 | `ApplyFriendshipDelta` |
+| 218 | `GetNpcFriendshipLevel` | 219 | `GetNpcFriendshipLevel` | 220 | `IsAllNpcFriendshipAtLeast` |
+| 221 | `AdjustCurrentNpcFriendship` | 222 | `LockNpcPose` | 223 | `SetNpcEngaged` |
+| 224 | `SetNpcEngaged` | 225 | `StreamInNpc` | 226 | `GetActorMapId` |
+| 227 | `IsActorInMap` | 228 | `IsActorInMap` | 229 | `IsNpcOffScheduleRoute` |
+| 230 | `SetSceneCast` | 231 | `SetSceneCast` | 232 | `IsNpcHidden` |
+| 233 | `HideNpc` | 234 | `HideNpc` | 235 | `IsNpcNearbyToChimeIn` |
+| 236 | `IsNpcInRangeToChimeIn` | 237 | `GetNpcPairChimeInState` | 238 | `IsQuestNpcGroupAvailable` |
+| 239 | `IsQuestNpcGroupAvailable` | 240 | `IsNpcGroupPresentNearby` | 241 | `IsNpcGroupPresentNearby` |
+| 242 | `SetSceneFlag0x200` | 243 | `EndDialogueLock` | 244 | `ShowNpcHeldItem` |
+| 245 | `GetGiftAffinity` | 246 | `StreamInNpcAtTile` | 247 | `GetApproachTile` |
+| 248 | `SetNpcVisibleFlag` | 249 | `SetNpcVisibleFlag` | 250 | `SkipActorAnimToEnd` |
+| 251 | `SkipActorAnimToEnd` | 252 | `SetActorAnimSpeedScale` | 253 | `SetActorAnimSpeedScale` |
+| 254 | `SetActorAnimFrame` | 255 | `GetActorAilmentState` | 256 | `SetActorStatusConditions` |
+| 257 | `IsNpcGroupFreeToComment` | 258 | `IsNpcGroupFreeToComment` | 259 | `PickRandomVillagers` |
+| 260 | `GetHostActorHpState` | 261 | `SetNpcRecordFlag80000000` | 262 | `GetCurrentInteractionNpc` |
+| 263 | `ResetNpcToIdle` | 264 | `ResetNpcToIdle` | 265 | `IsPlayerOrCompanionDowned` |
+| 266 | `SetOrClearNpcSchedule` | 267 | `SetOrClearNpcSchedule` | 268 | `IsNpcAtScheduledSpot` |
+| 269 | `IsNpcAtScheduledSpot` | 270 | `ReleaseNpcScriptedPlacement` | 271 | `ReleaseNpcScriptedPlacement` |
 | 273 | `IsNpcPresent` | 274 | `IsNpcPresent` | 275 | `SetNpcPresenceState` |
 | 276 | `GetNpcHeldItem` | 277 | `GetNpcHeldItem` | 278 | `GetNpcFavoriteItem` |
 | 279 | `GetNpcFavoriteItem` | 280 | `GetNpcDateState` | 281 | `SetNpcDateState` |
@@ -12590,92 +12371,87 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 370 | `SetSceneStateBit1` | 371 | `EvalCondScriptA` | 372 | `EvalCondScriptB` |
 | 373 | `DispatchCondScriptEntry` | 374 | `RunEmEntryAltAction` | 375 | `OpenMenu` |
 | 376 | `OpenShop` | 377 | `ConsumeInteractionResult` | 378 | `ConsumeInteractionResult` |
-| 379 | `PlayMusic` | 380 | `StopMusic` | 381 | `nop` |
-| 382 | `FadeMusicVolume` | 383 | `SetMusicLock` | 384 | `ResetMusicResumePositions` |
-| 385 | `PlaySound` | 386 | `StopVoices` | 387 | `PlaySfxWithNpcRemap` |
-| 388 | `nop` | 389 | `SetPooledVoiceVolume` | 390 | `StopVoiceId` |
-| 391 | `nop` | 392 | `PlaySoundOnFreeVoice` | 393 | `FreezePlayer` |
-| 394 | `WarpPlayer` | 395 | `TurnPlayerToAngle` | 396 | `TurnPlayerToAngle` |
-| 397 | `SetPartyOutfit` | 398 | `BuildOutfitChoiceMask` | 399 | `GetPlayerActionState` |
-| 400 | `SetPlayerMale` | 401 | `SendMonsterToFarmArea` | 402 | `RecallFarmMonster` |
-| 403 | `GetFreeFarmAreas` | 404 | `GetOccupiedFarmAreas` | 405 | `SetFarmMonsterPlantOrder` |
-| 406 | `GetFarmMonsterPlantOrder` | 407 | `GetAliveKillTargetCount` | 408 | `CountLivingEnemies` |
-| 409 | `GetTamedMonsterCount` | 410 | `TameEventMonster` | 411 | `GetCompanionMonsterData` |
-| 412 | `BlackScreen` | 413 | `SetDialogueBoxY` | 414 | `GetChoiceIndexAndItem` |
-| 415 | `SetSubstitutionHighlight` | 416 | `GetPlayerVariable` | 417 | `ModifyPlayerResource` |
-| 418 | `HasBackpackRoom` | 419 | `HasRoomForItem` | 420 | `HasBackpackFreeSlots` |
-| 421 | `SetNextItemAttributes` | 422 | `SetNextItemAttributesPacked` | 423 | `GivePlayerItem` |
-| 424 | `GivePlayerItem` | 425 | `ForcePlayerHoldItem` | 426 | `IsPlayerHoldingItem` |
-| 427 | `SetWeaponSkillsToLevel30` | 428 | `TakeItem` | 429 | `TakeItemFromBackpack` |
-| 430 | `ConsumeHeldItem` | 431 | `HasItem` | 432 | `GetSeedCropInfo` |
-| 433 | `GetFishSizeRecords` | 434 | `GetItemSellPrice` | 435 | `GetItemBuyPrice` |
-| 436 | `IsItemStackable` | 437 | `IsItemInCategoryList` | 438 | `HasItemOfCategory` |
-| 439 | `ReleaseFarmMonster` | 440 | `GetNpcMapID` | 441 | `IsConfirmButtonDown` |
-| 442 | `IsStickInputActive` | 443 | `SetFlagBit` | 444 | `SetFlagBitIfCond` |
-| 445 | `GetFlagBit` | 446 | `SetWeather` | 447 | `GetWeather` |
-| 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` | 450 | `GetWeatherStreak` |
-| 451 | `GetDayOfWeek` | 452 | `SpawnItemAtTile` | 453 | `DropStagedItem` |
-| 454 | `SpawnItemVisual` | 455 | `DespawnItemVisuals` | 456 | `GetEquippedItemAttr` |
-| 457 | `ShowRewardPopup` | 458 | `ShowQuestReward` | 459 | `ShowRewardPopupAtTile` |
-| 460 | `AddRewardItem` | 461 | `SuppressRewardJingle` | 462 | `GiveRewardItems` |
-| 463 | `DropItem` | 464 | `DropItemStack` | 465 | `SetCalendarPauseFlag` |
-| 466 | `SkipToTime` | 467 | `SetTime` | 468 | `FastForwardCalendar` |
-| 469 | `SetOrAddCalendarDate` | 470 | `GetGuestNpcVariant` | 471 | `GetChildFriendPoints` |
-| 472 | `SetGuestNpcSubVariant` | 473 | `RollChildDailyPref` | 474 | `SetGuestRosterGate` |
-| 475 | `SetNpcStateByte` | 476 | `RecruitNpcToParty` | 477 | `RecruitNpcToParty` |
-| 478 | `RecruitNpcToPartyHeld` | 479 | `RecruitNpcToPartyHeld` | 480 | `RecruitHostNpcToParty` |
-| 481 | `GetPartyMemberId` | 482 | `GetPartyMemberId` | 483 | `DismissBothCompanions` |
-| 484 | `DismissBothCompanionsQuiet` | 485 | `DismissBothCompanionsEx` | 486 | `DismissCompanionByCharId` |
-| 487 | `IsCurrentNpcInParty` | 488 | `SetCompanionScriptedPresence` | 489 | `SetCompanionsSceneHeld` |
-| 490 | `IsDatePartnerAtDateSpot` | 491 | `nop` | 492 | `SetNpcFacingMode` |
+| 379 | `PlayMusic` | 380 | `StopMusic` | 382 | `FadeMusicVolume` |
+| 383 | `SetMusicLock` | 384 | `ResetMusicResumePositions` | 385 | `PlaySound` |
+| 386 | `StopVoices` | 387 | `PlaySfxWithNpcRemap` | 388 | `nop` |
+| 389 | `SetPooledVoiceVolume` | 390 | `StopVoiceId` | 392 | `PlaySoundOnFreeVoice` |
+| 393 | `FreezePlayer` | 394 | `WarpPlayer` | 395 | `TurnPlayerToAngle` |
+| 396 | `TurnPlayerToAngle` | 397 | `SetPartyOutfit` | 398 | `BuildOutfitChoiceMask` |
+| 399 | `GetPlayerActionState` | 400 | `SetPlayerMale` | 401 | `SendMonsterToFarmArea` |
+| 402 | `RecallFarmMonster` | 403 | `GetFreeFarmAreas` | 404 | `GetOccupiedFarmAreas` |
+| 405 | `SetFarmMonsterPlantOrder` | 406 | `GetFarmMonsterPlantOrder` | 407 | `GetAliveKillTargetCount` |
+| 408 | `CountLivingEnemies` | 409 | `GetTamedMonsterCount` | 410 | `TameEventMonster` |
+| 411 | `GetCompanionMonsterData` | 412 | `BlackScreen` | 413 | `SetDialogueBoxY` |
+| 414 | `GetChoiceIndexAndItem` | 415 | `SetSubstitutionHighlight` | 416 | `GetPlayerVariable` |
+| 417 | `ModifyPlayerResource` | 418 | `HasBackpackRoom` | 419 | `HasRoomForItem` |
+| 420 | `HasBackpackFreeSlots` | 421 | `SetNextItemAttributes` | 422 | `SetNextItemAttributesPacked` |
+| 423 | `GivePlayerItem` | 424 | `GivePlayerItem` | 425 | `ForcePlayerHoldItem` |
+| 426 | `IsPlayerHoldingItem` | 427 | `SetWeaponSkillsToLevel30` | 428 | `TakeItem` |
+| 429 | `TakeItemFromBackpack` | 430 | `ConsumeHeldItem` | 431 | `HasItem` |
+| 432 | `GetSeedCropInfo` | 433 | `GetFishSizeRecords` | 434 | `GetItemSellPrice` |
+| 435 | `GetItemBuyPrice` | 436 | `IsItemStackable` | 437 | `IsItemInCategoryList` |
+| 438 | `HasItemOfCategory` | 439 | `ReleaseFarmMonster` | 440 | `GetNpcMapID` |
+| 441 | `IsConfirmButtonDown` | 442 | `IsStickInputActive` | 443 | `SetFlagBit` |
+| 444 | `SetFlagBitIfCond` | 445 | `GetFlagBit` | 446 | `SetWeather` |
+| 447 | `GetWeather` | 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` |
+| 450 | `GetWeatherStreak` | 451 | `GetDayOfWeek` | 452 | `SpawnItemAtTile` |
+| 453 | `DropStagedItem` | 454 | `SpawnItemVisual` | 455 | `DespawnItemVisuals` |
+| 456 | `GetEquippedItemAttr` | 457 | `ShowRewardPopup` | 458 | `ShowQuestReward` |
+| 459 | `ShowRewardPopupAtTile` | 460 | `AddRewardItem` | 461 | `SuppressRewardJingle` |
+| 462 | `GiveRewardItems` | 463 | `DropItem` | 464 | `DropItemStack` |
+| 465 | `SetCalendarPauseFlag` | 466 | `SkipToTime` | 467 | `SetTime` |
+| 468 | `FastForwardCalendar` | 469 | `SetOrAddCalendarDate` | 470 | `GetGuestNpcVariant` |
+| 471 | `GetChildFriendPoints` | 472 | `SetGuestNpcSubVariant` | 473 | `RollChildDailyPref` |
+| 474 | `SetGuestRosterGate` | 475 | `SetNpcStateByte` | 476 | `RecruitNpcToParty` |
+| 477 | `RecruitNpcToParty` | 478 | `RecruitNpcToPartyHeld` | 479 | `RecruitNpcToPartyHeld` |
+| 480 | `RecruitHostNpcToParty` | 481 | `GetPartyMemberId` | 482 | `GetPartyMemberId` |
+| 483 | `DismissBothCompanions` | 484 | `DismissBothCompanionsQuiet` | 485 | `DismissBothCompanionsEx` |
+| 486 | `DismissCompanionByCharId` | 487 | `IsCurrentNpcInParty` | 488 | `SetCompanionScriptedPresence` |
+| 489 | `SetCompanionsSceneHeld` | 490 | `IsDatePartnerAtDateSpot` | 492 | `SetNpcFacingMode` |
 | 493 | `GetNpcFacingMode` | 494 | `SetCompanionVisible` | 495 | `WarpCompanion` |
 | 496 | `MoveCompanionToTile` | 497 | `MoveCompanionToTileFaceTravel` | 498 | `MoveCompanionByOffset` |
 | 499 | `MoveCompanionByOffsetFaceTravel` | 500 | `TurnCompanionToAngle` | 501 | `TurnCompanionToFaceTarget` |
 | 502 | `WaitCompanionSettled` | 503 | `ShowCompanionEmote` | 504 | `GetPartyMemberTileY` |
-| 505 | `nop` | 506 | `WarpMonstersToPlayer` | 507 | `PopulateSlayRequest` |
-| 508 | `PopulateQuestKind2RandomRewards` | 509 | `PopulateQuestKind2RandomRewards` | 510 | `PopulateQuestKind2LiteralRewards` |
-| 511 | `PopulateQuestKind3RandomRewards` | 512 | `PopulateQuestKind3RandomRewards` | 513 | `PopulateQuestKind4RandomRewards` |
-| 514 | `PopulateQuestKind4RandomRewards` | 515 | `PopulateQuestKind4LiteralRewards` | 516 | `PostBoardQuestKind5` |
-| 517 | `PostBoardQuestKind5` | 518 | `PostBoardQuestKind6` | 519 | `PostBoardCraftQuest` |
-| 520 | `PostQuestGoalNumber` | 521 | `PopulateQuestKind9LiteralRewards` | 522 | `PopulateQuestKind10RandomRewards` |
-| 523 | `PostQuestLiteralRewards` | 524 | `NopCompleteSubEventGoals` | 525 | `CompleteQuest` |
-| 526 | `nop` | 527 | `AdvanceRng` | 528 | `GetRequestRewardItem` |
-| 529 | `ClearAllRequestRecords` | 530 | `CommitQuestAcceptance` | 531 | `ClearBoardRequest` |
-| 532 | `GetNpcQuestPreview` | 533 | `nop` | 534 | `GetDailyVisitor` |
+| 506 | `WarpMonstersToPlayer` | 507 | `PopulateSlayRequest` | 508 | `PopulateQuestKind2RandomRewards` |
+| 509 | `PopulateQuestKind2RandomRewards` | 510 | `PopulateQuestKind2LiteralRewards` | 511 | `PopulateQuestKind3RandomRewards` |
+| 512 | `PopulateQuestKind3RandomRewards` | 513 | `PopulateQuestKind4RandomRewards` | 514 | `PopulateQuestKind4RandomRewards` |
+| 515 | `PopulateQuestKind4LiteralRewards` | 516 | `PostBoardQuestKind5` | 517 | `PostBoardQuestKind5` |
+| 518 | `PostBoardQuestKind6` | 519 | `PostBoardCraftQuest` | 520 | `PostQuestGoalNumber` |
+| 521 | `PopulateQuestKind9LiteralRewards` | 522 | `PopulateQuestKind10RandomRewards` | 523 | `PostQuestLiteralRewards` |
+| 524 | `NopCompleteSubEventGoals` | 525 | `CompleteQuest` | 527 | `AdvanceRng` |
+| 528 | `GetRequestRewardItem` | 529 | `ClearAllRequestRecords` | 530 | `CommitQuestAcceptance` |
+| 531 | `ClearBoardRequest` | 532 | `GetNpcQuestPreview` | 534 | `GetDailyVisitor` |
 | 535 | `GetQuestRemainingByItem` | 536 | `StartReservedSubEvent` | 537 | `QueueSubEventGoalKind2` |
 | 538 | `QueueSubEventGoalKind2` | 539 | `QueueSubEventGoalKind3` | 540 | `QueueSubEventGoalKind3` |
 | 541 | `QueueSubEventGoalKind4` | 542 | `QueueSubEventGoalKind4` | 543 | `QueueSubEventGoalKind5` |
 | 544 | `QueueSubEventGoalKind5` | 545 | `QueueSubEventGoalKind6` | 546 | `QueueSubEventCraftGoal` |
 | 547 | `QueueSubEventGoalKind10` | 548 | `CompleteAllSubEventGoals` | 549 | `FinishCurrentSubEvent` |
-| 550 | `nop` | 551 | `ResetSubEventGoals` | 552 | `GetSubEventGoalRemaining` |
-| 553 | `SetNpcSubEventFlag` | 554 | `SetNpcSubEventFlag` | 555 | `SetNpcAttentionRadius` |
-| 556 | `SetNpcAttentionRadius` | 557 | `SetNpcRecognitionFlags` | 558 | `SetNpcRecognitionFlags` |
-| 559 | `StartFestivalContest` | 560 | `StageSceneNpcs` | 561 | `GetSceneStateBytes` |
-| 562 | `RefreshSceneNpcs` | 563 | `EquipScriptedWeapon` | 564 | `RemoveScriptedWeapon` |
-| 565 | `nop` | 566 | `RecordFestivalPlacement` | 567 | `GetTomorrowsCalendarEvent` |
-| 568 | `GetSceneNpc` | 569 | `RankFestivalContestants` | 570 | `GetTodaysRequestNpc` |
-| 571 | `SetSceneScratch` | 572 | `GetSceneScratchByte` | 573 | `GetFestivalPlacements` |
-| 574 | `ShuffleSceneBuffer` | 575 | `GetShuffleValue` | 576 | `GetSceneEventNpc` |
-| 577 | `GetFestivalResults` | 578 | `SpawnEventMonsters` | 579 | `GetSceneEventFlags` |
-| 580 | `GetGivenItemStats` | 581 | `CompareFishRecord` | 582 | `GetFishRecord` |
-| 583 | `nop` | 584 | `nop` | 585 | `nop` |
-| 586 | `nop` | 587 | `PlaceFurniture` | 588 | `HasMapEntityOfKind` |
+| 551 | `ResetSubEventGoals` | 552 | `GetSubEventGoalRemaining` | 553 | `SetNpcSubEventFlag` |
+| 554 | `SetNpcSubEventFlag` | 555 | `SetNpcAttentionRadius` | 556 | `SetNpcAttentionRadius` |
+| 557 | `SetNpcRecognitionFlags` | 558 | `SetNpcRecognitionFlags` | 559 | `StartFestivalContest` |
+| 560 | `StageSceneNpcs` | 561 | `GetSceneStateBytes` | 562 | `RefreshSceneNpcs` |
+| 563 | `EquipScriptedWeapon` | 564 | `RemoveScriptedWeapon` | 566 | `RecordFestivalPlacement` |
+| 567 | `GetTomorrowsCalendarEvent` | 568 | `GetSceneNpc` | 569 | `RankFestivalContestants` |
+| 570 | `GetTodaysRequestNpc` | 571 | `SetSceneScratch` | 572 | `GetSceneScratchByte` |
+| 573 | `GetFestivalPlacements` | 574 | `ShuffleSceneBuffer` | 575 | `GetShuffleValue` |
+| 576 | `GetSceneEventNpc` | 577 | `GetFestivalResults` | 578 | `SpawnEventMonsters` |
+| 579 | `GetSceneEventFlags` | 580 | `GetGivenItemStats` | 581 | `CompareFishRecord` |
+| 582 | `GetFishRecord` | 587 | `PlaceFurniture` | 588 | `HasMapEntityOfKind` |
 | 589 | `PickUpHostObject` | 590 | `BreakFurniture` | 591 | `ClearAllTileObjects` |
 | 592 | `CanPlaceFurnitureInRoom` | 593 | `PickRandomPlacedFurniture` | 594 | `CommitGrabbedObject` |
 | 595 | `SetMinimapMarker` | 596 | `RollUniformIntegerLessThanN` | 597 | `RollShopCategoryItemReturnId` |
 | 598 | `RollRandomItemMatchingDisplayName` | 599 | `RollRandomDishItem` | 600 | `RollRandomEquipmentItem` |
 | 601 | `RollRandomFurItem` | 602 | `RollRandomMedicineOrFailedDish` | 603 | `RollRandomGrassItem` |
 | 604 | `RollRandomIngredientItem` | 605 | `RollRandomSeasoningItem` | 606 | `RollThreeFlowerItemsAvoidDup` |
-| 607 | `RollRandomFlowerSeedItem` | 608 | `nop` | 609 | `RollRandomPointInRadiusAroundCenter` |
-| 610 | `SetChoiceVisibleMask` | 611 | `ClearChoiceVisibleRange` | 612 | `SetChoiceVisibleBit` |
-| 613 | `CalcChoicePrescroll` | 614 | `SetDialogueBoxMode` | 615 | `ArmChoiceOption` |
-| 616 | `TestAndSetCraftedFlag` | 617 | `ShowStaffCredits` | 618 | `WaitStaffCreditsDone` |
-| 619 | `IsPartyInviteAccepted` | 620 | `MarkSpouseCleared` | 621 | `SetDifficulty` |
-| 622 | `GetDifficulty` | 623 | `SetDialogueAutoAdvance` | 624 | `SetDialogueHoldFrames` |
-| 625 | `EnterSharanceMazeStage` | 626 | `IsMazeStageCleared` | 627 | `JumpToRandomDate` |
-| 628 | `SetRegisters` | 629 | `SetRegisters` | 630 | `nop` |
-| 631 | `GetNameHashRoll` | 632 | `RollSeededDailyRandom` | 633 | `ResetActionEventId` |
-| 634 | `SetActionTriggerByte` | 635 | `GetActionTriggerByte` | 636 | `nop` |
+| 607 | `RollRandomFlowerSeedItem` | 609 | `RollRandomPointInRadiusAroundCenter` | 610 | `SetChoiceVisibleMask` |
+| 611 | `ClearChoiceVisibleRange` | 612 | `SetChoiceVisibleBit` | 613 | `CalcChoicePrescroll` |
+| 614 | `SetDialogueBoxMode` | 615 | `ArmChoiceOption` | 616 | `TestAndSetCraftedFlag` |
+| 617 | `ShowStaffCredits` | 618 | `WaitStaffCreditsDone` | 619 | `IsPartyInviteAccepted` |
+| 620 | `MarkSpouseCleared` | 621 | `SetDifficulty` | 622 | `GetDifficulty` |
+| 623 | `SetDialogueAutoAdvance` | 624 | `SetDialogueHoldFrames` | 625 | `EnterSharanceMazeStage` |
+| 626 | `IsMazeStageCleared` | 627 | `JumpToRandomDate` | 628 | `SetRegisters` |
+| 629 | `SetRegisters` | 631 | `GetNameHashRoll` | 632 | `RollSeededDailyRandom` |
+| 633 | `ResetActionEventId` | 634 | `SetActionTriggerByte` | 635 | `GetActionTriggerByte` |
 | 637 | `SaveCalendarSnapshot` | 638 | `GetHarvestReport` | 639 | `GetPrincePoints` |
 | 640 | `AddPrincePoints` | 641 | `GetTourists` | 642 | `AddTourists` |
 | 643 | `ApplyPrinceOrder` | 644 | `GetPrinceOrderState` | 645 | `PromotePrinceRank` |
@@ -12694,15 +12470,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 682 | `SetSceneField400` | 683 | `PlayCutsceneVideo` | 684 | `IsProjectorSceneUnlocked` |
 | 685 | `SetFreeLookCameraMode` | 686 | `GetFreeLookCameraMode` | 687 | `RebuildMinimap` |
 | 688 | `ToggleMinimap` | 689 | `RespawnRoomFurnitureVisuals` | 690 | `GetNpcGivenHat` |
-| 691 | `MultiplyValues` | 692 | `CancelPendingDate` | 693 | `nop` |
-| 694 | `HasClearedAnyMarriage` | 695 | `IsSpouseCleared` | 696 | `RemoveItemFromBackpack` |
-| 697 | `ReturnToTitle` | 698 | `SetShopkeeperMessage` | 699 | `SetNarrationModeIf` |
-| 700 | `HasItemWithFlagBit0` | 701 | `SetPlayerSkillXp` | 738 | `NpcAction_Kind0_LieDownToSleep` |
-| 739 | `Npc_TickWanderBehavior` | 740 | `NpcAction_PlayKindIdleAnim` | 741 | `NpcAction_PlayKindIdleAnim` |
-| 742 | `NpcAction_PlayKindIdleAnim` | 743 | `NpcAction_PlayKindIdleAnim` | 744 | `NpcAction_PlayKindIdleAnim` |
-| 745 | `NpcAction_PlayKindIdleAnim` | 746 | `NpcAction_PlayKindIdleAnim` | 747 | `NpcAction_Kind9_LookAroundIdle` |
-| 748 | `NpcAction_Kind10_GreetThenBow` | 749 | `NpcAction_PlayKindIdleAnim` | 750 | `NpcAction_PlayKindIdleAnim` |
-| 751 | `NpcAction_Kind13_GiftAndTeleportOut` | 752 | `NpcAction_Kind14_DelayedIdleAnim` | 753 | `NpcAction_Kind15_SleepOrExitHome` |
-| 754 | `NpcAction_PlayKindIdleAnim` | 755 | `NpcAction_Kind17_EatFood` | 756 | `NpcAction_Kind18_RandomTimerIdleAnim` |
-| 757 | `NpcAction_Kind19_ChatByFriendshipLevel` | 758 | `NpcAction_Kind20_EquipElvishHarp` | 759 | `NpcAction_PlayKindIdleAnim` |
-| 760 | `NpcAction_Kind22_EquipMagicBroom` | 761 | `NpcAction_Kind23_EquipHeldTool` | 762 | `NpcAction_Kind24_RandomGreetGesture` |
+| 691 | `MultiplyValues` | 692 | `CancelPendingDate` | 694 | `HasClearedAnyMarriage` |
+| 695 | `IsSpouseCleared` | 696 | `RemoveItemFromBackpack` | 697 | `ReturnToTitle` |
+| 698 | `SetShopkeeperMessage` | 699 | `SetNarrationModeIf` | 700 | `HasItemWithFlagBit0` |
+| 701 | `SetPlayerSkillXp` |  |  |  |  |

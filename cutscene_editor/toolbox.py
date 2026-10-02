@@ -960,7 +960,7 @@ class InstructionPicker:
         seen_fam = set()
         for op in range(script.DISPATCHABLE_ACTION_OPS):
             m = meta.mnemonic(op)
-            if not m or m.startswith("(") or m in PLACEHOLDER:
+            if (not m or m.startswith("(") or m in PLACEHOLDER) and op != meta.NOP_OP:
                 continue
             fam = meta.OPCODE_ARGS.get(op)
             if fam:

@@ -429,6 +429,8 @@ def listing_name(op):
     m = script.opcode_mnemonic(op)
     if meta.OPCODE_ARGS.get(op):
         return m
+    if m == "nop":                                  # NOP_OP is `nop`, the other stubs nop_N
+        return "nop" if op == meta.NOP_OP else "nop_%d" % op
     if m and op_from_any(m) == op:
         return m
     t = script.opcode_name(op)

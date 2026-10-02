@@ -13905,7 +13905,11 @@ def test_cutscene_toolbox():
         for _g, iid, text, _o, _v, _h in ents:
             kind, _, key = iid.partition(":")
             p.set_instruction((kind, int(key) if kind == "op" else key))
+            if (kind, key) == ("ctl", "DIALOG"):       # "a new line" mints its id on Insert
+                p.dlg_mode.set("existing")
+                p._dialogue_mode()
             err = cx.assemble_check(p.text())[2]
+            p.dlg_mode.set("new")
             if err:
                 bad.append("%s: %s" % (p.text(), err[:80]))
         _check("every instruction's form (defaults) makes a listing that assembles",
@@ -13920,8 +13924,9 @@ def test_cutscene_toolbox():
         p.preset(("ctl", "PROMPT_CHOICE"))
         p._add_row()
         p._rebuild()
-        _check("a choice form with an added option assembles",
-               p.text().count("->") == 4 and cx.assemble_check(p.text())[2] is None, p.text())
+        _check("a choice form with an added option assembles (one more option than the form starts with)",
+               len(p.rows) == 3 and p.text().count("->") == 3 and cx.assemble_check(p.text())[2] is None,
+               p.text())
         n0 = len(cx.scene.stmts)
         p.preset(("ctl", "EVAL"))
         p.e_val.var.set("7")

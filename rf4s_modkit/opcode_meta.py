@@ -3496,12 +3496,21 @@ def prototype(op):
 
 _OP_BY_MNEMONIC = None
 
+#: The one no-op authors see: `nop` assembles to it and the editor lists only it. Op 388 is a
+#: shipped no-op that takes no arguments (4 bytes; the game uses it 4 times, and 381 the same way 9
+#: times); op 693, the most used one (131x), always carries 1-2 arguments, so a bare `nop` cannot be
+#: it. The other no-op slots (NO_OP_ALIASES) still disassemble, as nop_N, so banks round-trip
+#: byte-exact.
+NOP_OP = 388
+NO_OP_ALIASES = (0, 76, 272, 381, 391, 491, 505, 526, 533, 550, 565, 583, 584, 585, 586,
+                 608, 630, 636, 693)
+
 
 def op_from_mnemonic(name):
     """Reverse lookup: opcode number for a curated mnemonic (case-insensitive), or None.
 
     Lets the editor accept an opcode by NAME instead of a raw number. Placeholder names
-    ((unbound)/(unused)/nop/invalid) are excluded. For aliased mnemonics (e.g. SetSpeakerMC
+    ((unbound)/(unused)/invalid) are excluded; `nop` is NOP_OP. For aliased mnemonics (e.g. SetSpeakerMC
     on ops 16 & 17, or the 73 same-name pairs) it returns the LOWEST matching op, which is
     unambiguous because aliases share one handler.
     """
@@ -3513,6 +3522,7 @@ def op_from_mnemonic(name):
             _m = mnemonic(_o)
             if _m and _m not in _skip:
                 _OP_BY_MNEMONIC.setdefault(_m.lower(), _o)   # keep the lowest op for aliases
+        _OP_BY_MNEMONIC["nop"] = NOP_OP
     return _OP_BY_MNEMONIC.get((name or "").strip().lower())
 
 
@@ -3527,7 +3537,10 @@ def find_ops(query, limit=12):
     seen, by_mnem = set(), []
     for _o in range(763):
         _m = mnemonic(_o)
-        if _m and _m not in skip and q in _m.lower() and _m.lower() not in seen:
+        if _o == NOP_OP and q in _m.lower():
+            seen.add(_m.lower())
+            by_mnem.append((_o, _m))
+        elif _m and _m not in skip and q in _m.lower() and _m.lower() not in seen:
             seen.add(_m.lower())
             by_mnem.append((_o, _m))
     if by_mnem:

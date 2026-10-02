@@ -14,7 +14,8 @@ Two outputs, both from opcode_meta: CUTSCENE_OPCODES.md (grouped, rich) and opco
 import os
 from rf4s_modkit import opcode_meta as om
 
-N_OPS = 763
+from rf4s_modkit import script as _scr
+N_OPS = _scr.DISPATCHABLE_ACTION_OPS   # 702: the dispatch table's slots 0..701
 # category -> display order (matches the editor's category buckets)
 CAT_ORDER = ["dialogue", "screen", "actor", "companion", "flag", "audio", "time",
              "item", "effect", "quest", "flow", "query", "misc", "noop"]
@@ -30,7 +31,7 @@ def build():
         mn = om.mnemonic(op)
         if not mn:
             continue
-        if mn in PLACEHOLDERS:
+        if mn in PLACEHOLDERS or op in om.NO_OP_ALIASES:
             placeholder_ops.append(op)
             continue
         cat = om.category(op)
@@ -41,7 +42,7 @@ def build():
         "# RF4S Cutscene Opcode Reference",
         "",
         "Reverse-engineered `rf3.mc` cutscene Script VM opcodes "
-        "(`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 763 slots).",
+        "(`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 702 slots).",
         "",
         f"Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — "
         f"**{named}** named opcodes across {sum(1 for v in by_cat.values() if v)} categories "
@@ -104,7 +105,7 @@ def build():
                                          f"in-editor picker or the id database)*")
             lines.append("")
 
-    # control opcodes (0xFFF0-0xFFFF) -- the flow backbone; NOT in the 763-slot action table, so
+    # control opcodes (0xFFF0-0xFFFF) -- the flow backbone; NOT in the 702-slot action table, so
     # they don't come from the by_cat grouping. Sourced from the decoder's opcode->mnemonic map
     # (script.CONTROL) + the curated tooltips (opcode_meta.CONTROL). Essential to reading a scene.
     try:
@@ -251,7 +252,11 @@ def build():
         lines.append("These dispatch-table slots carry no author-facing opcode (reserved, "
                      "removed in the PC port, or table padding):")
         lines.append("")
-        lines.append(", ".join(str(o) for o in placeholder_ops))
+        lines.append(", ".join(str(o) for o in placeholder_ops if o not in om.NO_OP_ALIASES))
+        lines.append("")
+        lines.append("These slots hold the same do-nothing stub as `nop` (op %d); listings show them as "
+                     "`nop_N` so shipped banks rebuild byte-exact, but `nop` is the one to write: "
+                     % om.NOP_OP + ", ".join(str(o) for o in om.NO_OP_ALIASES))
         lines.append("")
 
     # numeric index: by-number lookup (complements the by-category sections). Disassemblies show op
