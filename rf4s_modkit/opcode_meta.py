@@ -53,13 +53,11 @@ CONTROL = {
                           "base 0) it ends the scene (task state 1 READY). So `CALL -> Lx ... "
                           "Lx: ... RET` is a subroutine, and only a top-level RET terminates "
                           "the script. (Displayed as END before 2026-09-01.)"),
-    "FRAME":     ("flow", "Frame setup (it does NOT return): sets "
-                          "the frame base to the current operand-stack top and reserves "
-                          "[local slots] entries for locals (always even -- the stack holds "
-                          "value/kind pairs, 2 per local), then execution FALLS THROUGH to the "
-                          "next statement. Typically the first statement of a CALLed "
-                          "subroutine; the matching return is RET (0xFFFF). IDA-verified: Script_VMStep "
-                          "case 0xFFF1, corrected 2026-08-06."),
+    "FRAME":     ("flow", "Frame setup (it does NOT return): sets the frame base to the "
+                          "operand-stack top and reserves N stack words, then falls through. The "
+                          "words are the expression evaluator's spill room: a nested expression "
+                          "used as a non-last action argument needs N >= 2*(depth-1). Verified in "
+                          "game 2026-09-29 (it is not a locals reservation); the editor sizes it."),
     "CALL":      ("flow", "Call a subroutine: push the caller's frame base and the return PC "
                           "onto the operand stack, then jump. The subroutine comes back here "
                           "when it executes RET (the VM's return)."),

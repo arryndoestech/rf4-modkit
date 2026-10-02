@@ -323,7 +323,8 @@ class SceneText:
         m = st.mnem
         tg = [self.target(t) for t in st.code_targets if t is not None]
         if m == "FRAME":
-            segs = [("· setup (%d local slot%s)" % ((st.items or [0])[0], "" if (st.items or [0])[0] == 1 else "s"), "dim")]
+            n = (st.items or [0])[0]
+            segs = [("· reserve %d stack word%s for expressions" % (n, "" if n == 1 else "s"), "dim")]
         elif m == "BR_Z":
             segs = [("if not ", "flow"), ("(%s)" % cond, "cond"), (" → go to %s" % ", ".join(tg), "flow")]
         elif m == "BR_NZ":

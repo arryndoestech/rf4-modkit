@@ -309,7 +309,7 @@
  "307": "Script_VMOp_GetCalendarMonthAndSeason",
  "308": "Script_VMOp_GetCalendarFullSnapshot",
  "309": "Script_VMOp_GetPlayerIsFreyVariant",
- "310": "Script_VMOp_QueryPlayerIsLest",
+ "310": "Script_VMOp_IsPlayerModelLest",
  "311": "Script_VMOp_HealPartyHPFull",
  "312": "Script_VMOp_HealPartyHPByShift",
  "313": "Script_VMOp_RestorePlayerRPFull",

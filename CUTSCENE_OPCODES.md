@@ -8488,7 +8488,7 @@ Put the weather system's streak counter into reg0 (30 when there is no weather t
 ### `op 451` — GetDayOfWeek()
 *handler:* `Script_VMOp_GetCalendarDayOfWeek`
 
-Read the weekday into reg0 (0-5), computed from the day of the season like the rest of the game does.
+Read the weekday into reg0 (0-5), computed from the day of the season like the rest of the game does. 0 = the weekday the calendar shows as 'HOL' (Autumn 7 read 0, Autumn 8 read 1): the week has 6 days.
 
 ### `op 465` — SetCalendarPauseFlag(pause)
 *handler:* `Script_VMOp_SetCalendarPauseFlagFromBit0`
@@ -10098,7 +10098,7 @@ Args:
 Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.
 
 Args:
-  0. npc (0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots)
+  0. npc (0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots) — verified in game
      - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
@@ -10132,7 +10132,7 @@ Args:
 Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.
 
 Args:
-  0. npc (0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots)
+  0. npc (0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots) — verified in game
      - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
@@ -10175,7 +10175,7 @@ Args:
 Get the map (room) id a character is currently in; 0 gives the player's current map. Scripts compare two results to test whether characters are in the same place.
 
 Args:
-  0. actor (0 = the player's current map; 1..47 = where that NPC currently is)
+  0. actor (0 = the player's current map; 1..47 = where that NPC currently is) — verified in game
      - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
@@ -11069,10 +11069,10 @@ Args:
 
 Sets reg0 = 1 when the player character is Lest (male), 0 when Frey (female). Scripts branch on it for gendered lines, nicknames and animations.
 
-### `op 310` — IsPlayerLestModel()
-*handler:* `Script_VMOp_QueryPlayerIsLest`
+### `op 310` — IsPlayerModelLest()
+*handler:* `Script_VMOp_IsPlayerModelLest`
 
-Check whether the protagonist is Lest (1) or Frey (0).
+Check the player's current MODEL, not the gender: reg0 = 1 when the player actor's model is Lest's (model 1217), 0 for Frey's (1233) or any other model. For a normal Lest or Frey this matches IsPlayerMale (309), which reads the saved character flag; while the player's model is swapped (Player_TransformToCharacterById) this one says 0 even for Lest. It does not check for a missing player actor (crashes in the no-player state). Unused by the shipped scripts; use IsPlayerMale for the gender.
 
 ### `op 321` — GetNpcNicknameForPlayer(npc)
 *handler:* `Script_VMOp_GetNpcEmoteByte`
@@ -11166,7 +11166,7 @@ Args:
 Put the map the NPC is currently on into reg0 (outdoor maps below 0x40 get the season added, giving the seasonal map variant).
 
 Args:
-  0. npc (1-47)
+  0. npc (1-47) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -11201,7 +11201,7 @@ Args:
 Read script variable bank 0 at [index] into reg0 - the reader for SetVar0.
 
 Args:
-  0. index (0-15 (not bounds-checked))
+  0. index (0-15 (not bounds-checked)) — verified in game
 
 ### `op 344` — GetVar1(index)
 *handler:* `Script_VMOp_ReadVarArrayKind1`
@@ -11209,7 +11209,7 @@ Args:
 Read script variable bank 1 at [index] into reg0 - the reader for SetVar1.
 
 Args:
-  0. index (not bounds-checked)
+  0. index (not bounds-checked) — verified in game
 
 ### `op 346` — GetVar11(index)
 *handler:* `Script_VMOp_ReadVarArrayKind11`
@@ -11225,7 +11225,7 @@ Args:
 Read slot [index] of engine variable bank 3 into reg0 (the shop scripts read slots 0/1 before MyShopAction).
 
 Args:
-  0. index (0-51 (corpus 0-14))
+  0. index (0-51 (corpus 0-14)) — verified in game
 
 ### `op 352` — GetVar4(index)
 *handler:* `Script_VMOp_ReadVarArrayKind4`
@@ -11241,7 +11241,7 @@ Args:
 Read script variable bank 5 at [index] into reg0 - the reader for SetVar5.
 
 Args:
-  0. index (not bounds-checked (array has 52 slots))
+  0. index (not bounds-checked (array has 52 slots)) — verified in game
 
 ### `op 356` — GetVar6(index)
 *handler:* `Script_VMOp_ReadVarArrayKind6`
@@ -11265,7 +11265,7 @@ Args:
 Read script-variable bank 8 at [index] into reg0 (16 slots). The pair of SetVar8.
 
 Args:
-  0. index (NOT bounds-checked)
+  0. index (NOT bounds-checked) — verified in game
 
 ### `op 363` — GetNpcBirthday(slot, character)
 *handler:* `Script_VMOp_GetCalendarEventMonthWithFallback`
@@ -11440,7 +11440,7 @@ reg0 = 1 if the player has room for an item: a free slot among the first 60 back
 Check whether the backpack has at least the given number of empty slots.
 
 Args:
-  0. count (number of empty slots needed (0 behaves like 1))
+  0. count (number of empty slots needed (0 behaves like 1)) — verified in game
 
 ### `op 426` — IsPlayerHoldingItem()
 *handler:* `Script_VMOp_QueryEquipExtrasSlot24Occupied`
@@ -11499,7 +11499,7 @@ Args:
 Check whether an item stacks. reg0 = 1 if its metadata stack nibble (+5 & 0xF) is > 1, else 0.
 
 Args:
-  0. item
+  0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 437` — IsItemInCategoryList(item, list)
@@ -11871,7 +11871,7 @@ Args:
 ### `op 646` — GetPrinceRank()
 *handler:* `Script_QueryPrinceRank`
 
-Read the current Prince rank into reg1 (not reg0).
+Read the current Prince rank into reg1 (not reg0). Ranks 0-5 = Apprentice, Struggling, Respected, Reliable, Honorable Prince/Princess, Crown of Crowns (verified in game: 1 before an order-sign promotion, 5 = Crown of Crowns after).
 
 ### `op 647` — GetPrinceOrderCost(order, currency)
 *handler:* `Script_QueryEffectCostForCurrency`
@@ -11918,7 +11918,7 @@ Get the shipping-list completion percent (distinct items ever shipped / distinct
 ### `op 649` — GetShippingBoxGold()
 *handler:* `Script_VMOp_QueryShippingBoxTotalGold`
 
-Sets reg0 to the total sale value of everything in the shipping box (capped at 999,999,999).
+Sets reg0 to the total sale value of everything in the shipping box (capped at 999,999,999). It is the SELL value (an onigiri read 57; 180 is its shop price).
 
 ### `op 650` — GetLifetimeShippedGold()
 *handler:* `Script_VMOp_QueryLifetimeShippedGoldCategory0`
@@ -11928,7 +11928,7 @@ Sets reg0 to the total gold earned from shipping over the whole save (all catego
 ### `op 652` — GetPreviousMapId()
 *handler:* `Script_VMOp_QuerySceneA1Word348`
 
-Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from).
+Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from). For outdoor maps it is the season-independent base id (coming from the farm read 4, not the seasonal 4-7 variant); from a room, that room's id (Your Room = 64).
 
 ### `op 658` — GetSceneWordPair112()
 *handler:* `Script_VMOp_QuerySceneA1WordPair112`
@@ -12350,7 +12350,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 300 | `ResetAllNpcSchedules` | 301 | `RefreshNpcScheduleForToday` | 302 | `SetNpcActionDelay` |
 | 303 | `SetNpcActionDelay` | 304 | `GetYear` | 305 | `GetSeason` |
 | 306 | `GetDay` | 307 | `GetHourMinute` | 308 | `GetDateSnapshot` |
-| 309 | `IsPlayerMale` | 310 | `IsPlayerLestModel` | 311 | `HealPartyFull` |
+| 309 | `IsPlayerMale` | 310 | `IsPlayerModelLest` | 311 | `HealPartyFull` |
 | 312 | `SetPartyHpByShift` | 313 | `RestorePlayerRP` | 314 | `CurePartyStatus` |
 | 315 | `QueueNpcGreetingEvent` | 316 | `SetNpcVisible` | 317 | `SetNpcVisible` |
 | 318 | `SetNpcBirthdayGiftFlag` | 319 | `SetNpcNicknameForPlayer` | 320 | `SetNpcNicknameForPlayer` |

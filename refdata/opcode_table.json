@@ -28722,7 +28722,14 @@
      "values": "0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcFriendshipLevel(4 Forte / 7 Margaret / 1 Vishnal)",
+       "observed": "6 / 6 / 6 = their friendship levels in game"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -28731,7 +28738,7 @@
    "description": "Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.",
    "details": "Id >= 48: reg0 untouched. Id 0: Npc_GetFriendshipLevel(current talk NPC id at [0x7FF7547BCB30]+8), or id 0xFFFF when there is none (which yields 0). Npc_GetFriendshipLevel (+0x227A40): ids < 24 -> Npc_FriendshipPointsToLevel(points); ids 24-47 -> g_guestNpcStateTable value >> 2 (cap 10000). argc 0 -> reg0 = -1.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FD3B0 and RF4S.exe+0x227A40; corpus: op 218 173 uses, op 219 200 uses (137 with id 0), followed by BR_Z reg0 < 7 / >= 7 etc.",
+   "evidence": "RF4S.exe+0x1FD3B0 and RF4S.exe+0x227A40; corpus: op 218 173 uses, op 219 200 uses (137 with id 0), followed by BR_Z reg0 < 7 / >= 7 etc. In-game test 2026-10-02 (user): GetNpcFriendshipLevel(4 Forte / 7 Margaret / 1 Vishnal) -> 6 / 6 / 6 = their friendship levels in game.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcFriendshipLevel",
    "handler_rva": "0x1FD3B0",
@@ -28750,7 +28757,7 @@
    "confidence": "high",
    "notes": "True alias pair 218/219. The old text said -1 when the NPC is not found; the code returns 0 in that case.",
    "change_reason": "Naming convention: register-writing query -> Get.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 154,
     "pc": "0x0272",
@@ -28779,7 +28786,14 @@
      "values": "0 = the NPC currently being talked to; 1-23 villagers; 24-47 child/extra slots",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcFriendshipLevel(4 Forte / 7 Margaret / 1 Vishnal)",
+       "observed": "6 / 6 / 6 = their friendship levels in game"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -29168,7 +29182,14 @@
      "values": "0 = the player's current map; 1..47 = where that NPC currently is",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetActorMapId(0) / GetActorMapId(4 Forte, in the party) in the Dragon Room",
+       "observed": "60 / 60 (Castle: Dragon Room)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -29177,7 +29198,7 @@
    "description": "Get the map (room) id a character is currently in; 0 gives the player's current map. Scripts compare two results to test whether characters are in the same place.",
    "details": "NPC: Npc_GetCurrentScheduleId (+0x227230) returns the loaded actor's map id (actor+84; values >= 872 mean 'the current room' and are replaced by g_currentRoomId), or schedule entry +188 if the NPC is not loaded, or -1 if no entry; the handler rounds values < 0x40 down to a multiple of 4. arg 0: g_currentRoomId, or -1 while input is suppressed or main-task flag 2 is set. Ids >= 48 write nothing.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FD930 (+ RF4S.exe+0x227230 as described; the bed FSM RF4S.exe+0x205CC0 tests the same actor+84 against map 64); corpus 43 uses, e.g. GetActorMapId(a) -> EVAL reg1 = reg0 -> GetActorMapId(b) -> BR_Z reg0 != reg1.",
+   "evidence": "RF4S.exe+0x1FD930 (+ RF4S.exe+0x227230 as described; the bed FSM RF4S.exe+0x205CC0 tests the same actor+84 against map 64); corpus 43 uses, e.g. GetActorMapId(a) -> EVAL reg1 = reg0 -> GetActorMapId(b) -> BR_Z reg0 != reg1. In-game test 2026-10-02 (user): GetActorMapId(0) / GetActorMapId(4 Forte, in the party) in the Dragon Room -> 60 / 60 (Castle: Dragon Room).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcScheduleId",
    "handler_rva": "0x1FD930",
@@ -29194,7 +29215,7 @@
    "confidence": "medium",
    "notes": "Why ids < 0x40 are rounded to a multiple of 4 was not traced (possibly map variants).",
    "change_reason": "The callee returns the NPC's current map id (actor+84 / schedule +188), the same kind of value the arg-0 path returns (g_currentRoomId), not a schedule id; Get verb per the naming rules.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 55,
     "pc": "0x1860",
@@ -33773,7 +33794,7 @@
    "description": "Get the current calendar year. reg0 = year.",
    "details": "reg0 = HIDWORD of the qword at cal_inner+16 = cal_inner+20 (year); layout per Calendar_NormalizeTimeCarry (+0x19BF60): +4 minute, +8 hour, +12 day, +16 season, +20 year.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20C400; corpus 12 uses, followed by `reg0 %= 2` or `30 - reg0*3`.",
+   "evidence": "RF4S.exe+0x20C400; corpus 12 uses, followed by `reg0 %= 2` or `30 - reg0*3`. In-game test 2026-10-02 (user): GetYear() -> 2 = Year 2 (calendar).",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarMinute",
    "handler_rva": "0x20C400",
@@ -33790,7 +33811,7 @@
    "confidence": "high",
    "notes": "The IDB name GetCalendarMinute is wrong.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 235,
     "pc": "0x27D0",
@@ -33819,7 +33840,7 @@
    "description": "Put the current season (0 Spring, 1 Summer, 2 Autumn, 3 Winter) into reg0.",
    "details": "RF4S.exe+0x20C440: reg0 = calendar inner (g_calendarTask data+104) dword +16. Calendar layout [+0 sec, +4 min, +8 hour, +12 day, +16 season, +20 year]. Without a calendar task reg0 gets an uninitialised stack value.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x20C440; corpus: 93 uses, followed by BR_Z reg0 == 0..3 compares.",
+   "evidence": "RF4S.exe+0x20C440; corpus: 93 uses, followed by BR_Z reg0 == 0..3 compares. In-game test 2026-10-02 (user): GetSeason() -> 2 = Autumn (calendar).",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarSeason",
    "handler_rva": "0x20C440",
@@ -33836,7 +33857,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 239,
     "pc": "0x3E30",
@@ -33865,7 +33886,7 @@
    "description": "Get the current day of the season (1-30). reg0 = day.",
    "details": "reg0 = cal_inner+12.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20C480; corpus 59 uses (e.g. `reg0 %= 4` then SWITCH).",
+   "evidence": "RF4S.exe+0x20C480; corpus 59 uses (e.g. `reg0 %= 4` then SWITCH). In-game test 2026-10-02 (user): GetDay() -> 7 = Autumn 7 (calendar).",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarDay",
    "handler_rva": "0x20C480",
@@ -33882,7 +33903,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 383,
     "pc": "0x03A8",
@@ -33911,7 +33932,7 @@
    "description": "Read the current clock time: reg0 = hour (0-23), reg1 = minute (0-59).",
    "details": "Copies the calendar time block (g_calendarTask data +104 -> 16 bytes); reg0 = dword +8 (hour), reg1 = dword +4 (minute) - the fields Calendar_NormalizeTimeCarry rolls at 24 and 60. With no calendar task the values are uninitialised stack.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20C4C0; corpus: 90 uses, immediately 'EVAL reg0 = reg0 * 60 + reg1' and compared with appointment times (REG_DATE_APPO_HOUR).",
+   "evidence": "RF4S.exe+0x20C4C0; corpus: 90 uses, immediately 'EVAL reg0 = reg0 * 60 + reg1' and compared with appointment times (REG_DATE_APPO_HOUR). In-game test 2026-10-02 (user): GetHourMinute() at 04:38 (after midnight) -> 438: reg0 = 4, reg1 = 38, the clock when the scene started (the clock stops during scenes).",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarMonthAndSeason",
    "handler_rva": "0x20C4C0",
@@ -33928,7 +33949,7 @@
    "confidence": "high",
    "notes": "The IDB name GetCalendarMonthAndSeason is wrong.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 217,
     "pc": "0x193E",
@@ -33957,7 +33978,7 @@
    "description": "Get the whole current date and time at once: reg0 = year, reg1 = season, reg2 = day, reg3 = hour, reg4 = minute.",
    "details": "vm+64..+80 = cal_inner +20, +16, +12, +8, +4.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20C500; corpus 3 uses (birthday comparison; storing REG_MARRIGE_SEASON = reg1 / REG_MARRIGE_DAY = reg2).",
+   "evidence": "RF4S.exe+0x20C500; corpus 3 uses (birthday comparison; storing REG_MARRIGE_SEASON = reg1 / REG_MARRIGE_DAY = reg2). In-game test 2026-10-02 (user): GetDateSnapshot(), reg0..reg4 shown as Y SS DD and HHMM -> 20207 / 1017: the same as GetYear / GetSeason / GetDay / GetHourMinute in the same scene (date confirmed on the calendar; the time is being re-checked). In-game test 2026-10-02 (user): GetDateSnapshot() at Autumn 7 / 04:38 -> date 2 / 2 / 7 matched the calendar (Year 2, Autumn 7); reg3/reg4 = 4 / 38 matched the clock.",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarFullSnapshot",
    "handler_rva": "0x20C500",
@@ -33974,7 +33995,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 1120,
     "pc": "0x7B6E",
@@ -34038,20 +34059,20 @@
   "310": {
    "op": 310,
    "op_hex": "0x136",
-   "mnemonic": "IsPlayerLestModel",
+   "mnemonic": "IsPlayerModelLest",
    "previous_mnemonic": "QueryPlayerIsLest",
    "category": "query",
-   "prototype": "IsPlayerLestModel()",
+   "prototype": "IsPlayerModelLest()",
    "args": [],
    "optional_args_from": null,
    "returns": "reg0 = 1 if the player is Lest (male), 0 if Frey",
    "blocking": "no",
-   "description": "Check whether the protagonist is Lest (1) or Frey (0).",
+   "description": "Check the player's current MODEL, not the gender: reg0 = 1 when the player actor's model is Lest's (model 1217), 0 for Frey's (1233) or any other model. For a normal Lest or Frey this matches IsPlayerMale (309), which reads the saved character flag; while the player's model is swapped (Player_TransformToCharacterById) this one says 0 even for Lest. It does not check for a missing player actor (crashes in the no-player state). Unused by the shipped scripts; use IsPlayerMale for the gender.",
    "details": "RF4S.exe+0x2044D0: reg0 = (player actor u16 +0x220 == 1217); 1217 = Lest, 1233 = Frey (set by Player_SetCharacterVariantLestOrFrey). The player pointer is not null-checked (crash in the 0x401000 state).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x2044D0; corpus: unused.",
+   "evidence": "RF4S.exe+0x2044D0; corpus: unused. In-game test 2026-10-02 (user): IsPlayerModelLest() -> 0 while playing Frey.",
    "alias_of": null,
-   "handler": "Script_VMOp_QueryPlayerIsLest",
+   "handler": "Script_VMOp_IsPlayerModelLest",
    "handler_rva": "0x2044D0",
    "shares_handler_with": [],
    "size": [
@@ -34063,8 +34084,8 @@
    "arg_counts": {},
    "confidence": "high",
    "notes": "Unused in rf3.mc.",
-   "change_reason": "Boolean query -> Is prefix (verb convention). | consistency pass: IsPlayerLest -> IsPlayerLestModel",
-   "human_verified": false,
+   "change_reason": "Boolean query -> Is prefix (verb convention). | consistency pass: IsPlayerLest -> IsPlayerModelLest",
+   "human_verified": true,
    "example": null
   },
   "311": {
@@ -35747,7 +35768,14 @@
      "values": "1-47",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcCurrentMap(4 Forte, in the party) in the Dragon Room, Autumn",
+       "observed": "62 = map 60 + season index 2"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35756,7 +35784,7 @@
    "description": "Put the map the NPC is currently on into reg0 (outdoor maps below 0x40 get the season added, giving the seasonal map variant).",
    "details": "RF4S.exe+0x203C70 -> Npc_GetCurrentScheduleId (+0x227230: actor+84 when spawned, else record+188). If < 0x40: += calendar season (+16) unless season == 4 (never in practice).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x203C70, +0x227230; corpus: 2 uses, result compared with a map range / tag4 map id.",
+   "evidence": "RF4S.exe+0x203C70, +0x227230; corpus: 2 uses, result compared with a map range / tag4 map id. In-game test 2026-10-02 (user): GetNpcCurrentMap(4 Forte, in the party) in the Dragon Room, Autumn -> 62 = map 60 + season index 2.",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcCurrentScheduleId",
    "handler_rva": "0x203C70",
@@ -35773,7 +35801,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 108,
     "pc": "0x2840",
@@ -35932,7 +35960,14 @@
      "values": "0-15 (not bounds-checked)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0(3, 1234); GetVar0(3)",
+       "observed": "1234"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35941,7 +35976,7 @@
    "description": "Read script variable bank 0 at [index] into reg0 - the reader for SetVar0.",
    "details": "reg0 = dword at g_gameGlobalsSlotTable.entries[10] + 4*index (no bounds check; SetVar0 caps at 16). argc 0 reads an uninitialised index.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x208D80; corpus: 30 uses, index 0 (25x), 1, 2.",
+   "evidence": "RF4S.exe+0x208D80; corpus: 30 uses, index 0 (25x), 1, 2. In-game test 2026-10-02 (user): SetVar0(3, 1234); GetVar0(3) -> 1234.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind0",
    "handler_rva": "0x208D80",
@@ -35958,7 +35993,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 296,
     "pc": "0x0A7E",
@@ -36064,7 +36099,14 @@
      "values": "not bounds-checked",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar1(3, 2345); GetVar1(3)",
+       "observed": "2345"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36073,7 +36115,7 @@
    "description": "Read script variable bank 1 at [index] into reg0 - the reader for SetVar1.",
    "details": "reg0 = dword at g_gameGlobalsSlotTable.entries[18] + 4*index (no bounds check).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x209050; corpus: 6 uses (index 0 and 9, e.g. GetVar1(9) / BR_Z reg0 == 874 after a gift).",
+   "evidence": "RF4S.exe+0x209050; corpus: 6 uses (index 0 and 9, e.g. GetVar1(9) / BR_Z reg0 == 874 after a gift). In-game test 2026-10-02 (user): SetVar1(3, 2345); GetVar1(3) -> 2345.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind1",
    "handler_rva": "0x209050",
@@ -36090,7 +36132,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 75,
     "pc": "0x0214",
@@ -36464,7 +36506,14 @@
      "values": "0-51 (corpus 0-14)",
      "required_kind": "any",
      "notes": "no bounds check",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar3(5, 3456); GetVar3(5)",
+       "observed": "3456"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36473,7 +36522,7 @@
    "description": "Read slot [index] of engine variable bank 3 into reg0 (the shop scripts read slots 0/1 before MyShopAction).",
    "details": "RF4S.exe+0x209300: reg0 = ((u32*)&g_gameGlobalsSlotTable.entries[38])[index], unchecked index.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x209300; corpus: 171 uses, indexes 0-14, e.g. GetVar3(1) / GetVar3(0) / MyShopAction(7, reg0, reg1).",
+   "evidence": "RF4S.exe+0x209300; corpus: 171 uses, indexes 0-14, e.g. GetVar3(1) / GetVar3(0) / MyShopAction(7, reg0, reg1). In-game test 2026-10-02 (user): SetVar3(5, 3456); GetVar3(5) -> 3456.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind3",
    "handler_rva": "0x209300",
@@ -36490,7 +36539,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 397,
     "pc": "0x0BF4",
@@ -36700,7 +36749,14 @@
      "values": "not bounds-checked (array has 52 slots)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar5(2, 4567); GetVar5(2)",
+       "observed": "4567"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36709,7 +36765,7 @@
    "description": "Read script variable bank 5 at [index] into reg0 - the reader for SetVar5.",
    "details": "reg0 = g_scriptVarArrayKind5_52u32[index] (no bounds check).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x209520; corpus: 9 uses, all index 0, right after PROMPT_CHOICE (read back with GetVar4/5/6).",
+   "evidence": "RF4S.exe+0x209520; corpus: 9 uses, all index 0, right after PROMPT_CHOICE (read back with GetVar4/5/6). In-game test 2026-10-02 (user): SetVar5(2, 4567); GetVar5(2) -> 4567.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind5",
    "handler_rva": "0x209520",
@@ -36726,7 +36782,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 377,
     "pc": "0x39A6",
@@ -37054,7 +37110,14 @@
      "values": "NOT bounds-checked",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar8(4, 5678); GetVar8(4)",
+       "observed": "5678"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37063,7 +37126,7 @@
    "description": "Read script-variable bank 8 at [index] into reg0 (16 slots). The pair of SetVar8.",
    "details": "reg0 = g_scriptVarArrayKind8_16u32[index] with no bounds check (an index > 15 reads past the array).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x209870; corpus 15 uses (index 0/1/2), e.g. after PROMPT_CHOICE: GetVar8(n) -> SetVar8(0, reg0).",
+   "evidence": "RF4S.exe+0x209870; corpus 15 uses (index 0/1/2), e.g. after PROMPT_CHOICE: GetVar8(n) -> SetVar8(0, reg0). In-game test 2026-10-02 (user): SetVar8(4, 5678); GetVar8(4) -> 5678.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind8",
    "handler_rva": "0x209870",
@@ -37080,7 +37143,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 256,
     "pc": "0x0292",
@@ -39735,7 +39798,7 @@
    "description": "Get how many monsters the player owns (occupied slots of the 200-entry monster table). reg0 = count.",
    "details": "Counts g_MonsterFarmTable records (200, stride 36) with flags & 0x1000 (slot in use; set by MonsterFarm_RegisterTamedMonster), caches it at g_farmMonsterMng+250 (u8) and returns it.",
    "side_effects": "g_farmMonsterMng+250",
-   "evidence": "RF4S.exe+0x212F50; corpus 5 uses in bank 210 (compared with REG_RQ_COUNT).",
+   "evidence": "RF4S.exe+0x212F50; corpus 5 uses in bank 210 (compared with REG_RQ_COUNT). In-game test 2026-10-02 (user): GetTamedMonsterCount() -> 16 = the monsters in the barn.",
    "alias_of": null,
    "handler": "Script_VMOp_CountTamedMonstersWithFlag1000",
    "handler_rva": "0x212F50",
@@ -39752,7 +39815,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Returns a value: Get verb per the naming rules.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 210,
     "pc": "0x3514",
@@ -40332,7 +40395,7 @@
    "description": "Check whether the player's backpack has at least one free slot (within the currently unlocked size) before handing over an item.",
    "details": "RF4S.exe+0x20DA10: capacity = Inventory_GetPageSlotCount(backpack) (+0x415B0, 15/30/45/60); scans 48-byte slots while the slot word is occupied (>= 0x800 and & 0x7FF != 0); reg0 = 1 on the first empty slot, 0 when all are full.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x20DA10; corpus: 1 use (bank 215) - BR_Z reg0 before Clorica hands over an item.",
+   "evidence": "RF4S.exe+0x20DA10; corpus: 1 use (bank 215) - BR_Z reg0 before Clorica hands over an item. In-game test 2026-10-02 (user): HasBackpackRoom() with 18 free slots -> 1.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryBackpackHasOccupiedSlot",
    "handler_rva": "0x20DA10",
@@ -40349,7 +40412,7 @@
    "confidence": "high",
    "notes": "The IDB name (HasOccupiedSlot) is inverted.",
    "change_reason": "Boolean query -> Has prefix (verb convention); meaning unchanged (at least one empty slot).",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 215,
     "pc": "0x8AF8",
@@ -40410,7 +40473,14 @@
      "values": "number of empty slots needed (0 behaves like 1)",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HasBackpackFreeSlots(18) / (19) with 18 free slots; (1) / (60)",
+       "observed": "1 / 0; 1 / 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -40419,7 +40489,7 @@
    "description": "Check whether the backpack has at least the given number of empty slots.",
    "details": "RF4S.exe+0x20DAC0: scans a fixed 60 slots (g_itemDatabase->backpack[2*i+1].slots) regardless of the unlocked capacity, counting empty ones (< 0x800 or id 0); reg0 = 1 as soon as the count reaches arg0 (the test runs only after an increment, so 0 still needs one empty slot).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x20DAC0; corpus: unused.",
+   "evidence": "RF4S.exe+0x20DAC0; corpus: unused. In-game test 2026-10-02 (user): HasBackpackFreeSlots(18) / (19) with 18 free slots; (1) / (60) -> 1 / 0; 1 / 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryBackpackFreeSlotCountGTE",
    "handler_rva": "0x20DAC0",
@@ -40434,7 +40504,7 @@
    "confidence": "high",
    "notes": "Unused in rf3.mc. Locked slots beyond the capacity may count as empty.",
    "change_reason": "Boolean query -> Has prefix (verb convention).",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "421": {
@@ -41534,7 +41604,14 @@
      "values": "",
      "required_kind": "item",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsItemStackable(1 Cabbage) / IsItemStackable(328 Broadsword)",
+       "observed": "1 / 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -41543,7 +41620,7 @@
    "description": "Check whether an item stacks. reg0 = 1 if its metadata stack nibble (+5 & 0xF) is > 1, else 0.",
    "details": "reg0 = (metadata[id] byte +5 & 0xF) > 1 - the same test GivePlayerItem uses to choose 9 vs 1 quality bytes.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2117A0; corpus 1 use (bank 3, before ConsumeHeldItem).",
+   "evidence": "RF4S.exe+0x2117A0; corpus 1 use (bank 3, before ConsumeHeldItem). In-game test 2026-10-02 (user): IsItemStackable(1 Cabbage) / IsItemStackable(328 Broadsword) -> 1 / 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryItemIsStackable",
    "handler_rva": "0x2117A0",
@@ -41560,7 +41637,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 3,
     "pc": "0x3C34",
@@ -42198,7 +42275,7 @@
    "description": "Read the current weather code into reg0 (codes as in SetWeather).",
    "details": "reg0 = g_weather->weather_code, or 0 when the calendar or weather task is missing.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21A9A0; corpus: 141 uses, e.g. GetWeather() / BR_Z reg0 != 6 / SetWeather(0, 0).",
+   "evidence": "RF4S.exe+0x21A9A0; corpus: 141 uses, e.g. GetWeather() / BR_Z reg0 != 6 / SetWeather(0, 0). In-game test 2026-10-02 (user): GetWeather() -> 0 = sunny (the sky).",
    "alias_of": null,
    "handler": "Script_Query_CurrentWeather",
    "handler_rva": "0x21A9A0",
@@ -42215,7 +42292,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 245,
     "pc": "0x10D2",
@@ -42388,10 +42465,10 @@
    "optional_args_from": null,
    "returns": "reg0 = weekday 0-5",
    "blocking": "no",
-   "description": "Read the weekday into reg0 (0-5), computed from the day of the season like the rest of the game does.",
+   "description": "Read the weekday into reg0 (0-5), computed from the day of the season like the rest of the game does. 0 = the weekday the calendar shows as 'HOL' (Autumn 7 read 0, Autumn 8 read 1): the week has 6 days.",
    "details": "reg0 = (day - 1) % 6 with day = calendar +12 (day of season 1-30; 0 treated as 1) - the same formula as Game_GetDayOfWeek (+0x19C2B0). Uninitialised without a calendar task.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20C560; RF4S.exe+0x19C2B0 `return (*(v0 + 12) - 1) % 6u`; Calendar_NormalizeTimeCarry: +12 = day 1..30; corpus: 15 uses.",
+   "evidence": "RF4S.exe+0x20C560; RF4S.exe+0x19C2B0 `return (*(v0 + 12) - 1) % 6u`; Calendar_NormalizeTimeCarry: +12 = day 1..30; corpus: 15 uses. In-game test 2026-10-02 (user): GetDayOfWeek() on Autumn 7 and Autumn 8 -> 0 on Autumn 7 (the calendar shows 'HOL'), 1 the day after: (day - 1) % 6.",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarDayOfWeek",
    "handler_rva": "0x20C560",
@@ -42408,7 +42485,7 @@
    "confidence": "high",
    "notes": "The engine's week has 6 values here; corpus tests like 'reg0 == 6' can never be true.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 432,
     "pc": "0x012C",
@@ -52446,7 +52523,7 @@
    "description": "Sets reg0 to the difficulty: 0 = Easy, 1 = Normal, 2 = Hard (or Hell; the two are not distinguished here).",
    "details": "reg0 = 0 if g_globalGameStateFlags & 0x4000, else 2 if & 0x8000, else 1.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21D0A0: `v2 = 1; if (flags & 0x4000) v2 = 0; else if (flags & 0x8000) v2 = 2; *(a2+64) = v2`; corpus: 11 uses, e.g. BR_Z reg0 == 2.",
+   "evidence": "RF4S.exe+0x21D0A0: `v2 = 1; if (flags & 0x4000) v2 = 0; else if (flags & 0x8000) v2 = 2; *(a2+64) = v2`; corpus: 11 uses, e.g. BR_Z reg0 == 2. In-game test 2026-10-02 (user): GetDifficulty() -> 0 = Easy (the game's setting).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryDifficultyMode",
    "handler_rva": "0x21D0A0",
@@ -52463,7 +52540,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "consistency pass: QueryDifficulty -> GetDifficulty",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 212,
     "pc": "0x1EFC",
@@ -53315,7 +53392,7 @@
    "description": "Get the current Prince Points. reg0 = points.",
    "details": "reg0 = g_princePointMenuState.prince_points.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21DFB0; corpus 9 uses (bank 308, compared with a GetVar7 cost).",
+   "evidence": "RF4S.exe+0x21DFB0; corpus 9 uses (bank 308, compared with a GetVar7 cost). In-game test 2026-10-02 (user): GetPrincePoints() -> 45008 = the Prince Point count shown in game.",
    "alias_of": null,
    "handler": "Script_QueryPrincePoints",
    "handler_rva": "0x21DFB0",
@@ -53332,7 +53409,7 @@
    "confidence": "high",
    "notes": "Category changed from item to query.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x05EE",
@@ -53693,10 +53770,10 @@
    "optional_args_from": null,
    "returns": "reg1 = prince rank (reg0 unchanged)",
    "blocking": "no",
-   "description": "Read the current Prince rank into reg1 (not reg0).",
+   "description": "Read the current Prince rank into reg1 (not reg0). Ranks 0-5 = Apprentice, Struggling, Respected, Reliable, Honorable Prince/Princess, Crown of Crowns (verified in game: 1 before an order-sign promotion, 5 = Crown of Crowns after).",
    "details": "vm+68 (reg1) = g_princePointMenuState.prince_rank; reg0 untouched.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21E300; corpus: 20 uses in bank 308, all read as 'BR_Z reg1 >= 1'.",
+   "evidence": "RF4S.exe+0x21E300; corpus: 20 uses in bank 308, all read as 'BR_Z reg1 >= 1'. In-game test 2026-10-02 (user): EVAL (reg1 = 99); GetPrinceRank() before and after an order-sign promotion -> reg1 = 1 (Struggling Prince/ss), later 5 = Crown of Crowns, the shown title (titles 0 Apprentice .. 5 Crown of Crowns).",
    "alias_of": null,
    "handler": "Script_QueryPrinceRank",
    "handler_rva": "0x21E300",
@@ -53713,7 +53790,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x03CE",
@@ -53848,10 +53925,10 @@
    "optional_args_from": null,
    "returns": "reg0 = gold value",
    "blocking": "no",
-   "description": "Sets reg0 to the total sale value of everything in the shipping box (capped at 999,999,999).",
+   "description": "Sets reg0 to the total sale value of everything in the shipping box (capped at 999,999,999). It is the SELL value (an onigiri read 57; 180 is its shop price).",
    "details": "reg0 = min(Inventory_SumPageGoldValue(shipping_box), 999999999) (RF4S.exe+0x45B70).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21E490: `v3 = Inventory_SumPageGoldValue(g_itemDatabase->shipping_box); if (v3 > 0x3B9AC9FF) v3 = 999999999`; corpus: 1 use, then SetVar3(0, reg0) for 'Estimated Sale Value: @0@ Gold'.",
+   "evidence": "RF4S.exe+0x21E490: `v3 = Inventory_SumPageGoldValue(g_itemDatabase->shipping_box); if (v3 > 0x3B9AC9FF) v3 = 999999999`; corpus: 1 use, then SetVar3(0, reg0) for 'Estimated Sale Value: @0@ Gold'. In-game test 2026-10-02 (user): GetShippingBoxGold() with one onigiri in the box -> 57 = the onigiri's sell value (180 is its buy price); empty box: 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryShippingBoxTotalGold",
    "handler_rva": "0x21E490",
@@ -53868,7 +53945,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "consistency pass: QueryShippingBoxGold -> GetShippingBoxGold",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 1120,
     "pc": "0x45D8",
@@ -53995,10 +54072,10 @@
    "optional_args_from": null,
    "returns": "reg0 = u16 scene context +348 (the map the player came from)",
    "blocking": "no",
-   "description": "Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from).",
+   "description": "Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from). For outdoor maps it is the season-independent base id (coming from the farm read 4, not the seasonal 4-7 variant); from a room, that room's id (Your Room = 64).",
    "details": "RF4S.exe+0x21DBA0: reg0 = u16 host+348. Its only writer (RF4S.exe+0x1EE8C7, Map_OnEnter_QueueMapEvents) stores the old g_lastInteractionActionId right after writing the same value to REG_PREV_MAPID.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x21DBA0, writer +0x1EE8C7 (previous review); corpus: 29 uses, compared with tag4(28)/[44] map ids.",
+   "evidence": "RF4S.exe+0x21DBA0, writer +0x1EE8C7 (previous review); corpus: 29 uses, compared with tag4(28)/[44] map ids. In-game test 2026-10-02 (user): GetPreviousMapId() after entering the Dragon Room from Your Room, then from the farm -> 64 = Your Room; 4 = Farm (the farm's base map id).",
    "alias_of": null,
    "handler": "Script_VMOp_QuerySceneA1Word348",
    "handler_rva": "0x21DBA0",
@@ -54015,7 +54092,7 @@
    "confidence": "medium",
    "notes": "'Map id' rests on the adjacent REG_PREV_MAPID write.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 792,
     "pc": "0x0138",
@@ -55135,7 +55212,7 @@
    "description": "Read the player's medal count into reg0 (used by the medal exchange).",
    "details": "reg0 = first dword of g_playerRuneMedals.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21F740; corpus: 1 use (bank 9, after GetMedalGoldRate).",
+   "evidence": "RF4S.exe+0x21F740; corpus: 1 use (bank 9, after GetMedalGoldRate). In-game test 2026-10-02 (user): GetRuneMedals() twice -> 696, then 698 in a later scene; the game showed 699 a little later (the count was still rising). Shipped use: Arthur's medal exchange (FRAME 2; GetMedalGoldRate -> SetVar3(1, reg0); GetRuneMedals -> SetVar3(0, reg0); BR_Z on reg0 == 0 -> 'It appears you have no Rune Medals') reads the count and the rate the exchange works with.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerRuneMedalsDword",
    "handler_rva": "0x21F740",
@@ -55152,7 +55229,7 @@
    "confidence": "medium",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 9,
     "pc": "0x4C86",
@@ -55227,7 +55304,7 @@
    "description": "Put the Rune Medal to gold exchange rate (always 20) into reg0, for the exchange dialogue text.",
    "details": "RF4S.exe+0x21F7F0: reg0 = 20 (constant). Currency_ConvertMedalsToGold (op 675) multiplies by 20.0.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x21F7F0; corpus: 1 use: GetMedalGoldRate -> SetVar3(1, reg0); GetRuneMedals -> SetVar3(0, reg0).",
+   "evidence": "RF4S.exe+0x21F7F0; corpus: 1 use: GetMedalGoldRate -> SetVar3(1, reg0); GetRuneMedals -> SetVar3(0, reg0). In-game test 2026-10-02 (user): GetMedalGoldRate() -> 20. Shipped use: Arthur's medal exchange (FRAME 2; GetMedalGoldRate -> SetVar3(1, reg0); GetRuneMedals -> SetVar3(0, reg0); BR_Z on reg0 == 0 -> 'It appears you have no Rune Medals') reads the count and the rate the exchange works with.",
    "alias_of": null,
    "handler": "Script_VMOp_GetMedalGoldRate",
    "handler_rva": "0x21F7F0",
@@ -55244,7 +55321,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 9,
     "pc": "0x4C7A",
@@ -57064,7 +57141,7 @@
    "previous_mnemonic": null,
    "category": "flow",
    "prototype": "FRAME local slots (u16, even)",
-   "operands": "local slots (u16, even)",
+   "operands": "stack words (u16, even): spill room for the expression evaluator",
    "size": "4",
    "returns": null,
    "blocking": "no",
