@@ -29681,7 +29681,7 @@
      "values": "0-47 (hidden bits exist for 0-23)",
      "required_kind": "any",
      "notes": "ids >= 48: reg0 untouched",
-     "human_verified": true,
+     "human_verified": false,
      "tests": [
       {
        "date": "2026-10-02",
@@ -29720,9 +29720,9 @@
    "banks": 0,
    "arg_counts": {},
    "confidence": "high",
-   "notes": "Unused in rf3.mc. Needs a non-default test: an NPC hidden with SkipNpcDailyGreeting (op 233).",
+   "notes": "Unused in rf3.mc. Not human-verified: the only evidence is a breakpoint trace of the talk start (2026-10-02), not a result seen in game. Needs a visible test: a villager whose DailyGreeting plays on a clean day, then the same setup with SkipNpcDailyGreeting first and the greeting gone.",
    "change_reason": "Boolean query -> Is prefix (verb convention).",
-   "human_verified": true,
+   "human_verified": false,
    "example": null
   },
   "233": {
@@ -29739,7 +29739,7 @@
      "values": "1..47; >= 48 = no-op",
      "required_kind": "int",
      "notes": "",
-     "human_verified": true,
+     "human_verified": false,
      "tests": [
       {
        "date": "2026-10-02",
@@ -29764,7 +29764,7 @@
      "values": "never read; the corpus always passes 1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": true,
+     "human_verified": false,
      "tests": [
       {
        "date": "2026-10-02",
@@ -29787,7 +29787,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.",
+   "description": "Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Traced in game 2026-10-02 (breakpoints on the talk-start code, not yet seen on screen): flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.",
    "details": "Npc_SetDailyGreetingDone(id) (+0x226E20): sets GameFlags zone-2 bit 1037 + id (the per-NPC hidden range that Day_UpdateNpcDailyFlags clears every day) and npc record +48 bit 0x20000; then the handler sets record +52 bit 0x20000000. arg1 is never read. Reader: NpcAi_ResolveVillagerBehavior (RF4S.exe+0x1F7E00) case 0: unless Npc_IsDailyGreetingDone(id), it picks the time slot (6-9 / 10-17 / other) and, when a type-22 entry matches, runs it and calls Npc_SetDailyGreetingDone.",
    "side_effects": "GameFlags zone-2 bit 1037+id; npc record +48 / +52 bits",
    "evidence": "RF4S.exe+0x1FE050; RF4S.exe+0x226E20; corpus 234 uses, all argc 2 with arg1 = 1, typically at the end of an NPC's scene branch. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1 Vishnal, 0); HasNpcGreetedToday(1) -> HasNpcGreetedToday read 1 right after (Vishnal away for the day). In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1 Vishnal, 0) from the Dragon Room test -> HasNpcGreetedToday(1) = 1 right after (the flag is set); whether Vishnal is visibly gone from town was not checked. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1..11 without 4) via op 233 and SkipNpcDailyGreeting_234(12..21) via op 234, then a walk through castle and town -> HasNpcGreetedToday read 1 for all 20, but user: 'I saw all villagers when I walked' - nobody disappeared. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(2 Clorica, 0) from the Dragon Room entry scene; then talk to Clorica, Volkanon and Bado -> live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged).",
@@ -29807,9 +29807,9 @@
     "2": 228
    },
    "confidence": "medium",
-   "notes": "The 'rest of the day' reading comes from the daily clear of bits 1037..1060 (emflags.ZONE2_BLOCKS); whether record +52 bit 0x20000000 is also reset daily was not traced.",
+   "notes": "Not human-verified: the only evidence is a breakpoint trace of the talk start (2026-10-02), not a result seen in game. Needs a visible test: a villager whose DailyGreeting plays on a clean day, then the same setup with SkipNpcDailyGreeting first and the greeting gone.",
    "change_reason": null,
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 107,
     "pc": "0x2B98",
@@ -29838,7 +29838,7 @@
      "values": "1..47; >= 48 = no-op",
      "required_kind": "int",
      "notes": "",
-     "human_verified": true,
+     "human_verified": false,
      "tests": [
       {
        "date": "2026-10-02",
@@ -29863,7 +29863,7 @@
      "values": "never read; the corpus always passes 1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": true,
+     "human_verified": false,
      "tests": [
       {
        "date": "2026-10-02",
@@ -29886,7 +29886,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.",
+   "description": "Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Traced in game 2026-10-02 (breakpoints on the talk-start code, not yet seen on screen): flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.",
    "details": "Npc_SetDailyGreetingDone(id) (+0x226E20): sets GameFlags zone-2 bit 1037 + id (the per-NPC hidden range that Day_UpdateNpcDailyFlags clears every day) and npc record +48 bit 0x20000; then the handler sets record +52 bit 0x20000000. arg1 is never read. Reader: NpcAi_ResolveVillagerBehavior (RF4S.exe+0x1F7E00) case 0: unless Npc_IsDailyGreetingDone(id), it picks the time slot (6-9 / 10-17 / other) and, when a type-22 entry matches, runs it and calls Npc_SetDailyGreetingDone.",
    "side_effects": "GameFlags zone-2 bit 1037+id; npc record +48 / +52 bits",
    "evidence": "RF4S.exe+0x1FE050; RF4S.exe+0x226E20; corpus 234 uses, all argc 2 with arg1 = 1, typically at the end of an NPC's scene branch. In-game test 2026-10-02 (user): SkipNpcDailyGreeting(1..11 without 4) via op 233 and SkipNpcDailyGreeting_234(12..21) via op 234, then a walk through castle and town -> HasNpcGreetedToday read 1 for all 20, but user: 'I saw all villagers when I walked' - nobody disappeared. In-game test 2026-10-02 (user): SkipNpcDailyGreeting_234(3 Volkanon, 0) from the Dragon Room entry scene; then talk to Volkanon -> live trace of the talk-start code (logging breakpoints): Clorica (op 233) and Volkanon (op 234): type-30 check 0, sub-event check 0, Npc_IsDailyGreetingDone 1, no DailyGreeting lookup; control Bado (not flagged): 0, 0, 0 -> greeting lookup ran. The villagers stayed in town (user walked through town after 20 were flagged).",
@@ -29906,9 +29906,9 @@
     "2": 6
    },
    "confidence": "medium",
-   "notes": "True alias of op 233 (same handler, no opcode-dependent branch). Corpus op 234 passes REG_WIFE_ID / REG_CHILD_ID.",
+   "notes": "True alias of op 233 (same handler, no opcode-dependent branch). Corpus op 234 passes REG_WIFE_ID / REG_CHILD_ID. Not human-verified: the only evidence is a breakpoint trace of the talk start (2026-10-02), not a result seen in game. Needs a visible test: a villager whose DailyGreeting plays on a clean day, then the same setup with SkipNpcDailyGreeting first and the greeting gone.",
    "change_reason": null,
-   "human_verified": true,
+   "human_verified": false,
    "example": {
     "bank": 129,
     "pc": "0x0208",

@@ -5710,12 +5710,11 @@ Args:
 
 ### `op 233` — SkipNpcDailyGreeting(npc, unused)
 *handler:* `Script_VMOp_SkipNpcDailyGreeting`
-*verified:* yes, in game
 
-Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
+Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Traced in game 2026-10-02 (breakpoints on the talk-start code, not yet seen on screen): flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
 
 Args:
-  0. npc (1..47; >= 48 = no-op) — verified in game
+  0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5743,16 +5742,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. unused (never read; the corpus always passes 1) — verified in game
+  1. unused (never read; the corpus always passes 1)
 
 ### `op 234` — SkipNpcDailyGreeting(npc, unused)
 *handler:* `Script_VMOp_SkipNpcDailyGreeting`
-*verified:* yes, in game
 
-Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Verified in game 2026-10-02 by tracing the talk-start code: flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
+Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Traced in game 2026-10-02 (breakpoints on the talk-start code, not yet seen on screen): flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
 
 Args:
-  0. npc (1..47; >= 48 = no-op) — verified in game
+  0. npc (1..47; >= 48 = no-op)
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5780,7 +5778,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. unused (never read; the corpus always passes 1) — verified in game
+  1. unused (never read; the corpus always passes 1)
 
 ### `op 244` — ShowNpcHeldItem(npc)
 *handler:* `Script_VMOp_BeginNpcItemShow`
@@ -10451,12 +10449,11 @@ Args:
 
 ### `op 232` — HasNpcGreetedToday(npc)
 *handler:* `Script_VMOp_HasNpcGreetedToday`
-*verified:* yes, in game
 
 Check whether a villager's daily greeting counts as played (reg0 = 1/0): set by SkipNpcDailyGreeting (ops 233 / 234) or by the game after the greeting scene ran. Reads both flags: the daily GameFlags bit (cleared each morning) and the record bit (cleared by the next talk). In game: 1 right after op 233 / 234, 0 for untouched villagers; the talk-start code reads the same value.
 
 Args:
-  0. npc (0-47 (hidden bits exist for 0-23)) — verified in game
+  0. npc (0-47 (hidden bits exist for 0-23))
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
