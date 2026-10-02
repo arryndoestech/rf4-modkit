@@ -23178,7 +23178,7 @@
    "optional_args_from": null,
    "returns": "reg0 = X tile, reg1 = Y tile",
    "blocking": "no",
-   "description": "Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.",
+   "description": "Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "Id 0: player world_x/world_y >> 12 (with g_globalGameStateFlags & 0x401000 the player pointer is NULL and the read would fault). Id 1-47: actor+88/+92 >> 12, or npc entry +192/+196 when no actor, or 0/0 when the entry is missing. Id >= 48: registers untouched. Returns 0.",
    "side_effects": "",
    "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorTilePosition(0 player) / (4 Forte, in the party) -> 425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0).",
@@ -24280,7 +24280,7 @@
     {
      "name": "x",
      "type": "tiles",
-     "values": "",
+     "values": "script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -24288,7 +24288,7 @@
     {
      "name": "y",
      "type": "tiles",
-     "values": "",
+     "values": "script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -24305,7 +24305,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Spawn an event (cutscene) actor under a scene-local key, or reposition it if that key already exists. Later event-actor ops address it by the key.",
+   "description": "Spawn an event (cutscene) actor under a scene-local key, or reposition it if that key already exists. Later event-actor ops address it by the key. x / y are script units: 8 per map-editor tile, so tile (40, 15) is (320, 120), its centre (324, 124) (in game: a Captain spawned with (324, 124) stood on tile (40, 15) of Leon Karnak D19).",
    "details": "Looks up key in g_calendarEventMng (40-byte records, count at +1280). Existing record with a live actor: actor x/y = tile << 12, facing +156 and +158 = 181*deg (instant). Otherwise appends a record {key, char, x, y, 181*facing} with the pending-placement bit (WORD1 bit 0) if fewer than 32 exist; the actor streams in later. Special skip: host+346 == 60 and char 269 at (346,300).",
    "side_effects": "calendar-event actor registry (max 32)",
    "evidence": "RF4S.exe+0x213660 as described; corpus 1046 uses, argc 5, arg0 = char ids 24..376 (269 most common), arg1 = keys 100..1500.",
@@ -26297,7 +26297,7 @@
    "optional_args_from": null,
    "returns": "reg0 = X tile, reg1 = Y tile",
    "blocking": "until the event actor exists",
-   "description": "Read a spawned event actor's tile position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135).",
+   "description": "Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "Key lookup in g_calendarEventMng; returns 1 (retry) while the key or its actor is missing; else reg0 = actor+88 >> 12, reg1 = actor+92 >> 12.",
    "side_effects": "",
    "evidence": "RF4S.exe+0x2151E0; corpus: 27 uses, followed by EVAL reg1 += n and MoveEventActorToTile(key, reg0, reg1, ...).",
@@ -28479,10 +28479,10 @@
    "optional_args_from": null,
    "returns": "reg0 = tile x, reg1 = tile y, reg2 = 1",
    "blocking": "no",
-   "description": "Stores the player's tile position in reg0 (x) and reg1 (y), and 1 in reg2.",
+   "description": "Stores the player's position in reg0 (x) and reg1 (y), and 1 in reg2. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "reg0 = player world_x >> 12, reg1 = world_y >> 12, reg2 = 1. The player pointer is null in state 0x401000 (the read would fault). No args.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204A50: `a2[16] = *p_world_x >> 12; a2[17] = p_world_x[1] >> 12; a2[18] = 1`; corpus: 318 uses, followed by SetCameraTarget(reg0, reg1, ...) or TriggerActionAtTile(id, reg0, reg1). In-game test 2026-10-02 (user): GetPlayerPosition() in the Dragon Room -> tile 425 / 481, reg2 = 1; the same tile from GetActorTilePosition(0) and GetPartyMemberTileY(-1).",
+   "evidence": "RF4S.exe+0x204A50: `a2[16] = *p_world_x >> 12; a2[17] = p_world_x[1] >> 12; a2[18] = 1`; corpus: 318 uses, followed by SetCameraTarget(reg0, reg1, ...) or TriggerActionAtTile(id, reg0, reg1). In-game test 2026-10-02 (user): GetPlayerPosition() in the Dragon Room -> 425 / 481 (script units = tile 53 / 60), reg2 = 1; the same tile from GetActorTilePosition(0) and GetPartyMemberTileY(-1).",
    "alias_of": null,
    "handler": "Script_VMOp_GetPlayerPosition",
    "handler_rva": "0x204A50",
@@ -30980,29 +30980,36 @@
   "255": {
    "op": 255,
    "op_hex": "0x0FF",
-   "mnemonic": "GetActorAilmentState",
+   "mnemonic": "GetActorStatusEffect",
    "previous_mnemonic": "QueryActorAilmentState",
    "category": "query",
-   "prototype": "GetActorAilmentState(target)",
+   "prototype": "GetActorStatusEffect(target)",
    "args": [
     {
      "name": "target",
      "type": "selector",
-     "values": "0 = the player; non-zero = the companion whose char id equals the current interaction NPC",
+     "values": "0 = the player; any non-zero value = the party companion currently being talked to (the number is ignored)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetActorStatusEffect(0 player), healthy",
+       "observed": "reg0 = 0, reg1 = 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
-   "returns": "reg0 = summary code (0 fine, 1 bit 0x08, 2 other ailment, 3 HP <= half, 4 only bit 0x10); reg1 = 115-118 for bits 0x01/0x04/0x02/0x20, else 0",
+   "returns": "reg0 = summary code (0 fine, 1 bit 0x08, 2 other status effect, 3 HP <= half, 4 only bit 0x10); reg1 = 115-118 for bits 0x01/0x04/0x02/0x20, else 0",
    "blocking": "no",
-   "description": "Reads the ailment state of the player or of the companion being talked to: reg0 = a summary code, reg1 = a code naming the specific ailment. Companion dialogue uses it to comment on the player's or companion's condition.",
-   "details": "Reads actor+0xB4 (the ailment bit word the status ops set). reg0: 1 if bit 0x08; else 4 if exactly bit 0x10; 2 if 0x10 with others or any other bit; else 3 if hp_curr <= hp_max/2; else 0. reg1: 115 if bit 0x01, 116 if 0x04, 117 if 0x02, 118 if 0x20, else 0. If no companion matches, the loop leaves the second companion slot selected; a missing actor makes the reg1 read dereference null.",
+   "description": "Read the status effect state of the player (0) or of the companion being talked to. reg0: 0 fine, 1 asleep, 4 fatigue only, 2 any other status effect (or fatigue plus another), 3 no status effect but HP at half or below. reg1 names one status effect: 115 poison, 116 paralysis, 117 seal, 118 cold (sleep / fatigue / faint have none). Other statuses (e.g. the 'ate a dish' apple) are not part of it. Only the player (0) or a party companion: any non-zero argument means 'the companion I am talking to' (the value itself is ignored). Not talking to a companion, it reads companion slot 2 instead, and with that slot empty it dereferences a missing actor (crash).",
+   "details": "RF4S.exe+0x200520: reads Actor field_B4, the status effect bit word (0x01 poison, 0x02 seal, 0x04 paralysis, 0x08 sleep, 0x10 fatigue, 0x20 cold, 0x40 faint; set by Combat_ApplyDamageAndEffects and Item_UseOnActor, the low 6 bits cleared by Player_SleepInBed). reg0 = 1 if 0x08; else 4 if exactly 0x10; else 2 if any bit; else 3 if hp_curr <= hp_max/2; else 0. reg1 = 115 / 116 / 117 / 118 for 0x01 / 0x04 / 0x02 / 0x20. For a non-zero arg it uses the companion whose char id equals the current interaction NPC; with none, the actor pointer is null.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x200520: `v12 = v9->field_B4; if (v12 & 8) v4 = 1; else if (v12 & 0x10) v4 = (v12 & ~0x10) ? 2 : 4; ... *(a2+64) = v4; ... *(a2+68) = 115/116/117/118`; corpus: 50 uses, arg 1 (29) / 0 (21), followed by BR_Z reg0 == 0 or BR_Z reg1.",
+   "evidence": "RF4S.exe+0x200520: `v12 = v9->field_B4; if (v12 & 8) v4 = 1; else if (v12 & 0x10) v4 = (v12 & ~0x10) ? 2 : 4; ... *(a2+64) = v4; ... *(a2+68) = 115/116/117/118`; corpus: 50 uses, arg 1 (29) / 0 (21), followed by BR_Z reg0 == 0 or BR_Z reg1. In-game test 2026-10-02 (user): GetActorStatusEffect(0 player), healthy -> reg0 = 0, reg1 = 0. In-game test 2026-10-02 (user): GetActorStatusEffect(0 player) after eating a dish, no status icon reported -> reg0 = 0, reg1 = 0. In-game test 2026-10-02 (user): GetActorStatusEffect(0) in Leon Karnak, healthy and after a fight (HP above half) -> reg0 = 0, reg1 = 0 both times. In-game test 2026-10-02 (user): GetActorStatusEffect(0) from the D19 talk trigger with the player's HP below half and no status effect -> reg0 = 3, reg1 = 0 (the HP-at-half-or-less case). In-game test 2026-10-02 (user): GetActorStatusEffect(0) from a Dragon Room talk trigger: full HP no status, then poisoned with HP above half -> 0 / 0, then reg0 = 2 (an status effect), reg1 = 115 (poison). In-game test 2026-10-02 (user): GetActorStatusEffect(0) with poison, paralysis, cold, fatigue and seal ('mute') at once -> reg0 = 2 (fatigue together with other status effects counts as 2), reg1 = 115 (poison is reported first when several are set). In-game test 2026-10-02 (user): GetActorStatusEffect(0) after curing poison (paralysis, cold, fatigue, seal left) -> reg0 = 2, reg1 = 116 (paralysis). In-game test 2026-10-02 (user): GetActorStatusEffect(0) after curing paralysis too (cold, fatigue, seal left) -> reg0 = 2, reg1 = 117 (seal / 'mute'). In-game test 2026-10-02 (user): GetActorStatusEffect(0) after curing seal too (cold and fatigue left) -> reg0 = 2, reg1 = 118 (cold). In-game test 2026-10-02 (user): GetActorStatusEffect(0) after curing cold too (fatigue only left) -> reg0 = 4 (fatigue only), reg1 = 0. Every reg0 / reg1 case except 1 (asleep) seen in game 2026-10-02 (poison, paralysis, seal and cold removed one at a time showed 115, 116, 117, 118 in that priority; fatigue alone 4; HP below half 3).",
    "alias_of": null,
-   "handler": "Script_VMOp_GetActorAilmentState",
+   "handler": "Script_VMOp_GetActorStatusEffect",
    "handler_rva": "0x200520",
    "shares_handler_with": [],
    "size": [
@@ -31015,9 +31022,9 @@
     "1": 50
    },
    "confidence": "medium",
-   "notes": "Which ailment each bit is (poison, seal, paralysis, sleep, fatigue, cold) follows the previous review; the bit tests themselves are certain.",
-   "change_reason": "consistency pass: QueryActorAilmentState -> GetActorAilmentState",
-   "human_verified": false,
+   "notes": "Which status effect each bit is (poison, seal, paralysis, sleep, fatigue, cold) follows the previous review; the bit tests themselves are certain.",
+   "change_reason": "consistency pass: QueryActorAilmentState -> GetActorStatusEffect",
+   "human_verified": true,
    "example": {
     "bank": 26,
     "pc": "0x091E",
@@ -31025,7 +31032,7 @@
      "L_091c:",
      "    RET",
      "L_091e:",
-     "    GetActorAilmentState(1)    ; <--",
+     "    GetActorStatusEffect(1)    ; <--",
      "    BR_Z (reg0 == 0) -> L_0932",
      "    CALL L_18b2",
      "    JMP L_0944"
@@ -31377,7 +31384,7 @@
    "description": "Sets reg0 to the char id of the NPC the player is currently talking to or interacting with (0xFFFF if none).",
    "details": "reg0 = (u16) *(current interaction actor + 8), or 0xFFFF when the pointer (qword at RF4S.exe+0xE3CB30) is null.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x200DB0: `v2 = qword_7FF7547BCB30 ? *(u32*)(qword+8) : 0xFFFF; *(a2+64) = (u16)v2`; corpus: 42 uses, e.g. before GetChildFriendPoints(reg0).",
+   "evidence": "RF4S.exe+0x200DB0: `v2 = qword_7FF7547BCB30 ? *(u32*)(qword+8) : 0xFFFF; *(a2+64) = (u16)v2`; corpus: 42 uses, e.g. before GetChildFriendPoints(reg0). In-game test 2026-10-02 (user): GetCurrentInteractionNpc() in a map-entry scene -> 65535 (talking to nobody).",
    "alias_of": null,
    "handler": "ScriptVMOp_QueryCurrentInteractionNpcCharId",
    "handler_rva": "0x200DB0",
@@ -31394,7 +31401,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "consistency pass: QueryCurrentInteractionNpc -> GetCurrentInteractionNpc",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 41,
     "pc": "0x104E",
@@ -31537,7 +31544,14 @@
      "values": "non-zero = the player; 0 = either companion",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsPlayerOrCompanionDowned(1) / (0), nobody knocked out",
+       "observed": "0 / 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -31546,7 +31560,7 @@
    "description": "Check whether the player (arg != 0) or either of the two companions (arg 0) is knocked out; result in reg0. Unused by the shipped scripts.",
    "details": "arg != 0: reg0 = (player task tick == Player_DeathTickCallback) (the player pointer is NULL - fault - with g_globalGameStateFlags & 0x401000). arg 0: reg0 = 1 if g_companion1Actor[0] or [1] has stats (+304) with hp_curr == 0 and actor state +460 == 11, else 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204FA0; corpus: unused.",
+   "evidence": "RF4S.exe+0x204FA0; corpus: unused. In-game test 2026-10-02 (user): IsPlayerOrCompanionDowned(1) / (0), nobody knocked out -> 0 / 0. In-game test 2026-10-02 (user): IsPlayerOrCompanionDowned(0) from a talk trigger (an event actor spawned in Leon Karnak D19), before and after a companion was knocked out in that room -> 0 with everyone up, 1 while a companion was knocked out; the knocked-out companion stayed listed in the party (GetPartyMemberId 4 / 7).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerOrCompanionDowned",
    "handler_rva": "0x204FA0",
@@ -31561,7 +31575,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Naming convention: boolean query -> Is.",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "266": {
@@ -32308,7 +32322,14 @@
      "values": "1..47",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcHeldItem(4 Forte), nothing in hand",
+       "observed": "0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -32317,7 +32338,7 @@
    "description": "Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.",
    "details": "reg0 = actor(+64)->+304->u16 +178 if it is 1..1107 (0x453), else 0; id 0 or >= 48 -> 0. The same field is zeroed by Npc_ResetActorPostTeleport (+0x160BD0) when the held prop is destroyed.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x205690; corpus op 277: 44 uses, e.g. GetNpcFavoriteItem(4) -> HandOrDropItem(4, reg0) -> ... -> GetNpcHeldItem(4) -> PlayActorAnim(4, 20, 0).",
+   "evidence": "RF4S.exe+0x205690; corpus op 277: 44 uses, e.g. GetNpcFavoriteItem(4) -> HandOrDropItem(4, reg0) -> ... -> GetNpcHeldItem(4) -> PlayActorAnim(4, 20, 0). In-game test 2026-10-02 (user): GetNpcHeldItem(4 Forte), nothing in hand -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcHeldItem",
    "handler_rva": "0x205690",
@@ -32334,7 +32355,7 @@
    "confidence": "high",
    "notes": "Not a model id (the IDB name is wrong). Unused in rf3.mc (op 277 carries all 44 uses).",
    "change_reason": "Returns an item id: Get verb per the naming rules.",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "277": {
@@ -32351,7 +32372,14 @@
      "values": "1..47",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcHeldItem(4 Forte), nothing in hand",
+       "observed": "0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35228,7 +35256,14 @@
      "values": "0 = player, 1..47 NPC",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsPosing(0 player) while standing",
+       "observed": "0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35237,7 +35272,7 @@
    "description": "Check the actor's status bit 0x400 (per the IDB, 'scripted pose active'). reg0 = 1/0.",
    "details": "reg0 = (actor status_equip_flags >> 10) & 1; missing actor -> 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2043E0; unused in rf3.mc.",
+   "evidence": "RF4S.exe+0x2043E0; unused in rf3.mc. In-game test 2026-10-02 (user): IsPosing(0 player) while standing -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_GetActorScriptedPoseActive",
    "handler_rva": "0x2043E0",
@@ -35252,7 +35287,7 @@
    "confidence": "medium",
    "notes": "Op 327 treats 0x400 together with the character-change bit 0x8; the 'posing' meaning of 0x400 was not verified.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "330": {
@@ -35927,7 +35962,19 @@
      "values": "out of range -> ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0(0, 4) + a line with ＠キャラ０＠",
+       "observed": "printed 'Forte'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0_341(0, 7) + a line with ＠キャラ０＠",
+       "observed": "printed 'Margaret'"
+      }
+     ]
     },
     {
      "name": "value",
@@ -35935,7 +35982,19 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0(0, 4) + a line with ＠キャラ０＠",
+       "observed": "printed 'Forte'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0_341(0, 7) + a line with ＠キャラ０＠",
+       "observed": "printed 'Margaret'"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35944,7 +36003,7 @@
    "description": "Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).",
    "details": "bank = Lookup(0); if index < 16: bank[index] = value. Banks are engine-global state slots looked up with Globals_LookupChoiceCommitStateSlotByKindId (+0x234D10) - kinds 0-3 in the game-globals slot table, the rest in dedicated arrays - shared with the choice-commit system and read by NPC behaviour AI and dialogue-text substitution codes, so values persist across scenes.",
    "side_effects": "script-variable bank 0",
-   "evidence": "RF4S.exe+0x208CE0; corpus 376 uses (index 0/1 mostly; values such as REG_WIFE_ID, 600/601, tag3 char ids).",
+   "evidence": "RF4S.exe+0x208CE0; corpus 376 uses (index 0/1 mostly; values such as REG_WIFE_ID, 600/601, tag3 char ids). In-game test 2026-10-02 (user): SetVar0(0, 4) + a line with ＠キャラ０＠ -> printed 'Forte'.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind0",
    "handler_rva": "0x208CE0",
@@ -35963,7 +36022,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 23,
     "pc": "0x3A96",
@@ -35992,7 +36051,19 @@
      "values": "out of range -> ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0(0, 4) + a line with ＠キャラ０＠",
+       "observed": "printed 'Forte'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0_341(0, 7) + a line with ＠キャラ０＠",
+       "observed": "printed 'Margaret'"
+      }
+     ]
     },
     {
      "name": "value",
@@ -36000,7 +36071,19 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0(0, 4) + a line with ＠キャラ０＠",
+       "observed": "printed 'Forte'"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetVar0_341(0, 7) + a line with ＠キャラ０＠",
+       "observed": "printed 'Margaret'"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36009,7 +36092,7 @@
    "description": "Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).",
    "details": "bank = Lookup(0); if index < 16: bank[index] = value. Banks are engine-global state slots looked up with Globals_LookupChoiceCommitStateSlotByKindId (+0x234D10) - kinds 0-3 in the game-globals slot table, the rest in dedicated arrays - shared with the choice-commit system and read by NPC behaviour AI and dialogue-text substitution codes, so values persist across scenes.",
    "side_effects": "script-variable bank 0",
-   "evidence": "RF4S.exe+0x208CE0; corpus 376 uses (index 0/1 mostly; values such as REG_WIFE_ID, 600/601, tag3 char ids).",
+   "evidence": "RF4S.exe+0x208CE0; corpus 376 uses (index 0/1 mostly; values such as REG_WIFE_ID, 600/601, tag3 char ids). In-game test 2026-10-02 (user): SetVar0_341(0, 7) + a line with ＠キャラ０＠ -> printed 'Margaret'.",
    "alias_of": 340,
    "handler": "Script_VMOp_WriteVarArrayKind0",
    "handler_rva": "0x208CE0",
@@ -36028,7 +36111,7 @@
    "confidence": "high",
    "notes": "True alias of op 340 (same handler, no opcode-dependent branch). 334 corpus uses.",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 789,
     "pc": "0x01A4",
@@ -36258,7 +36341,14 @@
      "values": "0-15",
      "required_kind": "any",
      "notes": ">= 16 ignored",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar11(0, 1) + a line with ＠セーブアイテム０＠",
+       "observed": "printed 'Cabbage' (item id 1)"
+      }
+     ]
     },
     {
      "name": "value",
@@ -36266,7 +36356,14 @@
      "values": "any",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar11(0, 1) + a line with ＠セーブアイテム０＠",
+       "observed": "printed 'Cabbage' (item id 1)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36275,7 +36372,7 @@
    "description": "Store a value in slot [index] of engine variable bank 11 (16 slots). Read it back with GetVar11. ＠セーブアイテムn＠ prints slot n as an item name.",
    "details": "RF4S.exe+0x2090B0: bank = Globals_LookupChoiceCommitStateSlotByKindId(11) (+0x234D10, g_scriptVarArrayKind11_16u32); if bank && index < 16: bank[index] = value. Banks are engine-global and shared with the choice-commit system.",
    "side_effects": "var bank 11",
-   "evidence": "RF4S.exe+0x2090B0, +0x234D10; corpus: unused.",
+   "evidence": "RF4S.exe+0x2090B0, +0x234D10; corpus: unused. In-game test 2026-10-02 (user): SetVar11(0, 1) + a line with ＠セーブアイテム０＠ -> printed 'Cabbage' (item id 1).",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind11",
    "handler_rva": "0x2090B0",
@@ -36290,7 +36387,7 @@
    "confidence": "high",
    "notes": "Unused in rf3.mc.",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "346": {
@@ -36307,7 +36404,14 @@
      "values": "no bounds check (bank has 16 slots)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar11(0, 1); GetVar11(0)",
+       "observed": "1"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36316,7 +36420,7 @@
    "description": "Reads slot [index] of script-variable bank 11 into reg0. Unused by the shipped scripts.",
    "details": "reg0 = g_scriptVarArrayKind11_16u32[index]; no bounds check, so index >= 16 reads past the array. The script-variable banks are engine-global u32 arrays reached through Globals_LookupChoiceCommitStateSlotByKindId(kind) (RF4S.exe+0x234D10); they persist across scenes, are also written by the choice-commit system, and some banks are read by the dialogue text-substitution codes (Text_PostProcessControlCodes).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x209150: `*(a2+64) = g_scriptVarArrayKind11_16u32[arg0]`; corpus: 0 uses.",
+   "evidence": "RF4S.exe+0x209150: `*(a2+64) = g_scriptVarArrayKind11_16u32[arg0]`; corpus: 0 uses. In-game test 2026-10-02 (user): SetVar11(0, 1); GetVar11(0) -> 1.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind11",
    "handler_rva": "0x209150",
@@ -36331,7 +36435,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "347": {
@@ -36665,7 +36769,14 @@
      "values": "index > 51 ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar4(0, 111) + a line with ＠金０＠",
+       "observed": "printed 111"
+      }
+     ]
     },
     {
      "name": "value",
@@ -36673,7 +36784,14 @@
      "values": "unsigned clamp to 999999999 (negative values become 999999999)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar4(0, 111) + a line with ＠金０＠",
+       "observed": "printed 111"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36682,7 +36800,7 @@
    "description": "Stores a value in script-variable bank 4 (52 slots). Shops and the smithy/pharmacy scenes use banks 4/5/6 slot by slot as parallel lists (e.g. price in bank 4) that a later menu reads back. ＠金n＠ prints slot n as a gold amount (red when the player has less).",
    "details": "value = min((u32)value, 0x3B9AC9FF); bank4 = Globals_LookupChoiceCommitStateSlotByKindId(4) (g_scriptVarArrayKind4_52u32); store if index <= 0x33. The script-variable banks are engine-global u32 arrays reached through Globals_LookupChoiceCommitStateSlotByKindId(kind) (RF4S.exe+0x234D10); they persist across scenes, are also written by the choice-commit system, and some banks are read by the dialogue text-substitution codes (Text_PostProcessControlCodes).",
    "side_effects": "script-variable bank 4",
-   "evidence": "RF4S.exe+0x209360: `mov eax, 3B9AC9FFh; cmp r9d, eax; cmova r9d, eax` (+0x2093D7), `cmp r10d, 33h; ja` (+0x2093F2); corpus: 34 uses, e.g. SetVar4(0, 3000); SetVar5(0, 30); SetVar6(0, 25) gated by FLG_SMITH_CHECK.",
+   "evidence": "RF4S.exe+0x209360: `mov eax, 3B9AC9FFh; cmp r9d, eax; cmova r9d, eax` (+0x2093D7), `cmp r10d, 33h; ja` (+0x2093F2); corpus: 34 uses, e.g. SetVar4(0, 3000); SetVar5(0, 30); SetVar6(0, 25) gated by FLG_SMITH_CHECK. In-game test 2026-10-02 (user): SetVar4(0, 111) + a line with ＠金０＠ -> printed 111.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind4",
    "handler_rva": "0x209360",
@@ -36699,7 +36817,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 474,
     "pc": "0x0E7C",
@@ -36728,7 +36846,14 @@
      "values": "no bounds check (bank has 52 slots)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar4(0, 111); GetVar4(0)",
+       "observed": "111"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36737,7 +36862,7 @@
    "description": "Reads slot [index] of script-variable bank 4 into reg0.",
    "details": "reg0 = g_scriptVarArrayKind4_52u32[index]; no bounds check. The script-variable banks are engine-global u32 arrays reached through Globals_LookupChoiceCommitStateSlotByKindId(kind) (RF4S.exe+0x234D10); they persist across scenes, are also written by the choice-commit system, and some banks are read by the dialogue text-substitution codes (Text_PostProcessControlCodes).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x209410: `*(a2+64) = g_scriptVarArrayKind4_52u32[arg0]`; corpus: 13 uses, after a PROMPT_CHOICE together with GetVar5/GetVar6.",
+   "evidence": "RF4S.exe+0x209410: `*(a2+64) = g_scriptVarArrayKind4_52u32[arg0]`; corpus: 13 uses, after a PROMPT_CHOICE together with GetVar5/GetVar6. In-game test 2026-10-02 (user): SetVar4(0, 111); GetVar4(0) -> 111.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind4",
    "handler_rva": "0x209410",
@@ -36754,7 +36879,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 474,
     "pc": "0x0EB8",
@@ -36783,7 +36908,14 @@
      "values": "out of range -> ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar5(0, 222) + a line with ＠木０＠",
+       "observed": "printed 222"
+      }
+     ]
     },
     {
      "name": "value",
@@ -36791,7 +36923,14 @@
      "values": "clamped (unsigned) to 999,999,999",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar5(0, 222) + a line with ＠木０＠",
+       "observed": "printed 222"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36800,7 +36939,7 @@
    "description": "Store a value in script-variable bank 5 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar5. ＠木n＠ prints slot n as a lumber amount (red when the player has less).",
    "details": "bank = Lookup(5) = g_scriptVarArrayKind5_52u32; value clamped with cmova to 0x3B9AC9FF; if index <= 51: bank[index] = value. Lookup(5) is also used by Text_PostProcessControlCodes (+0x23435E region). Banks are engine-global state slots looked up with Globals_LookupChoiceCommitStateSlotByKindId (+0x234D10) - kinds 0-3 in the game-globals slot table, the rest in dedicated arrays - shared with the choice-commit system and read by NPC behaviour AI and dialogue-text substitution codes, so values persist across scenes.",
    "side_effects": "script-variable bank 5",
-   "evidence": "RF4S.exe+0x209470; corpus 38 uses in shop/smith banks 6/10 (SetVar4(i, price) / SetVar5(i, 10..50) / SetVar6(i, ..) triples).",
+   "evidence": "RF4S.exe+0x209470; corpus 38 uses in shop/smith banks 6/10 (SetVar4(i, price) / SetVar5(i, 10..50) / SetVar6(i, ..) triples). In-game test 2026-10-02 (user): SetVar5(0, 222) + a line with ＠木０＠ -> printed 222.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind5",
    "handler_rva": "0x209470",
@@ -36817,7 +36956,7 @@
    "confidence": "high",
    "notes": "Negative values become 999999999 because the clamp is unsigned.",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 377,
     "pc": "0x3910",
@@ -36908,7 +37047,14 @@
      "values": "0-51",
      "required_kind": "any",
      "notes": "> 51 ignored",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar6(0, 333) + a line with ＠石０＠",
+       "observed": "printed 333"
+      }
+     ]
     },
     {
      "name": "value",
@@ -36916,7 +37062,14 @@
      "values": "0-999999999 (unsigned clamp: larger or negative values become 999999999)",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar6(0, 333) + a line with ＠石０＠",
+       "observed": "printed 333"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36925,7 +37078,7 @@
    "description": "Store a number in slot [index] of engine variable bank 6 (52 slots). Read back with GetVar6. ＠石n＠ prints slot n as a material-stone amount (red when the player has less).",
    "details": "RF4S.exe+0x209580: value = min((u32)value, 0x3B9AC9FF) (cmova at +0x209604); bank = Globals_LookupChoiceCommitStateSlotByKindId(6) (+0x234D10, g_scriptVarArrayKind6_52u32); index <= 0x33 -> bank[index] = value. Lookup(6) is also read by Text_PostProcessControlCodes.",
    "side_effects": "var bank 6",
-   "evidence": "RF4S.exe+0x209580 disasm (mov eax,3B9AC9FFh; cmp; cmova; cmp r10d,33h; ja); corpus: 42 uses, indexes 0-14, values 0-150 / reg0, grouped with SetVar4/SetVar5 per index.",
+   "evidence": "RF4S.exe+0x209580 disasm (mov eax,3B9AC9FFh; cmp; cmova; cmp r10d,33h; ja); corpus: 42 uses, indexes 0-14, values 0-150 / reg0, grouped with SetVar4/SetVar5 per index. In-game test 2026-10-02 (user): SetVar6(0, 333) + a line with ＠石０＠ -> printed 333.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind6",
    "handler_rva": "0x209580",
@@ -36942,7 +37095,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 377,
     "pc": "0x3918",
@@ -36971,7 +37124,14 @@
      "values": "no bounds check (bank has 52 slots)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar6(0, 333); GetVar6(0)",
+       "observed": "333"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -36980,7 +37140,7 @@
    "description": "Reads slot [index] of script-variable bank 6 into reg0.",
    "details": "reg0 = g_scriptVarArrayKind6_52u32[index]; no bounds check. The script-variable banks are engine-global u32 arrays reached through Globals_LookupChoiceCommitStateSlotByKindId(kind) (RF4S.exe+0x234D10); they persist across scenes, are also written by the choice-commit system, and some banks are read by the dialogue text-substitution codes (Text_PostProcessControlCodes).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x209630: `*(a2+64) = g_scriptVarArrayKind6_52u32[arg0]`; corpus: 9 uses, all index 0, right after PROMPT_CHOICE.",
+   "evidence": "RF4S.exe+0x209630: `*(a2+64) = g_scriptVarArrayKind6_52u32[arg0]`; corpus: 9 uses, all index 0, right after PROMPT_CHOICE. In-game test 2026-10-02 (user): SetVar6(0, 333); GetVar6(0) -> 333.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind6",
    "handler_rva": "0x209630",
@@ -36997,7 +37157,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 377,
     "pc": "0x399C",
@@ -37026,7 +37186,14 @@
      "values": "0-51 (larger ignored)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar7(0, 444) + a line with ＠王０＠",
+       "observed": "printed 444"
+      }
+     ]
     },
     {
      "name": "value",
@@ -37034,7 +37201,14 @@
      "values": "clamped (unsigned) to 999,999,999",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar7(0, 444) + a line with ＠王０＠",
+       "observed": "printed 444"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37043,7 +37217,7 @@
    "description": "Store a number in script variable bank 7 [index]. Read back with GetVar7 (op 358). ＠王n＠ prints slot n as a Prince Points amount (red when the player has fewer).",
    "details": "Globals_LookupChoiceCommitStateSlotByKindId(7) (+0x234D10) -> g_scriptVarArrayKind7_52u32; index <= 51; value clamped with cmova to 0x3B9AC9FF. Bank 7 is read by Text_PostProcessControlCodes (+0x2343B2) and ChoiceDialog_CommitSelectionAndDispatchActions (+0x23A89C).",
    "side_effects": "script var bank 7",
-   "evidence": "RF4S.exe+0x209690; corpus: 131 uses in bank 308 (GetPrinceOrderCost(n, 0) -> SetVar7(i, reg0)).",
+   "evidence": "RF4S.exe+0x209690; corpus: 131 uses in bank 308 (GetPrinceOrderCost(n, 0) -> SetVar7(i, reg0)). In-game test 2026-10-02 (user): SetVar7(0, 444) + a line with ＠王０＠ -> printed 444.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind7",
    "handler_rva": "0x209690",
@@ -37060,7 +37234,7 @@
    "confidence": "high",
    "notes": "Category changed from dialogue to flag like the other SetVar ops.",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x0526",
@@ -37089,7 +37263,14 @@
      "values": "0-51 (corpus 0-29)",
      "required_kind": "any",
      "notes": "no bounds check",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar7(0, 444); GetVar7(0)",
+       "observed": "444"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37098,7 +37279,7 @@
    "description": "Read slot [index] of engine variable bank 7 into reg0.",
    "details": "RF4S.exe+0x209740: reg0 = g_scriptVarArrayKind7_52u32[index], unchecked index.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x209740; corpus: 8 uses, indexes 0-6 and 29 (bank 308, compared with GetPrincePoints).",
+   "evidence": "RF4S.exe+0x209740; corpus: 8 uses, indexes 0-6 and 29 (bank 308, compared with GetPrincePoints). In-game test 2026-10-02 (user): SetVar7(0, 444); GetVar7(0) -> 444.",
    "alias_of": null,
    "handler": "Script_VMOp_ReadVarArrayKind7",
    "handler_rva": "0x209740",
@@ -37115,7 +37296,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x05E4",
@@ -37144,7 +37325,14 @@
      "values": "0-15",
      "required_kind": "any",
      "notes": ">= 16 ignored",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar8(3, 0) / SetVar8(3, 1) + a line with ＠モン３＠, before and after renaming barn monster 0 from Antok to Tokan",
+       "observed": "printed 'Antok', then 'Tokan' after the rename; value 1 printed 'Wool': the value is the monster-barn record index and ＠モンn＠ prints that monster's own name; GetVar8 read back 0"
+      }
+     ]
     },
     {
      "name": "value",
@@ -37152,16 +37340,23 @@
      "values": "any; -1 = companion 1's farm-table record index, -2 = companion 2's",
      "required_kind": "any",
      "notes": "record index is movsx of actor+0x1E6 (-1 = no record, 0 = no companion)",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar8(3, 0) / SetVar8(3, 1) + a line with ＠モン３＠, before and after renaming barn monster 0 from Antok to Tokan",
+       "observed": "printed 'Antok', then 'Tokan' after the rename; value 1 printed 'Wool': the value is the monster-barn record index and ＠モンn＠ prints that monster's own name; GetVar8 read back 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to. ＠モンn＠ prints slot n as that barn monster's given name.",
+   "description": "Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to. ＠モンn＠ prints slot n as that barn monster's given name. The value is a monster-barn record index; ＠モンn＠ prints that monster's own (player-given) name (in game).",
    "details": "RF4S.exe+0x2097A0: value -1 -> g_companion1Actor, -2 -> g_companion2Actor, value = movsx word [actor+0x1E6] (0 if none); bank = Globals_LookupChoiceCommitStateSlotByKindId(8) (g_scriptVarArrayKind8_16u32); index < 16. Lookup(8) also read by Text_PostProcessControlCodes.",
    "side_effects": "var bank 8",
-   "evidence": "RF4S.exe+0x2097A0 (2026-09-26 disasm + refutation), +0x213040 kinds 4/9 read actor+486 as the g_MonsterFarmTable index; corpus: 32 uses, index 0-2, values reg0-reg2 / -1 / -2, followed by GetCompanionMonsterData(regN, 6).",
+   "evidence": "RF4S.exe+0x2097A0 (2026-09-26 disasm + refutation), +0x213040 kinds 4/9 read actor+486 as the g_MonsterFarmTable index; corpus: 32 uses, index 0-2, values reg0-reg2 / -1 / -2, followed by GetCompanionMonsterData(regN, 6). In-game test 2026-10-02 (user): SetVar8(3, 0) / SetVar8(3, 1) + a line with ＠モン３＠, before and after renaming barn monster 0 from Antok to Tokan -> printed 'Antok', then 'Tokan' after the rename; value 1 printed 'Wool': the value is the monster-barn record index and ＠モンn＠ prints that monster's own name; GetVar8 read back 0.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind8",
    "handler_rva": "0x2097A0",
@@ -37178,7 +37373,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 256,
     "pc": "0x01B6",
@@ -37269,7 +37464,14 @@
      "values": "0-15",
      "required_kind": "any",
      "notes": ">= 16 ignored",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar9(0, 228) + a line with ＠カレンダー０＠",
+       "observed": "printed 'Autumn Harvest Festival': the code prints the calendar EVENT on date code season*100 + day (228 = Autumn 28), not the date"
+      }
+     ]
     },
     {
      "name": "value",
@@ -37277,7 +37479,14 @@
      "values": "any; -1 = date code of the festival in progress (GF_REG_FESTA), if any",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetVar9(0, 228) + a line with ＠カレンダー０＠",
+       "observed": "printed 'Autumn Harvest Festival': the code prints the calendar EVENT on date code season*100 + day (228 = Autumn 28), not the date"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37286,7 +37495,7 @@
    "description": "Store a value in slot [index] of engine variable bank 9 (16 slots). -1 stores the calendar date code of the festival currently running. There is no GetVar9 op; villager AI also reads the bank. ＠カレンダーn＠ prints the calendar event on the date in slot n (season x 100 + day).",
    "details": "RF4S.exe+0x2098D0: value == -1 and not the 0x401000 state -> GF_REG_FESTA (5 bits); if non-zero value = Calendar_GetFestivalDateCodeByEventBit(festa) (+0x1D9F60). bank = Globals_LookupChoiceCommitStateSlotByKindId(9); index < 16. Lookup(9) callers: Text_PostProcessControlCodes, NpcAi_ResolveVillagerBehavior.",
    "side_effects": "var bank 9",
-   "evidence": "RF4S.exe+0x2098D0; corpus: 9 uses, index 0, value reg0 x8 / -1 x1 (bank 296 festival staging).",
+   "evidence": "RF4S.exe+0x2098D0; corpus: 9 uses, index 0, value reg0 x8 / -1 x1 (bank 296 festival staging). In-game test 2026-10-02 (user): SetVar9(0, 228) + a line with ＠カレンダー０＠ -> printed 'Autumn Harvest Festival': the code prints the calendar EVENT on date code season*100 + day (228 = Autumn 28), not the date.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind9_WithNpcFallback",
    "handler_rva": "0x2098D0",
@@ -37303,7 +37512,7 @@
    "confidence": "high",
    "notes": "With -1 and no festival running the -1 itself is stored.",
    "change_reason": "2026-10-01: names the ＠ code that prints the bank (Text_PostProcessControlCodes)",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 296,
     "pc": "0x045E",
@@ -37409,7 +37618,14 @@
      "values": "bank-0 index 0-15 / bank-3 index 0-51 for the text codes",
      "required_kind": "any",
      "notes": "corpus 0, 1, 9",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcBirthday(5, 4 Forte) + a line with ＠キャラ５＠ ＠５＠",
+       "observed": "printed 'Summer 22' and reg0 * 100 + reg1 = 122 (season 1, day 22): Forte's birthday in the game"
+      }
+     ]
     },
     {
      "name": "character",
@@ -37417,7 +37633,14 @@
      "values": "0 = player (REG_PLAYER_BIRTH_SEASON/DAY); else looked up in the calendar table archive 16340",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcBirthday(5, 4 Forte) + a line with ＠キャラ５＠ ＠５＠",
+       "observed": "printed 'Summer 22' and reg0 * 100 + reg1 = 122 (season 1, day 22): Forte's birthday in the game"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37426,7 +37649,7 @@
    "description": "Look up a character's birthday: season into reg0, day into reg1, and also bank 0 [slot] = the season's name line and bank 3 [slot] = the day, so ＠キャラn＠ ＠n＠ in the next DIALOG line print '<season> <day>'.",
    "details": "RF4S.exe+0x209B00: character != 0 -> nsFileArchive_Load(16340): records of 4 bytes at +0x1C, match byte 0 == id -> season = byte 1, day = byte 2; released after. character == 0 -> GF_REG_PLAYER_BIRTH_SEASON (2 bits) / GF_REG_PLAYER_BIRTH_DAY (5 bits) (0 in the 0x401000 state). Bank0[slot] = season + 616 (text id of the season name, slot < 16); bank3[slot] = day (slot <= 51). Not found -> uninitialised values.",
    "side_effects": "var banks 0 and 3",
-   "evidence": "RF4S.exe+0x209B00; corpus: 30 uses, e.g. GetNpcBirthday(0, 1) then DIALOG \"Vishnal's birthday is on <season> <day>\".",
+   "evidence": "RF4S.exe+0x209B00; corpus: 30 uses, e.g. GetNpcBirthday(0, 1) then DIALOG \"Vishnal's birthday is on <season> <day>\". In-game test 2026-10-02 (user): GetNpcBirthday(5, 4 Forte) + a line with ＠キャラ５＠ ＠５＠ -> printed 'Summer 22' and reg0 * 100 + reg1 = 122 (season 1, day 22): Forte's birthday in the game.",
    "alias_of": null,
    "handler": "Script_VMOp_GetCalendarEventMonthWithFallback",
    "handler_rva": "0x209B00",
@@ -37443,7 +37666,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-01: names the ＠ codes",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 240,
     "pc": "0x0840",
@@ -41053,7 +41276,7 @@
    "description": "reg0 = 1 if the player is carrying an item in their hands (over the head), else 0. Unused by the shipped scripts.",
    "details": "w = u16 at g_itemDatabase->ptr_00 + 24 (equipment record 0 = the carried item, used by Player_AttachHeldItem); reg0 = (w >= 0x800 && (w & 0x7FF) != 0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20FE30; corpus: unused. In-game test 2026-10-02 (user): IsPlayerHoldingItem(), hands empty -> 0.",
+   "evidence": "RF4S.exe+0x20FE30; corpus: unused. In-game test 2026-10-02 (user): IsPlayerHoldingItem(), hands empty -> 0. In-game test 2026-10-02 (user): IsPlayerHoldingItem() while carrying an item over the head into the room -> 1 (0 earlier with empty hands).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryEquipExtrasSlot24Occupied",
    "handler_rva": "0x20FE30",
@@ -46052,7 +46275,7 @@
    "optional_args_from": null,
    "returns": "reg0 = Y tile",
    "blocking": "no",
-   "description": "Read a party member's Y tile into reg0 (0 if the slot is empty).",
+   "description": "Read a party member's Y position into reg0 (0 if the slot is empty). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "reg0 = (&g_playerActor)[slot + 1]->world_y (+0x5C) >> 12, 0 when empty (`mov [rdx+40h], r8d`).",
    "side_effects": "",
    "evidence": "RF4S.exe+0x2123E0; corpus: 7 uses; bank 573 branches on reg1 right after it, which is a script bug (the op writes reg0). In-game test 2026-10-02 (user): GetPartyMemberTileY(0) with Forte as companion 1 / GetPartyMemberTileY(-1) -> 481 / 481 = Forte's and the player's Y from GetActorTilePosition.",
@@ -56224,16 +56447,23 @@
      "values": "0 -> reg0 = reg1 = 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcGivenHat(4 Forte), no headgear given",
+       "observed": "reg0 = 0, reg1 = 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": "reg0 = headgear state (record +252), reg1 = headgear item id or 0",
    "blocking": "no",
-   "description": "For an NPC: reg0 = non-zero if they wear headgear the player gave them, reg1 = that headgear's item id (Silver Hairpin, Fancy Hat, ribbons ...). Used by the 'whose hats am I taking back?' menu.",
-   "details": "reg0 = NPC record dword +252; reg1 = record byte +256 + 676 when that byte is non-zero, else 0 (677 Silver Hairpin, 678 Gold Hairpin, 679 Fancy Hat, ... 699 Spring Headdress).",
+   "description": "For a villager: reg0 = the headgear they have been GIVEN, as a bitmask (record +252): bit n = item 677 + n (bit 0 Silver Hairpin ... bit 10 Cute Knitting = 1024 ... bit 22 Spring Headdress); gifts add bits, nothing clears them. reg1 = 676 + record byte +256 = the hat picked for them to wear today (each day's spawn rolls 25% to pick one of the given hats), or 0 when none was picked. Used by the 'whose hats am I taking back?' menu. The script language has no bitwise operators: test bit n as (reg0 / 2^n) % 2, e.g. (reg0 / 1024) % 2 for Cute Knitting (in game).",
+   "details": "RF4S.exe+0x21FB80: reg0 = record dword +252, reg1 = record byte +256 + 676 when non-zero. Writers: Npc_RegisterReceivedItemAndCheckInterest (+0x22B110) on a gift of item 677..708: record+252 |= 1 << (item - 677) (the shift is (item + 91) & 31); NpcSchedule_TickActorSpawnAndPlace (+0x22BDF0) clears +256 at spawn and with a 25% roll sets it to 1 + the index of a random given hat.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21FB80: `v10 = *(u8*)(v9+256); if (v10) v4 = v10 + 676; v2 = *(u32*)(v11+252); *(a2+64) = v2; *(a2+68) = v4`; rf3TxtItem 677-699 = hairpins/hats/glasses/ribbons/headgear; corpus: 24 uses (NPCs 1-25) after DIALOG #96712 'Now whose hats am I taking back?', each gating a menu row on reg0.",
+   "evidence": "RF4S.exe+0x21FB80: `v10 = *(u8*)(v9+256); if (v10) v4 = v10 + 676; v2 = *(u32*)(v11+252); *(a2+64) = v2; *(a2+68) = v4`; rf3TxtItem 677-699 = hairpins/hats/glasses/ribbons/headgear; corpus: 24 uses (NPCs 1-25) after DIALOG #96712 'Now whose hats am I taking back?', each gating a menu row on reg0. In-game test 2026-10-02 (user): GetNpcGivenHat(4 Forte), no headgear given -> reg0 = 0, reg1 = 0. In-game test 2026-10-02 (user): GetNpcGivenHat(4 Forte) after the player gave Forte a hat -> reg0 = 1024 (record +252, only bit 10 set: non-zero = wears a given hat); reg1 = 0 (record byte +256 is 0, so the 'hat item id' reading of reg1 did not hold here). In-game test 2026-10-02 (user): GetNpcGivenHat(4 Forte) after giving her Cute Knitting (item 687); she wears it -> reg0 = 1024 = bit 10 = 687 - 677 (the gift bitmask); reg1 = 0 (today's 25% hat pick ran before the gift). In-game test 2026-10-02 (user): GetNpcGivenHat(4 Forte) after giving Cute Knitting (687) and White Ribbon (696); bit tests (reg0 / 1024) % 2, (reg0 / 524288) % 2, reg0 % 2 -> reg0 = 525312 = 1024 + 524288 (bits 10 and 19); bit tests 1 / 1 / 0 (Silver Hairpin not given): gifts accumulate in the bitmask.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcRecordDword252AndItemId676",
    "handler_rva": "0x21FB80",
@@ -56250,7 +56480,7 @@
    "confidence": "medium",
    "notes": "The meaning of the +252 dword beyond 'non-zero while a hat is given' is inferred from the menu.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x3554",

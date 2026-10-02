@@ -5010,14 +5010,14 @@ Waits until the player's current one-shot animation (started with the player tal
 ### `op 153` — SpawnEventActor(char, key, x, y, facing)
 *handler:* `Script_VMOp_SpawnEventActor`
 
-Spawn an event (cutscene) actor under a scene-local key, or reposition it if that key already exists. Later event-actor ops address it by the key.
+Spawn an event (cutscene) actor under a scene-local key, or reposition it if that key already exists. Later event-actor ops address it by the key. x / y are script units: 8 per map-editor tile, so tile (40, 15) is (320, 120), its centre (324, 124) (in game: a Captain spawned with (324, 124) stood on tile (40, 15) of Leon Karnak D19).
 
 Args:
   0. char (character/NPC-param id incl. monsters and props (e.g. 269, 27, 324 'Barrel', 331 'Captain'); 254..266 ignored)
      - *(enum: 392 values — use the in-editor picker or the id database)*
   1. key (scene-local handle (100, 101, 200, 300...) used by every later EventActor op)
-  2. x
-  3. y
+  2. x (script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre))
+  3. y (script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre))
   4. facing
 
 ### `op 154` — SpawnEventActorVariant(char, event_key, x, y, facing, variant)
@@ -8160,21 +8160,23 @@ Args:
 
 ### `op 340` — SetVar0(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind0`
+*verified:* yes, in game
 
 Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).
 
 Args:
-  0. index (out of range -> ignored)
-  1. value
+  0. index (out of range -> ignored) — verified in game
+  1. value — verified in game
 
 ### `op 341` — SetVar0(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind0`
+*verified:* yes, in game
 
 Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).
 
 Args:
-  0. index (out of range -> ignored)
-  1. value
+  0. index (out of range -> ignored) — verified in game
+  1. value — verified in game
 
 ### `op 343` — SetVar1(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind1`
@@ -8188,12 +8190,13 @@ Args:
 
 ### `op 345` — SetVar11(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind11`
+*verified:* yes, in game
 
 Store a value in slot [index] of engine variable bank 11 (16 slots). Read it back with GetVar11. ＠セーブアイテムn＠ prints slot n as an item name.
 
 Args:
-  0. index (0-15)
-  1. value
+  0. index (0-15) — verified in game
+  1. value — verified in game
 
 ### `op 347` — SetVar2(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind2`
@@ -8227,57 +8230,63 @@ Args:
 
 ### `op 351` — SetVar4(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind4`
+*verified:* yes, in game
 
 Stores a value in script-variable bank 4 (52 slots). Shops and the smithy/pharmacy scenes use banks 4/5/6 slot by slot as parallel lists (e.g. price in bank 4) that a later menu reads back. ＠金n＠ prints slot n as a gold amount (red when the player has less).
 
 Args:
-  0. index (index > 51 ignored)
-  1. value (unsigned clamp to 999999999 (negative values become 999999999))
+  0. index (index > 51 ignored) — verified in game
+  1. value (unsigned clamp to 999999999 (negative values become 999999999)) — verified in game
 
 ### `op 353` — SetVar5(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind5`
+*verified:* yes, in game
 
 Store a value in script-variable bank 5 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar5. ＠木n＠ prints slot n as a lumber amount (red when the player has less).
 
 Args:
-  0. index (out of range -> ignored)
-  1. value (clamped (unsigned) to 999,999,999)
+  0. index (out of range -> ignored) — verified in game
+  1. value (clamped (unsigned) to 999,999,999) — verified in game
 
 ### `op 355` — SetVar6(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind6`
+*verified:* yes, in game
 
 Store a number in slot [index] of engine variable bank 6 (52 slots). Read back with GetVar6. ＠石n＠ prints slot n as a material-stone amount (red when the player has less).
 
 Args:
-  0. index (0-51)
-  1. value (0-999999999 (unsigned clamp: larger or negative values become 999999999))
+  0. index (0-51) — verified in game
+  1. value (0-999999999 (unsigned clamp: larger or negative values become 999999999)) — verified in game
 
 ### `op 357` — SetVar7(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind7`
+*verified:* yes, in game
 
 Store a number in script variable bank 7 [index]. Read back with GetVar7 (op 358). ＠王n＠ prints slot n as a Prince Points amount (red when the player has fewer).
 
 Args:
-  0. index (0-51 (larger ignored))
-  1. value (clamped (unsigned) to 999,999,999)
+  0. index (0-51 (larger ignored)) — verified in game
+  1. value (clamped (unsigned) to 999,999,999) — verified in game
 
 ### `op 359` — SetVar8(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind8`
+*verified:* yes, in game
 
-Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to. ＠モンn＠ prints slot n as that barn monster's given name.
+Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to. ＠モンn＠ prints slot n as that barn monster's given name. The value is a monster-barn record index; ＠モンn＠ prints that monster's own (player-given) name (in game).
 
 Args:
-  0. index (0-15)
-  1. value (any; -1 = companion 1's farm-table record index, -2 = companion 2's)
+  0. index (0-15) — verified in game
+  1. value (any; -1 = companion 1's farm-table record index, -2 = companion 2's) — verified in game
 
 ### `op 361` — SetVar9(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind9_WithNpcFallback`
+*verified:* yes, in game
 
 Store a value in slot [index] of engine variable bank 9 (16 slots). -1 stores the calendar date code of the festival currently running. There is no GetVar9 op; villager AI also reads the bank. ＠カレンダーn＠ prints the calendar event on the date in slot n (season x 100 + day).
 
 Args:
-  0. index (0-15)
-  1. value (any; -1 = date code of the festival in progress (GF_REG_FESTA), if any)
+  0. index (0-15) — verified in game
+  1. value (any; -1 = date code of the festival in progress (GF_REG_FESTA), if any) — verified in game
 
 ### `op 364` — SetVar10(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind10`
@@ -10090,7 +10099,7 @@ Args:
 *handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
 *verified:* yes, in game
 
-Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
+Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing) — verified in game
@@ -10165,7 +10174,7 @@ Check whether the player wears the Rosary (accessory special bit 0x40000): reg0 
 ### `op 182` — GetEventActorTilePosition(event key)
 *handler:* `Script_VMOp_GetEventActorTilePosition`
 
-Read a spawned event actor's tile position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135).
+Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
 Args:
   0. event key
@@ -10174,7 +10183,7 @@ Args:
 *handler:* `Script_VMOp_GetPlayerPosition`
 *verified:* yes, in game
 
-Stores the player's tile position in reg0 (x) and reg1 (y), and 1 in reg2.
+Stores the player's position in reg0 (x) and reg1 (y), and 1 in reg2. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
 ### `op 216` — HasNpcStoryFlag(character)
 *handler:* `Script_VMOp_QueryNpcInCurrentArea`
@@ -10751,13 +10760,14 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 255` — GetActorAilmentState(target)
-*handler:* `Script_VMOp_GetActorAilmentState`
+### `op 255` — GetActorStatusEffect(target)
+*handler:* `Script_VMOp_GetActorStatusEffect`
+*verified:* yes, in game
 
-Reads the ailment state of the player or of the companion being talked to: reg0 = a summary code, reg1 = a code naming the specific ailment. Companion dialogue uses it to comment on the player's or companion's condition.
+Read the status effect state of the player (0) or of the companion being talked to. reg0: 0 fine, 1 asleep, 4 fatigue only, 2 any other status effect (or fatigue plus another), 3 no status effect but HP at half or below. reg1 names one status effect: 115 poison, 116 paralysis, 117 seal, 118 cold (sleep / fatigue / faint have none). Other statuses (e.g. the 'ate a dish' apple) are not part of it. Only the player (0) or a party companion: any non-zero argument means 'the companion I am talking to' (the value itself is ignored). Not talking to a companion, it reads companion slot 2 instead, and with that slot empty it dereferences a missing actor (crash).
 
 Args:
-  0. target (0 = the player; non-zero = the companion whose char id equals the current interaction NPC)
+  0. target (0 = the player; any non-zero value = the party companion currently being talked to (the number is ignored)) — verified in game
 
 ### `op 257` — IsNpcGroupFreeToComment(npcs)
 *handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
@@ -10791,16 +10801,18 @@ Read the HP state of the actor this script runs for into reg0: 2 = HP is 0, 1 = 
 
 ### `op 262` — GetCurrentInteractionNpc()
 *handler:* `ScriptVMOp_QueryCurrentInteractionNpcCharId`
+*verified:* yes, in game
 
 Sets reg0 to the char id of the NPC the player is currently talking to or interacting with (0xFFFF if none).
 
 ### `op 265` — IsPlayerOrCompanionDowned(who)
 *handler:* `Script_VMOp_QueryPlayerOrCompanionDowned`
+*verified:* yes, in game
 
 Check whether the player (arg != 0) or either of the two companions (arg 0) is knocked out; result in reg0. Unused by the shipped scripts.
 
 Args:
-  0. who (non-zero = the player; 0 = either companion)
+  0. who (non-zero = the player; 0 = either companion) — verified in game
 
 ### `op 268` — IsNpcAtScheduledSpot(npc...)
 *handler:* `Script_VMOp_QueryNpcArrivedAtSchedule`
@@ -10942,11 +10954,12 @@ Args:
 
 ### `op 276` — GetNpcHeldItem(npc)
 *handler:* `Script_VMOp_GetNpcHeldItem`
+*verified:* yes, in game
 
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
 
 Args:
-  0. npc (1..47)
+  0. npc (1..47) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -10981,7 +10994,7 @@ Args:
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
 
 Args:
-  0. npc (1..47)
+  0. npc (1..47) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -11279,11 +11292,12 @@ Args:
 
 ### `op 329` — IsPosing(actor)
 *handler:* `Script_VMOp_GetActorScriptedPoseActive`
+*verified:* yes, in game
 
 Check the actor's status bit 0x400 (per the IDB, 'scripted pose active'). reg0 = 1/0.
 
 Args:
-  0. actor (0 = player, 1..47 NPC)
+  0. actor (0 = player, 1..47 NPC) — verified in game
 
 ### `op 338` — IsNpcOnPlayerMap(npc)
 *handler:* `Script_VMOp_GetNpcScheduleMatchAndId`
@@ -11350,11 +11364,12 @@ Args:
 
 ### `op 346` — GetVar11(index)
 *handler:* `Script_VMOp_ReadVarArrayKind11`
+*verified:* yes, in game
 
 Reads slot [index] of script-variable bank 11 into reg0. Unused by the shipped scripts.
 
 Args:
-  0. index (no bounds check (bank has 16 slots))
+  0. index (no bounds check (bank has 16 slots)) — verified in game
 
 ### `op 350` — GetVar3(index)
 *handler:* `Script_VMOp_ReadVarArrayKind3`
@@ -11367,11 +11382,12 @@ Args:
 
 ### `op 352` — GetVar4(index)
 *handler:* `Script_VMOp_ReadVarArrayKind4`
+*verified:* yes, in game
 
 Reads slot [index] of script-variable bank 4 into reg0.
 
 Args:
-  0. index (no bounds check (bank has 52 slots))
+  0. index (no bounds check (bank has 52 slots)) — verified in game
 
 ### `op 354` — GetVar5(index)
 *handler:* `Script_VMOp_ReadVarArrayKind5`
@@ -11384,19 +11400,21 @@ Args:
 
 ### `op 356` — GetVar6(index)
 *handler:* `Script_VMOp_ReadVarArrayKind6`
+*verified:* yes, in game
 
 Reads slot [index] of script-variable bank 6 into reg0.
 
 Args:
-  0. index (no bounds check (bank has 52 slots))
+  0. index (no bounds check (bank has 52 slots)) — verified in game
 
 ### `op 358` — GetVar7(index)
 *handler:* `Script_VMOp_ReadVarArrayKind7`
+*verified:* yes, in game
 
 Read slot [index] of engine variable bank 7 into reg0.
 
 Args:
-  0. index (0-51 (corpus 0-29))
+  0. index (0-51 (corpus 0-29)) — verified in game
 
 ### `op 360` — GetVar8(index)
 *handler:* `Script_VMOp_ReadVarArrayKind8`
@@ -11409,12 +11427,13 @@ Args:
 
 ### `op 363` — GetNpcBirthday(slot, character)
 *handler:* `Script_VMOp_GetCalendarEventMonthWithFallback`
+*verified:* yes, in game
 
 Look up a character's birthday: season into reg0, day into reg1, and also bank 0 [slot] = the season's name line and bank 3 [slot] = the day, so ＠キャラn＠ ＠n＠ in the next DIALOG line print '<season> <day>'.
 
 Args:
-  0. slot (bank-0 index 0-15 / bank-3 index 0-51 for the text codes)
-  1. character (0 = player (REG_PLAYER_BIRTH_SEASON/DAY); else looked up in the calendar table archive 16340)
+  0. slot (bank-0 index 0-15 / bank-3 index 0-51 for the text codes) — verified in game
+  1. character (0 = player (REG_PLAYER_BIRTH_SEASON/DAY); else looked up in the calendar table archive 16340) — verified in game
 
 ### `op 367` — GetVar14(index)
 *handler:* `Script_VMOp_ReadVarArrayKind14`
@@ -11824,7 +11843,7 @@ Sets reg0 to the talking NPC's facing mode (0-2), as set by SetNpcFacingMode; 0 
 *handler:* `Script_VMOp_QueryPartyMemberWorldYTile`
 *verified:* yes, in game
 
-Read a party member's Y tile into reg0 (0 if the slot is empty).
+Read a party member's Y position into reg0 (0 if the slot is empty). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
 Args:
   0. slot (0 = companion 1, 1 = companion 2, -1 = player) — verified in game
@@ -12154,11 +12173,12 @@ Read the free-look camera mode word into reg0; it drops back to 0 when the playe
 
 ### `op 690` — GetNpcGivenHat(npc)
 *handler:* `Script_VMOp_QueryNpcRecordDword252AndItemId676`
+*verified:* yes, in game
 
-For an NPC: reg0 = non-zero if they wear headgear the player gave them, reg1 = that headgear's item id (Silver Hairpin, Fancy Hat, ribbons ...). Used by the 'whose hats am I taking back?' menu.
+For a villager: reg0 = the headgear they have been GIVEN, as a bitmask (record +252): bit n = item 677 + n (bit 0 Silver Hairpin ... bit 10 Cute Knitting = 1024 ... bit 22 Spring Headdress); gifts add bits, nothing clears them. reg1 = 676 + record byte +256 = the hat picked for them to wear today (each day's spawn rolls 25% to pick one of the given hats), or 0 when none was picked. Used by the 'whose hats am I taking back?' menu. The script language has no bitwise operators: test bit n as (reg0 / 2^n) % 2, e.g. (reg0 / 1024) % 2 for Cute Knitting (in game).
 
 Args:
-  0. npc (0 -> reg0 = reg1 = 0)
+  0. npc (0 -> reg0 = reg1 = 0) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -12506,7 +12526,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 245 | `GetGiftAffinity` | 246 | `StreamInNpcAtTile` | 247 | `GetApproachTile` |
 | 248 | `SetNpcVisibleFlag` | 249 | `SetNpcVisibleFlag` | 250 | `SkipActorAnimToEnd` |
 | 251 | `SkipActorAnimToEnd` | 252 | `SetActorAnimSpeedScale` | 253 | `SetActorAnimSpeedScale` |
-| 254 | `SetActorAnimFrame` | 255 | `GetActorAilmentState` | 256 | `SetActorStatusConditions` |
+| 254 | `SetActorAnimFrame` | 255 | `GetActorStatusEffect` | 256 | `SetActorStatusConditions` |
 | 257 | `IsNpcGroupFreeToComment` | 258 | `IsNpcGroupFreeToComment` | 259 | `PickRandomVillagers` |
 | 260 | `GetHostActorHpState` | 261 | `SetNpcRecordFlag80000000` | 262 | `GetCurrentInteractionNpc` |
 | 263 | `ResetNpcToIdle` | 264 | `ResetNpcToIdle` | 265 | `IsPlayerOrCompanionDowned` |

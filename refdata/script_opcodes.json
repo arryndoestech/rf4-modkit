@@ -254,7 +254,7 @@
  "252": "ScriptVMOp_SetActorAnimSpeedScale",
  "253": "ScriptVMOp_SetActorAnimSpeedScale",
  "254": "ScriptVMOp_SetActorAnimFrameDirect",
- "255": "Script_VMOp_GetActorAilmentState",
+ "255": "Script_VMOp_GetActorStatusEffect",
  "256": "ScriptVMOp_SetActorStatusConditionsByMaskAndTargetSelect",
  "257": "NpcAi_AllNpcsEligibleForFlavorComment",
  "258": "NpcAi_AllNpcsEligibleForFlavorComment",
