@@ -709,7 +709,7 @@
        "human_verified": true
       },
       "4": {
-       "name": "player",
+       "name": "player_blip",
        "text": "the player character's own blip (female for Frey, male for Lest)",
        "human_verified": true
       }
@@ -1122,7 +1122,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -1418,7 +1418,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -1713,7 +1713,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -2009,7 +2009,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -2305,7 +2305,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -2600,7 +2600,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -2896,7 +2896,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -3191,7 +3191,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -3486,7 +3486,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -3781,7 +3781,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -4077,7 +4077,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -4372,7 +4372,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -4668,7 +4668,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -4962,7 +4962,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -5257,7 +5257,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -5552,7 +5552,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -5848,7 +5848,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -6144,7 +6144,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -6440,7 +6440,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -6735,7 +6735,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -7031,7 +7031,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -7326,7 +7326,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -7622,7 +7622,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -7917,7 +7917,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -8213,7 +8213,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -8507,7 +8507,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -8802,7 +8802,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -9097,7 +9097,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -9393,7 +9393,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -9688,7 +9688,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -9983,7 +9983,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -10278,7 +10278,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -10574,7 +10574,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -10869,7 +10869,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -11164,7 +11164,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -11460,7 +11460,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -11756,7 +11756,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -12050,7 +12050,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -12345,7 +12345,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -12640,7 +12640,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -12935,7 +12935,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -13230,7 +13230,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -13527,7 +13527,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -13821,7 +13821,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -14116,7 +14116,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -14410,7 +14410,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -14705,7 +14705,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -14985,7 +14985,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -15279,7 +15279,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -15575,7 +15575,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -15870,7 +15870,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -16164,7 +16164,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -16458,7 +16458,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -16752,7 +16752,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -17046,7 +17046,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -17340,7 +17340,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -17634,7 +17634,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -17928,7 +17928,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -18221,7 +18221,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -18501,7 +18501,7 @@
     {
      "name": "trigger1",
      "type": "emote icon or voice id",
-     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap",
+     "values": "0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -35186,7 +35186,14 @@
      "values": "frames = value / 100 (6000 = 60 frames = 1 s)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "FadeScreen(-16, 0) + WaitForFade, Wait 1 s, FadeScreenToClear(24000) + WaitForFade; screen brightness sampled",
+       "observed": "black, then an even rise to clear over ~4 s (24000 = 240 frames); the next box came when the fade had finished"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35195,7 +35202,7 @@
    "description": "Fade the screen back in (to fully clear) over the given time, keeping the current fade colour. The reveal counterpart of FadeScreen (op 334); follow with WaitForFade to block.",
    "details": "Re-launches the fade task on both channels: FadeTask_Init(0.0, arg/100, 1) and (…, 2) (+0x241490), restoring each channel's current colour/level into the new task and clearing the state bits 0-1 (running).",
    "side_effects": "fade task",
-   "evidence": "RF4S.exe+0x20A830; corpus: 843 uses, 6000 (403x) / 12000 / 3000 / 18000.",
+   "evidence": "RF4S.exe+0x20A830; corpus: 843 uses, 6000 (403x) / 12000 / 3000 / 18000. In-game test 2026-10-02 (user): FadeScreen(-16, 0) + WaitForFade, Wait 1 s, FadeScreenToClear(24000) + WaitForFade; screen brightness sampled -> black, then an even rise to clear over ~4 s (24000 = 240 frames); the next box came when the fade had finished.",
    "alias_of": null,
    "handler": "Script_VMOp_FadeScreenToClearOverDuration",
    "handler_rva": "0x20A830",
@@ -35212,7 +35219,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 183,
     "pc": "0x027E",
@@ -36019,7 +36026,7 @@
     "lines": [
      "L_0128:",
      "    GetVar0(0)",
-     "    GetMonsterHomeMap(reg0)",
+     "    GetNpcMapID(reg0)",
      "    SetVar2_348(0, reg0)    ; <--",
      "    CALL L_014c",
      "    DIALOG #62594    ; \"Request: Go to [＠マップ０＠] / and get rid of [＠０＠] ＠キャラ０＠. / Reward: ＠アイテム…\"",
@@ -37753,7 +37760,14 @@
      "values": "sound id (0x1000000+); -1 = return to the map's normal music",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "PlayMusic(0x1000068), then PlayMusic(-1), in the Dragon Room",
+       "observed": "the music switched to the other track, then went back to the room's own music (user)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37762,7 +37776,7 @@
    "description": "Switch the background music (crossfade) to a track, or with -1 go back to the area's normal music. When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot).",
    "details": "-1: Scene_ApplyContextualBGM (+0x19AFB0) with the capture flag temporarily cleared, Sfx_GetVoiceSlotByChannel(-1), host+116 &= ~0x10000000. Else: GameFlags_WritePacked_OrAchievement(1072, 1), BGM_SwitchWithCrossfade(id, 0) (+0x19AA00; resumes the per-class playback position), id 0x100007C additionally gets Sfx_ApplyVoiceVolume_WithCategoryBias(.., 45), host+116 |= 0x10000000: at the scene end NpcAi_FinalizeEventAndPostTick (+0x1F61F0) restores the area music unless FLG_BGM_NOT_RETURN is 1 (one-shot, cleared there).",
    "side_effects": "BGM; game flag 1072; host+116 bit 28",
-   "evidence": "RF4S.exe+0x21A2D0; corpus: 690 uses, -1 (81x) and ids 16777313-16777332.",
+   "evidence": "RF4S.exe+0x21A2D0; corpus: 690 uses, -1 (81x) and ids 16777313-16777332. In-game test 2026-10-02 (user): PlayMusic(0x1000068), then PlayMusic(-1), in the Dragon Room -> the music switched to the other track, then went back to the room's own music (user).",
    "alias_of": null,
    "handler": "Script_VMOp_PlayBGMOrRestore",
    "handler_rva": "0x21A2D0",
@@ -37779,7 +37793,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 506,
     "pc": "0x02E6",
@@ -38194,16 +38208,23 @@
      "values": "0x1000000 + n; mostly voice lines 16777394-16785998; 0 stops menu audio",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "PlaySfxWithNpcRemap(0x10001C0) and (0x10007B6); IDA debug output; player = Lest (both runs)",
+       "observed": "played V_PLAM_SURPRISE_ARE and V_COL_CALL_PAPA"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Plays a sound effect or voice line by id, with the per-character remap the engine applies to shared ids (the variant of the current character's voice). Most uses are voice clips placed before DIALOG lines.",
+   "description": "Plays a sound effect or voice line by id, with the per-character remap the engine applies to shared ids (the variant of the current character's voice). Most uses are voice clips placed before DIALOG lines. Tested with Lest only (0x10001C0 played V_PLAM); whether it switches player clips to the female set for Frey, as SetSpeaker's voice trigger does (V_PLAW), is untested.",
    "details": "Sfx_PlayByIdWithNpcVariantRemap(arg0) (RF4S.exe+0x1FEDD0): remaps ids in the per-character variant windows (+5 per variant, +181 for the child voice), id 0 stops menu audio, then routes by id range to Sfx_PlayById or Player_PlayVoiceLine_VariantRemapped. Never blocks.",
    "side_effects": "plays audio",
-   "evidence": "RF4S.exe+0x21A680: `Sfx_PlayByIdWithNpcVariantRemap(arg0)`; corpus: 2575 uses, ids 16777394-16785998 next to DIALOG lines.",
+   "evidence": "RF4S.exe+0x21A680: `Sfx_PlayByIdWithNpcVariantRemap(arg0)`; corpus: 2575 uses, ids 16777394-16785998 next to DIALOG lines. In-game test 2026-10-02 (user): PlaySfxWithNpcRemap(0x10001C0) and (0x10007B6); IDA debug output; with Frey and with Lest -> played V_PLAM_SURPRISE_ARE (for Frey too: no switch to the female player voice) and V_COL_CALL_PAPA.",
    "alias_of": null,
    "handler": "Script_VMOp_PlayVoiceOrSfxWithNpcVariantRemap",
    "handler_rva": "0x21A680",
@@ -38220,7 +38241,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 149,
     "pc": "0x0212",
@@ -40227,7 +40248,14 @@
      "values": "",
      "required_kind": "item",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
+       "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      }
+     ]
     },
     {
      "name": "count",
@@ -40235,7 +40263,19 @@
      "values": "stack size (5 bits)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
+       "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
+       "observed": "5 Cabbages arrived (0 -> 5)"
+      }
+     ]
     },
     {
      "name": "quality",
@@ -40243,7 +40283,14 @@
      "values": "stored as quality-1 in each quality byte",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
+       "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -40252,7 +40299,7 @@
    "description": "Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.",
    "details": "Record = id & 0x7FF | count << 11, quality-1 memset into 9 bytes (stackables) or 1 byte; if the pending record staged by op 421 has id 1 its attribute fields are merged and it is cleared. Inventory_AddItemToPage(backpack) (+0x46640), then (rune_ability); both full: status 0x4000 or a held item -> ItemDrop_SpawnInWorld at the player + sfx 0x100226D + Action 0x13; else Item_SpawnVisualTask + Player_AttachHeldItem.",
    "side_effects": "player inventory / dropped item / held item; clears the op-421 staging record",
-   "evidence": "RF4S.exe+0x20F890; corpus 2248 uses (count 1 x2147, 9 x95; quality 1 x2201, 10 x34).",
+   "evidence": "RF4S.exe+0x20F890; corpus 2248 uses (count 1 x2147, 9 x95; quality 1 x2201, 10 x34). In-game test 2026-10-02 (user): GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5) -> reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4. In-game test 2026-10-02 (user): empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6 -> 5 Cabbages arrived (0 -> 5).",
    "alias_of": null,
    "handler": "Script_VMOp_GivePlayerItemWithStackAndQuality",
    "handler_rva": "0x20F890",
@@ -40271,7 +40318,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 409,
     "pc": "0x05A8",
@@ -40300,7 +40347,14 @@
      "values": "",
      "required_kind": "item",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
+       "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      }
+     ]
     },
     {
      "name": "count",
@@ -40308,7 +40362,19 @@
      "values": "stack size (5 bits)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
+       "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
+       "observed": "5 Cabbages arrived (0 -> 5)"
+      }
+     ]
     },
     {
      "name": "quality",
@@ -40316,7 +40382,14 @@
      "values": "stored as quality-1 in each quality byte",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 3, 4), then HasItem(1, 3, 4) / HasItem(1, 3, 5)",
+       "observed": "reg0 = 1 (went into the bag); three Cabbages at level 4 were there (and not at level 5): quality 4 = item level 4"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -40579,7 +40652,19 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "TakeItemFromBackpack(1 Cabbage, 3, -1) with 3 level-4 Cabbages in the bag",
+       "observed": "HasItem(1, 1, -1) went from 1 to 0: all three taken"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
+       "observed": "0 -> 5 -> 3 -> 0: the given count arrives, a partial take shrinks the stack, a full take empties it"
+      }
+     ]
     },
     {
      "name": "count",
@@ -40587,24 +40672,58 @@
      "values": "count & 31",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "TakeItemFromBackpack(1 Cabbage, 3, -1) with 3 level-4 Cabbages in the bag",
+       "observed": "HasItem(1, 1, -1) went from 1 to 0: all three taken"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
+       "observed": "0 -> 5 -> 3 -> 0: the given count arrives, a partial take shrinks the stack, a full take empties it"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "slots of 9 and 3 level-1 Cabbages: TakeItemFromBackpack(1, 10, -1); 2 level-5: (1, 1, 5); earlier: [5,5,4,4] take 3 left a level-5 one; [5,4,1,1] take (1, 1, 0) took none",
+       "observed": "all 12 gone (over-removal confirmed); filter 5 took nothing from a level-5 stack, filter 0 none from a stack topped by level 5: any filter >= 0 only matches all-level-1 stacks; partial takes remove the lowest levels"
+      }
+     ]
     },
     {
      "name": "level filter",
      "type": "int",
-     "values": "-1 = any copy; >= 0 = only copies whose level byte is 0",
+     "values": "-1 = any stack; >= 0 (any value) = only stacks whose highest level byte is 0, i.e. every copy is level 1",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "TakeItemFromBackpack(1 Cabbage, 3, -1) with 3 level-4 Cabbages in the bag",
+       "observed": "HasItem(1, 1, -1) went from 1 to 0: all three taken"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
+       "observed": "0 -> 5 -> 3 -> 0: the given count arrives, a partial take shrinks the stack, a full take empties it"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "slots of 9 and 3 level-1 Cabbages: TakeItemFromBackpack(1, 10, -1); 2 level-5: (1, 1, 5); earlier: [5,5,4,4] take 3 left a level-5 one; [5,4,1,1] take (1, 1, 0) took none",
+       "observed": "all 12 gone (over-removal confirmed); filter 5 took nothing from a level-5 stack, filter 0 none from a stack topped by level 5: any filter >= 0 only matches all-level-1 stacks; partial takes remove the lowest levels"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Remove a number of an item from the backpack (first 60 slots), then from the carried item. Writes no result.",
+   "description": "Remove a number of an item from the backpack (first 60 slots), then from the carried item; a partial take drops the lowest-level copies of the stack. Over-removes when the demand spans slots. Writes no result.",
    "details": "Demand = count. For each matching backpack slot: stack > demand -> shrink and stop; stack == demand -> clear and stop; stack < demand -> clear and continue with the FULL demand (over-removal). After the 60 slots: if the carried item matches, Player_DecrementItemStackAfterUse up to count times; then Player_ClearCarriedRecordsMatching. The early stop skips the carried-item step.",
    "side_effects": "backpack / carried item",
-   "evidence": "RF4S.exe+0x210B10; corpus: 4 uses, all count 1 / filter -1 (e.g. 669, 670, 1024 in bank 510).",
+   "evidence": "RF4S.exe+0x210B10; corpus: 4 uses, all count 1 / filter -1 (e.g. 669, 670, 1024 in bank 510). In-game test 2026-10-02 (user): TakeItemFromBackpack(1 Cabbage, 3, -1) with 3 level-4 Cabbages in the bag -> HasItem(1, 1, -1) went from 1 to 0: all three taken. In-game test 2026-10-02 (user): empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6 -> 0 -> 5 -> 3 -> 0: the given count arrives, a partial take shrinks the stack, a full take empties it. In-game test 2026-10-02 (user): slots of 9 and 3 level-1 Cabbages: TakeItemFromBackpack(1, 10, -1); 2 level-5: (1, 1, 5); earlier: [5,5,4,4] take 3 left a level-5 one; [5,4,1,1] take (1, 1, 0) took none -> all 12 gone (over-removal confirmed); filter 5 took nothing from a level-5 stack, filter 0 none from a stack topped by level 5: any filter >= 0 only matches all-level-1 stacks; partial takes remove the lowest levels.",
    "alias_of": null,
    "handler": "Script_VMOp_TakeItemFromBackpackOrEquipExtras",
    "handler_rva": "0x210B10",
@@ -40621,7 +40740,7 @@
    "confidence": "high",
    "notes": "The BR_Z reg0 after it in bank 20 tests the HasItem result from before, not this op.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 510,
     "pc": "0x01FA",
@@ -40705,32 +40824,68 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HasItem(1, 3, 4) / (1, 3, 5) / (1, 1, -1) around giving and taking 3 level-4 Cabbages",
+       "observed": "1 / 0 / 1 with them in the bag, 0 after TakeItemFromBackpack: min count and min level both count"
+      }
+     ]
     },
     {
      "name": "min_count",
      "type": "count",
-     "values": "",
+     "values": "count in ONE slot; a split stack is not added up",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HasItem(1, 3, 4) / (1, 3, 5) / (1, 1, -1) around giving and taking 3 level-4 Cabbages",
+       "observed": "1 / 0 / 1 with them in the bag, 0 after TakeItemFromBackpack: min count and min level both count"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6",
+       "observed": "read the counts 0 / 5 / 3 / 0 exactly (the first n it fails at)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 9, 1) + (1, 3, 1) into two slots; HasItem(1, n, -1) for n = 1..12. Earlier run: 2 level-4 + 2 level-5 merged, HasItem(1, 4, 5) = 1",
+       "observed": "first fail at n = 10 (9 in one slot, not 12): the count is per slot. The level test passes on a mixed [5,5,4,4] stack: it reads the stack's highest level only (exe: levels sorted highest first)"
+      }
+     ]
     },
     {
      "name": "min_level",
      "type": "item level",
-     "values": "level byte + 1 >= this; 0 or -1 = any level",
+     "values": "the stack's highest level >= this (a stack keeps up to 9 per-item levels sorted highest first; only the first is read); 0 or -1 = any level",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HasItem(1, 3, 4) / (1, 3, 5) / (1, 1, -1) around giving and taking 3 level-4 Cabbages",
+       "observed": "1 / 0 / 1 with them in the bag, 0 after TakeItemFromBackpack: min count and min level both count"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GivePlayerItem(1 Cabbage, 9, 1) + (1, 3, 1) into two slots; HasItem(1, n, -1) for n = 1..12. Earlier run: 2 level-4 + 2 level-5 merged, HasItem(1, 4, 5) = 1",
+       "observed": "first fail at n = 10 (9 in one slot, not 12): the count is per slot. The level test passes on a mixed [5,5,4,4] stack: it reads the stack's highest level only (exe: levels sorted highest first)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": "reg0 = 1 if found else 0; reg2 = matched slot flags bit 0",
    "blocking": "no",
-   "description": "Sets reg0 = 1 if the player's backpack (or the held/equipped extra slots) has the item with at least the given count and level, else 0. reg2 = a flag bit of the matching stack.",
+   "description": "Sets reg0 = 1 if one backpack slot (or the held/equipped extra slots) has the item with at least the given count, and that stack's highest level is at least min_level, else 0. reg2 = a flag bit of the matching stack.",
    "details": "Scans the 60 backpack slots, then item-database extra record 0 (ptr_00+24) and record 1 (ptr_00+72): match = id == item, count (>> 11) >= min_count, level byte + 1 >= min_level. reg0 = found; reg2 (vm+72, not reg1) = the matched slot's flags byte (+2) bit 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x211000: backpack loop `(slots & 0x7FF) == v7 && slots >> 11 >= v10 && BYTE4(slots) + 1 >= v13`, then ptr_00+24 / +72; `*(a2+72) = v2; *(a2+64) = v19`; corpus: 4 uses, e.g. HasItem(676, 1, -1) before the marriage line.",
+   "evidence": "RF4S.exe+0x211000: backpack loop `(slots & 0x7FF) == v7 && slots >> 11 >= v10 && BYTE4(slots) + 1 >= v13`, then ptr_00+24 / +72; `*(a2+72) = v2; *(a2+64) = v19`; corpus: 4 uses, e.g. HasItem(676, 1, -1) before the marriage line. In-game test 2026-10-02 (user): HasItem(1, 3, 4) / (1, 3, 5) / (1, 1, -1) around giving and taking 3 level-4 Cabbages -> 1 / 0 / 1 with them in the bag, 0 after TakeItemFromBackpack: min count and min level both count. In-game test 2026-10-02 (user): empty bag: GivePlayerItem(1 Cabbage, 5, 4); TakeItemFromBackpack(1, 2, -1); TakeItemFromBackpack(1, 3, -1); the count read after each step with HasItem(1, n, -1) for n = 1..6 -> read the counts 0 / 5 / 3 / 0 exactly (the first n it fails at). In-game test 2026-10-02 (user): GivePlayerItem(1 Cabbage, 9, 1) + (1, 3, 1) into two slots; HasItem(1, n, -1) for n = 1..12. Earlier run: 2 level-4 + 2 level-5 merged, HasItem(1, 4, 5) = 1 -> first fail at n = 10 (9 in one slot, not 12): the count is per slot. The level test passes on a mixed [5,5,4,4] stack: it reads the stack's highest level only (exe: levels sorted highest first).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryItemAvailableInBackpackOrEquipExtras",
    "handler_rva": "0x211000",
@@ -40747,7 +40902,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 210,
     "pc": "0x5CEE",
@@ -41218,10 +41373,10 @@
   "440": {
    "op": 440,
    "op_hex": "0x1B8",
-   "mnemonic": "GetMonsterHomeMap",
+   "mnemonic": "GetNpcMapID",
    "previous_mnemonic": "GetNpcParamField292",
    "category": "query",
-   "prototype": "GetMonsterHomeMap(char)",
+   "prototype": "GetNpcMapID(char)",
    "args": [
     {
      "name": "char",
@@ -41229,7 +41384,14 @@
      "values": "no bounds check",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcMapID(48 Orc / 111 Wooly / 5 Kiel) + SetVar2(0, reg0) + DIALOG #6145",
+       "observed": "Orc -> 271 'Yokmir Forest', Wooly -> 161 'Selphia Plain', Kiel -> 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -41238,9 +41400,9 @@
    "description": "Get a monster's home map from its rf3NpcParam record (offset 292) into reg0: the map hunting requests send the player to ('Go to ＠マップ０＠ and get rid of ...', via SetVar2). 0 for villagers.",
    "details": "reg0 = *(s16*)(nsFileArchive_GetData(14812) + 28 + 308*char + 292). Shipped values: villagers 0; e.g. Orc 271, High Orc 454, Orc Archer 271, Goblin 284, Hobgoblin 541.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x212C20: `*(a2+64) = *(s16*)(308LL * v6 + v7 + 292)` with v7 = nsFileArchive_GetData(14812) + 28; rf3NpcParam.bin record 48 (Orc) = 271, 49 (High Orc) = 454; corpus: 22 uses, GetVar0(0) -> this -> SetVar2(0, reg0) before the 'get rid of ...' request line.",
+   "evidence": "RF4S.exe+0x212C20: `*(a2+64) = *(s16*)(308LL * v6 + v7 + 292)` with v7 = nsFileArchive_GetData(14812) + 28; rf3NpcParam.bin record 48 (Orc) = 271, 49 (High Orc) = 454; corpus: 22 uses, GetVar0(0) -> this -> SetVar2(0, reg0) before the 'get rid of ...' request line. In-game test 2026-10-02 (user): GetNpcMapID(48 Orc / 111 Wooly / 5 Kiel) + SetVar2(0, reg0) + DIALOG #6145 -> Orc -> 271 'Yokmir Forest', Wooly -> 161 'Selphia Plain', Kiel -> 0.",
    "alias_of": null,
-   "handler": "Script_VMOp_GetMonsterHomeMap",
+   "handler": "Script_VMOp_GetNpcMapID",
    "handler_rva": "0x212C20",
    "shares_handler_with": [],
    "size": [
@@ -41255,14 +41417,14 @@
    "confidence": "low",
    "notes": "home map confirmed from the data: Orc -> Yokmir Forest, Wooly -> Selphia Plain, Raccoon -> Rune Prana, Magnuto -> Demon's Den, Ambrosia -> Yokmir Forest (2026-10-02); not yet tested in game",
    "change_reason": "Nothing shows the field is a species (values are not name ids and repeat across unrelated monsters), so the name states what is read.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 166,
     "pc": "0x012E",
     "lines": [
      "L_0128:",
      "    GetVar0(0)",
-     "    GetMonsterHomeMap(reg0)    ; <--",
+     "    GetNpcMapID(reg0)    ; <--",
      "    SetVar2_348(0, reg0)",
      "    CALL L_014c",
      "    DIALOG #62594    ; \"Request: Go to [＠マップ０＠] / and get rid of [＠０＠] ＠キャラ０＠. / Reward: ＠アイテム…\""
@@ -55755,10 +55917,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Take a number of an item from the player's backpack (e.g. a quest item handed over). Best used for one stack: a request spanning several stacks can remove more than asked.",
+   "description": "Take a number of an item from the player's backpack -- but only stacks whose flag bit 0 is set (plain items are left alone, seen in game); for ordinary items use TakeItemFromBackpack or TakeItem. A request spanning several stacks can over-remove (see details).",
    "details": "RF4S.exe+0x210D10: scans 60 backpack slots (g_itemDatabase->backpack + 1, stride 2). Match: id == item, slot flag BYTE2 bit 0 set, and (level_filter < 0 or level byte +4 == 0). stack > count -> stack -= count, done. stack <= count -> slot emptied (Item_PackSlotFields 0) and done only if stack == count; otherwise the scan continues with the FULL count again (never reduced). If not finished and the held item (ptr_00 +24/+26 bit 0) matches: Player_DecrementItemStackAfterUse up to count times (+0x16D1D0), then Player_ClearCarriedRecordsMatching (+0x168060).",
    "side_effects": "backpack / held item",
-   "evidence": "RF4S.exe+0x210D10; corpus: 4 uses (284, 1, -1) after HasItemWithFlagBit0(284, 1, 1).",
+   "evidence": "RF4S.exe+0x210D10; corpus: 4 uses (284, 1, -1) after HasItemWithFlagBit0(284, 1, 1). In-game test 2026-10-02 (user): RemoveItemFromBackpack(1 Cabbage, 3, -1) with 3 plain level-4 Cabbages in the bag -> nothing was removed (the user still had all three): it only takes stacks whose flag bit 0 is set, as the handler says.",
    "alias_of": null,
    "handler": "Script_VMOp_RemoveItemFromBackpackByIdAndCount",
    "handler_rva": "0x210D10",

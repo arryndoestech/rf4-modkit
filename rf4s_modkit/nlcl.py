@@ -265,7 +265,7 @@ FIELD_SCHEMAS = {
             # HP, AI_mb40_1.bin). Informational: editing it changes nothing in game.
             ("transform_into", 276, "u16"),
             # +292: the monster's home map (Orc -> Yokmir Forest, Wooly -> Selphia Plain);
-            # op 440 GetMonsterHomeMap reads it for hunting requests ("Go to <map> and get
+            # op 440 GetNpcMapID reads it for hunting requests ("Go to <map> and get
             # rid of N <monster>"). 0 for villagers.
             ("home_map", 292, "u16"),
         ],

@@ -90,7 +90,7 @@ Args:
      - `1` = female
      - `2` = monster
      - `3` = dragon
-     - `4` = player
+     - `4` = player_blip
 
 ### `op 11` — SetSpeakerNameVisible(visible)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
@@ -260,7 +260,7 @@ Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, por
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -293,7 +293,7 @@ Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, por
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -326,7 +326,7 @@ Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the le
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -359,7 +359,7 @@ Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the ri
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -392,7 +392,7 @@ Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the le
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -425,7 +425,7 @@ Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the ri
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -458,7 +458,7 @@ Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the l
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -491,7 +491,7 @@ Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the r
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -524,7 +524,7 @@ Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -557,7 +557,7 @@ Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -590,7 +590,7 @@ Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -623,7 +623,7 @@ Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -656,7 +656,7 @@ Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -689,7 +689,7 @@ Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -722,7 +722,7 @@ Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the l
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -755,7 +755,7 @@ Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the r
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -788,7 +788,7 @@ Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -821,7 +821,7 @@ Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -854,7 +854,7 @@ Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the lef
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -887,7 +887,7 @@ Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the rig
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -920,7 +920,7 @@ Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -953,7 +953,7 @@ Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -986,7 +986,7 @@ Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the le
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1019,7 +1019,7 @@ Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the ri
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1052,7 +1052,7 @@ Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1085,7 +1085,7 @@ Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1118,7 +1118,7 @@ Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1151,7 +1151,7 @@ Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1184,7 +1184,7 @@ Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1217,7 +1217,7 @@ Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1250,7 +1250,7 @@ Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1283,7 +1283,7 @@ Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1316,7 +1316,7 @@ Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the le
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1349,7 +1349,7 @@ Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the ri
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1382,7 +1382,7 @@ Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1415,7 +1415,7 @@ Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1448,7 +1448,7 @@ Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1481,7 +1481,7 @@ Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1514,7 +1514,7 @@ Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1547,7 +1547,7 @@ Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1580,7 +1580,7 @@ Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1613,7 +1613,7 @@ Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1646,7 +1646,7 @@ Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1679,7 +1679,7 @@ Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1712,7 +1712,7 @@ Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left s
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1745,7 +1745,7 @@ Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1778,7 +1778,7 @@ Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the l
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1811,7 +1811,7 @@ Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the r
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1844,7 +1844,7 @@ Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1877,7 +1877,7 @@ Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1910,7 +1910,7 @@ Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the le
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1943,7 +1943,7 @@ Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the ri
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -1976,7 +1976,7 @@ Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2009,7 +2009,7 @@ Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the 
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2042,7 +2042,7 @@ Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the le
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2075,7 +2075,7 @@ Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the ri
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2108,7 +2108,7 @@ Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2141,7 +2141,7 @@ Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the righ
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2174,7 +2174,7 @@ Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the l
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -2207,7 +2207,7 @@ Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the r
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
-  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap) — verified in game
+  1. trigger1 (0 = none; 186-192 = emote icon over the portrait; >= 0x1F0 (in practice 0x1000000+n) = voice/sfx played via Sfx_PlayByIdWithNpcVariantRemap; a player voice clip plays the player's own set (0x10001C0 = V_PLAW for Frey, V_PLAM for Lest; seen in game)) — verified in game
      - `186` = blush
      - `187` = teary
      - `188` = sweat
@@ -3071,7 +3071,7 @@ Args:
 Fade the screen back in (to fully clear) over the given time, keeping the current fade colour. The reveal counterpart of FadeScreen (op 334); follow with WaitForFade to block.
 
 Args:
-  0. duration (frames = value / 100 (6000 = 60 frames = 1 s))
+  0. duration (frames = value / 100 (6000 = 60 frames = 1 s)) — verified in game
 
 ### `op 336` — SetFadeColor(red, green, blue, frames)
 *handler:* `Script_VMOp_SetFadeColorRGBOverDuration`
@@ -8455,7 +8455,7 @@ Sets bit 5 of the system save-config flags (shared by all save slots). The only 
 Switch the background music (crossfade) to a track, or with -1 go back to the area's normal music. When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot).
 
 Args:
-  0. bgm (sound id (0x1000000+); -1 = return to the map's normal music)
+  0. bgm (sound id (0x1000000+); -1 = return to the map's normal music) — verified in game
 
 ### `op 380` — StopMusic(fade)
 *handler:* `Script_VMOp_StopBGMWithCrossfade`
@@ -8504,10 +8504,10 @@ Stops every voice line that is currently playing. Unused by the shipped scripts.
 ### `op 387` — PlaySfxWithNpcRemap(sound)
 *handler:* `Script_VMOp_PlayVoiceOrSfxWithNpcVariantRemap`
 
-Plays a sound effect or voice line by id, with the per-character remap the engine applies to shared ids (the variant of the current character's voice). Most uses are voice clips placed before DIALOG lines.
+Plays a sound effect or voice line by id, with the per-character remap the engine applies to shared ids (the variant of the current character's voice). Most uses are voice clips placed before DIALOG lines. Tested with Lest only (0x10001C0 played V_PLAM); whether it switches player clips to the female set for Frey, as SetSpeaker's voice trigger does (V_PLAW), is untested.
 
 Args:
-  0. sound (0x1000000 + n; mostly voice lines 16777394-16785998; 0 stops menu audio)
+  0. sound (0x1000000 + n; mostly voice lines 16777394-16785998; 0 stops menu audio) — verified in game
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 389` — SetPooledVoiceVolume(volume)
@@ -8818,10 +8818,10 @@ Args:
 Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.
 
 Args:
-  0. item
+  0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. count (stack size (5 bits))
-  2. quality (stored as quality-1 in each quality byte)
+  1. count (stack size (5 bits)) — verified in game
+  2. quality (stored as quality-1 in each quality byte) — verified in game
 
 ### `op 424` — GivePlayerItem(item, count, quality)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
@@ -8829,10 +8829,10 @@ Args:
 Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.
 
 Args:
-  0. item
+  0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. count (stack size (5 bits))
-  2. quality (stored as quality-1 in each quality byte)
+  1. count (stack size (5 bits)) — verified in game
+  2. quality (stored as quality-1 in each quality byte) — verified in game
 
 ### `op 425` — ForcePlayerHoldItem(item, count, quality)
 *handler:* `Script_VMOp_ForcePlayerHoldItemOrConsume`
@@ -8859,13 +8859,13 @@ Args:
 ### `op 429` — TakeItemFromBackpack(item, count, level filter)
 *handler:* `Script_VMOp_TakeItemFromBackpackOrEquipExtras`
 
-Remove a number of an item from the backpack (first 60 slots), then from the carried item. Writes no result.
+Remove a number of an item from the backpack (first 60 slots), then from the carried item; a partial take drops the lowest-level copies of the stack. Over-removes when the demand spans slots. Writes no result.
 
 Args:
-  0. item
+  0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. count (count & 31)
-  2. level filter (-1 = any copy; >= 0 = only copies whose level byte is 0)
+  1. count (count & 31) — verified in game
+  2. level filter (-1 = any stack; >= 0 (any value) = only stacks whose highest level byte is 0, i.e. every copy is level 1) — verified in game
 
 ### `op 430` — ConsumeHeldItem(count)
 *handler:* `Script_VMOp_ConsumeFromHeldItemNTimes`
@@ -9154,7 +9154,7 @@ Args:
 ### `op 696` — RemoveItemFromBackpack(item, count, level_filter)
 *handler:* `Script_VMOp_RemoveItemFromBackpackByIdAndCount`
 
-Take a number of an item from the player's backpack (e.g. a quest item handed over). Best used for one stack: a request spanning several stacks can remove more than asked.
+Take a number of an item from the player's backpack -- but only stacks whose flag bit 0 is set (plain items are left alone, seen in game); for ordinary items use TakeItemFromBackpack or TakeItem. A request spanning several stacks can over-remove (see details).
 
 Args:
   0. item (0-2047 (low 11 bits))
@@ -11573,13 +11573,13 @@ reg0 = 1 if the player is carrying an item in their hands (over the head), else 
 ### `op 431` — HasItem(item, min_count, min_level)
 *handler:* `Script_VMOp_QueryItemAvailableInBackpackOrEquipExtras`
 
-Sets reg0 = 1 if the player's backpack (or the held/equipped extra slots) has the item with at least the given count and level, else 0. reg2 = a flag bit of the matching stack.
+Sets reg0 = 1 if one backpack slot (or the held/equipped extra slots) has the item with at least the given count, and that stack's highest level is at least min_level, else 0. reg2 = a flag bit of the matching stack.
 
 Args:
-  0. item
+  0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. min_count
-  2. min_level (level byte + 1 >= this; 0 or -1 = any level)
+  1. min_count (count in ONE slot; a split stack is not added up) — verified in game
+  2. min_level (the stack's highest level >= this (a stack keeps up to 9 per-item levels sorted highest first; only the first is read); 0 or -1 = any level) — verified in game
 
 ### `op 432` — GetSeedCropInfo(seed_item)
 *handler:* `Script_VMOp_QueryCropPlantableAndTileInfo`
@@ -11643,13 +11643,13 @@ reg0 = 1 if the player has any item of the given category in the backpack (first
 Args:
   0. category (item-metadata byte +4 (corpus 32))
 
-### `op 440` — GetMonsterHomeMap(char)
-*handler:* `Script_VMOp_GetMonsterHomeMap`
+### `op 440` — GetNpcMapID(char)
+*handler:* `Script_VMOp_GetNpcMapID`
 
 Get a monster's home map from its rf3NpcParam record (offset 292) into reg0: the map hunting requests send the player to ('Go to ＠マップ０＠ and get rid of ...', via SetVar2). 0 for villagers.
 
 Args:
-  0. char (no bounds check)
+  0. char (no bounds check) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -12610,7 +12610,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 430 | `ConsumeHeldItem` | 431 | `HasItem` | 432 | `GetSeedCropInfo` |
 | 433 | `GetFishSizeRecords` | 434 | `GetItemSellPrice` | 435 | `GetItemBuyPrice` |
 | 436 | `IsItemStackable` | 437 | `IsItemInCategoryList` | 438 | `HasItemOfCategory` |
-| 439 | `ReleaseFarmMonster` | 440 | `GetMonsterHomeMap` | 441 | `IsConfirmButtonDown` |
+| 439 | `ReleaseFarmMonster` | 440 | `GetNpcMapID` | 441 | `IsConfirmButtonDown` |
 | 442 | `IsStickInputActive` | 443 | `SetFlagBit` | 444 | `SetFlagBitIfCond` |
 | 445 | `GetFlagBit` | 446 | `SetWeather` | 447 | `GetWeather` |
 | 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` | 450 | `GetWeatherStreak` |

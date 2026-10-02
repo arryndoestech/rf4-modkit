@@ -439,7 +439,7 @@
  "437": "Script_VMOp_QueryItemInNpcOfferListArchive14850",
  "438": "Script_VMOp_QueryBackpackOrEquipHasItemOfCategory",
  "439": "Script_VMOp_ReleaseFarmMonsterFromInteraction",
- "440": "Script_VMOp_GetMonsterHomeMap",
+ "440": "Script_VMOp_GetNpcMapID",
  "441": "Script_VMOp_QueryConfirmButtonBit41",
  "442": "Script_VMOp_QueryStickByte5Pressed",
  "443": "Script_VMOp_SetGameFlagBitDirect",
