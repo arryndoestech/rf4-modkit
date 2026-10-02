@@ -6288,7 +6288,7 @@ Args:
 ### `op 275` — SetNpcPresenceState(npc, mode)
 *handler:* `ScriptVMOp275_SetNpcPresenceStateAndFlag768`
 
-Start (mode 1) or end (-1) dating a villager: sets / clears record +52 bit 22, the flag IsNpcPresent (op 274) and em.bin's PARTNER_<name> queries read. Each marriage candidate's successful confession scene ends with it.
+Start (mode 1) or end (-1) dating a villager: sets / clears record +52 bit 22, the flag IsDatingNpc (op 274) and em.bin's PARTNER_<name> queries read. Each marriage candidate's successful confession scene ends with it.
 
 Args:
   0. npc
@@ -8472,8 +8472,8 @@ Get the whole current date and time at once: reg0 = year, reg1 = season, reg2 = 
 Looks up the date of a festival: reg0 = season (0-3), reg1 = day, and script-variable bank 9 [slot] = season*100 + day for text substitution.
 
 Args:
-  0. slot (receives season*100 + day; >= 16 not written)
-  1. festival (1-25 (0 would match the first birthday record))
+  0. slot (receives season*100 + day; >= 16 not written) — verified in game
+  1. festival (1-25 (0 would match the first birthday record)) — verified in game
 
 ### `op 449` — GetWeatherTransition()
 *handler:* `Script_Query_WeatherTransitionFlag`
@@ -9975,7 +9975,7 @@ Args:
 Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing)
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -10010,7 +10010,7 @@ Args:
 Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing)
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -10063,7 +10063,7 @@ Stores the player's tile position in reg0 (x) and reg1 (y), and 1 in reg2.
 Check whether the player has met a villager (the flag SetNpcStoryFlag sets; it is what keeps the first-meeting introduction from replaying). For child slots 24-47 it checks the child record instead.
 
 Args:
-  0. character (1-23 villagers (0 = player also maps to bit 981); 24-47 = child slots)
+  0. character (1-23 villagers (0 = player also maps to bit 981); 24-47 = child slots) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -10316,7 +10316,7 @@ Args:
 Check whether an NPC has been hidden with HideNpc (op 233).
 
 Args:
-  0. npc (0-47 (hidden bits exist for 0-23))
+  0. npc (0-47 (hidden bits exist for 0-23)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -10746,13 +10746,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 273` — IsNpcPresent(npc)
-*handler:* `Script_VMOp_QueryNpcPresentFlag`
+### `op 273` — IsDatingNpc(npc)
+*handler:* `Script_VMOp_IsDatingNpc`
 
 Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
 
 Args:
-  0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0)
+  0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0) — verified in game
      - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
@@ -10780,13 +10780,13 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 274` — IsNpcPresent(npc)
-*handler:* `Script_VMOp_QueryNpcPresentFlag`
+### `op 274` — IsDatingNpc(npc)
+*handler:* `Script_VMOp_IsDatingNpc`
 
 Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
 
 Args:
-  0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0)
+  0. npc (1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0) — verified in game
      - `1` = Herbert
      - `2` = Clorica
      - `3` = Volkanon
@@ -10960,7 +10960,7 @@ Args:
 Read an NPC's date state into reg0: 0 none, 1 date promised for tomorrow, 2 date is today, 3 on the date, 4 the date went well, 5 declined today.
 
 Args:
-  0. npc (1-47 (REG_CHILD_ID also used))
+  0. npc (1-47 (REG_CHILD_ID also used)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -10995,7 +10995,7 @@ Args:
 Check whether an NPC's actor is loaded in the current map and not flagged away (actor+568 bit 0x20000000 clear). reg0 = 1/0.
 
 Args:
-  0. npc (1..47)
+  0. npc (1..47) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -11032,10 +11032,10 @@ Sets reg0 to the char id of the party companion who is on a date with the player
 ### `op 288` — GetNpcOutfit(npc)
 *handler:* `Script_VMOp_GetNpcOutfit`
 
-Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for).
+Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for). 1 = pajamas (Forte at night, in game 2026-10-02).
 
 Args:
-  0. npc (0 or >= 48 -> reg0 = 0)
+  0. npc (0 or >= 48 -> reg0 = 0) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -11080,7 +11080,7 @@ Check the player's current MODEL, not the gender: reg0 = 1 when the player actor
 Sets reg0 to the nickname id the NPC currently uses for the player (0 = the player's own name). Scripts branch on it to pick the matching voice clip.
 
 Args:
-  0. npc
+  0. npc — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -11158,7 +11158,7 @@ Args:
 reg0 = 1 if the NPC is on the same map as the player, else 0; reg1 = the NPC's current map id (season-adjusted for outdoor maps). Used to check who is around before a scene.
 
 Args:
-  0. npc (1-47; 0 = the spouse (GF_REG_WIFE_ID))
+  0. npc (1-47; 0 = the spouse (GF_REG_WIFE_ID)) — verified in game
 
 ### `op 339` — GetNpcCurrentMap(npc)
 *handler:* `Script_VMOp_GetNpcCurrentScheduleId`
@@ -11670,7 +11670,7 @@ Sets reg0 to the talking NPC's facing mode (0-2), as set by SetNpcFacingMode; 0 
 Read a party member's Y tile into reg0 (0 if the slot is empty).
 
 Args:
-  0. slot (0 = companion 1, 1 = companion 2, -1 = player)
+  0. slot (0 = companion 1, 1 = companion 2, -1 = player) — verified in game
 
 ### `op 534` — GetDailyVisitor(mode)
 *handler:* `Script_VMOp_QueryDailyVisitorByMode`
@@ -11806,7 +11806,7 @@ Sets reg0 to the difficulty: 0 = Easy, 1 = Normal, 2 = Hard (or Hell; the two ar
 reg0 = 1 if the given Sharance Maze stage has been cleared.
 
 Args:
-  0. stage (0 Garden of Light ... 5 Banquet of Nightmares)
+  0. stage (0 Garden of Light ... 5 Banquet of Nightmares) — verified in game
 
 ### `op 635` — GetActionTriggerByte(index)
 *handler:* `Script_VMOp_QueryActionTriggerByteByIdx`
@@ -12338,7 +12338,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 263 | `ResetNpcToIdle` | 264 | `ResetNpcToIdle` | 265 | `IsPlayerOrCompanionDowned` |
 | 266 | `SetOrClearNpcSchedule` | 267 | `SetOrClearNpcSchedule` | 268 | `IsNpcAtScheduledSpot` |
 | 269 | `IsNpcAtScheduledSpot` | 270 | `ReleaseNpcScriptedPlacement` | 271 | `ReleaseNpcScriptedPlacement` |
-| 273 | `IsNpcPresent` | 274 | `IsNpcPresent` | 275 | `SetNpcPresenceState` |
+| 273 | `IsDatingNpc` | 274 | `IsDatingNpc` | 275 | `SetNpcPresenceState` |
 | 276 | `GetNpcHeldItem` | 277 | `GetNpcHeldItem` | 278 | `GetNpcFavoriteItem` |
 | 279 | `GetNpcFavoriteItem` | 280 | `GetNpcDateState` | 281 | `SetNpcDateState` |
 | 282 | `IsNpcActorPresent` | 283 | `GetDateCompanionId` | 284 | `MountActor` |

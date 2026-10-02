@@ -23165,7 +23165,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetActorTilePosition(0 player) / (4 Forte, in the party)",
+       "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -23174,7 +23181,7 @@
    "description": "Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.",
    "details": "Id 0: player world_x/world_y >> 12 (with g_globalGameStateFlags & 0x401000 the player pointer is NULL and the read would fault). Id 1-47: actor+88/+92 >> 12, or npc entry +192/+196 when no actor, or 0/0 when the entry is missing. Id >= 48: registers untouched. Returns 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses.",
+   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorTilePosition(0 player) / (4 Forte, in the party) -> 425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0).",
    "alias_of": null,
    "handler": "ScriptVMOp_QueryActorWorldPositionAsTile",
    "handler_rva": "0x1FB2A0",
@@ -23193,7 +23200,7 @@
    "confidence": "high",
    "notes": "True alias pair 135/136.",
    "change_reason": "Naming convention: non-blocking query that writes VM registers -> Get.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 426,
     "pc": "0x01CC",
@@ -23222,7 +23229,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetActorTilePosition(0 player) / (4 Forte, in the party)",
+       "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -28468,7 +28482,7 @@
    "description": "Stores the player's tile position in reg0 (x) and reg1 (y), and 1 in reg2.",
    "details": "reg0 = player world_x >> 12, reg1 = world_y >> 12, reg2 = 1. The player pointer is null in state 0x401000 (the read would fault). No args.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204A50: `a2[16] = *p_world_x >> 12; a2[17] = p_world_x[1] >> 12; a2[18] = 1`; corpus: 318 uses, followed by SetCameraTarget(reg0, reg1, ...) or TriggerActionAtTile(id, reg0, reg1).",
+   "evidence": "RF4S.exe+0x204A50: `a2[16] = *p_world_x >> 12; a2[17] = p_world_x[1] >> 12; a2[18] = 1`; corpus: 318 uses, followed by SetCameraTarget(reg0, reg1, ...) or TriggerActionAtTile(id, reg0, reg1). In-game test 2026-10-02 (user): GetPlayerPosition() in the Dragon Room -> tile 425 / 481, reg2 = 1; the same tile from GetActorTilePosition(0) and GetPartyMemberTileY(-1).",
    "alias_of": null,
    "handler": "Script_VMOp_GetPlayerPosition",
    "handler_rva": "0x204A50",
@@ -28485,7 +28499,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 280,
     "pc": "0x0D1A",
@@ -28610,7 +28624,14 @@
      "values": "1-23 villagers (0 = player also maps to bit 981); 24-47 = child slots",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "HasNpcStoryFlag(4 Forte), already met",
+       "observed": "1"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -28619,7 +28640,7 @@
    "description": "Check whether the player has met a villager (the flag SetNpcStoryFlag sets; it is what keeps the first-meeting introduction from replaying). For child slots 24-47 it checks the child record instead.",
    "details": "RF4S.exe+0x203AF0 -> Npc_IsMetFlagSet(arg0) (+0x2271B0): id < 24 -> zone-2 GameFlags bit 981+id (0 during the 0x401000 state); 24-47 -> g_guestNpcStateTable[id-24] word+4 != 0 or byte0 bit 2; else 0. Result -> reg0 (vm+64). No kind or range check on arg0 in the handler.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x203AF0, +0x2271B0 (bit 981+id; emflags zone-2 range 981-1004 'NPC story/availability'); corpus: unused.",
+   "evidence": "RF4S.exe+0x203AF0, +0x2271B0 (bit 981+id; emflags zone-2 range 981-1004 'NPC story/availability'); corpus: unused. In-game test 2026-10-02 (user): HasNpcStoryFlag(4 Forte), already met -> 1.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcInCurrentArea",
    "handler_rva": "0x203AF0",
@@ -28634,7 +28655,7 @@
    "confidence": "high",
    "notes": "Unused in rf3.mc. The IDB name was Npc_IsInCurrentArea until 2026-09-29 (it never looked at the map).",
    "change_reason": "Npc_IsMetFlagSet (+0x2271B0, then named Npc_IsInCurrentArea) does not look at the map: for chars 0-23 it tests GameFlags zone-2 bit 981+id (the bit SetNpcStoryFlag, op 214, sets); 'Query' is not in the verb list (boolean -> Is/Has).; 2026-10-01: the bit is the villager's met flag (entry type 19 gate)",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "217": {
@@ -28728,6 +28749,11 @@
        "date": "2026-10-02",
        "call": "GetNpcFriendshipLevel(4 Forte / 7 Margaret / 1 Vishnal)",
        "observed": "6 / 6 / 6 = their friendship levels in game"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcFriendshipLevel_219(4 Forte)",
+       "observed": "6, the same as op 218 and the game"
       }
      ]
     }
@@ -28792,6 +28818,11 @@
        "date": "2026-10-02",
        "call": "GetNpcFriendshipLevel(4 Forte / 7 Margaret / 1 Vishnal)",
        "observed": "6 / 6 / 6 = their friendship levels in game"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcFriendshipLevel_219(4 Forte)",
+       "observed": "6, the same as op 218 and the game"
       }
      ]
     }
@@ -28802,7 +28833,7 @@
    "description": "Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.",
    "details": "Id >= 48: reg0 untouched. Id 0: Npc_GetFriendshipLevel(current talk NPC id at [0x7FF7547BCB30]+8), or id 0xFFFF when there is none (which yields 0). Npc_GetFriendshipLevel (+0x227A40): ids < 24 -> Npc_FriendshipPointsToLevel(points); ids 24-47 -> g_guestNpcStateTable value >> 2 (cap 10000). argc 0 -> reg0 = -1.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FD3B0 and RF4S.exe+0x227A40; corpus: op 218 173 uses, op 219 200 uses (137 with id 0), followed by BR_Z reg0 < 7 / >= 7 etc.",
+   "evidence": "RF4S.exe+0x1FD3B0 and RF4S.exe+0x227A40; corpus: op 218 173 uses, op 219 200 uses (137 with id 0), followed by BR_Z reg0 < 7 / >= 7 etc. In-game test 2026-10-02 (user): GetNpcFriendshipLevel_219(4 Forte) -> 6, the same as op 218 and the game.",
    "alias_of": 218,
    "handler": "Script_VMOp_QueryNpcFriendshipLevel",
    "handler_rva": "0x1FD3B0",
@@ -28821,7 +28852,7 @@
    "confidence": "high",
    "notes": "True alias pair 218/219. The old text said -1 when the NPC is not found; the code returns 0 in that case.",
    "change_reason": "Naming convention: register-writing query -> Get.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 240,
     "pc": "0x0764",
@@ -29554,7 +29585,14 @@
      "values": "0-47 (hidden bits exist for 0-23)",
      "required_kind": "any",
      "notes": "ids >= 48: reg0 untouched",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsNpcHidden(4 Forte)",
+       "observed": "0 (not hidden)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -29563,7 +29601,7 @@
    "description": "Check whether an NPC has been hidden with HideNpc (op 233).",
    "details": "RF4S.exe+0x1FDFF0: arg0 < 0x30 -> reg0 = Npc_IsHidden(arg0) (+0x227300, zone-2 bit 1037+id, cleared daily).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x1FDFF0, +0x227300; corpus: unused.",
+   "evidence": "RF4S.exe+0x1FDFF0, +0x227300; corpus: unused. In-game test 2026-10-02 (user): IsNpcHidden(4 Forte) -> 0 (not hidden).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcHidden",
    "handler_rva": "0x1FDFF0",
@@ -29578,7 +29616,7 @@
    "confidence": "high",
    "notes": "Unused in rf3.mc.",
    "change_reason": "Boolean query -> Is prefix (verb convention).",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "233": {
@@ -32058,10 +32096,10 @@
   "273": {
    "op": 273,
    "op_hex": "0x111",
-   "mnemonic": "IsNpcPresent",
+   "mnemonic": "IsDatingNpc",
    "previous_mnemonic": "QueryNpcPresent",
    "category": "query",
-   "prototype": "IsNpcPresent(npc)",
+   "prototype": "IsDatingNpc(npc)",
    "args": [
     {
      "name": "npc",
@@ -32069,7 +32107,14 @@
      "values": "1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsDatingNpc(0) / (4 Forte) / (5 Kiel) while dating Kiel only",
+       "observed": "1 / 0 / 1: it checks the dating flag (0 = how many are dated)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -32078,9 +32123,9 @@
    "description": "Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.",
    "details": "arg0 1..23: reg0 = (record+52 >> 22) & 1 (0 if no record); arg0 >= 24: 0; arg0 == 0: count of ids 1..23 with bit 0x400000. Same bit as em.bin's PARTNER_<name> / PARTNER_NUM queries (Npc_IsDatingPartner, +0x227AB0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2054B0; corpus 273 uses, often `IsNpcPresent(n)` -> `BR_Z reg0 || (REG_WIFE_ID == n)` after SetNpcDateState(n, 0).",
+   "evidence": "RF4S.exe+0x2054B0; corpus 273 uses, often `IsDatingNpc(n)` -> `BR_Z reg0 || (REG_WIFE_ID == n)` after SetNpcDateState(n, 0). In-game test 2026-10-02 (user): IsDatingNpc(0) / (4 Forte) / (5 Kiel) while dating Kiel only -> 1 / 0 / 1: it checks the dating flag (0 = how many are dated).",
    "alias_of": null,
-   "handler": "Script_VMOp_QueryNpcPresentFlag",
+   "handler": "Script_VMOp_IsDatingNpc",
    "handler_rva": "0x2054B0",
    "shares_handler_with": [
     274
@@ -32097,7 +32142,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Boolean query -> Is verb per the naming rules.; 2026-10-01: record+52 bit 0x400000 is the dating flag -- the bit em.bin's PARTNER_<name> / PARTNER_NUM / CURRENT_CHAR_IS_PARTNER queries read through Npc_IsDatingPartner (+0x227AB0, was Npc_HasBeenMet), set by op 275 at the end of every marriage candidate's successful confession scene",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 10,
     "pc": "0x1198",
@@ -32105,7 +32150,7 @@
      "    CALL L_1138",
      "    RET",
      "L_1198:",
-     "    IsNpcPresent(actor(Margaret))    ; <--",
+     "    IsDatingNpc(actor(Margaret))    ; <--",
      "    BR_Z (reg0) -> L_11c4",
      "    SetSpeaker(Porcoline, Right, 22, 16782013)",
      "    DIALOG #14416    ; \"You're getting along with Meg fantastically great.\""
@@ -32115,10 +32160,10 @@
   "274": {
    "op": 274,
    "op_hex": "0x112",
-   "mnemonic": "IsNpcPresent",
+   "mnemonic": "IsDatingNpc",
    "previous_mnemonic": "QueryNpcPresent",
    "category": "query",
-   "prototype": "IsNpcPresent(npc)",
+   "prototype": "IsDatingNpc(npc)",
    "args": [
     {
      "name": "npc",
@@ -32126,7 +32171,14 @@
      "values": "1..23 -> that villager's flag; 0 -> count of villagers 1..23 with the flag; >= 24 -> 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsDatingNpc(0) / (4 Forte) / (5 Kiel) while dating Kiel only",
+       "observed": "1 / 0 / 1: it checks the dating flag (0 = how many are dated)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -32135,9 +32187,9 @@
    "description": "Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.",
    "details": "arg0 1..23: reg0 = (record+52 >> 22) & 1 (0 if no record); arg0 >= 24: 0; arg0 == 0: count of ids 1..23 with bit 0x400000. Same bit as em.bin's PARTNER_<name> / PARTNER_NUM queries (Npc_IsDatingPartner, +0x227AB0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2054B0; corpus 273 uses, often `IsNpcPresent(n)` -> `BR_Z reg0 || (REG_WIFE_ID == n)` after SetNpcDateState(n, 0).",
+   "evidence": "RF4S.exe+0x2054B0; corpus 273 uses, often `IsDatingNpc(n)` -> `BR_Z reg0 || (REG_WIFE_ID == n)` after SetNpcDateState(n, 0).",
    "alias_of": 273,
-   "handler": "Script_VMOp_QueryNpcPresentFlag",
+   "handler": "Script_VMOp_IsDatingNpc",
    "handler_rva": "0x2054B0",
    "shares_handler_with": [
     273
@@ -32162,7 +32214,7 @@
      "    JMP L_05e4",
      "    RET",
      "L_054a:",
-     "    IsNpcPresent_274(4)    ; <--",
+     "    IsDating_274(4)    ; <--",
      "    BR_Z ((reg0 == 1) || (var:0x40C6 == 4)) -> L_05a8",
      "    SetSpeaker(Forte, Right, 4, 186, 16779836)",
      "    DIALOG #36783    ; \"Erm...\""
@@ -32197,7 +32249,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Start (mode 1) or end (-1) dating a villager: sets / clears record +52 bit 22, the flag IsNpcPresent (op 274) and em.bin's PARTNER_<name> queries read. Each marriage candidate's successful confession scene ends with it.",
+   "description": "Start (mode 1) or end (-1) dating a villager: sets / clears record +52 bit 22, the flag IsDatingNpc (op 274) and em.bin's PARTNER_<name> queries read. Each marriage candidate's successful confession scene ends with it.",
    "details": "g_sys_npcPresenceBits: bit (1 << npc) cleared if mode == -1, else set. NPC record+52 bit 0x400000 (the dating flag, Npc_IsDatingPartner +0x227AB0) = (mode == 1). When mode == 1 also: record+52 = (record+52 & ~0x700) | 0x300, record byte +16 = record+52 bit 0x80, and GameFlags_WritePacked_OrAchievement(768, 0) (RF4S.exe+0x1D6000).",
    "side_effects": "g_sys_npcPresenceBits; NPC record flags; packed game flag 768 = 0",
    "evidence": "RF4S.exe+0x205590: `if (v9 == -1) g_sys_npcPresenceBits &= ~(1 << npc); else |= ...; rec+52 = rec+52 & 0xFFBFFFFF | (v9 == 1) << 22; if (v9 == 1) { rec+52 = ... & 0xFFFFF8FF | 0x300; GameFlags_WritePacked_OrAchievement(768, 0); }`; corpus: 12 uses, (npc, 1) after SetNpcActionDelay at date ends.",
@@ -32446,7 +32498,14 @@
      "values": "1-47 (REG_CHILD_ID also used)",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcDateState(4 Forte), no date arranged",
+       "observed": "0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -32455,7 +32514,7 @@
    "description": "Read an NPC's date state into reg0: 0 none, 1 date promised for tomorrow, 2 date is today, 3 on the date, 4 the date went well, 5 declined today.",
    "details": "RF4S.exe+0x205790: reg0 = NPC record (slot table, id < 0x30) byte +55 & 7, else 0. Byte-for-byte the same as Npc_GetDateState (em.bin DATE_STATE query). Set by op 281; Day_UpdateNpcDailyFlags (+0x227AE0) turns 1 into 2 at rollover and clears 5.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x205790; corpus: 88 uses, ids 1-41 + REG_CHILD_ID, followed by BR_Z reg0 / FLG_DATE_FES_NO checks.",
+   "evidence": "RF4S.exe+0x205790; corpus: 88 uses, ids 1-41 + REG_CHILD_ID, followed by BR_Z reg0 / FLG_DATE_FES_NO checks. In-game test 2026-10-02 (user): GetNpcDateState(4 Forte), no date arranged -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcDateState",
    "handler_rva": "0x205790",
@@ -32472,7 +32531,7 @@
    "confidence": "high",
    "notes": "State meanings from the 2026-09-25 trace (Day_UpdateNpcDailyFlags); not re-traced here.",
    "change_reason": "Returns a value (not a boolean) -> Get prefix per the verb convention.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 26,
     "pc": "0x09C8",
@@ -32564,7 +32623,14 @@
      "values": "1..47",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsNpcActorPresent(4 Forte, in the party) / (1 Vishnal, elsewhere) in the Dragon Room",
+       "observed": "1 / 0"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -32573,7 +32639,7 @@
    "description": "Check whether an NPC's actor is loaded in the current map and not flagged away (actor+568 bit 0x20000000 clear). reg0 = 1/0.",
    "details": "reg0 = actor exists && !(actor+568 & 0x20000000); id 0 or >= 48 -> 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x205940; corpus 7 uses in bank 127, each followed by BR_Z !(reg0) then a Teleport/Move of that NPC.",
+   "evidence": "RF4S.exe+0x205940; corpus 7 uses in bank 127, each followed by BR_Z !(reg0) then a Teleport/Move of that NPC. In-game test 2026-10-02 (user): IsNpcActorPresent(4 Forte, in the party) / (1 Vishnal, elsewhere) in the Dragon Room -> 1 / 0.",
    "alias_of": null,
    "handler": "ScriptVMOp282_QueryNpcActorPresent",
    "handler_rva": "0x205940",
@@ -32590,7 +32656,7 @@
    "confidence": "high",
    "notes": "Who sets actor+568 bit 0x20000000 was not traced (it is not op 233's record+52 bit).",
    "change_reason": "Boolean query -> Is verb per the naming rules.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 127,
     "pc": "0x0424",
@@ -32619,7 +32685,7 @@
    "description": "Sets reg0 to the char id of the party companion who is on a date with the player (a companion whose date state is set), or 0 if none.",
    "details": "Loops g_companion1Actor/g_companion2Actor; for a companion with char id < 48 whose NPC record+52 bits 24-26 (0x7000000, the date-state field) are non-zero, reg0 = its char id; otherwise reg0 = 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2059D0: `if ((*(u32*)(rec+52) & 0x7000000) != 0) break; ... *(a2+64) = v2`; corpus: 107 uses in date events, e.g. after EVAL FLG_DATE_EVENT_EXEC = 1 then PlayActorAnim(reg0, 1, 1).",
+   "evidence": "RF4S.exe+0x2059D0: `if ((*(u32*)(rec+52) & 0x7000000) != 0) break; ... *(a2+64) = v2`; corpus: 107 uses in date events, e.g. after EVAL FLG_DATE_EVENT_EXEC = 1 then PlayActorAnim(reg0, 1, 1). In-game test 2026-10-02 (user): GetDateCompanionId(), no date running -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryCompanionNpcId",
    "handler_rva": "0x2059D0",
@@ -32636,7 +32702,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "consistency pass: QueryDateCompanionId -> GetDateCompanionId",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 377,
     "pc": "0x1456",
@@ -32917,16 +32983,23 @@
      "values": "0 or >= 48 -> reg0 = 0",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcOutfit(4 Forte) at 04:38",
+       "observed": "1 while Forte wore her pajamas (user)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": "reg0 = outfit variant",
    "blocking": "no",
-   "description": "Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for).",
+   "description": "Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for). 1 = pajamas (Forte at night, in game 2026-10-02).",
    "details": "reg0 = u16 actor+488, written by Actor_ApplyNpcOutfitVariant (RF4S.exe+0xA49B0) when an outfit variant is applied; 0 if the NPC or its actor is missing.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2012E0: `v2 = *(u16*)(actor + 488); *(a2+64) = v2`; corpus: 2 uses, (14) followed by BR_NZ reg0 != 2.",
+   "evidence": "RF4S.exe+0x2012E0: `v2 = *(u16*)(actor + 488); *(a2+64) = v2`; corpus: 2 uses, (14) followed by BR_NZ reg0 != 2. In-game test 2026-10-02 (user): GetNpcOutfit(4 Forte) at 04:38 -> 1 while Forte wore her pajamas (user).",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcOutfit",
    "handler_rva": "0x2012E0",
@@ -32943,7 +33016,7 @@
    "confidence": "medium",
    "notes": "",
    "change_reason": "consistency pass: QueryNpcOutfit -> GetNpcOutfit",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 14,
     "pc": "0x1A98",
@@ -34659,7 +34732,14 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetNpcNicknameForPlayer(4 Forte), who calls the player by name",
+       "observed": "74 = rf3TxtHeroNickName entry 74, the player-name code"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -34668,7 +34748,7 @@
    "description": "Sets reg0 to the nickname id the NPC currently uses for the player (0 = the player's own name). Scripts branch on it to pick the matching voice clip.",
    "details": "reg0 = NPC record byte +57 (0 if the NPC is unresolvable). See SetNpcNicknameForPlayer for how the value is used.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x203F00: `v7 = *(u8*)(rec+57); *(a2+64) = v7`; corpus: 56 uses, e.g. GetNpcNicknameForPlayer(reg0); BR_Z reg0 == 95; PlaySfxWithNpcRemap(voice).",
+   "evidence": "RF4S.exe+0x203F00: `v7 = *(u8*)(rec+57); *(a2+64) = v7`; corpus: 56 uses, e.g. GetNpcNicknameForPlayer(reg0); BR_Z reg0 == 95; PlaySfxWithNpcRemap(voice). In-game test 2026-10-02 (user): GetNpcNicknameForPlayer(4 Forte), who calls the player by name -> 74 = rf3TxtHeroNickName entry 74, the player-name code.",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcEmoteByte",
    "handler_rva": "0x203F00",
@@ -34685,7 +34765,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Reads the NPC's player-nickname byte (record+57), not an emote; renamed to match op 319.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 375,
     "pc": "0x3D3A",
@@ -35713,7 +35793,14 @@
      "values": "1-47; 0 = the spouse (GF_REG_WIFE_ID)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsNpcOnPlayerMap(4 Forte) / (1 Vishnal) in the Dragon Room at 04:38",
+       "observed": "Forte 1, map 62 (Dragon Room 60 + season 2); Vishnal 0, map 65 = Butler's Room"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -35722,7 +35809,7 @@
    "description": "reg0 = 1 if the NPC is on the same map as the player, else 0; reg1 = the NPC's current map id (season-adjusted for outdoor maps). Used to check who is around before a scene.",
    "details": "Id 0 -> GF_REG_WIFE_ID (no spouse or state 0x401000 -> reg0 = 0). Id < 48: reg0 = (Npc_GetCurrentScheduleId(id) (+0x227230; actor+84, or record+188 when not spawned, current room for >= 872) == player actor+84); id >= 48: reg0 = 1. reg1 = that map id, plus the calendar season index when < 0x40 and the season field is not 4.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x203B50: `cmp eax, [g_playerActor+54h]`; corpus: 59 uses, e.g. IsNpcOnPlayerMap(1) / BR_Z reg0 before a line.",
+   "evidence": "RF4S.exe+0x203B50: `cmp eax, [g_playerActor+54h]`; corpus: 59 uses, e.g. IsNpcOnPlayerMap(1) / BR_Z reg0 before a line. In-game test 2026-10-02 (user): IsNpcOnPlayerMap(4 Forte) / (1 Vishnal) in the Dragon Room at 04:38 -> Forte 1, map 62 (Dragon Room 60 + season 2); Vishnal 0, map 65 = Butler's Room.",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcScheduleMatchAndId",
    "handler_rva": "0x203B50",
@@ -35739,7 +35826,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Naming convention: boolean query -> Is.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 220,
     "pc": "0x1F9C",
@@ -37235,7 +37322,14 @@
      "values": "receives season*100 + day; >= 16 not written",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetFestivalDate(1, 14 Autumn Harvest) / (1, 1 Bean Toss)",
+       "observed": "season 2 day 28 = Autumn 28, as the calendar shows; Bean Toss read Spring 10 (not checked)"
+      }
+     ]
     },
     {
      "name": "festival",
@@ -37243,7 +37337,14 @@
      "values": "1-25 (0 would match the first birthday record)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetFestivalDate(1, 14 Autumn Harvest) / (1, 1 Bean Toss)",
+       "observed": "season 2 day 28 = Autumn 28, as the calendar shows; Bean Toss read Spring 10 (not checked)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -37252,7 +37353,7 @@
    "description": "Looks up the date of a festival: reg0 = season (0-3), reg1 = day, and script-variable bank 9 [slot] = season*100 + day for text substitution.",
    "details": "Loads archive 16340 (0x3FD4, the calendar table of 4-byte records {npc, season, day, festival}) and finds the first record whose byte 3 == festival (birthday records have byte 3 = 0). reg0 = byte1 (season), reg1 = byte2 (day); bank9[slot] = day + 100*season when slot < 16. Not found: outputs are uninitialised stack bytes. Releases the archive.",
    "side_effects": "script-variable bank 9 [slot]",
-   "evidence": "RF4S.exe+0x2099C0: `nsFileArchive_Load(16340, 2); while (*(u8*)(rec+3) != (u8)arg1) rec += 4; v14 = rec[1]; v15 = rec[2]; ... bank9[arg0] = v15 + 100*v14; *(a2+64) = v14; *(a2+68) = v15`; corpus: 835 uses, festival 1-25, slot 0 in 821.",
+   "evidence": "RF4S.exe+0x2099C0: `nsFileArchive_Load(16340, 2); while (*(u8*)(rec+3) != (u8)arg1) rec += 4; v14 = rec[1]; v15 = rec[2]; ... bank9[arg0] = v15 + 100*v14; *(a2+64) = v14; *(a2+68) = v15`; corpus: 835 uses, festival 1-25, slot 0 in 821. In-game test 2026-10-02 (user): GetFestivalDate(1, 14 Autumn Harvest) / (1, 1 Bean Toss) -> season 2 day 28 = Autumn 28, as the calendar shows; Bean Toss read Spring 10 (not checked).",
    "alias_of": null,
    "handler": "Script_VMOp_GetNpcBirthdayMonthAndDay",
    "handler_rva": "0x2099C0",
@@ -37269,7 +37370,7 @@
    "confidence": "high",
    "notes": "Category changed from query to time; the IDB name (NPC birthday) is wrong: the NPC byte is never compared.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 319,
     "pc": "0x13FA",
@@ -39734,7 +39835,7 @@
    "description": "Put the number of monsters still standing in the current 'defeat the monsters' group into reg0.",
    "details": "RF4S.exe+0x212A50: walks g_activeKillAggregateList (count byte +96, 8-byte entries) and counts entries whose actor byte +568 bit 4 (hidden/defeated) is clear.",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x212A50; corpus: unused.",
+   "evidence": "RF4S.exe+0x212A50; corpus: unused. In-game test 2026-10-02 (user): GetAliveKillTargetCount(), no defeat-the-monsters group -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryActiveKillCount",
    "handler_rva": "0x212A50",
@@ -39749,7 +39850,7 @@
    "confidence": "high",
    "notes": "Unused in rf3.mc.",
    "change_reason": "Returns a count -> Get prefix; name says what is counted (entries of the active kill-target list still alive).",
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "408": {
@@ -39766,7 +39867,7 @@
    "description": "Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts.",
    "details": "reg0 = (u8) KillAggregate_CountActiveExclude141_142() (RF4S.exe+0x1E60B0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x212AB0: `*(a2+64) = KillAggregate_CountActiveExclude141_142()`; corpus: 0 uses.",
+   "evidence": "RF4S.exe+0x212AB0: `*(a2+64) = KillAggregate_CountActiveExclude141_142()`; corpus: 0 uses. In-game test 2026-10-02 (user): CountLivingEnemies() in the Dragon Room -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryKillAggregateActiveCountExclBoss",
    "handler_rva": "0x212AB0",
@@ -39781,7 +39882,7 @@
    "confidence": "medium",
    "notes": "The callee's counting rule is taken from its IDB name and comment; not re-derived.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "409": {
@@ -40942,7 +41043,7 @@
    "description": "reg0 = 1 if the player is carrying an item in their hands (over the head), else 0. Unused by the shipped scripts.",
    "details": "w = u16 at g_itemDatabase->ptr_00 + 24 (equipment record 0 = the carried item, used by Player_AttachHeldItem); reg0 = (w >= 0x800 && (w & 0x7FF) != 0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x20FE30; corpus: unused.",
+   "evidence": "RF4S.exe+0x20FE30; corpus: unused. In-game test 2026-10-02 (user): IsPlayerHoldingItem(), hands empty -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryEquipExtrasSlot24Occupied",
    "handler_rva": "0x20FE30",
@@ -40957,7 +41058,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": null
   },
   "427": {
@@ -45928,7 +46029,14 @@
      "values": "0 = companion 1, 1 = companion 2, -1 = player",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "GetPartyMemberTileY(0) with Forte as companion 1 / GetPartyMemberTileY(-1)",
+       "observed": "481 / 481 = Forte's and the player's Y from GetActorTilePosition"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -45937,7 +46045,7 @@
    "description": "Read a party member's Y tile into reg0 (0 if the slot is empty).",
    "details": "reg0 = (&g_playerActor)[slot + 1]->world_y (+0x5C) >> 12, 0 when empty (`mov [rdx+40h], r8d`).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2123E0; corpus: 7 uses; bank 573 branches on reg1 right after it, which is a script bug (the op writes reg0).",
+   "evidence": "RF4S.exe+0x2123E0; corpus: 7 uses; bank 573 branches on reg1 right after it, which is a script bug (the op writes reg0). In-game test 2026-10-02 (user): GetPartyMemberTileY(0) with Forte as companion 1 / GetPartyMemberTileY(-1) -> 481 / 481 = Forte's and the player's Y from GetActorTilePosition.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPartyMemberWorldYTile",
    "handler_rva": "0x2123E0",
@@ -45954,7 +46062,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Naming convention: register-writing query -> Get.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 573,
     "pc": "0x05C8",
@@ -49592,7 +49700,7 @@
    "description": "Get the calendar event (festival / birthday row id) scheduled for tomorrow, if that event is enabled; reg0 = event id or 0. Before 6:00 'tomorrow' means today's date.",
    "details": "Copies the calendar; day + 1 when the hour is 6..23; CalendarInner_NormalizeOverflow (+0x19C0D0); Calendar_LookupEventBySeasonAndDay(season, day) (+0x1DB9F0, archive 16340 records); reg0 = id only if bit id is set in the event-enable bitmap (dword g_effectAppliedBits+4), else 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x219750; corpus 96 uses, nearly always followed by BR_Z reg0 == 22.",
+   "evidence": "RF4S.exe+0x219750; corpus 96 uses, nearly always followed by BR_Z reg0 == 22. In-game test 2026-10-02 (user): GetTomorrowsCalendarEvent() at 04:38 on Autumn 8 (before 6:00 = today); next holiday Autumn 12 -> 0 (no event).",
    "alias_of": null,
    "handler": "Script_VMOp_QueryTomorrowBirthdayNpcIfNotMet",
    "handler_rva": "0x219750",
@@ -49609,7 +49717,7 @@
    "confidence": "high",
    "notes": "Returns an event id, not a character id; there is no 'met today' check (the IDB name is wrong).",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 26,
     "pc": "0x0B9A",
@@ -49756,7 +49864,7 @@
    "description": "Read into reg0 the character id of the NPC whose daily request is active today (0 if none).",
    "details": "reg0 = g_dailyRequest_todayActiveNpcId.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x219B80; corpus: 1 use (bank 3 festival, SWITCH reg0 after it).",
+   "evidence": "RF4S.exe+0x219B80; corpus: 1 use (bank 3 festival, SWITCH reg0 after it). In-game test 2026-10-02 (user): GetTodaysRequestNpc() with no request active -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryTodayDailyRequestActiveNpcId",
    "handler_rva": "0x219B80",
@@ -49773,7 +49881,7 @@
    "confidence": "medium",
    "notes": "The meaning of the global is the IDB's reading; the corpus switch is a festival favourite announcement, so it may hold another 'today's NPC' id.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 3,
     "pc": "0x0E02",
@@ -52396,7 +52504,7 @@
      "    IsPartyInviteAccepted()    ; <--",
      "    BR_Z (reg0 == 1) -> L_0e78",
      "    PlaySound(16786105)",
-     "    IsNpcPresent_274(26)"
+     "    IsDating_274(26)"
     ]
    }
   },
@@ -52734,7 +52842,14 @@
      "values": "0 Garden of Light ... 5 Banquet of Nightmares",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "IsMazeStageCleared(0..5) with the Sharance Maze untouched",
+       "observed": "0 for all six"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -52743,7 +52858,7 @@
    "description": "reg0 = 1 if the given Sharance Maze stage has been cleared.",
    "details": "reg0 = (g_playerInventoryFlags_word >> stage) & 1 (16-bit word; the IDB global name is a mislabel).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21D1E0; corpus: 23 uses, bits 0-5 (bank 318 maze menu gates stages 1-5 on bits 0-4; bit 5 before 'You completed the Banquet of Nightmares').",
+   "evidence": "RF4S.exe+0x21D1E0; corpus: 23 uses, bits 0-5 (bank 318 maze menu gates stages 1-5 on bits 0-4; bit 5 before 'You completed the Banquet of Nightmares'). In-game test 2026-10-02 (user): IsMazeStageCleared(0..5) with the Sharance Maze untouched -> 0 for all six.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerInventoryFlagBit",
    "handler_rva": "0x21D1E0",
@@ -52760,7 +52875,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Naming convention: boolean query -> Is.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 319,
     "pc": "0x15E0",
@@ -54844,7 +54959,7 @@
    "description": "Check bit 0 of the system-save flags (rf4_sys.sav, shared by all save slots). The bit unlocks the post-game Extra Orders category; scripts set it with op 667.",
    "details": "RF4S.exe+0x21F670: reg0 = g_saveConfigFlags & 1. Xrefs to g_saveConfigFlags: the only code that sets bit 0 is Script_VMOp_SetSaveConfigBit0 (op 667, +0x21F690).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x21F670; setter scan via xrefs to g_saveConfigFlags; corpus: 6 uses, e.g. bank 211 BR_Z reg0 == 1 around the housing explanation.",
+   "evidence": "RF4S.exe+0x21F670; setter scan via xrefs to g_saveConfigFlags; corpus: 6 uses, e.g. bank 211 BR_Z reg0 == 1 around the housing explanation. In-game test 2026-10-02 (user): IsGameClearedSysFlagSet() with the main story beaten -> 1.",
    "alias_of": null,
    "handler": "Script_VMOp_QuerySaveConfigBit0",
    "handler_rva": "0x21F670",
@@ -54861,7 +54976,7 @@
    "confidence": "high",
    "notes": "Pair name with op 667 (other chunk).",
    "change_reason": "Boolean query -> Is prefix (verb convention); bit number kept because its only setter is script op 667, so its meaning is whatever scripts use it for. | consistency pass: IsSaveConfigBit0Set -> IsGameClearedSysFlagSet",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 211,
     "pc": "0x46DC",
@@ -56293,7 +56408,7 @@
    "description": "reg0 = 1 if a marriage has ever been completed on this system save (the flag MarkSpouseCleared sets).",
    "details": "reg0 = (g_saveConfigFlags >> 1) & 1; bit 1 is set by op 620 (MarkSpouseCleared).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x220120; RF4S.exe+0x21CF80 (op 620: g_saveConfigFlags |= 2); corpus: 1 use (bank 308, next to FLG_JUST_MARRIED_MODE).",
+   "evidence": "RF4S.exe+0x220120; RF4S.exe+0x21CF80 (op 620: g_saveConfigFlags |= 2); corpus: 1 use (bank 308, next to FLG_JUST_MARRIED_MODE). In-game test 2026-10-02 (user): HasClearedAnyMarriage() while dating, never married -> 0.",
    "alias_of": null,
    "handler": "Script_VMOp_QuerySaveConfigBit1",
    "handler_rva": "0x220120",
@@ -56310,7 +56425,7 @@
    "confidence": "medium",
    "notes": "Only op 620 was checked as a writer of bit 1.",
    "change_reason": "Naming convention (Has + boolean); bit 1 is the any-marriage-cleared system flag set by op 620.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x1F24",
