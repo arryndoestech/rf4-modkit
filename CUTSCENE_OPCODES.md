@@ -29,6 +29,7 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 
 ### `op 1` — SetDialogueSuppressed(suppressed)
 *handler:* `Script_VMOp_SetDialogueSuppressed`
+*verified:* yes, in game
 
 Dialogue suppression switch: 1 makes every following DIALOG skip its line (nothing is shown), 0 turns lines back on. Sets bit 3 (0x8) of the scene control word (g_sceneAuxControlFlags = g_currentSceneContext+120) from bit 0 of the argument. With no box open a skipped DIALOG finishes at once; with a box still open (after its line was confirmed) the skipped DIALOG waits for that box to finish again, which never happens: the scene FREEZES. Close the box (EndDialogue) before turning it on, and turn it off again before the scene ends (only an engine reset of the scene context clears it). Unused by the shipped scripts.
 
@@ -39,6 +40,7 @@ Args:
 
 ### `op 5` — ShowPortrait(character, face, side)
 *handler:* `Script_VMOp_ShowPortrait`
+*verified:* yes, in game
 
 Show or change a character's E-mote portrait on the left or right side without touching the name plate, text blip, voice or emote icons. A DIALOG line must come after it (usually after the SetSpeaker… that names the speaker): the portrait belongs to the next line shown.
 
@@ -89,6 +91,7 @@ Args:
 
 ### `op 10` — SetSpeakerVoice(name_id, blip)
 *handler:* `Script_VMOp_SetSpeakerVoice`
+*verified:* yes, in game
 
 Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers. It does not remove a portrait already on screen (seen in game): clear it first if the voice should speak alone.
 
@@ -104,6 +107,7 @@ Args:
 
 ### `op 11` — SetSpeakerNameVisible(visible)
 *handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
+*verified:* yes, in game
 
 Hides (0) or shows (non-zero) the speaker-name label for the following DIALOG lines. Authors wrap sound-effect lines such as "*MUNCH*" in SetSpeakerNameVisible(0) ... SetSpeakerNameVisible(1).
 
@@ -265,6 +269,7 @@ Args:
 ### `op 16` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -298,6 +303,7 @@ Args:
 ### `op 17` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -331,6 +337,7 @@ Args:
 ### `op 18` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -364,6 +371,7 @@ Args:
 ### `op 19` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -397,6 +405,7 @@ Args:
 ### `op 20` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -430,6 +439,7 @@ Args:
 ### `op 21` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -463,6 +473,7 @@ Args:
 ### `op 22` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -496,6 +507,7 @@ Args:
 ### `op 23` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -529,6 +541,7 @@ Args:
 ### `op 24` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -562,6 +575,7 @@ Args:
 ### `op 25` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -595,6 +609,7 @@ Args:
 ### `op 26` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -628,6 +643,7 @@ Args:
 ### `op 27` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -661,6 +677,7 @@ Args:
 ### `op 28` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -694,6 +711,7 @@ Args:
 ### `op 29` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -727,6 +745,7 @@ Args:
 ### `op 30` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -760,6 +779,7 @@ Args:
 ### `op 31` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -793,6 +813,7 @@ Args:
 ### `op 32` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -826,6 +847,7 @@ Args:
 ### `op 33` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -859,6 +881,7 @@ Args:
 ### `op 34` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -892,6 +915,7 @@ Args:
 ### `op 35` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -925,6 +949,7 @@ Args:
 ### `op 36` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -958,6 +983,7 @@ Args:
 ### `op 37` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -991,6 +1017,7 @@ Args:
 ### `op 38` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1024,6 +1051,7 @@ Args:
 ### `op 39` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1057,6 +1085,7 @@ Args:
 ### `op 40` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1090,6 +1119,7 @@ Args:
 ### `op 41` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1123,6 +1153,7 @@ Args:
 ### `op 42` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1156,6 +1187,7 @@ Args:
 ### `op 43` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1189,6 +1221,7 @@ Args:
 ### `op 44` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1222,6 +1255,7 @@ Args:
 ### `op 45` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1255,6 +1289,7 @@ Args:
 ### `op 46` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1288,6 +1323,7 @@ Args:
 ### `op 47` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1321,6 +1357,7 @@ Args:
 ### `op 48` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1354,6 +1391,7 @@ Args:
 ### `op 49` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1387,6 +1425,7 @@ Args:
 ### `op 50` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1420,6 +1459,7 @@ Args:
 ### `op 51` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1453,6 +1493,7 @@ Args:
 ### `op 52` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1486,6 +1527,7 @@ Args:
 ### `op 53` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1519,6 +1561,7 @@ Args:
 ### `op 54` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1552,6 +1595,7 @@ Args:
 ### `op 55` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1585,6 +1629,7 @@ Args:
 ### `op 56` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1618,6 +1663,7 @@ Args:
 ### `op 57` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1651,6 +1697,7 @@ Args:
 ### `op 58` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1684,6 +1731,7 @@ Args:
 ### `op 59` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1717,6 +1765,7 @@ Args:
 ### `op 60` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1750,6 +1799,7 @@ Args:
 ### `op 61` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1783,6 +1833,7 @@ Args:
 ### `op 62` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1816,6 +1867,7 @@ Args:
 ### `op 63` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1849,6 +1901,7 @@ Args:
 ### `op 64` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1882,6 +1935,7 @@ Args:
 ### `op 65` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -1915,6 +1969,7 @@ Args:
 ### `op 66` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Slot 25 has no portrait art: only the name plate changes, the previous portrait stays up.
 
@@ -1948,6 +2003,7 @@ Args:
 ### `op 67` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Slot 25 has no portrait art: only the name plate changes, the previous portrait stays up.
 
@@ -1981,6 +2037,7 @@ Args:
 ### `op 68` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -2014,6 +2071,7 @@ Args:
 ### `op 69` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -2047,6 +2105,7 @@ Args:
 ### `op 70` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -2080,6 +2139,7 @@ Args:
 ### `op 71` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -2113,6 +2173,7 @@ Args:
 ### `op 72` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -2146,6 +2207,7 @@ Args:
 ### `op 73` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
 
@@ -2179,6 +2241,7 @@ Args:
 ### `op 74` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. CRASHES THE GAME: slot 29 has no portrait art and the portrait code dereferences the missing sprite (in-game 2026-10-02, op 74; op 75 takes the same path). Unused by the shipped scripts.
 
@@ -2212,6 +2275,7 @@ Args:
 ### `op 75` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
 *handler:* `Script_VMOp_SetSpeaker`
+*verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. CRASHES THE GAME: slot 29 has no portrait art and the portrait code dereferences the missing sprite (in-game 2026-10-02, op 74; op 75 takes the same path). Unused by the shipped scripts.
 
@@ -2579,11 +2643,13 @@ Args:
 
 ### `op 92` — EndDialogue()
 *handler:* `ScriptVMOp_DialogueTeardownBubblesAndCommit_NoArgs`
+*verified:* yes, in game
 
 Close the dialogue box and both portraits at the end of a spoken exchange and clear the current speaker, so the next DIALOG without a SetSpeaker is narration. Waits until the box has closed.
 
 ### `op 93` — SetDialogueBoxStyle(style)
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteByArg`
+*verified:* yes, in game
 
 Set the message-box style for the following lines: normal, shout, thought, trembling or tail-only. The general form of the fixed box-style ops 94-97 and the only way to get style 4.
 
@@ -2597,21 +2663,25 @@ Args:
 
 ### `op 94` — SetBoxNormal()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
+*verified:* yes, in game
 
 Switch the message box to the normal style (style 0). Stays until another box-style op or the box closes.
 
 ### `op 95` — SetBoxShout()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
+*verified:* yes, in game
 
 Switch the message box to the shout style (style 1): a jagged box, and the whole screen shakes when it appears (seen in game). Stays until another box-style op or the box closes.
 
 ### `op 96` — SetBoxThought()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
+*verified:* yes, in game
 
 Switch the message box to the thought style (style 2): a cloud box with a bubble-trail tail that floats for about a second (does not delay the line). Stays until another box-style op or the box closes.
 
 ### `op 97` — SetBoxTrembling()
 *handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
+*verified:* yes, in game
 
 Switch the message box to the trembling style (style 3): a wobbly box that shakes sideways when it appears (seen in game). Stays until another box-style op or the box closes.
 
@@ -2829,6 +2899,7 @@ Args:
 
 ### `op 612` — SetChoiceVisibleBit(index, visible)
 *handler:* `Script_VMOp_ToggleSceneChoiceVisibleBit`
+*verified:* yes, in game
 
 Show or hide one option of the next choice menu by setting / clearing its bit in the visibility mask. The mask only counts once a bit is set: then only the options with set bits show; while it is empty every option shows (seen in game). Careful: with an option hidden the menu jumps by visible position (the 2nd shown option takes the 2nd listed target), so shipped scripts send every option to one label and branch on reg0.
 
@@ -2854,6 +2925,7 @@ Args:
 
 ### `op 615` — SetNextChoiceDescription(value 1, value 2, value 3)
 *handler:* `Script_VMOp_SetNextChoiceDescription`
+*verified:* yes, in game
 
 Make the next DIALOG the description of the next choice row instead of showing it: the Nth armed line describes row N of the following PROMPT_CHOICE / PROMPT_CHOICE_FORCED and is shown in the dialogue box while that row is highlighted. Takes 1 to 3 numbers, positional: value 1 prints through ＠金０＠, value 2 through ＠木０＠, value 3 through ＠石０＠ (shipped line 8858); values not passed are 0, and the shipped scripts mostly pass a single 0 (a description with no numbers). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).
 
@@ -3009,6 +3081,7 @@ Args:
 
 ### `op 197` — ShakeCamera(kind, duration)
 *handler:* `Script_OpRequestCameraJitterEffect`
+*verified:* yes, in game
 
 Shake the screen for a number of frames. A running shake is only replaced by an equal or stronger kind; kind 0 stops it.
 
@@ -3051,6 +3124,7 @@ Args:
 
 ### `op 202` — SetCameraZoom(zoom, snap)
 *handler:* `Script_VMOp_SetCameraZoom`
+*verified:* yes, in game
 
 Set the camera zoom (pull-back distance), either easing to it or snapping.
 
@@ -3068,6 +3142,7 @@ Args:
 
 ### `op 334` — FadeScreen(target, duration)
 *handler:* `Script_VMOp_BeginDualScreenFadeWithKindAndDuration`
+*verified:* yes, in game
 
 Fade the screen to black or white (or partly). Returns at once; follow with WaitForFade to wait for it. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Without WaitForFade the next statements run while it fades, and a later FadeScreen takes over from the current opacity. A dialogue line waits for the fade to finish but is drawn under the overlay, so fade back before showing text.
 
@@ -3077,6 +3152,7 @@ Args:
 
 ### `op 335` — FadeScreenToClear(duration)
 *handler:* `Script_VMOp_FadeScreenToClearOverDuration`
+*verified:* yes, in game
 
 Fade the screen back in (to fully clear) over the given time, keeping the current fade colour. The reveal counterpart of FadeScreen (op 334); follow with WaitForFade to block.
 
@@ -3156,16 +3232,19 @@ Wait until the staff-credits roll started by ShowStaffCredits (op 617) has finis
 
 ### `op 653` — ShowLumberCounter()
 *handler:* `Script_VMOp_ShowLumberCounter`
+*verified:* yes (no test logged)
 
 Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
 
 ### `op 654` — ShowStoneCounter()
 *handler:* `Script_VMOp_ShowStoneCounter`
+*verified:* yes (no test logged)
 
 Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
 
 ### `op 655` — ShowPrincePointCounter()
 *handler:* `Script_VMOp_ShowPrincePointCounter`
+*verified:* yes (no test logged)
 
 Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
 
@@ -5145,6 +5224,7 @@ Args:
 
 ### `op 177` — EnableEventActorWandering(event key, unused)
 *handler:* `ScriptVMOp_EnableEventActorWandering`
+*verified:* yes, in game
 
 Let a spawned event actor wander on its own: it stands in its idle animation for 90-217 frames, then walks in a random direction for 30-93 frames, and repeats, turning back when it strays about 42 tiles from where it stood when this op ran. Used right after SpawnEventActor / TurnEventActorIntoNpc for animals that should roam (the captive Woolies in Idra Cave B1). Leave it out to keep the actor standing still.
 
@@ -5179,6 +5259,7 @@ Args:
 
 ### `op 181` — TurnEventActorIntoNpc(event_key)
 *handler:* `ScriptVMOp_TurnEventActorIntoNpc`
+*verified:* yes, in game
 
 Turn a spawned event actor into a peaceful, talkable NPC-like prop: it stops fighting altogether (no attacks on the player, no retaliation when hit, no attacks on other monsters), keeps its idle animation and stays where it is, and the player can now interact with it. Which scene talking runs is chosen by the actor's EVENT KEY: the type-2 entry with that key in the map's tail bank, then the primary bank, then the global bank (no entry = nothing happens). It is NOT removed, gets no villager features (schedule, gifts, friendship) and does not join the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.
 
@@ -5314,6 +5395,7 @@ Args:
 
 ### `op 211` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
+*verified:* yes, in game
 
 Show an emote balloon icon over an actor (the player or an NPC), with a sound for some icons. Icons: 1 heart, 2 bones, 3 annoyed (scribble), 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22 bones (stays longer), 23 bad mood (scribble), 24 sleepy (growing Z), 25 treasure chest, 26 nothing (pauses the actor's action), 27 heart (pops in), 28 bones; any other id shows the anger mark; 0 clears it. All seen in game.
 
@@ -5373,6 +5455,7 @@ Args:
 
 ### `op 212` — ShowActorEmote(actor, icon)
 *handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
+*verified:* yes, in game
 
 Show an emote balloon icon over an actor (the player or an NPC), with a sound for some icons. Icons: 1 heart, 2 bones, 3 annoyed (scribble), 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22 bones (stays longer), 23 bad mood (scribble), 24 sleepy (growing Z), 25 treasure chest, 26 nothing (pauses the actor's action), 27 heart (pops in), 28 bones; any other id shows the anger mark; 0 clears it. All seen in game.
 
@@ -7213,6 +7296,7 @@ Args:
 
 ### `op 395` — TurnPlayerToAngle(facing, ease)
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
+*verified:* yes, in game
 
 Turn the player to face an angle: degrees clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
 
@@ -7222,6 +7306,7 @@ Args:
 
 ### `op 396` — TurnPlayerToAngle(facing, ease)
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
+*verified:* yes, in game
 
 Turn the player to face an angle: degrees clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
 
@@ -8089,6 +8174,7 @@ Args:
 
 ### `op 343` — SetVar1(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind1`
+*verified:* yes, in game
 
 Stores a value in script-variable bank 1 at the given slot. Scenes use slot 0 to hand a value (often an item or NPC id) to text substitution and to later scenes. ＠アイテムn＠ prints slot n as an item name.
 
@@ -8107,6 +8193,7 @@ Args:
 
 ### `op 347` — SetVar2(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind2`
+*verified:* yes, in game
 
 Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
 
@@ -8116,6 +8203,7 @@ Args:
 
 ### `op 348` — SetVar2(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind2`
+*verified:* yes, in game
 
 Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
 
@@ -8125,6 +8213,7 @@ Args:
 
 ### `op 349` — SetVar3(index, value)
 *handler:* `Script_VMOp_WriteVarArrayKind3WithSaturation`
+*verified:* yes, in game
 
 Store a value in script-variable bank 3 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar3. ＠n＠ / ＠数字n＠ print slot n as a number.
 
@@ -8295,6 +8384,7 @@ Args:
 
 ### `op 628` — SetRegisters(values...)
 *handler:* `Script_VMOp_ExportArgsAsCtxOutArray10`
+*verified:* yes, in game
 
 Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.
 
@@ -8303,6 +8393,7 @@ Args:
 
 ### `op 629` — SetRegisters(values...)
 *handler:* `Script_VMOp_ExportArgsAsCtxOutArray10`
+*verified:* yes, in game
 
 Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.
 
@@ -8336,6 +8427,7 @@ Sets bit 5 of the system save-config flags (shared by all save slots). The only 
 
 ### `op 379` — PlayMusic(bgm)
 *handler:* `Script_VMOp_PlayBGMOrRestore`
+*verified:* yes, in game
 
 Switch the background music (crossfade) to a track, or with -1 go back to the area's normal music. When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot).
 
@@ -8344,6 +8436,7 @@ Args:
 
 ### `op 380` — StopMusic(fade)
 *handler:* `Script_VMOp_StopBGMWithCrossfade`
+*verified:* yes, in game
 
 Stop the current background music at once (the fade argument is never read: StopMusic(30000) still cut the music at once in game). When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot). The next map change, and the 06:00 / 21:00 switch, pick the area music again unless SetMusicLock(1).
 
@@ -8374,6 +8467,7 @@ Forget where each music class (village, dungeon, story, ...) was paused, so the 
 
 ### `op 385` — PlaySound(sfx)
 *handler:* `Script_VMOp_PlaySfxById`
+*verified:* yes, in game
 
 Play a sound effect.
 
@@ -8388,6 +8482,7 @@ Stops every voice line that is currently playing. Unused by the shipped scripts.
 
 ### `op 387` — PlaySfxWithNpcRemap(sound)
 *handler:* `Script_VMOp_PlayVoiceOrSfxWithNpcVariantRemap`
+*verified:* yes, in game
 
 Plays a sound effect or voice line by id, with the per-character remap the engine applies to shared ids (the variant of the current character's voice). Most uses are voice clips placed before DIALOG lines. Tested with Lest only (0x10001C0 played V_PLAM); whether it switches player clips to the female set for Frey, as SetSpeaker's voice trigger does (V_PLAW), is untested.
 
@@ -8442,32 +8537,38 @@ Args:
 Resets every villager and every current event participant to today's schedule with a full schedule and AI reset. It does not change the date.
 
 ### `op 304` — GetYear()
-*handler:* `Script_VMOp_GetCalendarMinute`
+*handler:* `Script_VMOp_GetCalendarYear`
+*verified:* yes, in game
 
 Get the current calendar year. reg0 = year.
 
 ### `op 305` — GetSeason()
 *handler:* `Script_VMOp_GetCalendarSeason`
+*verified:* yes, in game
 
 Put the current season (0 Spring, 1 Summer, 2 Autumn, 3 Winter) into reg0.
 
 ### `op 306` — GetDay()
 *handler:* `Script_VMOp_GetCalendarDay`
+*verified:* yes, in game
 
 Get the current day of the season (1-30). reg0 = day.
 
 ### `op 307` — GetHourMinute()
-*handler:* `Script_VMOp_GetCalendarMonthAndSeason`
+*handler:* `Script_VMOp_GetCalendarHourMinute`
+*verified:* yes, in game
 
 Read the current clock time: reg0 = hour (0-23), reg1 = minute (0-59).
 
 ### `op 308` — GetDateSnapshot()
 *handler:* `Script_VMOp_GetCalendarFullSnapshot`
+*verified:* yes, in game
 
 Get the whole current date and time at once: reg0 = year, reg1 = season, reg2 = day, reg3 = hour, reg4 = minute.
 
 ### `op 362` — GetFestivalDate(slot, festival)
 *handler:* `Script_VMOp_GetNpcBirthdayMonthAndDay`
+*verified:* yes, in game
 
 Looks up the date of a festival: reg0 = season (0-3), reg1 = day, and script-variable bank 9 [slot] = season*100 + day for text substitution.
 
@@ -8487,6 +8588,7 @@ Put the weather system's streak counter into reg0 (30 when there is no weather t
 
 ### `op 451` — GetDayOfWeek()
 *handler:* `Script_VMOp_GetCalendarDayOfWeek`
+*verified:* yes, in game
 
 Read the weekday into reg0 (0-5), computed from the day of the season like the rest of the game does. 0 = the weekday the calendar shows as 'HOL' (Autumn 7 read 0, Autumn 8 read 1): the week has 6 days.
 
@@ -8649,11 +8751,13 @@ Args:
 
 ### `op 325` — GetLumber()
 *handler:* `Script_VMOp_GetPlayerLumber`
+*verified:* yes, in game
 
 Get the player's lumber count. reg0 = lumber (seen in game). GetPlayerVariable has no lumber code; this is the only way to read it.
 
 ### `op 326` — ModifyLumber(mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerLumber`
+*verified:* yes, in game
 
 Add to, subtract from or set the player's lumber. The mode is add / sub / set (a plain number does nothing). Add caps at 50,000, subtract stops at 0, but set caps at 9,999 (all seen in game). Lumber has its own ops; GetPlayerVariable / ModifyPlayerResource have no lumber code.
 
@@ -8663,6 +8767,7 @@ Args:
 
 ### `op 417` — ModifyPlayerResource(resource, mode, amount)
 *handler:* `Script_VMOp_ModifyPlayerResourceByCharCodeOp`
+*verified:* yes, in game
 
 Give, take or set gold, stone, compost, fodder or the player's level, e.g. pay 1000 gold = ModifyPlayerResource(gold, sub, 1000). Stone and compost stay within 0..50,000 and gold within 0..2,000,000,000; 'set' on the level takes the 0-based value (set 49 = level 50). All five seen in game.
 
@@ -8699,6 +8804,7 @@ Args:
 
 ### `op 423` — GivePlayerItem(item, count, quality)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
+*verified:* yes, in game
 
 Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.
 
@@ -8710,6 +8816,7 @@ Args:
 
 ### `op 424` — GivePlayerItem(item, count, quality)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
+*verified:* yes, in game
 
 Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.
 
@@ -8743,6 +8850,7 @@ Args:
 
 ### `op 429` — TakeItemFromBackpack(item, count, level filter)
 *handler:* `Script_VMOp_TakeItemFromBackpackOrEquipExtras`
+*verified:* yes, in game
 
 Remove a number of an item from the backpack (first 60 slots), then from the carried item; a partial take drops the lowest-level copies of the stack. Over-removes when the demand spans slots. Writes no result.
 
@@ -8900,6 +9008,7 @@ Args:
 
 ### `op 590` — BreakFurniture()
 *handler:* `Script_VMOp_DropQuestBoxItems1022And1023AndDestroy`
+*verified:* yes (no test logged)
 
 Break the furniture object running this script: a dust puff, it drops one Lumber (1022) and one Material Stone (1023) and disappears.
 
@@ -9224,6 +9333,7 @@ Releases the barn monster being talked to: it disappears with an effect and its 
 
 ### `op 446` — SetWeather(weather, seasonal)
 *handler:* `Script_Action_SetWeather`
+*verified:* yes, in game
 
 Change the weather for a scene (rain, snow, typhoon, Rooneys ...) or put it back with -1. If a dialogue box is open it is closed first and the op waits a frame. With the second argument non-zero the first is a daily-weather roll, not a weather code (1 then means cloudy, not rain).
 
@@ -9677,6 +9787,7 @@ Args:
 
 ### `op 2` — Wait(duration)
 *handler:* `Script_VMOp_WaitUnitsAndAdvanceReaction`
+*verified:* yes, in game
 
 Pauses the script for a time. 12000 units = 1 second (200 per frame), so 6000 = half a second and Wait(1) yields exactly one frame.
 
@@ -9710,6 +9821,7 @@ Args:
 
 ### `op 198` — WaitForPlayerEffect()
 *handler:* `Script_VMOp_QueryPlayerEffectActive`
+*verified:* yes, in game
 
 Wait until the running screen-shake / player effect task ends. In the shipped scripts it always follows ShakeCamera.
 
@@ -9769,6 +9881,7 @@ Args:
 
 ### `op 337` — WaitForFade()
 *handler:* `Script_VMOp_WaitForFadeComplete`
+*verified:* yes, in game
 
 Wait until the current screen fade (FadeScreen / FadeScreenToClear) has finished on both screens.
 
@@ -9971,6 +10084,7 @@ Args:
 
 ### `op 135` — GetActorTilePosition(actor)
 *handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
+*verified:* yes, in game
 
 Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
 
@@ -10054,11 +10168,13 @@ Args:
 
 ### `op 213` — GetPlayerPosition()
 *handler:* `Script_VMOp_GetPlayerPosition`
+*verified:* yes, in game
 
 Stores the player's tile position in reg0 (x) and reg1 (y), and 1 in reg2.
 
 ### `op 216` — HasNpcStoryFlag(character)
 *handler:* `Script_VMOp_QueryNpcInCurrentArea`
+*verified:* yes, in game
 
 Check whether the player has met a villager (the flag SetNpcStoryFlag sets; it is what keeps the first-meeting introduction from replaying). For child slots 24-47 it checks the child record instead.
 
@@ -10094,6 +10210,7 @@ Args:
 
 ### `op 218` — GetNpcFriendshipLevel(npc)
 *handler:* `Script_VMOp_QueryNpcFriendshipLevel`
+*verified:* yes, in game
 
 Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.
 
@@ -10128,6 +10245,7 @@ Args:
 
 ### `op 219` — GetNpcFriendshipLevel(npc)
 *handler:* `Script_VMOp_QueryNpcFriendshipLevel`
+*verified:* yes, in game
 
 Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.
 
@@ -10171,6 +10289,7 @@ Args:
 
 ### `op 226` — GetActorMapId(actor)
 *handler:* `Script_VMOp_QueryNpcScheduleId`
+*verified:* yes, in game
 
 Get the map (room) id a character is currently in; 0 gives the player's current map. Scripts compare two results to test whether characters are in the same place.
 
@@ -10312,6 +10431,7 @@ Args:
 
 ### `op 232` — IsNpcHidden(npc)
 *handler:* `Script_VMOp_QueryNpcHidden`
+*verified:* yes, in game
 
 Check whether an NPC has been hidden with HideNpc (op 233).
 
@@ -10748,6 +10868,7 @@ Args:
 
 ### `op 273` — IsDatingNpc(npc)
 *handler:* `Script_VMOp_IsDatingNpc`
+*verified:* yes, in game
 
 Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
 
@@ -10956,6 +11077,7 @@ Args:
 
 ### `op 280` — GetNpcDateState(npc)
 *handler:* `Script_VMOp_QueryNpcDateState`
+*verified:* yes, in game
 
 Read an NPC's date state into reg0: 0 none, 1 date promised for tomorrow, 2 date is today, 3 on the date, 4 the date went well, 5 declined today.
 
@@ -10991,6 +11113,7 @@ Args:
 
 ### `op 282` — IsNpcActorPresent(npc)
 *handler:* `ScriptVMOp282_QueryNpcActorPresent`
+*verified:* yes, in game
 
 Check whether an NPC's actor is loaded in the current map and not flagged away (actor+568 bit 0x20000000 clear). reg0 = 1/0.
 
@@ -11026,11 +11149,13 @@ Args:
 
 ### `op 283` — GetDateCompanionId()
 *handler:* `Script_VMOp_QueryCompanionNpcId`
+*verified:* yes, in game
 
 Sets reg0 to the char id of the party companion who is on a date with the player (a companion whose date state is set), or 0 if none.
 
 ### `op 288` — GetNpcOutfit(npc)
 *handler:* `Script_VMOp_GetNpcOutfit`
+*verified:* yes, in game
 
 Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for). 1 = pajamas (Forte at night, in game 2026-10-02).
 
@@ -11066,16 +11191,19 @@ Args:
 
 ### `op 309` — IsPlayerMale()
 *handler:* `Script_VMOp_GetPlayerIsFreyVariant`
+*verified:* yes, in game
 
 Sets reg0 = 1 when the player character is Lest (male), 0 when Frey (female). Scripts branch on it for gendered lines, nicknames and animations.
 
 ### `op 310` — IsPlayerModelLest()
 *handler:* `Script_VMOp_IsPlayerModelLest`
+*verified:* yes, in game
 
 Check the player's current MODEL, not the gender: reg0 = 1 when the player actor's model is Lest's (model 1217), 0 for Frey's (1233) or any other model. For a normal Lest or Frey this matches IsPlayerMale (309), which reads the saved character flag; while the player's model is swapped (Player_TransformToCharacterById) this one says 0 even for Lest. It does not check for a missing player actor (crashes in the no-player state). Unused by the shipped scripts; use IsPlayerMale for the gender.
 
 ### `op 321` — GetNpcNicknameForPlayer(npc)
 *handler:* `Script_VMOp_GetNpcEmoteByte`
+*verified:* yes, in game
 
 Sets reg0 to the nickname id the NPC currently uses for the player (0 = the player's own name). Scripts branch on it to pick the matching voice clip.
 
@@ -11154,6 +11282,7 @@ Args:
 
 ### `op 338` — IsNpcOnPlayerMap(npc)
 *handler:* `Script_VMOp_GetNpcScheduleMatchAndId`
+*verified:* yes, in game
 
 reg0 = 1 if the NPC is on the same map as the player, else 0; reg1 = the NPC's current map id (season-adjusted for outdoor maps). Used to check who is around before a scene.
 
@@ -11162,6 +11291,7 @@ Args:
 
 ### `op 339` — GetNpcCurrentMap(npc)
 *handler:* `Script_VMOp_GetNpcCurrentScheduleId`
+*verified:* yes, in game
 
 Put the map the NPC is currently on into reg0 (outdoor maps below 0x40 get the season added, giving the seasonal map variant).
 
@@ -11197,6 +11327,7 @@ Args:
 
 ### `op 342` — GetVar0(index)
 *handler:* `Script_VMOp_ReadVarArrayKind0`
+*verified:* yes, in game
 
 Read script variable bank 0 at [index] into reg0 - the reader for SetVar0.
 
@@ -11205,6 +11336,7 @@ Args:
 
 ### `op 344` — GetVar1(index)
 *handler:* `Script_VMOp_ReadVarArrayKind1`
+*verified:* yes, in game
 
 Read script variable bank 1 at [index] into reg0 - the reader for SetVar1.
 
@@ -11221,6 +11353,7 @@ Args:
 
 ### `op 350` — GetVar3(index)
 *handler:* `Script_VMOp_ReadVarArrayKind3`
+*verified:* yes, in game
 
 Read slot [index] of engine variable bank 3 into reg0 (the shop scripts read slots 0/1 before MyShopAction).
 
@@ -11237,6 +11370,7 @@ Args:
 
 ### `op 354` — GetVar5(index)
 *handler:* `Script_VMOp_ReadVarArrayKind5`
+*verified:* yes, in game
 
 Read script variable bank 5 at [index] into reg0 - the reader for SetVar5.
 
@@ -11261,6 +11395,7 @@ Args:
 
 ### `op 360` — GetVar8(index)
 *handler:* `Script_VMOp_ReadVarArrayKind8`
+*verified:* yes, in game
 
 Read script-variable bank 8 at [index] into reg0 (16 slots). The pair of SetVar8.
 
@@ -11343,16 +11478,19 @@ Read whether this script's barn monster has the 'also plant seeds' order into re
 
 ### `op 407` — GetAliveKillTargetCount()
 *handler:* `Script_VMOp_QueryActiveKillCount`
+*verified:* yes, in game
 
 Put the number of monsters still standing in the current 'defeat the monsters' group into reg0.
 
 ### `op 408` — CountLivingEnemies()
 *handler:* `Script_VMOp_QueryKillAggregateActiveCountExclBoss`
+*verified:* yes, in game
 
 Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts.
 
 ### `op 409` — GetTamedMonsterCount()
 *handler:* `Script_VMOp_CountTamedMonstersWithFlag1000`
+*verified:* yes, in game
 
 Get how many monsters the player owns (occupied slots of the 200-entry monster table). reg0 = count.
 
@@ -11372,6 +11510,7 @@ Get the result of the last item-pick menu: reg0 = chosen slot index (0-7), reg1 
 
 ### `op 416` — GetPlayerVariable(code, skill)
 *handler:* `Script_VMOp_QueryPlayerStatByCharCode`
+*verified:* yes, in game
 
 Get a player value chosen by a letter code (gold, level, fodder, a skill level, stone, compost, best skill level). reg0 = the value.
 
@@ -11426,6 +11565,7 @@ Args:
 
 ### `op 418` — HasBackpackRoom()
 *handler:* `Script_VMOp_QueryBackpackHasOccupiedSlot`
+*verified:* yes, in game
 
 Check whether the player's backpack has at least one free slot (within the currently unlocked size) before handing over an item.
 
@@ -11436,6 +11576,7 @@ reg0 = 1 if the player has room for an item: a free slot among the first 60 back
 
 ### `op 420` — HasBackpackFreeSlots(count)
 *handler:* `Script_VMOp_QueryBackpackFreeSlotCountGTE`
+*verified:* yes, in game
 
 Check whether the backpack has at least the given number of empty slots.
 
@@ -11444,11 +11585,13 @@ Args:
 
 ### `op 426` — IsPlayerHoldingItem()
 *handler:* `Script_VMOp_QueryEquipExtrasSlot24Occupied`
+*verified:* yes, in game
 
 reg0 = 1 if the player is carrying an item in their hands (over the head), else 0. Unused by the shipped scripts.
 
 ### `op 431` — HasItem(item, min_count, min_level)
 *handler:* `Script_VMOp_QueryItemAvailableInBackpackOrEquipExtras`
+*verified:* yes, in game
 
 Sets reg0 = 1 if one backpack slot (or the held/equipped extra slots) has the item with at least the given count, and that stack's highest level is at least min_level, else 0. reg2 = a flag bit of the matching stack.
 
@@ -11477,6 +11620,7 @@ Args:
 
 ### `op 434` — GetItemSellPrice(item)
 *handler:* `Script_VMOp_QueryItemSellPrice`
+*verified:* yes, in game
 
 Get an item's sell price for one unit at level 1 (the 'Sell:' on the item screen) into reg0, e.g. to show prices in a scripted menu. Seen in game.
 
@@ -11486,6 +11630,7 @@ Args:
 
 ### `op 435` — GetItemBuyPrice(item)
 *handler:* `Script_VMOp_QueryItemBuyPrice`
+*verified:* yes, in game
 
 Get an item's shop buy price (the 'Buy:' on the item screen) into reg0. Seen in game.
 
@@ -11495,6 +11640,7 @@ Args:
 
 ### `op 436` — IsItemStackable(item)
 *handler:* `Script_VMOp_QueryItemIsStackable`
+*verified:* yes, in game
 
 Check whether an item stacks. reg0 = 1 if its metadata stack nibble (+5 & 0xF) is > 1, else 0.
 
@@ -11522,6 +11668,7 @@ Args:
 
 ### `op 440` — GetNpcMapID(char)
 *handler:* `Script_VMOp_GetNpcMapID`
+*verified:* yes, in game
 
 Get a monster's home map from its rf3NpcParam record (offset 292) into reg0: the map hunting requests send the player to ('Go to ＠マップ０＠ and get rid of ...', via SetVar2). 0 for villagers.
 
@@ -11575,11 +11722,13 @@ Args:
 
 ### `op 447` — GetWeather()
 *handler:* `Script_Query_CurrentWeather`
+*verified:* yes, in game
 
 Read the current weather code into reg0 (codes as in SetWeather).
 
 ### `op 456` — GetEquippedItemAttr(slot, attr)
 *handler:* `Script_VMOp_QueryEquippedItemAttrByEquipSlot`
+*verified:* yes, in game
 
 Get the item equipped in one of the player's equipment slots and one attribute of it: reg0 = item id, reg1 = the chosen attribute (an upgrade, a base material, or one of two hidden sell-price ratings).
 
@@ -11635,6 +11784,7 @@ Args:
 
 ### `op 481` — GetPartyMemberId(slot)
 *handler:* `Script_VMOp_QueryPartyMemberDwordAt8`
+*verified:* yes, in game
 
 Read the character id of a party member into reg0 (0 if the slot is empty).
 
@@ -11643,6 +11793,7 @@ Args:
 
 ### `op 482` — GetPartyMemberId(slot)
 *handler:* `Script_VMOp_QueryPartyMemberDwordAt8`
+*verified:* yes, in game
 
 Read the character id of a party member into reg0 (0 if the slot is empty).
 
@@ -11666,6 +11817,7 @@ Sets reg0 to the talking NPC's facing mode (0-2), as set by SetNpcFacingMode; 0 
 
 ### `op 504` — GetPartyMemberTileY(slot)
 *handler:* `Script_VMOp_QueryPartyMemberWorldYTile`
+*verified:* yes, in game
 
 Read a party member's Y tile into reg0 (0 if the slot is empty).
 
@@ -11687,6 +11839,7 @@ Read the current scene's four state bytes (scene +540..+543) into reg0..reg3.
 
 ### `op 567` — GetTomorrowsCalendarEvent()
 *handler:* `Script_VMOp_QueryTomorrowBirthdayNpcIfNotMet`
+*verified:* yes, in game
 
 Get the calendar event (festival / birthday row id) scheduled for tomorrow, if that event is enabled; reg0 = event id or 0. Before 6:00 'tomorrow' means today's date.
 
@@ -11709,6 +11862,7 @@ Args:
 
 ### `op 570` — GetTodaysRequestNpc()
 *handler:* `Script_VMOp_QueryTodayDailyRequestActiveNpcId`
+*verified:* yes, in game
 
 Read into reg0 the character id of the NPC whose daily request is active today (0 if none).
 
@@ -11797,11 +11951,13 @@ Decide whether the NPC being talked to agrees to join the player's party: reg0 =
 
 ### `op 622` — GetDifficulty()
 *handler:* `Script_VMOp_QueryDifficultyMode`
+*verified:* yes, in game
 
 Sets reg0 to the difficulty: 0 = Easy, 1 = Normal, 2 = Hard (or Hell; the two are not distinguished here).
 
 ### `op 626` — IsMazeStageCleared(stage)
 *handler:* `Script_VMOp_QueryPlayerInventoryFlagBit`
+*verified:* yes, in game
 
 reg0 = 1 if the given Sharance Maze stage has been cleared.
 
@@ -11823,11 +11979,13 @@ Fill reg0-reg3 with the crop items of the weekly harvest report (bumper and poor
 
 ### `op 639` — GetPrincePoints()
 *handler:* `Script_QueryPrincePoints`
+*verified:* yes, in game
 
 Get the current Prince Points. reg0 = points.
 
 ### `op 641` — GetTourists()
 *handler:* `Script_QueryTourists`
+*verified:* yes (no test logged)
 
 Get the current tourist count. reg0 = tourists.
 
@@ -11870,6 +12028,7 @@ Args:
 
 ### `op 646` — GetPrinceRank()
 *handler:* `Script_QueryPrinceRank`
+*verified:* yes, in game
 
 Read the current Prince rank into reg1 (not reg0). Ranks 0-5 = Apprentice, Struggling, Respected, Reliable, Honorable Prince/Princess, Crown of Crowns (verified in game: 1 before an order-sign promotion, 5 = Crown of Crowns after).
 
@@ -11917,6 +12076,7 @@ Get the shipping-list completion percent (distinct items ever shipped / distinct
 
 ### `op 649` — GetShippingBoxGold()
 *handler:* `Script_VMOp_QueryShippingBoxTotalGold`
+*verified:* yes, in game
 
 Sets reg0 to the total sale value of everything in the shipping box (capped at 999,999,999). It is the SELL value (an onigiri read 57; 180 is its shop price).
 
@@ -11927,6 +12087,7 @@ Sets reg0 to the total gold earned from shipping over the whole save (all catego
 
 ### `op 652` — GetPreviousMapId()
 *handler:* `Script_VMOp_QuerySceneA1Word348`
+*verified:* yes, in game
 
 Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from). For outdoor maps it is the season-independent base id (coming from the farm read 4, not the seasonal 4-7 variant); from a room, that room's id (Your Room = 64).
 
@@ -11937,6 +12098,7 @@ Sets reg0/reg1 to a tile position stored in the running script's host (words +11
 
 ### `op 666` — IsGameClearedSysFlagSet()
 *handler:* `Script_VMOp_QuerySaveConfigBit0`
+*verified:* yes, in game
 
 Check bit 0 of the system-save flags (rf4_sys.sav, shared by all save slots). The bit unlocks the post-game Extra Orders category; scripts set it with op 667.
 
@@ -11962,11 +12124,13 @@ Check bit 3 (0x8) of g_saveConfigFlags. reg0 = 1/0. RegisterChildBirth (op 292) 
 
 ### `op 674` — GetRuneMedals()
 *handler:* `Script_VMOp_QueryPlayerRuneMedalsDword`
+*verified:* yes, in game
 
 Read the player's medal count into reg0 (used by the medal exchange).
 
 ### `op 676` — GetMedalGoldRate()
 *handler:* `Script_VMOp_GetMedalGoldRate`
+*verified:* yes, in game
 
 Put the Rune Medal to gold exchange rate (always 20) into reg0, for the exchange dialogue text.
 
@@ -12020,6 +12184,7 @@ Args:
 
 ### `op 694` — HasClearedAnyMarriage()
 *handler:* `Script_VMOp_QuerySaveConfigBit1`
+*verified:* yes, in game
 
 reg0 = 1 if a marriage has ever been completed on this system save (the flag MarkSpouseCleared sets).
 
@@ -12054,6 +12219,7 @@ Args:
 
 ### `op 596` — RollUniformIntegerLessThanN(n)
 *handler:* `Script_VMOp_RollUniformIntegerLessThanN`
+*verified:* yes, in game
 
 Roll a random integer from 0 to n-1 into reg0.
 
@@ -12090,6 +12256,7 @@ Args:
 
 ### `op 642` — AddTourists(amount)
 *handler:* `Script_AddTourists`
+*verified:* yes, in game
 
 Add to the town's tourist count (Prince Point system; it shows on the Order Symbol). A negative amount subtracts; the count stays within 0..99,999,999 (both limits seen in game).
 
@@ -12117,11 +12284,13 @@ Args:
 
 ### `op 388` — nop()
 *handler:* `BusInstance_SoLoud__vslot_002`
+*verified:* yes, from the exe
 
 No-op: the do-nothing stub; the VM decodes and discards any args and moves on. This is THE nop: `nop` assembles to it, it takes no arguments (4 bytes, as in its 4 shipped uses), and the editor lists only it. The other no-op slots (0, 76, 272, 381, 693, ...) run the same stub and show as nop_N.
 
 ### `op 524` — NopCompleteSubEventGoals()
 *handler:* `Script_VMOp_PromoteAllPendingThrowEntriesToActive`
+*verified:* yes, from the exe
 
 Does nothing: the handler it shares with op 548 only works for opcodes >= 537. Use op 548 to complete sub-event goals.
 

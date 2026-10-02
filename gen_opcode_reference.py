@@ -83,6 +83,16 @@ def build():
                     "%s = %s (%s)" % (a["name"], a["value"], a["encoding"]) for a in om.OPCODE_ARGS[op]))
             if tech:
                 lines.append(f"*handler:* `{tech}`")
+            if om.human_verified(op) and all(om.arg_verified(op, i) for i in range(len(args))):
+                row = om.table_row(op) or {}
+                ev = row.get("evidence") or ""
+                if "In-game test" in ev or any(a.get("tests") for a in row.get("args", [])):
+                    how = "yes, in game"
+                elif "from the exe" in ev:
+                    how = "yes, from the exe"
+                else:
+                    how = "yes (no test logged)"
+                lines.append("*verified:* " + how)
             if desc:
                 lines.append("")
                 lines.append(desc)

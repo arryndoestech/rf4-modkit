@@ -33869,7 +33869,7 @@
    "side_effects": "",
    "evidence": "RF4S.exe+0x20C400; corpus 12 uses, followed by `reg0 %= 2` or `30 - reg0*3`. In-game test 2026-10-02 (user): GetYear() -> 2 = Year 2 (calendar).",
    "alias_of": null,
-   "handler": "Script_VMOp_GetCalendarMinute",
+   "handler": "Script_VMOp_GetCalendarYear",
    "handler_rva": "0x20C400",
    "shares_handler_with": [],
    "size": [
@@ -33882,7 +33882,7 @@
     "0": 12
    },
    "confidence": "high",
-   "notes": "The IDB name GetCalendarMinute is wrong.",
+   "notes": "",
    "change_reason": null,
    "human_verified": true,
    "example": {
@@ -34007,7 +34007,7 @@
    "side_effects": "",
    "evidence": "RF4S.exe+0x20C4C0; corpus: 90 uses, immediately 'EVAL reg0 = reg0 * 60 + reg1' and compared with appointment times (REG_DATE_APPO_HOUR). In-game test 2026-10-02 (user): GetHourMinute() at 04:38 (after midnight) -> 438: reg0 = 4, reg1 = 38, the clock when the scene started (the clock stops during scenes).",
    "alias_of": null,
-   "handler": "Script_VMOp_GetCalendarMonthAndSeason",
+   "handler": "Script_VMOp_GetCalendarHourMinute",
    "handler_rva": "0x20C4C0",
    "shares_handler_with": [],
    "size": [
@@ -34020,7 +34020,7 @@
     "0": 90
    },
    "confidence": "high",
-   "notes": "The IDB name GetCalendarMonthAndSeason is wrong.",
+   "notes": "",
    "change_reason": null,
    "human_verified": true,
    "example": {
