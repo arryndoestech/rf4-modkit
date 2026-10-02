@@ -2917,11 +2917,15 @@ Args:
 
 ### `op 614` — SetDialogueBoxMode(mode)
 *handler:* `Script_VMOp_SetDialogueSpeakerSideByte`
+*verified:* yes, in game
 
-Switch the dialogue box style: 0 normal, 1 the menu-style layout used by shop/menu scripts, 2 narration without a name plate or text blips.
+Switch the dialogue box style for the following lines: 0 = the normal box; 1 = the Order Symbol (prince/princess) layout: the ring frame around the screen (prince_bg_01/02), the portrait 31 px higher, choice menus restyled (red diamond rows, placed right of centre), and HUD counters raised by ops 653-655 stay visible during the box; 2 = the cinematic event box: a dark see-through box in mid-screen, the speaker's name as plain text instead of the green plate, the portrait faded, a Next / Fast Fwd / View / Cancel help bar, and (per the code) no text blips. It stays set until changed; the shipped scripts only use 1 (21 times, the Order Symbol) and set it back to 0 themselves.
 
 Args:
-  0. mode (0 = normal, 1 = menu-style dialogue layout (all shipped uses), 2 = narration (no name label, no text blips))
+  0. mode (0 = normal, 1 = menu-style dialogue layout (all shipped uses), 2 = narration (no name label, no text blips)) — verified in game
+     - `0` = normal
+     - `1` = order_symbol
+     - `2` = cinematic
 
 ### `op 615` — SetNextChoiceDescription(value 1, value 2, value 3)
 *handler:* `Script_VMOp_SetNextChoiceDescription`
@@ -3232,21 +3236,21 @@ Wait until the staff-credits roll started by ShowStaffCredits (op 617) has finis
 
 ### `op 653` — ShowLumberCounter()
 *handler:* `Script_VMOp_ShowLumberCounter`
-*verified:* yes (no test logged)
+*verified:* yes, in game
 
-Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
+Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.
 
 ### `op 654` — ShowStoneCounter()
 *handler:* `Script_VMOp_ShowStoneCounter`
-*verified:* yes (no test logged)
+*verified:* yes, in game
 
-Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
+Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.
 
 ### `op 655` — ShowPrincePointCounter()
 *handler:* `Script_VMOp_ShowPrincePointCounter`
-*verified:* yes (no test logged)
+*verified:* yes, in game
 
-Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).
+Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.
 
 ### `op 656` — SetMapScrollSpeedX(speed, snap)
 *handler:* `Script_VMOp_SetMapUvScrollSpeedXTarget`
@@ -10903,6 +10907,7 @@ Args:
 
 ### `op 274` — IsDatingNpc(npc)
 *handler:* `Script_VMOp_IsDatingNpc`
+*verified:* yes, in game
 
 Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
 
@@ -11985,7 +11990,7 @@ Get the current Prince Points. reg0 = points.
 
 ### `op 641` — GetTourists()
 *handler:* `Script_QueryTourists`
-*verified:* yes (no test logged)
+*verified:* yes, in game
 
 Get the current tourist count. reg0 = tourists.
 

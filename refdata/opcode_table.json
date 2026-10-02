@@ -32113,6 +32113,11 @@
        "date": "2026-10-02",
        "call": "IsDatingNpc(0) / (4 Forte) / (5 Kiel) while dating Kiel only",
        "observed": "1 / 0 / 1: it checks the dating flag (0 = how many are dated)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "IsDatingNpc_274(5 Kiel) / IsDatingNpc_274(0) while dating Kiel only",
+       "observed": "1 / 1 (same as op 273)"
       }
      ]
     }
@@ -32177,6 +32182,11 @@
        "date": "2026-10-02",
        "call": "IsDatingNpc(0) / (4 Forte) / (5 Kiel) while dating Kiel only",
        "observed": "1 / 0 / 1: it checks the dating flag (0 = how many are dated)"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "IsDatingNpc_274(5 Kiel) / IsDatingNpc_274(0) while dating Kiel only",
+       "observed": "1 / 1 (same as op 273)"
       }
      ]
     }
@@ -32187,7 +32197,7 @@
    "description": "Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.",
    "details": "arg0 1..23: reg0 = (record+52 >> 22) & 1 (0 if no record); arg0 >= 24: 0; arg0 == 0: count of ids 1..23 with bit 0x400000. Same bit as em.bin's PARTNER_<name> / PARTNER_NUM queries (Npc_IsDatingPartner, +0x227AB0).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2054B0; corpus 273 uses, often `IsDatingNpc(n)` -> `BR_Z reg0 || (REG_WIFE_ID == n)` after SetNpcDateState(n, 0).",
+   "evidence": "RF4S.exe+0x2054B0; corpus 273 uses, often `IsDatingNpc(n)` -> `BR_Z reg0 || (REG_WIFE_ID == n)` after SetNpcDateState(n, 0). In-game test 2026-10-02 (user): IsDatingNpc_274(5 Kiel) / IsDatingNpc_274(0) while dating Kiel only -> 1 / 1 (same as op 273).",
    "alias_of": 273,
    "handler": "Script_VMOp_IsDatingNpc",
    "handler_rva": "0x2054B0",
@@ -32206,7 +32216,7 @@
    "confidence": "high",
    "notes": "True alias of op 273 (same handler, no opcode-dependent branch). Corpus op 274 passes literal ids (0 for the count form, 1..23).",
    "change_reason": "Boolean query -> Is verb per the naming rules.; 2026-10-01: record+52 bit 0x400000 is the dating flag -- the bit em.bin's PARTNER_<name> / PARTNER_NUM / CURRENT_CHAR_IS_PARTNER queries read through Npc_IsDatingPartner (+0x227AB0, was Npc_HasBeenMet), set by op 275 at the end of every marriage candidate's successful confession scene",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 79,
     "pc": "0x054A",
@@ -52167,16 +52177,45 @@
      "values": "0 = normal, 1 = menu-style dialogue layout (all shipped uses), 2 = narration (no name label, no text blips)",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-02",
+       "call": "SetDialogueBoxMode(1) before a box, with no counter op (E4 box 1, screenshot)",
+       "observed": "mode 1 draws the Order Symbol's ring frame (textures prince_bg_01 / prince_bg_02) around the screen while the box is up; mode 0 after EndDialogue removed it"
+      },
+      {
+       "date": "2026-10-02",
+       "call": "SetDialogueBoxMode(0) / (2) / (1) + a 3-option PROMPT_CHOICE_FORCED / (0), each before a DIALOG describing it (E5, screenshots)",
+       "observed": "0: normal box with the green name plate; 2: dark see-through mid-screen box, name as plain text, portrait faded, Next / Fast Fwd / View / Cancel help bar; 1: ring frame, choice menu with red diamond rows right of centre; 0 again: back to normal, no ring"
+      }
+     ],
+     "value_names": {
+      "0": {
+       "name": "normal",
+       "text": "the normal dialogue box",
+       "human_verified": true
+      },
+      "1": {
+       "name": "order_symbol",
+       "text": "the Order Symbol layout: ring frame, raised portrait, restyled choice menu",
+       "human_verified": true
+      },
+      "2": {
+       "name": "cinematic",
+       "text": "the event-scene box: dark see-through, plain-text name, faded portrait, help bar",
+       "human_verified": true
+      }
+     }
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Switch the dialogue box style: 0 normal, 1 the menu-style layout used by shop/menu scripts, 2 narration without a name plate or text blips.",
-   "details": "RF4S.exe+0x21C740: BYTE2(g_gameGlobalsSlotTable.entries[9]) = arg0 (byte +0x4A). Readers comparing with 1: +0xD9347, +0xD9868, +0x1D8210 (EmotePortrait_SpawnPositioned: y -= 31), +0x2358A0, +0x238BC4, +0x238CF3, +0x238E0C, +0x23A062; comparing with 2: +0x2323DE, +0x234C3C, +0x246CA0 (DialogueBox_SpawnBubbleAndSpeakerNameSprites hides the name label).",
+   "description": "Switch the dialogue box style for the following lines: 0 = the normal box; 1 = the Order Symbol (prince/princess) layout: the ring frame around the screen (prince_bg_01/02), the portrait 31 px higher, choice menus restyled (red diamond rows, placed right of centre), and HUD counters raised by ops 653-655 stay visible during the box; 2 = the cinematic event box: a dark see-through box in mid-screen, the speaker's name as plain text instead of the green plate, the portrait faded, a Next / Fast Fwd / View / Cancel help bar, and (per the code) no text blips. It stays set until changed; the shipped scripts only use 1 (21 times, the Order Symbol) and set it back to 0 themselves.",
+   "details": "RF4S.exe+0x21C740: BYTE2(g_gameGlobalsSlotTable.entries[9]) (byte +0x4A) = arg0. Readers: mode 1 -- Dialogue_SpawnHud (+0x234EA0) spawns sprites 15833/15834 = prince_bg_01/02; EmotePortrait_SpawnPositioned (+0x1D8110) y -= 31; FMenu_HideHudWidgets (+0xD8FC0) / FMenu_RefreshButtonEnableStates (+0xD9820) keep the mode at f_menu work +1909 and switch HUD widgets for it; the choice builder (+0x238B80) uses row sprite 15838 instead of 15837, row step 34 instead of 32, menu y 264 instead of 200; ChoiceDialog_AnimateStaggeredFallIn (+0x23A040) starts the rows from other positions. Mode 2 -- DialogueBox_SpawnBubbleAndSpeakerNameSprites (+0x234AB0) hides the name plate; Sprite_TickTypewriterDripText (+0x246AD0) plays no blips; Dialogue_SpawnHud uses the other bubble spawn-Y table and hides one more widget; Dialogue_LoadAndShowLine (+0x232320) handles the text widget for it.",
    "side_effects": "global dialogue layout byte",
-   "evidence": "RF4S.exe+0x21C740; +0x1D8110 (checked here: BYTE2(entries[9]) == 1 shifts the portrait); reader list from the 2026-09-26 refutation; corpus: 21 uses, always 1.",
+   "evidence": "RF4S.exe+0x21C740; +0x1D8110 (checked here: BYTE2(entries[9]) == 1 shifts the portrait); reader list from the 2026-09-26 refutation; corpus: 21 uses, always 1. In-game test 2026-10-02 (user): SetDialogueBoxMode(1) before a DIALOG, with and without a HUD counter op before it -> mode 1 kept the normal HUD (weather, date, time, season, gold) visible during the box, plus any counter an earlier ShowLumber/Stone/PrincePointCounter op raised. In-game test 2026-10-02 (user): SetDialogueBoxMode(1) before a box, with no counter op (E4 box 1, screenshot) -> mode 1 draws the Order Symbol's ring frame (textures prince_bg_01 / prince_bg_02) around the screen while the box is up; mode 0 after EndDialogue removed it. In-game test 2026-10-02 (user): SetDialogueBoxMode(0) / (2) / (1) + a 3-option PROMPT_CHOICE_FORCED / (0), each before a DIALOG describing it (E5, screenshots) -> 0: normal box with the green name plate; 2: dark see-through mid-screen box, name as plain text, portrait faded, Next / Fast Fwd / View / Cancel help bar; 1: ring frame, choice menu with red diamond rows right of centre; 0 again: back to normal, no ring.",
    "alias_of": null,
    "handler": "Script_VMOp_SetDialogueSpeakerSideByte",
    "handler_rva": "0x21C740",
@@ -52193,7 +52232,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 308,
     "pc": "0x5CDA",
@@ -53608,7 +53647,7 @@
    "description": "Get the current tourist count. reg0 = tourists.",
    "details": "reg0 = g_princePointMenuState.tourists.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21E050; corpus 2 uses (bank 308 with GetPrinceRank).",
+   "evidence": "RF4S.exe+0x21E050; corpus 2 uses (bank 308 with GetPrinceRank). In-game test 2026-10-02 (user): GetTourists(); AddTourists(7); GetTourists(); AddTourists(-7); GetTourists() -> 10000 / 10007 / 10000; 10000 matched the Order Symbol's 'Tourists: 10000'.",
    "alias_of": null,
    "handler": "Script_QueryTourists",
    "handler_rva": "0x21E050",
@@ -54233,10 +54272,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).",
+   "description": "Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.",
    "details": "RF4S.exe+0x21DBC0: g_fMenuTask->work_buffer +0x73C (the lumber popup's last shown amount) = -1. The only other user of that field is LumberHud_TickPopupSlideAndDigits (RF4S.exe+0xDC820). The popup's tick runs from f_menu_Update (RF4S.exe+0xDB920, the update function Trigger_f_menu +0xD57D0 installs; it gets the same +0xB0 work buffer). It compares the field with the current amount every frame; while they differ it slides the counter in from the right edge and counts the digits toward the amount, and stores the amount once the slide-in finishes. With nothing changing, it slides out again after 240-360 frames (about 4-6 s). -1 never equals a real amount, so the counter appears even though nothing changed. No null check on g_fMenuTask.",
    "side_effects": "HUD: the lumber counter popup",
-   "evidence": "RF4S.exe+0x21DBC0 writes -1 to work buffer +0x73C; an exe scan for that displacement finds only this op and LumberHud_TickPopupSlideAndDigits (compares it with g_playerLumber). Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots).",
+   "evidence": "RF4S.exe+0x21DBC0 writes -1 to work buffer +0x73C; an exe scan for that displacement finds only this op and LumberHud_TickPopupSlideAndDigits (compares it with g_playerLumber). Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots). In-game test 2026-10-02 (user): ShowLumberCounter(); SetDialogueBoxMode(1); a DIALOG describing the test -> the Lumber counter showed at the top right during that box; a control box (SetDialogueBoxMode(1) without a counter op) showed only the normal HUD (weather, date, time, gold), no counters. Without SetDialogueBoxMode(1) the counter only shows after the scene ends (the Order Symbol scene uses the same order: the counter ops, SetDialogueBoxMode(1), then its dialogue). In-game test 2026-10-02 (user): ShowLumberCounter(); ShowStoneCounter(); ShowPrincePointCounter(); SetDialogueBoxMode(1); DIALOG -> all three counters (Lumber, Material Stone, Prince Points) visible together during the box; the Order Symbol ring frame (prince_bg_01 / prince_bg_02 textures) showed as well. In-game test 2026-10-02 (user): E4 (screenshots): box mode 1 alone, then ShowPrincePointCounter, ShowLumberCounter, ShowStoneCounter, each before a box with box mode 1 -> each counter appeared on its box and stayed up on the later boxes (Points; Points + Lumber; all three): a shown counter stays until the scene ends. The ring frame was there on every box, also the first one without any counter, so it comes from SetDialogueBoxMode(1).",
    "alias_of": null,
    "handler": "Script_VMOp_ShowLumberCounter",
    "handler_rva": "0x21DBC0",
@@ -54279,10 +54318,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).",
+   "description": "Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.",
    "details": "RF4S.exe+0x21DBE0: g_fMenuTask->work_buffer +0x744 (the material stone popup's last shown amount) = -1. The only other user of that field is StoneHud_TickPopupSlideAndDigits (RF4S.exe+0xDD000). The popup's tick runs from f_menu_Update (RF4S.exe+0xDB920, the update function Trigger_f_menu +0xD57D0 installs; it gets the same +0xB0 work buffer). It compares the field with the current amount every frame; while they differ it slides the counter in from the right edge and counts the digits toward the amount, and stores the amount once the slide-in finishes. With nothing changing, it slides out again after 240-360 frames (about 4-6 s). -1 never equals a real amount, so the counter appears even though nothing changed. No null check on g_fMenuTask.",
    "side_effects": "HUD: the material stone counter popup",
-   "evidence": "RF4S.exe+0x21DBE0 writes -1 to work buffer +0x744; an exe scan for that displacement finds this op and StoneHud_TickPopupSlideAndDigits (compares it with g_playerStone); the two other +0x744 hits are a byte of the player's mount state, another struct. Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots).",
+   "evidence": "RF4S.exe+0x21DBE0 writes -1 to work buffer +0x744; an exe scan for that displacement finds this op and StoneHud_TickPopupSlideAndDigits (compares it with g_playerStone); the two other +0x744 hits are a byte of the player's mount state, another struct. Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots). In-game test 2026-10-02 (user): ShowStoneCounter(); SetDialogueBoxMode(1); a DIALOG describing the test -> the Material Stone counter showed at the top right during that box; a control box (SetDialogueBoxMode(1) without a counter op) showed only the normal HUD (weather, date, time, gold), no counters. Without SetDialogueBoxMode(1) the counter only shows after the scene ends (the Order Symbol scene uses the same order: the counter ops, SetDialogueBoxMode(1), then its dialogue). In-game test 2026-10-02 (user): ShowLumberCounter(); ShowStoneCounter(); ShowPrincePointCounter(); SetDialogueBoxMode(1); DIALOG -> all three counters (Lumber, Material Stone, Prince Points) visible together during the box; the Order Symbol ring frame (prince_bg_01 / prince_bg_02 textures) showed as well. In-game test 2026-10-02 (user): E4 (screenshots): box mode 1 alone, then ShowPrincePointCounter, ShowLumberCounter, ShowStoneCounter, each before a box with box mode 1 -> each counter appeared on its box and stayed up on the later boxes (Points; Points + Lumber; all three): a shown counter stays until the scene ends. The ring frame was there on every box, also the first one without any counter, so it comes from SetDialogueBoxMode(1).",
    "alias_of": null,
    "handler": "Script_VMOp_ShowStoneCounter",
    "handler_rva": "0x21DBE0",
@@ -54325,10 +54364,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds).",
+   "description": "Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.",
    "details": "RF4S.exe+0x21DC00: g_fMenuTask->work_buffer +0x74C (the Prince Points popup's last shown amount) = -1. The only other user of that field is PrincePointsHud_TickCounterPopup (RF4S.exe+0xDD800). The popup's tick runs from f_menu_Update (RF4S.exe+0xDB920, the update function Trigger_f_menu +0xD57D0 installs; it gets the same +0xB0 work buffer). It compares the field with the current amount every frame; while they differ it slides the counter in from the right edge and counts the digits toward the amount, and stores the amount once the slide-in finishes. With nothing changing, it slides out again after 240-360 frames (about 4-6 s). -1 never equals a real amount, so the counter appears even though nothing changed. No null check on g_fMenuTask.",
    "side_effects": "HUD: the Prince Points counter popup",
-   "evidence": "RF4S.exe+0x21DC00 writes -1 to work buffer +0x74C; an exe scan for that displacement finds only this op and PrincePointsHud_TickCounterPopup (compares it with the Prince Points in g_princePointMenuState). Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots).",
+   "evidence": "RF4S.exe+0x21DC00 writes -1 to work buffer +0x74C; an exe scan for that displacement finds only this op and PrincePointsHud_TickCounterPopup (compares it with the Prince Points in g_princePointMenuState). Corpus: the material spot ('Toss Lumber and Material Stone here', global bank type-2 scene @0x3524) shows lumber + stone; the service menus (Prince Point upgrades: freezer etc.) show Prince Points + lumber + stone before they put the costs into SetVar4/5/6 (gold / lumber / stone text slots). In-game test 2026-10-02 (user): ShowPrincePointCounter(); SetDialogueBoxMode(1); a DIALOG describing the test -> the Prince Points counter showed at the top right during that box; a control box (SetDialogueBoxMode(1) without a counter op) showed only the normal HUD (weather, date, time, gold), no counters. Without SetDialogueBoxMode(1) the counter only shows after the scene ends (the Order Symbol scene uses the same order: the counter ops, SetDialogueBoxMode(1), then its dialogue). In-game test 2026-10-02 (user): ShowLumberCounter(); ShowStoneCounter(); ShowPrincePointCounter(); SetDialogueBoxMode(1); DIALOG -> all three counters (Lumber, Material Stone, Prince Points) visible together during the box; the Order Symbol ring frame (prince_bg_01 / prince_bg_02 textures) showed as well. In-game test 2026-10-02 (user): E4 (screenshots): box mode 1 alone, then ShowPrincePointCounter, ShowLumberCounter, ShowStoneCounter, each before a box with box mode 1 -> each counter appeared on its box and stayed up on the later boxes (Points; Points + Lumber; all three): a shown counter stays until the scene ends. The ring frame was there on every box, also the first one without any counter, so it comes from SetDialogueBoxMode(1).",
    "alias_of": null,
    "handler": "Script_VMOp_ShowPrincePointCounter",
    "handler_rva": "0x21DC00",

@@ -191,6 +191,22 @@ def install_sweep(map_name, listing):
     return bank.entry_records(6)[0].event_id, path
 
 
+def test_lines(lines, pid=None):
+    """Load the game's dialogue text plus `lines` (test descriptions) into the running game only
+    -- no file changes -- and return their line ids for DIALOG #id. The game's language file
+    is the base; a later `script reload` puts the plain text back. Run it after the rf3.mc
+    reload (that one reloads the text from disk)."""
+    from rf4s_modkit import gamepaths, hotreload, textdb
+    loc, _n = hotreload.text_locale(pid=pid)
+    if loc is None:
+        raise SystemExit("the game's dialogue text matches none of the rf3mc.<locale> files")
+    f = (gamepaths.game_targets(["rf3mc.%s" % loc]) or {}).get("rf3mc.%s" % loc)
+    arc = textdb.TextArchive.parse(pathlib.Path(f).read_bytes())
+    ids = [arc.append_text(s) for s in lines]
+    hotreload.reload_text(arc.build(), pid=pid)
+    return ids
+
+
 def restore(map_name):
     """Put the map's scene bank back as it is in the original file (the backup the toolkit
     made before its first write). Only that map's bank changes."""
