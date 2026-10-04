@@ -295,7 +295,9 @@ MOBJ_NOTES: dict[str, str] = {
 # type's texture rendered and looked at), the maps it is placed on, and for doors the warp it
 # stands at (its destination's in-game name; generic 'House' rooms by their room file).
 # Effect / gimmick types 20..81 draw no sprite of their own and are named by what their
-# handler does (MOBJ_NOTES has the detail). '(unused)' = no shipped map places the type.
+# handler does (MOBJ_NOTES has the detail). '(unused)' = no shipped map places the type AND
+# no rf3.mc scene spawns it (SpawnMapEntity, op 157): the Sharance Maze entrance (326), for
+# one, exists only through its Trophy Room scene.
 # mobj_display_name() prefers these; the codenames stay in MOBJ_NAMES for technical views.
 MOBJ_DISPLAY: dict[int, str] = {
     20: "street light",  # fe032
@@ -314,7 +316,7 @@ MOBJ_DISPLAY: dict[int, str] = {
     33: "rolling boulder (unused)",  # gmk08_roll
     34: "water hazard (unused)",  # gmk09_water
     35: "mushroom pickup",  # gmk10_mushroom
-    36: "NPC-event object (unused)",  # gmk11_collection
+    36: "NPC-event object",  # gmk11_collection
     37: "red glow",  # gmk12_redlight
     38: "blue glow (unused)",  # gmk13_bluelight
     39: "light shaft (unused)",  # gmk14_sunlight
@@ -336,7 +338,7 @@ MOBJ_DISPLAY: dict[int, str] = {
     55: "eruption vent",  # fe106
     56: "chandelier",  # MOBJ_CHANDELIER
     57: "portrait",  # MOBJ_FIELD_METAL02
-    58: "travelling NPC (unused)",  # MOBJ_BOX_WINTER
+    58: "travelling NPC",  # MOBJ_BOX_WINTER
     59: "Wooly doll",  # fe114
     60: "pond",  # fe115
     61: "map-wide particles",  # fe116
@@ -604,7 +606,7 @@ MOBJ_DISPLAY: dict[int, str] = {
     323: "dungeon gate (blue, unused)",  # MOBJ_DD00
     324: "overhanging foliage 1",  # MOBJ_F02_01
     325: "overhanging foliage 2",  # MOBJ_F02_02
-    326: "crystal charm (unused)",  # COLLECTION_76
+    326: "Sharance Maze entrance",  # COLLECTION_76
     327: "unused slot",  # dummy2_038
     328: "unused slot",  # dummy2_039
     329: "unused slot",  # dummy2_040
@@ -647,8 +649,8 @@ MOBJ_DISPLAY: dict[int, str] = {
     366: "cave boulder 3",  # DUNG_C_isi02
     367: "cave boulder 4",  # DUNG_C_isi03
     368: "cave boulder 5",  # DUNG_C_isi04
-    369: "○ marker (unused)",  # MOBJ_CITY_MARU
-    370: "✕ marker (unused)",  # MOBJ_CITY_BATU
+    369: "○ marker",  # MOBJ_CITY_MARU
+    370: "✕ marker",  # MOBJ_CITY_BATU
     371: "cave entrance (left)",  # MOBJ_FID_DUNG_LEFT
     372: "cave entrance (left, winter)",  # MOBJ_FID_DUNG_LEFT_WINTER
     373: "cave entrance (right, unused)",  # MOBJ_FID_DUNG_RIGHT

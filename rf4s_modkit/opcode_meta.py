@@ -1710,10 +1710,10 @@ _M.update({
 # a1 = the running script/scene context. These read raw context words into the VM output; the
 # fields are shared with NPC-position / control-flow ops but carry no fixed global meaning.
 _M.update({
-    658: ("GetSceneWordPair112", "query",
+    658: ("GetDefeatPosition", "query",
           "Read the scene context's word pair at offsets +112 and +114 into the two VM outputs "
-          "(main + second). These are scene-local coordinate/scratch words also used by the NPC "
-          "streaming/respawn ops, so they typically hold a tile (x, y).",
+          "(main + second): the tile of the most recently defeated monster, written by game event 1 "
+          "(RF4S.exe+0x1F2040) after each monster death.",
           []),
 })
 
@@ -2500,8 +2500,8 @@ _M.update({
     241: ('QueryNpcGroupPresentNearby', 'query',
         "Read 1 into reg0 iff a group of NPCs are all present and available (actor state != 13/25, not busy/inaccessible) and each within arg0 distance of the primary. arg0 = max distance, arg1 = primary npc (char id), remaining args = the other npc char ids -- there is NO count argument: the handler derives the group size from the statement's own arg count. The dominant 2-arg form (distance, npc) degenerates to a single-NPC 'present & available' check (self-distance 0). 5-arg form = primary + 3 others.",
         ['max distance', 'primary npc (char id)', 'other npc …']),
-    242: ('SetSceneFlag0x200', 'flow',
-        "If the script host has an actor (host+32), OR bit 0x200 into host+116 (the host's event-state word). No reader of this bit with a direct 0x200 test has been found in RF4S.exe, so its effect is unknown; the 'scene outcome consumed' reading is inferred from where scripts place it (just before END), not from code.",
+    242: ('ContinueNormalTalk', 'flow',
+        "If the script host has an actor (host+32), OR bit 0x200 into host+116 (g_sceneControlFlags). When the scene ends, NpcAi_PerFrameTick (RF4S.exe+0x1F0677) bumps the talk step and runs the NPC's talk handler again (RF4S.exe+0x1F6930), so the next kind of talk plays.",
         []),
     244: ('NpcShowItem', 'actor',
         "Make an NPC hold up the item it is carrying: needs the NPC's model to hold an item (+304 -> +178 in 1..1107). If the NPC's actor state is 20 it instead puts the item away and returns to idle (Npc_ResetActorPostTeleport + Npc_FinalizeTeleportAndNotify); otherwise it starts the show-item action (actor state 19, anim archive base+18, tick NpcAction_TickItemShow).",
@@ -4978,10 +4978,27 @@ def arg_count_problem(op, n):
     want = ("%d" % r[0]) if r[0] == r[1] else ("%d to %d" % r)
     names = arg_names(op)
     what = (" (%s)" % ", ".join(names[:r[1]])) if names and r[1] else ""
-    why = ("the game reads a missing argument as leftover memory" if n < r[0] else
-           "the shipped game never passes more")
+    row = table_row(op)
+    opt = row.get("optional_args_from") if row else None
+    if n > r[1]:
+        why = "the shipped game never passes more"
+    elif opt is not None and n >= opt:          # the handler copes; only the shipped form differs
+        why = "the shipped game always passes at least %d" % r[0]
+    else:
+        why = "the game reads a missing argument as leftover memory"
     return ("%s (op %d) takes %s argument%s%s, not %d -- %s"
             % (mnemonic(op), op, want, "" if r[1] == 1 else "s", what, n, why))
+
+
+def arg_value_problem(op, index, value):
+    """Why `value` for argument `index` of `op` is known to break the game (the table's
+    per-argument `refuse_values`: {"192": "reason"}), or None. The friendly editors refuse
+    it; the Source tab and non-strict assembly allow it."""
+    a = arg_row(op, index)
+    why = ((a or {}).get("refuse_values") or {}).get(str(value))
+    if not why:
+        return None
+    return "%s (op %d) %s = %d: %s" % (mnemonic(op), op, a.get("name") or ("argument %d" % index), value, why)
 
 
 # --- sound-id annotations (2026-09-24) ----------------------------------------------------------

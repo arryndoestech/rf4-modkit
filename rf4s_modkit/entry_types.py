@@ -680,7 +680,7 @@ ENTRY_TYPES = {
     },
     68: {
         "name": "FlagGatedAutoScene",
-        "summary": "Auto-triggered scene: on a map (or any), when a packed game flag has a required value.",
+        "summary": "Scene run when an area's monsters are all defeated: on a map (or any), when a packed game flag has a required value. Not a map-entry or per-frame trigger.",
         "bank": "primary (story bank 211+ or REG_SUBEV_NOW) first, then tail (slot 2)",
         "keys": [
             {"index": 0, "name": "map", "meaning": "map id (tag 4) compared with the player's map (actor field_54); 0 = any map", "wildcard": False},
@@ -691,7 +691,12 @@ ENTRY_TYPES = {
         "consumer": "primary hit: " + _APPLY1 + "; tail hit: " + _KICK2,
         "matcher": "Event_QueryByNpcAndPriority (RF4S.exe+0x222BB0) from NpcAi_TickEventPriorityCascade (RF4S.exe+0x1F2E60), game event kind 26",
         "confidence": "verified",
-        "notes": "Not a caller of Npc_FindNextActionEntryOfType (walks through Npc_ReadActionEntrySubBytes). Corpus flags 29122/32768/400 etc., maps 160 Airship, 272 Yokmir Forest ...",
+        "notes": "Not a caller of Npc_FindNextActionEntryOfType (walks through Npc_ReadActionEntrySubBytes). Corpus flags 29122/32768/400 etc., maps 160 Airship, 272 Yokmir Forest ... "
+                 "Game event kind 26 is queued only by Quest_TickDailyTimersAndQueueEvents (RF4S.exe+0x1FA420), and only while g_sceneAuxControlFlags bit 0x800 is set, "
+                 "no tracked monster or event actor is left and the 16 monster-death slots are empty; it then clears the bit. The bit is set by every monster death "
+                 "(RF4S.exe+0x1F1330: records id, tile and a 72-frame timer, 0 with DEFEAT_TIME_0, in one of the 16 slots; each slot later queues game event 15 with "
+                 "that id and tile). So the entry is checked once, right after the last monster on the map dies, never on map entry (checked 2026-10-03: an armed "
+                 "type-68 first-visit scene in town never fired; type 6 is the map-entry hook, type 71 / 3 the walk-in ones).",
     },
     69: {
         "name": "StoryMapScene",

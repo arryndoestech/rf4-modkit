@@ -87,7 +87,7 @@ class Browser(ttk.Frame):
         self.mode = tk.StringVar(value="dialogue")
         mc = ttk.Combobox(mr, textvariable=self.mode, values=SEARCH_MODES, state="readonly", width=20)
         mc.pack(side="left", padx=4)
-        Tip(mc, "dialogue: what someone says · speaker: who speaks · opcode: an action by name or "
+        Tip(mc, "dialogue: what someone says or a choice-menu option · speaker: who speaks · opcode: an action by name or "
                 "number · event manager entry: an em.bin entry name · bank #: open a bank.")
         self.show_empty = tk.BooleanVar(value=False)
         cb = ttk.Checkbutton(mr, text="empty banks", variable=self.show_empty, command=self.rebuild)
@@ -284,13 +284,14 @@ def statement_matcher(doc, mode, q):
             return None
 
         def dialogue(_bk, st):
-            if st.mnem != "DIALOG":
-                return False
-            try:
-                s = doc.text(st.dialog_id)
-            except Exception:  # noqa: BLE001 - a line outside the archive
-                s = None
-            return bool(s) and ql in s.lower()
+            for i in script.statement_text_ids(st):   # DIALOG lines and choice-menu options
+                try:
+                    s = doc.text(i)
+                except Exception:  # noqa: BLE001 - a line outside the archive
+                    s = None
+                if s and ql in s.lower():
+                    return True
+            return False
         return dialogue
     if mode == "speaker":
         return lambda _bk, st: (script.is_portrait_op(st.op)

@@ -271,7 +271,7 @@ Args:
 *handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
-Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Before story progress 2 (the opening's name entry sets it) the name plate reads '???' instead of the player's name.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
@@ -305,7 +305,7 @@ Args:
 *handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
-Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
+Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Before story progress 2 (the opening's name entry sets it) the name plate reads '???' instead of the player's name.
 
 Args:
   0. face (< 1000 = the character's face index (via g_emotePortrait_emoteToStringIdTable); 1000-1927 = raw expression entry (id-1000); 255 / 254 = the stock alternate expressions of the current outfit row (g_emotePortraitKindRows)) — verified in game
@@ -2780,7 +2780,31 @@ Choose which button icon the ＠字＠ token in the next dialogue lines shows (e
 
 Args:
   0. slot (slot index n used by the text token ＠字n＠ (larger ignored))
-  1. icon (button/icon glyph number (corpus 23, 160-170, 193); 23 is special-cased)
+  1. icon (glyph U+E000 + icon; 160-182 and 193 are button icons (names from the game's glyph table), 183-191 draw nothing; 192 CRASHES the game (reads past the 32-entry glyph table, seen in game 2026-10-03); 23 is a symbol the font draws itself (shipped after 'Thank you!'))
+     - `160` = a
+     - `161` = b
+     - `162` = x
+     - `163` = y
+     - `164` = l1
+     - `165` = r1
+     - `166` = l2
+     - `167` = r2
+     - `168` = l1_2
+     - `169` = r1_2
+     - `170` = stick
+     - `171` = right
+     - `172` = down
+     - `173` = up
+     - `174` = left
+     - `175` = up_2
+     - `176` = down_2
+     - `177` = left_2
+     - `178` = right_2
+     - `179` = start
+     - `180` = select
+     - `181` = start_2
+     - `182` = select_2
+     - `193` = dpad
 
 ### `op 366` — SetTextSlotEntries(archive, slot, entries...)
 *handler:* `Script_VMOp_WriteVarArrayKind13AndKind14Multi`
@@ -3177,7 +3201,7 @@ Args:
 ### `op 412` — BlackScreen(to_black, duration)
 *handler:* `rf3sScriptExecExtCmd_BlackScreen`
 
-Fade to or from a solid black overlay and wait for the fade to finish.
+Fade to or from a solid black overlay and wait for the fade to finish. The overlay is separate from FadeScreen and is not removed when the scene ends: a scene that leaves it on keeps the screen black through warps and later scenes until something calls BlackScreen(0, ...) (observed in the custom opening, 2026-10-03). Shipped scenes always pair the two (101 x on, 102 x off).
 
 Args:
   0. to_black (1 = fade to black, 0 = fade back from black)
@@ -3276,7 +3300,46 @@ Args:
 Play a full-motion video. If a dialogue box is still open, it is closed first and the op waits.
 
 Args:
-  0. video (corpus always reg0)
+  0. video (0-38 (the shipped scripts pass reg0); the file comes from a switch in the exe; ids 19 and 20 both play Rune4_s23_t1 (there is no s22); other ids pick no valid file)
+     - `0` = opening_a
+     - `1` = opening_b
+     - `2` = s05
+     - `3` = s06
+     - `4` = s07
+     - `5` = s08
+     - `6` = s09
+     - `7` = s10
+     - `8` = s11
+     - `9` = s12
+     - `10` = s13
+     - `11` = s14
+     - `12` = s15
+     - `13` = s16
+     - `14` = s17
+     - `15` = s18
+     - `16` = s19
+     - `17` = s20
+     - `18` = s21
+     - `19` = s23
+     - `20` = s23_2
+     - `21` = s24
+     - `22` = s25
+     - `23` = s26
+     - `24` = s27
+     - `25` = s28
+     - `26` = s29
+     - `27` = m01_viznar
+     - `28` = m02_clorica
+     - `29` = m04_forte
+     - `30` = m05_keel
+     - `31` = m07_marguerite
+     - `32` = m08_dirus
+     - `33` = m09_arthur
+     - `34` = m11_syaopai
+     - `35` = m13_kohaku
+     - `36` = m15_dag
+     - `37` = m17_dolce
+     - `38` = m20_leon
 
 ### `op 685` — SetFreeLookCameraMode(mode)
 *handler:* `Script_VMOp_SetGlobalDword302E4`
@@ -9849,7 +9912,7 @@ Set up the cast of a scene: with mode 1 every villager not listed (and every cur
 
 Args:
   0. mode (1 = hide everyone not in the cast (scene start), 0 = show them again)
-  1. cast (villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here)
+  1. cast (villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here. With nobody to keep, list the player: SetSceneCast(0, tag3(0)) is the shipped form)
 
 ### `op 231` — SetSceneCast(mode, cast)
 *handler:* `Cutscene_ReleaseNpcLocksAndRefreshFromSchedule`
@@ -9858,12 +9921,12 @@ Set up the cast of a scene: with mode 1 every villager not listed (and every cur
 
 Args:
   0. mode (1 = hide everyone not in the cast (scene start), 0 = show them again)
-  1. cast (villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here)
+  1. cast (villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here. With nobody to keep, list the player: SetSceneCast(0, tag3(0)) is the shipped form)
 
-### `op 242` — SetSceneFlag0x200()
+### `op 242` — ContinueNormalTalk()
 *handler:* `Script_VMOp_SetSceneFlag0x200`
 
-Set bit 0x200 of the script host's event-state word. Emitted at the end of many scenes; no code that reads the bit has been found, so it has no known effect.
+Pass the conversation on to the NPC's next kind of talk: when this scene ends, the game moves the talk on by one step and runs the NPC's talk again, so the next talk entry plays (in the end their usual chat). Talk scenes use it on branches that have nothing to say, often as the whole scene (ContinueNormalTalk(); RET). Only acts in a scene started by talking to someone.
 
 ### `op 285` — SetSceneReadyFlag(mode, unused)
 *handler:* `ScriptVMOp_SetScriptStateBit72_1_OnArgZero`
@@ -12112,10 +12175,10 @@ Sets reg0 to the total gold earned from shipping over the whole save (all catego
 
 Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from). For outdoor maps it is the season-independent base id (coming from the farm read 4, not the seasonal 4-7 variant); from a room, that room's id (Your Room = 64).
 
-### `op 658` — GetSceneWordPair112()
+### `op 658` — GetDefeatPosition()
 *handler:* `Script_VMOp_QuerySceneA1WordPair112`
 
-Sets reg0/reg1 to a tile position stored in the running script's host (words +112/+114); scenes use it as a spawn/teleport point.
+Sets reg0/reg1 to the tile where the most recently defeated monster fell, e.g. to put the girl where Ambrosia fell. Shipped scenes use it only in monster-defeated scenes (type 17, and the type-68 scene after the Ambrosia fight), followed by a spawn or teleport at (reg0, reg1).
 
 ### `op 666` — IsGameClearedSysFlagSet()
 *handler:* `Script_VMOp_QuerySaveConfigBit0`
@@ -12518,7 +12581,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 233 | `SkipNpcDailyGreeting` | 234 | `SkipNpcDailyGreeting` | 235 | `IsNpcNearbyToChimeIn` |
 | 236 | `IsNpcInRangeToChimeIn` | 237 | `GetNpcPairChimeInState` | 238 | `IsQuestNpcGroupAvailable` |
 | 239 | `IsQuestNpcGroupAvailable` | 240 | `IsNpcGroupPresentNearby` | 241 | `IsNpcGroupPresentNearby` |
-| 242 | `SetSceneFlag0x200` | 243 | `EndDialogueLock` | 244 | `ShowNpcHeldItem` |
+| 242 | `ContinueNormalTalk` | 243 | `EndDialogueLock` | 244 | `ShowNpcHeldItem` |
 | 245 | `GetGiftAffinity` | 246 | `StreamInNpcAtTile` | 247 | `GetApproachTile` |
 | 248 | `SetNpcVisibleFlag` | 249 | `SetNpcVisibleFlag` | 250 | `SkipActorAnimToEnd` |
 | 251 | `SkipActorAnimToEnd` | 252 | `SetActorAnimSpeedScale` | 253 | `SetActorAnimSpeedScale` |
@@ -12651,7 +12714,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 649 | `GetShippingBoxGold` | 650 | `GetLifetimeShippedGold` | 651 | `AdvanceStoryProgress` |
 | 652 | `GetPreviousMapId` | 653 | `ShowLumberCounter` | 654 | `ShowStoneCounter` |
 | 655 | `ShowPrincePointCounter` | 656 | `SetMapScrollSpeedX` | 657 | `SetMapScrollSpeedY` |
-| 658 | `GetSceneWordPair112` | 659 | `MyShopAction` | 660 | `SetActorInvulnerable` |
+| 658 | `GetDefeatPosition` | 659 | `MyShopAction` | 660 | `SetActorInvulnerable` |
 | 661 | `SetActorStatFlagRecompute` | 662 | `SetActorControlBit4000` | 663 | `MakeActorUntameable` |
 | 664 | `SetActorUnlimitedSight` | 665 | `SetActorFacing` | 666 | `IsGameClearedSysFlagSet` |
 | 667 | `SetGameClearedSysFlag` | 668 | `IsSaveConfigBit4Set` | 669 | `SetSaveConfigBit4` |

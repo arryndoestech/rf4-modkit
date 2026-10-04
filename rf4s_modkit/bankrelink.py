@@ -564,7 +564,7 @@ class BankModel:
         return a == b
 
     # ---- statements from listing text --------------------------------------------- #
-    def listing_items(self, text, resolver=None, tail=None, terminate=None):
+    def listing_items(self, text, resolver=None, tail=None, terminate=None, strict=True):
         """Statements for listing `text` (scriptasm language), keyed with new keys.
 
         Labels in the text resolve among these statements; an absolute target `0xPC` must
@@ -573,7 +573,7 @@ class BankModel:
         code) -- or, when `terminate` is given, to an appended terminator: 'end' = END,
         a key = JMP to it; that terminator is added whenever the text can fall off its end."""
         from . import scriptasm
-        asm = scriptasm.Assembler(resolver)
+        asm = scriptasm.Assembler(resolver, strict=strict)
         sts, labels, trailing = asm.parse(text)
         keys = {id(st): self.new_key() for st in sts}
         falls_last = True
@@ -694,26 +694,26 @@ class BankModel:
             raise RelinkError("no %s at 0x%04x" % (what, key))
         return i, self.code[i]
 
-    def insert_before(self, key, text, resolver=None):
+    def insert_before(self, key, text, resolver=None, strict=True):
         """New statements run first on every path that reached `key` (its fall-through
         predecessor, every branch / call / entry to it). Returns the first new key."""
         i, s = self._stmt_at(key)
         key = s.old_pc
-        items = self.listing_items(text, resolver, tail=key)
+        items = self.listing_items(text, resolver, tail=key, strict=strict)
         if not items:
             return None
         self.redirect(key, items[0].old_pc)
         self.code[i:i] = items
         return items[0].old_pc
 
-    def insert_after(self, key, text, resolver=None):
+    def insert_after(self, key, text, resolver=None, strict=True):
         """New statements run right after `key` (which must fall through); branches to the
         statement after it still skip them. Returns the first new key."""
         i, s = self._stmt_at(key)
         if not s.falls or i + 1 >= len(self.code) or not isinstance(self.code[i + 1], Stmt):
             raise RelinkError("the statement at 0x%04x never falls through, so statements inserted "
                               "after it would never run -- insert before it, or at the branch target" % key)
-        items = self.listing_items(text, resolver, tail=self.code[i + 1].old_pc)
+        items = self.listing_items(text, resolver, tail=self.code[i + 1].old_pc, strict=strict)
         if not items:
             return None
         self.code[i + 1:i + 1] = items
@@ -730,7 +730,7 @@ class BankModel:
         del self.code[i]
         self.redirect(s.old_pc, nxt)
 
-    def replace_scene(self, entry, text, resolver=None):
+    def replace_scene(self, entry, text, resolver=None, strict=True):
         """The scene at `entry` plays `text` instead: the new body goes where the old entry
         was, everything that pointed at the entry points at the new body, and the old
         statements nothing reaches any more are dropped (statements the old body shared
@@ -738,7 +738,7 @@ class BankModel:
         i, s = self._stmt_at(entry, "scene entry")
         entry = s.old_pc
         old = self.reach([entry])
-        items = self.listing_items(text, resolver, terminate="end")
+        items = self.listing_items(text, resolver, terminate="end", strict=strict)
         if not items:
             raise RelinkError("the new scene body is empty")
         self.redirect(entry, items[0].old_pc)
@@ -763,13 +763,13 @@ class BankModel:
             self.code = [s for s in self.code if s.old_pc not in g]
         return gone
 
-    def append_code(self, text, resolver=None, fallthrough_to=None):
+    def append_code(self, text, resolver=None, fallthrough_to=None, strict=True):
         """Assemble `text` after the last statement (it ends with END, or a JMP to
         `fallthrough_to`). Returns its first key."""
         if self.code and isinstance(self.code[-1], Stmt) and self.code[-1].falls:
             raise RelinkError("the bank's last statement falls through; cannot append after it")
         items = self.listing_items(text, resolver, terminate="end" if fallthrough_to is None
-                                   else self._stmt_at(fallthrough_to)[1].old_pc)
+                                   else self._stmt_at(fallthrough_to)[1].old_pc, strict=strict)
         if not items:
             raise RelinkError("nothing to assemble")
         self.code += items

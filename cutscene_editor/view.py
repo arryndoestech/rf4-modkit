@@ -22,6 +22,14 @@ TAGS = {"addr": "#5c5c6a", "opc": "#7f8fa6", "hdr": "#ffd479", "hdrv": "#c9b27a"
         "opd4": "#bb9af7", "opd5": "#e0c070"}
 
 
+
+def _ypixels(t, a, b):
+    """Display pixels from index a down to index b (0 when b is on a's first display line)."""
+    n = t.count(a, b, "ypixels")
+    if isinstance(n, tuple):
+        n = n[0]
+    return int(n or 0)
+
 class ScriptView(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent)
@@ -100,7 +108,7 @@ class ScriptView(ttk.Frame):
         app = self.app
         sc, bank = app.scene, app.bank
         t = self.text
-        y = t.yview()[0]
+        pos = self._scroll_pos() if keep_sel else None
         t.config(state="normal")
         t.delete("1.0", "end")
         self.rows = []
@@ -132,10 +140,41 @@ class ScriptView(ttk.Frame):
                     t.tag_add("selrow", f"{ln}.0", f"{ln + 1}.0")
             else:
                 self.multi = []
-            t.yview_moveto(y)
         else:
             self.sel = None
             self.multi = []
+        if pos is not None:
+            self._restore_scroll(pos)
+
+    def _scroll_pos(self):
+        """(top row, pixels of that row scrolled past) -- a redraw keeps the view by row, not
+        by yview fraction: the fraction rests on Tk's estimated heights of rows not yet drawn,
+        and other dialogue text (another language, a renamed speaker) changes them, so the
+        same fraction lands a little higher or lower."""
+        t = self.text
+        try:
+            top = t.index("@0,0")
+            line = int(top.split(".")[0])
+            info = t.dlineinfo(top)
+            into = _ypixels(t, "%d.0" % line, top)
+            return line, into, (info[1] if info else None)
+        except tk.TclError:
+            return None
+
+    def _restore_scroll(self, pos):
+        line, into, y0 = pos
+        t = self.text
+        try:
+            t.yview("%d.0" % line)
+            if y0 is None:
+                return
+            t.update_idletasks()
+            info = t.dlineinfo("%d.0" % line)
+            px = into + ((info[1] - y0) if info else 0)
+            if px > 0:
+                t.yview_scroll(px, "pixels")
+        except tk.TclError:
+            pass
 
     def mark_debug(self):
         """Tint the rows of statements with a breakpoint, and the row a script stopped at."""

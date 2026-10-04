@@ -44,3 +44,7 @@ Thumbs.db
 
 # design drafts and their prototypes / images: local notes, not shipped
 drafts/
+
+# opcode table generator and its output: local only
+OPCODE_TABLE.md
+gen_opcode_table.py

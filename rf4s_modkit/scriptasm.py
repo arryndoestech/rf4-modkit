@@ -512,8 +512,10 @@ class Assembler:
         self.resolver = resolver
         self.enum_names = enum_names
         # strict=False accepts what the shipped file contains but a modder should not
-        # write (argument counts the handler misreads, >128 choice options): used when
-        # a whole bank is reassembled from its own listing (bankrelink)
+        # write (argument counts the handler misreads, argument values that crash the
+        # game, >128 choice options): used when a whole bank is reassembled from its own
+        # listing (bankrelink) and by the editor's Source tab, which allows anything the
+        # bytecode can express
         self.strict = strict
 
     # -- operands --
@@ -697,7 +699,7 @@ class Assembler:
                     hits.append((names[nm], nm))
             sug = (" -- did you mean: " + ", ".join("%s (op %d)" % (m, o) for o, m in hits[:6])) if hits else ""
             raise AsmError("line %d: unknown opcode %r%s" % (line_no, head, sug))
-        if op >= script.DISPATCHABLE_ACTION_OPS:
+        if self.strict and op >= script.DISPATCHABLE_ACTION_OPS:
             raise AsmError("line %d: opcode %d has no handler -- the engine's dispatch table is "
                            "%d slots (0..%d) and it is indexed without a bounds check, so this "
                            "would call past the end of it"
@@ -724,6 +726,12 @@ class Assembler:
         bad = meta.arg_count_problem(op, len(args)) if self.strict else None
         if bad:
             raise AsmError("line %d: %s" % (line_no, bad))
+        if self.strict:
+            for i, a in enumerate(args):
+                v = literal_value(a, op, i, self.enum_names)
+                bad = meta.arg_value_problem(op, i, v) if v is not None else None
+                if bad:
+                    raise AsmError("line %d: %s" % (line_no, bad))
         st.code += struct.pack("<HH", op, len(args))
         for i, a in enumerate(args):
             self._expr_fixup(st, self.operand(a, op, i))
@@ -888,9 +896,23 @@ def _enum_value(op, index, name):
     return None
 
 
-def assemble(text, base, resolver=None, fallthrough_to=None, auto_end=True):
+def assemble(text, base, resolver=None, fallthrough_to=None, auto_end=True, strict=True):
     """Module-level convenience: see Assembler.assemble."""
-    return Assembler(resolver).assemble(text, base, fallthrough_to, auto_end)
+    return Assembler(resolver, strict=strict).assemble(text, base, fallthrough_to, auto_end)
+
+
+def literal_value(text, op=None, index=None, enum_names=True):
+    """The number an operand's text stands for when it is a plain literal or a value name
+    of that argument, else None (expressions, registers, flags)."""
+    s = (text or "").strip()
+    try:
+        if s.lstrip("-").isdigit() or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
+            return int(s, 0)
+    except ValueError:
+        return None
+    if enum_names and op is not None and index is not None and re.fullmatch(r"[A-Za-z_][\w()]*", s):
+        return _enum_value(op, index, s)
+    return None
 
 
 def lint_listing(text, base=0x1000, resolver=None, text_count=None):

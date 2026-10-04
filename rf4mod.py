@@ -4196,7 +4196,7 @@ def build_parser():
     sc1.add_argument("--friendly", action="store_true",
                      help="use cutscene-author mnemonics (WarpPlayer) instead of technical names")
     sc1.add_argument("-o", "--out"); sc1.set_defaults(func=cmd_script_disasm)
-    sc2 = scsub.add_parser("find", help="find scenes whose dialogue contains TEXT")
+    sc2 = scsub.add_parser("find", help="find scenes whose dialogue (lines and choice-menu options) contains TEXT")
     sc2.add_argument("file"); sc2.add_argument("query")
     sc2.add_argument("--text", required=True); sc2.add_argument("--limit", type=int, default=30)
     sc2.set_defaults(func=cmd_script_find)

@@ -388,7 +388,7 @@ class SourceTab(ttk.Frame):
         if not text.strip():
             self.set_msg("nothing to check (empty listing)", "err")
             return None
-        region, labels, err = app.assemble_check(text)
+        region, labels, err = app.assemble_check(text, strict=False)   # the Source tab allows anything
         if err:
             self.mark_error(err)
             self.set_msg("error: " + err, "err")
@@ -416,7 +416,7 @@ class SourceTab(ttk.Frame):
         if text.strip() == self.listing().strip():
             self.set_msg("listing unchanged — nothing to apply")
             return False
-        region, _l, err = app.assemble_check(text)
+        region, _l, err = app.assemble_check(text, strict=False)
         if err:
             self.mark_error(err)
             self.set_msg("error: " + err, "err")
@@ -424,7 +424,8 @@ class SourceTab(ttk.Frame):
         entry = app.scene.entry_pc
         box = {}
         ok = app.apply("Rewrite scene @0x%04x" % entry,
-                       lambda: box.update(base=app.doc.container.rewrite_scene(app.bank, entry, text)))
+                       lambda: box.update(base=app.doc.container.rewrite_scene(app.bank, entry, text,
+                                                                               strict=False)))
         if ok:
             self.load(force=True)
             self.set_msg("applied: the bank was rebuilt with the new body in place; the scene now "

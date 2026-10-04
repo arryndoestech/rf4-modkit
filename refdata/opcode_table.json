@@ -1303,7 +1303,7 @@
    "optional_args_from": 1,
    "returns": null,
    "blocking": "yes: while a screen fade task is active without its ready bit (g_currentFadeTask work+60 bit 2), and while the previous portrait on that side is still leaving / a modal scripted event holds the bubble (EmotePortrait_ShowFromDescriptor returns 1) (the fade wait is verified in game)",
-   "description": "Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.",
+   "description": "Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Before story progress 2 (the opening's name entry sets it) the name plate reads '???' instead of the player's name.",
    "details": "RF4S.exe+0x207F70: slot = (opcode-16)>>1 = 0, side = opcode & 1 = 0. Descriptor {+8 slot, +10 face, +12/+13 first two non-voice triggers, +14 side} -> EmotePortrait_ShowFromDescriptor (+0x207370): side picks portrait slot v1[22]/v1[24] and sets flip bit 0x80000 in v1[29]; a new portrait spawns via EmotePortrait_SpawnPositioned (+0x1D8110) at x -64 (side 0) or 464 (side 1). Blip: Dialogue_PickChimeClassForSpeaker (+0x1EF040) -> sound id 0x10021FC..0x1002237 written to the dialogue task. When slot != host+108 and the dispatch succeeded: Dialogue_LoadAndShowText(host+106, the player's saved name (Dialogue_LoadAndShowText entry 0 -> Save_GetPlayerNameOrDefault; '???' before main-scenario progress 2), side) (+0x2344B0), whose a3 writes the side into entries[4] bit 0x100 (message-box tail left/right); then host+108 = slot. Triggers >= 0x1F0 are played immediately.",
    "side_effects": "latches host+108 = speaker slot; writes the dialogue blip sound id; sets the message-box tail side; may play a voice sfx",
    "evidence": "RF4S.exe+0x207F70 (switch 0x18..0x1C name remap, side = opcode&1), +0x207370 (+14 side -> portrait slot / flip bit), +0x1D8110 (x -64 vs 464), +0x2344B0 (a3 -> entries[4] bit 0x100); corpus: 19908 uses; player lines use the even (left) op 19,908x vs 28x odd, NPC lines mostly the odd (right) op. In-game test 2026-09-29 (user): SetSpeaker(MC, Left, 3, 0) + DIALOG shows the MC's portrait with a happy face (face 3). In-game test 2026-09-29 (user): SetSpeaker + DIALOG right after FadeScreen(-16, 18000) without WaitForFade waited until the fade was complete (blocking claim confirmed); the box was hidden under the black overlay, only the advance arrow showed. In-game test 2026-10-01 (user): SetSpeaker(MC, Left, 0, t1[, t2[, t3]]) + DIALOG: t = 186..192 each, 186+190, 186+190+191, voice 0x10001C0, 190+voice -> 186 blush, 187 teardrop, 188 sweat drop, 189 white puff, 190 !, 191 ?, 192 !? over the portrait; 186+190 shows both; 186+190+191 shows blush and ! only (the third icon is dropped); 0x10001C0 alone and as trigger2 after 190 played the voice V_PLAW_SURPRISE_ARE with no icon of its own. In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 0, 0) + DIALOG, in a run of all ops 16..73 in order -> the player's portrait (Lest) on the left with the save name on the plate; a new speaker on one side leaves the other side's portrait up, the same speaker switching sides moves its portrait. In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 0, 0x10001C0) + DIALOG on Lest -> the debug log printed 'Playing voice V_PLAM_SURPRISE_ARE for character V_PLAM': the player clip plays Lest's set on a male player (V_PLAW on Frey, 2026-10-01). In-game test 2026-10-02 (user): SetSpeaker(MC, Left, 254, 0) / SetSpeaker(MC, Left, 1000, 0) before a DIALOG -> user: 'no portrait change' - both looked like the normal face (default-looking result, face values 254 / 1000 not confirmed).",
@@ -1604,7 +1604,7 @@
    "optional_args_from": 1,
    "returns": null,
    "blocking": "yes: while a screen fade task is active without its ready bit (g_currentFadeTask work+60 bit 2), and while the previous portrait on that side is still leaving / a modal scripted event holds the bubble (EmotePortrait_ShowFromDescriptor returns 1) (the fade wait is verified in game)",
-   "description": "Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.",
+   "description": "Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Before story progress 2 (the opening's name entry sets it) the name plate reads '???' instead of the player's name.",
    "details": "RF4S.exe+0x207F70: slot = (opcode-16)>>1 = 0, side = opcode & 1 = 1. Descriptor {+8 slot, +10 face, +12/+13 first two non-voice triggers, +14 side} -> EmotePortrait_ShowFromDescriptor (+0x207370): side picks portrait slot v1[22]/v1[24] and sets flip bit 0x80000 in v1[29]; a new portrait spawns via EmotePortrait_SpawnPositioned (+0x1D8110) at x -64 (side 0) or 464 (side 1). Blip: Dialogue_PickChimeClassForSpeaker (+0x1EF040) -> sound id 0x10021FC..0x1002237 written to the dialogue task. When slot != host+108 and the dispatch succeeded: Dialogue_LoadAndShowText(host+106, the player's saved name (Dialogue_LoadAndShowText entry 0 -> Save_GetPlayerNameOrDefault; '???' before main-scenario progress 2), side) (+0x2344B0), whose a3 writes the side into entries[4] bit 0x100 (message-box tail left/right); then host+108 = slot. Triggers >= 0x1F0 are played immediately.",
    "side_effects": "latches host+108 = speaker slot; writes the dialogue blip sound id; sets the message-box tail side; may play a voice sfx",
    "evidence": "RF4S.exe+0x207F70 (switch 0x18..0x1C name remap, side = opcode&1), +0x207370 (+14 side -> portrait slot / flip bit), +0x1D8110 (x -64 vs 464), +0x2344B0 (a3 -> entries[4] bit 0x100); corpus: 28 uses; player lines use the even (left) op 19,908x vs 28x odd, NPC lines mostly the odd (right) op. In-game test 2026-09-29 (user): SetSpeaker + DIALOG right after FadeScreen(-16, 18000) without WaitForFade waited until the fade was complete (blocking claim confirmed); the box was hidden under the black overlay, only the advance arrow showed. In-game test 2026-10-02 (user): SetSpeaker(MC, Right, 0, 0) + DIALOG, in a run of all ops 16..73 in order -> the player's portrait (Lest) on the right with the save name on the plate; a new speaker on one side leaves the other side's portrait up, the same speaker switching sides moves its portrait.",
@@ -29548,7 +29548,7 @@
     {
      "name": "cast",
      "type": "char id ...",
-     "values": "villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here",
+     "values": "villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here. With nobody to keep, list the player: SetSceneCast(0, tag3(0)) is the shipped form",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -29558,7 +29558,7 @@
    "returns": null,
    "blocking": "no",
    "description": "Set up the cast of a scene: with mode 1 every villager not listed (and every current event participant) is hidden and taken off its routine; mode 0 shows them again. NPCs the scene moved are put back per their schedule.",
-   "details": "argc = 1 + number of listed ids. For villagers 1..23 not listed, and for all 8 entries of g_currentEventParticipantNpcList_8u16 whether listed or not (skipping actors with actor+16 bit 0x200, i.e. companions): npc record +48 bits 28/29 = mode; actor control_flags (+0x238) bits 0x4 (hidden) and 0x20 = mode; with mode 1 also actor+320 (emote) = 0 and +0x23C |= 0x20 unless flags bit 0x40000000. Those same NPCs get Npc_RefreshFromSchedule (+0x229F70) if their bit in host+352 (the placed-actor mask of ops 101/99) is set (participants with id >= 32 always); host+352 is then cleared. host+116 bit 29 = mode. Also caches GF_REG_MAIN_SCENARIO in g_storyProgressFlag9bit.",
+   "details": "argc = 1 + number of listed ids. For villagers 1..23 not listed, and for all 8 entries of g_currentEventParticipantNpcList_8u16 whether listed or not (skipping actors with actor+16 bit 0x200, i.e. companions): npc record +48 bits 28/29 = mode; actor control_flags (+0x238) bits 0x4 (hidden) and 0x20 = mode; with mode 1 also actor+320 (emote) = 0 and +0x23C |= 0x20 unless flags bit 0x40000000. Those same NPCs get Npc_RefreshFromSchedule (+0x229F70) if their bit in host+352 (the placed-actor mask of ops 101/99) is set (participants with id >= 32 always); host+352 is then cleared. host+116 bit 29 = mode. Also caches GF_REG_MAIN_SCENARIO in g_storyProgressFlag9bit. The handler reads arg0 and then argc-1 cast ids, so a lone SetSceneCast(mode) is safe (read offline 2026-10-03); the toolkit still asks for the shipped form with at least one id.",
    "side_effects": "NPC hide bits, record +48 bits 28/29, schedule refresh, host+352 cleared, host+116 bit 29",
    "evidence": "RF4S.exe+0x1FDBF0 as described (listed ids zero their byte in the local identity table so the villager loop skips them); corpus 463 uses, argc 2..16, mode 1 (348) at the start of scenes, mode 0 (115).",
    "alias_of": null,
@@ -29619,7 +29619,7 @@
     {
      "name": "cast",
      "type": "char id ...",
-     "values": "villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here",
+     "values": "villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here. With nobody to keep, list the player: SetSceneCast(0, tag3(0)) is the shipped form",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -29629,7 +29629,7 @@
    "returns": null,
    "blocking": "no",
    "description": "Set up the cast of a scene: with mode 1 every villager not listed (and every current event participant) is hidden and taken off its routine; mode 0 shows them again. NPCs the scene moved are put back per their schedule.",
-   "details": "argc = 1 + number of listed ids. For villagers 1..23 not listed, and for all 8 entries of g_currentEventParticipantNpcList_8u16 whether listed or not (skipping actors with actor+16 bit 0x200, i.e. companions): npc record +48 bits 28/29 = mode; actor control_flags (+0x238) bits 0x4 (hidden) and 0x20 = mode; with mode 1 also actor+320 (emote) = 0 and +0x23C |= 0x20 unless flags bit 0x40000000. Those same NPCs get Npc_RefreshFromSchedule (+0x229F70) if their bit in host+352 (the placed-actor mask of ops 101/99) is set (participants with id >= 32 always); host+352 is then cleared. host+116 bit 29 = mode. Also caches GF_REG_MAIN_SCENARIO in g_storyProgressFlag9bit.",
+   "details": "argc = 1 + number of listed ids. For villagers 1..23 not listed, and for all 8 entries of g_currentEventParticipantNpcList_8u16 whether listed or not (skipping actors with actor+16 bit 0x200, i.e. companions): npc record +48 bits 28/29 = mode; actor control_flags (+0x238) bits 0x4 (hidden) and 0x20 = mode; with mode 1 also actor+320 (emote) = 0 and +0x23C |= 0x20 unless flags bit 0x40000000. Those same NPCs get Npc_RefreshFromSchedule (+0x229F70) if their bit in host+352 (the placed-actor mask of ops 101/99) is set (participants with id >= 32 always); host+352 is then cleared. host+116 bit 29 = mode. Also caches GF_REG_MAIN_SCENARIO in g_storyProgressFlag9bit. The handler reads arg0 and then argc-1 cast ids, so a lone SetSceneCast(mode) is safe (read offline 2026-10-03); the toolkit still asks for the shipped form with at least one id.",
    "side_effects": "NPC hide bits, record +48 bits 28/29, schedule refresh, host+352 cleared, host+116 bit 29",
    "evidence": "RF4S.exe+0x1FDBF0 as described (listed ids zero their byte in the local identity table so the villager loop skips them); corpus 463 uses, argc 2..16, mode 1 (348) at the start of scenes, mode 0 (115).",
    "alias_of": 230,
@@ -29974,7 +29974,7 @@
      "    IsNpcNearbyToChimeIn(actor(Kiel))    ; <--",
      "    BR_Z (reg0) -> L_0a22",
      "    BR_Z (var:0x483) -> L_0a16",
-     "    SetSceneFlag0x200()"
+     "    ContinueNormalTalk()"
     ]
    }
   },
@@ -30398,18 +30398,18 @@
   "242": {
    "op": 242,
    "op_hex": "0x0F2",
-   "mnemonic": "SetSceneFlag0x200",
+   "mnemonic": "ContinueNormalTalk",
    "previous_mnemonic": null,
    "category": "flow",
-   "prototype": "SetSceneFlag0x200()",
+   "prototype": "ContinueNormalTalk()",
    "args": [],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Set bit 0x200 of the script host's event-state word. Emitted at the end of many scenes; no code that reads the bit has been found, so it has no known effect.",
-   "details": "`if (host+32) host+116 |= 0x200` (only when the host has an actor). A direct `test [x+74h], 200h` reader does not exist in RF4S.exe; a compound-mask reader was not excluded.",
+   "description": "Pass the conversation on to the NPC's next kind of talk: when this scene ends, the game moves the talk on by one step and runs the NPC's talk again, so the next talk entry plays (in the end their usual chat). Talk scenes use it on branches that have nothing to say, often as the whole scene (ContinueNormalTalk(); RET). Only acts in a scene started by talking to someone.",
+   "details": "`if (host+32) host+116 |= 0x200` (g_sceneControlFlags; only when the host has an actor). Reader: NpcAi_PerFrameTick, once the scene VM is idle: `bt edx, 9` at RF4S.exe+0x1F0677; unless g_sceneAuxControlFlags bit 0x20 is set it increments the talk-step byte (capped at 15, not while aux bit 0x1000 is set; at 15 it clears bit 0x80 of the talked NPC's record +52), clears the bit (`btr edx, 9` at +0x1F078E) and calls the talk handler NpcAi_TickOne (game event 4, RF4S.exe+0x1F6930). That re-enters NpcAi_ResolveVillagerBehavior (RF4S.exe+0x1F7E00), whose switch runs on the same talk-step byte (cases 0-14) (NpcAi_ResolveMonsterBehavior for monsters).",
    "side_effects": "host+116 bit 0x200",
-   "evidence": "RF4S.exe+0x1FEF10 (`or dword ptr [rcx+74h], 200h`); corpus 1603 uses, argc 0, typically right before RET at the end of a talk branch.",
+   "evidence": "RF4S.exe+0x1FEF10 (`or dword ptr [rcx+74h], 200h`); reader RF4S.exe+0x1F0677 / +0x1F078E -> call +0x1F6930; corpus 1603 uses, argc 0, in talk entries (types 27, 30, 32-35, 45, 72 and more), often the whole scene.",
    "alias_of": null,
    "handler": "Script_VMOp_SetSceneFlag0x200",
    "handler_rva": "0x1FEF10",
@@ -30424,8 +30424,8 @@
     "0": 1603
    },
    "confidence": "high",
-   "notes": "Neutral name kept on purpose (naming rule: name what it writes when the meaning is unknown).",
-   "change_reason": null,
+   "notes": "",
+   "change_reason": "2026-10-03: the reader is the talk-step cascade in NpcAi_PerFrameTick, so the name says what it does.",
    "human_verified": false,
    "example": {
     "bank": 234,
@@ -30434,7 +30434,7 @@
      "    DIALOG #80249    ; \"So you should eat, ＠しゅじんこうくん＠!\"",
      "    RET",
      "L_15bc:",
-     "    SetSceneFlag0x200()    ; <--",
+     "    ContinueNormalTalk()    ; <--",
      "    RET",
      "L_15c2:",
      "    SetSpeaker(Porcoline, Right, 3, 16782054)"
@@ -37957,17 +37957,142 @@
     {
      "name": "icon",
      "type": "glyph id",
-     "values": "button/icon glyph number (corpus 23, 160-170, 193); 23 is special-cased",
+     "values": "glyph U+E000 + icon; 160-182 and 193 are button icons (names from the game's glyph table), 183-191 draw nothing; 192 CRASHES the game (reads past the 32-entry glyph table, seen in game 2026-10-03); 23 is a symbol the font draws itself (shipped after 'Thank you!')",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": false,
+     "value_names": {
+      "160": {
+       "name": "a",
+       "text": "the a button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "161": {
+       "name": "b",
+       "text": "the b button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "162": {
+       "name": "x",
+       "text": "the x button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "163": {
+       "name": "y",
+       "text": "the y button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "164": {
+       "name": "l1",
+       "text": "the l1 button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "165": {
+       "name": "r1",
+       "text": "the r1 button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "166": {
+       "name": "l2",
+       "text": "the l2 button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "167": {
+       "name": "r2",
+       "text": "the r2 button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "168": {
+       "name": "l1_2",
+       "text": "the l1 button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "169": {
+       "name": "r1_2",
+       "text": "the r1 button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "170": {
+       "name": "stick",
+       "text": "the left stick (keyboard: the movement keys)",
+       "human_verified": false
+      },
+      "171": {
+       "name": "right",
+       "text": "the right button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "172": {
+       "name": "down",
+       "text": "the down button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "173": {
+       "name": "up",
+       "text": "the up button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "174": {
+       "name": "left",
+       "text": "the left button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "175": {
+       "name": "up_2",
+       "text": "the up button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "176": {
+       "name": "down_2",
+       "text": "the down button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "177": {
+       "name": "left_2",
+       "text": "the left button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "178": {
+       "name": "right_2",
+       "text": "the right button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "179": {
+       "name": "start",
+       "text": "the start button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "180": {
+       "name": "select",
+       "text": "the select button (shows the key or pad button the game binds to it)",
+       "human_verified": false
+      },
+      "181": {
+       "name": "start_2",
+       "text": "the start button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "182": {
+       "name": "select_2",
+       "text": "the select button again (a second table entry with the same button)",
+       "human_verified": false
+      },
+      "193": {
+       "name": "dpad",
+       "text": "the d-pad (keyboard: the arrow keys)",
+       "human_verified": false
+      }
+     },
+     "refuse_values": {
+      "192": "the game crashes: icon 192 reads past the end of its 32-entry button-glyph table (seen in game 2026-10-03)"
+     }
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
    "description": "Choose which button icon the ＠字＠ token in the next dialogue lines shows (e.g. 'press ＠字＠ repeatedly'). Slot 0 is the plain ＠字＠.",
-   "details": "Globals_LookupChoiceCommitStateSlotByKindId(15)[slot] = icon (slot < 16, no clamp). Reader: Text_PostProcessControlCodes (+0x2325E0), token U+5B57 '字' with slot n: code = icon + 0xEE8080/0xEE82C0/0xEE8500/0xEE8740 (UTF-8 private-use glyph page by icon / 64); icon 23 -> 0xEE8097. There is no VM reader op.",
+   "details": "Globals_LookupChoiceCommitStateSlotByKindId(15)[slot] = icon (slot < 16, no clamp). Reader: Text_PostProcessControlCodes (+0x2325E0), token U+5B57 '字' with slot n: code = icon + 0xEE8080/0xEE82C0/0xEE8500/0xEE8740 (UTF-8 private-use glyph page by icon / 64); icon 23 -> 0xEE8097. There is no VM reader op. Button glyphs U+E0A0.. are drawn by the font layout (RF4S.exe+0x1B00F0): index = code - 0xE0A0 into a table built at RF4S.exe+0x1B02FB (a b x y l1 r1 l2 r2 l1 r1 '' right down up left up down left right start select start select, then empty), whose entry picks the bound key's picture for the current device; U+E0AA (170) and U+E0C1 (193) are special-cased to ControllerLeftStick.png / ControllerDPad.png, or Keyboard_Keys.png / Keyboard_Arrows.png on keyboard. Under one setting (RF4S.exe+0x1B0694) a and b trade places. The index is not bounds-checked: icon 192 (U+E0C0) reads entry 32, past the table, and the game crashes in MFDictionary__get (RF4S.exe+0x24F34F, called from the font layout at +0x1B06B6).",
    "side_effects": "script var bank 15",
    "evidence": "RF4S.exe+0x209D50; RF4S.exe+0x2325E0 `v146 = Lookup(15)[n]; v148 = v146 + page; if (v146 == 23) v148 = 15630487`; corpus: 178 uses, slot 0 (143x), values 23/161/162/165, placed right before lines containing ＠字＠ (bank 3 'press ＠字＠ repeatedly').",
    "alias_of": null,
@@ -40504,7 +40629,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "yes: until the fade has finished",
-   "description": "Fade to or from a solid black overlay and wait for the fade to finish.",
+   "description": "Fade to or from a solid black overlay and wait for the fade to finish. The overlay is separate from FadeScreen and is not removed when the scene ends: a scene that leaves it on keeps the screen black through warps and later scenes until something calls BlackScreen(0, ...) (observed in the custom opening, 2026-10-03). Shipped scenes always pair the two (101 x on, 102 x off).",
    "details": "Lazily spawns a black overlay obj_task (host+384, sprite item 0x3126) on first use, then Script_TickBlackScreenFade (+0x2032A0) drives FadeTask_Init(1.0 or 0.0, duration, 1) and returns busy while the fade runs; it also mirrors the state into host+116 bit 3 and a weather-suppression byte.",
    "side_effects": "black overlay task (host+384), fade task, host+116 bit 3",
    "evidence": "RF4S.exe+0x203640 -> RF4S.exe+0x2032A0; corpus 203 uses (0 x102, 1 x101; durations 0, 180, 60, -1, 30...).",
@@ -44957,7 +45082,7 @@
      "    RecruitNpcToPartyHeld_479(var:0x40FE, 1)    ; <--",
      "    JMP L_01c6",
      "L_01c2:",
-     "    SetSceneFlag0x200()"
+     "    ContinueNormalTalk()"
     ]
    }
   },
@@ -46668,7 +46793,7 @@
      "    FRAME 2",
      "    PopulateSlayRequest(0, 0, 51)    ; <--",
      "    BR_Z (!(reg0)) -> L_01d8",
-     "    SetSceneFlag0x200()",
+     "    ContinueNormalTalk()",
      "    RET"
     ]
    }
@@ -54931,18 +55056,18 @@
   "658": {
    "op": 658,
    "op_hex": "0x292",
-   "mnemonic": "GetSceneWordPair112",
+   "mnemonic": "GetDefeatPosition",
    "previous_mnemonic": null,
    "category": "query",
-   "prototype": "GetSceneWordPair112()",
+   "prototype": "GetDefeatPosition()",
    "args": [],
    "optional_args_from": null,
    "returns": "reg0 = word +112 (tile x), reg1 = word +114 (tile y)",
    "blocking": "no",
-   "description": "Sets reg0/reg1 to a tile position stored in the running script's host (words +112/+114); scenes use it as a spawn/teleport point.",
-   "details": "reg0 = (s16) host+112, reg1 = (s16) host+114. What fills these words was not traced here.",
+   "description": "Sets reg0/reg1 to the tile where the most recently defeated monster fell, e.g. to put the girl where Ambrosia fell. Shipped scenes use it only in monster-defeated scenes (type 17, and the type-68 scene after the Ambrosia fight), followed by a spawn or teleport at (reg0, reg1).",
+   "details": "reg0 = (s16) host+112, reg1 = (s16) host+114. Filled by game event 1 (NpcAi_BeginScriptedEventFromRequestDescriptor, RF4S.exe+0x1F2040: host+112 = event word +6, host+114 = word +4). Every monster death records its id and tile (RF4S.exe+0x1F1330); when its 72-frame timer runs out (0 with DEFEAT_TIME_0), Quest_TickDailyTimersAndQueueEvents (RF4S.exe+0x1FA420) queues event 15 and event 1 with {id, y, x}. Other code that queues event 1 could also write the words (not checked).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21DDC0: `*(a2+64) = *(s16*)(a1+112); *(a2+68) = *(s16*)(a1+114)`; corpus: 8 uses, followed by TeleportActor(x, reg0, reg1) or TriggerActionAtTile(151, reg0, reg1).",
+   "evidence": "RF4S.exe+0x21DDC0: `*(a2+64) = *(s16*)(a1+112); *(a2+68) = *(s16*)(a1+114)`; writer RF4S.exe+0x1F2060 / +0x1F2068; corpus: 8 uses (7 in type-17 scenes, 1 in the type-68 scene after Ambrosia), followed by TeleportActor(x, reg0, reg1) or TriggerActionAtTile(151, reg0, reg1).",
    "alias_of": null,
    "handler": "Script_VMOp_QuerySceneA1WordPair112",
    "handler_rva": "0x21DDC0",
@@ -54956,9 +55081,9 @@
    "arg_counts": {
     "0": 8
    },
-   "confidence": "medium",
+   "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-03: the words hold the last defeated monster's tile (traced from the death record to event 1).",
    "human_verified": false,
    "example": {
     "bank": 408,
@@ -54967,7 +55092,7 @@
      "    DIALOG #108272    ; \"Eeeeek...!\"",
      "    RET",
      "L_0154:",
-     "    GetSceneWordPair112()    ; <--",
+     "    GetDefeatPosition()    ; <--",
      "    SpawnEventActor(149, 216, 0, 0, 90)",
      "    TurnEventActorIntoNpc(216)",
      "    PlayEventActorAnim(216, 11, 0)"
@@ -56280,17 +56405,214 @@
     {
      "name": "video",
      "type": "video id",
-     "values": "corpus always reg0",
+     "values": "0-38 (the shipped scripts pass reg0); the file comes from a switch in the exe; ids 19 and 20 both play Rune4_s23_t1 (there is no s22); other ids pick no valid file",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": false,
+     "value_names": {
+      "0": {
+       "name": "opening_a",
+       "text": "Rune4_OP_A_t1.webm",
+       "human_verified": false
+      },
+      "1": {
+       "name": "opening_b",
+       "text": "Rune4_OP_B_t1.webm",
+       "human_verified": false
+      },
+      "2": {
+       "name": "s05",
+       "text": "Rune4_s05_t1.webm",
+       "human_verified": false
+      },
+      "3": {
+       "name": "s06",
+       "text": "Rune4_s06_t1.webm",
+       "human_verified": false
+      },
+      "4": {
+       "name": "s07",
+       "text": "Rune4_s07_t1.webm",
+       "human_verified": false
+      },
+      "5": {
+       "name": "s08",
+       "text": "Rune4_s08_t1.webm",
+       "human_verified": false
+      },
+      "6": {
+       "name": "s09",
+       "text": "Rune4_s09_t1.webm",
+       "human_verified": false
+      },
+      "7": {
+       "name": "s10",
+       "text": "Rune4_s10_t1.webm",
+       "human_verified": false
+      },
+      "8": {
+       "name": "s11",
+       "text": "Rune4_s11_t1.webm",
+       "human_verified": false
+      },
+      "9": {
+       "name": "s12",
+       "text": "Rune4_s12_t1.webm",
+       "human_verified": false
+      },
+      "10": {
+       "name": "s13",
+       "text": "Rune4_s13_t1.webm",
+       "human_verified": false
+      },
+      "11": {
+       "name": "s14",
+       "text": "Rune4_s14_t1.webm",
+       "human_verified": false
+      },
+      "12": {
+       "name": "s15",
+       "text": "Rune4_s15_t1.webm",
+       "human_verified": false
+      },
+      "13": {
+       "name": "s16",
+       "text": "Rune4_s16_t1.webm",
+       "human_verified": false
+      },
+      "14": {
+       "name": "s17",
+       "text": "Rune4_s17_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "15": {
+       "name": "s18",
+       "text": "Rune4_s18_t1.webm",
+       "human_verified": false
+      },
+      "16": {
+       "name": "s19",
+       "text": "Rune4_s19_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "17": {
+       "name": "s20",
+       "text": "Rune4_s20_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "18": {
+       "name": "s21",
+       "text": "Rune4_s21_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "19": {
+       "name": "s23",
+       "text": "Rune4_s23_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "20": {
+       "name": "s23_2",
+       "text": "Rune4_s23_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "21": {
+       "name": "s24",
+       "text": "Rune4_s24_t1.webm",
+       "human_verified": false
+      },
+      "22": {
+       "name": "s25",
+       "text": "Rune4_s25_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "23": {
+       "name": "s26",
+       "text": "Rune4_s26_t1.webm",
+       "human_verified": false
+      },
+      "24": {
+       "name": "s27",
+       "text": "Rune4_s27_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "25": {
+       "name": "s28",
+       "text": "Rune4_s28_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "26": {
+       "name": "s29",
+       "text": "Rune4_s29_t1_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "27": {
+       "name": "m01_viznar",
+       "text": "01_M_VIZNAR_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "28": {
+       "name": "m02_clorica",
+       "text": "02_M_CLORICA_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "29": {
+       "name": "m04_forte",
+       "text": "04_M_FORTE_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "30": {
+       "name": "m05_keel",
+       "text": "05_M_KEEL_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "31": {
+       "name": "m07_marguerite",
+       "text": "07_M_MARGUERITE_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "32": {
+       "name": "m08_dirus",
+       "text": "08_M_DIRUS_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "33": {
+       "name": "m09_arthur",
+       "text": "09_M_ARTHUR_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "34": {
+       "name": "m11_syaopai",
+       "text": "11_M_SYAOPAI.webm",
+       "human_verified": false
+      },
+      "35": {
+       "name": "m13_kohaku",
+       "text": "13_M_KOHAKU_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "36": {
+       "name": "m15_dag",
+       "text": "15_M_DAG_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "37": {
+       "name": "m17_dolce",
+       "text": "17_M_DOLCE_<language>.webm (one file per language)",
+       "human_verified": false
+      },
+      "38": {
+       "name": "m20_leon",
+       "text": "20_M_LEON_<language>.webm (one file per language)",
+       "human_verified": false
+      }
+     }
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "while a dialogue / scripted event is active (closes the dialogue first)",
    "description": "Play a full-motion video. If a dialogue box is still open, it is closed first and the op waits.",
-   "details": "While g_currentDialogueTaskPtr, g_activeScriptedEventState or the effect-belt word is set: dialogue state 6 -> 7, both portraits torn down (host+88/+96, host+108 = -1, host+304 = 0), return 1. Else controller+116 = 1 and Cutscene_PlayVideoById(video) (+0x3C53C0), return 0.",
+   "details": "While g_currentDialogueTaskPtr, g_activeScriptedEventState or the effect-belt word is set: dialogue state 6 -> 7, both portraits torn down (host+88/+96, host+108 = -1, host+304 = 0), return 1. Else controller+116 = 1 and Cutscene_PlayVideoById(video) (+0x3C53C0), return 0. Cutscene_PlayVideoById: the file name is built by RF4S.exe+0x3C58D0 (switch over ids 0-38 at +0x3C5A5E, '%s.%s' or '%s%s%s.%s' with a language suffix _e/_f/_g, _KR/_TC for ids >= 27, plus _j when config bit 10 is clear, probably the Japanese-voice option). Each id has a watched bit (ids < 27 and >= 27 in two words); a video can be skipped only once it has been watched, the two openings (0, 1) always. Shipped callers: story banks 2, 4, 8, 9, 12; newlywed banks 132-143 the M_ videos (27-38); banks 318/319/321 call every id.",
    "side_effects": "plays a video; closes the dialogue box",
    "evidence": "RF4S.exe+0x21F880; corpus: 41 uses, 'FadeScreen / WaitForFade / PlayCutsceneVideo(reg0) / RET'.",
    "alias_of": null,

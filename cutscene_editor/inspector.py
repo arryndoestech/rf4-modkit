@@ -281,11 +281,12 @@ class Inspector(ScrollFrame):
     # ---- action -------------------------------------------------------------------- #
     def _action_form(self, st, txt):
         self._header(script.opcode_mnemonic(st.op), st, script.opcode_describe(st.op))
-        bad = script.meta.arg_count_problem(st.op, len(st.args))
-        if bad:                  # the game would read a missing argument as leftover memory
-            ttk.Label(self.form, text="⚠ " + bad + ". Save refuses this; delete the statement "
-                      "or add it again with the right arguments.", foreground="#b00020",
-                      wraplength=330, justify="left").pack(anchor="w", padx=8, pady=(4, 0))
+        bad = [script.meta.arg_count_problem(st.op, len(st.args))]
+        bad += [script.meta.arg_value_problem(st.op, i, v) for i, v in
+                ((i, script.static_arg(self.app.bank, st, i)) for i in range(len(st.args))) if v is not None]
+        for why in filter(None, bad):  # only the Source tab can write these; Save asks first
+            ttk.Label(self.form, text="⚠ " + why + ". Save will ask before keeping it.",
+                      foreground="#b00020", wraplength=330, justify="left").pack(anchor="w", padx=8, pady=(4, 0))
         if 93 <= st.op <= 97:                       # the message-box style
             app = self.app
             from .dialogs import BoxStylePicker

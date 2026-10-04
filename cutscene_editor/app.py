@@ -885,7 +885,8 @@ class CutsceneExplorer:
     def arg_count_errors(self):
         """[(bank pos, pc, message)] for statements in the banks changed since the last save
         whose argument count is outside what the shipped game passes (a missing argument is
-        read as leftover memory: op 93 without one hides the dialogue box)."""
+        read as leftover memory: op 93 without one hides the dialogue box), or with a literal
+        argument value the game is known to crash on (opcode_meta.arg_value_problem)."""
         out = []
         for pos in self.doc.changed_banks():
             bank = self.doc.container.banks[pos]
@@ -898,21 +899,33 @@ class CutsceneExplorer:
                     why = script.meta.arg_count_problem(st.op, len(st.args))
                     if why:
                         out.append((pos, pc, why))
+                    for i in range(len(st.args)):
+                        v = script.static_arg(bank, st, i)
+                        why = script.meta.arg_value_problem(st.op, i, v) if v is not None else None
+                        if why:
+                            out.append((pos, pc, why))
         return sorted(out)
 
     def _refuse_broken_text(self, title):
+        """True when the save must not go ahead: broken text or em.bin refuse it; risky
+        instructions (only the Source tab can write them) ask first."""
         bad = ["• rf3mc.%s line #%d: %s" % (loc, lid, x.message) for loc, lid, x in self.text_errors()]
-        bad += ["• bank %d @0x%04x: %s" % e for e in self.arg_count_errors()]
         if self.doc.em_dirty():                    # em.bin: loops, missing entries, divide by zero
             from rf4s_modkit import emtext
             bad += ["• em.bin #%d: %s" % (idx, msg) for level, idx, _p, msg in emtext.problems(self.doc.em)
                     if level == "error"]
-        if not bad:
+        if bad:
+            lines = bad[:8] + (["• … and %d more" % (len(bad) - 8)] if len(bad) > 8 else [])
+            messagebox.showerror(title, "These would break the game; fix them first:\n\n"
+                                 + "\n".join(lines), parent=self.frame)
+            return True
+        risky = ["• bank %d @0x%04x: %s" % e for e in self.arg_count_errors()]
+        if not risky:
             return False
-        lines = bad[:8] + (["• … and %d more" % (len(bad) - 8)] if len(bad) > 8 else [])
-        messagebox.showerror(title, "These would break the game; fix them first:\n\n"
-                             + "\n".join(lines), parent=self.frame)
-        return True
+        lines = risky[:8] + (["• … and %d more" % (len(risky) - 8)] if len(risky) > 8 else [])
+        return not messagebox.askyesno(title, "These instructions are outside what the game handles "
+                                       "safely:\n\n" + "\n".join(lines) + "\n\nSave anyway?",
+                                       icon="warning", default="no", parent=self.frame)
 
     def set_text(self, line_id, text):
         arc = self.doc.textarc
@@ -983,6 +996,11 @@ class CutsceneExplorer:
             num = int(text, 0)
         except ValueError:
             num = None
+        lit = scriptasm.literal_value(text, st.op, index)
+        why = script.meta.arg_value_problem(st.op, index, lit) if lit is not None else None
+        if why:                                  # the friendly editors refuse it; the Source tab allows it
+            messagebox.showerror("Argument", why, parent=self.frame)
+            return False
         if num is not None and -0x8000 <= num <= 0xFFFF:     # one literal token (wider: assembled)
             def do():
                 self.doc.container.set_arg_value(self.bank, pc, index, num)
@@ -1022,14 +1040,16 @@ class CutsceneExplorer:
                           lambda: self.bank.set_choice_item(pc, k, line_id))
 
     # ---- structure ----------------------------------------------------------------- #
-    def assemble_check(self, text, base=None):
+    def assemble_check(self, text, base=None, strict=True):
         """(region, labels, None) or (None, None, error) without applying anything. The
-        region is laid out at a nominal `base`; the real edit relinks the whole bank."""
+        region is laid out at a nominal `base`; the real edit relinks the whole bank.
+        strict=False (the Source tab) allows argument counts and values the game is known
+        to mishandle."""
         if base is None:
             base = 4 * script.TYPE_TABLE_SLOTS
         resolver = self.doc.container.asm_resolver if self.doc.container is not None else None
         try:
-            region, labels = scriptasm.assemble(text, base, resolver=resolver)
+            region, labels = scriptasm.assemble(text, base, resolver=resolver, strict=strict)
         except script.ScriptError as e:
             return None, None, self._suggest(str(e))
         except Exception as e:  # noqa: BLE001

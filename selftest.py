@@ -1978,6 +1978,22 @@ def test_opcode_arg_verification():
              evidence=False)
     grp = [x["args"][1]["value_names"].get("9", {}).get("name") for x in O.alias_group(t, t["actions"]["211"])]
     _check("optest.record writes to every row of an alias group", len(grp) >= 2 and set(grp) == {"question"}, grp)
+    # the friendly editors refuse what the game is known to break on; the Source tab
+    # (strict=False) allows anything the bytecode can express
+    risky = "SetButtonIconSlot(0, 192)\nSetSceneCast(0)\nRET\n"
+    try:
+        A.assemble(risky, 0x1000)
+        strict_refuses = False
+    except Exception as e:  # noqa: BLE001
+        strict_refuses = "192" in str(e)
+    try:
+        A.assemble(risky, 0x1000, strict=False)
+        loose_ok = True
+    except Exception as e:  # noqa: BLE001
+        loose_ok = repr(e)
+    _check("strict assembly refuses a crash value (icon 192); strict=False (the Source tab) allows it",
+           strict_refuses and loose_ok is True and om.arg_value_problem(365, 1, 191) is None,
+           (strict_refuses, loose_ok))
 
 
 def test_error_logging():
@@ -2331,12 +2347,12 @@ def test_mobj_types():
     _check("mobj flag_label = region-B scene bits",
            "abs 6907" in (mobj_params.flag_label(2811) or "")
            and "char 5" in (mobj_params.flag_label(1042) or "")
-           and "hidden" in (mobj_params.flag_label(1042) or "")
+           and "daily greeting done" in (mobj_params.flag_label(1042) or "")
            and "box" in (mobj_params.flag_label(720) or "")
            and "recipe 341" in (mobj_params.flag_label(1403) or "")
            and mobj_params.flag_label(0) is None
            and mobj_params.flag_label(-1) is None,
-           "2811 -> scene bit 6907; 1042 -> NPC-hide char 5")
+           "2811 -> scene bit 6907; 1042 -> daily greeting done, char 5")
     if mobj_params._emflag_table() is None:
         _skip("mobj emdeb_flag_label (region A)", "emdeb.bin not found in Bundle/")
     else:
@@ -3088,8 +3104,56 @@ def test_script():
         _check("dialogue search (Find): genuine matches, case-insensitive, empty-on-miss, finds "
                "discovery-only scenes",
                len(_sh) > 50 and _sh_ok and _sh_ci and _sh_none and _sh_disc)
+        # choice-menu options are dialogue too: an option's own text finds its scene, with the
+        # option's line id among the hits, in the CLI finder and the editor's dialogue mode
+        _cq = None
+        for _bk, _sc in script.iter_scenes(c):
+            for _st in _sc.stmts.values():
+                if _st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") and _st.items:
+                    _t = (_sdlg(_st.items[-1]) or "").strip()
+                    if len(_t) >= 8 and "＠" not in _t:
+                        _cq = (_bk, _sc.entry_pc, _st.items[-1], _t)
+                        break
+            if _cq:
+                break
+        if _cq is None:
+            _skip("dialogue search finds choice options", "no choice menu with a plain option")
+        else:
+            _ch = script.find_scenes_with_dialog(c, _cq[3], _sdlg)
+            _ch_ok = any(_bk is _cq[0] and _sc.entry_pc == _cq[1] and _cq[2] in _ids
+                         for _bk, _sc, _ids in _ch)
+            try:
+                from cutscene_editor import browser as _ceb2
+
+                class _TextDoc:
+                    container, em, textarc = c, None, _starc
+                    text = staticmethod(_sdlg)
+                _ch_gui = any(_p == c.banks.index(_cq[0]) and _sc.entry_pc == _cq[1]
+                              for _p, _sc in _ceb2.find_scenes(_TextDoc(), "dialogue", _cq[3]))
+            except ImportError:
+                _ch_gui = True
+            _check("dialogue search finds choice-menu options (CLI finder + editor dialogue mode)",
+                   _ch_ok and _ch_gui, f"{_cq[3]!r}: {len(_ch)} scene(s), editor {_ch_gui}")
     else:
         _skip("dialogue search", "no rf3mc.eng catalog")
+    # map objects a scene spawns (SpawnMapEntity, op 157) are in use even when no map places
+    # them: none may be labelled '(unused)' (the Sharance Maze entrance, 326, was "crystal charm
+    # (unused)" until 2026-10-02)
+    from rf4s_modkit import mobj_types as _mtu
+    _spawn_op = next(_o for _o in range(script.DISPATCHABLE_ACTION_OPS)
+                     if script.opcode_mnemonic(_o) == "SpawnMapEntity")
+    _spawned = set()
+    for _bk, _sc in script.iter_scenes(c):
+        for _st in _sc.stmts.values():
+            if _st.op == _spawn_op and _st.args:
+                try:
+                    _spawned.add(int(script.arg_repr(_bk.data, _st.args[0]), 0))
+                except (ValueError, TypeError):
+                    pass
+    _bad = sorted(_t for _t in _spawned if "(unused)" in (_mtu.mobj_display_name(_t) or ""))
+    _check("map objects spawned by scenes are not labelled '(unused)'",
+           len(_spawned) > 5 and not _bad and "Sharance" in _mtu.mobj_display_name(326),
+           f"{len(_spawned)} spawned types, mislabelled {_bad}")
     # structural search (the browser's opcode/speaker modes -> cutscene_editor.browser.find_scenes).
     # Run it headless on a stub document and confirm each mode returns scenes that GENUINELY
     # match: opcode search finds scenes containing the op (by-mnemonic count == by-number count,
@@ -8973,6 +9037,24 @@ def test_remembered_options():
             n1, ok1 = offsets_ok()
             _check("file offsets point at each statement's opcode in rf3.mc, also after an insert moved "
                    "the later banks", n0 and ok0 == n0 and n1 and ok1 == n1, "%d/%d, %d/%d" % (ok0, n0, ok1, n1))
+        # switching the dialogue language keeps the script view where it was (it used to jump
+        # a little: the scroll was restored as a yview fraction of the re-drawn text)
+        cx3 = ce.CutsceneExplorer(tk.Toplevel(root), reader=_reader)
+        c3 = cx3.doc.container
+        _other = "eng" if cx3.doc.locale != "eng" else "deu"
+        if c3 is None or len(c3.banks) <= 211 or not c3.banks[211].entry_records(69) or _first("rf3mc." + _other) is None:
+            _skip("language switch keeps the script view's scroll", "rf3.mc / two dialogue languages not extracted")
+        else:
+            cx3.open_scene(211, c3.banks[211].entry_records(69)[0].event_id)
+            _tv = cx3.view.text
+            cx3.frame.update()
+            _tv.yview_moveto(0.4); cx3.frame.update(); _tv.yview_scroll(7, "pixels"); cx3.frame.update()
+            _top0 = _tv.index("@0,0")
+            cx3.set_locale(_other)
+            cx3.frame.update()
+            _top1 = _tv.index("@0,0")
+            _check("switching the dialogue language keeps the script view's scroll (same top row)",
+                   _top0.split(".")[0] == _top1.split(".")[0] and _top0 != "1.0", f"{_top0} -> {_top1}")
         # dialogs without parent= open over the window last focused, not the main window
         from tkinter import messagebox as _mbx
         guiutil.install_dialog_parents(root)

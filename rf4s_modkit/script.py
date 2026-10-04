@@ -838,7 +838,7 @@ ZONE2_FLAG_OPS = {318: 1007, 443: 0, 444: 0, 445: 0}
 
 def flag_arg_note(buf, off, op, ai):
     """Zone-2 label for the flag-id argument (arg 0) of ops 318/443/444/445 when it is a
-    constant, e.g. 'NPC hidden: char 5 Kiel (zone-2 1042, abs 5138)'; else None."""
+    constant, e.g. 'NPC daily greeting done: char 5 Kiel (zone-2 1042, abs 5138)'; else None."""
     if op not in ZONE2_FLAG_OPS or ai != 0 or not (0 <= off < len(buf)):
         return None
     if buf[off] in (3, 4):
@@ -1847,36 +1847,36 @@ class Container:
         from . import scriptasm
         return scriptasm.int_literal_bytes(v) + b"\x00"
 
-    def assemble(self, bank, text, fallthrough_to=None):
+    def assemble(self, bank, text, fallthrough_to=None, strict=True):
         """Assemble listing `text` after the bank's last statement and return its pc in
         the rebuilt bank. It ends with END, or with a JMP to `fallthrough_to` (a pc).
         Nothing references it until `add_entry(..., event_pc=)` / a branch does; use
         `add_entry(..., listing=text)` to register it in one step."""
-        m, key = self._relink(bank, lambda m: m.append_code(text, self.asm_resolver, fallthrough_to))
+        m, key = self._relink(bank, lambda m: m.append_code(text, self.asm_resolver, fallthrough_to, strict=strict))
         return self._pc(m, key)
 
-    def insert_before(self, bank, pc, specs):
+    def insert_before(self, bank, pc, specs, strict=True):
         """Insert statements (listing text) just before the statement at `pc`: every path
         that reached `pc` -- the statement above falling through, every branch, call and
         entry to it -- runs them first. Returns the new statements' first pc."""
-        m, key = self._relink(bank, lambda m: m.insert_before(pc, _listing_of(specs), self.asm_resolver))
+        m, key = self._relink(bank, lambda m: m.insert_before(pc, _listing_of(specs), self.asm_resolver, strict=strict))
         return self._pc(m, key)
 
-    def insert_after(self, bank, pc, specs):
+    def insert_after(self, bank, pc, specs, strict=True):
         """Insert statements right after the statement at `pc` (which must fall through);
         branches to the statement that followed it still skip them. Returns the new
         statements' first pc."""
-        m, key = self._relink(bank, lambda m: m.insert_after(pc, _listing_of(specs), self.asm_resolver))
+        m, key = self._relink(bank, lambda m: m.insert_after(pc, _listing_of(specs), self.asm_resolver, strict=strict))
         return self._pc(m, key)
 
-    def rewrite_scene(self, bank, entry_pc, specs):
+    def rewrite_scene(self, bank, entry_pc, specs, strict=True):
         """Replace the scene at `entry_pc` with `specs` (listing text; END is added when it
         can fall off its end). The trigger is unchanged: the new body sits where the old
         entry was and everything that pointed at the entry points at it; old statements
         nothing reaches any more are dropped, ones shared with other scenes stay. This is
         how you author a 'new' cutscene by repurposing an existing trigger. Returns the
         scene's new entry pc."""
-        m, key = self._relink(bank, lambda m: m.replace_scene(entry_pc, _listing_of(specs), self.asm_resolver))
+        m, key = self._relink(bank, lambda m: m.replace_scene(entry_pc, _listing_of(specs), self.asm_resolver, strict=strict))
         return self._pc(m, key)
 
     def delete_statement(self, bank, pc):
@@ -2511,21 +2511,32 @@ def dialog_speakers(scene, bank):
     return {pc: nm for pc, nm in out.items() if isinstance(nm, str)}
 
 
+def statement_text_ids(st):
+    """The dialogue line ids a statement shows: a DIALOG's line, or the option lines of a
+    choice menu (PROMPT_CHOICE / PROMPT_CHOICE_FORCED items). Empty for anything else."""
+    if st.mnem == "DIALOG":
+        return [st.dialog_id] if st.dialog_id is not None else []
+    if st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+        return list(st.items)
+    return []
+
+
 def find_scenes_with_dialog(container, substring, dialog):
-    """Find scenes whose dialogue contains `substring` (case-insensitive).
-    `dialog` = callable(line_id)->str. Returns list of (bank, Scene, [line_ids])."""
+    """Find scenes whose dialogue -- DIALOG lines and choice-menu options -- contains
+    `substring` (case-insensitive). `dialog` = callable(line_id)->str. Returns list of
+    (bank, Scene, [line_ids])."""
     sub = substring.lower()
     hits = []
     for bk, sc in iter_scenes(container):
         ids = []
         for st in sc.stmts.values():
-            if st.mnem == "DIALOG":
+            for i in statement_text_ids(st):
                 try:
-                    s = dialog(st.dialog_id)
+                    s = dialog(i)
                 except Exception:
                     s = None
                 if s and sub in s.lower():
-                    ids.append(st.dialog_id)
+                    ids.append(i)
         if ids:
             hits.append((bk, sc, ids))
     return hits
