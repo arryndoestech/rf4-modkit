@@ -48483,7 +48483,7 @@
    "side_effects": "REG_SUBEV_NOW/RSV and two more packed registers; em.bin dispatch; calendar callback",
    "evidence": "RF4S.exe+0x2188D0; corpus: 88 uses, one per sub-event bank start.",
    "alias_of": null,
-   "handler": "Script_VMOp_OnRequestBoxFirstSubmitAchievementAndScriptCallback",
+   "handler": "Script_VMOp_StartReservedSubEvent",
    "handler_rva": "0x2188D0",
    "shares_handler_with": [],
    "size": [
@@ -49256,7 +49256,7 @@
    "side_effects": "GameFlags (sub-event registers and bits), request array, goal queue, NPC records, prince points, calendar callback",
    "evidence": "RF4S.exe+0x218A40; corpus 139 uses closing sub-event scripts (after clearing FLG_SUB_T_* flags).",
    "alias_of": null,
-   "handler": "Script_VMOp_OnRequestBoxQuestClaimedFinalize",
+   "handler": "Script_VMOp_FinishCurrentSubEvent",
    "handler_rva": "0x218A40",
    "shares_handler_with": [],
    "size": [

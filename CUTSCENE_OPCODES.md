@@ -9724,7 +9724,7 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 536` — StartReservedSubEvent()
-*handler:* `Script_VMOp_OnRequestBoxFirstSubmitAchievementAndScriptCallback`
+*handler:* `Script_VMOp_StartReservedSubEvent`
 
 Start the reserved town sub-event (if none is running): move REG_SUBEV_RSV into REG_SUBEV_NOW and run its setup. Placed at the start of sub-event scripts.
 
@@ -9845,7 +9845,7 @@ Args:
 Mark every active goal in the sub-event goal list as complete. Unused by the shipped scripts.
 
 ### `op 549` — FinishCurrentSubEvent()
-*handler:* `Script_VMOp_OnRequestBoxQuestClaimedFinalize`
+*handler:* `Script_VMOp_FinishCurrentSubEvent`
 
 End the running town sub-event: mark it done, clear the sub-event state and goal queue, reset per-villager sub-event bits, refresh schedules and add prince points. Does nothing if no sub-event is running.
 

@@ -4024,6 +4024,12 @@ def test_subevents():
     the Venti chat (100) on entering the Dragon Room, Margaret's marriage event (111) on
     entering Town Square."""
     from rf4s_modkit import subevents as SE
+    # the nightly pick's hard-coded slots (DailyRequest_QueueTomorrowVisitor): COM_09 forced,
+    # COM_49 replaces the list, MRG_VIZNAR..MRG_LEON (225..236) replace it as a group
+    _rules = {e: (SE.special_rule(e) or (None,))[0] for e in (173, 174, 214, 224, 225, 229, 236, 237)}
+    _check("subevents: the special slots of the nightly pick",
+           _rules == {173: None, 174: "forced", 214: "replaces the pick", 224: None, 225: "marriage group",
+                      229: "marriage group", 236: "marriage group", 237: None}, _rules)
     _check("subevents: bank <-> em.bin entry numbering",
            SE.entry_of_bank(73) == 191 and SE.bank_of_entry(191) == 73 and SE.entry_of_bank(47) is None
            and SE.entry_of_bank(144) is None and SE.bank_of_entry(262) is None)
@@ -4058,6 +4064,8 @@ def test_subevents():
         _cat.refresh_subevent_names(d)
         _check("editor bank titles name town events",
                _cat.bank_title(c.banks[72]) == "Town event COM_25 · A Favor Repaid  (bank 72)"
+               and _cat.bank_title(c.banks[56]).endswith("(bank 56)  ⚑ forced")
+               and _cat.bank_title(c.banks[111]).endswith("(bank 111)  ⚑ marriage group")
                and _cat.bank_title(c.banks[100]) == "Town event COM_53  (bank 100)"
                and _cat.bank_title(c.banks[150]) == "Sub-event bank 150",
                (_cat.bank_title(c.banks[72]), _cat.bank_title(c.banks[100])))

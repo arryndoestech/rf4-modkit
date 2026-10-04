@@ -852,6 +852,9 @@ class EventManagerWindow:
         if who:
             rows.append(Row([("   Participants (the SUBEV_ENABLE_* requirements): %s -- companions among "
                               "them go home when it is reserved." % ", ".join(who), "dim")]))
+        rule = subevents.special_rule(e.idx)
+        if rule:
+            rows.append(Row([("   ⚑ Special slot (%s): %s" % rule, "warn")]))
         return rows
 
     def _use_form(self, key):

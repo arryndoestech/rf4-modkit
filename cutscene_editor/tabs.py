@@ -454,7 +454,11 @@ def town_event_summary(doc, bank):
     if who:
         parts.append("participants: %s -- companions among them go home when it is reserved"
                      % ", ".join(who))
-    return "; ".join(parts) + "."
+    text = "; ".join(parts) + "."
+    rule = subevents.special_rule(eid)
+    if rule:
+        text += "\n⚑ Special slot (%s): %s" % rule
+    return text
 
 
 class TriggersTab(ttk.Frame):

@@ -293,7 +293,9 @@ def bank_title(bank):
     slot = subevents.slot_of_bank(i)
     if slot is not None:
         code, title = _SUBEVENT_NAMES.get(i, (None, None))
-        return "Town event %s%s  (bank %d)" % (code or "slot %d" % slot, " · " + title if title else "", i)
+        rule = subevents.special_rule(subevents.FIRST_ENTRY + slot)
+        return "Town event %s%s  (bank %d)%s" % (code or "slot %d" % slot, " · " + title if title else "", i,
+                                                 "  ⚑ " + rule[0] if rule else "")
     return f"Sub-event bank {i}"
 
 

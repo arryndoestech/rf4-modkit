@@ -38,6 +38,32 @@ TYPE_REACTION = 27
 TYPE_MORNING = 62
 
 
+# Slots the nightly pick treats specially, by em.bin entry id (DailyRequest_QueueTomorrowVisitor
+# names the entries, not the events: whatever an author puts in these slots gets the rule).
+# Order in the exe: the 80% roll (or COM_09 holding) lists the eligible entries; COM_49 holding
+# replaces that list, else any MRG_* that holds replace it; COM_09 holding then replaces it all.
+ENTRY_COM_09 = 174
+ENTRY_COM_49 = 214
+ENTRY_MRG_FIRST, ENTRY_MRG_LAST = 225, 236
+
+
+def special_rule(entry_id):
+    """(short tag, explanation) when the nightly pick hard-codes a rule for this em.bin entry,
+    else None."""
+    if entry_id == ENTRY_COM_09:
+        return ("forced", "Forced by RF4S.exe: whenever its condition holds, the nightly pick skips the 80% "
+                "roll and reserves this event over every other one (including COM_49 and the marriage "
+                "events). No other town event can come up until it is done.")
+    if entry_id == ENTRY_COM_49:
+        return ("replaces the pick", "RF4S.exe: whenever its condition holds it becomes the only candidate, "
+                "even on a night the 80% roll fails. Only the forced COM_09 slot beats it.")
+    if ENTRY_MRG_FIRST <= entry_id <= ENTRY_MRG_LAST:
+        return ("marriage group", "RF4S.exe: entries %d-%d form a group; when any of them holds, they replace "
+                "the other candidates (one is picked among them), even on a night the 80%% roll fails. "
+                "COM_49 and the forced COM_09 slot come first." % (ENTRY_MRG_FIRST, ENTRY_MRG_LAST))
+    return None
+
+
 def slot_of_bank(index):
     """0..95 for a town-event bank index (48..143), else None."""
     return index - FIRST_BANK if FIRST_BANK <= index < FIRST_BANK + COUNT else None
