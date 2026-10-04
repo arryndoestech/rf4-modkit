@@ -11,7 +11,7 @@ from rf4s_modkit import script
 from . import catalog
 from .render import scene_preview
 
-SEARCH_MODES = ("dialogue", "speaker", "opcode", "event manager entry", "bank #")
+SEARCH_MODES = ("dialogue", "speaker", "opcode", "variable", "event manager entry", "bank #")
 
 
 def scene_rows(bank):
@@ -88,7 +88,8 @@ class Browser(ttk.Frame):
         mc = ttk.Combobox(mr, textvariable=self.mode, values=SEARCH_MODES, state="readonly", width=20)
         mc.pack(side="left", padx=4)
         Tip(mc, "dialogue: what someone says or a choice-menu option · speaker: who speaks · opcode: an action by name or "
-                "number · event manager entry: an em.bin entry name · bank #: open a bank.")
+                "number · variable: a FLG_ / REG_ / EV_ name (reads and writes) · event manager entry: an "
+                "em.bin entry name · bank #: open a bank.")
         self.show_empty = tk.BooleanVar(value=False)
         cb = ttk.Checkbutton(mr, text="empty banks", variable=self.show_empty, command=self.rebuild)
         cb.pack(side="right")
@@ -117,6 +118,7 @@ class Browser(ttk.Frame):
         doc = self.app.doc
         if doc.container is None:
             return
+        catalog.refresh_subevent_names(doc)       # town-event bank titles follow the language
         groups = {g: [] for g, _t in catalog.GROUP_TITLES}
         empty = self.show_empty.get()
         for pos, bank in enumerate(doc.container.banks):
@@ -238,6 +240,9 @@ class Browser(ttk.Frame):
         if mode == "dialogue" and doc.textarc is None:
             self.app.status(f"rf3mc.{doc.locale} is not loaded — cannot search dialogue")
             return
+        if mode == "variable" and getattr(doc, "emf_vars", None) is None:
+            self.app.status("emdeb.bin is not loaded — cannot search variables by name")
+            return
         self.app.busy(True)
         try:
             hits = self._find(mode, q)
@@ -276,8 +281,9 @@ class Browser(ttk.Frame):
 
 def statement_matcher(doc, mode, q):
     """fn(bank, statement) -> bool for one search mode ("dialogue", "speaker", "opcode" by
-    mnemonic, name or number, "event manager entry"), or None when the mode can't match
-    (dialogue with the locale not loaded, event manager entry without em.bin)."""
+    mnemonic, name or number, "variable" by FLG_ / REG_ / EV_ name, "event manager entry"),
+    or None when the mode can't match (dialogue with the locale not loaded, variable without
+    emdeb.bin, event manager entry without em.bin)."""
     ql = q.lower()
     if mode == "dialogue":
         if doc.textarc is None:
@@ -304,6 +310,20 @@ def statement_matcher(doc, mode, q):
         return lambda _bk, st: st.op < 0xFFF0 and (
             (qnum is not None and st.op == qnum) or ql in script.opcode_mnemonic(st.op).lower()
             or ql in script.opcode_name(st.op).lower())
+    if mode == "variable":
+        tbl = getattr(doc, "emf_vars", None)
+        if tbl is None:
+            return None
+        # every emdeb variable whose name contains the query, keyed as the scripts store it
+        keys = {(v.bit_offset, v.bit_width) for v in tbl.variables if ql in v.name.lower()}
+        if not keys:
+            return lambda _bk, _st: False
+        from rf4s_modkit import varuses
+        unpack = doc.container.unpack_var
+
+        def variable(bk, st):
+            return any(unpack(enc)[:2] in keys for enc, _acc in varuses.statement_var_access(bk.data, st))
+        return variable
     if mode == "event manager entry":
         em = doc.em
         if em is None:

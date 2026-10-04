@@ -7,7 +7,7 @@ from tkinter import ttk
 
 from guiutil import FilterCombo, Paned, ScrollFrame, Tip
 from guiutil import err_text
-from rf4s_modkit import script, scriptasm
+from rf4s_modkit import script, scriptasm, subevents
 
 from . import catalog
 from .render import SceneText
@@ -441,6 +441,22 @@ class SourceTab(ttk.Frame):
 
 
 # --------------------------------------------------------------------------- #
+def town_event_summary(doc, bank):
+    """One paragraph for a town-event bank: its em.bin entry, what starts it, who takes part."""
+    eid = subevents.entry_of_bank(bank.index)
+    code = catalog.subevent_code(doc, eid)
+    how = [subevents.describe_start(ty, r) for ty, r in subevents.starters(bank)]
+    who = [n for _c, n in subevents.participants(doc.em, eid)] if doc.em is not None else []
+    parts = ["Town event: em.bin entry #%d%s decides when it can be picked; at day change one "
+             "eligible event is reserved for the next day" % (eid, " (EV_SUBEV_%s)" % code if code else "")]
+    parts.append("starts (StartReservedSubEvent) by " + " or ".join(dict.fromkeys(how)) if how
+                 else "no scene here starts it (StartReservedSubEvent), so it never runs")
+    if who:
+        parts.append("participants: %s -- companions among them go home when it is reserved"
+                     % ", ".join(who))
+    return "; ".join(parts) + "."
+
+
 class TriggersTab(ttk.Frame):
     """The bank's type table: which scenes the engine starts, for what, with which keys."""
 
@@ -502,6 +518,9 @@ class TriggersTab(ttk.Frame):
             self.lbl.config(text="type table unreadable (%s)" % err_text(e))
             return
         total = 0
+        starts = set()
+        if subevents.is_subevent_bank(bank):    # which entries run StartReservedSubEvent
+            starts = {(ty, r.index) for ty, r in subevents.starters(bank)}
         for typ, (cnt, _off) in tt.items():
             note = ""
             try:
@@ -513,8 +532,10 @@ class TriggersTab(ttk.Frame):
             self.rows[node] = (typ, None)
             for r in recs:
                 dead = "" if script.decode_statement(bank.data, r.event_id) else "  [no code]"
-                iid = t.insert(node, "end", text="  #%d" % r.index,
-                               values=("@%04x%s" % (r.event_id, dead), catalog.describe_keys(typ, r.subs)))
+                keys = catalog.describe_keys(typ, r.subs)
+                if (typ, r.index) in starts:
+                    keys = "▶ starts the town event · " + keys
+                iid = t.insert(node, "end", text="  #%d" % r.index, values=("@%04x%s" % (r.event_id, dead), keys))
                 self.rows[iid] = (typ, r)
                 total += 1
         if keep is not None:                    # the same row again after an edit
@@ -524,10 +545,13 @@ class TriggersTab(ttk.Frame):
                     t.see(iid)
                     break
         app.trigger_selected(*self.selected())
-        self.lbl.config(text="%s: %d action type%s, %d entr%s%s"
-                             % (catalog.bank_title(bank), len(tt), "" if len(tt) == 1 else "s", total,
-                                "y" if total == 1 else "ies",
-                                "   · empty — New scene… registers the first one" if not tt else ""))
+        text = ("%s: %d action type%s, %d entr%s%s"
+                % (catalog.bank_title(bank), len(tt), "" if len(tt) == 1 else "s", total,
+                   "y" if total == 1 else "ies",
+                   "   · empty — New scene… registers the first one" if not tt else ""))
+        if subevents.is_subevent_bank(bank):
+            text += "\n" + town_event_summary(app.doc, bank)
+        self.lbl.config(text=text)
 
     def selected(self):
         s = self.tree.selection()

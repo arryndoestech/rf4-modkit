@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from rf4s_modkit import map_names, script
+from rf4s_modkit import map_names, script, subevents
 
 try:
     from rf4s_modkit import entry_types as _entry_types
@@ -270,7 +270,7 @@ def bank_group(bank):
 
 
 GROUP_TITLES = (("maps", "Maps"), ("characters", "Characters"),
-                ("villagers", "Villager behaviour"), ("subevents", "Sub-events & quests"),
+                ("villagers", "Villager behaviour"), ("subevents", "Town events & quests"),
                 ("global", "Opening / global"))
 
 
@@ -290,7 +290,52 @@ def bank_title(bank):
         return f"Villager behaviour · {_char(i - 224)}  (bank {i})"
     if i == QUEST_DEFAULT_BANK:
         return f"Quests (default sub-event bank {i})"
+    slot = subevents.slot_of_bank(i)
+    if slot is not None:
+        code, title = _SUBEVENT_NAMES.get(i, (None, None))
+        return "Town event %s%s  (bank %d)" % (code or "slot %d" % slot, " · " + title if title else "", i)
     return f"Sub-event bank {i}"
+
+
+# Town events (banks 48..143): {bank index: (em.bin name without EV_SUBEV_, diary title)}, set
+# from the open document by refresh_subevent_names() (bank_title has no document of its own).
+_SUBEVENT_NAMES = {}
+_SUBEVENT_KEY = [None]
+
+
+def subevent_code(doc, entry_id):
+    """'COM_26' / 'MRG_MARGUERITE' for em.bin entry `entry_id`, or None without em.bin."""
+    em = getattr(doc, "em", None)
+    if em is None:
+        return None
+    try:
+        nm = em.names.entry_name(entry_id)
+    except Exception:  # noqa: BLE001
+        return None
+    if not nm:
+        return None
+    return nm[len("EV_SUBEV_"):] if nm.startswith("EV_SUBEV_") else nm
+
+
+def refresh_subevent_names(doc):
+    """Recompute the town-event names and diary titles when rf3.mc's global bank, the
+    dialogue language or em.bin's entry names changed (cheap otherwise)."""
+    c = getattr(doc, "container", None)
+    if c is None:
+        _SUBEVENT_NAMES.clear()
+        _SUBEVENT_KEY[0] = None
+        return
+    codes = tuple(subevent_code(doc, subevents.FIRST_ENTRY + k) for k in range(subevents.COUNT))
+    glob = hash(tuple(bytes(b.data) for b in c.banks if b.kind == "global"))
+    key = (id(c), getattr(doc, "locale", None), getattr(doc, "textarc", None) is not None, glob, codes)
+    if key == _SUBEVENT_KEY[0]:
+        return
+    titles = subevents.diary_titles(c, doc.text) if getattr(doc, "textarc", None) is not None else {}
+    _SUBEVENT_NAMES.clear()
+    for k in range(subevents.COUNT):
+        i = subevents.FIRST_BANK + k
+        _SUBEVENT_NAMES[i] = (codes[k], titles.get(i))
+    _SUBEVENT_KEY[0] = key
 
 
 def bank_is_empty(bank):

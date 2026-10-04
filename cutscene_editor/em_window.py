@@ -26,7 +26,7 @@ from tkinter import messagebox, simpledialog, ttk
 
 import guiutil
 from guiutil import FilterCombo, Paned, ScrollFrame, Tip, hint, shortcut_scope
-from rf4s_modkit import emscript, emtext, script
+from rf4s_modkit import emscript, emtext, script, subevents
 
 from . import catalog
 
@@ -475,6 +475,7 @@ class EventManagerWindow:
                 rows.append(Row([("   %d. " % (ai + 1), "dim"),
                                  (_cap(emtext.action_text(names, a, self.label, self.raw_names)), "link" if a.name == "CALL" else "act")]
                                 + mark(("act", stream, ai)), ("act", stream, ai)))
+        rows += self._town_event_rows(e)
         # who uses it
         uses, refs = self.uses(e.idx), self.refs(e.idx)
         dyn = []
@@ -828,6 +829,30 @@ class EventManagerWindow:
              "Add another requirement to this way (it starts as 'always', which changes nothing)."),
             ("Remove this way", lambda: self.remove_way(which, si), "Remove this way and all its requirements."),
         ])
+
+    def _town_event_rows(self, e):
+        """For a town-event entry (EV_SUBEV_*, 166..261): its bank, the scenes that start the
+        event and who takes part -- the links the game makes by number (bank = 48 + i)."""
+        pos = subevents.bank_of_entry(e.idx)
+        c = self.doc.container
+        if pos is None or c is None or pos >= len(c.banks):
+            return []
+        bank = c.banks[pos]
+        rows = [Row([("", None)]),
+                Row([("↪ Town event: when condition A holds at day change it can be reserved for the "
+                      "next day; its scenes are in %s:" % catalog.bank_title(bank), "sec")])]
+        st = subevents.starters(bank)
+        for ty, r in st:
+            rows.append(Row([("   ▶ starts by ", "dim"), (subevents.describe_start(ty, r), "link"),
+                             ("  scene @0x%04x" % r.event_id, "dim")], ("use", pos, r.event_id, r.event_id)))
+        if not st:
+            rows.append(Row([("   No scene in that bank runs StartReservedSubEvent, so the event never "
+                              "starts.", "dim")]))
+        who = [n for _c, n in subevents.participants(self.doc.em, e.idx)]
+        if who:
+            rows.append(Row([("   Participants (the SUBEV_ENABLE_* requirements): %s -- companions among "
+                              "them go home when it is reserved." % ", ".join(who), "dim")]))
+        return rows
 
     def _use_form(self, key):
         _k, pos, entry, pc = key

@@ -3185,6 +3185,21 @@ def test_script():
         _check("structural search (opcode/speaker) matches genuinely + by-number == by-name",
                len(_r1) > 5 and _op_ok and len(_r2) == len(_r1) and len(_r3) > 5 and _spk_ok
                and not _r4, f"{len(_r1)}/{len(_r2)}/{len(_r3)}/{len(_r4)}")
+        # variable mode: scenes that read or write an emdeb.bin variable by name. The
+        # developers' "Related Birthday" menu (bank 252) writes REG_PLAYER_BIRTH_SEASON with EVAL
+        from rf4s_modkit import emflags as _vef
+        try:
+            _sdoc.emf_vars = _vef.EmFlagTable.load(_vef.find_emdeb())
+        except (FileNotFoundError, ValueError):
+            _sdoc.emf_vars = None
+        if _sdoc.emf_vars is None:
+            _skip("variable search", "emdeb.bin not found")
+        else:
+            _v1 = _ceb.find_scenes(_sdoc, "variable", "REG_PLAYER_BIRTH_SEASON")
+            _v2 = _ceb.find_scenes(_sdoc, "variable", "zznotavar")
+            _check("variable search finds the scenes using a FLG_/REG_ name (bank 252 birthday menu)",
+                   len(c.banks) > 252 and any(_p == 252 for _p, _sc in _v1) and not _v2,
+                   f"{[(_p, hex(_sc.entry_pc)) for _p, _sc in _v1]} / {len(_v2)}")
     else:
         _skip("structural search", "cutscene_editor not importable")
     # xrefs (the editor's Callers… reverse lookup, 2026-09-01): control-flow callers over one
@@ -3999,6 +4014,53 @@ def test_emflags():
             _fbad.append((_o, _fn))
     _check("every FLG_/REG_/GF_ flag citation in a description resolves in emdeb.bin",
            not _fbad, "unresolved: %s" % _fbad[:5])
+
+
+def test_subevents():
+    """Town events (subevents.py + the editor's names for them): bank 48 + i <-> em.bin entry
+    166 + i, the diary title of each, what starts it (the scene running StartReservedSubEvent)
+    and its participants (SUBEV_ENABLE_* in condition A). Ground truth traced 2026-10-04:
+    COM_25 (bank 72) starts by talking to Porcoline, COM_26 (73) on entering Town Square,
+    the Venti chat (100) on entering the Dragon Room, Margaret's marriage event (111) on
+    entering Town Square."""
+    from rf4s_modkit import subevents as SE
+    _check("subevents: bank <-> em.bin entry numbering",
+           SE.entry_of_bank(73) == 191 and SE.bank_of_entry(191) == 73 and SE.entry_of_bank(47) is None
+           and SE.entry_of_bank(144) is None and SE.bank_of_entry(262) is None)
+    try:
+        from cutscene_editor.document import ScriptDocument
+        from cutscene_editor import catalog as _cat
+    except Exception as e:  # noqa: BLE001
+        _skip("subevents on the game data", "cutscene_editor not importable: %s" % e)
+        return
+    d = ScriptDocument(lambda n: (_first(n).read_bytes() if _first(n) else None))
+    d.locale = "eng"
+    if not d.load_from_reader() or d.em is None or len(d.container.banks) <= 1120:
+        _skip("subevents on the game data", "rf3.mc / em.bin not extracted")
+        return
+    c = d.container
+    start = {b: [SE.describe_start(t, r) for t, r in SE.starters(c.banks[b])] for b in (72, 73, 100, 111)}
+    _check("subevents: what starts each event (talk vs entering a map)",
+           start == {72: ["talking to Porcoline"], 73: ["entering Selphia: Town Square"],
+                     100: ["entering Castle: Dragon Room"], 111: ["entering Selphia: Town Square"]}, start)
+    n = sum(1 for b in range(SE.FIRST_BANK, SE.FIRST_BANK + SE.COUNT) if SE.starters(c.banks[b]))
+    _check("subevents: 86 of the 96 town-event banks have a starting scene", n == 86, n)
+    who = [nm for _c, nm in SE.participants(d.em, 190)]
+    _check("subevents: participants = the SUBEV_ENABLE_* of condition A",
+           who == ["Margaret", "Dylas", "Arthur", "Porcoline"], who)
+    if d.textarc is None:
+        _skip("subevents: diary titles", "rf3mc.eng not extracted")
+    else:
+        t = SE.diary_titles(c, d.text)
+        _check("subevents: diary titles read from the diary scene",
+               t.get(72) == "A Favor Repaid" and t.get(74) == "A Performance Without an Audience"
+               and t.get(111) == "Being Here" and 100 not in t and len(t) > 30, (len(t), t.get(72), t.get(111)))
+        _cat.refresh_subevent_names(d)
+        _check("editor bank titles name town events",
+               _cat.bank_title(c.banks[72]) == "Town event COM_25 · A Favor Repaid  (bank 72)"
+               and _cat.bank_title(c.banks[100]) == "Town event COM_53  (bank 100)"
+               and _cat.bank_title(c.banks[150]) == "Sub-event bank 150",
+               (_cat.bank_title(c.banks[72]), _cat.bank_title(c.banks[100])))
 
 
 def test_emscript():
@@ -16285,7 +16347,7 @@ def run() -> int:
               test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
-              test_emflags, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
+              test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
