@@ -15039,17 +15039,18 @@ def test_cutscene_editor_workflows():
         _br.q.set("morning")
         _br.search()
         root.update()
-        _srow = _br._rows.get("r:0")
+        _srow = _br._results.get("r:0")
         _sel = cx.stmt(cx.sel[0]) if cx.sel else None
-        _s_ok = (_srow is not None and _br.tree.selection() == ("r:0",)
+        _s_ok = (_srow is not None and _br.results.selection() == ("r:0",)
+                 and _br.nb.select() == str(_br.search_tab)
                  and (cx.bank_pos, cx.scene.entry_pc) == _srow[1:3]
                  and _sel is not None and _sel.mnem == "DIALOG"
                  and "morning" in (doc.text(_sel.dialog_id) or "").lower())
-        if _br._rows.get("r:1"):                          # clicking another result: same behaviour
-            _br.tree.selection_set("r:1")
+        if _br._results.get("r:1"):                          # clicking another result: same behaviour
+            _br.results.selection_set("r:1")
             root.update()
-            _r1 = _br._rows["r:1"]
-            _s_ok = _s_ok and _br.tree.selection() == ("r:1",) and \
+            _r1 = _br._results["r:1"]
+            _s_ok = _s_ok and _br.results.selection() == ("r:1",) and \
                 (cx.bank_pos, cx.scene.entry_pc) == _r1[1:3] and cx.sel == (_r1[3], None)
         cx.open_scene(*_home)
         _check("search highlights the result (no jump into the bank tree) and opens the scene at the match",

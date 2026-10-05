@@ -66,10 +66,32 @@ def subroutine_label(doc, bank, target, n_calls):
 
 
 class Browser(ttk.Frame):
+    """The left pane: a Banks tab (every bank, grouped, with its scenes) and a Search tab (the
+    search box and its results), so results never push the bank list down."""
+
     def __init__(self, parent, app):
         super().__init__(parent)
         self.app = app
-        top = ttk.Frame(self)
+        self.nb = ttk.Notebook(self)
+        self.nb.pack(fill="both", expand=True, padx=2, pady=2)
+        # ---- Banks tab ----
+        banks = ttk.Frame(self.nb)
+        self.nb.add(banks, text="Banks")
+        self.banks_tab = banks
+        br = ttk.Frame(banks)
+        br.pack(fill="x", padx=4, pady=(4, 0))
+        self.show_empty = tk.BooleanVar(value=False)
+        cb = ttk.Checkbutton(br, text="empty banks", variable=self.show_empty, command=self.rebuild)
+        cb.pack(side="right")
+        Tip(cb, "Also list banks with no scene yet (most maps): the Triggers tab mints a first one.")
+        self.tree = self._tree(banks)
+        self.tree.bind("<<TreeviewOpen>>", self._opened)
+        self.tree.bind("<<TreeviewSelect>>", self._picked)
+        # ---- Search tab ----
+        srch = ttk.Frame(self.nb)
+        self.nb.add(srch, text="Search")
+        self.search_tab = srch
+        top = ttk.Frame(srch)
         top.pack(fill="x", padx=4, pady=(4, 2))
         self.q = tk.StringVar()
         e = ttk.Entry(top, textvariable=self.q)
@@ -81,7 +103,7 @@ class Browser(ttk.Frame):
         fb = ttk.Button(top, text="Find", width=5, command=self.search)
         fb.pack(side="left", padx=(2, 0))
         Tip(fb, "Search every scene for the text above.")
-        mr = ttk.Frame(self)
+        mr = ttk.Frame(srch)
         mr.pack(fill="x", padx=4)
         ttk.Label(mr, text="in").pack(side="left")
         self.mode = tk.StringVar(value="dialogue")
@@ -89,26 +111,34 @@ class Browser(ttk.Frame):
         mc.pack(side="left", padx=4)
         Tip(mc, "dialogue: what someone says or a choice-menu option · speaker: who speaks · opcode: an action by name or "
                 "number · variable: a FLG_ / REG_ / EV_ name (reads and writes) · event manager entry: an "
-                "em.bin entry name · bank #: open a bank.")
-        self.show_empty = tk.BooleanVar(value=False)
-        cb = ttk.Checkbutton(mr, text="empty banks", variable=self.show_empty, command=self.rebuild)
-        cb.pack(side="right")
-        Tip(cb, "Also list banks with no scene yet (most maps): the Triggers tab mints a first one.")
-        f = ttk.Frame(self)
-        f.pack(fill="both", expand=True, padx=4, pady=4)
-        self.tree = ttk.Treeview(f, show="tree", selectmode="browse")
-        sb = ttk.Scrollbar(f, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=sb.set)
-        sb.pack(side="right", fill="y")
-        self.tree.pack(side="left", fill="both", expand=True)
-        self.tree.column("#0", width=300)
-        self.tree.tag_configure("result", foreground="#0d5f8f")
-        self.tree.tag_configure("dim", foreground="#888")
-        self.tree.bind("<<TreeviewOpen>>", self._opened)
-        self.tree.bind("<<TreeviewSelect>>", self._picked)
-        self._rows = {}                     # iid -> ("bank", pos) | ("scene", pos, entry)
-        #                                          | ("result", pos, entry, pc of the first match)
+                "em.bin entry name · bank #: open a bank (in the Banks tab).")
+        self.summary = ttk.Label(srch, text="No search yet.", foreground="#0d5f8f", anchor="w")
+        self.summary.pack(fill="x", padx=6, pady=(4, 0))
+        self.results = self._tree(srch)
+        self.results.bind("<<TreeviewSelect>>", self._picked_result)
+        self._rows = {}                     # Banks tab: iid -> ("bank", pos) | ("scene", pos, entry)
+        #                                          | ("sub", pos, entry, target)
+        self._results = {}                  # Search tab: iid -> ("result", pos, entry, pc of the first match)
         self._syncing = False
+
+    def _tree(self, parent):
+        f = ttk.Frame(parent)
+        f.pack(fill="both", expand=True, padx=4, pady=4)
+        t = ttk.Treeview(f, show="tree", selectmode="browse")
+        sb = ttk.Scrollbar(f, orient="vertical", command=t.yview)
+        t.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        t.pack(side="left", fill="both", expand=True)
+        t.column("#0", width=300)
+        t.tag_configure("result", foreground="#0d5f8f")
+        t.tag_configure("dim", foreground="#888")
+        return t
+
+    def show_search(self):
+        """The Search tab with the cursor in the search box (Ctrl+F)."""
+        self.nb.select(self.search_tab)
+        self.search_entry.focus_set()
+        self.search_entry.select_range(0, "end")
 
     # ---- building ----------------------------------------------------------- #
     def rebuild(self):
@@ -190,12 +220,18 @@ class Browser(ttk.Frame):
             return
         if row[0] == "bank":
             self.app.open_bank(row[1])
-        elif row[0] == "result":
-            self.app.open_scene(row[1], row[2], focus_pc=row[3], reveal=False)
         elif row[0] == "sub":                   # the calling scene, at the subroutine's start
             self.app.open_scene(row[1], row[2], focus_pc=row[3], reveal=False)
         else:
             self.app.open_scene(row[1], row[2])
+
+    def _picked_result(self, _e=None):
+        if self._syncing:
+            return
+        s = self.results.selection()
+        row = self._results.get(s[0]) if s else None
+        if row is not None:                     # open at the match, leave the Banks tab alone
+            self.app.open_scene(row[1], row[2], focus_pc=row[3], reveal=False)
 
     def reveal(self, pos, entry=None):
         """Expand to and select a bank (and scene) without re-triggering the open."""
@@ -235,6 +271,7 @@ class Browser(ttk.Frame):
             except (ValueError, IndexError):
                 self.app.status(f"no bank {q} (0..{len(doc.container.banks) - 1})")
                 return
+            self.nb.select(self.banks_tab)
             self.app.open_bank(pos)
             return
         if mode == "dialogue" and doc.textarc is None:
@@ -248,21 +285,19 @@ class Browser(ttk.Frame):
             hits = self._find(mode, q)
         finally:
             self.app.busy(False)
-        t = self.tree
-        if t.exists("results"):
-            for c in t.get_children("results"):
-                self._rows.pop(c, None)
-            t.delete("results")
-        rid = t.insert("", 0, iid="results", text=f"Results for “{q}” in {mode}: {len(hits)} scene(s)",
-                       open=True, tags=("result",))
+        t = self.results
+        t.delete(*t.get_children())
+        self._results.clear()
+        self.summary.config(text=f"“{q}” in {mode}: {len(hits)} scene(s)")
         match = statement_matcher(doc, mode, q)
         for n, (pos, sc) in enumerate(hits):
             iid = f"r:{n}"
             bank = doc.container.banks[pos]
-            t.insert(rid, "end", iid=iid, text=f"{catalog.bank_title(bank)} · {scene_label(doc, sc)}",
+            t.insert("", "end", iid=iid, text=f"{catalog.bank_title(bank)} · {scene_label(doc, sc)}",
                      tags=("result",))
-            self._rows[iid] = ("result", pos, sc.entry_pc, first_match_pc(bank, sc, match))
+            self._results[iid] = ("result", pos, sc.entry_pc, first_match_pc(bank, sc, match))
         t.yview_moveto(0)
+        self.nb.select(self.search_tab)
         if hits:
             # highlight the first hit and open it at the matching line
             self._syncing = True
@@ -271,7 +306,7 @@ class Browser(ttk.Frame):
                 t.focus("r:0")
             finally:
                 later(self, lambda: setattr(self, "_syncing", False))
-            _k, pos, entry, pc = self._rows["r:0"]
+            _k, pos, entry, pc = self._results["r:0"]
             self.app.open_scene(pos, entry, focus_pc=pc, reveal=False)
         self.app.status(f"{len(hits)} scene(s) match {mode} “{q}”")
 

@@ -573,7 +573,7 @@ class CutsceneExplorer:
         self.inspector.focus_primary()
 
     def focus_search(self):
-        self.browser.search_entry.focus_set()
+        self.browser.show_search()
 
     def _tab_changed(self):
         """The Triggers tab shows its entry details in the right-hand pane; the other tabs
