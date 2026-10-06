@@ -256,7 +256,7 @@ class _Filtered(ttk.Frame):
 class ReferenceWindow:
     """Searchable reference lists (one window per editor)."""
 
-    TABS = ("Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items", "Action types")
+    TABS = ("Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items", "Trigger types")
 
     def __init__(self, app):
         self.app = app
@@ -523,27 +523,27 @@ class ReferenceWindow:
         b.pack(fill="x", pady=(4, 0))
         ttk.Button(b, text="Copy code", command=lambda: t.selected() and self.copy(t.selected()[4])).pack(side="left")
 
-    _PICK = {"first": "the first matching entry, in list order",
-             "last": "only the LAST entry runs (a new entry shadows the ones before it)",
-             "all": "every matching entry is collected and runs",
-             "first_exact_else_last_wildcard": "an exact key match first, else the last -1 (wildcard) entry",
+    _PICK = {"first": "the first matching trigger, in list order",
+             "last": "only the LAST trigger runs (a new trigger shadows the ones before it)",
+             "all": "every matching trigger is collected and runs",
+             "first_exact_else_last_wildcard": "an exact key match first, else the last -1 (wildcard) trigger",
              "unknown": "unknown (no reader found)"}
 
     def _action_types(self):
-        """Every action type (rf4s_modkit.entry_types): what makes a scene of it run."""
+        """Every trigger type (rf4s_modkit.entry_types): what makes a scene of it run."""
         from rf4s_modkit import entry_types as et
         f = ttk.Frame(self.nb, padding=6)
-        self.nb.add(f, text="Action types")
+        self.nb.add(f, text="Trigger types")
         ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=(
-            "An action type is WHEN a scene runs. Every bank starts with a table of 74 slots, one "
-            "per type; a slot lists that type's entries: {scene pc, keys}. Each situation in the "
+            "A trigger type is WHEN a scene runs. Every bank starts with a table of 74 slots, one "
+            "per trigger type; a slot lists that type's triggers: {scene pc, keys}. Each situation in the "
             "game (entering a map, talking to an NPC, interacting with an event actor, a warp "
             "landing, a gift...) has its type number built in: the game loads the bank that fits "
             "the situation (the map's bank, the NPC's bank, the town event's or story chapter's "
-            "bank), walks that type's entries, compares their keys with what is happening (a map "
+            "bank), walks that type's triggers, compares their keys with what is happening (a map "
             "id, an event-actor key, a warp number, an item, a talk-line index...; -1 is usually a "
             "wildcard) and runs the winner's scene. Conditions such as a story flag are mostly not "
-            "in the entry: the scene tests them itself at its start (the Event Manager guard). "
+            "in the trigger: the scene tests them itself at its start (the Event Manager guard). "
             "So a scene's trigger is bank + type + keys - the Triggers tab edits them. "
             "Double-click a type = show only its scenes in the Banks list.")).pack(anchor="w", pady=(0, 4))
         rows = []
@@ -556,7 +556,7 @@ class ReferenceWindow:
         pw.pack(fill="both", expand=True)
         top = ttk.Frame(pw)
         det = tk.Text(pw, height=12, wrap="word", font=("Segoe UI", 9))
-        tab = _Filtered(top, ("type", "name", "entries", "keys", "runs when"), (50, 190, 70, 190, 460),
+        tab = _Filtered(top, ("type", "name", "triggers", "keys", "runs when"), (50, 190, 70, 190, 460),
                         rows, on_select=lambda r: self._show_type(det, r),
                         on_activate=lambda r: r and self._filter_banks(r[5]), height=12)
         tab.pack(fill="both", expand=True)
@@ -582,10 +582,10 @@ class ReferenceWindow:
             for k in ks:
                 lines.append("  %s  %s: %s%s" % (k["index"], k["name"], k.get("meaning", ""),
                                                  "  (-1 = any)" if k.get("wildcard") else ""))
-            lines += ["", "Which entry runs: " + self._PICK.get(sp.get("select"), sp.get("select") or "?")]
+            lines += ["", "Which trigger runs: " + self._PICK.get(sp.get("select"), sp.get("select") or "?")]
             st = et.CORPUS_STATS.get(t)
             if st:
-                lines.append("In the shipped file: %d entries in %s banks" % (
+                lines.append("In the shipped file: %d triggers in %s banks" % (
                     st["entries"], ", ".join("%d %s" % (v, k) for k, v in st["banks"].items())))
             else:
                 lines.append("In the shipped file: none (the game's code knows this type, no scene uses it)")

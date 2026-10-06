@@ -248,7 +248,7 @@ class SourceTab(ttk.Frame):
                 ("Check", self.check, "Assemble without applying: reports the size, or the first "
                                       "error with its line (highlighted)."),
                 ("Apply to scene", self.apply, "Assemble and make the scene play this listing (the "
-                                               "new body is appended; the scene's entry jumps to it)."),
+                                               "new body is appended; the scene's start jumps to it)."),
                 ("Reload", lambda: self.load(force=True), "Discard hand edits and regenerate the "
                                                          "listing from the scene."),
                 ("Syntax help", self.toggle_help, "Show / hide the listing grammar.")):
@@ -471,9 +471,9 @@ class TriggersTab(ttk.Frame):
         bar.pack(fill="x", padx=2, pady=2)
         for text, cmd, tip in (
                 ("New scene…", app.ask_new_scene, "Mint a brand-new scene in this bank: pick WHEN it "
-                                                  "plays (the action type), its keys, and write its body."),
-                ("Open", self.open_selected, "Open the selected entry's scene (double-click works too)."),
-                ("Remove", self.remove, "Unregister the selected entry: its trigger stops firing; the "
+                                                  "plays (the trigger type), its keys, and write its body."),
+                ("Open", self.open_selected, "Open the selected trigger's scene (double-click works too)."),
+                ("Remove", self.remove, "Unregister the selected trigger: it stops firing; the "
                                         "scene's code stays as dead bytes.")):
             b = ttk.Button(bar, text=text, command=cmd)
             b.pack(side="left", padx=2)
@@ -486,7 +486,7 @@ class TriggersTab(ttk.Frame):
         sb = ttk.Scrollbar(f)
         sb.pack(side="right", fill="y")
         self.tree = ttk.Treeview(f, columns=("pc", "keys"), yscrollcommand=sb.set, selectmode="browse")
-        self.tree.heading("#0", text="when it plays (action type) / entry")
+        self.tree.heading("#0", text="when it plays (trigger type) / trigger")
         self.tree.heading("pc", text="scene")
         self.tree.heading("keys", text="matches (keys; -1 = any where the type allows it)")
         self.tree.column("#0", width=280, stretch=False)
@@ -549,9 +549,9 @@ class TriggersTab(ttk.Frame):
                     t.see(iid)
                     break
         app.trigger_selected(*self.selected())
-        text = ("%s: %d action type%s, %d entr%s%s"
+        text = ("%s: %d trigger type%s, %d trigger%s%s"
                 % (catalog.bank_title(bank), len(tt), "" if len(tt) == 1 else "s", total,
-                   "y" if total == 1 else "ies",
+                   "" if total == 1 else "s",
                    "   · empty — New scene… registers the first one" if not tt else ""))
         if subevents.is_subevent_bank(bank):
             text += "\n" + town_event_summary(app.doc, bank)
@@ -564,7 +564,7 @@ class TriggersTab(ttk.Frame):
     def open_selected(self):
         _t, r = self.selected()
         if r is None:
-            self.app.status("select an entry row (not the type) to open its scene")
+            self.app.status("select a trigger row (not the type) to open its scene")
             return False
         self.app.open_scene(self.bank_pos, r.event_id, tab="Script")
         return True
@@ -572,10 +572,10 @@ class TriggersTab(ttk.Frame):
     def remove(self):
         typ, r = self.selected()
         if r is None:
-            self.app.status("select an entry row to remove it")
+            self.app.status("select a trigger row to remove it")
             return False
         from tkinter import messagebox
-        if not messagebox.askyesno("Remove trigger", "Unregister %s entry #%d (scene @%04x)?\nIts trigger "
+        if not messagebox.askyesno("Remove trigger", "Unregister %s trigger #%d (scene @%04x)?\nIt "
                                    "stops firing; the scene's code stays in the bank."
                                    % (catalog.type_label(typ), r.index, r.event_id)):
             return False
@@ -618,7 +618,7 @@ class TriggerDetail(ttk.Frame):
         self._clear()
         self.typ, self.rec = typ, rec
         if typ is None:
-            self._label("Select a trigger type or an entry on the left.", foreground="#777")
+            self._label("Select a trigger type or a trigger on the left.", foreground="#777")
             return
         self._label(catalog.type_label(typ), font=("Segoe UI", 10, "bold"))
         summ = catalog.type_summary(typ)
@@ -628,13 +628,13 @@ class TriggerDetail(ttk.Frame):
             recipe = catalog.type_recipe(typ)
             if recipe:
                 self._label(recipe, foreground="#2a6a8a", font=("Segoe UI", 8))
-            self._label("Select one of its entries to edit its keys.", foreground="#777")
+            self._label("Select one of its triggers to edit its keys.", foreground="#777")
             return
         head = ttk.Frame(self.body)
         head.pack(fill="x", padx=8, pady=(6, 2))
-        ttk.Label(head, text="entry #%d → scene @%04x" % (rec.index, rec.event_id)).pack(side="left")
+        ttk.Label(head, text="trigger #%d → scene @%04x" % (rec.index, rec.event_id)).pack(side="left")
         ttk.Button(head, text="Open scene", command=self.tab.open_selected).pack(side="right")
-        box = ttk.LabelFrame(self.body, text="Keys (what this entry matches)", padding=6)
+        box = ttk.LabelFrame(self.body, text="Keys (what this trigger matches)", padding=6)
         box.pack(fill="x", padx=6, pady=6)
         box.columnconfigure(1, weight=1)
         self._build_fields(box, typ, rec)
@@ -644,7 +644,7 @@ class TriggerDetail(ttk.Frame):
         bb.pack(fill="x", padx=6, pady=6)
         ap = ttk.Button(bb, text="Apply", command=self.apply)
         ap.pack(side="left")
-        Tip(ap, "Write these keys into the entry (Enter in a field does the same). Undo with Ctrl+Z.")
+        Tip(ap, "Write these keys into the trigger (Enter in a field does the same). Undo with Ctrl+Z.")
         ttk.Button(bb, text="Revert", command=lambda: self.show(self.typ, self.rec)).pack(side="left", padx=4)
         self._check()
 
@@ -689,7 +689,7 @@ class TriggerDetail(ttk.Frame):
             b = ttk.Button(box, text="📍 Draw the box on the map…", command=self.draw_box)
             b.grid(row=row, column=0, columnspan=2, sticky="w", pady=(2, 6))
             Tip(b, "Drag the trigger area on the map (1/8-tile units; the map is this bank's map, "
-                   "or the entry's map key).")
+                   "or the trigger's map key).")
             row += 1
         for k, (tag, v) in enumerate(subs):
             if bi and k in bi:
@@ -806,11 +806,11 @@ class TriggerDetail(ttk.Frame):
             t = mapf[2].get().strip()
             try:
                 mid = int((mapf[3] or {}).get(t, t).split()[0], 0)
-                lock = "the entry's map key says which map the box is on"
+                lock = "the trigger's map key says which map the box is on"
             except (ValueError, IndexError):
-                note = "the entry's map key is not a map: choose one"
+                note = "the trigger's map key is not a map: choose one"
         elif bank.kind == "tail":
-            mid, lock = bank.index, "the entry is in this map's event bank"
+            mid, lock = bank.index, "the trigger is in this map's event bank"
         else:
             note = "this bank is not tied to one map: choose the map the trigger is for"
 

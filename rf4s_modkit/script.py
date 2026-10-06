@@ -1476,7 +1476,7 @@ def encode_entry(event_id, subs):
         else:
             tag, val = 1, s
         if not (0 <= int(tag) <= 255):
-            raise ScriptError("entry key tag %r out of range" % (tag,))
+            raise ScriptError("trigger key tag %r out of range" % (tag,))
         out += bytes([int(tag)]) + struct.pack("<i", int(val))
     return bytes(out)
 
@@ -2013,11 +2013,11 @@ class Container:
             sel, name = "", "type %d" % type_id
         n = len(recs)
         if sel == "last" and (position is None or position >= n):
-            return ("%s runs only the LAST entry: the new scene replaces the existing one at pc "
+            return ("%s runs only the LAST trigger: the new scene replaces the existing one at pc "
                     "0x%04x (CALL 0x%04x from the new body to keep it)" % (name, recs[-1].event_id,
                                                                             recs[-1].event_id))
         if sel == "last":
-            return "%s runs only the LAST entry: a scene inserted at index %d will never run" % (name, position)
+            return "%s runs only the LAST trigger: a scene inserted at index %d will never run" % (name, position)
         keyless = False
         try:
             keyless = not (entry_types.ENTRY_TYPES.get(type_id) or {}).get("keys")
@@ -2062,11 +2062,11 @@ class Container:
             before = [i for i in same if i < at]
             after = [i for i in same if i >= at]
             if before:
-                err = ("%s entry #%d already has exactly these keys and is checked first: this scene "
+                err = ("%s trigger #%d already has exactly these keys and is checked first: this scene "
                        "would never run -- pick other keys (or put it first to replace that one)"
                        % (name, before[0]))
             elif after:
-                warns.append("%s entry #%d has the same keys and is now checked after this one: that "
+                warns.append("%s trigger #%d has the same keys and is now checked after this one: that "
                              "scene stops running" % (name, after[0] + (0 if editing is not None else 1)))
         if type_id == 2 and subs:
             rank = {"tail": 0, "primary": 1, "global": 2}      # the lookup order: lower wins
@@ -2094,7 +2094,7 @@ class Container:
             bank = self.banks[bank]
         recs = [(r.event_id, r.subs) for r in bank.entry_records(type_id)]
         if not (0 <= index < len(recs)):
-            raise ScriptError("type %d has %d entries; no index %d" % (type_id, len(recs), index))
+            raise ScriptError("type %d has %d triggers; no index %d" % (type_id, len(recs), index))
         removed = recs.pop(index)
         self._set_entry_list(bank, type_id, recs)
         return removed
@@ -2106,7 +2106,7 @@ class Container:
             bank = self.banks[bank]
         recs = [(r.event_id, r.subs) for r in bank.entry_records(type_id)]
         if not (0 <= index < len(recs)):
-            raise ScriptError("type %d has %d entries; no index %d" % (type_id, len(recs), index))
+            raise ScriptError("type %d has %d triggers; no index %d" % (type_id, len(recs), index))
         eid, old_subs = recs[index]
         if event_pc is not None:
             if event_pc % 2 or decode_statement(bank.data, event_pc) is None:

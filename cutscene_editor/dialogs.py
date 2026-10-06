@@ -438,7 +438,7 @@ def pick_line(parent, doc):
 
 
 def ask_new_scene(parent, app, bank, default_type=None):
-    """The New scene dialog: when it plays (action type), its keys, list position and the
+    """The New scene dialog: when it plays (trigger type), its keys, list position and the
     body listing. Returns {type_id, keys, body, position} or None."""
     tt = bank.type_table_full()
     win = _modal(parent, "New scene — %s" % catalog.bank_title(bank))
@@ -455,7 +455,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
     type_cb = FilterCombo(frm, [choice(t) for t in range(bank.table_slots)], None, width=56)
     type_cb.configure(textvariable=tv)
     type_cb.grid(row=0, column=1, sticky="we", padx=2, pady=2)
-    Tip(type_cb, "The action type decides WHEN the engine starts the scene: talking to someone, "
+    Tip(type_cb, "The trigger type decides WHEN the engine starts the scene: talking to someone, "
                  "entering the map, using an item, a festival phase, …")
     summary = ttk.Label(frm, text="", foreground="#556", font=("Segoe UI", 8), wraplength=560, justify="left")
     summary.grid(row=1, column=1, sticky="w", padx=2)
@@ -470,8 +470,9 @@ def ask_new_scene(parent, app, bank, default_type=None):
     pv = tk.StringVar(value="append")
     pos = ttk.Combobox(frm, textvariable=pv, values=["append", "first"], state="readonly", width=10)
     pos.grid(row=4, column=1, sticky="w", padx=2, pady=2)
-    Tip(pos, "Where in the type's list: most matchers take the FIRST match; the tick "
-             "dispatchers (types 6/7) run the LAST entry.")
+    Tip(pos, "Where in the type's list: most trigger types take the FIRST match; a few run "
+             "the LAST trigger (type 6 MapEnterScene, 9, 10, 16, 21, 48, 49, 54) -- the Reference "
+             "window's Trigger types tab says which.")
     ttk.Label(frm, text="Body").grid(row=5, column=0, sticky="ne", padx=2, pady=2)
     body = tk.Text(frm, height=10, width=76, font=("Consolas", 10), undo=True, **DARK)
     body.grid(row=5, column=1, sticky="nsew", padx=2, pady=2)
@@ -498,7 +499,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
         kv.set(app.default_keys_text(bank, t))
         names = catalog.type_key_names(t)
         khint.config(text=("keys: " + ", ".join(str(k.get("name") if isinstance(k, dict) else k) for k in names))
-                     if names else "key count mirrors this bank's existing entries of the type")
+                     if names else "key count mirrors this bank's existing triggers of the type")
         refresh_note()
 
     def refresh_note(*_a):
@@ -525,7 +526,7 @@ def ask_new_scene(parent, app, bank, default_type=None):
     def ok(_e=None):
         t = cur_type()
         if t is None:
-            err.config(text="pick when it plays (an action type)")
+            err.config(text="pick when it plays (a trigger type)")
             return "break"
         try:
             k = catalog.parse_entry_keys(kv.get())

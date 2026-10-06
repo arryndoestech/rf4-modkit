@@ -635,7 +635,7 @@ class CutsceneExplorer:
             self.show_trigger(typ, rec)
 
     def show_trigger(self, typ, rec):
-        """Show a trigger type / entry (Triggers tab selection) in the right-hand pane."""
+        """Show a trigger type / trigger (Triggers tab selection) in the right-hand pane."""
         self.trigger_detail.show(typ, rec)
         self._right("trigger")
 
@@ -1364,13 +1364,13 @@ class CutsceneExplorer:
         self.browser.refresh_bank(pos)
         self.open_scene(pos, event_pc)
         warn = "; ".join([note] * bool(note) + catalog.key_problems(int(type_id), subs, self.doc.em))
-        self.status("new scene @0x%04x registered as %s entry #%d" % (event_pc, catalog.type_label(int(type_id)), idx)
+        self.status("new scene @0x%04x registered as %s trigger #%d" % (event_pc, catalog.type_label(int(type_id)), idx)
                     + (("   ⚠ " + warn) if warn else ""))
         return event_pc, idx
 
     def remove_entry(self, pos, type_id, index):
         bank = self.doc.container.banks[pos]
-        ok = self.apply("Remove %s entry #%d" % (catalog.type_label(type_id), index),
+        ok = self.apply("Remove %s trigger #%d" % (catalog.type_label(type_id), index),
                         lambda: self.doc.container.remove_entry(bank, type_id, index))
         if ok:
             self.browser.refresh_bank(pos)
@@ -1387,7 +1387,7 @@ class CutsceneExplorer:
         if clash:
             messagebox.showinfo("Keys", clash)
             return False
-        ok = self.apply("Keys of %s entry #%d" % (catalog.type_label(type_id), index),
+        ok = self.apply("Keys of %s trigger #%d" % (catalog.type_label(type_id), index),
                         lambda: self.doc.container.set_entry(bank, type_id, index, subs=subs))
         warn = catalog.key_problems(type_id, subs, self.doc.em) + key_warns
         if ok and warn:

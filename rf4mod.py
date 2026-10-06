@@ -2352,7 +2352,7 @@ def cmd_script_asm(a):
             what = f"rewrote scene bank {a.bank} entry {a.pc} (it now starts at 0x{entry:04x})"
         else:
             base = c.assemble(a.bank, text)
-            what = f"assembled at bank {a.bank} pc 0x{base:04x} (not registered; use add-entry)"
+            what = f"assembled at bank {a.bank} pc 0x{base:04x} (not registered; use add-trigger)"
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
     _script_write(c, a.out)
@@ -2405,7 +2405,7 @@ def cmd_script_expr(a):
 
 
 def cmd_script_entries(a):
-    """Dump a bank's type table (the scene triggers) with decoded keys."""
+    """List a bank's scene triggers by trigger type, with decoded keys."""
     _utf8_stdout()
     c = _script_load(a, resolver=False)
     banks = [c.banks[a.bank]] if a.bank is not None else c.banks
@@ -2415,11 +2415,11 @@ def cmd_script_entries(a):
             continue
         gi = c.banks.index(b)
         print(f"container bank {gi} = {b.kind} {b.index}: {len(b.data)} bytes, {b.table_slots}-slot table, "
-              f"{sum(cnt for cnt, _ in tt.values())} entries in {len(tt)} type(s)")
+              f"{sum(cnt for cnt, _ in tt.values())} triggers in {len(tt)} trigger type(s)")
         if a.bank is None and not a.verbose:
             continue
         for t, (cnt, off) in tt.items():
-            print(f"  type {t} {_type_label(t)}: {cnt} entries @0x{off:04x}")
+            print(f"  type {t} {_type_label(t)}: {cnt} trigger{'' if cnt == 1 else 's'} @0x{off:04x}")
             for rec in b.entry_records(t):
                 print(_entry_line(b, t, rec))
             if a.recipes:
@@ -2449,7 +2449,7 @@ def cmd_script_add_entry(a):
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
     _script_write(c, a.out)
-    print(f"registered type {a.type} {_type_label(a.type)} entry #{idx} -> scene pc 0x{pc:04x} "
+    print(f"registered type {a.type} {_type_label(a.type)} trigger #{idx} -> scene pc 0x{pc:04x} "
           f"in bank {a.bank}; wrote {a.out}")
     if note:
         print("warning: " + note)
@@ -2464,7 +2464,7 @@ def cmd_script_remove_entry(a):
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
     _script_write(c, a.out)
-    print(f"removed type {a.type} entry #{a.index} (pc 0x{eid:04x}) from bank {a.bank}; wrote {a.out}")
+    print(f"removed type {a.type} trigger #{a.index} (pc 0x{eid:04x}) from bank {a.bank}; wrote {a.out}")
 
 
 def cmd_script_set_entry(a):
@@ -2481,7 +2481,7 @@ def cmd_script_set_entry(a):
         sys.exit(f"error: {e}")
     _script_write(c, a.out)
     rec = c.banks[a.bank].entry_records(a.type)[a.index]
-    print(f"type {a.type} entry #{a.index}: pc 0x{rec.event_id:04x} keys {rec.subs}; wrote {a.out}")
+    print(f"type {a.type} trigger #{a.index}: pc 0x{rec.event_id:04x} keys {rec.subs}; wrote {a.out}")
     for w in _entry_key_warnings(a.type, keys or ()) + key_warns + ([clash] if clash else []):
         print("warning: " + w)
 
@@ -4313,34 +4313,34 @@ def build_parser():
     sce.add_argument("--hex", help="decode these expression bytes instead")
     sce.add_argument("--file", default="rf3.mc", help="rf3.mc (for the header masks / names)")
     sce.set_defaults(func=cmd_script_expr)
-    scn = scsub.add_parser("entries", help="dump a bank's type table: the scene triggers and their keys")
+    scn = scsub.add_parser("triggers", help="list a bank's scene triggers by trigger type, with their keys")
     scn.add_argument("file"); scn.add_argument("--bank", type=int, default=None,
                                                help="container bank index (default: summary of all)")
     scn.add_argument("-v", "--verbose", action="store_true")
     scn.add_argument("--recipes", action="store_true",
-                     help="also print each type's 'how to register a new scene of this type' recipe")
+                     help="also print each trigger type's 'how to register a new scene of this type' recipe")
     scn.set_defaults(func=cmd_script_entries)
-    scae = scsub.add_parser("add-entry", help="register a NEW scene trigger (mint a scene from a listing, "
-                            "or point a new entry at an existing scene)")
+    scae = scsub.add_parser("add-trigger", help="register a NEW scene trigger (mint a scene from a listing, "
+                            "or point a new trigger at an existing scene)")
     scae.add_argument("file"); scae.add_argument("--bank", type=int, required=True)
-    scae.add_argument("--type", type=int, required=True, help="action type (see `entries`)")
-    scae.add_argument("--keys", default="", help="entry keys: '5, -1' or 'tag:value' items; x = wildcard")
+    scae.add_argument("--type", type=int, required=True, help="trigger type (see `triggers`)")
+    scae.add_argument("--keys", default="", help="trigger keys: '5, -1' or 'tag:value' items; x = wildcard")
     scae.add_argument("--pc", help="existing scene pc to register")
     scae.add_argument("--listing", help="listing file for a new scene body")
     scae.add_argument("--stmt", help="inline listing for a new scene body")
     scae.add_argument("--position", type=int, default=None, help="index in the list (default: append)")
-    scae.add_argument("--force", action="store_true", help="register even when an entry with the same keys "
+    scae.add_argument("--force", action="store_true", help="register even when a trigger with the same keys "
                       "is checked first (the new scene could never run)")
     scae.add_argument("-o", "--out", required=True); scae.set_defaults(func=cmd_script_add_entry)
-    scre = scsub.add_parser("remove-entry", help="unregister a scene trigger (its code stays)")
+    scre = scsub.add_parser("remove-trigger", help="unregister a scene trigger (its code stays)")
     scre.add_argument("file"); scre.add_argument("--bank", type=int, required=True)
     scre.add_argument("--type", type=int, required=True); scre.add_argument("--index", type=int, required=True)
     scre.add_argument("-o", "--out", required=True); scre.set_defaults(func=cmd_script_remove_entry)
-    scse = scsub.add_parser("set-entry", help="re-key a trigger and/or point it at another scene")
+    scse = scsub.add_parser("set-trigger", help="re-key a trigger and/or point it at another scene")
     scse.add_argument("file"); scse.add_argument("--bank", type=int, required=True)
     scse.add_argument("--type", type=int, required=True); scse.add_argument("--index", type=int, required=True)
     scse.add_argument("--keys", default=None); scse.add_argument("--pc", default=None)
-    scse.add_argument("--force", action="store_true", help="set the keys even when an earlier entry has the "
+    scse.add_argument("--force", action="store_true", help="set the keys even when an earlier trigger has the "
                       "same ones (this scene could never run)")
     scse.add_argument("-o", "--out", required=True); scse.set_defaults(func=cmd_script_set_entry)
     scnm = scsub.add_parser("normalize", help="rebuild banks an older toolkit edited by trampolining "

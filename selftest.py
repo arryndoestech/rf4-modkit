@@ -15095,7 +15095,7 @@ def test_cutscene_editor_workflows():
         cx.open_scene(*_home)
         _check("search highlights the result (no jump into the bank tree) and opens the scene at the match",
                _s_ok, f"row={_srow} sel={cx.sel}")
-        # the Trigger dropdown: only the banks with that action type, only its scenes
+        # the Trigger type dropdown: only the banks with that trigger type, only its scenes
         _lab6 = next((k for k, v in _br._type_ids.items() if v == 6), None)
         _ok6 = _lab6 is not None
         if _ok6:
@@ -15112,13 +15112,13 @@ def test_cutscene_editor_workflows():
         _br.type_filter.set("all triggers")
         _br.rebuild()
         root.update()
-        _ref = cx.open_reference("Action types")
+        _ref = cx.open_reference("Trigger types")
         root.update()
-        _ok_ref = _ref.nb.tab(_ref.nb.select(), "text") == "Action types"
+        _ok_ref = _ref.nb.tab(_ref.nb.select(), "text") == "Trigger types"
         _ref._filter_banks(6)
         root.update()
-        _check("Trigger dropdown: type 6 lists only banks with a type-6 entry and only those "
-               "scenes; the Reference window's Action types tab sets it", _ok6 and _ok_ref
+        _check("Trigger type dropdown: type 6 lists only banks with a type-6 entry and only those "
+               "scenes; the Reference window's Trigger types tab sets it", _ok6 and _ok_ref
                and _br._type_ids.get(_br.type_filter.get()) == 6, _lab6)
         _br.type_filter.set("all triggers")
         _br.rebuild()

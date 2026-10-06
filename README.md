@@ -98,7 +98,7 @@ rf4s-modkit/
 └── rf4s_modkit/         # the importable Python library
     ├── script.py        # rf3.mc cutscene VM    disassemble + edit + author-by-name + triggers
     ├── scriptasm.py     # cutscene ASSEMBLER: listing language + expression compiler (the inverse of script.py)
-    ├── entry_types.py   # what each type-table action type keys on (scene trigger catalogue)
+    ├── entry_types.py   # what each trigger type keys on (the scene trigger catalogue)
     ├── opcode_meta.py    # cutscene opcode names / args / descriptions (editor tooltips)
     ├── bplist.py        # Muteki binary plist  read + write
     ├── mbundle.py       # .mbundle archives     read + repack + Manifest sync
@@ -615,8 +615,8 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   address, or it is left-over code). The search box finds scenes by **dialogue**
   (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
   jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked. The
-  **Trigger** dropdown shows only the scenes of one **action type** (*MapEnterScene*, a talk tier,
-  *WarpArrivalScene* ...; the number is how many entries ship) and only the banks that have one. The
+  **Trigger type** dropdown shows only the scenes of one **trigger type** (*MapEnterScene*, a talk tier,
+  *WarpArrivalScene* ...; the number is how many triggers ship) and only the banks that have one. The
   toolbar's **◀ Banks** button hides the list to give the scene the full width; **Inspector ▶**
   at its right end does the same for the Inspector.
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
@@ -668,19 +668,19 @@ The **Source** tab shows the scene as a re-assemblable listing — labels,
 actions as calls (`GivePlayerItem(258, reg0 + 1, 0)`, `EndDialogue()`), control statements as
 keywords with the condition in parentheses (`BR_Z (REG_WIFE_ID == 11) -> L1`, `EVAL (FLG_X = 1)`,
 `PROMPT_CHOICE #123 -> L3, #124 -> L4`, `JMP L1`); *Check* reports the failing line inline and *Apply to
-scene* re-assembles it in place: the new body takes the old entry's place and statements only
+scene* re-assembles it in place: the new body takes the old body's place and statements only
 the old body used are dropped. The
-**Triggers** tab lists the bank's type table (every registration with its decoded keys) and mints
-**new scenes**: pick when it plays (the trigger catalogue supplies a recipe per type: which bank,
-which keys, the ordering caveat), its keys and a body; a note warns when a registration would
+**Triggers** tab lists the bank's triggers by trigger type (each with its decoded keys) and mints
+**new scenes**: pick when it plays (a trigger type; the catalogue supplies a recipe per type: which bank,
+which keys, the ordering caveat), its keys and a body; a note warns when a new trigger would
 **shadow** the bank's existing scene of that type. *Change keys…* and *Remove* edit existing
-registrations. Keys are checked as you type: an entry that could never run is refused (exactly
-the keys of an entry checked before it; a type-2 event key outside 1..65535 or -1 -- spawned
+triggers. Keys are checked as you type: a trigger that could never run is refused (exactly
+the keys of a trigger checked before it; a type-2 event key outside 1..65535 or -1 -- spawned
 event actors carry a 16-bit key, and 0 marks a removed one; anything outside signed 32-bit),
 and odd keys warn (type-2 keys 1..47, which ops that take an actor read as villagers -- use
 48..65535; the same type-2 key in another level of the tail → primary → global lookup; an item,
 gossip topic, festival, em.bin condition, map or character that does not exist). `script
-add-entry` / `set-entry` refuse the same way (`--force` overrides). The **Overview** tab summarises the scene: speakers, every dialogue line,
+add-trigger` / `set-trigger` refuse the same way (`--force` overrides). The **Overview** tab summarises the scene: speakers, every dialogue line,
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
 control flow. The **Graph** tab draws that control flow: the scene's basic blocks with their
 statements, green / red arrows for the branch taken when a guard is true / false, orange for
@@ -753,10 +753,10 @@ bit id, width, value range and Japanese label, plus the recovered zone-2 bits), 
 verified in game (with everything the opcode table knows about each), the **text codes** a
 dialogue line can hold (`＠０＠`, `＠キャラ０＠`, `＋blue＋` ..., what each shows and which instruction fills
 its slot: `SetVar3(0, n)` feeds `＠０＠`), and the character, map and
-item ids with the form an argument takes, and the **action types**: what makes a scene
-run (the bank's type table, the keys each type compares, which entry wins), one row per type with
-its keys, entry count and matcher; double-clicking a type sets the Banks list's Trigger filter to
-it. Double-click copies. **Where a variable is used:** the
+item ids with the form an argument takes, and the **trigger types**: what makes a scene
+run (the bank's type table, the keys each type compares, which trigger wins), one row per type with
+its keys, trigger count and matcher; double-clicking a type sets the Banks list's Trigger type
+filter to it. Double-click copies. **Where a variable is used:** the
 flags list counts each variable's reads and writes over every bank and em.bin (unsaved edits
 included); selecting one lists every statement and em.bin entry that reads or writes it, and a
 double-click opens it. In the script view, right-click a statement → *Uses of FLG_X…* for each
@@ -845,7 +845,7 @@ back as it was; if the toolkit is killed while attached, the next attach to that
 debugger per game at a time, and *Reload in game* waits until no script is stopped.
 
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
-delete / set-val / set-target / set-speaker / entries / add-entry / remove-entry / set-entry /
+delete / set-val / set-target / set-speaker / triggers / add-trigger / remove-trigger / set-trigger /
 normalize`, `rf4mod em …`,
 `rf4mod text add --pad-to N`). Corpus-verified: every operand in the shipped file compiles back to
 identical bytes-or-text, and the type tables are read count-exact (10,169 registered scenes).
@@ -978,7 +978,7 @@ from Blender.
 | Maps | `.rf4m` | `rf4mod map` | ✅ chunk-level; `map validate` checks the game loader's rules **and the ground atlas against the ATTR grid**; `map resize-attr` resizes the tile grid and lists every derived artefact it invalidates |
 | Monster/NPC AI | `AI_*.bin` (AIBN) | `rf4mod ai` | ✅ full (token + text); `disasm --annotate` adds the verified operand meanings, `ai ops` / `ai actions` print the opcode and scripted-action references (every handler re-read 2026-09-17) |
 | Attack move timelines | `as_atk_*.bin` (690) | `rf4mod asatk` | ✅ decode (`show`/`summary`) + **assembler/editor**: `dump` → edit listing → `asm`, or point edits `set` / `insert --frame` / `delete`; byte-exact on every stock file; GUI Edit tab |
-| Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-entry` / the editor's New scene…); opcode names from `refdata/opcode_table.json` |
+| Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-trigger` / the editor's New scene…); opcode names from `refdata/opcode_table.json` |
 | Search-item spots | `SI_*.bin` (288) | GUI table editor, map editor | ✅ daily ground-pickup spots, item pools and weights (footer rebuilt) |
 | Monster / character templates | `rf3NpcParam.bin` | `rf4mod monster`, GUI monster editor | ✅ stats, drops, elements, AI; `monster clone` / `new` mint templates |
 | Saves | `rf4_sNN.sav` | `rf4mod save` | ✅ named GameFlags, field get / set, CRC fix-up |
@@ -1159,8 +1159,8 @@ python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --stmt "BR_Z (FLG_X) 
 python rf4mod.py script delete rf3.mc --bank 1 --pc 0x3478 -o new.mc          # remove a statement (the bank is rebuilt)
 python rf4mod.py script listing rf3.mc --bank 1 --pc 0x3478 --text rf3mc.eng -o scene.txt   # scene as re-assemblable source…
 python rf4mod.py script asm rf3.mc --bank 1 --pc 0x3478 --listing scene.txt -o new.mc         # …edit, and put it back
-python rf4mod.py script entries rf3.mc --bank 248                                              # a map bank's triggers + keys
-python rf4mod.py script add-entry rf3.mc --bank 248 --type 6 --stmt "FRAME 0 / DIALOG #8709 / END" -o new.mc  # a NEW scene
+python rf4mod.py script triggers rf3.mc --bank 248                                             # a map bank's triggers + keys
+python rf4mod.py script add-trigger rf3.mc --bank 248 --type 6 --stmt "FRAME 0 / DIALOG #8709 / END" -o new.mc  # a NEW scene
 python rf4mod.py em show EV_BOSS_SP_DEAD    # decode a scene's "plays when" condition + effects
 python rf4mod.py em new-var FLG_MY_QUEST_DONE          # a NEW game flag (free bit of the 4096-bit store; sidecar emdeb_extra.json)
 python rf4mod.py em new-var REG_MY_COUNTER --width 4   # …or a register; usable in em conditions and cutscene listings at once

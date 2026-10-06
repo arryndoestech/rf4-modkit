@@ -42,6 +42,11 @@ class SceneText:
         self.labels = script.scene_labels(scene) if scene is not None else {}
 
     # ---- small helpers ------------------------------------------------------ #
+    def live_only(self, line_id):
+        """True for a line only the running game has (any document without that notion: no)."""
+        f = getattr(self.doc, "live_only", None)
+        return bool(f and f(line_id))
+
     def dlg(self, line_id):
         """A line's text as the editor shows it: colours / icons as \\red, \\btn(a) ..."""
         from rf4s_modkit import textesc
@@ -104,7 +109,7 @@ class SceneText:
             t = self.dlg(st.dialog_id)
             if t is None:
                 return f"{head}DIALOG #{st.dialog_id}  [no text in this locale]"
-            live = "  [running game only]" if self.doc.live_only(st.dialog_id) else ""
+            live = "  [running game only]" if self.live_only(st.dialog_id) else ""
             return f"{head}DIALOG #{st.dialog_id}  \"{t.replace(chr(10), ' / ')[:70]}\"{live}"
         if st.op < 0xFFF0:
             args = self.arg_strs(st)
@@ -299,7 +304,7 @@ class SceneText:
             who = self.line_speakers().get(pc)       # only a CERTAIN speaker is shown
             body = [("“%s”" % txt.replace("\n", " ⏎ "), "dlg")] if txt is not None else \
                    [("#%d  [no text in this locale]" % st.dialog_id, "warn")]
-            if txt is not None and self.doc.live_only(st.dialog_id):
+            if txt is not None and self.live_only(st.dialog_id):
                 body.append(("  [running game only]", "warn"))
             head =[(who + ": ", ("spk", self.speaker_colour(who)))] if who else []
             rows.append(Row(addr(pc, st) + ind + head + body, key, st))

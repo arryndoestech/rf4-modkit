@@ -145,10 +145,10 @@ ENTRY_TYPES = {
     },
     4: {
         "name": "GiftReaction",
-        "summary": "The NPC's gift-reaction scene, run when the player gives it an item that no type-50 special-item entry claimed.",
+        "summary": "The NPC's gift-reaction scene, run when the player gives it an item that no type-50 special-item trigger claimed.",
         "bank": "primary: canonical char id of the NPC",
         "keys": [
-            {"index": "0+", "name": "item", "meaning": "given item id (slot word & 0x7FF); every shipped entry is -1, so one scene handles every gift", "wildcard": True},
+            {"index": "0+", "name": "item", "meaning": "given item id (slot word & 0x7FF); every shipped trigger is -1, so one scene handles every gift", "wildcard": True},
         ],
         "select": "first",
         "consumer": "NpcAi_OnReceivedThrownItem_AdvanceProgressAndDispatchReaction (RF4S.exe+0x1F1730, game event kind 5): Item_UseOnActor + stack decrement (only when the reaction-style bits ctx+116 & 0x1C0 are non-zero and != 0x180 and the item is not 676), then " + _APPLY1,
@@ -173,7 +173,7 @@ ENTRY_TYPES = {
     },
     6: {
         "name": "MapEnterScene",
-        "summary": "Map-bank scene with no keys; every type-6 entry is walked and the last one runs.",
+        "summary": "Map-bank scene with no keys; every type-6 trigger is walked and the last one runs.",
         "bank": "tail (slot 2)",
         "keys": [],
         "select": "last",
@@ -184,7 +184,7 @@ ENTRY_TYPES = {
     },
     7: {
         "name": "MapLeaveScene",
-        "summary": "Map-bank scene of the map the player just LEFT, run as the next map loads; no keys, the first entry runs.",
+        "summary": "Map-bank scene of the map the player just LEFT, run as the next map loads; no keys, the first trigger runs.",
         "bank": "tail (slot 2)",
         "keys": [],
         "select": "first",
@@ -228,7 +228,7 @@ ENTRY_TYPES = {
     },
     11: {
         "name": "BarnFullMessage",
-        "summary": "Global-bank entry with no keys (PC 33106) whose scene says the barn is full or that there is no barn yet; no reader found, so what runs it is unknown.",
+        "summary": "Global-bank trigger with no keys (PC 33106) whose scene says the barn is full or that there is no barn yet; no reader found, so what runs it is unknown.",
         "bank": "global (slot 0)",
         "keys": [],
         "select": "unknown",
@@ -263,7 +263,7 @@ ENTRY_TYPES = {
     },
     16: {
         "name": "RevivalReaction",
-        "summary": "Map scene after the player is revived (KO); last entry wins, companions are teleported.",
+        "summary": "Map scene after the player is revived (KO); last trigger wins, companions are teleported.",
         "bank": "tail (slot 2)",
         "keys": [],
         "select": "last",
@@ -346,7 +346,7 @@ ENTRY_TYPES = {
     },
     27: {
         "name": "SubEventReaction",
-        "summary": "Sub-event / quest reaction matched by (priority, char id), 0 in the char list meaning the spouse; the two global-bank entries are the request-completed banners.",
+        "summary": "Sub-event / quest reaction matched by (priority, char id), 0 in the char list meaning the spouse; the two global-bank triggers are the request-completed banners.",
         "bank": "primary: sub-event bank (REG_SUBEV_NOW, Npc_GetCurrentQuestId or 210), or the global bank for the request-completed banner (game event kind 10)",
         "keys": [
             {"index": 0, "name": "priority", "meaning": "reaction priority/kind 0..3 (Quest_GetGeneralReceivingPriorityByEntry, 2 = gift priority, reward event id, 3 = SUBEV_AFTER/QUEST_AFTER); -1 = matches regardless of the char list", "wildcard": True},
@@ -478,7 +478,7 @@ ENTRY_TYPES = {
     },
     44: {
         "name": "ConditionTalk44",
-        "summary": "Villager line selected by em.bin conditions: first entry with a passing condition (or -1).",
+        "summary": "Villager line selected by em.bin conditions: first trigger with a passing condition (or -1).",
         "bank": "primary: canonical char id",
         "keys": [
             {"index": "0+", "name": "condition", "meaning": "em.bin named condition id (CondScript_EvalNamedConditionA); -1 = default", "wildcard": True},
@@ -515,7 +515,7 @@ ENTRY_TYPES = {
     },
     48: {
         "name": "GlobalScene48",
-        "summary": "Global-bank scene, no keys, last entry.",
+        "summary": "Global-bank scene, no keys, last trigger.",
         "bank": "global (slot 0)",
         "keys": [],
         "select": "last",
@@ -968,7 +968,7 @@ def key_errors(type_id, subs):
             out.append("key %d = %d does not fit: keys are signed 32-bit (-2147483648..2147483647)" % (k, v))
         elif type_id == 2 and v == -1:
             out.append("key 0 is -1: %s compares the event actor's key exactly and event keys are "
-                       "0..65535, so this entry never runs (spawning with -1 stores 65535 -- but the "
+                       "0..65535, so this trigger never runs (spawning with -1 stores 65535 -- but the "
                        "actor ops then cannot address it: use a key from %d to %d)"
                        % (type_name(2), EVENT_KEY_MIN, EVENT_KEY_MAX))
         elif type_id == 2 and not 0 < v <= EVENT_KEY_MAX:
@@ -1154,7 +1154,7 @@ def bank_kind(type_id):
 RECIPES = {
     0: "Talk line picked by where the player is. Bank: the villager's second bank, "
        "224 + canonical char id. One key = map id (-1 = any map, used as the fallback "
-       "line). First exact map match wins, else the last wildcard entry, so add the "
+       "line). First exact map match wins, else the last wildcard trigger, so add the "
        "specific map BEFORE the -1 catch-all (position 0) or it will never be reached.",
     3: "Scene that fires when the player walks into a rectangle. Bank: the map's tail "
        "bank (container index = n_primary + map id). Keys: x1, y1, x2, y2 (corners are "
@@ -1162,19 +1162,19 @@ RECIPES = {
        "unconditional. First box that contains the player wins; the engine will not "
        "re-fire the same scene while the player stays inside it.",
     4: "The NPC's gift reaction: runs for every gift the player gives it that no type-50 "
-       "entry claimed. Bank: that NPC's primary bank (canonical char id). Keys: the item "
-       "ids (-1 = any item; every shipped entry is -1). First match wins, so put a "
-       "specific item BEFORE the -1 entry.",
+       "trigger claimed. Bank: that NPC's primary bank (canonical char id). Keys: the item "
+       "ids (-1 = any item; every shipped trigger is -1). First match wins, so put a "
+       "specific item BEFORE the -1 trigger.",
     6: "Map scene with no keys. Bank: the map's tail bank (n_primary + map id). WARNING: "
-       "only the LAST type-6 entry runs, so appending one replaces the map's current "
-       "scene -- CALL the old entry pc from your body if you want to keep it.",
+       "only the LAST type-6 trigger runs, so appending one replaces the map's current "
+       "scene -- CALL the old scene pc from your body if you want to keep it.",
     7: "The map's LEAVE scene: no keys, runs as the next map loads, after the player "
        "left this map. Bank: the map's tail bank (n_primary + map id). Only the FIRST "
-       "type-7 entry runs, so a new entry must go before the existing one to replace "
-       "it (and CALL the old entry pc from your body if you want to keep it). Use it to "
+       "type-7 trigger runs, so a new trigger must go before the existing one to replace "
+       "it (and CALL the old scene pc from your body if you want to keep it). Use it to "
        "undo what the map set up (flags, lighting, the shop).",
     9: "Global scene run when a fish is caught; no keys, global bank. Only the LAST "
-       "entry runs, and the shipped file has exactly one, so a new entry replaces it.",
+       "trigger runs, and the shipped file has exactly one, so a new trigger replaces it.",
     15: "Scene that plays when a scripted warp (WarpToMap with an event number) lands. "
         "The number picks the bank: 1000..1099 -> the active sub-event bank, 100..999 -> "
         "the story bank in slot 1, any other number -> the arrival map's tail bank. One "
@@ -1188,14 +1188,15 @@ RECIPES = {
         "is remembered, but an equal hi still passes, so the same range can fire again. "
         "First match wins, so put narrower ranges before wider ones.",
     49: "Global scene run after the player eats a recipe bread (what was learned); no keys, "
-        "global bank. Only the LAST entry runs and the shipped file has one, so a new entry "
+        "global bank. Only the LAST trigger runs and the shipped file has one, so a new trigger "
         "replaces it.",
     50: "Reaction to throwing one specific item at an NPC. Bank: that NPC's primary bank "
         "(canonical char id). Keys: an em.bin condition id (-1 = always), a consume flag, "
         "then the item ids. First match wins.",
-    68: "Auto-triggered scene gated by a game flag. Bank: the map's tail bank, or a story / "
-        "sub-event primary bank. Keys: map id, game-flag bit id, required value -- pair it "
-        "with `em new-var` to get a flag of your own. First match wins.",
+    68: "Scene that runs once the last monster on a map has been defeated, when a game flag "
+        "has a given value. Bank: the map's tail bank, or a story / sub-event primary bank. "
+        "Keys: map id, game-flag bit id, required value -- pair it with `em new-var` to get a "
+        "flag of your own. First match wins.",
     69: "Story scene on a map at a given chapter. Bank: the story bank for that chapter "
         "(primary 211..224). Keys: map id and chapter (-1 = any). First match wins.",
     72: "Chapter-gated talk line. Bank: the story bank (primary 211+). Keys: npc char id "

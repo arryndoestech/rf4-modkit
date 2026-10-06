@@ -82,18 +82,18 @@ class Browser(ttk.Frame):
         self.banks_tab = banks
         br = ttk.Frame(banks)
         br.pack(fill="x", padx=4, pady=(4, 0))
-        ttk.Label(br, text="Trigger").pack(side="left")
+        ttk.Label(br, text="Trigger type").pack(side="left")
         self.type_filter = tk.StringVar(value=ALL_TRIGGERS)
-        self._type_ids = {ALL_TRIGGERS: None}       # dropdown text -> action type (None = all)
+        self._type_ids = {ALL_TRIGGERS: None}       # dropdown text -> trigger type (None = all)
         tc = ttk.Combobox(br, textvariable=self.type_filter, values=[ALL_TRIGGERS], width=30,
                           state="readonly")
         tc.pack(side="left", padx=(4, 0))
         tc.bind("<<ComboboxSelected>>", lambda _e: self.rebuild())
         self.type_combo = tc
-        Tip(tc, "Show only the scenes registered under one action type (what makes a scene "
+        Tip(tc, "Show only the scenes of one trigger type (what makes a scene "
                 "run: entering a map, a talk line, a warp, a festival...), and only the banks "
-                "that have one. The number is how many entries of that type ship. The Reference "
-                "window's Action types tab explains each type.")
+                "that have one. The number is how many triggers of that type ship. The Reference "
+                "window's Trigger types tab explains each type.")
         self.show_empty = tk.BooleanVar(value=False)
         cb = ttk.Checkbutton(br, text="empty banks", variable=self.show_empty, command=self.rebuild)
         cb.pack(side="right")
@@ -180,7 +180,7 @@ class Browser(ttk.Frame):
                 self._add_bank(gid, pos)
 
     def _refresh_type_filter(self, doc):
-        """Fill the Trigger dropdown with the action types the open file uses (entry counts
+        """Fill the Trigger type dropdown with the trigger types the open file uses (trigger counts
         across every bank) and return the chosen type, or None for all."""
         counts = {}
         for bank in doc.container.banks:
@@ -216,7 +216,7 @@ class Browser(ttk.Frame):
         bank = doc.container.banks[pos]
         scenes = scene_rows(bank)
         want = getattr(self, "_type_want", None)
-        if want is not None:                    # the Trigger filter: scenes of that type only
+        if want is not None:                    # the Trigger type filter: scenes of that type only
             pcs = {r.event_id for r in bank.entry_records(want)}
             scenes = [sc for sc in scenes if sc.entry_pc in pcs]
         previews = {}                       # subroutine pc -> its label (shared by many scenes)

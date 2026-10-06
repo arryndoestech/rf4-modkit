@@ -141,7 +141,7 @@ def describe_keys(type_id, subs):
     return entry_keys_text(subs) or "(no keys)"
 
 def type_recipe(type_id):
-    """The catalogue's `recipe` text for an action type (how a scene of that type is set up:
+    """The catalogue's `recipe` text for a trigger type (how a scene of that type is set up:
     which bank, which keys, what the body must do), else ''. The field is being added by a
     concurrent RE pass, so it may be absent."""
     if _entry_types is not None:
@@ -209,7 +209,7 @@ MAP_ENTER_TYPE = 6      # MapEnterScene: the map-bank scene run on entering the 
 
 
 def map_enter_type():
-    """The action type a map's ENTER scene is registered under -- the catalogue type named
+    """The trigger type a map's ENTER scene is registered under -- the catalogue type named
     MapEnterScene when the catalogue has it, else the engine-verified id 6 (tail bank of
     the entered map, game-event handler 24, the LAST entry wins). Type 7 is MapLeaveScene:
     the scene of the map the player just left."""
