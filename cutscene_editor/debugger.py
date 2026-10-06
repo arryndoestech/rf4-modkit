@@ -121,8 +121,6 @@ class DebuggerPanel:
         self.attach_btn.pack(side="left")
         Tip(self.attach_btn, "Connect to the running RF4S.exe (its memory, no native debugger). "
                              "Detach takes every breakpoint out and lets paused scripts go on.")
-        self.status = ttk.Label(top, text="not attached", foreground="#888")
-        self.status.pack(side="left", padx=8)
         if docked:
             xb = ttk.Button(top, text="✕", width=3, command=self.close)
             xb.pack(side="right")
@@ -139,6 +137,11 @@ class DebuggerPanel:
                 "still (the game's own calendar pause); it runs again on Continue / Detach.")
         self.clock = ttk.Label(top, text="", foreground="#58f")
         self.clock.pack(side="right", padx=8)
+        # packed after the right-hand controls so it only gets the space left between them;
+        # a long message wraps onto more lines instead of pushing the buttons off the window
+        self.status = ttk.Label(top, text="not attached", foreground="#888", width=1, anchor="w")
+        self.status.pack(side="left", padx=8, fill="x", expand=True)
+        self.status.bind("<Configure>", lambda e: e.widget.config(wraplength=max(e.width - 4, 40)))
         about = ("Breakpoints stop a script just before the statement runs: the script waits there "
                  "until Continue or Step. Only game time stands still -- the rest of the world keeps "
                  "running (you may be able to walk around, monsters move, the camera and music go on). "

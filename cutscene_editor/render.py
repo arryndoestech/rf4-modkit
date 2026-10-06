@@ -211,12 +211,18 @@ class SceneText:
 
     def operand_segs(self, st):
         """The statement's operands in hex, one group per operand and one colour each, for the
-        column after the opcode: ['170500 ', '021c00000000 ']. [] when it has none (RET)."""
+        column after the opcode: ['170500 ', '021c00000000 ']. [] when it has none (RET) or
+        there is no bank to read them from."""
+        if self.bank is None:
+            return []
         return [(bytes(data).hex() + FIGURE_SPACE, "opd%d" % (i % self.OPERAND_TAGS))
                 for i, (_label, data) in enumerate(script.statement_operands(self.bank.data, st))]
 
     def operand_legend(self, st):
-        """'arg 0 = 17 05 00' lines naming each operand (the Alt-hover explanation)."""
+        """'arg 0 = 17 05 00' lines naming each operand (the Alt-hover explanation); [] without
+        a bank (a statement explained on its own)."""
+        if self.bank is None:
+            return []
         return ["%s = %s" % (label, " ".join("%02x" % b for b in data) or "(none)")
                 for label, data in script.statement_operands(self.bank.data, st)]
 
