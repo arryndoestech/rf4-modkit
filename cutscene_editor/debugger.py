@@ -216,12 +216,16 @@ class DebuggerPanel:
         self.var_tree.pack(fill="both", expand=True)
         self.var_tree.bind("<Double-Button-1>", self._var_double)
         self.var_tree.bind("<Return>", lambda _e: self.set_var())
+        self.var_tree.bind("<F2>", lambda _e: self.set_var())
+        self._var_edit = None
         Tip(self.var_tree, "Every game variable (FLG_ / REG_) the selected script's scene reads or "
                            "writes, with its value in the game right now. ▶ = the statement the "
-                           "script stands at uses it. Double-click the value (or Enter) to change "
-                           "it; double-click elsewhere: the first statement using it.")
+                           "script stands at uses it. Double-click the value (or Enter / F2): a "
+                           "1-bit flag flips on / off, a number is edited in place (Enter sets it, "
+                           "Esc cancels); double-click elsewhere: the first statement using it.")
         for text, cmd, tip in (("Set value…", self.set_var,
-                                "Change the selected variable in the running game."),
+                                "Change the selected variable in the running game (a 1-bit flag "
+                                "flips on / off)."),
                                ("Set any variable…", lambda: self.set_var(any_var=True),
                                 "Change any FLG_ / REG_ variable in the running game, not only the "
                                 "ones this scene uses (type to filter the names).")):
@@ -498,9 +502,10 @@ class DebuggerPanel:
                 off, width, _s = c.unpack_var(enc)
                 val = self.dbg.read_var(enc)
                 rows[str(enc)] = (("▶ " if enc in here else "") + self._var_name(enc),
-                                  "?" if val is None else val, "bit %d, %d wide" % (off, width),
+                                  self.var_text(val, width), "bit %d, %d wide" % (off, width),
                                   "@%04x" % first)
         _sync_rows(self.var_tree, rows)
+        self._place_var_edit()
         self.lists.tab(2, text="Variables (%d)" % len(rows))
 
     def _slot_uses(self, bank_pos, sc, here_pc):
@@ -628,26 +633,123 @@ class DebuggerPanel:
         return out
 
     def set_var(self, any_var=False):
-        """Change a game variable in the running game: the selected Variables row, or (any_var)
-        any named FLG_ / REG_ variable."""
+        """Change a game variable in the running game: the selected Variables row in place
+        (its value cell becomes an entry), or (any_var) any named FLG_ / REG_ variable through
+        a dialog with a name picker."""
         from . import dialogs
         if self.dbg is None:
             self.status.config(text="attach to the game first", foreground="#b00")
             return
-        enc = None
         if not any_var:
             s = self.var_tree.selection()
             if not s:
                 self.status.config(text="select a variable first (or use Set any variable…)",
                                    foreground="#b00")
                 return
-            enc = int(s[0])
-        name = None if enc is None else self._var_name(enc)
-        got = dialogs.ask_variable_value(self.body, self, self._var_choices(), name, enc)
+            self.edit_var_inline(s[0])
+            return
+        got = dialogs.ask_variable_value(self.body, self, self._var_choices())
         if got is not None:
             name, val = got
-            self.status.config(text="%s = %d in the game" % (name, val), foreground="#080")
+            width = self.app.doc.container.unpack_var(self._var_choices()[name])[1]
+            self.status.config(text=("%s is %s in the game" if width == 1 else "%s = %s in the game")
+                               % (name, self.var_text(val, width)), foreground="#080")
             self._show_vm()
+
+    # ---- in-place editing of a Variables value ---------------------------------------- #
+    @staticmethod
+    def var_text(val, width):
+        """A variable's value as the list shows it: on / off for a 1-bit flag."""
+        if val is None:
+            return "?"
+        return ("on" if val else "off") if width == 1 else val
+
+    def toggle_var(self, enc):
+        """Flip a 1-bit variable in the game."""
+        name = self._var_name(enc)
+        cur = self.dbg.read_var(enc)
+        try:
+            back = self.dbg.write_var(enc, 0 if cur else 1)
+        except Exception as ex:  # noqa: BLE001 -- shown in the status line
+            self.status.config(text="%s: %s" % (name, err_text(ex)), foreground="#b00")
+            return
+        self.status.config(text="%s is %s in the game" % (name, self.var_text(back, 1)), foreground="#080")
+        self._show_vm()
+
+    def edit_var_inline(self, iid):
+        """Turn the row's value cell into an entry (blue, the value selected): Enter writes
+        it to the game, Esc or clicking elsewhere cancels. A 1-bit flag just flips."""
+        self.cancel_var_edit()
+        enc = int(iid)
+        _off, width, signed = self.app.doc.container.unpack_var(enc)
+        if width == 1:
+            self.toggle_var(enc)
+            return
+        t = self.var_tree
+        t.see(iid)
+        t.update_idletasks()
+        box = t.bbox(iid, "#2")
+        if not box:
+            return
+        lo, hi = self.dbg.var_range(width, signed)
+        e = tk.Entry(t, relief="flat", bd=0, highlightthickness=1, highlightcolor="#2f6fd6",
+                     highlightbackground="#2f6fd6", bg="#dbe7ff", fg="#000",
+                     selectbackground="#2f6fd6", selectforeground="#fff", insertbackground="#000")
+        e.insert(0, t.set(iid, "value"))
+        e.select_range(0, "end")
+        e.icursor("end")
+        e.place(x=box[0], y=box[1], width=box[2], height=box[3])
+        e.focus_set()
+        e.bind("<Return>", lambda _e: self._commit_var_edit() or "break")
+        e.bind("<KP_Enter>", lambda _e: self._commit_var_edit() or "break")
+        e.bind("<Escape>", lambda _e: self.cancel_var_edit() or "break")
+        e.bind("<FocusOut>", lambda _e: self.cancel_var_edit())
+        self._var_edit = (iid, e)
+        self.status.config(text="%s: type a value %d..%d, Enter sets it in the game, Esc cancels"
+                                % (self._var_name(enc), lo, hi), foreground="#2f6fd6")
+
+    def cancel_var_edit(self):
+        ed, self._var_edit = getattr(self, "_var_edit", None), None
+        if ed is not None:
+            try:
+                ed[1].destroy()
+            except tk.TclError:
+                pass
+
+    def _commit_var_edit(self):
+        from guiutil import to_int
+        ed = getattr(self, "_var_edit", None)
+        if ed is None or self.dbg is None:
+            self.cancel_var_edit()
+            return
+        iid, e = ed
+        enc, name = int(iid), self._var_name(int(iid))
+        v = to_int(e.get())
+        if v is None:
+            self.status.config(text="%s: type a whole number (0x.. for hex)" % name, foreground="#b00")
+            return
+        try:
+            back = self.dbg.write_var(enc, v)
+        except Exception as ex:  # noqa: BLE001 -- shown in the status line, the entry stays
+            self.status.config(text="%s: %s" % (name, err_text(ex)), foreground="#b00")
+            return
+        self.cancel_var_edit()
+        self.var_tree.focus_set()
+        self.status.config(text="%s = %s in the game" % (name, v if back is None else back), foreground="#080")
+        self._show_vm()
+
+    def _place_var_edit(self):
+        """Keep the entry on its row while the list refreshes; the row gone or scrolled out
+        of view: cancel."""
+        ed = getattr(self, "_var_edit", None)
+        if ed is None:
+            return
+        iid, e = ed
+        box = self.var_tree.bbox(iid, "#2") if self.var_tree.exists(iid) else ""
+        if not box:
+            self.cancel_var_edit()
+        else:
+            e.place_configure(x=box[0], y=box[1], width=box[2], height=box[3])
 
     def _show_vm(self):
         v = self._selected_vm()

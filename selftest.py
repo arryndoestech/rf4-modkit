@@ -7572,6 +7572,61 @@ def test_script_debugger_var_writes():
         except _sd.DebugError:
             refused.append(value)
     _check("a value that does not fit the variable is refused", len(refused) == 5, refused)
+    # the Variables tab edits a value in place: the cell becomes an entry, Enter writes it
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+        import types
+        from cutscene_editor.debugger import DebuggerPanel
+        root = tk.Tk()
+    except Exception as e:  # noqa: BLE001
+        _skip("in-place variable edit", "no Tk: %s" % e); return
+    try:
+        root.geometry("600x300+0+0")
+        p = DebuggerPanel.__new__(DebuggerPanel)
+        p.app = types.SimpleNamespace(doc=types.SimpleNamespace(container=c, emf_vars=None))
+        p.dbg, p._var_edit = d, None
+        p.var_tree = ttk.Treeview(root, columns=("name", "value", "where", "first"), show="headings")
+        p.var_tree.pack(fill="both", expand=True)
+        p.status = ttk.Label(root)
+        p.status.pack()
+        p._show_vm = lambda: None
+        enc = c.pack_var(162, 9)
+        d.write_var(enc, 7)
+        p.var_tree.insert("", "end", iid=str(enc), values=("REG_X", 7, "", "@0000"))
+        p.var_tree.selection_set(str(enc))
+        root.update()
+        p.set_var()
+        root.update()
+        ed = p._var_edit
+        opened = ed is not None and ed[1].get() == "7" and ed[1].selection_present()
+        ed[1].delete(0, "end"); ed[1].insert(0, "600")          # does not fit 9 bits
+        ed[1].event_generate("<Return>"); root.update()
+        kept = p._var_edit is not None and d.read_var(enc) == 7 and "does not fit" in p.status.cget("text")
+        ed[1].delete(0, "end"); ed[1].insert(0, "0x1F")
+        ed[1].event_generate("<Return>"); root.update()
+        written = p._var_edit is None and d.read_var(enc) == 31
+        p.set_var(); root.update()
+        p._var_edit[1].insert("end", "9")
+        p._var_edit[1].event_generate("<Escape>"); root.update()
+        cancelled = p._var_edit is None and d.read_var(enc) == 31
+        _check("Variables tab in place: the value cell opens with the value selected, a value "
+               "that does not fit keeps it open with the reason, Enter writes, Esc cancels",
+               opened and kept and written and cancelled, (opened, kept, written, cancelled))
+        flag = c.pack_var(333, 1)
+        d.write_var(flag, 0)
+        p.var_tree.insert("", "end", iid=str(flag), values=("FLG_X", "off", "", "@0000"))
+        p.var_tree.selection_set(str(flag))
+        p.set_var(); root.update()
+        on = d.read_var(flag) == 1 and p._var_edit is None
+        p.set_var(); root.update()
+        off = d.read_var(flag) == 0
+        _check("a 1-bit flag shows on / off and flips at once (no entry); wider variables show "
+               "their number", on and off and DebuggerPanel.var_text(1, 1) == "on"
+               and DebuggerPanel.var_text(0, 1) == "off" and DebuggerPanel.var_text(5, 3) == 5,
+               (on, off))
+    finally:
+        root.destroy()
 
 
 def test_script_debugger_edits():

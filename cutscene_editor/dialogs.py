@@ -111,8 +111,12 @@ def ask_variable_value(parent, panel, choices, name=None, enc=None):
         off, width, signed = c.unpack_var(e)
         lo, hi = dbg.var_range(width, signed)
         now = dbg.read_var(e)
-        info.config(text="bit %d, %d wide: %d..%d   now %s" % (off, width, lo, hi, "?" if now is None else now))
-        val.set("" if now is None else str(now))       # start from the live value
+        shown = "?" if now is None else panel.var_text(now, width)
+        if width == 1:
+            info.config(text="bit %d, a flag: on / off   now %s" % (off, shown))
+        else:
+            info.config(text="bit %d, %d wide: %d..%d   now %s" % (off, width, lo, hi, shown))
+        val.set("" if now is None else str(shown))     # start from the live value
         ent.select_range(0, "end")
     show()
     if pick is not None:
@@ -123,9 +127,10 @@ def ask_variable_value(parent, panel, choices, name=None, enc=None):
         if e is None:
             err.config(text="no variable named %r" % nm if nm else "pick a variable")
             return "break"
-        v = to_int(val.get())
+        typed = val.get().strip().lower()
+        v = {"on": 1, "off": 0, "true": 1, "false": 0}.get(typed, to_int(typed))
         if v is None:
-            err.config(text="type a whole number (0x.. for hex)")
+            err.config(text="type on / off or a whole number (0x.. for hex)")
             return "break"
         try:
             back = dbg.write_var(e, v)
