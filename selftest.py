@@ -7625,6 +7625,19 @@ def test_script_debugger_var_writes():
                "their number", on and off and DebuggerPanel.var_text(1, 1) == "on"
                and DebuggerPanel.var_text(0, 1) == "off" and DebuggerPanel.var_text(5, 3) == 5,
                (on, off))
+        # quick clicks on the flag's value: every SECOND click flips it (Tk alone flipped it
+        # back on the 3rd); a slow second click does nothing
+        p._clicks = (0, 0, 0, 0, None)
+        p.set_var = DebuggerPanel.set_var.__get__(p)
+        box = p.var_tree.bbox(str(flag), "#2")
+        cx, cy = box[0] + 5, box[1] + 5
+        seen = []
+        for t in (1000, 1200, 1400, 1600, 5000, 9000):
+            p._var_click(types.SimpleNamespace(x=cx, y=cy, time=t))
+            root.update()
+            seen.append(d.read_var(flag))
+        _check("clicks on a flag's value: 2nd on, 3rd nothing, 4th off; slow clicks nothing",
+               seen == [0, 1, 1, 0, 0, 0], seen)
     finally:
         root.destroy()
 

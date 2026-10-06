@@ -214,7 +214,10 @@ class DebuggerPanel:
         vb = ttk.Frame(varf)
         vb.pack(fill="x", pady=(2, 0), side="bottom")
         self.var_tree.pack(fill="both", expand=True)
-        self.var_tree.bind("<Double-Button-1>", self._var_double)
+        # double-clicks counted here, not by Tk: Tk reports a 3rd quick click as another
+        # double-click, which flipped a flag straight back; here clicks 2, 4, 6 ... are
+        self.var_tree.bind("<Button-1>", self._var_click, add="+")
+        self._clicks = (0, 0, 0, 0, None)     # (count, time, x, y, row)
         self.var_tree.bind("<Return>", lambda _e: self.set_var())
         self.var_tree.bind("<F2>", lambda _e: self.set_var())
         self._var_edit = None
@@ -614,11 +617,30 @@ class DebuggerPanel:
             first = self.var_tree.item(s[0], "values")[3]
             self.app.show_statement(v.bank, int(str(first).lstrip("@"), 16))
 
-    def _var_double(self, e):
-        if self.var_tree.identify_column(e.x) == "#2":      # the value column: edit it
-            self.set_var()
-        else:
-            self._goto_var()
+    @staticmethod
+    def _double_click_ms():
+        try:
+            import ctypes
+            return int(ctypes.windll.user32.GetDoubleClickTime()) or 500
+        except Exception:  # noqa: BLE001 -- not Windows
+            return 500
+
+    def _var_click(self, e):
+        """Count the clicks of a quick series on one row; every second one is a double-click
+        (the value column: edit / flip it; elsewhere: the first statement using it)."""
+        row = self.var_tree.identify_row(e.y)
+        n, t, x, y, last = self._clicks
+        quick = (row and row == last and 0 <= e.time - t <= self._double_click_ms()
+                 and abs(e.x - x) <= 4 and abs(e.y - y) <= 4)
+        n = n + 1 if quick else 1
+        self._clicks = (n, e.time, e.x, e.y, row)
+        if n % 2:
+            return
+        self.var_tree.selection_set(row)          # the press may not have selected it yet
+        act = self.set_var if self.var_tree.identify_column(e.x) == "#2" else self._goto_var
+        # after the Treeview's own press handling, which takes the focus (it would close an
+        # entry opened here at once)
+        self.var_tree.after_idle(act)
 
     def _var_choices(self):
         """{name: packed ref} of every named FLG_ / REG_ variable."""
