@@ -7517,6 +7517,63 @@ def test_script_debugger():
            and bool(_dbgp.DebuggerPanel._slot_shows(1, 178)))
 
 
+def test_script_debugger_var_writes():
+    """The script debugger's Set value (ScriptDebugger.write_var) against a fake flag store:
+    1-bit, byte-spanning and signed fields round-trip through read_var MSB-first, the bits
+    around the field keep their values, and a value that does not fit is refused."""
+    print("script debugger variable writes (fake flag store):")
+    import struct as _st
+    from map_editor import data as _med
+    from rf4s_modkit import scriptdbg as _sd, flagstate as _fs
+    c = _med.rf3mc_container(live=False)
+    if c is None:
+        _skip("variable writes", "rf3.mc not found"); return
+
+    class G:
+        base, hdr, bits = 0x10000, 0x90000, 0xA0000
+
+        def __init__(self):
+            self.m = {}
+            self.write(self.base + _fs.FLAGS_BUFFER_RVA, _st.pack("<Q", self.hdr))
+            self.write(self.hdr, _st.pack("<IIQ", _fs.ZONE2_BASE, _fs.ZONE2_BITS, self.bits))
+            self.write(self.bits, bytes([0xA5]) * _fs.BLOB_SIZE)   # busy neighbours
+
+        def read(self, a, n):
+            return bytes(self.m.get(a + i, 0) for i in range(n))
+
+        def write(self, a, d):
+            for i, b in enumerate(d):
+                self.m[a + i] = b
+
+        def ptr(self, a):
+            return _st.unpack("<Q", self.read(a, 8))[0]
+
+    g = G()
+    d = _sd.ScriptDebugger.__new__(_sd.ScriptDebugger)
+    d.__dict__.update(c=c, g=g, _flags=None)
+    before = g.read(g.bits, _fs.BLOB_SIZE)
+    results = []
+    for off, width, signed, value in ((333, 1, False, 0), (333, 1, False, 1), (162, 9, False, 300),
+                                      (0, 9, False, 69), (450, 8, True, -5), (5, 3, False, 6)):
+        enc = c.pack_var(off, width, signed)
+        got = d.write_var(enc, value)
+        after = g.read(g.bits, _fs.BLOB_SIZE)
+        outside = [i for i in range(8 * _fs.BLOB_SIZE) if not off <= i < off + width
+                   and ((after[i >> 3] ^ before[i >> 3]) >> (i & 7)) & 1]
+        results.append((off, width, value, got, outside))
+        before = after
+    _check("write_var round-trips each field (1-bit, byte-spanning 9-bit, signed 8-bit) and "
+           "leaves every bit outside it alone",
+           all(got == value and not outside for _o, _w, value, got, outside in results), results)
+    refused = []
+    for width, signed, value in ((1, False, 2), (9, False, 512), (8, True, 128), (8, True, -129), (4, False, -1)):
+        try:
+            d.write_var(c.pack_var(600, width, signed), value)
+        except _sd.DebugError:
+            refused.append(value)
+    _check("a value that does not fit the variable is refused", len(refused) == 5, refused)
+
+
 def test_script_debugger_edits():
     """The script debugger through edit / save / reload sequences: the real editor, debugger
     window and engine against a simulated game (fake memory, a VM stepped like Script_VMStep,
@@ -16478,7 +16535,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

@@ -211,11 +211,24 @@ class DebuggerPanel:
                              ("where", "bits", 130), ("first", "used at", 70)):
             self.var_tree.heading(col, text=lab)
             self.var_tree.column(col, width=wd, anchor="w", stretch=col == "name")
+        vb = ttk.Frame(varf)
+        vb.pack(fill="x", pady=(2, 0), side="bottom")
         self.var_tree.pack(fill="both", expand=True)
-        self.var_tree.bind("<Double-Button-1>", lambda _e: self._goto_var())
+        self.var_tree.bind("<Double-Button-1>", self._var_double)
+        self.var_tree.bind("<Return>", lambda _e: self.set_var())
         Tip(self.var_tree, "Every game variable (FLG_ / REG_) the selected script's scene reads or "
                            "writes, with its value in the game right now. ▶ = the statement the "
-                           "script stands at uses it. Double-click: the first statement using it.")
+                           "script stands at uses it. Double-click the value (or Enter) to change "
+                           "it; double-click elsewhere: the first statement using it.")
+        for text, cmd, tip in (("Set value…", self.set_var,
+                                "Change the selected variable in the running game."),
+                               ("Set any variable…", lambda: self.set_var(any_var=True),
+                                "Change any FLG_ / REG_ variable in the running game, not only the "
+                                "ones this scene uses (type to filter the names).")):
+            b = ttk.Button(vb, text=text, command=cmd)
+            b.pack(side="left", padx=2)
+            Tip(b, tip + " A plain memory write: it takes effect at once, and the game's own "
+                         "side effects of setting it (achievements) do not run.")
         # the text slots its dialogue codes (＠アイテム０＠, ＠キャラ１＠ ...) print, live
         slotf = ttk.Frame(nb, padding=2)
         nb.add(slotf, text="Text slots")
@@ -595,6 +608,46 @@ class DebuggerPanel:
         if s and v is not None and v.bank is not None:
             first = self.var_tree.item(s[0], "values")[3]
             self.app.show_statement(v.bank, int(str(first).lstrip("@"), 16))
+
+    def _var_double(self, e):
+        if self.var_tree.identify_column(e.x) == "#2":      # the value column: edit it
+            self.set_var()
+        else:
+            self._goto_var()
+
+    def _var_choices(self):
+        """{name: packed ref} of every named FLG_ / REG_ variable."""
+        emf = getattr(self.app.doc, "emf_vars", None)
+        c = self.app.doc.container
+        out = {}
+        for var in (emf.variables if emf is not None else ()):
+            try:
+                out[var.name] = c.pack_var(var.bit_offset, max(1, var.bit_width))
+            except Exception:  # noqa: BLE001 -- a field the header masks cannot address
+                pass
+        return out
+
+    def set_var(self, any_var=False):
+        """Change a game variable in the running game: the selected Variables row, or (any_var)
+        any named FLG_ / REG_ variable."""
+        from . import dialogs
+        if self.dbg is None:
+            self.status.config(text="attach to the game first", foreground="#b00")
+            return
+        enc = None
+        if not any_var:
+            s = self.var_tree.selection()
+            if not s:
+                self.status.config(text="select a variable first (or use Set any variable…)",
+                                   foreground="#b00")
+                return
+            enc = int(s[0])
+        name = None if enc is None else self._var_name(enc)
+        got = dialogs.ask_variable_value(self.body, self, self._var_choices(), name, enc)
+        if got is not None:
+            name, val = got
+            self.status.config(text="%s = %d in the game" % (name, val), foreground="#080")
+            self._show_vm()
 
     def _show_vm(self):
         v = self._selected_vm()

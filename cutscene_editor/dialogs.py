@@ -66,6 +66,83 @@ def ask_spec(parent, title, prompt, validate, initial=""):
     return out["text"]
 
 
+def ask_variable_value(parent, panel, choices, name=None, enc=None):
+    """Set a game variable in the running game (the script debugger's Variables tab).
+    `choices` = {name: packed ref}; `enc` given: that variable, otherwise the user picks one by
+    name. The value is written on OK (errors inline); returns (name, value read back) or None."""
+    from guiutil import to_int
+    dbg, c = panel.dbg, panel.app.doc.container
+    win = _modal(parent, "Set a game variable")
+    body = ttk.Frame(win, padding=8)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, text="Variable").grid(row=0, column=0, sticky="w")
+    if enc is None:
+        pick = FilterCombo(body, sorted(choices), width=40)
+        pick.grid(row=0, column=1, sticky="we", padx=(6, 0))
+        if name:
+            pick.var.set(name)
+        Tip(pick, "Type part of a name to narrow the list (FLG_ = a flag, REG_ = a number).")
+    else:
+        pick = None
+        ttk.Label(body, text=name, font=("Segoe UI", 9, "bold")).grid(row=0, column=1, sticky="w", padx=(6, 0))
+    info = ttk.Label(body, text="", foreground="#666")
+    info.grid(row=1, column=1, sticky="w", padx=(6, 0), pady=(2, 6))
+    ttk.Label(body, text="New value").grid(row=2, column=0, sticky="w")
+    val = tk.StringVar()
+    ent = ttk.Entry(body, textvariable=val, width=14)
+    ent.grid(row=2, column=1, sticky="w", padx=(6, 0))
+    err = ttk.Label(body, text="", foreground="#b02020", wraplength=420, justify="left")
+    err.grid(row=3, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    body.columnconfigure(1, weight=1)
+    out = {"got": None}
+
+    def current():
+        """(name, packed ref) the dialog is about, or (typed text, None)."""
+        if pick is None:
+            return name, enc
+        t = pick.var.get().strip()
+        return t, choices.get(t)
+
+    def show(*_a):
+        nm, e = current()
+        if e is None:
+            info.config(text="pick a variable from the list")
+            return
+        off, width, signed = c.unpack_var(e)
+        lo, hi = dbg.var_range(width, signed)
+        now = dbg.read_var(e)
+        info.config(text="bit %d, %d wide: %d..%d   now %s" % (off, width, lo, hi, "?" if now is None else now))
+        val.set("" if now is None else str(now))       # start from the live value
+        ent.select_range(0, "end")
+    show()
+    if pick is not None:
+        pick.var.trace_add("write", show)
+
+    def ok(_e=None):
+        nm, e = current()
+        if e is None:
+            err.config(text="no variable named %r" % nm if nm else "pick a variable")
+            return "break"
+        v = to_int(val.get())
+        if v is None:
+            err.config(text="type a whole number (0x.. for hex)")
+            return "break"
+        try:
+            back = dbg.write_var(e, v)
+        except Exception as ex:  # noqa: BLE001 - shown inline
+            err.config(text=str(ex))
+            return "break"
+        out["got"] = (nm, back if back is not None else v)
+        win.destroy()
+    bb = ttk.Frame(win, padding=(8, 0, 8, 8))
+    bb.pack(fill="x")
+    ttk.Button(bb, text="Set", command=ok).pack(side="right", padx=2)
+    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
+    ent.bind("<Return>", ok)
+    _run(win, ent if pick is None else pick)
+    return out["got"]
+
+
 _THUMBS = {}
 
 

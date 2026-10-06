@@ -352,11 +352,9 @@ class ScriptDebugger:
         return out
 
     # ---- game variables (FLG_ / REG_) ----------------------------------------------------- #
-    def flags_blob(self):
-        """The live game-flag store (flagstate: g_gameFlagsBuffer -> {zone2 base, zone2
-        bits, bits pointer}); read once per poll. None before it exists (title screen)."""
-        if self._flags is not None:
-            return self._flags
+    def _flags_bits(self):
+        """Address of the live game-flag bits (flagstate: g_gameFlagsBuffer -> {zone2 base,
+        zone2 bits, bits pointer}), or None before the store exists (title screen)."""
         from . import flagstate
         g = self.g
         hdr = g.ptr(g.base + flagstate.FLAGS_BUFFER_RVA)
@@ -365,7 +363,17 @@ class ScriptDebugger:
         zb, zn, bits = struct.unpack("<IIQ", bytes(g.read(hdr, 16)))
         if (zb, zn) != (flagstate.ZONE2_BASE, flagstate.ZONE2_BITS) or not bits:
             return None
-        self._flags = bytes(g.read(bits, flagstate.BLOB_SIZE))
+        return bits
+
+    def flags_blob(self):
+        """The live game-flag store; read once per poll. None before it exists."""
+        if self._flags is not None:
+            return self._flags
+        from . import flagstate
+        bits = self._flags_bits()
+        if bits is None:
+            return None
+        self._flags = bytes(self.g.read(bits, flagstate.BLOB_SIZE))
         return self._flags
 
     def read_var(self, enc):
@@ -385,6 +393,41 @@ class ScriptDebugger:
         if signed and width and v >> (width - 1):
             v -= 1 << width
         return v
+
+    @staticmethod
+    def var_range(width, signed):
+        """(lowest, highest) value a `width`-bit variable holds."""
+        return (-(1 << (width - 1)), (1 << (width - 1)) - 1) if signed else (0, (1 << width) - 1)
+
+    def write_var(self, enc, value):
+        """Set a packed variable in the running game: its `width` bits at `bit_offset`,
+        MSB-first like GameFlags_WritePacked (read_var's inverse). Only the bytes the field
+        spans are rewritten, from a fresh read, so neighbouring flags keep their live
+        values. A plain memory write: the game's own write hooks (achievements) do not run.
+        Returns the value read back."""
+        from . import flagstate
+        off, width, signed = self.c.unpack_var(enc)
+        lo, hi = self.var_range(width, signed)
+        if not lo <= value <= hi:
+            raise DebugError("%d does not fit: this variable holds %d..%d (%d bit%s)"
+                             % (value, lo, hi, width, "" if width == 1 else "s"))
+        first, last = off >> 3, (off + width - 1) >> 3
+        if last >= flagstate.BLOB_SIZE:
+            raise DebugError("bit %d is past the game's flag store" % (off + width - 1))
+        bits = self._flags_bits()
+        if bits is None:
+            raise DebugError("the game has no flag store yet (title screen?)")
+        u = value & ((1 << width) - 1)
+        buf = bytearray(self.g.read(bits + first, last - first + 1))
+        for i in range(width):
+            b = off + i - 8 * first
+            if (u >> (width - 1 - i)) & 1:
+                buf[b >> 3] |= 1 << (b & 7)
+            else:
+                buf[b >> 3] &= ~(1 << (b & 7)) & 0xFF
+        self.g.write(bits + first, bytes(buf))
+        self._flags = None                      # re-read on the next access
+        return self.read_var(enc)
 
     def text_slots(self):
         """{kind: [i32, ...]}: the live text slots the ＠…＠ dialogue codes print (SetVar0..15);
