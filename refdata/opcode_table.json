@@ -20451,6 +20451,11 @@
        "date": "2026-10-06",
        "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
        "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      },
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(3 Volkanon, 212, 468) in the Dragon Room (an NPC not on that map)",
+       "observed": "Volkanon appeared on the walkway (streamed into the map), facing left"
       }
      ]
     },
@@ -20491,7 +20496,7 @@
    "description": "Instantly puts an actor (player or NPC) on a spot, without a walk animation. An NPC is loaded into the map if needed.",
    "details": "Needs argc >= 3, otherwise returns 1 every frame (blocks forever). id >= 48: no-op. id < 32 sets bit id of host+352 (scene-placed mask). NPC: Npc_LoadOrPrepareById(id, 0) + Npc_TeleportToCoords(id, {x<<12, y<<12, 0}). Player: unless g_globalGameStateFlags & 0x401000, world x/y = tile<<12, z = 0; then Actor_SnapToGroundAndResetMotion.",
    "side_effects": "host+352 placed-actor bit; loads NPC",
-   "evidence": "RF4S.exe+0x1FAE80: `if (id >= 0x30) return 0; if (id < 0x20) host+352 |= 1<<id; ... Npc_TeleportToCoords` (+0x1FEB50) / player branch Actor_SnapToGroundAndResetMotion (+0xA4ED0); corpus: 657 uses, tag3 actor ids with literal or reg0/reg1 tiles. In-game test 2026-10-06 (user): TeleportActor(0, 132, 500) next to a barrel spawned at (132, 484) -> the player stood inside the barrel, not 2 tiles off: the position moved but the x/y unit is still open. In-game test 2026-10-06 (user): TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each -> the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516.",
+   "evidence": "RF4S.exe+0x1FAE80: `if (id >= 0x30) return 0; if (id < 0x20) host+352 |= 1<<id; ... Npc_TeleportToCoords` (+0x1FEB50) / player branch Actor_SnapToGroundAndResetMotion (+0xA4ED0); corpus: 657 uses, tag3 actor ids with literal or reg0/reg1 tiles. In-game test 2026-10-06 (user): TeleportActor(0, 132, 500) next to a barrel spawned at (132, 484) -> the player stood inside the barrel, not 2 tiles off: the position moved but the x/y unit is still open. In-game test 2026-10-06 (user): TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each -> the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516. In-game test 2026-10-06 (user): TeleportActor(3 Volkanon, 212, 468) in the Dragon Room (an NPC not on that map) -> Volkanon appeared on the walkway (streamed into the map), facing left.",
    "alias_of": null,
    "handler": "Script_VMOp_TeleportActorToCoords",
    "handler_rva": "0x1FAE80",
@@ -20545,6 +20550,11 @@
        "date": "2026-10-06",
        "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
        "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      },
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(3 Volkanon, 212, 468) in the Dragon Room (an NPC not on that map)",
+       "observed": "Volkanon appeared on the walkway (streamed into the map), facing left"
       }
      ]
     },
@@ -21015,7 +21025,7 @@
     "bank": 126,
     "pc": "0x02A4",
     "lines": [
-     "    MovePlayerToPos(330, 520, 270, 120, 1)",
+     "    WalkPlayerToAndFace(330, 520, 270, 120, 1)",
      "    MoveActorToTileFaceTravel_118(var:0x40FE, 350, 520, 200, 1)",
      "    WaitActorMoveDone_130(var:0x40FE)",
      "    TurnActorToAngle_104(var:0x40FE, 270, 0)    ; <--",
@@ -21165,7 +21175,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     },
     {
      "name": "target",
@@ -21173,7 +21190,14 @@
      "values": "same encoding (0 = player)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     },
     {
      "name": "ease",
@@ -21181,7 +21205,14 @@
      "values": "0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -21190,7 +21221,7 @@
    "description": "Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).",
    "details": "arg0 turner, arg1 target, arg2 ease shift (0 = snap). Turner 0 = player: needs no 0x401000 state flag; target must be an NPC 1-47 with a spawned actor (target 0 or >= 48 does nothing); Player_SetFacingDirection(Math_GetFacingAngleFromAToB(player, target), shift) (+0x22FED0). Turner 1-47: target 0 = player, 1-47 Npc_FindActorByNpcId, >= 48 EventActor_FindActorByKey; actor+158 = angle, +160 = shift, npc+20 |= 0x800 if shift. Turner >= 48: found in g_eventActorMng (event actor / monster), EventActor_SetFacingByKey (+0x1D3BD0); returns (result == 0), i.e. the op re-runs until that call succeeds.",
    "side_effects": "actor facing target",
-   "evidence": "RF4S.exe+0x1FCC50 (ScriptAction_TurnActorToFaceTarget); corpus: op 107 1523 uses (shift 2 1279x, 0 212x), op 108 10 uses, op 109 30 uses (incl. event actor 300/351 as turner).",
+   "evidence": "RF4S.exe+0x1FCC50 (ScriptAction_TurnActorToFaceTarget); corpus: op 107 1523 uses (shift 2 1279x, 0 212x), op 108 10 uses, op 109 30 uses (incl. event actor 300/351 as turner). In-game test 2026-10-06 (user): TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3) -> Volkanon turned to face the player.",
    "alias_of": null,
    "handler": "ScriptAction_TurnActorToFaceTarget",
    "handler_rva": "0x1FCC50",
@@ -21210,7 +21241,7 @@
    "confidence": "high",
    "notes": "True aliases 107/108/109 (no opcode branch). When the player turns, only NPC targets 1-47 work.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 380,
     "pc": "0x05B8",
@@ -21239,7 +21270,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     },
     {
      "name": "target",
@@ -21247,7 +21285,14 @@
      "values": "same encoding (0 = player)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     },
     {
      "name": "ease",
@@ -21255,7 +21300,14 @@
      "values": "0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -21289,7 +21341,7 @@
     "bank": 124,
     "pc": "0x0260",
     "lines": [
-     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
+     "    WalkPlayerToAndFace(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()",
      "    TurnActorToAngle_104(var:0x40FE, 270, 2)",
      "    TurnActorToFaceTarget_108(var:0x40C6, actor(player), 2)    ; <--",
@@ -21313,7 +21365,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     },
     {
      "name": "target",
@@ -21321,7 +21380,14 @@
      "values": "same encoding (0 = player)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     },
     {
      "name": "ease",
@@ -21329,7 +21395,14 @@
      "values": "0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToFaceTarget(3 Volkanon, 0 player, 2) + WaitActorMoveDone(3)",
+       "observed": "Volkanon turned to face the player"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -21691,10 +21764,10 @@
   "115": {
    "op": 115,
    "op_hex": "0x073",
-   "mnemonic": "MoveActorToPosLockAi",
+   "mnemonic": "WalkActorToAndFaceLockAi",
    "previous_mnemonic": "MoveActorToTile_LockAI",
    "category": "actor",
-   "prototype": "MoveActorToPosLockAi(actor, x, y, facing, speed, jump)",
+   "prototype": "WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21769,7 +21842,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 139,
@@ -21777,8 +21850,8 @@
     "lines": [
      "    SetSpeaker(MC, Left, 1522, 16777651)",
      "    DIALOG #59216    ; \"Whew...\"",
-     "    MovePlayerToPos(233, 322, 0, 100, 0)",
-     "    MoveActorToPosLockAi(actor(Xiao Pai), 201, 322, 0, 100, 0)    ; <--",
+     "    WalkPlayerToAndFace(233, 322, 0, 100, 0)",
+     "    WalkActorToAndFaceLockAi(actor(Xiao Pai), 201, 322, 0, 100, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    WaitActorMoveDone(actor(Xiao Pai))",
      "    SetSpeaker(XiaoPai, Left, 1039, 16782244)"
@@ -21788,10 +21861,10 @@
   "116": {
    "op": 116,
    "op_hex": "0x074",
-   "mnemonic": "MoveActorToPosLockAi",
+   "mnemonic": "WalkActorToAndFaceLockAi",
    "previous_mnemonic": "MoveActorToTile_LockAI",
    "category": "actor",
-   "prototype": "MoveActorToPosLockAi(actor, x, y, facing, speed, jump)",
+   "prototype": "WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21866,7 +21939,7 @@
    },
    "confidence": "high",
    "notes": "True alias of op 115 (same handler, no opcode-dependent branch). Corpus op 116 uses register ids (REG_CHILD_ID, REG_WIFE_ID, reg0, reg9).",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 126,
@@ -21885,10 +21958,10 @@
   "117": {
    "op": 117,
    "op_hex": "0x075",
-   "mnemonic": "MoveActorToPosFaceTravel",
+   "mnemonic": "WalkActorTo",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "MoveActorToPosFaceTravel(actor, x, y, speed, jump)",
+   "prototype": "WalkActorTo(actor, x, y, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21896,7 +21969,14 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "x",
@@ -21904,7 +21984,14 @@
      "values": "script units, 8 per tile",
      "required_kind": "int",
      "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "y",
@@ -21912,7 +21999,14 @@
      "values": "script units, 8 per tile",
      "required_kind": "int",
      "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "speed",
@@ -21920,7 +22014,14 @@
      "values": "corpus 30-400, 100 typical",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "jump",
@@ -21937,7 +22038,7 @@
    "description": "Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.",
    "details": "Cmd {byte0 = jump, byte1 = 0 (mode 0: face travel, reset to the walk animation), x<<12, y<<12, speed}; after Npc_StartMoveTowards it sets actor+568 |= 0x10 (the scene-controlled bit the dispatcher also sets on all NPCs at scene start). Id 0 is looked up in the NPC slot table like any NPC (no player-mover branch). Move command built for Npc_StartMoveTowards (RF4S.exe+0x225A90): byte0 = jump flag (sets actor+568 bit 0x800000 and npc+20 bit 0x200), byte1 = mode (bit 1 -> actor+568 |= 0x20000 keep facing; bit 2 -> npc+20 |= 0x800 turn to the end angle; bit 3 -> skip Npc_FinalizeTeleportAndNotify, i.e. keep the current animation), target x/y in Q12 (tile << 12), speed word = ((speed*167773)>>12) * (4915.2 if jump else 4096.0) >> 12. The op does not wait; pair it with WaitActorMoveDone.",
    "side_effects": "starts an NPC move; actor+568 |= 0x10",
-   "evidence": "RF4S.exe+0x1FB670: `v24[0] = jump; v24[1] = 0; v27 = x << 12; v28 = y << 12; Npc_StartMoveTowards(id, v24); *(npc->actor+568) |= 0x10`; corpus: 762 uses, e.g. (tag3, reg0, reg1, 100, 0) then WaitActorMoveDone.",
+   "evidence": "RF4S.exe+0x1FB670: `v24[0] = jump; v24[1] = 0; v27 = x << 12; v28 = y << 12; Npc_StartMoveTowards(id, v24); *(npc->actor+568) |= 0x10`; corpus: 762 uses, e.g. (tag3, reg0, reg1, 100, 0) then WaitActorMoveDone. In-game test 2026-10-06 (user): WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468) -> Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked.",
    "alias_of": null,
    "handler": "ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace",
    "handler_rva": "0x1FB670",
@@ -21955,8 +22056,8 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
-   "human_verified": false,
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
+   "human_verified": true,
    "example": {
     "bank": 143,
     "pc": "0x2BB4",
@@ -21964,7 +22065,7 @@
      "    DIALOG #61789    ; \"Ah, les carottes sont cuites!\"",
      "    SetSpeaker(Leon, Left, 1512, 0)",
      "    DIALOG #61790    ; \"I do hope that next time you’ll create something to really / excite my…\"",
-     "    MoveActorToPosFaceTravel(actor(Leon), 228, 419, 120, 0)    ; <--",
+     "    WalkActorTo(actor(Leon), 228, 419, 120, 0)    ; <--",
      "    WaitActorMoveDone(actor(Leon))",
      "    SetSpeaker(Porcoline, Right, 27, 0)",
      "    DIALOG #61791    ; \"Ah, Leon! Wait! Stop! Halt!\""
@@ -21974,10 +22075,10 @@
   "118": {
    "op": 118,
    "op_hex": "0x076",
-   "mnemonic": "MoveActorToPosFaceTravel",
+   "mnemonic": "WalkActorTo",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "MoveActorToPosFaceTravel(actor, x, y, speed, jump)",
+   "prototype": "WalkActorTo(actor, x, y, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21985,7 +22086,14 @@
      "values": "",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "x",
@@ -21993,7 +22101,14 @@
      "values": "script units, 8 per tile",
      "required_kind": "int",
      "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "y",
@@ -22001,7 +22116,14 @@
      "values": "script units, 8 per tile",
      "required_kind": "int",
      "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "speed",
@@ -22009,7 +22131,14 @@
      "values": "corpus 30-400, 100 typical",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, 212, 516, 100, 0) after TeleportActor(3, 212, 468)",
+       "observed": "Volkanon walked about 6 tiles toward the camera (+y = down on screen), facing the way he walked"
+      }
+     ]
     },
     {
      "name": "jump",
@@ -22044,7 +22173,7 @@
    },
    "confidence": "high",
    "notes": "corpus: 33 uses. ",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 126,
@@ -22052,7 +22181,7 @@
     "lines": [
      "    Wait(12000)",
      "    CALL L_06f6",
-     "    MovePlayerToPos(330, 520, 270, 120, 1)",
+     "    WalkPlayerToAndFace(330, 520, 270, 120, 1)",
      "    MoveActorToTileFaceTravel_118(var:0x40FE, 350, 520, 200, 1)    ; <--",
      "    WaitActorMoveDone_130(var:0x40FE)",
      "    TurnActorToAngle_104(var:0x40FE, 270, 0)",
@@ -22063,10 +22192,10 @@
   "119": {
    "op": 119,
    "op_hex": "0x077",
-   "mnemonic": "MoveNpcToPosKeepFacing",
+   "mnemonic": "StepNpcTo",
    "previous_mnemonic": "MoveActorToTileKeepFacing",
    "category": "actor",
-   "prototype": "MoveNpcToPosKeepFacing(npc, x, y, speed, jump)",
+   "prototype": "StepNpcTo(npc, x, y, speed, jump)",
    "args": [
     {
      "name": "npc",
@@ -22133,7 +22262,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 72,
@@ -22142,8 +22271,8 @@
      "    RET",
      "L_080e:",
      "    Wait(6000)",
-     "    MoveNpcToPosKeepFacing(actor(Porcoline), 964, 190, 100, 0)    ; <--",
-     "    MoveActorToPosFaceTravel(actor(Margaret), 964, 190, 100, 0)",
+     "    StepNpcTo(actor(Porcoline), 964, 190, 100, 0)    ; <--",
+     "    WalkActorTo(actor(Margaret), 964, 190, 100, 0)",
      "    WaitActorMoveDone(actor(Porcoline))",
      "    SetNpcVisible(actor(Porcoline), 0)"
     ]
@@ -22152,10 +22281,10 @@
   "120": {
    "op": 120,
    "op_hex": "0x078",
-   "mnemonic": "MoveNpcToPosKeepFacing",
+   "mnemonic": "StepNpcTo",
    "previous_mnemonic": "MoveActorToTileKeepFacing",
    "category": "actor",
-   "prototype": "MoveNpcToPosKeepFacing(npc, x, y, speed, jump)",
+   "prototype": "StepNpcTo(npc, x, y, speed, jump)",
    "args": [
     {
      "name": "npc",
@@ -22220,7 +22349,7 @@
    "arg_counts": {},
    "confidence": "high",
    "notes": "True alias of op 119 (same handler, no opcode-dependent branch). Unused in rf3.mc.",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": null
   },
@@ -22908,7 +23037,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, ...) then WaitActorMoveDone(3) then a DIALOG",
+       "observed": "the box appeared only after Volkanon stopped walking"
+      }
+     ]
     },
     {
      "name": "ignored...",
@@ -22925,7 +23061,7 @@
    "description": "Wait until an actor has finished its scripted move and any pending turn. Put it after Move*/Turn* ops. For actor 0 it waits on the player (same as WaitPlayerMoveDone (op 145)).",
    "details": "Returns 1 (re-run next frame) while npc+20 bit 0x8 (move command active, set by Npc_StartMoveTowards +0x225A90) is set, or npc+20 bit 0x800 (turn pending) with actor+158 (target facing) != actor+156 (current). Actor 0 -> Script_VMOp_QueryPlayerTurnBusy (+0x204A00). Ids >= 48, absent NPCs or unspawned actors return 0 at once. Does not look at animation state.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FC6D0: `if (!(npc+20 & 8) && (!(npc+20 & 0x800) || actor+158 == actor+156)) return 0; return 1`; corpus: op 129 2006 uses directly after MoveActor*/TurnActor* ops, op 130 66 uses.",
+   "evidence": "RF4S.exe+0x1FC6D0: `if (!(npc+20 & 8) && (!(npc+20 & 0x800) || actor+158 == actor+156)) return 0; return 1`; corpus: op 129 2006 uses directly after MoveActor*/TurnActor* ops, op 130 66 uses. In-game test 2026-10-06 (user): WalkActorTo(3, ...) then WaitActorMoveDone(3) then a DIALOG -> the box appeared only after Volkanon stopped walking.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryNpcAnimDone",
    "handler_rva": "0x1FC6D0",
@@ -22949,7 +23085,7 @@
    "confidence": "high",
    "notes": "True alias pair 129/130. Rename pattern Query*Busy -> Wait*Done applied chunk-wide.",
    "change_reason": "Naming convention: the op blocks until a condition, so Wait...; 'Query' implied a register result it never writes.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 426,
     "pc": "0x01C0",
@@ -22978,7 +23114,14 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "WalkActorTo(3, ...) then WaitActorMoveDone(3) then a DIALOG",
+       "observed": "the box appeared only after Volkanon stopped walking"
+      }
+     ]
     },
     {
      "name": "ignored...",
@@ -23060,7 +23203,7 @@
    "description": "Wait until an actor has come within [range] tiles of the destination of its current move, so the script can chain the next waypoint before the actor stops.",
    "details": "Distance = Monster_DistanceToTarget (+0x23AA70): octagonal approximation on (pos >> 12). Player: target = RF4S.exe+0xE9B1D8 (the last move queued with Scene_QueueGenericMoveCommand); NPC: target = npc entry +80 (its Npc_StartMoveTowards destination). The handler RETURNS 1 (busy) while distance > range and 0 otherwise; it writes no VM register. Missing actor / no target -> 0 (no wait).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: MoveActorToPosFaceTravel(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next MoveActorToPosFaceTravel.",
+   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: WalkActorTo(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next WalkActorTo.",
    "alias_of": null,
    "handler": "ScriptVM_Op_QueryEntityBeyondRangeOfTarget",
    "handler_rva": "0x1FC7B0",
@@ -23086,9 +23229,9 @@
     "lines": [
      "    WaitActorAnimDone(actor(Clorica))",
      "    PlayActorAnim(actor(Clorica), 1, 1)",
-     "    MoveActorToPosFaceTravel(actor(Clorica), 250, 187, 80, 0)",
+     "    WalkActorTo(actor(Clorica), 250, 187, 80, 0)",
      "    WaitActorNearMoveTarget(actor(Clorica), 10)    ; <--",
-     "    MoveActorToPosFaceTravel(actor(Clorica), 228, 228, 80, 0)",
+     "    WalkActorTo(actor(Clorica), 228, 228, 80, 0)",
      "    WaitActorMoveDone(actor(Clorica))",
      "    TurnActorToFaceTarget(actor(player), actor(Clorica), 2)"
     ]
@@ -23125,7 +23268,7 @@
    "description": "Wait until an actor has come within [range] tiles of the destination of its current move, so the script can chain the next waypoint before the actor stops.",
    "details": "Distance = Monster_DistanceToTarget (+0x23AA70): octagonal approximation on (pos >> 12). Player: target = RF4S.exe+0xE9B1D8 (the last move queued with Scene_QueueGenericMoveCommand); NPC: target = npc entry +80 (its Npc_StartMoveTowards destination). The handler RETURNS 1 (busy) while distance > range and 0 otherwise; it writes no VM register. Missing actor / no target -> 0 (no wait).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: MoveActorToPosFaceTravel(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next MoveActorToPosFaceTravel.",
+   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: WalkActorTo(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next WalkActorTo.",
    "alias_of": 131,
    "handler": "ScriptVM_Op_QueryEntityBeyondRangeOfTarget",
    "handler_rva": "0x1FC7B0",
@@ -23424,7 +23567,7 @@
      "    EndDialogue()",
      "    GetActorTilePosition_136(var:0x40FE)    ; <--",
      "    EVAL (reg0 -= 20)",
-     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
+     "    WalkPlayerToAndFace(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()"
     ]
    }
@@ -23725,10 +23868,10 @@
   "142": {
    "op": 142,
    "op_hex": "0x08E",
-   "mnemonic": "MovePlayerToPos",
+   "mnemonic": "WalkPlayerToAndFace",
    "previous_mnemonic": "MoveSceneActorToTile",
    "category": "actor",
-   "prototype": "MovePlayerToPos(x, y, facing, speed, run)",
+   "prototype": "WalkPlayerToAndFace(x, y, facing, speed, run)",
    "args": [
     {
      "name": "x",
@@ -23793,7 +23936,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 140,
@@ -23802,7 +23945,7 @@
      "    SetSpeaker(Amber, Right, 1160, 0)",
      "    DIALOG #60100    ; \"＠しゅじんこうくん＠.\"",
      "    EndDialogue()",
-     "    MovePlayerToPos(185, 310, 90, 50, 0)    ; <--",
+     "    WalkPlayerToAndFace(185, 310, 90, 50, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    PlayPlayerAnim(188, 0)",
      "    PlayActorAnim(actor(Amber), 188, 0)"
@@ -23812,10 +23955,10 @@
   "143": {
    "op": 143,
    "op_hex": "0x08F",
-   "mnemonic": "MovePlayerToPosFaceTravel",
+   "mnemonic": "WalkPlayerTo",
    "previous_mnemonic": "MoveSceneActorToTileFaceTravel",
    "category": "actor",
-   "prototype": "MovePlayerToPosFaceTravel(x, y, speed, run)",
+   "prototype": "WalkPlayerTo(x, y, speed, run)",
    "args": [
     {
      "name": "x",
@@ -23872,7 +24015,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 139,
@@ -23881,9 +24024,9 @@
      "    SetSpeaker(MC, Left, 1197, 16777655)",
      "    SetBoxShout()",
      "    DIALOG #59214    ; \"I'll save it!\"",
-     "    MovePlayerToPosFaceTravel(200, 180, 200, 1)    ; <--",
+     "    WalkPlayerTo(200, 180, 200, 1)    ; <--",
      "    WaitPlayerMoveDone()",
-     "    MovePlayerToPosFaceTravel(250, 165, 200, 1)",
+     "    WalkPlayerTo(250, 165, 200, 1)",
      "    PlayPlayerAnim(207, 0)"
     ]
    }
@@ -23891,10 +24034,10 @@
   "144": {
    "op": 144,
    "op_hex": "0x090",
-   "mnemonic": "MovePlayerToPosKeepFacing",
+   "mnemonic": "StepPlayerTo",
    "previous_mnemonic": "MoveSceneActorStraight",
    "category": "actor",
-   "prototype": "MovePlayerToPosKeepFacing(x, y, speed, run)",
+   "prototype": "StepPlayerTo(x, y, speed, run)",
    "args": [
     {
      "name": "x",
@@ -23935,7 +24078,7 @@
    "description": "Move the player in a straight line to an absolute position without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).",
    "details": "Same packing as op 142 but yaw 0 and mode byte 4 (12 if host+72 bit 0) -> Scene_QueueGenericMoveCommand (+0x22FD00): mode bit 4 sets player control_flags 0x20000 (keep facing); always the player actor.",
    "side_effects": "player control_flags, spawns a player move task",
-   "evidence": "RF4S.exe+0x204870: `v16 = 4; if (host+72 & 1) v16 = 12; Scene_QueueGenericMoveCommand(host+872, &cmd)`; RF4S.exe+0x22FD00: `if (!(cmd[18] & 4)) flags &= ~0x20000 else flags |= 0x20000`; corpus: 50 uses (e.g. MovePlayerToPosKeepFacing(167,122,45,0) while an event actor walks alongside).",
+   "evidence": "RF4S.exe+0x204870: `v16 = 4; if (host+72 & 1) v16 = 12; Scene_QueueGenericMoveCommand(host+872, &cmd)`; RF4S.exe+0x22FD00: `if (!(cmd[18] & 4)) flags &= ~0x20000 else flags |= 0x20000`; corpus: 50 uses (e.g. StepPlayerTo(167,122,45,0) while an event actor walks alongside).",
    "alias_of": null,
    "handler": "Script_VMOp_MoveActorStraight",
    "handler_rva": "0x204870",
@@ -23951,7 +24094,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 135,
@@ -23960,7 +24103,7 @@
      "    SetSpeakerVoice(995, 0)",
      "    DIALOG #56849    ; \"Thank you.\"",
      "    ClosePortraits(2)",
-     "    MovePlayerToPosKeepFacing(688, 180, 50, 0)    ; <--",
+     "    StepPlayerTo(688, 180, 50, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    TurnPlayerToAngle(180, 2)",
      "    Wait(3000)"
@@ -24005,7 +24148,7 @@
     "lines": [
      "    DIALOG #60100    ; \"＠しゅじんこうくん＠.\"",
      "    EndDialogue()",
-     "    MovePlayerToPos(185, 310, 90, 50, 0)",
+     "    WalkPlayerToAndFace(185, 310, 90, 50, 0)",
      "    WaitPlayerMoveDone()    ; <--",
      "    PlayPlayerAnim(188, 0)",
      "    PlayActorAnim(actor(Amber), 188, 0)",
@@ -24214,7 +24357,7 @@
     "pc": "0x0878",
     "lines": [
      "    EVAL (reg1 -= 2)",
-     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
+     "    WalkPlayerToAndFace(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()",
      "    PlayPlayerAnim(188, 0)    ; <--",
      "    WaitPlayerAnimDone()",
@@ -24427,7 +24570,7 @@
     "bank": 124,
     "pc": "0x0880",
     "lines": [
-     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
+     "    WalkPlayerToAndFace(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()",
      "    PlayPlayerAnim(188, 0)",
      "    WaitPlayerAnimDone()    ; <--",
@@ -25055,10 +25198,10 @@
   "160": {
    "op": 160,
    "op_hex": "0x0A0",
-   "mnemonic": "MoveEventActorToPos",
+   "mnemonic": "WalkEventActorTo",
    "previous_mnemonic": "EventNpcWalkToTile",
    "category": "actor",
-   "prototype": "MoveEventActorToPos(key, x, y, speed, run)",
+   "prototype": "WalkEventActorTo(key, x, y, speed, run)",
    "args": [
     {
      "name": "key",
@@ -25123,7 +25266,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 93,
@@ -25132,7 +25275,7 @@
      "    WaitCameraAtMark()",
      "    CALL L_03b6",
      "    EndDialogue()",
-     "    MoveEventActorToPos(300, 162, 232, 50, 0)    ; <--",
+     "    WalkEventActorTo(300, 162, 232, 50, 0)    ; <--",
      "    WaitEventActorMoveDone(300)",
      "    Wait(3000)",
      "    CALL L_03c6"
@@ -25142,10 +25285,10 @@
   "161": {
    "op": 161,
    "op_hex": "0x0A1",
-   "mnemonic": "MoveEventActorToPosKeepFacing",
+   "mnemonic": "StepEventActorTo",
    "previous_mnemonic": "EventNpcWalkToTileKeepFacing",
    "category": "actor",
-   "prototype": "MoveEventActorToPosKeepFacing(key, x, y, speed, run)",
+   "prototype": "StepEventActorTo(key, x, y, speed, run)",
    "args": [
     {
      "name": "key",
@@ -25191,10 +25334,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "one frame or more: busy until the keyed actor exists",
-   "description": "Like MoveEventActorToPos but the actor keeps its current facing while moving (side-step / back-pedal).",
+   "description": "Like WalkEventActorTo but the actor keeps its current facing while moving (side-step / back-pedal).",
    "details": "Sets actor control_flags (+0x238) |= 0x20000 (the keep-facing bit that suppresses face-the-velocity) before the same update/start logic as op 160. The bit is not cleared by this op. Busy while the key has no live actor.",
    "side_effects": "event actor move task, control_flags 0x20000",
-   "evidence": "RF4S.exe+0x214670: `v21[142] |= 0x20000` then op-160 logic; corpus 25 uses, e.g. SpawnEventActor(35,300,212,122,270) -> MoveEventActorToPosKeepFacing(300, 237, 122, 25, 0) (slow sidestep).",
+   "evidence": "RF4S.exe+0x214670: `v21[142] |= 0x20000` then op-160 logic; corpus 25 uses, e.g. SpawnEventActor(35,300,212,122,270) -> StepEventActorTo(300, 237, 122, 25, 0) (slow sidestep).",
    "alias_of": null,
    "handler": "Script_VMOp_MoveEventActorToTileKeepFacing",
    "handler_rva": "0x214670",
@@ -25210,7 +25353,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 217,
@@ -25219,7 +25362,7 @@
      "    PlayEventActorAnim(200, 9, 0)",
      "    GetEventActorPosition(200)",
      "    EVAL (reg1 += 16)",
-     "    MoveEventActorToPosKeepFacing(200, reg0, reg1, 140, 1)    ; <--",
+     "    StepEventActorTo(200, reg0, reg1, 140, 1)    ; <--",
      "    WaitEventActorAnimDone(200)",
      "    PlayEventActorAnim(200, 11, 0)",
      "    WaitEventActorMoveDone(200)"
@@ -25391,7 +25534,7 @@
    "description": "Waits until an event actor has finished walking and turning. Waiting on a key that is not registered never ends.",
    "details": "Finds the record; if word5 bit 0x8 (turn pending) and actor+156 != +158 -> return 1; else clears bit 0x8 and returns word5 bit 0x4 (move task active). Missing key or actor returns 1 every frame. No register is written.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x214BC0: `v11 = (flags & 4) == 0; if ((flags & 8) && *(u16*)(a+156) != *(u16*)(a+158)) return 1; ... return !v11`; corpus: 509 uses right after MoveEventActorToPos.",
+   "evidence": "RF4S.exe+0x214BC0: `v11 = (flags & 4) == 0; if ((flags & 8) && *(u16*)(a+156) != *(u16*)(a+158)) return 1; ... return !v11`; corpus: 509 uses right after WalkEventActorTo.",
    "alias_of": null,
    "handler": "Script_VMOp_WaitEventActorMoveDone",
    "handler_rva": "0x214BC0",
@@ -26484,7 +26627,7 @@
    "description": "Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorPosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "Key lookup in g_eventActorMng; returns 1 (retry) while the key or its actor is missing; else reg0 = actor+88 >> 12, reg1 = actor+92 >> 12.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2151E0; corpus: 27 uses, followed by EVAL reg1 += n and MoveEventActorToPos(key, reg0, reg1, ...).",
+   "evidence": "RF4S.exe+0x2151E0; corpus: 27 uses, followed by EVAL reg1 += n and WalkEventActorTo(key, reg0, reg1, ...).",
    "alias_of": null,
    "handler": "Script_VMOp_GetEventActorTilePosition",
    "handler_rva": "0x2151E0",
@@ -26691,7 +26834,7 @@
      "    PlayActorSplash(200)    ; <--",
      "    PlayActorAnim(actor(Vishnal), 1, 1)",
      "    Wait(9000)",
-     "    MoveActorToPosLockAi(actor(Vishnal), 200, 128, 0, 100, 0)"
+     "    WalkActorToAndFaceLockAi(actor(Vishnal), 200, 128, 0, 100, 0)"
     ]
    }
   },
@@ -26757,7 +26900,7 @@
     "pc": "0x01AC",
     "lines": [
      "    EVAL (reg0 -= 24)",
-     "    MovePlayerToPosFaceTravel(reg0, reg1, 140, 0)",
+     "    WalkPlayerTo(reg0, reg1, 140, 0)",
      "    GetActorPosition(actor(Kiel))",
      "    SetCameraPosition(reg0, reg1, 1)    ; <--",
      "    FadeScreenToClear(6000)",
@@ -26824,8 +26967,8 @@
      "    EVAL (var:0x14E = 1)",
      "    ReattachCameraToActor(actor(player), 1)    ; <--",
      "    WaitCameraAtMark()",
-     "    MovePlayerToPosFaceTravel(200, 200, 150, 0)",
-     "    MoveCompanionToPosFaceTravel(0, 180, 200, 150, 0)"
+     "    WalkPlayerTo(200, 200, 150, 0)",
+     "    WalkCompanionTo(0, 180, 200, 150, 0)"
     ]
    }
   },
@@ -26875,12 +27018,12 @@
     "pc": "0x01C8",
     "lines": [
      "L_01b6:",
-     "    MovePlayerToPos(267, 109, 270, 100, 0)",
+     "    WalkPlayerToAndFace(267, 109, 270, 100, 0)",
      "    WaitPlayerMoveDone()",
      "    HoldCameraInPlace(1)    ; <--",
      "    PlayPlayerAnim(64, 0)",
      "    Wait(1500)",
-     "    MovePlayerToPosKeepFacing(217, 109, 100, 0)"
+     "    StepPlayerTo(217, 109, 100, 0)"
     ]
    }
   },
@@ -30884,7 +31027,7 @@
    "description": "Get the position right next to the target on the mover's side (one step back from the target toward the mover), i.e. where the mover should walk to stand in front of the target. reg0 = x, reg1 = y (tiles).",
    "details": "If distance(mover, target) > 1: (target pos - sincos(Math_GetFacingAngleFromAToB(mover, target)) * 1 tile) >> 12; else the mover's own tile. Written as u16 to reg0 / reg1. Either actor missing or an id >= 48 -> nothing written.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FFDC0; corpus 52 uses, e.g. TurnActorToFaceTarget(npc, player) -> GetApproachPos(npc, 0) -> MoveActorToPosFaceTravel(npc, reg0, reg1, 100, 0).",
+   "evidence": "RF4S.exe+0x1FFDC0; corpus 52 uses, e.g. TurnActorToFaceTarget(npc, player) -> GetApproachPos(npc, 0) -> WalkActorTo(npc, reg0, reg1, 100, 0).",
    "alias_of": null,
    "handler": "ScriptVMOp_QueryTileOneStepBehindActorTowardTarget",
    "handler_rva": "0x1FFDC0",
@@ -30910,7 +31053,7 @@
      "    DIALOG #25402    ; \"You'd better be ready to face the consequences of your / actions.\"",
      "    EndDialogue()",
      "    GetApproachPos(actor(Leon), 0)    ; <--",
-     "    MoveActorToPosFaceTravel(actor(Leon), reg0, reg1, 100, 0)",
+     "    WalkActorTo(actor(Leon), reg0, reg1, 100, 0)",
      "    WaitActorMoveDone(actor(Leon))",
      "    PlayActorAnim(actor(Leon), 188, 0)"
     ]
@@ -33217,7 +33360,7 @@
    "description": "Sets bit 0 of the scene context's +72 flags when the first argument is 0. Retail brackets one player move with (0, 1) and (0, 0), which looks like a set/clear pair, but on PC both calls just set the bit.",
    "details": "RF4S.exe+0x200FE0: if arg0 == 0 -> *(u32*)(host+72) |= 1. arg1 is never read. The reader of host+72 bit 0 was not located (a disp8 +0x48 scan is too broad to do safely).",
    "side_effects": "host+72 |= 1",
-   "evidence": "RF4S.exe+0x200FE0; corpus: 4 uses (bank 221), (0,1) ... (0,0) around MovePlayerToPosFaceTravel.",
+   "evidence": "RF4S.exe+0x200FE0; corpus: 4 uses (bank 221), (0,1) ... (0,0) around WalkPlayerTo.",
    "alias_of": null,
    "handler": "ScriptVMOp_SetScriptStateBit72_1_OnArgZero",
    "handler_rva": "0x200FE0",
@@ -33243,7 +33386,7 @@
      "    EVAL (reg0 = (reg0 + ((reg3 - reg0) / 2)))",
      "    EVAL (reg1 = (reg1 + ((reg4 - reg1) / 2)))",
      "    SetSceneReadyFlag(0, 1)    ; <--",
-     "    MovePlayerToPosFaceTravel(reg0, reg1, 110, 1)",
+     "    WalkPlayerTo(reg0, reg1, 110, 1)",
      "    WaitPlayerMoveDone()",
      "    SetSceneReadyFlag(0, 0)"
     ]
@@ -33675,7 +33818,7 @@
     "pc": "0x040A",
     "lines": [
      "    WaitCameraAtMark()",
-     "    MoveActorToPosFaceTravel(actor(Kiel), -10, 200, 400, 1)",
+     "    WalkActorTo(actor(Kiel), -10, 200, 400, 1)",
      "    WaitActorMoveDone(actor(Kiel))",
      "    ResetNpcDailySchedule(actor(Kiel), -1)    ; <--",
      "    SetNpcVisible_317(5, 1)",
@@ -33976,7 +34119,7 @@
     "pc": "0x0286",
     "lines": [
      "    EndDialogue()",
-     "    MoveActorToPosFaceTravel(actor(Clorica), 730, 200, 150, 1)",
+     "    WalkActorTo(actor(Clorica), 730, 200, 150, 1)",
      "    WaitActorMoveDone(actor(Clorica))",
      "    ApplyPendingNpcPlan(actor(Clorica))    ; <--",
      "    EVAL (var:0x14C = 1)",
@@ -34160,7 +34303,7 @@
    "description": "Make an NPC hold still for a while before resuming its schedule (used right after a conversation so the NPC does not walk off at once).",
    "details": "base = arg1 - (arg1 >> 2); if base > 0: advance the MMIX RNG and write npc record +212 (u16) = base + rand[0, base/2), record +216 = 0. NpcSchedule_Tick (+0x22BAF0) counts record +212 down and steps the schedule when it reaches 0.",
    "side_effects": "npc record +212 / +216; RNG state",
-   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after MoveNpcToPosKeepFacing + PlayActorAnim(x, 1, 1) at the end of a talk.",
+   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after StepNpcTo + PlayActorAnim(x, 1, 1) at the end of a talk.",
    "alias_of": null,
    "handler": "Script_VMOp_SetNpcActionDelayWithJitter",
    "handler_rva": "0x20D120",
@@ -34225,7 +34368,7 @@
    "description": "Make an NPC hold still for a while before resuming its schedule (used right after a conversation so the NPC does not walk off at once).",
    "details": "base = arg1 - (arg1 >> 2); if base > 0: advance the MMIX RNG and write npc record +212 (u16) = base + rand[0, base/2), record +216 = 0. NpcSchedule_Tick (+0x22BAF0) counts record +212 down and steps the schedule when it reaches 0.",
    "side_effects": "npc record +212 / +216; RNG state",
-   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after MoveNpcToPosKeepFacing + PlayActorAnim(x, 1, 1) at the end of a talk.",
+   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after StepNpcTo + PlayActorAnim(x, 1, 1) at the end of a talk.",
    "alias_of": 302,
    "handler": "Script_VMOp_SetNpcActionDelayWithJitter",
    "handler_rva": "0x20D120",
@@ -36685,7 +36828,7 @@
     "bank": 75,
     "pc": "0x0214",
     "lines": [
-     "    MoveActorToPosLockAi(actor(Arthur), 114, 289, 0, 80, 0)",
+     "    WalkActorToAndFaceLockAi(actor(Arthur), 114, 289, 0, 80, 0)",
      "    WaitActorMoveDone(actor(Arthur))",
      "    PlaySound(16785995)",
      "    GetVar1(0)    ; <--",
@@ -38594,7 +38737,14 @@
      "values": "e.g. 87, 79, 78, 73 (EV_DATE_APPO, boss rematch checks ...)",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "EvalCondScriptA(128 EV_IS_MAN) / EvalCondScriptA(129 EV_IS_WOMAN) -> SetVar3, playing Frey",
+       "observed": "EV_IS_MAN = 0, EV_IS_WOMAN = 1 (the player is a woman): reg0 = the entry's condition A"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -38603,7 +38753,7 @@
    "description": "Evaluate condition A of an Event Manager (em.bin) entry and put the result (1/0) into reg0.",
    "details": "RF4S.exe+0x1FACA0: reg0 (via *(host+8)+64) = g_emfContext.data ? CondScript_EvalNamedConditionA(arg0, &g_emfContext) (+0x23B6A0) : 0. No lazy load here (ops 373/374 load em.bin 15207 themselves).",
    "side_effects": null,
-   "evidence": "RF4S.exe+0x1FACA0; corpus: 141 uses, 26 distinct entries 8-166, always followed by BR_Z reg0.",
+   "evidence": "RF4S.exe+0x1FACA0; corpus: 141 uses, 26 distinct entries 8-166, always followed by BR_Z reg0. In-game test 2026-10-06 (user): EvalCondScriptA(128 EV_IS_MAN) / EvalCondScriptA(129 EV_IS_WOMAN) -> SetVar3, playing Frey -> EV_IS_MAN = 0, EV_IS_WOMAN = 1 (the player is a woman): reg0 = the entry's condition A.",
    "alias_of": null,
    "handler": "Script_VMOp_EvalCondScriptA",
    "handler_rva": "0x1FACA0",
@@ -38620,7 +38770,7 @@
    "confidence": "high",
    "notes": "Name kept to stay paired with EvalCondScriptB (372) / RunEmEntryAltAction (374).",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 79,
     "pc": "0x0378",
@@ -40040,7 +40190,7 @@
     "pc": "0x2B06",
     "lines": [
      "    PlaceActorAndFace(actor(Amber), 228, 417, 180)",
-     "    MoveActorToPosLockAi(actor(Amber), 190, 310, 270, 300, 1)",
+     "    WalkActorToAndFaceLockAi(actor(Amber), 190, 310, 270, 300, 1)",
      "    Wait(3000)",
      "    TurnPlayerToAngle_396(90, 3)    ; <--",
      "    WaitActorMoveDone(actor(Amber))",
@@ -46153,10 +46303,10 @@
   "496": {
    "op": 496,
    "op_hex": "0x1F0",
-   "mnemonic": "MoveCompanionToPos",
+   "mnemonic": "WalkCompanionToAndFace",
    "previous_mnemonic": "MoveCompanion",
    "category": "companion",
-   "prototype": "MoveCompanionToPos(slot, x, y, facing, speed, run)",
+   "prototype": "WalkCompanionToAndFace(slot, x, y, facing, speed, run)",
    "args": [
     {
      "name": "slot",
@@ -46229,18 +46379,18 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 1007,
     "pc": "0x01F2",
     "lines": [
      "    SetCameraTarget(200, 138, 200)",
-     "    MovePlayerToPos(200, 216, 180, 200, 1)",
+     "    WalkPlayerToAndFace(200, 216, 180, 200, 1)",
      "    Wait(1500)",
-     "    MoveCompanionToPos(1, 180, 224, 180, 200, 1)    ; <--",
+     "    WalkCompanionToAndFace(1, 180, 224, 180, 200, 1)    ; <--",
      "    Wait(1500)",
-     "    MoveCompanionToPos(0, 220, 224, 180, 200, 1)",
+     "    WalkCompanionToAndFace(0, 220, 224, 180, 200, 1)",
      "    WaitPlayerMoveDone()"
     ]
    }
@@ -46248,10 +46398,10 @@
   "497": {
    "op": 497,
    "op_hex": "0x1F1",
-   "mnemonic": "MoveCompanionToPosFaceTravel",
+   "mnemonic": "WalkCompanionTo",
    "previous_mnemonic": "MoveCompanionNF",
    "category": "companion",
-   "prototype": "MoveCompanionToPosFaceTravel(slot, x, y, speed, run)",
+   "prototype": "WalkCompanionTo(slot, x, y, speed, run)",
    "args": [
     {
      "name": "slot",
@@ -46316,7 +46466,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
    "human_verified": false,
    "example": {
     "bank": 589,
@@ -46324,10 +46474,10 @@
     "lines": [
      "L_02cc:",
      "    EVAL (var:0x414 = 1)",
-     "    MovePlayerToPos(216, 200, 180, 100, 1)",
-     "    MoveCompanionToPosFaceTravel(0, 216, 378, 100, 1)    ; <--",
+     "    WalkPlayerToAndFace(216, 200, 180, 100, 1)",
+     "    WalkCompanionTo(0, 216, 378, 100, 1)    ; <--",
      "    Wait(3000)",
-     "    MoveCompanionToPosFaceTravel(1, 216, 378, 100, 1)",
+     "    WalkCompanionTo(1, 216, 378, 100, 1)",
      "    WaitCompanionSettled(0)"
     ]
    }
@@ -46480,7 +46630,7 @@
    "returns": null,
    "blocking": "no",
    "description": "Walks a companion (or both) by a relative tile offset, facing the way it walks (no end-facing argument). Does not wait.",
-   "details": "Cmd byte1 = 0 (mode 0: face travel), byte0 = run, speed as MoveCompanionToPos, destination = companion position + (d << 12); per NPC companion the same flag updates as MoveCompanionToPos, then Npc_StartMoveTowards.",
+   "details": "Cmd byte1 = 0 (mode 0: face travel), byte0 = run, speed as WalkCompanionToAndFace, destination = companion position + (d << 12); per NPC companion the same flag updates as WalkCompanionToAndFace, then Npc_StartMoveTowards.",
    "side_effects": "companion move",
    "evidence": "RF4S.exe+0x202800: `v36 = 0; LOBYTE(v36) = run; HIWORD(v36) = speed;` (mode byte stays 0) and the same companion loop as RF4S.exe+0x201F50; corpus: 19 uses, e.g. (0, 0, -100, 100, 0) next to MoveActorByOffsetFaceTravel(tag3(0), ...).",
    "alias_of": null,
@@ -46679,7 +46829,7 @@
    "description": "Wait until the selected companion(s) have finished moving and turning.",
    "details": "Returns 1 (re-run) while a selected companion's NPC record has +20 bit 0x8 (moving) or bit 0x800 with no actor or actor+158 != +156 (turn pending); else 0. Writes no register. Slot > 2 other than 2 returns 0 at once.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x202EE0; corpus: 229 uses, bare statements after MoveCompanionToPos* / TurnCompanionToAngle.",
+   "evidence": "RF4S.exe+0x202EE0; corpus: 229 uses, bare statements after WalkCompanionToAndFace* / TurnCompanionToAngle.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryAnyCompanionStillTransitioning",
    "handler_rva": "0x202EE0",
@@ -46828,10 +46978,10 @@
     "lines": [
      "    EVAL (var:0x414 = 1)",
      "    SetCameraTarget(288, 202, 300)",
-     "    MovePlayerToPos(288, 300, 180, 200, 1)",
+     "    WalkPlayerToAndFace(288, 300, 180, 200, 1)",
      "    GetPartyMemberPosY(0)    ; <--",
      "    BR_Z (reg1 >= 486) -> L_05e6",
-     "    MoveCompanionToPosFaceTravel(0, 464, 484, 200, 1)",
+     "    WalkCompanionTo(0, 464, 484, 200, 1)",
      "    JMP L_060c"
     ]
    }

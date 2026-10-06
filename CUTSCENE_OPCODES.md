@@ -3777,11 +3777,12 @@ Args:
 
 ### `op 107` — TurnActorToFaceTarget(turner, target, ease)
 *handler:* `ScriptAction_TurnActorToFaceTarget`
+*verified:* yes, in game
 
 Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).
 
 Args:
-  0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster)
+  0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3809,7 +3810,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. target (same encoding (0 = player))
+  1. target (same encoding (0 = player)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3837,7 +3838,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2))
+  2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)) — verified in game
 
 ### `op 108` — TurnActorToFaceTarget(turner, target, ease)
 *handler:* `ScriptAction_TurnActorToFaceTarget`
@@ -3845,7 +3846,7 @@ Args:
 Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).
 
 Args:
-  0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster)
+  0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3873,7 +3874,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. target (same encoding (0 = player))
+  1. target (same encoding (0 = player)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3901,7 +3902,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2))
+  2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)) — verified in game
 
 ### `op 109` — TurnActorToFaceTarget(turner, target, ease)
 *handler:* `ScriptAction_TurnActorToFaceTarget`
@@ -3909,7 +3910,7 @@ Args:
 Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).
 
 Args:
-  0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster)
+  0. turner (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 event actor / monster) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3937,7 +3938,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. target (same encoding (0 = player))
+  1. target (same encoding (0 = player)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3965,7 +3966,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2))
+  2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)) — verified in game
 
 ### `op 110` — FaceEventActor(actor, event_actor, ease)
 *handler:* `Script_VMOp_FaceEventActor`
@@ -4146,7 +4147,7 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 115` — MoveActorToPosLockAi(actor, x, y, facing, speed, jump)
+### `op 115` — WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
 Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
@@ -4186,7 +4187,7 @@ Args:
   4. speed (100 = normal walk (x 167773/4096 internal scale))
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
-### `op 116` — MoveActorToPosLockAi(actor, x, y, facing, speed, jump)
+### `op 116` — WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
 Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
@@ -4226,13 +4227,13 @@ Args:
   4. speed (100 = normal walk (x 167773/4096 internal scale))
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
-### `op 117` — MoveActorToPosFaceTravel(actor, x, y, speed, jump)
+### `op 117` — WalkActorTo(actor, x, y, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
 Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
 
 Args:
-  0. actor
+  0. actor — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -4260,18 +4261,18 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x (script units, 8 per tile)
-  2. y (script units, 8 per tile)
-  3. speed (corpus 30-400, 100 typical)
+  1. x (script units, 8 per tile) — verified in game
+  2. y (script units, 8 per tile) — verified in game
+  3. speed (corpus 30-400, 100 typical) — verified in game
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
-### `op 118` — MoveActorToPosFaceTravel(actor, x, y, speed, jump)
+### `op 118` — WalkActorTo(actor, x, y, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
 Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
 
 Args:
-  0. actor
+  0. actor — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -4299,12 +4300,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x (script units, 8 per tile)
-  2. y (script units, 8 per tile)
-  3. speed (corpus 30-400, 100 typical)
+  1. x (script units, 8 per tile) — verified in game
+  2. y (script units, 8 per tile) — verified in game
+  3. speed (corpus 30-400, 100 typical) — verified in game
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
-### `op 119` — MoveNpcToPosKeepFacing(npc, x, y, speed, jump)
+### `op 119` — StepNpcTo(npc, x, y, speed, jump)
 *handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
 Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
@@ -4343,7 +4344,7 @@ Args:
   3. speed (100 = normal walk)
   4. jump (non-zero = run/jump: speed x1.2 and jump bit)
 
-### `op 120` — MoveNpcToPosKeepFacing(npc, x, y, speed, jump)
+### `op 120` — StepNpcTo(npc, x, y, speed, jump)
 *handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
 Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
@@ -4700,7 +4701,7 @@ Args:
 Wait until an actor has finished its scripted move and any pending turn. Put it after Move*/Turn* ops. For actor 0 it waits on the player (same as WaitPlayerMoveDone (op 145)).
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -4736,7 +4737,7 @@ Args:
 Wait until an actor has finished its scripted move and any pending turn. Put it after Move*/Turn* ops. For actor 0 it waits on the player (same as WaitPlayerMoveDone (op 145)).
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table))
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table)) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -5018,7 +5019,7 @@ Args:
      - `26` = Mistress Trupin
   1. opacity (0 = hide (sets hidden bit, alpha untouched); 1..100 = show at that opacity)
 
-### `op 142` — MovePlayerToPos(x, y, facing, speed, run)
+### `op 142` — WalkPlayerToAndFace(x, y, facing, speed, run)
 *handler:* `Script_VMOp_MoveActorToCoords`
 
 Walk or run the player to an absolute position, then turn to the given facing. Wait with WaitPlayerMoveDone (op 145).
@@ -5030,7 +5031,7 @@ Args:
   3. speed (internal = speed x 40.96 (x1.2 when running); corpus 50-300)
   4. run (0 = walk, non-zero = run animation and +20% speed)
 
-### `op 143` — MovePlayerToPosFaceTravel(x, y, speed, run)
+### `op 143` — WalkPlayerTo(x, y, speed, run)
 *handler:* `ScriptVM_Op_QueueMoveCommandToCoords`
 
 Walk or run the player to an absolute position, facing the direction of travel (no end facing). Wait with WaitPlayerMoveDone (op 145).
@@ -5041,7 +5042,7 @@ Args:
   2. speed (x40.96 internal, x1.2 when running)
   3. run (0 = walk, non-zero = run)
 
-### `op 144` — MovePlayerToPosKeepFacing(x, y, speed, run)
+### `op 144` — StepPlayerTo(x, y, speed, run)
 *handler:* `Script_VMOp_MoveActorStraight`
 
 Move the player in a straight line to an absolute position without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).
@@ -5129,7 +5130,7 @@ Args:
      - *(enum: 392 values — use the in-editor picker or the id database)*
   1. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
-### `op 160` — MoveEventActorToPos(key, x, y, speed, run)
+### `op 160` — WalkEventActorTo(key, x, y, speed, run)
 *handler:* `Script_VMOp_MoveEventActorToTile`
 
 Walk or run an event actor to an absolute position. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.
@@ -5141,10 +5142,10 @@ Args:
   3. speed (100 = the actor's base walk/run speed)
   4. run (0 = walk speed base (+368), 1 = run speed base (+372))
 
-### `op 161` — MoveEventActorToPosKeepFacing(key, x, y, speed, run)
+### `op 161` — StepEventActorTo(key, x, y, speed, run)
 *handler:* `Script_VMOp_MoveEventActorToTileKeepFacing`
 
-Like MoveEventActorToPos but the actor keeps its current facing while moving (side-step / back-pedal).
+Like WalkEventActorTo but the actor keeps its current facing while moving (side-step / back-pedal).
 
 Args:
   0. key
@@ -8051,7 +8052,7 @@ Args:
   1. x (script units, 8 per tile)
   2. y (script units, 8 per tile)
 
-### `op 496` — MoveCompanionToPos(slot, x, y, facing, speed, run)
+### `op 496` — WalkCompanionToAndFace(slot, x, y, facing, speed, run)
 *handler:* `Script_VMOp_CompanionMoveTowardsTileFineGrained`
 
 Walks a companion (or both) to a position and turns it to the given facing at the end. Does not wait; WaitCompanionSettled waits for it.
@@ -8067,7 +8068,7 @@ Args:
   4. speed (corpus 100-200)
   5. run (non-zero = run gait, speed x1.2)
 
-### `op 497` — MoveCompanionToPosFaceTravel(slot, x, y, speed, run)
+### `op 497` — WalkCompanionTo(slot, x, y, speed, run)
 *handler:* `Script_VMOp_CompanionMoveTowardsTileNoFacing`
 
 Walk or run a companion (or both) to a position, facing the way they walk. Wait with WaitCompanionSettled (op 502).
@@ -11522,11 +11523,12 @@ Args:
 
 ### `op 371` — EvalCondScriptA(em_entry)
 *handler:* `Script_VMOp_EvalCondScriptA`
+*verified:* yes, in game
 
 Evaluate condition A of an Event Manager (em.bin) entry and put the result (1/0) into reg0.
 
 Args:
-  0. em_entry (e.g. 87, 79, 78, 73 (EV_DATE_APPO, boss rematch checks ...))
+  0. em_entry (e.g. 87, 79, 78, 73 (EV_DATE_APPO, boss rematch checks ...)) — verified in game
 
 ### `op 372` — EvalCondScriptB(em entry)
 *handler:* `Script_VMOp_EvalCondScriptB`
@@ -12553,23 +12555,23 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 104 | `TurnActorToAngle` | 105 | `GetEventActorIndexStub` | 106 | `RotateActorInPlace` |
 | 107 | `TurnActorToFaceTarget` | 108 | `TurnActorToFaceTarget` | 109 | `TurnActorToFaceTarget` |
 | 110 | `FaceEventActor` | 111 | `SetActorAuxYaw` | 112 | `SetActorAuxYaw` |
-| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `MoveActorToPosLockAi` |
-| 116 | `MoveActorToPosLockAi` | 117 | `MoveActorToPosFaceTravel` | 118 | `MoveActorToPosFaceTravel` |
-| 119 | `MoveNpcToPosKeepFacing` | 120 | `MoveNpcToPosKeepFacing` | 121 | `MoveNpcToPosKeepAnim` |
+| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `WalkActorToAndFaceLockAi` |
+| 116 | `WalkActorToAndFaceLockAi` | 117 | `WalkActorTo` | 118 | `WalkActorTo` |
+| 119 | `StepNpcTo` | 120 | `StepNpcTo` | 121 | `MoveNpcToPosKeepAnim` |
 | 122 | `MoveNpcToPosKeepAnim` | 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` |
 | 125 | `MoveActorByOffsetFaceTravel` | 126 | `MoveActorByOffsetFaceTravel` | 127 | `MoveActorByOffsetKeepFacing` |
 | 128 | `MoveActorByOffsetKeepFacing` | 129 | `WaitActorMoveDone` | 130 | `WaitActorMoveDone` |
 | 131 | `WaitActorNearMoveTarget` | 132 | `WaitActorNearMoveTarget` | 133 | `PlayActorAnim` |
 | 134 | `PlayActorAnim` | 135 | `GetActorPosition` | 136 | `GetActorPosition` |
 | 137 | `WaitActorAnimDone` | 138 | `WaitActorAnimDone` | 139 | `ApplyEffectToActor` |
-| 140 | `ApplyEffectToActor` | 141 | `SetActorOpacity` | 142 | `MovePlayerToPos` |
-| 143 | `MovePlayerToPosFaceTravel` | 144 | `MovePlayerToPosKeepFacing` | 145 | `WaitPlayerMoveDone` |
+| 140 | `ApplyEffectToActor` | 141 | `SetActorOpacity` | 142 | `WalkPlayerToAndFace` |
+| 143 | `WalkPlayerTo` | 144 | `StepPlayerTo` | 145 | `WaitPlayerMoveDone` |
 | 146 | `EquipItemToPlayer` | 147 | `RestorePlayerEquip` | 148 | `HasPlayerAccessoryEffect40000` |
 | 149 | `PlayPlayerAnim` | 150 | `TriggerActionAtPos` | 151 | `TriggerActionOnActor` |
 | 152 | `WaitPlayerAnimDone` | 153 | `SpawnEventActor` | 154 | `SpawnEventActorVariant` |
 | 155 | `SpawnEventActorEx` | 156 | `UnregisterEventActor` | 157 | `SpawnMapEntity` |
-| 158 | `SetMapAmbientColor` | 159 | `ResetMapAmbientColor` | 160 | `MoveEventActorToPos` |
-| 161 | `MoveEventActorToPosKeepFacing` | 162 | `TurnEventActorToAngle` | 163 | `TurnEventActorToFaceTarget` |
+| 158 | `SetMapAmbientColor` | 159 | `ResetMapAmbientColor` | 160 | `WalkEventActorTo` |
+| 161 | `StepEventActorTo` | 162 | `TurnEventActorToAngle` | 163 | `TurnEventActorToFaceTarget` |
 | 164 | `WaitEventActorMoveDone` | 165 | `TriggerActionAtEventActor` | 166 | `ApplyEffectToEventActor` |
 | 167 | `PlayEventActorAnim` | 168 | `SkipEventActorAnimToEnd` | 169 | `WaitEventActorAnimDone` |
 | 170 | `SetEventActorAnimSpeed` | 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` |
@@ -12679,7 +12681,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 486 | `DismissCompanionByCharId` | 487 | `IsCurrentNpcInParty` | 488 | `SetCompanionScriptedPresence` |
 | 489 | `SetCompanionsSceneHeld` | 490 | `IsDatePartnerAtDateSpot` | 492 | `SetNpcFacingMode` |
 | 493 | `GetNpcFacingMode` | 494 | `SetCompanionVisible` | 495 | `WarpCompanion` |
-| 496 | `MoveCompanionToPos` | 497 | `MoveCompanionToPosFaceTravel` | 498 | `MoveCompanionByOffset` |
+| 496 | `WalkCompanionToAndFace` | 497 | `WalkCompanionTo` | 498 | `MoveCompanionByOffset` |
 | 499 | `MoveCompanionByOffsetFaceTravel` | 500 | `TurnCompanionToAngle` | 501 | `TurnCompanionToFaceTarget` |
 | 502 | `WaitCompanionSettled` | 503 | `ShowCompanionEmote` | 504 | `GetPartyMemberPosY` |
 | 506 | `WarpMonstersToPlayer` | 507 | `PopulateSlayRequest` | 508 | `PopulateQuestKind2RandomRewards` |
