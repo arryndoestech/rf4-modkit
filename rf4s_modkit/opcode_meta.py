@@ -838,7 +838,7 @@ _M.update({
 
 
 # ---- calendar-event-actor family decoded 2026-07-11 (ops 153-182) ------------------
-# "Event actors" are the festival / parade / cutscene NPCs registered in g_calendarEventMng
+# "Event actors" are the festival / parade / cutscene NPCs registered in g_eventActorMng
 # (a 32-slot registry, 40-byte stride). EventSpawnNpc (op 153) adds one keyed by its char id; the
 # later ops address a spawned actor by that same char id ("event key" = arg0). Positions are
 # tiles (Q12); facings are degrees (×181 -> u16). This is how a scene choreographs its own
@@ -2282,8 +2282,8 @@ _M.update({
         "Rotate one actor to look at another — the workhorse for 'actors face each other before dialogue'. arg0 = turner (0 = player, 1..47 = villager, >=48 = monster). arg1 = look-at target (same encoding). arg2 = mode: 0 = snap instantly, non-zero = ease/lerp toward it.",
         ['turner (char id, 0=player)', 'look-at target (char id)', 'mode (0=snap, else ease)']),
     110: ('FaceEventActor', 'actor',
-        'Turn an actor (0 = player, 1..47 NPC; >= 48 = no-op) to face an EVENT ACTOR looked up by id in g_calendarEventMng (the monster / event-bound actor ids such as 100, 200, 300). arg2 is the same turn ease shift as op 107 (0 = snap, 2 = quarter per frame), not an animation.',
-        ['actor (char id, 0=player)', 'event-actor id (g_calendarEventMng record id)', 'ease shift (0 = snap)']),
+        'Turn an actor (0 = player, 1..47 NPC; >= 48 = no-op) to face an EVENT ACTOR looked up by id in g_eventActorMng (the monster / event-bound actor ids such as 100, 200, 300). arg2 is the same turn ease shift as op 107 (0 = snap, 2 = quarter per frame), not an animation.',
+        ['actor (char id, 0=player)', 'event-actor id (g_eventActorMng record id)', 'ease shift (0 = snap)']),
     111: ('SetActorAuxYaw', 'actor',
         "Set the TARGET of an actor's secondary yaw pair (actor+0xD8; current value at +0xD6), not its body facing: arg1 degrees x181. Actor_IntegrateMotionAndFacing eases +0xD6 toward it with the actor's ease shift (+160), so it is not an instant snap. arg0 = actor (0 = player, 1..47 NPC; >= 48 = no-op); needs 2 args.",
         ['actor (char id, 0=player)', 'secondary yaw target (degrees)']),
@@ -2404,8 +2404,8 @@ _M.update({
     174: ('AddActorHeightOffset', 'actor',
         "Add arg1 << 12 to the actor's height offset (actor+0x50, a position component integrated alongside x/y in Actor_IntegrateMotionAndFacing; NEGATIVE = up). Unless render_state_flags bit 0x4 is set the result is clamped to <= 0, so the actor cannot be pushed below its ground height. Target: 0 = player, 1..47 NPC, > 48 = event key (48 itself fails).",
         ['actor (0=player, 1-47 NPC, >48 event key)', 'height delta (negative = up)']),
-    175: ('SetEventActorCollideRadius', 'actor',
-        "Set a spawned event actor's collision radius: u16 at actor+0xAC (Actor_t.collide_radius) = arg1.",
+    175: ('SetEventActorHeight', 'actor',
+        "Set a spawned event actor's height (overhead widgets, effects, damage numbers): u16 at actor+0xAC (Actor_t.head_height) = arg1.",
         ['event key', 'collision radius']),
     176: ('SetEventActorScale', 'actor',
         "Set a spawned event actor's uniform model scale: scale_x/y/z (actor+0x88/+0x8C/+0x90) = arg1 * 167773 >> 12, i.e. percent -> Q12 (100 = 4096 = 1.0, 50 = half size).",
@@ -2854,7 +2854,7 @@ _M.update({
     471: ('GetChildFriendPoints', 'query',
         'Return the raw friendship word (+4) of the record for char id 24-47 in reg0 (0 if out of range). The value is level*4 + a 2-bit progress count: Npc_GetFriendshipLevel returns word>>2 (cap 10000) and Npc_GetFriendshipLevelBase returns word&3 for these ids.',
         ['npc (char id 24-47)']),
-    472: ('SetGuestNpcSubVariant', 'actor',
+    472: ('SetGuestNpcTitle', 'actor',
         "Write byte +2 of the per-NPC record for char id 24-47 (ignored if value >= 65). That byte is the guest's second dialogue/portrait variant: Town_BuildDailyGuestNpcRoster rolls it in [0,65) each day and Dialogue_ProcessLineDirective passes it to Dialogue_LoadEventLineWithPortrait.",
         ['npc (char id 24-47)', 'variant (0-64)']),
     474: ('SetGuestRosterGate', 'actor',
@@ -3050,10 +3050,10 @@ _M.update({
         'Set (arg0 != 0) or clear bit 0x800000 of record +52 for each listed NPC (char id < 48). If the list is empty or contains a 0, the bit is applied to all villagers 1-23 instead. FinishCurrentSubEvent (op 549) clears the same bit for everyone, so it is a sub-event participation marker; no reader was located, so what the bit gates is unproven (hence the neutral name).',
         ['set (0 = clear, else set)', 'npc char id … (0 or none = all villagers 1-23)']),
     555: ('SetNpcAttentionRadius', 'dialogue',
-        "Set the NPC's attention radius (record +26, stored as a byte zero-extended into the word) and run Npc_BroadcastBubbleProximityHandshake. For every villager with a non-zero +26, that routine flags each other villager on the same map with record +48 bit 0x20 when it is within +26 tile units (octagonal distance) and is not itself radiating, muted (+20 bit 0x40) or busy (+228 bit 0x1). 0 turns it off. It is a distance, not a bubble variant.",
+        "Set the NPC's attention radius (record +26, stored as a byte zero-extended into the word) and run Npc_BroadcastBubbleProximityHandshake. For every villager with a non-zero +26, that routine flags each other villager on the same map with record +48 bit 0x20 when it is within +26 script units (8 per tile; octagonal distance) and is not itself radiating, muted (+20 bit 0x40) or busy (+228 bit 0x1). 0 turns it off. It is a distance, not a bubble variant.",
         ['npc (char id)', 'radius (tile units, 0-255; 0 = off)']),
     556: ('SetNpcAttentionRadius', 'dialogue',
-        "Set the NPC's attention radius (record +26, stored as a byte zero-extended into the word) and run Npc_BroadcastBubbleProximityHandshake. For every villager with a non-zero +26, that routine flags each other villager on the same map with record +48 bit 0x20 when it is within +26 tile units (octagonal distance) and is not itself radiating, muted (+20 bit 0x40) or busy (+228 bit 0x1). 0 turns it off. It is a distance, not a bubble variant.",
+        "Set the NPC's attention radius (record +26, stored as a byte zero-extended into the word) and run Npc_BroadcastBubbleProximityHandshake. For every villager with a non-zero +26, that routine flags each other villager on the same map with record +48 bit 0x20 when it is within +26 script units (8 per tile; octagonal distance) and is not itself radiating, muted (+20 bit 0x40) or busy (+228 bit 0x1). 0 turns it off. It is a distance, not a bubble variant.",
         ['npc (char id)', 'radius (tile units, 0-255; 0 = off)']),
     558: ('SetNpcRecognitionFlags', 'flag',
         "Write a per-NPC packed game-flag (base id 1451 + npc id) = [arg0] for each npc id in the variadic list (an npc id of 0 falls back to the married partner). These are the 23 per-NPC recognition flags (1451-1473); like op290/op698 they go through GameFlags_WritePacked_OrAchievement -- a graded packed-flag write, NOT one of the ~30 named Steam achievements.",
@@ -4719,7 +4719,7 @@ _AUDIT_2026_09_01 = {
         "Dialogue box style 3: trembling -- a wavy box that shakes sideways. Ops 94-97 = styles 0-3 (op - 94); op 93 takes the style as an argument. " + 'It sets the MESSAGE-BOX STYLE, not a face (verified 2026-09-25: Dialogue_SetSpeakerEmoteAndRetargetPortrait RF4S.exe+0x234E20 stores it at dialogue task +160; Dialogue_RetargetPortraitAndBubble +0x2380B0 then shows window art talk_win<n> (archive 15851+n) and tail talk_hige<n> (15846+n); Dialogue_SetTimingState +0x238350 adds the effect). 0 = normal box, 1 = shout (jagged box; everything shakes for 10 frames and the screen flashes), 2 = thought (cloud box with a bubble-trail tail; the box floats for ~1 s -- it does not delay the line), 3 = trembling (wavy box; a 10-frame sideways shake), 4 = tail only (no box). 5-7 would read unrelated textures. Lasts until changed or the dialogue box closes. The tail points at the side of the last speaker cue (an even SetSpeaker op = left, odd = right) and only shows while a portrait is up on that side for a named character: narration and SetSpeakerVoice name plates get no tail (DialogueBox_TickStateMachine +0x235BF0).',
         []),
     105: ('QueryCalendarEventStub', 'query',
-        'Always writes 0 to the VM output — the intended calendar-event lookup is stubbed on the PC port (for arg >= 0x30 the search over g_calendarEventMng runs but its result is discarded). arg0 = event id (consumed by the arg decoder). Treat as returning 0.',
+        'Always writes 0 to the VM output — the intended calendar-event lookup is stubbed on the PC port (for arg >= 0x30 the search over g_eventActorMng runs but its result is discarded). arg0 = event id (consumed by the arg decoder). Treat as returning 0.',
         ['event id (consumed; result discarded)']),
     115: ('MoveActorToTile_LockAI', 'actor',
         "Walk an actor to an ABSOLUTE tile position, then LOCK its AI (npc+568 |= 0x10) so nothing interrupts the staged pose — used when actors slide into cutscene positions and must hold. Args 1/2 are absolute tiles, not offsets: the move command stores x<<12 / y<<12 RAW with no world-position anchor added, on both the NPC and player/scene paths (ops 115-118 are the absolute family; 123-128 are the relative one). args: actor (0 = player), x, y (tiles), facing degrees (x181 -> u16 rotation), speed, jump flag (non-zero = jump/run, 1.2x speed multiplier).",

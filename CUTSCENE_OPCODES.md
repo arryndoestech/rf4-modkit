@@ -2834,9 +2834,9 @@ Args:
   0. enabled (0 = turn the highlight markup of substituted text OFF (sets global bit 4); non-zero = back on)
 
 ### `op 555` — SetNpcAttentionRadius(npc, radius)
-*handler:* `Script_VMOp_SetNpcDialogueBubbleFlavorById`
+*handler:* `Script_VMOp_SetNpcAttentionRadius`
 
-Set how far away an NPC 'radiates' for chatter: villagers within this many tiles of it on the same map get flagged as its audience. 0 turns it off.
+Set how far away an NPC 'radiates' for chatter: villagers within this many script position units (8 per tile) of it on the same map get flagged as its audience. 0 turns it off.
 
 Args:
   0. npc (1..47)
@@ -2867,12 +2867,12 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. radius (0 = off; stored as a byte, so 1000 becomes 232)
+  1. radius (0 = off; 8 per tile (60 = 7.5 tiles); stored as a byte, so 1000 becomes 232)
 
 ### `op 556` — SetNpcAttentionRadius(npc, radius)
-*handler:* `Script_VMOp_SetNpcDialogueBubbleFlavorById`
+*handler:* `Script_VMOp_SetNpcAttentionRadius`
 
-Set how far away an NPC 'radiates' for chatter: villagers within this many tiles of it on the same map get flagged as its audience. 0 turns it off.
+Set how far away an NPC 'radiates' for chatter: villagers within this many script position units (8 per tile) of it on the same map get flagged as its audience. 0 turns it off.
 
 Args:
   0. npc (1..47)
@@ -2903,7 +2903,7 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. radius (0 = off; stored as a byte, so 1000 becomes 232)
+  1. radius (0 = off; 8 per tile (60 = 7.5 tiles); stored as a byte, so 1000 becomes 232)
 
 ### `op 610` — SetChoiceVisibleMask(choice visible...)
 *handler:* `Script_VMOp_SetSceneChoiceVisibleMaskFromArgs`
@@ -5278,14 +5278,14 @@ Args:
   0. actor (0 = player, 1-47 NPC, > 48 event key (48 finds nothing and blocks))
   1. delta (negative = up (-64 lifts one tile-ish), positive = down)
 
-### `op 175` — SetEventActorCollideRadius(event key, radius)
-*handler:* `Script_VMOp_SetEventActorCollideRadius`
+### `op 175` — SetEventActorHeight(event key, height)
+*handler:* `Script_VMOp_SetEventActorHeight`
 
-Set a spawned event actor's collision radius.
+Set a spawned event actor's height: where its overhead widgets, effects and damage numbers are placed.
 
 Args:
   0. event key
-  1. radius (collision radius (corpus 36))
+  1. height (height above the actor (corpus 36))
 
 ### `op 176` — SetEventActorScale(event_key, scale)
 *handler:* `Script_VMOp_SetEventActorScale`
@@ -7411,14 +7411,14 @@ Args:
 
 Sets the player's six weapon skills (skill slots 0-5) to level 30, then refreshes the skill-rank bits. Higher levels are lowered to 30. Used by debug/test scripts.
 
-### `op 472` — SetGuestNpcSubVariant(npc, variant)
-*handler:* `Script_VMOp_SetGuestNpcSubVariant`
+### `op 472` — SetGuestNpcTitle(npc, title)
+*handler:* `Script_VMOp_SetGuestNpcTitle`
 
-Set a guest character's second dialogue/portrait variant byte (normally rolled 0-64 each day).
+Set a traveller's title: byte +2 of the guest record, the index of the first word of their speaker label ('<title> <name>', from rf3TxtTravelerTitleM / W). Normally rolled 0-64 each day.
 
 Args:
   0. npc (24-47)
-  1. variant (0-64 (>= 65 ignored))
+  1. title (0-64 (>= 65 ignored))
 
 ### `op 474` — SetGuestRosterGate(gate, rebuild)
 *handler:* `Script_VMOp_SetCurrentEventLeadNpcAndClearFlag2`
@@ -9113,7 +9113,7 @@ Args:
 Put into reg0 a random item among those that share a display name (e.g. the colour/level variants of one item), choosing only unlocked ones.
 
 Args:
-  0. name id (items whose metadata display_name_string_id equals this (corpus 1083-1099))
+  0. name id (items whose metadata base_item_id (+0) equals this (corpus 1083-1099))
 
 ### `op 599` — RollRandomDishItem()
 *handler:* `Script_VMOp_LootRollGenericFromTable`
@@ -10162,7 +10162,7 @@ Args:
 ### `op 697` — ReturnToTitle()
 *handler:* `Script_VMOp_BeginReturnToTitleViaAppRelaunch`
 
-Leave the game and go back to the title screen (used after endings and in the dev menu, after a fade to black).
+Leave the game and go back to the title screen (used after endings and in the dev menu, after a fade: FadeScreen(16, 1500), which fades to white).
 
 ## Queries
 
@@ -12573,7 +12573,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 164 | `WaitEventActorMoveDone` | 165 | `TriggerActionAtEventActor` | 166 | `ApplyEffectToEventActor` |
 | 167 | `PlayEventActorAnim` | 168 | `SkipEventActorAnimToEnd` | 169 | `WaitEventActorAnimDone` |
 | 170 | `SetEventActorAnimSpeed` | 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` |
-| 173 | `SetEventActorInScriptFlag` | 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` |
+| 173 | `SetEventActorInScriptFlag` | 174 | `AddActorHeightOffset` | 175 | `SetEventActorHeight` |
 | 176 | `SetEventActorScale` | 177 | `EnableEventActorWandering` | 178 | `SetEventActorAuxYaw` |
 | 179 | `WaitEventActorAuxYaw` | 180 | `KillEventActor` | 181 | `TurnEventActorIntoNpc` |
 | 182 | `GetEventActorPosition` | 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` |
@@ -12671,7 +12671,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 462 | `GiveRewardItems` | 463 | `DropItem` | 464 | `DropItemStack` |
 | 465 | `SetCalendarPauseFlag` | 466 | `SkipToTime` | 467 | `SetTime` |
 | 468 | `FastForwardCalendar` | 469 | `SetOrAddCalendarDate` | 470 | `GetGuestNpcVariant` |
-| 471 | `GetChildFriendPoints` | 472 | `SetGuestNpcSubVariant` | 473 | `RollChildDailyPref` |
+| 471 | `GetChildFriendPoints` | 472 | `SetGuestNpcTitle` | 473 | `RollChildDailyPref` |
 | 474 | `SetGuestRosterGate` | 475 | `SetNpcStateByte` | 476 | `RecruitNpcToParty` |
 | 477 | `RecruitNpcToParty` | 478 | `RecruitNpcToPartyHeld` | 479 | `RecruitNpcToPartyHeld` |
 | 480 | `RecruitHostNpcToParty` | 481 | `GetPartyMemberId` | 482 | `GetPartyMemberId` |
