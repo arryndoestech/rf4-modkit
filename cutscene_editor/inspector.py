@@ -438,8 +438,10 @@ class Inspector(ScrollFrame):
         exprs = txt.expr_texts(st)
         self.primary = None
         if exprs:
-            box = section(f, "Value" if st.mnem == "EVAL" else "Condition")
-            for x in exprs:
+            box = section(f, {"EVAL": "Value", "SWITCH": "Picks by the value of",
+                              "SWITCH_CLAMP": "Picks by the value of",
+                              "JMP_WEIGHTED": "Weights"}.get(st.mnem, "Condition"))
+            for x in (exprs if st.mnem != "JMP_WEIGHTED" else ()):    # weights: in the table below
                 ttk.Label(box, text=x, font=("Consolas", 9), wraplength=320, justify="left").pack(anchor="w")
             lits = []
             for e in st.expr_refs or ():
@@ -448,7 +450,8 @@ class Inspector(ScrollFrame):
             for k, (off, val, _w) in enumerate(lits):
                 r = ttk.Frame(box)
                 r.pack(fill="x", pady=(3, 0))
-                ttk.Label(r, text="number %d" % (k + 1), width=10).pack(side="left")
+                ttk.Label(r, text=("weight %d" if st.mnem == "JMP_WEIGHTED" else "number %d") % (k + 1),
+                          width=10).pack(side="left")
                 var = tk.StringVar(value=str(val))
                 e = commit_entry(r, var, lambda k=k, var=var, val=val: (to_int(var.get()) is not None
                                                                      and to_int(var.get()) != val
@@ -458,14 +461,136 @@ class Inspector(ScrollFrame):
                 Tip(e, "Change this number in the expression (Enter applies).")
                 if self.primary is None:
                     self.primary = e
-            hint(box, "Numbers in the expression can be changed here. To change the condition "
-                      "itself, edit the scene in the Source tab.", wrap=320).pack(anchor="w", pady=(4, 0))
+            if st.mnem == "JMP_WEIGHTED":
+                note = ("Change a weight here (Enter applies). A weight that reads game state is "
+                        "changed in the Source tab.")
+            elif st.mnem in ("SWITCH", "SWITCH_CLAMP"):
+                note = ("Numbers in the value can be changed here. To change what it reads, edit "
+                        "the scene in the Source tab.") if lits else ""   # e.g. reg0: nothing to edit
+            else:
+                note = ("Numbers in the expression can be changed here. To change the condition "
+                        "itself, edit the scene in the Source tab.")
+            if note:
+                hint(box, note, wrap=320).pack(anchor="w", pady=(4, 0))
+        if st.mnem in ("SWITCH", "SWITCH_CLAMP", "JMP_RAND", "JMP_WEIGHTED"):
+            self._jump_table(st, txt)
+            return
         tg = [t for t in st.code_targets if t is not None]
         if tg:
             box = section(f, "Goes to")
             for t in tg:
                 ttk.Button(box, text="%s  (0x%04x)" % (txt.target(t), t),
                            command=lambda t=t: app.goto(t)).pack(anchor="w", pady=1)
+
+    # ---- jump tables: SWITCH, SWITCH_CLAMP, JMP_RAND, JMP_WEIGHTED ------------------------ #
+    def _target_text(self, txt, t, width=44):
+        """'L3 · FadeScreen(-16, 6000)': the target's label and the statement it starts with."""
+        if t is None:
+            return "?"
+        first = self._first_words(txt, script.decode_statement(self.app.bank.data, t))
+        s = "%s · %s" % (txt.target(t), first) if first else txt.target(t)
+        return s if len(s) <= width else s[:width - 1] + "…"
+
+    @staticmethod
+    def _first_words(txt, st):
+        """A statement in a few plain words (flow in words, actions as the Script tab names
+        them): the preview on a jump-table button."""
+        if st is None:
+            return ""
+        m, x = st.mnem, txt.expr_texts(st)
+        x0 = x[0] if x else "?"
+        tgt = txt.target(st.code_targets[0]) if st.code_targets else "?"
+        try:
+            words = {"BR_Z": lambda: "if not %s → %s" % (x0, tgt),
+                     "BR_NZ": lambda: "if %s → %s" % (x0, tgt),
+                     "EVAL": lambda: x0.strip("()"),
+                     "CALL": lambda: "call %s" % tgt,
+                     "JMP": lambda: "jump to %s" % tgt,
+                     "RET": lambda: "return",
+                     "RET_NZ": lambda: "return if %s" % x0,
+                     "FRAME": lambda: "scene setup",
+                     "DIALOG": lambda: "“%s”" % " ".join(
+                         (txt.dlg(st.dialog_id) or "#%s" % st.dialog_id).split()),
+                     "SWITCH": lambda: "switch on %s" % x0, "SWITCH_CLAMP": lambda: "switch on %s" % x0,
+                     "JMP_RAND": lambda: "random jump", "JMP_WEIGHTED": lambda: "weighted random jump",
+                     "PROMPT_CHOICE": lambda: "choice menu", "PROMPT_CHOICE_FORCED": lambda: "choice menu"}.get(m)
+            return words() if words else txt.code_line(st)[7:].strip()
+        except Exception:  # noqa: BLE001 -- a preview only
+            return ""
+
+    def _choice_before(self, st, txt):
+        """{reg0 value: option text} when a SWITCH on reg0 follows a choice menu that writes
+        reg0 (a visibility mask before it); {} otherwise."""
+        if txt.expr_texts(st)[:1] != ["reg0"] or self.app.scene is None:
+            return {}
+        before = [s for s in sorted(self.app.scene.stmts.values(), key=lambda s: s.pc)
+                  if s.pc < st.pc and s.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED")]
+        if not before or txt.choice_results(before[-1]) is None:
+            return {}
+        out = {}
+        for k, item, _t in txt.choice_options(before[-1]):
+            line = self.app.doc.text(item)
+            if line is not None:
+                line = line.replace("\n", " ")
+                out[k] = "“%s”" % (line if len(line) <= 28 else line[:27] + "…")
+        return out
+
+    def _jump_table(self, st, txt):
+        """'Goes to' as a table: which value (or chance) leads to which target, each target
+        a button with its first statement; values sharing a target on one row."""
+        app, m = self.app, st.mnem
+        tg = list(st.code_targets)
+        n = len(tg)
+        rows = []                                   # (left text, note, target)
+        if m in ("SWITCH", "SWITCH_CLAMP"):
+            title = "Goes to — by value"
+            opts = self._choice_before(st, txt)
+            order, vals = [], {}
+            for k, t in enumerate(tg):              # values sharing a target: one row
+                if t not in vals:
+                    order.append(t)
+                vals.setdefault(t, []).append(k)
+            for t in order:
+                ks = vals[t]
+                last = m == "SWITCH_CLAMP" and ks[-1] == n - 1
+                left = "= " + ", ".join(str(k) for k in ks) + (" or more" if last else "")
+                note = ", ".join(opts[k] for k in ks if k in opts)
+                if last:
+                    note = (note + "  " if note else "") + "(negative values too)"
+                rows.append((left, note, t))
+            if m == "SWITCH":
+                rows.append(("other values", "anything else, negative too: carries on below",
+                             st.pc + st.size))
+        elif m == "JMP_RAND":
+            title = "Goes to — at random"
+            rows = [("1 in %d" % n, "", t) for t in tg]
+        else:                                       # JMP_WEIGHTED
+            title = "Goes to — at random, by weight"
+            buf = app.bank.data
+            ws = []
+            for e in st.expr_refs or ():
+                v, ok = script.eval_expr(buf, e) if e is not None else (None, False)
+                ws.append((script.disasm_expr(buf, e)[0] if e is not None else "?", v if ok else None))
+            total = sum(v for _x, v in ws if v is not None) if all(v is not None for _x, v in ws) else None
+            for k, t in enumerate(tg):
+                x, v = ws[k] if k < len(ws) else ("?", None)
+                pct = ("  %d%%" % round(100 * v / total)) if total and v is not None else ""
+                rows.append(("weight %s" % x, pct.strip(), t))
+            if total is None:
+                rows.append(("", "a weight reads game state: the chances change in play", None))
+        box = section(self.form, title)
+        box.columnconfigure(2, weight=1)
+        for r, (left, note, t) in enumerate(rows):
+            if left:
+                ttk.Label(box, text=left, font=("Consolas", 9)).grid(row=2 * r, column=0, sticky="w", padx=(0, 6))
+            if t is not None:
+                b = ttk.Button(box, text="→ " + self._target_text(txt, t),
+                               command=lambda t=t: app.goto(t))
+                b.grid(row=2 * r, column=1, columnspan=2, sticky="w", pady=1)
+                Tip(b, "Go to 0x%04x" % t)
+            if note:
+                ttk.Label(box, text=note, foreground="#777", wraplength=300, justify="left").grid(
+                    row=2 * r + 1, column=1, columnspan=2, sticky="w", pady=(0, 3))
 
     # ---- choice ------------------------------------------------------------------------- #
     def _choice_form(self, st, txt, option):
