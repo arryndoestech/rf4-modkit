@@ -37952,140 +37952,159 @@
      "values": "slot index n used by the text token ＠字n＠ (larger ignored)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "SetButtonIconSlot(0..5, 160..165) + DIALOG with ＠字0..5＠ (Dragon Room entry)",
+       "observed": "slots 0-5 each drew their icon in the box; 160=Z, 161=X, 162=E, 163=Q, 164=R, 165=L Shift (keyboard bindings, shown as key caps)"
+      }
+     ]
     },
     {
      "name": "icon",
      "type": "glyph id",
-     "values": "glyph U+E000 + icon; 160-182 and 193 are button icons (names from the game's glyph table), 183-191 draw nothing; 192 CRASHES the game (reads past the 32-entry glyph table, seen in game 2026-10-03); 23 is a symbol the font draws itself (shipped after 'Thank you!')",
+     "values": "glyph U+E000 + icon; 160-182 and 193 are button icons (names from the game's glyph table), 183-191 draw nothing; 192 CRASHES the game (reads past the 32-entry glyph table, seen in game 2026-10-03); 23 draws nothing (seen in game 2026-10-06)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false,
+     "human_verified": true,
      "value_names": {
       "160": {
        "name": "a",
-       "text": "the a button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the a button (Z on this keyboard setup)",
+       "human_verified": true
       },
       "161": {
        "name": "b",
-       "text": "the b button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the b button (X on this keyboard setup)",
+       "human_verified": true
       },
       "162": {
        "name": "x",
-       "text": "the x button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the x button (E on this keyboard setup)",
+       "human_verified": true
       },
       "163": {
        "name": "y",
-       "text": "the y button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the y button (Q on this keyboard setup)",
+       "human_verified": true
       },
       "164": {
        "name": "l1",
-       "text": "the l1 button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the l1 button (R on this keyboard setup)",
+       "human_verified": true
       },
       "165": {
        "name": "r1",
-       "text": "the r1 button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the r1 button (L Shift on this keyboard setup)",
+       "human_verified": true
       },
       "166": {
        "name": "l2",
-       "text": "the l2 button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the l2 button (Space on this keyboard setup)",
+       "human_verified": true
       },
       "167": {
        "name": "r2",
-       "text": "the r2 button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the r2 button (the 6/^ key on this keyboard setup)",
+       "human_verified": true
       },
       "168": {
        "name": "l1_2",
-       "text": "the l1 button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "the l1 button again (R on this keyboard setup)",
+       "human_verified": true
       },
       "169": {
        "name": "r1_2",
-       "text": "the r1 button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "the r1 button again (L Shift on this keyboard setup)",
+       "human_verified": true
       },
       "170": {
        "name": "stick",
-       "text": "the left stick (keyboard: the movement keys)",
-       "human_verified": false
+       "text": "the movement stick (the WASD block on keyboard)",
+       "human_verified": true
       },
       "171": {
        "name": "right",
-       "text": "the right button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "right (D on this keyboard setup)",
+       "human_verified": true
       },
       "172": {
        "name": "down",
-       "text": "the down button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "down (S on this keyboard setup)",
+       "human_verified": true
       },
       "173": {
        "name": "up",
-       "text": "the up button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "up (W on this keyboard setup)",
+       "human_verified": true
       },
       "174": {
        "name": "left",
-       "text": "the left button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "left (A on this keyboard setup)",
+       "human_verified": true
       },
       "175": {
        "name": "up_2",
-       "text": "the up button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "up again (W on this keyboard setup)",
+       "human_verified": true
       },
       "176": {
        "name": "down_2",
-       "text": "the down button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "down again (S on this keyboard setup)",
+       "human_verified": true
       },
       "177": {
        "name": "left_2",
-       "text": "the left button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "left again (A on this keyboard setup)",
+       "human_verified": true
       },
       "178": {
        "name": "right_2",
-       "text": "the right button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "right again (D on this keyboard setup)",
+       "human_verified": true
       },
       "179": {
        "name": "start",
-       "text": "the start button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the start button (Tab on this keyboard setup)",
+       "human_verified": true
       },
       "180": {
        "name": "select",
-       "text": "the select button (shows the key or pad button the game binds to it)",
-       "human_verified": false
+       "text": "the select button (J on this keyboard setup)",
+       "human_verified": true
       },
       "181": {
        "name": "start_2",
-       "text": "the start button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "start again (Tab on this keyboard setup)",
+       "human_verified": true
       },
       "182": {
        "name": "select_2",
-       "text": "the select button again (a second table entry with the same button)",
-       "human_verified": false
+       "text": "select again (J on this keyboard setup)",
+       "human_verified": true
       },
       "193": {
        "name": "dpad",
-       "text": "the d-pad (keyboard: the arrow keys)",
-       "human_verified": false
+       "text": "the d-pad (the arrow-key block on keyboard)",
+       "human_verified": true
       }
      },
      "refuse_values": {
       "192": "the game crashes: icon 192 reads past the end of its 32-entry button-glyph table (seen in game 2026-10-03)"
-     }
+     },
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "SetButtonIconSlot(0..5, 160..165) + DIALOG with ＠字0..5＠ (Dragon Room entry)",
+       "observed": "slots 0-5 each drew their icon in the box; 160=Z, 161=X, 162=E, 163=Q, 164=R, 165=L Shift (keyboard bindings, shown as key caps)"
+      },
+      {
+       "date": "2026-10-06",
+       "call": "SetButtonIconSlot(0..5, 166..182, 193) + DIALOG with ＠字0..5＠, then (0..2, 23/183/191) (Dragon Room entry)",
+       "observed": "166=Space, 167=6/^ key, 168=R, 169=L Shift, 170=WASD key block, 171=D, 172=S, 173=W, 174=A, 175=W, 176=S, 177=A, 178=D, 179=Tab, 180=J, 181=Tab, 182=J, 193=arrow-key block; 23, 183 and 191 drew nothing"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -38094,7 +38113,7 @@
    "description": "Choose which button icon the ＠字＠ token in the next dialogue lines shows (e.g. 'press ＠字＠ repeatedly'). Slot 0 is the plain ＠字＠.",
    "details": "Globals_LookupChoiceCommitStateSlotByKindId(15)[slot] = icon (slot < 16, no clamp). Reader: Text_PostProcessControlCodes (+0x2325E0), token U+5B57 '字' with slot n: code = icon + 0xEE8080/0xEE82C0/0xEE8500/0xEE8740 (UTF-8 private-use glyph page by icon / 64); icon 23 -> 0xEE8097. There is no VM reader op. Button glyphs U+E0A0.. are drawn by the font layout (RF4S.exe+0x1B00F0): index = code - 0xE0A0 into a table built at RF4S.exe+0x1B02FB (a b x y l1 r1 l2 r2 l1 r1 '' right down up left up down left right start select start select, then empty), whose entry picks the bound key's picture for the current device; U+E0AA (170) and U+E0C1 (193) are special-cased to ControllerLeftStick.png / ControllerDPad.png, or Keyboard_Keys.png / Keyboard_Arrows.png on keyboard. Under one setting (RF4S.exe+0x1B0694) a and b trade places. The index is not bounds-checked: icon 192 (U+E0C0) reads entry 32, past the table, and the game crashes in MFDictionary__get (RF4S.exe+0x24F34F, called from the font layout at +0x1B06B6).",
    "side_effects": "script var bank 15",
-   "evidence": "RF4S.exe+0x209D50; RF4S.exe+0x2325E0 `v146 = Lookup(15)[n]; v148 = v146 + page; if (v146 == 23) v148 = 15630487`; corpus: 178 uses, slot 0 (143x), values 23/161/162/165, placed right before lines containing ＠字＠ (bank 3 'press ＠字＠ repeatedly').",
+   "evidence": "RF4S.exe+0x209D50; RF4S.exe+0x2325E0 `v146 = Lookup(15)[n]; v148 = v146 + page; if (v146 == 23) v148 = 15630487`; corpus: 178 uses, slot 0 (143x), values 23/161/162/165, placed right before lines containing ＠字＠ (bank 3 'press ＠字＠ repeatedly'). In-game test 2026-10-06 (user): SetButtonIconSlot(0..5, 160..165) + DIALOG with ＠字0..5＠ (Dragon Room entry) -> slots 0-5 each drew their icon in the box; 160=Z, 161=X, 162=E, 163=Q, 164=R, 165=L Shift (keyboard bindings, shown as key caps). In-game test 2026-10-06 (user): SetButtonIconSlot(0..5, 166..182, 193) + DIALOG with ＠字0..5＠, then (0..2, 23/183/191) (Dragon Room entry) -> 166=Space, 167=6/^ key, 168=R, 169=L Shift, 170=WASD key block, 171=D, 172=S, 173=W, 174=A, 175=W, 176=S, 177=A, 178=D, 179=Tab, 180=J, 181=Tab, 182=J, 193=arrow-key block; 23, 183 and 191 drew nothing.",
    "alias_of": null,
    "handler": "Script_VMOp_WriteVarArrayKind15",
    "handler_rva": "0x209D50",
@@ -38111,7 +38130,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Bank 15 is only read by the ＠字n＠ text token, which turns the value into a button-glyph character; the name now says what it sets.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 93,
     "pc": "0x03C6",
@@ -40615,7 +40634,14 @@
      "values": "1 = fade to black, 0 = fade back from black",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "BlackScreen(1, 15) / BlackScreen(0, 15), then BlackScreen(1, 180) / BlackScreen(0, 180) (Dragon Room entry)",
+       "observed": "15: a quick fade to black and back; 180: a slow fade, about 3 s each way (user confirmed; screenshots: brightness 96->50->0 over ~2 s, 0->23->62->148 over ~3 s)"
+      }
+     ]
     },
     {
      "name": "duration",
@@ -40623,7 +40649,14 @@
      "values": "fade length handed to FadeTask_Init (15/30/60/180 in the corpus); 0 or -1 = immediate",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "BlackScreen(1, 15) / BlackScreen(0, 15), then BlackScreen(1, 180) / BlackScreen(0, 180) (Dragon Room entry)",
+       "observed": "15: a quick fade to black and back; 180: a slow fade, about 3 s each way (user confirmed; screenshots: brightness 96->50->0 over ~2 s, 0->23->62->148 over ~3 s)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -40632,7 +40665,7 @@
    "description": "Fade to or from a solid black overlay and wait for the fade to finish. The overlay is separate from FadeScreen and is not removed when the scene ends: a scene that leaves it on keeps the screen black through warps and later scenes until something calls BlackScreen(0, ...) (observed in the custom opening, 2026-10-03). Shipped scenes always pair the two (101 x on, 102 x off).",
    "details": "Lazily spawns a black overlay obj_task (host+384, sprite item 0x3126) on first use, then Script_TickBlackScreenFade (+0x2032A0) drives FadeTask_Init(1.0 or 0.0, duration, 1) and returns busy while the fade runs; it also mirrors the state into host+116 bit 3 and a weather-suppression byte.",
    "side_effects": "black overlay task (host+384), fade task, host+116 bit 3",
-   "evidence": "RF4S.exe+0x203640 -> RF4S.exe+0x2032A0; corpus 203 uses (0 x102, 1 x101; durations 0, 180, 60, -1, 30...).",
+   "evidence": "RF4S.exe+0x203640 -> RF4S.exe+0x2032A0; corpus 203 uses (0 x102, 1 x101; durations 0, 180, 60, -1, 30...). In-game test 2026-10-06 (user): BlackScreen(1, 15) / BlackScreen(0, 15), then BlackScreen(1, 180) / BlackScreen(0, 180) (Dragon Room entry) -> 15: a quick fade to black and back; 180: a slow fade, about 3 s each way (user confirmed; screenshots: brightness 96->50->0 over ~2 s, 0->23->62->148 over ~3 s).",
    "alias_of": null,
    "handler": "rf3sScriptExecExtCmd_BlackScreen",
    "handler_rva": "0x203640",
@@ -40649,7 +40682,7 @@
    "confidence": "high",
    "notes": "Unlike FadeScreen (op 334) the duration is in frames, not 1/100 frames.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 280,
     "pc": "0x0D02",
@@ -55062,12 +55095,12 @@
    "prototype": "GetDefeatPosition()",
    "args": [],
    "optional_args_from": null,
-   "returns": "reg0 = word +112 (tile x), reg1 = word +114 (tile y)",
+   "returns": "reg0 = word +112 (x), reg1 = word +114 (y), in the same units the shipped scenes pass to TeleportActor / TriggerActionAtTile; in game a kill near tile (60, 22) read (455, 184), about 8 units per tile",
    "blocking": "no",
    "description": "Sets reg0/reg1 to the tile where the most recently defeated monster fell, e.g. to put the girl where Ambrosia fell. Shipped scenes use it only in monster-defeated scenes (type 17, and the type-68 scene after the Ambrosia fight), followed by a spawn or teleport at (reg0, reg1).",
    "details": "reg0 = (s16) host+112, reg1 = (s16) host+114. Filled by game event 1 (NpcAi_BeginScriptedEventFromRequestDescriptor, RF4S.exe+0x1F2040: host+112 = event word +6, host+114 = word +4). Every monster death records its id and tile (RF4S.exe+0x1F1330); when its 72-frame timer runs out (0 with DEFEAT_TIME_0), Quest_TickDailyTimersAndQueueEvents (RF4S.exe+0x1FA420) queues event 15 and event 1 with {id, y, x}. Other code that queues event 1 could also write the words (not checked).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21DDC0: `*(a2+64) = *(s16*)(a1+112); *(a2+68) = *(s16*)(a1+114)`; writer RF4S.exe+0x1F2060 / +0x1F2068; corpus: 8 uses (7 in type-17 scenes, 1 in the type-68 scene after Ambrosia), followed by TeleportActor(x, reg0, reg1) or TriggerActionAtTile(151, reg0, reg1).",
+   "evidence": "RF4S.exe+0x21DDC0: `*(a2+64) = *(s16*)(a1+112); *(a2+68) = *(s16*)(a1+114)`; writer RF4S.exe+0x1F2060 / +0x1F2068; corpus: 8 uses (7 in type-17 scenes, 1 in the type-68 scene after Ambrosia), followed by TeleportActor(x, reg0, reg1) or TriggerActionAtTile(151, reg0, reg1). In-game test 2026-10-06 (user): GetDefeatPosition() -> SetVar3(0/1) (Dragon Room entry, after killing a monster around tile (60, 22) of MAP_FIELD_02) -> X 455, Y 184 (first walk-in with no fresh kill showed 0, 0). 455/8, 184/8 = (56.9, 23): the values look like 1/8-tile units, not tiles.",
    "alias_of": null,
    "handler": "Script_VMOp_QuerySceneA1WordPair112",
    "handler_rva": "0x21DDC0",
@@ -55084,7 +55117,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "2026-10-03: the words hold the last defeated monster's tile (traced from the death record to event 1).",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 408,
     "pc": "0x0154",
@@ -55113,7 +55146,31 @@
      "values": "0 any item for sale?, 1 pick a visitor's wanted item, 2 barter sale price, 3 sale totals, 4 new-record flag, 5 start tourist spawner, 6 stop it, 7 commit a sale, 8 roll a price variation",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "MyShopAction(3) -> SetVar3(1, reg1), SetVar3(0, reg0) (Shop Box today/record set to 1234/5678 in memory)",
+       "observed": "today's Shop Box sales 1234 (reg0), record 5678 (reg1)"
+      },
+      {
+       "date": "2026-10-06",
+       "call": "MyShopAction(4) -> SetVar3(0, reg0) on two walk-ins (new-record flag, PrincePointMenuState +0x0C bit 20, set in memory before the first)",
+       "observed": "first walk-in 1, second walk-in 0: it reads the flag and clears it"
+      }
+     ],
+     "value_names": {
+      "3": {
+       "name": "sale_totals",
+       "text": "reg0 = today's Shop Box sales, reg1 = best day",
+       "human_verified": true
+      },
+      "4": {
+       "name": "new_record_flag",
+       "text": "reg0 = 1 if a new Shop Box record is waiting to be announced; reading clears it",
+       "human_verified": true
+      }
+     }
     },
     {
      "name": "args...",
@@ -55130,7 +55187,7 @@
    "description": "Run one step of the player's own shop (My Shop, the Sakura/tourist stall): check stock, pick what a visitor wants, price it, commit the sale, or start/stop the visitor spawner.",
    "details": "Switch on arg0. 0: reg0 = any occupied shop_box slot (15). 1: visitor id (27-47 -> host actor id; 22/23 -> REG_CHILD_ID special case), random slot whose item the visitor does not dislike (Npc_GetGiftAffinityHashByItemAndCharId != 2/5), stored at host+392, reg0 = item. 2: Shop_RollBarterBonusSalePrice (+0x21EDA0) scaled by arg2 %, reg0 = qty (limited by skill 37), reg1 = price. 3: reg0 = sales total, reg1 = record. 4: reg0 = new-record bit (bit 20) then cleared. 5: spawns the MyShopSakura task if the player is at the stand with a license, flag 0x2000000. 6: clears 0x2000000, Scene_ApplyContextualBGM. 7: gold += arg2, records, flag 810, 1/8 chance +1 tourist, sfx 0x10000E8, removes arg1 from the slot. 8: reg0 = 0 or arg1*(1 + (2..10)%).",
    "side_effects": "shop box, gold, tourists, host+392, global flag 0x2000000",
-   "evidence": "RF4S.exe+0x21E560 (per-case evidence from the previous review, re-checked for cases 0-1 here); corpus: 195 uses, subcases 1/0/2/8/7.",
+   "evidence": "RF4S.exe+0x21E560 (per-case evidence from the previous review, re-checked for cases 0-1 here); corpus: 195 uses, subcases 1/0/2/8/7. In-game test 2026-10-06 (user): MyShopAction(3) -> SetVar3(1, reg1), SetVar3(0, reg0) (Shop Box today/record set to 1234/5678 in memory) -> today's Shop Box sales 1234 (reg0), record 5678 (reg1). In-game test 2026-10-06 (user): MyShopAction(4) -> SetVar3(0, reg0) on two walk-ins (new-record flag, PrincePointMenuState +0x0C bit 20, set in memory before the first) -> first walk-in 1, second walk-in 0: it reads the flag and clears it.",
    "alias_of": null,
    "handler": "SakuraEvent_DispatchAction",
    "handler_rva": "0x21E560",
@@ -55150,7 +55207,7 @@
    "confidence": "medium",
    "notes": "Cases 2-8 were not re-read line by line in this pass.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 23,
     "pc": "0x30C8",
@@ -56408,7 +56465,7 @@
      "values": "0-38 (the shipped scripts pass reg0); the file comes from a switch in the exe; ids 19 and 20 both play Rune4_s23_t1 (there is no s22); other ids pick no valid file",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false,
+     "human_verified": true,
      "value_names": {
       "0": {
        "name": "opening_a",
@@ -56418,7 +56475,7 @@
       "1": {
        "name": "opening_b",
        "text": "Rune4_OP_B_t1.webm",
-       "human_verified": false
+       "human_verified": true
       },
       "2": {
        "name": "s05",
@@ -56605,7 +56662,19 @@
        "text": "20_M_LEON_<language>.webm (one file per language)",
        "human_verified": false
       }
-     }
+     },
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlayCutsceneVideo(1)",
+       "observed": "an opening movie played in full; which of A/B not yet confirmed"
+      },
+      {
+       "date": "2026-10-06",
+       "call": "PlayCutsceneVideo(1) (Dragon Room entry)",
+       "observed": "played Rune4_OP_B_t1.webm (opening B) in full"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -56614,7 +56683,7 @@
    "description": "Play a full-motion video. If a dialogue box is still open, it is closed first and the op waits.",
    "details": "While g_currentDialogueTaskPtr, g_activeScriptedEventState or the effect-belt word is set: dialogue state 6 -> 7, both portraits torn down (host+88/+96, host+108 = -1, host+304 = 0), return 1. Else controller+116 = 1 and Cutscene_PlayVideoById(video) (+0x3C53C0), return 0. Cutscene_PlayVideoById: the file name is built by RF4S.exe+0x3C58D0 (switch over ids 0-38 at +0x3C5A5E, '%s.%s' or '%s%s%s.%s' with a language suffix _e/_f/_g, _KR/_TC for ids >= 27, plus _j when config bit 10 is clear, probably the Japanese-voice option). Each id has a watched bit (ids < 27 and >= 27 in two words); a video can be skipped only once it has been watched, the two openings (0, 1) always. Shipped callers: story banks 2, 4, 8, 9, 12; newlywed banks 132-143 the M_ videos (27-38); banks 318/319/321 call every id.",
    "side_effects": "plays a video; closes the dialogue box",
-   "evidence": "RF4S.exe+0x21F880; corpus: 41 uses, 'FadeScreen / WaitForFade / PlayCutsceneVideo(reg0) / RET'.",
+   "evidence": "RF4S.exe+0x21F880; corpus: 41 uses, 'FadeScreen / WaitForFade / PlayCutsceneVideo(reg0) / RET'. In-game test 2026-10-06 (user): FadeScreen(-16, 3000), WaitForFade(), PlayCutsceneVideo(1) (Dragon Room entry) -> a full-screen opening movie (sky, clouds, the airship) played to the end and the scene went on; alt+tab cut it short. In-game test 2026-10-06 (user): PlayCutsceneVideo(1) (Dragon Room entry) -> played Rune4_OP_B_t1.webm (opening B) in full.",
    "alias_of": null,
    "handler": "Script_VMOp_PlayCutsceneVideoOrAdvanceDialogue",
    "handler_rva": "0x21F880",
@@ -56631,7 +56700,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 319,
     "pc": "0x121E",

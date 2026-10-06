@@ -23,6 +23,7 @@ import json
 import pathlib
 import re
 import sys
+import textwrap
 
 _HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
@@ -202,9 +203,24 @@ def test_lines(lines, pid=None):
         raise SystemExit("the game's dialogue text matches none of the rf3mc.<locale> files")
     f = (gamepaths.game_targets(["rf3mc.%s" % loc]) or {}).get("rf3mc.%s" % loc)
     arc = textdb.TextArchive.parse(pathlib.Path(f).read_bytes())
-    ids = [arc.append_text(s) for s in lines]
+    ids = [arc.append_text(box_text(s)) for s in lines]
     hotreload.reload_text(arc.build(), pid=pid)
     return ids
+
+
+BOX_WIDTH = 56          # characters per dialogue-box row that stay on screen (about 80 get cut off)
+BOX_ROWS = 3
+
+
+def box_text(s, width=BOX_WIDTH):
+    """Break a test line into rows that fit the dialogue box. Rows already broken with \\n
+    are wrapped on their own; a value slot (＠０＠) counts as a few digits."""
+    rows = []
+    for part in s.split("\n"):
+        rows += textwrap.wrap(part, width, break_long_words=False, break_on_hyphens=False) or [""]
+    if len(rows) > BOX_ROWS:
+        print("warning: test line needs %d rows (the box shows %d): %s" % (len(rows), BOX_ROWS, s[:60]))
+    return "\n".join(rows)
 
 
 def restore(map_name):

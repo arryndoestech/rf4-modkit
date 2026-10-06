@@ -2775,12 +2775,13 @@ Args:
 
 ### `op 365` — SetButtonIconSlot(slot, icon)
 *handler:* `Script_VMOp_WriteVarArrayKind15`
+*verified:* yes, in game
 
 Choose which button icon the ＠字＠ token in the next dialogue lines shows (e.g. 'press ＠字＠ repeatedly'). Slot 0 is the plain ＠字＠.
 
 Args:
-  0. slot (slot index n used by the text token ＠字n＠ (larger ignored))
-  1. icon (glyph U+E000 + icon; 160-182 and 193 are button icons (names from the game's glyph table), 183-191 draw nothing; 192 CRASHES the game (reads past the 32-entry glyph table, seen in game 2026-10-03); 23 is a symbol the font draws itself (shipped after 'Thank you!'))
+  0. slot (slot index n used by the text token ＠字n＠ (larger ignored)) — verified in game
+  1. icon (glyph U+E000 + icon; 160-182 and 193 are button icons (names from the game's glyph table), 183-191 draw nothing; 192 CRASHES the game (reads past the 32-entry glyph table, seen in game 2026-10-03); 23 draws nothing (seen in game 2026-10-06)) — verified in game
      - `160` = a
      - `161` = b
      - `162` = x
@@ -3200,12 +3201,13 @@ Args:
 
 ### `op 412` — BlackScreen(to_black, duration)
 *handler:* `rf3sScriptExecExtCmd_BlackScreen`
+*verified:* yes, in game
 
 Fade to or from a solid black overlay and wait for the fade to finish. The overlay is separate from FadeScreen and is not removed when the scene ends: a scene that leaves it on keeps the screen black through warps and later scenes until something calls BlackScreen(0, ...) (observed in the custom opening, 2026-10-03). Shipped scenes always pair the two (101 x on, 102 x off).
 
 Args:
-  0. to_black (1 = fade to black, 0 = fade back from black)
-  1. duration (fade length handed to FadeTask_Init (15/30/60/180 in the corpus); 0 or -1 = immediate)
+  0. to_black (1 = fade to black, 0 = fade back from black) — verified in game
+  1. duration (fade length handed to FadeTask_Init (15/30/60/180 in the corpus); 0 or -1 = immediate) — verified in game
 
 ### `op 595` — SetMinimapMarker(target)
 *handler:* `Script_VMOp_SetMinimapMarkerOrClear`
@@ -3296,11 +3298,12 @@ Args:
 
 ### `op 683` — PlayCutsceneVideo(video)
 *handler:* `Script_VMOp_PlayCutsceneVideoOrAdvanceDialogue`
+*verified:* yes, in game
 
 Play a full-motion video. If a dialogue box is still open, it is closed first and the op waits.
 
 Args:
-  0. video (0-38 (the shipped scripts pass reg0); the file comes from a switch in the exe; ids 19 and 20 both play Rune4_s23_t1 (there is no s22); other ids pick no valid file)
+  0. video (0-38 (the shipped scripts pass reg0); the file comes from a switch in the exe; ids 19 and 20 both play Rune4_s23_t1 (there is no s22); other ids pick no valid file) — verified in game
      - `0` = opening_a
      - `1` = opening_b
      - `2` = s05
@@ -12177,6 +12180,7 @@ Put the id of the map the player came from into reg0 (compared against map globa
 
 ### `op 658` — GetDefeatPosition()
 *handler:* `Script_VMOp_QuerySceneA1WordPair112`
+*verified:* yes, in game
 
 Sets reg0/reg1 to the tile where the most recently defeated monster fell, e.g. to put the girl where Ambrosia fell. Shipped scenes use it only in monster-defeated scenes (type 17, and the type-68 scene after the Ambrosia fight), followed by a spawn or teleport at (reg0, reg1).
 
@@ -12353,7 +12357,9 @@ Args:
 Run one step of the player's own shop (My Shop, the Sakura/tourist stall): check stock, pick what a visitor wants, price it, commit the sale, or start/stop the visitor spawner.
 
 Args:
-  0. subcase (0 any item for sale?, 1 pick a visitor's wanted item, 2 barter sale price, 3 sale totals, 4 new-record flag, 5 start tourist spawner, 6 stop it, 7 commit a sale, 8 roll a price variation)
+  0. subcase (0 any item for sale?, 1 pick a visitor's wanted item, 2 barter sale price, 3 sale totals, 4 new-record flag, 5 start tourist spawner, 6 stop it, 7 commit a sale, 8 roll a price variation) — verified in game
+     - `3` = sale_totals
+     - `4` = new_record_flag
   1. args... (subcase-specific: 1 visitor char id; 2 (roll arg, price %); 7 (count, gold); 8 (base price, tier))
 
 ### `op 691` — MultiplyValues(factor1)
