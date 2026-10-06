@@ -83,21 +83,21 @@ class Browser(ttk.Frame):
         br = ttk.Frame(banks)
         br.pack(fill="x", padx=4, pady=(4, 0))
         ttk.Label(br, text="Trigger type").pack(side="left")
+        self.show_empty = tk.BooleanVar(value=False)
+        cb = ttk.Checkbutton(br, text="empty banks", variable=self.show_empty, command=self.rebuild)
+        cb.pack(side="right", padx=(4, 0))          # packed before the dropdown: never squeezed out
+        Tip(cb, "Also list banks with no scene yet (most maps): the Triggers tab mints a first one.")
         self.type_filter = tk.StringVar(value=ALL_TRIGGERS)
         self._type_ids = {ALL_TRIGGERS: None}       # dropdown text -> trigger type (None = all)
-        tc = ttk.Combobox(br, textvariable=self.type_filter, values=[ALL_TRIGGERS], width=30,
+        tc = ttk.Combobox(br, textvariable=self.type_filter, values=[ALL_TRIGGERS], width=12,
                           state="readonly")
-        tc.pack(side="left", padx=(4, 0))
+        tc.pack(side="left", fill="x", expand=True, padx=(4, 0))   # takes whatever room is left
         tc.bind("<<ComboboxSelected>>", lambda _e: self.rebuild())
         self.type_combo = tc
         Tip(tc, "Show only the scenes of one trigger type (what makes a scene "
                 "run: entering a map, a talk line, a warp, a festival...), and only the banks "
                 "that have one. The number is how many triggers of that type ship. The Reference "
                 "window's Trigger types tab explains each type.")
-        self.show_empty = tk.BooleanVar(value=False)
-        cb = ttk.Checkbutton(br, text="empty banks", variable=self.show_empty, command=self.rebuild)
-        cb.pack(side="right")
-        Tip(cb, "Also list banks with no scene yet (most maps): the Triggers tab mints a first one.")
         self.tree = self._tree(banks)
         self.tree.bind("<<TreeviewOpen>>", self._opened)
         self.tree.bind("<<TreeviewSelect>>", self._picked)
