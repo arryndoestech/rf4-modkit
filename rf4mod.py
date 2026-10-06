@@ -3959,18 +3959,18 @@ def build_parser():
     # ai
     pa = sub.add_parser("ai", help="AIBN behaviour scripts")
     asub = pa.add_subparsers(dest="op", required=True)
-    a0 = asub.add_parser("disasm"); a0.add_argument("target")
+    a0 = asub.add_parser("disasm", help="disassemble an AI_*.bin into its listing (--stats: opcode counts, --raw: tokens)"); a0.add_argument("target")
     g = a0.add_mutually_exclusive_group()
-    g.add_argument("--raw", action="store_true"); g.add_argument("--stats", action="store_true")
+    g.add_argument("--raw", action="store_true", help="one raw token per line"); g.add_argument("--stats", action="store_true", help="opcode usage counts only")
     a0.add_argument("-a", "--annotate", action="store_true",
                     help="append verified operand meanings/units (and scripted-action names) as comments")
     a0.add_argument("--flat", action="store_true",
                     help="one opcode per line with every structural token explicit (pre-2026-09-18 form) "
                          "instead of the language-style listing; both forms assemble back byte-exactly")
     a0.set_defaults(func=cmd_ai_disasm)
-    a1 = asub.add_parser("asm"); a1.add_argument("file"); a1.add_argument("-o", "--out", required=True)
+    a1 = asub.add_parser("asm", help="assemble a listing (from disasm) back into an AI_*.bin"); a1.add_argument("file"); a1.add_argument("-o", "--out", required=True)
     a1.set_defaults(func=cmd_ai_asm)
-    a2 = asub.add_parser("tokens"); a2.add_argument("target"); a2.set_defaults(func=cmd_ai_tokens)
+    a2 = asub.add_parser("tokens", help="dump the raw tokens as JSON (the exact edit primitive)"); a2.add_argument("target"); a2.set_defaults(func=cmd_ai_tokens)
     a3 = asub.add_parser("ops", help="verified opcode reference (all, or one by id/name)")
     a3.add_argument("opcode", nargs="?"); a3.set_defaults(func=cmd_ai_ops)
     a4 = asub.add_parser("actions", help="the 35 scripted actions invoked by opcode 0x26")
