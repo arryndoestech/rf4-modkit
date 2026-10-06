@@ -303,6 +303,21 @@ def test_mbundle():
             _skip("explorer lists an unpacked archive", str(_e))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+    # a PACKED patch bundle is mounted ahead of Bundle/**: its files cannot be overridden
+    _pt = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_patch_"))
+    try:
+        (_pt / "Bundle" / "00_mods").mkdir(parents=True)
+        shutil.copyfile(mani_p, _pt / "Bundle" / "Manifest.plist")
+        _p1 = [f.split("/")[-1] for f in man.files("bundlePatch1.mbundle")] if "bundlePatch1.mbundle" in man.bundle_names() else []
+        _none = mbundle.patch_shadows(_pt)                       # unpacked: nothing shadowed
+        (_pt / "Bundle" / "bundlePatch1.mbundle").write_bytes(b"x")
+        _some = mbundle.patch_shadows(_pt)
+        _check("patch_shadows: nothing without a packed patch bundle; with bundlePatch1.mbundle "
+               "present every file it holds is reported (a loose copy would be ignored)",
+               _p1 and _none == {} and set(_p1) <= set(_some)
+               and all(_some[n] == "bundlePatch1.mbundle" for n in _p1), f"{len(_p1)} files")
+    finally:
+        shutil.rmtree(_pt, ignore_errors=True)
 
 
 def test_text():

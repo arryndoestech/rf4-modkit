@@ -37865,7 +37865,7 @@
    "side_effects": "var bank 9",
    "evidence": "RF4S.exe+0x2098D0; corpus: 9 uses, index 0, value reg0 x8 / -1 x1 (bank 296 festival staging). In-game test 2026-10-02 (user): SetVar9(0, 228) + a line with ＠カレンダー０＠ -> printed 'Autumn Harvest Festival': the code prints the calendar EVENT on date code season*100 + day (228 = Autumn 28), not the date.",
    "alias_of": null,
-   "handler": "Script_VMOp_WriteVarArrayKind9_WithNpcFallback",
+   "handler": "Script_VMOp_SetVar9",
    "handler_rva": "0x2098D0",
    "shares_handler_with": [],
    "size": [
@@ -37942,7 +37942,7 @@
    "side_effects": "script-variable bank 9 [slot]",
    "evidence": "RF4S.exe+0x2099C0: `nsFileArchive_Load(16340, 2); while (*(u8*)(rec+3) != (u8)arg1) rec += 4; v14 = rec[1]; v15 = rec[2]; ... bank9[arg0] = v15 + 100*v14; *(a2+64) = v14; *(a2+68) = v15`; corpus: 835 uses, festival 1-25, slot 0 in 821. In-game test 2026-10-02 (user): GetFestivalDate(1, 14 Autumn Harvest) / (1, 1 Bean Toss) -> season 2 day 28 = Autumn 28, as the calendar shows; Bean Toss read Spring 10 (not checked).",
    "alias_of": null,
-   "handler": "Script_VMOp_GetNpcBirthdayMonthAndDay",
+   "handler": "Script_VMOp_GetFestivalDate",
    "handler_rva": "0x2099C0",
    "shares_handler_with": [],
    "size": [
@@ -38019,7 +38019,7 @@
    "side_effects": "var banks 0 and 3",
    "evidence": "RF4S.exe+0x209B00; corpus: 30 uses, e.g. GetNpcBirthday(0, 1) then DIALOG \"Vishnal's birthday is on <season> <day>\". In-game test 2026-10-02 (user): GetNpcBirthday(5, 4 Forte) + a line with ＠キャラ５＠ ＠５＠ -> printed 'Summer 22' and reg0 * 100 + reg1 = 122 (season 1, day 22): Forte's birthday in the game.",
    "alias_of": null,
-   "handler": "Script_VMOp_GetCalendarEventMonthWithFallback",
+   "handler": "Script_VMOp_GetNpcBirthday",
    "handler_rva": "0x209B00",
    "shares_handler_with": [],
    "size": [

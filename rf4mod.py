@@ -217,7 +217,13 @@ def cmd_install(a):
     root = _game_root(a)
     dest = mbundle.install_loose(root, a.name, a.file)
     print(f"installed loose file -> {dest}")
-    print("  the game indexes every file under Bundle\\ at startup, ahead of the .mbundle archives:"
+    shadow = mbundle.patch_shadows(root).get(pathlib.Path(a.name).name)
+    if shadow:
+        print(f"  WARNING: the packed {shadow} also holds {pathlib.Path(a.name).name} and is mounted ahead"
+              f" of Bundle\\, so the game keeps loading ITS copy: unpack it (`rf4mod unpack`) or move"
+              f" {shadow} out of the Bundle folder")
+    print("  the game indexes every file under Bundle\\ at startup, ahead of the .mbundle archives"
+          " (except bundlePatch1 / bundlePatch2, which are mounted first):"
           " restart it to load the change; delete the file (or the whole "
           f"{mbundle.MOD_FOLDER} folder) to uninstall")
 
@@ -324,6 +330,9 @@ def cmd_mods(a):
     man = mbundle.Manifest(mani) if mani.is_file() else None
     packed = {bn for bn in (man.bundle_names() if man else []) if (bdir / bn).is_file()}
     rows = mbundle.overrides(a.game_root, man)
+    patched = mbundle.patch_shadows(a.game_root, man)
+    lost = [r for r in rows if r[0] in patched and not r[4]]
+    rows = [r for r in rows if r[0] not in patched]
     wrong_case = [r for r in rows if r[4]]
     rows = [r for r in rows if not r[4]]
     shadow = [r for r in rows if r[3] in packed]
@@ -335,10 +344,15 @@ def cmd_mods(a):
         print(f"  {win:<60} {what}" + (f"  -- wins over {', '.join(others[:3])}" if others else ""))
     for name, win, others, bn, game in wrong_case[: a.limit]:
         print(f"  {win:<60} IGNORED by the game: it loads {game} (names are case-sensitive)")
+    for name, win, others, bn, _game in lost[: a.limit]:
+        print(f"  {win:<60} IGNORED by the game: the packed {patched[name]} is mounted ahead of "
+              f"Bundle\\ and holds {name}")
     print(f"{len(shadow)} loose file(s) replace packed ones; {len(clash)} name(s) exist more than once "
           f"under {bdir} (the path that sorts first, byte by byte, wins); packed bundles present: "
           f"{len(packed)}" + (f"; {len(wrong_case)} file(s) in the wrong case are ignored -- rename "
-                              f"them to the game's exact name" if wrong_case else ""))
+                              f"them to the game's exact name" if wrong_case else "")
+          + (f"; {len(lost)} file(s) are ignored because a packed patch bundle holds them -- unpack "
+             f"it (`rf4mod unpack`) or move it out of the Bundle folder" if lost else ""))
 
 
 def cmd_unpack(a):

@@ -1855,6 +1855,16 @@ class CutsceneExplorer:
                             em="em.bin" in blobs)
         self._chrome()
         note = " (originals of %s kept in %s)" % (", ".join(backed), self.BACKUP_DIR) if backed else ""
+        try:                                    # a packed patch bundle wins over every loose file
+            from rf4s_modkit import gamepaths, mbundle
+            bdir = gamepaths.find_bundle_dir()
+            lost = sorted(n for n in blobs if bdir is not None and n in mbundle.patch_shadows(bdir))
+        except Exception:  # noqa: BLE001 -- no game folder / manifest: nothing to say
+            lost = []
+        if lost:
+            note += (" -- WARNING: the game ignores %s while the packed bundlePatch .mbundle that holds "
+                     "it exists (it is mounted ahead of Bundle\\); unpack it (rf4mod unpack) or move "
+                     "it out of the Bundle folder" % ", ".join(lost))
         how = []
         if "rf3.mc" in blobs:
             how.append("Ctrl+R (debugger attached) puts the scenes into the running game")

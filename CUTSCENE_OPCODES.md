@@ -8351,7 +8351,7 @@ Args:
   1. value (any; -1 = companion 1's farm-table record index, -2 = companion 2's) — verified in game
 
 ### `op 361` — SetVar9(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind9_WithNpcFallback`
+*handler:* `Script_VMOp_SetVar9`
 *verified:* yes, in game
 
 Store a value in slot [index] of engine variable bank 9 (16 slots). -1 stores the calendar date code of the festival currently running. There is no GetVar9 op; villager AI also reads the bank. ＠カレンダーn＠ prints the calendar event on the date in slot n (season x 100 + day).
@@ -8652,7 +8652,7 @@ Read the current clock time: reg0 = hour (0-23), reg1 = minute (0-59).
 Get the whole current date and time at once: reg0 = year, reg1 = season, reg2 = day, reg3 = hour, reg4 = minute.
 
 ### `op 362` — GetFestivalDate(slot, festival)
-*handler:* `Script_VMOp_GetNpcBirthdayMonthAndDay`
+*handler:* `Script_VMOp_GetFestivalDate`
 *verified:* yes, in game
 
 Looks up the date of a festival: reg0 = season (0-3), reg1 = day, and script-variable bank 9 [slot] = season*100 + day for text substitution.
@@ -11503,7 +11503,7 @@ Args:
   0. index (NOT bounds-checked) — verified in game
 
 ### `op 363` — GetNpcBirthday(slot, character)
-*handler:* `Script_VMOp_GetCalendarEventMonthWithFallback`
+*handler:* `Script_VMOp_GetNpcBirthday`
 *verified:* yes, in game
 
 Look up a character's birthday: season into reg0, day into reg1, and also bank 0 [slot] = the season's name line and bank 3 [slot] = the day, so ＠キャラn＠ ＠n＠ in the next DIALOG line print '<season> <day>'.

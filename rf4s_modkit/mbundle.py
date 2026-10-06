@@ -409,7 +409,8 @@ def install_loose(game_root, filename: str, src_file, *, folder: str = MOD_FOLDE
     Install a modded asset as a LOOSE FILE the engine loads instead of the packed
     copy: <Bundle>/<folder>/<filename>, i.e. `Bundle/00_mods/rf3.mc` by default
     (see the module notes: the game indexes every file under Bundle/ by name at
-    startup, ahead of the .mbundle archives). `00_mods` sorts before the
+    startup, ahead of the .mbundle archives -- except the packed patch bundles, which are
+    mounted first: see patch_shadows). `00_mods` sorts before the
     `bundle*` folders of a fully extracted game, so it also wins over an extracted
     original. Restart the game to pick it up; delete the folder to uninstall.
     `game_root` may be the game folder or its Bundle folder. Returns the path written.
@@ -485,6 +486,32 @@ def overrides(game_root, manifest: "Manifest | None" = None) -> list:
             continue
         rows.append((name, paths[0], paths[1:], known.get(name), None))
     return rows
+
+
+# The patch bundles are mounted AHEAD of Bundle/** (MageApplication_RegisterAndLoadBundles inserts
+# bundlePatch1 then bundlePatch2 at mount index 1, IDB-verified 2026-09-29): final order =
+# storage folder, bundlePatch2.mbundle, bundlePatch1.mbundle, Bundle/**, the manifest bundles.
+# So while a patch .mbundle exists, no loose file can replace a file it contains.
+PATCH_BUNDLES = ("bundlePatch2.mbundle", "bundlePatch1.mbundle")      # mount order
+
+
+def patch_shadows(game_root, manifest: "Manifest | None" = None) -> dict:
+    """{file name: patch bundle} for every file a PACKED patch bundle (bundlePatch1/2.mbundle
+    present next to Manifest.plist) contains: a loose copy of that name anywhere under Bundle/
+    is ignored by the game while that archive exists. Empty on a fully unpacked install."""
+    bdir = bundle_dir(game_root)
+    if manifest is None:
+        mp = bdir / "Manifest.plist"
+        if not mp.is_file():
+            return {}
+        manifest = Manifest(mp)
+    out = {}
+    names = set(manifest.bundle_names())
+    for bn in PATCH_BUNDLES:                    # bundlePatch2 is mounted first, so it wins
+        if bn in names and (bdir / bn).is_file():
+            for f in manifest.files(bn):
+                out.setdefault(f.split("/")[-1], bn)
+    return out
 
 
 VOICE_BUNDLES = {"en": "bundleVoiceEN.mbundle", "jp": "bundleVoiceJP.mbundle"}
