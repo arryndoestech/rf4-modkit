@@ -14665,9 +14665,31 @@ def test_cutscene_reload_from_disk():
                  if isinstance(w, (ttk.Button, ttk.Menubutton))]
         _check("the toolbar's Debug menu holds Reload in game (Ctrl+R), Reload from disk (F5) "
                "and the Debugger; neither has its own toolbar button any more",
-               _items == {"⟳ Reload in game": "Ctrl+R", "⟲ Reload rf3.mc + dialogue from disk": "F5",
-                          "🐞 Debugger…": ""}
+               _items == {"▶ Launch game": "", "⟳ Reload in game": "Ctrl+R",
+                          "⟲ Reload rf3.mc + dialogue from disk": "F5", "🐞 Debugger…": ""}
                and "🐞 Debug" in _btns and "⟳ Reload in game" not in _btns and "⟲" not in _btns, "%s %s" % (_items, _btns))
+        # Launch game: starts the game folder's RF4S.exe; asks first when one already runs
+        _launched = []
+        _saved_l = (_H.game_exe, _H.find_pids, _H.launch)
+        try:
+            _exe = pathlib.Path(tmp) / "RF4S.exe"
+            _H.launch = lambda exe=None: _launched.append(exe) or 777
+            _H.game_exe = lambda: None
+            _none = cx.launch_game()
+            _H.game_exe = lambda: _exe
+            _H.find_pids = lambda *a: []
+            _fresh = cx.launch_game()
+            _H.find_pids = lambda *a: [4242]
+            messagebox.askyesno = lambda *a, **k: False
+            _declined = cx.launch_game()
+            messagebox.askyesno = lambda *a, **k: True
+            _second = cx.launch_game()
+        finally:
+            _H.game_exe, _H.find_pids, _H.launch = _saved_l
+        _check("Launch game: nothing without a game folder; starts its RF4S.exe; with a game "
+               "already running it asks, and No starts nothing",
+               _none is False and _fresh is True and _declined is False and _second is True
+               and _launched == [_exe, _exe], "%s %s %s %s %s" % (_none, _fresh, _declined, _second, _launched))
         _check("no Tk errors during the reloads", not errs, str(errs[:1]))
     finally:
         messagebox.askyesno = ask

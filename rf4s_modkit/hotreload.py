@@ -109,6 +109,31 @@ def is_running():
     return bool(find_pids())
 
 
+def game_exe():
+    """RF4S.exe of the game folder chosen in the toolkit's setup (next to its Bundle
+    folder), or None when no game folder is set or the exe is not there."""
+    from . import gamepaths
+    b = gamepaths.find_bundle_dir()
+    exe = b.parent / EXE_NAME if b is not None else None
+    return exe if exe is not None and exe.is_file() else None
+
+
+def launch(exe=None):
+    """Start the game (`exe`, default game_exe()) in its own folder, detached: it keeps
+    running when the toolkit closes. Returns the new process id."""
+    exe = exe or game_exe()
+    if exe is None:
+        raise HotReloadError("no %s in the game folder: set the game folder first" % EXE_NAME)
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    try:
+        p = subprocess.Popen([str(exe)], cwd=str(exe.parent), creationflags=flags, close_fds=True,
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+    except OSError as e:
+        raise HotReloadError("could not start %s: %s" % (exe, e)) from e
+    return p.pid
+
+
 class GameProcess:
     """One running game: pid, exe path and start time (a pid reused by a new process gets a
     different start time, so a remembered choice does not follow it)."""

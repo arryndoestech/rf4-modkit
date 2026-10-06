@@ -291,6 +291,8 @@ class CutsceneExplorer:
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
         db = ttk.Menubutton(bar, text="🐞 Debug")
         dm = tk.Menu(db, tearoff=False)
+        dm.add_command(label="▶ Launch game", command=self.launch_game)
+        dm.add_separator()
         dm.add_command(label="⟳ Reload in game", accelerator="Ctrl+R", command=self.reload_in_game)
         dm.add_command(label="⟲ Reload rf3.mc + dialogue from disk", accelerator="F5",
                        command=self.reload_from_disk)
@@ -299,8 +301,10 @@ class CutsceneExplorer:
         db["menu"] = dm
         db.pack(side="left", padx=4)
         self.debug_menu = dm
-        Tip(db, "The game parts act on ONE game: the one the Debugger is attached to. Attach "
-                "first (Debugger… → Attach).\n"
+        Tip(db, "Launch game: save, then start RF4S.exe from the game folder set in the "
+                "toolkit's setup (it reads the saved files at start).\n"
+                "The other game parts act on ONE game: the one the Debugger is attached to. "
+                "Attach first (Debugger… → Attach).\n"
                 "Reload in game (Ctrl+R): save, then put rf3.mc, the dialogue text of the game's "
                 "language and em.bin into that game -- no restart, any size. Refused while a "
                 "scene plays (let it finish). The new scenes apply from the next trigger / talk; "
@@ -1916,6 +1920,32 @@ class CutsceneExplorer:
         d = self._debugger
         dbg = getattr(d, "dbg", None) if d is not None else None
         return dbg.g.pid if dbg is not None else None
+
+    def launch_game(self):
+        """Save, then start RF4S.exe from the chosen game folder (asks first when a game is
+        already running). True when it was started."""
+        from tkinter import messagebox
+        from rf4s_modkit import hotreload
+        exe = hotreload.game_exe()
+        if exe is None:
+            self.status("Launch game: no RF4S.exe in the game folder -- set the game folder first")
+            return False
+        running = hotreload.find_pids()
+        if running and not messagebox.askyesno(
+                "Launch game", "RF4S.exe is already running (pid %s). Start another copy?\n\n"
+                "To get your edits into the running game use Reload in game (Ctrl+R) instead."
+                % ", ".join(str(p) for p in running), parent=self.frame.winfo_toplevel()):
+            return False
+        if self.unsaved() and not self.save_all():
+            return False
+        try:
+            pid = hotreload.launch(exe)
+        except hotreload.HotReloadError as e:
+            self.status("Launch game: %s" % e)
+            return False
+        self.status("Launch game: started %s (pid %d)%s" % (exe, pid,
+                    "" if self.attached_pid() else "; attach the Debugger once it is running"))
+        return True
 
     def reload_in_game(self):
         """Save, then swap the saved rf3.mc, the dialogue of the game's language and em.bin
