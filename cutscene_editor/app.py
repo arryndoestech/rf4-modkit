@@ -222,11 +222,6 @@ class CutsceneExplorer:
         ob.pack(side="left")
         Tip(ob, "Open a rf3.mc cutscene container (its rf3mc.<locale> and em.bin are looked "
                 "up next to it, then in the loaded game source).")
-        rd = ttk.Button(bar, text="⟲", width=3, command=self.reload_from_disk)
-        rd.pack(side="left", padx=(2, 0))
-        Tip(rd, "F5: reload rf3.mc from disk -- its dialogue and em.bin too -- e.g. after "
-                "another tool (optest.py, rf4mod) changed it. Stays on the same scene. Unsaved "
-                "edits and the undo history are dropped (it asks first).")
         mb = ttk.Menubutton(bar, text="Save")
         m = tk.Menu(mb, tearoff=False)
         m.add_command(label="Save changes into the game folder", accelerator="Ctrl+S", command=self.save_all)
@@ -291,20 +286,29 @@ class CutsceneExplorer:
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
         Tip(nb, "Mint a new scene in the open bank: pick when it plays, its keys and its body.")
-        rl = ttk.Button(bar, text="⟳ Reload in game", command=self.reload_in_game)
-        rl.pack(side="left", padx=(4, 4))
-        Tip(rl, "Ctrl+R: save, then put rf3.mc into the RUNNING game -- no restart, any size. "
-                "Refused while a scene plays (let it finish). The new scenes apply from the next "
-                "trigger / talk; a room's own scenes are re-read on use. The dialogue text of "
-                "the game's language is swapped in too (the game keeps it in memory); em.bin "
-                "still needs a restart.")
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
-        db = ttk.Button(bar, text="🐞 Debug", command=self.open_debugger)
+        db = ttk.Menubutton(bar, text="🐞 Debug")
+        dm = tk.Menu(db, tearoff=False)
+        dm.add_command(label="⟳ Reload in game", accelerator="Ctrl+R", command=self.reload_in_game)
+        dm.add_command(label="⟲ Reload rf3.mc + dialogue from disk", accelerator="F5",
+                       command=self.reload_from_disk)
+        dm.add_separator()
+        dm.add_command(label="🐞 Debugger…", command=self.open_debugger)
+        db["menu"] = dm
         db.pack(side="left", padx=4)
-        Tip(db, "The script debugger: attach to the running game, watch its scripts, stop at "
-                "breakpoints (F9 on a statement), step through them.")
+        self.debug_menu = dm
+        Tip(db, "Reload in game (Ctrl+R): save, then put rf3.mc into the RUNNING game -- no "
+                "restart, any size. Refused while a scene plays (let it finish). The new scenes "
+                "apply from the next trigger / talk; a room's own scenes are re-read on use. The "
+                "dialogue text of the game's language is swapped in too (the game keeps it in "
+                "memory); em.bin still needs a restart.\n"
+                "Reload from disk (F5): read rf3.mc and its dialogue (and em.bin) again in the "
+                "editor, e.g. after optest.py or rf4mod changed them; stays on the same scene. Unsaved "
+                "edits and the undo history are dropped (it asks first).\n"
+                "Debugger: attach to the running game, watch its scripts, stop at breakpoints "
+                "(F9 on a statement), step through them.")
         rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
         # laid out before everything else, so a narrow window squeezes the middle of the
         # toolbar, never the Reference button at its right end

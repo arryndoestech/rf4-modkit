@@ -14510,7 +14510,7 @@ def test_cutscene_reload_from_disk():
     print("cutscene editor: reload rf3.mc from disk (F5):")
     try:
         import tkinter as tk
-        from tkinter import messagebox
+        from tkinter import messagebox, ttk
         import cutscene_editor as ce
     except Exception as e:
         _skip("reload from disk", "no tkinter: %s" % e); return
@@ -14558,6 +14558,16 @@ def test_cutscene_reload_from_disk():
         f.unlink()
         _check("a file that is gone: nothing reloaded, the open file stays",
                cx.reload_from_disk() is False and cx.doc.container is not None)
+        _dm = cx.debug_menu
+        _items = {_dm.entrycget(i, "label"): _dm.entrycget(i, "accelerator")
+                  for i in range(_dm.index("end") + 1) if _dm.type(i) == "command"}
+        _btns = [w.cget("text") for w in cx.toolbar.winfo_children()
+                 if isinstance(w, (ttk.Button, ttk.Menubutton))]
+        _check("the toolbar's Debug menu holds Reload in game (Ctrl+R), Reload from disk (F5) "
+               "and the Debugger; neither has its own toolbar button any more",
+               _items == {"⟳ Reload in game": "Ctrl+R", "⟲ Reload rf3.mc + dialogue from disk": "F5",
+                          "🐞 Debugger…": ""}
+               and "🐞 Debug" in _btns and "⟳ Reload in game" not in _btns and "⟲" not in _btns, "%s %s" % (_items, _btns))
         _check("no Tk errors during the reloads", not errs, str(errs[:1]))
     finally:
         messagebox.askyesno = ask

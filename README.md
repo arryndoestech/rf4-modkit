@@ -306,7 +306,7 @@ TEXT lines are addressed by number, so they can't be removed. `.strings` files a
 *Save* writes the file where the game loads it (`Bundle\00_mods` when the game only has it
 packed; the original is kept in `ModdingBackup`), or back to the file you opened from disk.
 *Save as…* writes anywhere. The game keeps the dialogue text (`rf3mc.<locale>`) in memory:
-the Cutscene Editor's *⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
+the Cutscene Editor's *🐞 Debug → ⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
 restart, but the editors' character, item, map and skill names follow the saved file at once.
 
 **Bank listing** (*Options…* → Advanced, off by default): the Cutscene Editor gets a *Bank listing* tab with the whole open bank as one read-only listing (the `script listing --bank N` text): every scene, also those no trigger starts, with the code they share. *Find* marks and steps through matches (Enter / Shift+Enter), a double click opens that scene at that line, *Save as…* writes it out.
@@ -796,12 +796,12 @@ default), which runs every time you walk in. That scene starts while the warp's 
 still up, so the sweep waits half a second first. Otherwise a fade or anything else on screen
 would be hidden.
 
-**Reload from disk:** *⟲* next to *Open rf3.mc…* (F5) reads `rf3.mc`, its dialogue and `em.bin`
+**Reload from disk:** *🐞 Debug → ⟲ Reload rf3.mc + dialogue from disk* (F5) reads `rf3.mc`, its dialogue and `em.bin`
 again from disk, for when another tool (`optest.py`, `rf4mod script …`) changed the file while the
 editor was open. It stays on the same scene; unsaved edits and the undo history are dropped (it
 asks first).
 
-**No restart for scenes:** *⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
+**No restart for scenes:** *🐞 Debug → ⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
 game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the
 reload swaps that copy and the three bank buffers in place while the game is paused for a moment.
 It is refused while a scene is playing, so let the scene finish first. Changed scenes run from the
@@ -813,7 +813,7 @@ is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]
 `rf4mod script live` (what the game currently holds). `rf4mod script log` watches the running game (read only) and lists every scene start and every piece of script code it saw run, flagging any the editor does not show or shows only as *unreached*. *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
-**Script debugger** (*🐞 Debug* on the toolbar; docks below the tabs, *Undock* puts it in its own
+**Script debugger** (*🐞 Debug → 🐞 Debugger…* on the toolbar; docks below the tabs, *Undock* puts it in its own
 window). *Attach* connects to the running game (its memory; no native debugger, the exe is not
 changed). **F9** (or the right-click menu) sets a breakpoint on the selected Script-tab statement:
 a script that reaches it stops just before the statement runs, the editor opens that scene at it,

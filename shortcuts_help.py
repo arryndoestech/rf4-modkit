@@ -114,7 +114,7 @@ SHORTCUTS = [
             ("Wheel", "zoom at the pointer"),
             ("Ctrl+wheel / Shift+wheel", "scroll up and down / sideways"),
         ]),
-        ("Script debugger (🐞 Debug)", [
+        ("Script debugger (🐞 Debug → Debugger…)", [
             ("F9 in the Script view", "set / remove a breakpoint on the selected statement"),
             ("Double-click a breakpoint", "open its statement"),
             ("Double-click a variable (Variables tab)", "open the first statement that uses it"),
