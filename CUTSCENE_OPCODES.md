@@ -3022,8 +3022,8 @@ Args:
 Points the camera at a tile. With snap = 1 the camera cuts there immediately (the usual use); with 0 it only sets the target, clamped to the map's camera bounds.
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
   2. snap (1 = cut there now; 0 = set the target only)
 
 ### `op 187` — ReattachCameraToActor(character, snap)
@@ -3057,8 +3057,8 @@ Args:
 Pans the camera to a tile at a constant speed. Follow with WaitCameraAtMark to hold the script until it arrives.
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
   2. speed (arg/100 tiles per frame, max 15; corpus 50-800, 200 and 400 typical)
 
 ### `op 191` — ResetCameraToActor(actor, speed)
@@ -3513,11 +3513,12 @@ Args:
 
 ### `op 99` — TeleportActor(actor, x, y)
 *handler:* `Script_VMOp_TeleportActorToCoords`
+*verified:* yes, in game
 
-Instantly puts an actor (player or NPC) on a tile, without a walk animation. An NPC is loaded into the map if needed.
+Instantly puts an actor (player or NPC) on a spot, without a walk animation. An NPC is loaded into the map if needed.
 
 Args:
-  0. actor (ids >= 48 ignored)
+  0. actor (ids >= 48 ignored) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3545,8 +3546,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
+  2. y (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
 
 ### `op 100` — TeleportActor(actor, x, y)
 *handler:* `Script_VMOp_TeleportActorToCoords`
@@ -3554,7 +3555,7 @@ Args:
 Instantly puts an actor (player or NPC) on a tile, without a walk animation. An NPC is loaded into the map if needed.
 
 Args:
-  0. actor (ids >= 48 ignored)
+  0. actor (ids >= 48 ignored) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3582,16 +3583,17 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
+  2. y (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
 
 ### `op 101` — PlaceActorAndFace(actor, x, y, facing)
 *handler:* `ScriptAction_PlaceActorOrSetFacing`
+*verified:* yes, in game
 
-Teleport an actor to a tile and set its facing instantly. Streams the NPC into the map if it is not loaded yet.
+Teleport an actor to a spot and set its facing instantly. Streams the NPC into the map if it is not loaded yet.
 
 Args:
-  0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
+  0. actor (0 = player, 1..47 NPC; >= 48 = no-op) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3619,9 +3621,9 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
-  3. facing (0..359)
+  1. x (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
+  2. y (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
+  3. facing (0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)) — verified in game
 
 ### `op 102` — PlaceActorAndFace(actor, x, y, facing)
 *handler:* `ScriptAction_PlaceActorOrSetFacing`
@@ -3629,7 +3631,7 @@ Args:
 Teleport an actor to a tile and set its facing instantly. Streams the NPC into the map if it is not loaded yet.
 
 Args:
-  0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
+  0. actor (0 = player, 1..47 NPC; >= 48 = no-op) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3657,17 +3659,18 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
-  3. facing (0..359)
+  1. x (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
+  2. y (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
+  3. facing (0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)) — verified in game
 
 ### `op 103` — TurnActorToAngle(actor, facing, ease)
 *handler:* `ScriptVM_Op_SetEntityFacingAngleByteScaled`
+*verified:* yes, in game
 
 Turn an actor (player or NPC) to a fixed compass direction, either instantly or easing toward it. Pair with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145) to wait for the turn.
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored)
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3695,8 +3698,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. facing (0-359 compass degrees (x181 -> u16))
-  2. ease (0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame))
+  1. facing (0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)) — verified in game
+  2. ease (0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame)) — verified in game
 
 ### `op 104` — TurnActorToAngle(actor, facing, ease)
 *handler:* `ScriptVM_Op_SetEntityFacingAngleByteScaled`
@@ -3704,7 +3707,7 @@ Args:
 Turn an actor (player or NPC) to a fixed compass direction, either instantly or easing toward it. Pair with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145) to wait for the turn.
 
 Args:
-  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored)
+  0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored) — verified in game
      - `0` = Lest/Frey
      - `1` = Herbert
      - `2` = Clorica
@@ -3732,8 +3735,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. facing (0-359 compass degrees (x181 -> u16))
-  2. ease (0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame))
+  1. facing (0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)) — verified in game
+  2. ease (0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame)) — verified in game
 
 ### `op 106` — RotateActorInPlace(npc, degrees, frames)
 *handler:* `ScriptVM_Op_RotateEntityFacingByStepsWithCounter`
@@ -4143,10 +4146,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 115` — MoveActorToTileLockAi(actor, x, y, facing, speed, jump)
+### `op 115` — MoveActorToPosLockAi(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
-Walk an actor to an absolute tile and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
+Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
 
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
@@ -4177,16 +4180,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. facing (facing the move command ends with)
   4. speed (100 = normal walk (x 167773/4096 internal scale))
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
-### `op 116` — MoveActorToTileLockAi(actor, x, y, facing, speed, jump)
+### `op 116` — MoveActorToPosLockAi(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
-Walk an actor to an absolute tile and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
+Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
 
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
@@ -4217,16 +4220,16 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. facing (facing the move command ends with)
   4. speed (100 = normal walk (x 167773/4096 internal scale))
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
-### `op 117` — MoveActorToTileFaceTravel(actor, x, y, speed, jump)
+### `op 117` — MoveActorToPosFaceTravel(actor, x, y, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
-Walks an NPC to an absolute tile, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
+Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
 
 Args:
   0. actor
@@ -4257,15 +4260,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (corpus 30-400, 100 typical)
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
-### `op 118` — MoveActorToTileFaceTravel(actor, x, y, speed, jump)
+### `op 118` — MoveActorToPosFaceTravel(actor, x, y, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
-Walks an NPC to an absolute tile, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
+Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
 
 Args:
   0. actor
@@ -4296,15 +4299,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (corpus 30-400, 100 typical)
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
-### `op 119` — MoveNpcToTileKeepFacing(npc, x, y, speed, jump)
+### `op 119` — MoveNpcToPosKeepFacing(npc, x, y, speed, jump)
 *handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
-Move an NPC to an absolute tile without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
+Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
 
 Args:
   0. npc (1..47 (NPC table; no player branch); >= 48 = no-op)
@@ -4335,15 +4338,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (100 = normal walk)
   4. jump (non-zero = run/jump: speed x1.2 and jump bit)
 
-### `op 120` — MoveNpcToTileKeepFacing(npc, x, y, speed, jump)
+### `op 120` — MoveNpcToPosKeepFacing(npc, x, y, speed, jump)
 *handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
-Move an NPC to an absolute tile without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
+Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
 
 Args:
   0. npc (1..47 (NPC table; no player branch); >= 48 = no-op)
@@ -4374,15 +4377,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (100 = normal walk)
   4. jump (non-zero = run/jump: speed x1.2 and jump bit)
 
-### `op 121` — MoveNpcToTileKeepAnim(npc, x, y, speed)
+### `op 121` — MoveNpcToPosKeepAnim(npc, x, y, speed)
 *handler:* `Script_VMOp_MoveNpcToTileKeepAnim`
 
-Moves an NPC to an absolute tile while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
+Moves an NPC to an absolute position while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
 
 Args:
   0. npc
@@ -4413,14 +4416,14 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (corpus 17-800)
 
-### `op 122` — MoveNpcToTileKeepAnim(npc, x, y, speed)
+### `op 122` — MoveNpcToPosKeepAnim(npc, x, y, speed)
 *handler:* `Script_VMOp_MoveNpcToTileKeepAnim`
 
-Moves an NPC to an absolute tile while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
+Moves an NPC to an absolute position while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
 
 Args:
   0. npc
@@ -4451,8 +4454,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (corpus 17-800)
 
 ### `op 123` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
@@ -5015,42 +5018,43 @@ Args:
      - `26` = Mistress Trupin
   1. opacity (0 = hide (sets hidden bit, alpha untouched); 1..100 = show at that opacity)
 
-### `op 142` — MovePlayerToTile(x, y, facing, speed, run)
+### `op 142` — MovePlayerToPos(x, y, facing, speed, run)
 *handler:* `Script_VMOp_MoveActorToCoords`
 
-Walk or run the player to an absolute tile, then turn to the given facing. Wait with WaitPlayerMoveDone (op 145).
+Walk or run the player to an absolute position, then turn to the given facing. Wait with WaitPlayerMoveDone (op 145).
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
   2. facing (end facing after arriving)
   3. speed (internal = speed x 40.96 (x1.2 when running); corpus 50-300)
   4. run (0 = walk, non-zero = run animation and +20% speed)
 
-### `op 143` — MovePlayerToTileFaceTravel(x, y, speed, run)
+### `op 143` — MovePlayerToPosFaceTravel(x, y, speed, run)
 *handler:* `ScriptVM_Op_QueueMoveCommandToCoords`
 
-Walk or run the player to an absolute tile, facing the direction of travel (no end facing). Wait with WaitPlayerMoveDone (op 145).
+Walk or run the player to an absolute position, facing the direction of travel (no end facing). Wait with WaitPlayerMoveDone (op 145).
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
   2. speed (x40.96 internal, x1.2 when running)
   3. run (0 = walk, non-zero = run)
 
-### `op 144` — MovePlayerToTileKeepFacing(x, y, speed, run)
+### `op 144` — MovePlayerToPosKeepFacing(x, y, speed, run)
 *handler:* `Script_VMOp_MoveActorStraight`
 
-Move the player in a straight line to an absolute tile without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).
+Move the player in a straight line to an absolute position without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
   2. speed (x40.96 internal, x1.2 when running; corpus 30-500)
   3. run (0 = walk, non-zero = run)
 
 ### `op 145` — WaitPlayerMoveDone()
 *handler:* `Script_VMOp_QueryPlayerTurnBusy`
+*verified:* yes, in game
 
 Wait until the player has finished a scripted move (ops 142-144) and any pending scripted turn (TurnActorToAngle / TurnActorToFaceTarget on actor 0). The player counterpart of WaitActorMoveDone (op 129).
 
@@ -5125,27 +5129,27 @@ Args:
      - *(enum: 392 values — use the in-editor picker or the id database)*
   1. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
-### `op 160` — MoveEventActorToTile(key, x, y, speed, run)
+### `op 160` — MoveEventActorToPos(key, x, y, speed, run)
 *handler:* `Script_VMOp_MoveEventActorToTile`
 
-Walk or run an event actor to an absolute tile. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.
+Walk or run an event actor to an absolute position. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.
 
 Args:
   0. key
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (100 = the actor's base walk/run speed)
   4. run (0 = walk speed base (+368), 1 = run speed base (+372))
 
-### `op 161` — MoveEventActorToTileKeepFacing(key, x, y, speed, run)
+### `op 161` — MoveEventActorToPosKeepFacing(key, x, y, speed, run)
 *handler:* `Script_VMOp_MoveEventActorToTileKeepFacing`
 
-Like MoveEventActorToTile but the actor keeps its current facing while moving (side-step / back-pedal).
+Like MoveEventActorToPos but the actor keeps its current facing while moving (side-step / back-pedal).
 
 Args:
   0. key
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (100 = base speed)
   4. run
 
@@ -5741,7 +5745,7 @@ Args:
 ### `op 225` — StreamInNpc(npc, load)
 *handler:* `ScriptVM_Op_StreamInNpcOrRefresh`
 
-Bring an NPC's actor into the current map (or just re-apply its schedule state). Use StreamInNpcAtTile (op 246) to also place it.
+Bring an NPC's actor into the current map (or just re-apply its schedule state). Use StreamInNpcAtPos (op 246) to also place it.
 
 Args:
   0. npc (1..47; >= 48 = no-op)
@@ -5881,10 +5885,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 246` — StreamInNpcAtTile(npc, map, x, y)
+### `op 246` — StreamInNpcAtPos(npc, map, x, y)
 *handler:* `ScriptAction_StreamInNpcAtPosition`
 
-Brings an NPC onto a map and places it on a tile at once (no walk-in), resetting it to its idle pose.
+Brings an NPC onto a map and places it on a spot at once (no walk-in), resetting it to its idle pose.
 
 Args:
   0. npc (>= 48 = no-op)
@@ -5916,8 +5920,8 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
   1. map (corpus: map(MAP_X) constants)
-  2. x
-  3. y
+  2. x (script units, 8 per tile)
+  3. y (script units, 8 per tile)
 
 ### `op 248` — SetNpcVisibleFlag(npc, visible)
 *handler:* `Script_VMOp_SetNpcVisibleFlag`
@@ -7363,8 +7367,8 @@ Args:
 Teleport the player to a tile on the current map and settle them on the ground.
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
 
 ### `op 395` — TurnPlayerToAngle(facing, ease)
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
@@ -8044,37 +8048,37 @@ Args:
      - `0` = Companion 1
      - `1` = Companion 2
      - `2` = Both
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
 
-### `op 496` — MoveCompanionToTile(slot, x, y, facing, speed, run)
+### `op 496` — MoveCompanionToPos(slot, x, y, facing, speed, run)
 *handler:* `Script_VMOp_CompanionMoveTowardsTileFineGrained`
 
-Walks a companion (or both) to a tile and turns it to the given facing at the end. Does not wait; WaitCompanionSettled waits for it.
+Walks a companion (or both) to a position and turns it to the given facing at the end. Does not wait; WaitCompanionSettled waits for it.
 
 Args:
   0. slot (0 = companion 1, 1 = companion 2, 2 = both)
      - `0` = Companion 1
      - `1` = Companion 2
      - `2` = Both
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. facing (end facing)
   4. speed (corpus 100-200)
   5. run (non-zero = run gait, speed x1.2)
 
-### `op 497` — MoveCompanionToTileFaceTravel(slot, x, y, speed, run)
+### `op 497` — MoveCompanionToPosFaceTravel(slot, x, y, speed, run)
 *handler:* `Script_VMOp_CompanionMoveTowardsTileNoFacing`
 
-Walk or run a companion (or both) to a tile, facing the way they walk. Wait with WaitCompanionSettled (op 502).
+Walk or run a companion (or both) to a position, facing the way they walk. Wait with WaitCompanionSettled (op 502).
 
 Args:
   0. slot (0 = companion 1, 1 = companion 2, 2 = both)
      - `0` = Companion 1
      - `1` = Companion 2
      - `2` = Both
-  1. x
-  2. y
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
   3. speed (x40.96 internal, x1.2 when running)
   4. run
 
@@ -8867,7 +8871,7 @@ Args:
 ### `op 421` — SetNextItemAttributes(level, crafted, ingredients...)
 *handler:* `Script_VMOp_SetupPendingInteractionRecord`
 
-Prepare level, crafted bits and ingredient list for the NEXT item a script creates (GivePlayerItem, SpawnItemAtTile, ForcePlayerHoldItem, HandOrDropItem ...). The first such op uses and clears it.
+Prepare level, crafted bits and ingredient list for the NEXT item a script creates (GivePlayerItem, SpawnItemAtPos, ForcePlayerHoldItem, HandOrDropItem ...). The first such op uses and clears it.
 
 Args:
   0. level (stored into the item's level byte)
@@ -8951,10 +8955,10 @@ Uses up items from the stack the player is holding out (e.g. the item just hande
 Args:
   0. count (-1 = the whole held stack)
 
-### `op 452` — SpawnItemAtTile(item, quality, count, x, y, pickup)
+### `op 452` — SpawnItemAtPos(item, quality, count, x, y, pickup)
 *handler:* `Script_VMOp_SpawnItemAtTileAsDropOrVisual`
 
-Places an item in the world at a tile, either as a collectable drop or as a visual-only prop.
+Places an item in the world at a position, either as a collectable drop or as a visual-only prop.
 
 Args:
   0. item
@@ -8978,8 +8982,8 @@ Place an item model at a tile for display (up to 3 at a time), e.g. to show gift
 Args:
   0. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. x (-1 together with y = -1 = the player's tile)
-  2. y
+  1. x (script units, 8 per tile; -1 together with y = -1 = the player's tile)
+  2. y (script units, 8 per tile)
 
 ### `op 455` — DespawnItemVisuals()
 *handler:* `Script_VMOp_DespawnAllScriptedItemVisuals`
@@ -9006,10 +9010,10 @@ Args:
 
 Shows the reward popup for the active NPC request (its four reward items) with the reward jingle, marking the items as discovered.
 
-### `op 459` — ShowRewardPopupAtTile(item, x, y)
+### `op 459` — ShowRewardPopupAtPos(item, x, y)
 *handler:* `Script_VMOp_SpawnRewardPopupSingleAtTile`
 
-Shows a one-item reward popup ('You got ...!') anchored at a tile, with the reward jingle, and marks the item as discovered.
+Shows a one-item reward popup ('You got ...!') anchored at a position, with the reward jingle, and marks the item as discovered.
 
 Args:
   0. item
@@ -9313,15 +9317,20 @@ Args:
      - `26` = Mistress Trupin
   1. effect_kind (corpus 48/49 (healing-magic kinds))
 
-### `op 150` — TriggerActionAtTile(action_id, x, y)
+### `op 150` — TriggerActionAtPos(action_id, x, y)
 *handler:* `Script_VMOp_TriggerActorAction`
 
-Spawns a scripted action (visual effect, projectile, explosion, prop task...) by action id at a tile. Scenes use it for sparkles, smoke, impacts and similar effects.
+Spawns a scripted action (visual effect, projectile, explosion, prop task...) by action id at a position. Scenes use it for sparkles, smoke, impacts and similar effects.
 
 Args:
-  0. action_id (corpus 2-473; 65 and 105 always use the player's position)
-  1. x
-  2. y
+  0. action_id (corpus 2-473; 65 and 105 always use the player's position) — verified in game
+     - `21` = spawn_lightning
+     - `25` = explosion
+     - `37` = blue_diamond
+     - `151` = white_smoke
+     - `152` = smoke_puff
+  1. x (script units, 8 per tile)
+  2. y (script units, 8 per tile)
 
 ### `op 151` — TriggerActionOnActor(action, actor)
 *handler:* `Script_VMOp_TriggerActorAttack`
@@ -9459,14 +9468,14 @@ Starts a Sharance Maze challenge stage: records the stage and the current room/t
 Args:
   0. stage (0 Garden of Light, 1 Smoldering Prominence, 2 Deepwater Shrine, 3 Dragon Ruins, 4 Challenge to Fantasy, 5 Banquet of Nightmares (menu order))
 
-### `op 677` — SpawnTileEffectObject(x, y)
+### `op 677` — SpawnEffectObjectAtPos(x, y)
 *handler:* `Script_VMOp_SpawnTileObjectClass2050AtTile`
 
-Spawn the class-2050 floating object (the harvest-notification style effect actor) at a tile.
+Spawn the class-2050 floating object (the harvest-notification style effect actor) at a position.
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
 
 ### `op 678` — WallOffTileRect(x, y, width, height)
 *handler:* `Script_VMOp_ResetTileAttribFlagsInRectTo2`
@@ -10165,7 +10174,7 @@ Leftover lookup that always returns 0 in reg0. It searches the event-actor table
 Args:
   0. event actor id (event-actor id (corpus 0, 2, 100); ignored for the result)
 
-### `op 135` — GetActorTilePosition(actor)
+### `op 135` — GetActorPosition(actor)
 *handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
 *verified:* yes, in game
 
@@ -10201,11 +10210,11 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 136` — GetActorTilePosition(actor)
+### `op 136` — GetActorPosition(actor)
 *handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
 *verified:* yes, in game
 
-Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
+Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
 
 Args:
   0. actor (0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 writes nothing) — verified in game
@@ -10242,10 +10251,10 @@ Args:
 
 Check whether the player wears the Rosary (accessory special bit 0x40000): reg0 = 1 if so, else 0.
 
-### `op 182` — GetEventActorTilePosition(event key)
+### `op 182` — GetEventActorPosition(event key)
 *handler:* `Script_VMOp_GetEventActorTilePosition`
 
-Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
+Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorPosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
 Args:
   0. event key
@@ -10767,10 +10776,10 @@ Args:
   1. item (masked to 11 bits (0-2047))
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 247` — GetApproachTile(mover, target)
+### `op 247` — GetApproachPos(mover, target)
 *handler:* `ScriptVMOp_QueryTileOneStepBehindActorTowardTarget`
 
-Get the tile right next to the target on the mover's side (one step back from the target toward the mover), i.e. where the mover should walk to stand in front of the target. reg0 = x, reg1 = y (tiles).
+Get the position right next to the target on the mover's side (one step back from the target toward the mover), i.e. where the mover should walk to stand in front of the target. reg0 = x, reg1 = y (tiles).
 
 Args:
   0. mover (0 = player, 1..47 NPC: the actor that will walk)
@@ -11905,7 +11914,7 @@ Check whether your date has arrived at the date spot: reg0 = 1 if a companion (o
 
 Sets reg0 to the talking NPC's facing mode (0-2), as set by SetNpcFacingMode; 0 if there is no host NPC.
 
-### `op 504` — GetPartyMemberTileY(slot)
+### `op 504` — GetPartyMemberPosY(slot)
 *handler:* `Script_VMOp_QueryPartyMemberWorldYTile`
 *verified:* yes, in game
 
@@ -12320,8 +12329,8 @@ Args:
 Picks a random tile within a radius of a centre tile: reg0 = x, reg1 = y (absolute). Points cluster toward the centre (the distance is uniform, not the area).
 
 Args:
-  0. x
-  1. y
+  0. x (script units, 8 per tile)
+  1. y (script units, 8 per tile)
   2. radius (corpus 4-32)
 
 ### `op 631` — GetNameHashRoll(name, modulus)
@@ -12544,30 +12553,30 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 104 | `TurnActorToAngle` | 105 | `GetEventActorIndexStub` | 106 | `RotateActorInPlace` |
 | 107 | `TurnActorToFaceTarget` | 108 | `TurnActorToFaceTarget` | 109 | `TurnActorToFaceTarget` |
 | 110 | `FaceEventActor` | 111 | `SetActorAuxYaw` | 112 | `SetActorAuxYaw` |
-| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `MoveActorToTileLockAi` |
-| 116 | `MoveActorToTileLockAi` | 117 | `MoveActorToTileFaceTravel` | 118 | `MoveActorToTileFaceTravel` |
-| 119 | `MoveNpcToTileKeepFacing` | 120 | `MoveNpcToTileKeepFacing` | 121 | `MoveNpcToTileKeepAnim` |
-| 122 | `MoveNpcToTileKeepAnim` | 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` |
+| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `MoveActorToPosLockAi` |
+| 116 | `MoveActorToPosLockAi` | 117 | `MoveActorToPosFaceTravel` | 118 | `MoveActorToPosFaceTravel` |
+| 119 | `MoveNpcToPosKeepFacing` | 120 | `MoveNpcToPosKeepFacing` | 121 | `MoveNpcToPosKeepAnim` |
+| 122 | `MoveNpcToPosKeepAnim` | 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` |
 | 125 | `MoveActorByOffsetFaceTravel` | 126 | `MoveActorByOffsetFaceTravel` | 127 | `MoveActorByOffsetKeepFacing` |
 | 128 | `MoveActorByOffsetKeepFacing` | 129 | `WaitActorMoveDone` | 130 | `WaitActorMoveDone` |
 | 131 | `WaitActorNearMoveTarget` | 132 | `WaitActorNearMoveTarget` | 133 | `PlayActorAnim` |
-| 134 | `PlayActorAnim` | 135 | `GetActorTilePosition` | 136 | `GetActorTilePosition` |
+| 134 | `PlayActorAnim` | 135 | `GetActorPosition` | 136 | `GetActorPosition` |
 | 137 | `WaitActorAnimDone` | 138 | `WaitActorAnimDone` | 139 | `ApplyEffectToActor` |
-| 140 | `ApplyEffectToActor` | 141 | `SetActorOpacity` | 142 | `MovePlayerToTile` |
-| 143 | `MovePlayerToTileFaceTravel` | 144 | `MovePlayerToTileKeepFacing` | 145 | `WaitPlayerMoveDone` |
+| 140 | `ApplyEffectToActor` | 141 | `SetActorOpacity` | 142 | `MovePlayerToPos` |
+| 143 | `MovePlayerToPosFaceTravel` | 144 | `MovePlayerToPosKeepFacing` | 145 | `WaitPlayerMoveDone` |
 | 146 | `EquipItemToPlayer` | 147 | `RestorePlayerEquip` | 148 | `HasPlayerAccessoryEffect40000` |
-| 149 | `PlayPlayerAnim` | 150 | `TriggerActionAtTile` | 151 | `TriggerActionOnActor` |
+| 149 | `PlayPlayerAnim` | 150 | `TriggerActionAtPos` | 151 | `TriggerActionOnActor` |
 | 152 | `WaitPlayerAnimDone` | 153 | `SpawnEventActor` | 154 | `SpawnEventActorVariant` |
 | 155 | `SpawnEventActorEx` | 156 | `UnregisterEventActor` | 157 | `SpawnMapEntity` |
-| 158 | `SetMapAmbientColor` | 159 | `ResetMapAmbientColor` | 160 | `MoveEventActorToTile` |
-| 161 | `MoveEventActorToTileKeepFacing` | 162 | `TurnEventActorToAngle` | 163 | `TurnEventActorToFaceTarget` |
+| 158 | `SetMapAmbientColor` | 159 | `ResetMapAmbientColor` | 160 | `MoveEventActorToPos` |
+| 161 | `MoveEventActorToPosKeepFacing` | 162 | `TurnEventActorToAngle` | 163 | `TurnEventActorToFaceTarget` |
 | 164 | `WaitEventActorMoveDone` | 165 | `TriggerActionAtEventActor` | 166 | `ApplyEffectToEventActor` |
 | 167 | `PlayEventActorAnim` | 168 | `SkipEventActorAnimToEnd` | 169 | `WaitEventActorAnimDone` |
 | 170 | `SetEventActorAnimSpeed` | 171 | `SetEventActorAlpha` | 172 | `ShowEventActorEmote` |
 | 173 | `SetEventActorInScriptFlag` | 174 | `AddActorHeightOffset` | 175 | `SetEventActorCollideRadius` |
 | 176 | `SetEventActorScale` | 177 | `EnableEventActorWandering` | 178 | `SetEventActorAuxYaw` |
 | 179 | `WaitEventActorAuxYaw` | 180 | `KillEventActor` | 181 | `TurnEventActorIntoNpc` |
-| 182 | `GetEventActorTilePosition` | 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` |
+| 182 | `GetEventActorPosition` | 183 | `SetActorAIScript` | 184 | `SetActorIgnoredByMonsters` |
 | 185 | `PlayActorSplash` | 186 | `SetCameraPosition` | 187 | `ReattachCameraToActor` |
 | 188 | `HoldCameraInPlace` | 189 | `ResetCameraToPlayer` | 190 | `SetCameraTarget` |
 | 191 | `ResetCameraToActor` | 192 | `ResetCameraToActor` | 193 | `SetCameraTargetToCurrentPosition` |
@@ -12588,7 +12597,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 236 | `IsNpcInRangeToChimeIn` | 237 | `GetNpcPairChimeInState` | 238 | `IsQuestNpcGroupAvailable` |
 | 239 | `IsQuestNpcGroupAvailable` | 240 | `IsNpcGroupPresentNearby` | 241 | `IsNpcGroupPresentNearby` |
 | 242 | `ContinueNormalTalk` | 243 | `EndDialogueLock` | 244 | `ShowNpcHeldItem` |
-| 245 | `GetGiftAffinity` | 246 | `StreamInNpcAtTile` | 247 | `GetApproachTile` |
+| 245 | `GetGiftAffinity` | 246 | `StreamInNpcAtPos` | 247 | `GetApproachPos` |
 | 248 | `SetNpcVisibleFlag` | 249 | `SetNpcVisibleFlag` | 250 | `SkipActorAnimToEnd` |
 | 251 | `SkipActorAnimToEnd` | 252 | `SetActorAnimSpeedScale` | 253 | `SetActorAnimSpeedScale` |
 | 254 | `SetActorAnimFrame` | 255 | `GetActorStatusEffect` | 256 | `SetActorStatusConditions` |
@@ -12655,10 +12664,10 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 441 | `IsConfirmButtonDown` | 442 | `IsStickInputActive` | 443 | `SetFlagBit` |
 | 444 | `SetFlagBitIfCond` | 445 | `GetFlagBit` | 446 | `SetWeather` |
 | 447 | `GetWeather` | 448 | `SetWeatherTransition` | 449 | `GetWeatherTransition` |
-| 450 | `GetWeatherStreak` | 451 | `GetDayOfWeek` | 452 | `SpawnItemAtTile` |
+| 450 | `GetWeatherStreak` | 451 | `GetDayOfWeek` | 452 | `SpawnItemAtPos` |
 | 453 | `DropStagedItem` | 454 | `SpawnItemVisual` | 455 | `DespawnItemVisuals` |
 | 456 | `GetEquippedItemAttr` | 457 | `ShowRewardPopup` | 458 | `ShowQuestReward` |
-| 459 | `ShowRewardPopupAtTile` | 460 | `AddRewardItem` | 461 | `SuppressRewardJingle` |
+| 459 | `ShowRewardPopupAtPos` | 460 | `AddRewardItem` | 461 | `SuppressRewardJingle` |
 | 462 | `GiveRewardItems` | 463 | `DropItem` | 464 | `DropItemStack` |
 | 465 | `SetCalendarPauseFlag` | 466 | `SkipToTime` | 467 | `SetTime` |
 | 468 | `FastForwardCalendar` | 469 | `SetOrAddCalendarDate` | 470 | `GetGuestNpcVariant` |
@@ -12670,9 +12679,9 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 486 | `DismissCompanionByCharId` | 487 | `IsCurrentNpcInParty` | 488 | `SetCompanionScriptedPresence` |
 | 489 | `SetCompanionsSceneHeld` | 490 | `IsDatePartnerAtDateSpot` | 492 | `SetNpcFacingMode` |
 | 493 | `GetNpcFacingMode` | 494 | `SetCompanionVisible` | 495 | `WarpCompanion` |
-| 496 | `MoveCompanionToTile` | 497 | `MoveCompanionToTileFaceTravel` | 498 | `MoveCompanionByOffset` |
+| 496 | `MoveCompanionToPos` | 497 | `MoveCompanionToPosFaceTravel` | 498 | `MoveCompanionByOffset` |
 | 499 | `MoveCompanionByOffsetFaceTravel` | 500 | `TurnCompanionToAngle` | 501 | `TurnCompanionToFaceTarget` |
-| 502 | `WaitCompanionSettled` | 503 | `ShowCompanionEmote` | 504 | `GetPartyMemberTileY` |
+| 502 | `WaitCompanionSettled` | 503 | `ShowCompanionEmote` | 504 | `GetPartyMemberPosY` |
 | 506 | `WarpMonstersToPlayer` | 507 | `PopulateSlayRequest` | 508 | `PopulateQuestKind2RandomRewards` |
 | 509 | `PopulateQuestKind2RandomRewards` | 510 | `PopulateQuestKind2LiteralRewards` | 511 | `PopulateQuestKind3RandomRewards` |
 | 512 | `PopulateQuestKind3RandomRewards` | 513 | `PopulateQuestKind4RandomRewards` | 514 | `PopulateQuestKind4RandomRewards` |
@@ -12726,7 +12735,7 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 667 | `SetGameClearedSysFlag` | 668 | `IsSaveConfigBit4Set` | 669 | `SetSaveConfigBit4` |
 | 670 | `IsSaveConfigBit5Set` | 671 | `SetSaveConfigBit5` | 672 | `IsSaveConfigBit2Set` |
 | 673 | `IsSaveConfigBit3Set` | 674 | `GetRuneMedals` | 675 | `ConvertMedalsToGold` |
-| 676 | `GetMedalGoldRate` | 677 | `SpawnTileEffectObject` | 678 | `WallOffTileRect` |
+| 676 | `GetMedalGoldRate` | 677 | `SpawnEffectObjectAtPos` | 678 | `WallOffTileRect` |
 | 679 | `IncrementPlayerSkillLevel` | 680 | `ApplyAttackToPlayer` | 681 | `RollBreadRecipe` |
 | 682 | `SetSceneField400` | 683 | `PlayCutsceneVideo` | 684 | `IsProjectorSceneUnlocked` |
 | 685 | `SetFreeLookCameraMode` | 686 | `GetFreeLookCameraMode` | 687 | `RebuildMinimap` |

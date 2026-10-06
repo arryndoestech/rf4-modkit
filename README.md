@@ -615,6 +615,8 @@ greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
   address, or it is left-over code). The search box finds scenes by **dialogue**
   (case-insensitive phrase), **speaker**, **opcode** (name or number), **Event Manager entry**, or
   jumps to a **bank #**. Empty map banks are hidden unless *empty banks* is ticked. The
+  **Trigger** dropdown shows only the scenes of one **action type** (*MapEnterScene*, a talk tier,
+  *WarpArrivalScene* ...; the number is how many entries ship) and only the banks that have one. The
   toolbar's **◀ Banks** button hides the list to give the scene the full width; **Inspector ▶**
   at its right end does the same for the Inspector.
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
@@ -751,7 +753,10 @@ bit id, width, value range and Japanese label, plus the recovered zone-2 bits), 
 verified in game (with everything the opcode table knows about each), the **text codes** a
 dialogue line can hold (`＠０＠`, `＠キャラ０＠`, `＋blue＋` ..., what each shows and which instruction fills
 its slot: `SetVar3(0, n)` feeds `＠０＠`), and the character, map and
-item ids with the form an argument takes. Double-click copies. **Where a variable is used:** the
+item ids with the form an argument takes, and the **action types**: what makes a scene
+run (the bank's type table, the keys each type compares, which entry wins), one row per type with
+its keys, entry count and matcher; double-clicking a type sets the Banks list's Trigger filter to
+it. Double-click copies. **Where a variable is used:** the
 flags list counts each variable's reads and writes over every bank and em.bin (unsaved edits
 included); selecting one lists every statement and em.bin entry that reads or writes it, and a
 double-click opens it. In the script view, right-click a statement → *Uses of FLG_X…* for each

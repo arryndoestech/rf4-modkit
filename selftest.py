@@ -3666,7 +3666,7 @@ def test_script():
            and om.mnemonic(412) == "BlackScreen")
     tip = om.tooltip(394, arg_values=["9", "12"])
     _check("opcode_meta tooltip has desc + arg values + technical name",
-           "x = 9" in tip and "TeleportPlayerToTile" in tip)
+           __import__("re").search(r"\bx\b[^\n]*= 9", tip) is not None and "TeleportPlayerToTile" in tip)
     # metadata-layer invariants (regression guards for the curated tables): every op must
     # render its tooltip/prototype/describe/category without throwing, every category must be
     # a known bucket, and the enum-picker layer must stay wired (item/char/room/skill/...).
@@ -3712,7 +3712,7 @@ def test_script():
         return (om.describe(_o) + " " + ((om.table_row(_o) or {}).get("details") or "")).lower()
     _m452 = om.mnemonic(452)
     _a452 = [_a.lower().strip() for _a in om.arg_names(452)]
-    _check("opcode_meta: op452 = SpawnItemAtTile (not the ShipItem misnomer), args carry x/y tile + as-drop",
+    _check("opcode_meta: op452 = SpawnItemAtPos (not the ShipItem misnomer), args carry x/y tile + as-drop",
            "spawn" in _m452.lower() and "ship" not in _m452.lower()
            and "x" in _a452 and "y" in _a452 and any(_a.startswith("pickup") for _a in _a452)
            and not any(_a in ("a", "b", "c") for _a in _a452)
@@ -3729,7 +3729,7 @@ def test_script():
         return [_a.lower() for _a in om.arg_names(_o)]
     _labelfix = (
         len(om.arg_names(464)) == 3 and any("quality" in _a for _a in _la(464))
-        and [_a[:6] for _a in _la(609)] == ["x", "y", "radius"]
+        and [_a.split(" ")[0] for _a in _la(609)] == ["x", "y", "radius"]
         and len(om.arg_names(405)) == 2 and any("plant" in _a for _a in _la(405))
         and len(om.arg_names(478)) == 2 and any("held" in _a for _a in _la(478))
         and len(om.arg_names(10)) == 2 and any("character-name archive" in _a for _a in _la(10))
@@ -15095,6 +15095,34 @@ def test_cutscene_editor_workflows():
         cx.open_scene(*_home)
         _check("search highlights the result (no jump into the bank tree) and opens the scene at the match",
                _s_ok, f"row={_srow} sel={cx.sel}")
+        # the Trigger dropdown: only the banks with that action type, only its scenes
+        _lab6 = next((k for k, v in _br._type_ids.items() if v == 6), None)
+        _ok6 = _lab6 is not None
+        if _ok6:
+            _br.type_filter.set(_lab6)
+            _br.rebuild()
+            root.update()
+            _bk = [r[1] for r in _br._rows.values() if r[0] == "bank"]
+            _ok6 = bool(_bk) and all(6 in cx.doc.container.banks[p].type_table_full() for p in _bk)
+            if _ok6:
+                _br._fill_bank(_bk[0])
+                _pcs = {e.event_id for e in cx.doc.container.banks[_bk[0]].entry_records(6)}
+                _sc = [r[2] for r in _br._rows.values() if r[0] == "scene" and r[1] == _bk[0]]
+                _ok6 = bool(_sc) and set(_sc) <= _pcs
+        _br.type_filter.set("all triggers")
+        _br.rebuild()
+        root.update()
+        _ref = cx.open_reference("Action types")
+        root.update()
+        _ok_ref = _ref.nb.tab(_ref.nb.select(), "text") == "Action types"
+        _ref._filter_banks(6)
+        root.update()
+        _check("Trigger dropdown: type 6 lists only banks with a type-6 entry and only those "
+               "scenes; the Reference window's Action types tab sets it", _ok6 and _ok_ref
+               and _br._type_ids.get(_br.type_filter.get()) == 6, _lab6)
+        _br.type_filter.set("all triggers")
+        _br.rebuild()
+        _ref.win.destroy()
         # Save writes straight over the game folder's own files -- here a throwaway copy
         from rf4s_modkit import gamepaths as _gp
         import shutil as _sh

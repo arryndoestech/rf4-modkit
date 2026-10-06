@@ -11,6 +11,8 @@ from rf4s_modkit import script
 from . import catalog
 from .render import scene_preview
 
+ALL_TRIGGERS = "all triggers"
+
 SEARCH_MODES = ("dialogue", "speaker", "opcode", "variable", "event manager entry", "bank #")
 
 
@@ -80,6 +82,18 @@ class Browser(ttk.Frame):
         self.banks_tab = banks
         br = ttk.Frame(banks)
         br.pack(fill="x", padx=4, pady=(4, 0))
+        ttk.Label(br, text="Trigger").pack(side="left")
+        self.type_filter = tk.StringVar(value=ALL_TRIGGERS)
+        self._type_ids = {ALL_TRIGGERS: None}       # dropdown text -> action type (None = all)
+        tc = ttk.Combobox(br, textvariable=self.type_filter, values=[ALL_TRIGGERS], width=30,
+                          state="readonly")
+        tc.pack(side="left", padx=(4, 0))
+        tc.bind("<<ComboboxSelected>>", lambda _e: self.rebuild())
+        self.type_combo = tc
+        Tip(tc, "Show only the scenes registered under one action type (what makes a scene "
+                "run: entering a map, a talk line, a warp, a festival...), and only the banks "
+                "that have one. The number is how many entries of that type ship. The Reference "
+                "window's Action types tab explains each type.")
         self.show_empty = tk.BooleanVar(value=False)
         cb = ttk.Checkbutton(br, text="empty banks", variable=self.show_empty, command=self.rebuild)
         cb.pack(side="right")
@@ -149,10 +163,14 @@ class Browser(ttk.Frame):
         if doc.container is None:
             return
         catalog.refresh_subevent_names(doc)       # town-event bank titles follow the language
+        want = self._refresh_type_filter(doc)
         groups = {g: [] for g, _t in catalog.GROUP_TITLES}
         empty = self.show_empty.get()
         for pos, bank in enumerate(doc.container.banks):
-            if empty or not catalog.bank_is_empty(bank):
+            if want is not None:
+                if want in bank.type_table_full():
+                    groups[catalog.bank_group(bank)].append(pos)
+            elif empty or not catalog.bank_is_empty(bank):
                 groups[catalog.bank_group(bank)].append(pos)
         for g, title in catalog.GROUP_TITLES:
             if not groups[g]:
@@ -160,6 +178,26 @@ class Browser(ttk.Frame):
             gid = t.insert("", "end", iid=f"g:{g}", text=f"{title}  ({len(groups[g])})", open=(g == "global"))
             for pos in groups[g]:
                 self._add_bank(gid, pos)
+
+    def _refresh_type_filter(self, doc):
+        """Fill the Trigger dropdown with the action types the open file uses (entry counts
+        across every bank) and return the chosen type, or None for all."""
+        counts = {}
+        for bank in doc.container.banks:
+            for t, (n, _off) in bank.type_table_full().items():
+                counts[t] = counts.get(t, 0) + n
+        self._type_ids = {ALL_TRIGGERS: None}
+        for t in sorted(counts):
+            self._type_ids["%s  (%d)" % (catalog.type_label(t)[5:], counts[t])] = t
+        self.type_combo.config(values=list(self._type_ids))
+        cur = self._type_ids.get(self.type_filter.get(), "gone")
+        if cur == "gone":                       # its count changed (an edit) or it is gone
+            old = getattr(self, "_type_want", None)
+            hit = next((k for k, v in self._type_ids.items() if v == old and old is not None), None)
+            self.type_filter.set(hit or ALL_TRIGGERS)
+            cur = self._type_ids[self.type_filter.get()]
+        self._type_want = cur
+        return cur
 
     def _add_bank(self, parent, pos):
         bank = self.app.doc.container.banks[pos]
@@ -177,6 +215,10 @@ class Browser(ttk.Frame):
         doc = self.app.doc
         bank = doc.container.banks[pos]
         scenes = scene_rows(bank)
+        want = getattr(self, "_type_want", None)
+        if want is not None:                    # the Trigger filter: scenes of that type only
+            pcs = {r.event_id for r in bank.entry_records(want)}
+            scenes = [sc for sc in scenes if sc.entry_pc in pcs]
         previews = {}                       # subroutine pc -> its label (shared by many scenes)
         for sc in scenes:
             sid = f"s:{pos}:{sc.entry_pc}"

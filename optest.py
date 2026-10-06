@@ -192,19 +192,98 @@ def install_sweep(map_name, listing):
     return bank.entry_records(6)[0].event_id, path
 
 
+TEXT_STATE = _HERE / "out" / "optest_text.json"   # the test lines now in the rf3mc.<locale> files
+
+
+def _text_files():
+    """{locale: path} of every rf3mc.<locale> the game loads."""
+    from rf4s_modkit import gamepaths, hotreload
+    names = ["rf3mc.%s" % loc for loc in hotreload.TEXT_LOCALES]
+    t = gamepaths.game_targets(names) or {}
+    out = {n[6:]: pathlib.Path(t[n]) for n in names if t.get(n) and pathlib.Path(t[n]).is_file()}
+    if not out:
+        raise SystemExit("no rf3mc.<locale> files in the game folder")
+    return out
+
+
+def _strip_test_text(arcs):
+    """Take the previous test's lines (TEXT_STATE) off the end of each archive in `arcs`
+    ({locale: TextArchive}) -- only where the file still ends with exactly them. True when
+    anything was taken off."""
+    if not TEXT_STATE.is_file():
+        return False
+    st = json.loads(TEXT_STATE.read_text(encoding="utf-8"))
+    tail = [box_text(s).encode("utf-8") for s in st["lines"]]
+    cut = False
+    for loc, arc in arcs.items():
+        n0 = st["base"].get(loc)
+        if n0 is None:
+            continue
+        if arc.entries[-len(tail):] == tail and len(arc) >= n0 + len(tail)                 and all(e == b"" for e in arc.entries[n0:len(arc) - len(tail)]):
+            del arc.entries[n0:]
+            cut = True
+        else:
+            print("rf3mc.%s no longer ends with the previous test's lines: left as it is" % loc)
+    return cut
+
+
+def test_text_ids(lines):
+    """The line ids install_test_text would give `lines` (nothing is written)."""
+    from rf4s_modkit import textdb
+    arcs = {loc: textdb.TextArchive.parse(f.read_bytes()) for loc, f in _text_files().items()}
+    _strip_test_text(arcs)
+    base = max(len(a) for a in arcs.values())
+    return list(range(base, base + len(lines)))
+
+
+def install_test_text(lines):
+    """Write `lines` (test descriptions, wrapped to the box) to the end of EVERY rf3mc.<locale>
+    on disk, with the same ids in all of them (a shorter file is padded with empty lines), so
+    any reload -- Ctrl+R, F5, `script reload`, a restart -- keeps them. The previous test's
+    lines are taken off first, so the files do not grow test after test; remove_test_text
+    takes them off for good. Returns their ids for DIALOG #id."""
+    from rf4s_modkit import gamepaths, textdb
+    files = _text_files()
+    arcs = {loc: textdb.TextArchive.parse(f.read_bytes()) for loc, f in files.items()}
+    _strip_test_text(arcs)
+    base = max(len(a) for a in arcs.values())
+    state = {"base": {}, "lines": list(lines)}
+    for loc, arc in arcs.items():
+        state["base"][loc] = len(arc)
+        while len(arc) < base:
+            arc.append_text("")
+        for s in lines:
+            arc.append_text(box_text(s))
+    for loc, arc in arcs.items():
+        gamepaths.write_game_file(files[loc], arc.build())
+    TEXT_STATE.parent.mkdir(parents=True, exist_ok=True)
+    TEXT_STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+    return list(range(base, base + len(lines)))
+
+
+def remove_test_text():
+    """Take the last test's lines off the rf3mc.<locale> files again. True when it did."""
+    from rf4s_modkit import gamepaths, textdb
+    if not TEXT_STATE.is_file():
+        return False
+    files = _text_files()
+    arcs = {loc: textdb.TextArchive.parse(f.read_bytes()) for loc, f in files.items()}
+    if _strip_test_text(arcs):
+        for loc, arc in arcs.items():
+            gamepaths.write_game_file(files[loc], arc.build())
+    TEXT_STATE.unlink()
+    return True
+
+
 def test_lines(lines, pid=None):
-    """Load the game's dialogue text plus `lines` (test descriptions) into the running game only
-    -- no file changes -- and return their line ids for DIALOG #id. The game's language file
-    is the base; a later `script reload` puts the plain text back. Run it after the rf3.mc
-    reload (that one reloads the text from disk)."""
-    from rf4s_modkit import gamepaths, hotreload, textdb
+    """install_test_text(lines), then put the game's language file (now with them) into the
+    running game. Returns the line ids for DIALOG #id."""
+    from rf4s_modkit import hotreload
+    ids = install_test_text(lines)
     loc, _n = hotreload.text_locale(pid=pid)
     if loc is None:
         raise SystemExit("the game's dialogue text matches none of the rf3mc.<locale> files")
-    f = (gamepaths.game_targets(["rf3mc.%s" % loc]) or {}).get("rf3mc.%s" % loc)
-    arc = textdb.TextArchive.parse(pathlib.Path(f).read_bytes())
-    ids = [arc.append_text(box_text(s)) for s in lines]
-    hotreload.reload_text(arc.build(), pid=pid)
+    hotreload.reload_text(_text_files()[loc].read_bytes(), pid=pid)
     return ids
 
 
@@ -235,6 +314,7 @@ def restore(map_name):
     i = c.n_primary + data.map_id(map_name)
     c.set_bank_bytes(c.banks[i], bytes(o.banks[i].data))
     _write(S, path, c)
+    remove_test_text()                             # its test lines go too
     return orig
 
 

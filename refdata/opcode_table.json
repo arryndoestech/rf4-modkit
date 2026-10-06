@@ -20445,32 +20445,53 @@
      "values": "ids >= 48 ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
+       "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      }
+     ]
     },
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
+       "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      }
+     ]
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
+       "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "if argc < 3: forever (bug)",
-   "description": "Instantly puts an actor (player or NPC) on a tile, without a walk animation. An NPC is loaded into the map if needed.",
+   "description": "Instantly puts an actor (player or NPC) on a spot, without a walk animation. An NPC is loaded into the map if needed.",
    "details": "Needs argc >= 3, otherwise returns 1 every frame (blocks forever). id >= 48: no-op. id < 32 sets bit id of host+352 (scene-placed mask). NPC: Npc_LoadOrPrepareById(id, 0) + Npc_TeleportToCoords(id, {x<<12, y<<12, 0}). Player: unless g_globalGameStateFlags & 0x401000, world x/y = tile<<12, z = 0; then Actor_SnapToGroundAndResetMotion.",
    "side_effects": "host+352 placed-actor bit; loads NPC",
-   "evidence": "RF4S.exe+0x1FAE80: `if (id >= 0x30) return 0; if (id < 0x20) host+352 |= 1<<id; ... Npc_TeleportToCoords` (+0x1FEB50) / player branch Actor_SnapToGroundAndResetMotion (+0xA4ED0); corpus: 657 uses, tag3 actor ids with literal or reg0/reg1 tiles.",
+   "evidence": "RF4S.exe+0x1FAE80: `if (id >= 0x30) return 0; if (id < 0x20) host+352 |= 1<<id; ... Npc_TeleportToCoords` (+0x1FEB50) / player branch Actor_SnapToGroundAndResetMotion (+0xA4ED0); corpus: 657 uses, tag3 actor ids with literal or reg0/reg1 tiles. In-game test 2026-10-06 (user): TeleportActor(0, 132, 500) next to a barrel spawned at (132, 484) -> the player stood inside the barrel, not 2 tiles off: the position moved but the x/y unit is still open. In-game test 2026-10-06 (user): TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each -> the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516.",
    "alias_of": null,
    "handler": "Script_VMOp_TeleportActorToCoords",
    "handler_rva": "0x1FAE80",
@@ -20489,7 +20510,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 375,
     "pc": "0x4090",
@@ -20518,23 +20539,44 @@
      "values": "ids >= 48 ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
+       "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      }
+     ]
     },
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
+       "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      }
+     ]
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TeleportActor(0, 212, 468) and (0, 164, 516) around a barrel spawned at (164, 468); GetActorPosition(0) after each",
+       "observed": "the player stood about 6 tiles right of the barrel, then about 6 tiles below it (toward the camera); read back 212, 468 and 164, 516"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -20591,40 +20633,68 @@
      "values": "0 = player, 1..47 NPC; >= 48 = no-op",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 292, 500, 90) next to a barrel spawned at (292, 484)",
+       "observed": "the player stood inside the barrel (not 2 tiles off) facing right (90 = right, as TurnActorToAngle)"
+      }
+     ]
     },
     {
      "name": "x",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 116, 468, 90) beside a barrel spawned at (164, 468); GetActorPosition(0) after",
+       "observed": "the player stood about 6 tiles left of the barrel facing right toward it; read back 116, 468"
+      }
+     ]
     },
     {
      "name": "y",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 116, 468, 90) beside a barrel spawned at (164, 468); GetActorPosition(0) after",
+       "observed": "the player stood about 6 tiles left of the barrel facing right toward it; read back 116, 468"
+      }
+     ]
     },
     {
      "name": "facing",
      "type": "degrees",
-     "values": "0..359",
+     "values": "0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 292, 500, 90) next to a barrel spawned at (292, 484)",
+       "observed": "the player stood inside the barrel (not 2 tiles off) facing right (90 = right, as TurnActorToAngle)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "if argc < 3: forever (bug); otherwise no",
-   "description": "Teleport an actor to a tile and set its facing instantly. Streams the NPC into the map if it is not loaded yet.",
+   "description": "Teleport an actor to a spot and set its facing instantly. Streams the NPC into the map if it is not loaded yet.",
    "details": "Needs argc >= 3. Actor ids < 32 are marked in host+352 (placed-actor mask). Position is tile << 12. NPC: Npc_LoadOrPrepareById (+0x229EB0) + Npc_TeleportToCoords (+0x1FEB50); player: world_x/y written, pos_z = 0, Actor_SnapToGroundAndResetMotion (+0xA4ED0). Then falls through to the facing block: yaw = 181 * degrees; NPC -> actor+158 = yaw, +160 = 0 (instant); player -> facing_b = yaw, field_A0 = 0, g_playerFacingDirty = 1. With argc < 3 the handler returns 1 (busy) and the statement blocks forever; with argc 3 the facing comes from an uninitialised local.",
    "side_effects": "host+352 bit; actor position/facing; may stream an NPC in",
-   "evidence": "RF4S.exe+0x1FAFB0: place block `if (argc > 2) {... v4 = 0}`, `if (v4) return 1;`, facing read `if (argc > 3) facing = stack[top-9]`, `181 * facing`; corpus 651 uses, all argc 4 (facing 0/90/180/270 mostly).",
+   "evidence": "RF4S.exe+0x1FAFB0: place block `if (argc > 2) {... v4 = 0}`, `if (v4) return 1;`, facing read `if (argc > 3) facing = stack[top-9]`, `181 * facing`; corpus 651 uses, all argc 4 (facing 0/90/180/270 mostly). In-game test 2026-10-06 (user): PlaceActorAndFace(0, 292, 500, 90) next to a barrel spawned at (292, 484) -> the player stood inside the barrel (not 2 tiles off) facing right (90 = right, as TurnActorToAngle). In-game test 2026-10-06 (user): PlaceActorAndFace(0, 116, 468, 90) beside a barrel spawned at (164, 468); GetActorPosition(0) after -> the player stood about 6 tiles left of the barrel facing right toward it; read back 116, 468.",
    "alias_of": null,
    "handler": "ScriptAction_PlaceActorOrSetFacing",
    "handler_rva": "0x1FAFB0",
@@ -20643,7 +20713,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 132,
     "pc": "0x3B6C",
@@ -20672,31 +20742,59 @@
      "values": "0 = player, 1..47 NPC; >= 48 = no-op",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 292, 500, 90) next to a barrel spawned at (292, 484)",
+       "observed": "the player stood inside the barrel (not 2 tiles off) facing right (90 = right, as TurnActorToAngle)"
+      }
+     ]
     },
     {
      "name": "x",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 116, 468, 90) beside a barrel spawned at (164, 468); GetActorPosition(0) after",
+       "observed": "the player stood about 6 tiles left of the barrel facing right toward it; read back 116, 468"
+      }
+     ]
     },
     {
      "name": "y",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile; +x = right, +y = down (toward the camera)",
      "required_kind": "int",
-     "notes": "",
-     "human_verified": false
+     "notes": "8 script units per map-editor tile, tile * 8 + 4 = the tile's centre (the same unit as SpawnEventActor); seen in game 2026-10-06 with 6-tile offsets.",
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 116, 468, 90) beside a barrel spawned at (164, 468); GetActorPosition(0) after",
+       "observed": "the player stood about 6 tiles left of the barrel facing right toward it; read back 116, 468"
+      }
+     ]
     },
     {
      "name": "facing",
      "type": "degrees",
-     "values": "0..359",
+     "values": "0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "PlaceActorAndFace(0, 292, 500, 90) next to a barrel spawned at (292, 484)",
+       "observed": "the player stood inside the barrel (not 2 tiles off) facing right (90 = right, as TurnActorToAngle)"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -20753,15 +20851,29 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room)",
+       "observed": "the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right"
+      }
+     ]
     },
     {
      "name": "facing",
      "type": "degrees",
-     "values": "0-359 compass degrees (x181 -> u16)",
+     "values": "0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room)",
+       "observed": "the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right"
+      }
+     ]
     },
     {
      "name": "ease",
@@ -20769,7 +20881,14 @@
      "values": "0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room)",
+       "observed": "the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -20778,7 +20897,7 @@
    "description": "Turn an actor (player or NPC) to a fixed compass direction, either instantly or easing toward it. Pair with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145) to wait for the turn.",
    "details": "argc must be >= 3 and arg0 < 48, else no-op. yaw = (u16)(181 * degrees). NPC (1-47): actor+158 (target facing) = yaw, actor+160 = shift, npc+20 |= 0x800 when shift != 0; with shift 0 the actor snaps (Actor_IntegrateMotionAndFacing steps current +156 by (target-current) >> shift). Player (0): unless g_globalGameStateFlags & 0x401000, player field_A0 = (u8)shift, facing_b = yaw; g_playerFacingDirty = 1. Returns 0.",
    "side_effects": "actor facing target / player facing",
-   "evidence": "RF4S.exe+0x1FC9B0: `if (id >= 0x30 || argc <= 2) return 0; yaw = 181*arg1; npc: +158 = yaw, +160 = arg2, if (arg2) npc+20 |= 0x800; player: field_A0 = arg2, facing_b = yaw, g_playerFacingDirty = 1`; corpus: op 103 816 uses (degrees 0/180/90/270/45 multiples, shift 0 or 2), op 104 46 uses (REG_WIFE_ID/REG_CHILD_ID).",
+   "evidence": "RF4S.exe+0x1FC9B0: `if (id >= 0x30 || argc <= 2) return 0; yaw = 181*arg1; npc: +158 = yaw, +160 = arg2, if (arg2) npc+20 |= 0x800; player: field_A0 = arg2, facing_b = yaw, g_playerFacingDirty = 1`; corpus: op 103 816 uses (degrees 0/180/90/270/45 multiples, shift 0 or 2), op 104 46 uses (REG_WIFE_ID/REG_CHILD_ID). In-game test 2026-10-06 (user): TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room) -> the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right.",
    "alias_of": null,
    "handler": "ScriptVM_Op_SetEntityFacingAngleByteScaled",
    "handler_rva": "0x1FC9B0",
@@ -20797,7 +20916,7 @@
    "confidence": "high",
    "notes": "True alias pair 103/104 (no opcode branch). Monsters/event actors (>= 48) are not handled; use FaceEventActor-style ops for those.",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 143,
     "pc": "0x3F70",
@@ -20826,15 +20945,29 @@
      "values": "0 = player, 1-47 = NPC/villager char id (see the character table); >= 48 ignored",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room)",
+       "observed": "the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right"
+      }
+     ]
     },
     {
      "name": "facing",
      "type": "degrees",
-     "values": "0-359 compass degrees (x181 -> u16)",
+     "values": "0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room)",
+       "observed": "the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right"
+      }
+     ]
     },
     {
      "name": "ease",
@@ -20842,7 +20975,14 @@
      "values": "0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TurnActorToAngle(0, 0/90/180/270, 0), then TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() (Dragon Room)",
+       "observed": "the player faced down (0), right (90), up (180), left (270): counter-clockwise on screen; ease 5 turned slowly from left to right"
+      }
+     ]
     }
    ],
    "optional_args_from": null,
@@ -20875,7 +21015,7 @@
     "bank": 126,
     "pc": "0x02A4",
     "lines": [
-     "    MovePlayerToTile(330, 520, 270, 120, 1)",
+     "    MovePlayerToPos(330, 520, 270, 120, 1)",
      "    MoveActorToTileFaceTravel_118(var:0x40FE, 350, 520, 200, 1)",
      "    WaitActorMoveDone_130(var:0x40FE)",
      "    TurnActorToAngle_104(var:0x40FE, 270, 0)    ; <--",
@@ -20936,7 +21076,7 @@
      "    GetEventActorIndexStub(0)    ; <--",
      "    CALL L_1bc8",
      "    Wait(3000)",
-     "    GetEventActorTilePosition(105)"
+     "    GetEventActorPosition(105)"
     ]
    }
   },
@@ -21149,7 +21289,7 @@
     "bank": 124,
     "pc": "0x0260",
     "lines": [
-     "    MovePlayerToTile(reg0, reg1, 90, 140, 0)",
+     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()",
      "    TurnActorToAngle_104(var:0x40FE, 270, 2)",
      "    TurnActorToFaceTarget_108(var:0x40C6, actor(player), 2)    ; <--",
@@ -21300,7 +21440,7 @@
      "    FaceEventActor(0, 100, 0)    ; <--",
      "    WaitActorMoveDone(actor(player))",
      "    EquipItemToPlayer(575)",
-     "    GetActorTilePosition(actor(player))"
+     "    GetActorPosition(actor(player))"
     ]
    }
   },
@@ -21359,9 +21499,9 @@
     "bank": 81,
     "pc": "0x0322",
     "lines": [
-     "    GetActorTilePosition(actor(Margaret))",
+     "    GetActorPosition(actor(Margaret))",
      "    EVAL (reg0 -= 16)",
-     "    MoveNpcToTileKeepAnim(actor(Margaret), reg0, reg1, 100)",
+     "    MoveNpcToPosKeepAnim(actor(Margaret), reg0, reg1, 100)",
      "    SetActorAuxYaw(actor(Margaret), 0)    ; <--",
      "    WaitActorAuxYaw(actor(Margaret))",
      "    Wait(6000)",
@@ -21482,7 +21622,7 @@
     "pc": "0x032A",
     "lines": [
      "    EVAL (reg0 -= 16)",
-     "    MoveNpcToTileKeepAnim(actor(Margaret), reg0, reg1, 100)",
+     "    MoveNpcToPosKeepAnim(actor(Margaret), reg0, reg1, 100)",
      "    SetActorAuxYaw(actor(Margaret), 0)",
      "    WaitActorAuxYaw(actor(Margaret))    ; <--",
      "    Wait(6000)",
@@ -21551,10 +21691,10 @@
   "115": {
    "op": 115,
    "op_hex": "0x073",
-   "mnemonic": "MoveActorToTileLockAi",
+   "mnemonic": "MoveActorToPosLockAi",
    "previous_mnemonic": "MoveActorToTile_LockAI",
    "category": "actor",
-   "prototype": "MoveActorToTileLockAi(actor, x, y, facing, speed, jump)",
+   "prototype": "MoveActorToPosLockAi(actor, x, y, facing, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21566,18 +21706,18 @@
     },
     {
      "name": "x",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -21608,7 +21748,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk an actor to an absolute tile and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.",
+   "description": "Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.",
    "details": "NPC: move cmd {byte0 jump, byte1 kind 4, u16 yaw 181*facing, u16 speed ((167773*speed)>>12)*(4096|4915.2)>>12, x<<12, y<<12}; npc+568 bit 0x800000 = jump, npc entry +160 = 2, Npc_StartMoveTowards (+0x225A90), then actor+568 |= 0x10 (AI lock). Player (id 0): same data queued with Scene_QueueGenericMoveCommand(host+872, kind 2) (+0x22FD00), no lock. Coordinates are absolute (no current-position anchor).",
    "side_effects": "NPC move state, actor+568 bits 0x10 / 0x800000; or a queued player move",
    "evidence": "RF4S.exe+0x1FB380: `HIDWORD(v32)=dx<<12; v33=dy<<12; LOWORD(v32)=181*facing; ... Npc_StartMoveTowards(id,&cmd); *(u32*)(actor+568) |= 0x10`; corpus 226 uses, all argc 6 (speed 100/200/80, jump 0/1), typically followed by WaitActorMoveDone.",
@@ -21629,7 +21769,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "consistency pass: MoveActorToTile_LockAI -> MoveActorToTileLockAi",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 139,
@@ -21637,8 +21777,8 @@
     "lines": [
      "    SetSpeaker(MC, Left, 1522, 16777651)",
      "    DIALOG #59216    ; \"Whew...\"",
-     "    MovePlayerToTile(233, 322, 0, 100, 0)",
-     "    MoveActorToTileLockAi(actor(Xiao Pai), 201, 322, 0, 100, 0)    ; <--",
+     "    MovePlayerToPos(233, 322, 0, 100, 0)",
+     "    MoveActorToPosLockAi(actor(Xiao Pai), 201, 322, 0, 100, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    WaitActorMoveDone(actor(Xiao Pai))",
      "    SetSpeaker(XiaoPai, Left, 1039, 16782244)"
@@ -21648,10 +21788,10 @@
   "116": {
    "op": 116,
    "op_hex": "0x074",
-   "mnemonic": "MoveActorToTileLockAi",
+   "mnemonic": "MoveActorToPosLockAi",
    "previous_mnemonic": "MoveActorToTile_LockAI",
    "category": "actor",
-   "prototype": "MoveActorToTileLockAi(actor, x, y, facing, speed, jump)",
+   "prototype": "MoveActorToPosLockAi(actor, x, y, facing, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21663,18 +21803,18 @@
     },
     {
      "name": "x",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -21705,7 +21845,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk an actor to an absolute tile and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.",
+   "description": "Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.",
    "details": "NPC: move cmd {byte0 jump, byte1 kind 4, u16 yaw 181*facing, u16 speed ((167773*speed)>>12)*(4096|4915.2)>>12, x<<12, y<<12}; npc+568 bit 0x800000 = jump, npc entry +160 = 2, Npc_StartMoveTowards (+0x225A90), then actor+568 |= 0x10 (AI lock). Player (id 0): same data queued with Scene_QueueGenericMoveCommand(host+872, kind 2) (+0x22FD00), no lock. Coordinates are absolute (no current-position anchor).",
    "side_effects": "NPC move state, actor+568 bits 0x10 / 0x800000; or a queued player move",
    "evidence": "RF4S.exe+0x1FB380: `HIDWORD(v32)=dx<<12; v33=dy<<12; LOWORD(v32)=181*facing; ... Npc_StartMoveTowards(id,&cmd); *(u32*)(actor+568) |= 0x10`; corpus 226 uses, all argc 6 (speed 100/200/80, jump 0/1), typically followed by WaitActorMoveDone.",
@@ -21726,7 +21866,7 @@
    },
    "confidence": "high",
    "notes": "True alias of op 115 (same handler, no opcode-dependent branch). Corpus op 116 uses register ids (REG_CHILD_ID, REG_WIFE_ID, reg0, reg9).",
-   "change_reason": "consistency pass: MoveActorToTile_LockAI -> MoveActorToTileLockAi",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 126,
@@ -21745,10 +21885,10 @@
   "117": {
    "op": 117,
    "op_hex": "0x075",
-   "mnemonic": "MoveActorToTileFaceTravel",
+   "mnemonic": "MoveActorToPosFaceTravel",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "MoveActorToTileFaceTravel(actor, x, y, speed, jump)",
+   "prototype": "MoveActorToPosFaceTravel(actor, x, y, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21760,18 +21900,18 @@
     },
     {
      "name": "x",
-     "type": "tile x (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -21794,7 +21934,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walks an NPC to an absolute tile, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.",
+   "description": "Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.",
    "details": "Cmd {byte0 = jump, byte1 = 0 (mode 0: face travel, reset to the walk animation), x<<12, y<<12, speed}; after Npc_StartMoveTowards it sets actor+568 |= 0x10 (the scene-controlled bit the dispatcher also sets on all NPCs at scene start). Id 0 is looked up in the NPC slot table like any NPC (no player-mover branch). Move command built for Npc_StartMoveTowards (RF4S.exe+0x225A90): byte0 = jump flag (sets actor+568 bit 0x800000 and npc+20 bit 0x200), byte1 = mode (bit 1 -> actor+568 |= 0x20000 keep facing; bit 2 -> npc+20 |= 0x800 turn to the end angle; bit 3 -> skip Npc_FinalizeTeleportAndNotify, i.e. keep the current animation), target x/y in Q12 (tile << 12), speed word = ((speed*167773)>>12) * (4915.2 if jump else 4096.0) >> 12. The op does not wait; pair it with WaitActorMoveDone.",
    "side_effects": "starts an NPC move; actor+568 |= 0x10",
    "evidence": "RF4S.exe+0x1FB670: `v24[0] = jump; v24[1] = 0; v27 = x << 12; v28 = y << 12; Npc_StartMoveTowards(id, v24); *(npc->actor+568) |= 0x10`; corpus: 762 uses, e.g. (tag3, reg0, reg1, 100, 0) then WaitActorMoveDone.",
@@ -21815,7 +21955,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 143,
@@ -21824,7 +21964,7 @@
      "    DIALOG #61789    ; \"Ah, les carottes sont cuites!\"",
      "    SetSpeaker(Leon, Left, 1512, 0)",
      "    DIALOG #61790    ; \"I do hope that next time you’ll create something to really / excite my…\"",
-     "    MoveActorToTileFaceTravel(actor(Leon), 228, 419, 120, 0)    ; <--",
+     "    MoveActorToPosFaceTravel(actor(Leon), 228, 419, 120, 0)    ; <--",
      "    WaitActorMoveDone(actor(Leon))",
      "    SetSpeaker(Porcoline, Right, 27, 0)",
      "    DIALOG #61791    ; \"Ah, Leon! Wait! Stop! Halt!\""
@@ -21834,10 +21974,10 @@
   "118": {
    "op": 118,
    "op_hex": "0x076",
-   "mnemonic": "MoveActorToTileFaceTravel",
+   "mnemonic": "MoveActorToPosFaceTravel",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "MoveActorToTileFaceTravel(actor, x, y, speed, jump)",
+   "prototype": "MoveActorToPosFaceTravel(actor, x, y, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21849,18 +21989,18 @@
     },
     {
      "name": "x",
-     "type": "tile x (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -21883,7 +22023,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walks an NPC to an absolute tile, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.",
+   "description": "Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.",
    "details": "Cmd {byte0 = jump, byte1 = 0 (mode 0: face travel, reset to the walk animation), x<<12, y<<12, speed}; after Npc_StartMoveTowards it sets actor+568 |= 0x10 (the scene-controlled bit the dispatcher also sets on all NPCs at scene start). Id 0 is looked up in the NPC slot table like any NPC (no player-mover branch). Move command built for Npc_StartMoveTowards (RF4S.exe+0x225A90): byte0 = jump flag (sets actor+568 bit 0x800000 and npc+20 bit 0x200), byte1 = mode (bit 1 -> actor+568 |= 0x20000 keep facing; bit 2 -> npc+20 |= 0x800 turn to the end angle; bit 3 -> skip Npc_FinalizeTeleportAndNotify, i.e. keep the current animation), target x/y in Q12 (tile << 12), speed word = ((speed*167773)>>12) * (4915.2 if jump else 4096.0) >> 12. The op does not wait; pair it with WaitActorMoveDone.",
    "side_effects": "starts an NPC move; actor+568 |= 0x10",
    "evidence": "RF4S.exe+0x1FB670 shared with op 117, no opcode (vm+124) branch; see op 117. ",
@@ -21904,7 +22044,7 @@
    },
    "confidence": "high",
    "notes": "corpus: 33 uses. ",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 126,
@@ -21912,7 +22052,7 @@
     "lines": [
      "    Wait(12000)",
      "    CALL L_06f6",
-     "    MovePlayerToTile(330, 520, 270, 120, 1)",
+     "    MovePlayerToPos(330, 520, 270, 120, 1)",
      "    MoveActorToTileFaceTravel_118(var:0x40FE, 350, 520, 200, 1)    ; <--",
      "    WaitActorMoveDone_130(var:0x40FE)",
      "    TurnActorToAngle_104(var:0x40FE, 270, 0)",
@@ -21923,10 +22063,10 @@
   "119": {
    "op": 119,
    "op_hex": "0x077",
-   "mnemonic": "MoveNpcToTileKeepFacing",
+   "mnemonic": "MoveNpcToPosKeepFacing",
    "previous_mnemonic": "MoveActorToTileKeepFacing",
    "category": "actor",
-   "prototype": "MoveNpcToTileKeepFacing(npc, x, y, speed, jump)",
+   "prototype": "MoveNpcToPosKeepFacing(npc, x, y, speed, jump)",
    "args": [
     {
      "name": "npc",
@@ -21938,18 +22078,18 @@
     },
     {
      "name": "x",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -21972,7 +22112,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Move an NPC to an absolute tile without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.",
+   "description": "Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.",
    "details": "Move cmd {byte0 jump, byte1 kind 2, x<<12, y<<12, speed}; Npc_StartMoveTowards (+0x225A90) turns kind bit 2 into actor+568 |= 0x20000 (no auto-face) and sets the jump bit / npc+20 0x200; afterwards actor+568 |= 0x10. Unlike op 115/117 there is no player path: id 0 is looked up in the NPC table like any other id.",
    "side_effects": "NPC move state, actor+568 bits 0x10 / 0x20000 / 0x800000",
    "evidence": "RF4S.exe+0x1FB840: `v24[1] = 2; ... Npc_StartMoveTowards(v6, v24); *(u32*)(actor+568) |= 0x10` with no id==0 branch; RF4S.exe+0x225A90 `(cmd[1] & 2) ? |= 0x20000 : &= ~0x20000`; corpus 24 uses, argc 5, mostly (tag3, reg8, reg9, 100, 0) walking an NPC back to a saved position after a talk animation.",
@@ -21993,7 +22133,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "The handler has no player branch (op 115/117 do); per the naming rules Npc = NPC-only, matching op 121 MoveNpcToTileKeepAnim.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 72,
@@ -22002,8 +22142,8 @@
      "    RET",
      "L_080e:",
      "    Wait(6000)",
-     "    MoveNpcToTileKeepFacing(actor(Porcoline), 964, 190, 100, 0)    ; <--",
-     "    MoveActorToTileFaceTravel(actor(Margaret), 964, 190, 100, 0)",
+     "    MoveNpcToPosKeepFacing(actor(Porcoline), 964, 190, 100, 0)    ; <--",
+     "    MoveActorToPosFaceTravel(actor(Margaret), 964, 190, 100, 0)",
      "    WaitActorMoveDone(actor(Porcoline))",
      "    SetNpcVisible(actor(Porcoline), 0)"
     ]
@@ -22012,10 +22152,10 @@
   "120": {
    "op": 120,
    "op_hex": "0x078",
-   "mnemonic": "MoveNpcToTileKeepFacing",
+   "mnemonic": "MoveNpcToPosKeepFacing",
    "previous_mnemonic": "MoveActorToTileKeepFacing",
    "category": "actor",
-   "prototype": "MoveNpcToTileKeepFacing(npc, x, y, speed, jump)",
+   "prototype": "MoveNpcToPosKeepFacing(npc, x, y, speed, jump)",
    "args": [
     {
      "name": "npc",
@@ -22027,18 +22167,18 @@
     },
     {
      "name": "x",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -22061,7 +22201,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Move an NPC to an absolute tile without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.",
+   "description": "Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.",
    "details": "Move cmd {byte0 jump, byte1 kind 2, x<<12, y<<12, speed}; Npc_StartMoveTowards (+0x225A90) turns kind bit 2 into actor+568 |= 0x20000 (no auto-face) and sets the jump bit / npc+20 0x200; afterwards actor+568 |= 0x10. Unlike op 115/117 there is no player path: id 0 is looked up in the NPC table like any other id.",
    "side_effects": "NPC move state, actor+568 bits 0x10 / 0x20000 / 0x800000",
    "evidence": "RF4S.exe+0x1FB840: `v24[1] = 2; ... Npc_StartMoveTowards(v6, v24); *(u32*)(actor+568) |= 0x10` with no id==0 branch; RF4S.exe+0x225A90 `(cmd[1] & 2) ? |= 0x20000 : &= ~0x20000`; corpus 24 uses, argc 5, mostly (tag3, reg8, reg9, 100, 0) walking an NPC back to a saved position after a talk animation.",
@@ -22080,17 +22220,17 @@
    "arg_counts": {},
    "confidence": "high",
    "notes": "True alias of op 119 (same handler, no opcode-dependent branch). Unused in rf3.mc.",
-   "change_reason": "The handler has no player branch (op 115/117 do); per the naming rules Npc = NPC-only, matching op 121 MoveNpcToTileKeepAnim.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": null
   },
   "121": {
    "op": 121,
    "op_hex": "0x079",
-   "mnemonic": "MoveNpcToTileKeepAnim",
+   "mnemonic": "MoveNpcToPosKeepAnim",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "MoveNpcToTileKeepAnim(npc, x, y, speed)",
+   "prototype": "MoveNpcToPosKeepAnim(npc, x, y, speed)",
    "args": [
     {
      "name": "npc",
@@ -22102,18 +22242,18 @@
     },
     {
      "name": "x",
-     "type": "tile x (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -22128,10 +22268,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Moves an NPC to an absolute tile while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.",
+   "description": "Moves an NPC to an absolute position while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.",
    "details": "Cmd word0 = 0x800 (byte0 jump = 0, byte1 mode = 8): mode bit 3 makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset to the idle/walk clip). Speed = (167773*speed)>>12, no jump factor. Reads exactly 4 args. Then actor+568 |= 0x10. Move command built for Npc_StartMoveTowards (RF4S.exe+0x225A90): byte0 = jump flag (sets actor+568 bit 0x800000 and npc+20 bit 0x200), byte1 = mode (bit 1 -> actor+568 |= 0x20000 keep facing; bit 2 -> npc+20 |= 0x800 turn to the end angle; bit 3 -> skip Npc_FinalizeTeleportAndNotify, i.e. keep the current animation), target x/y in Q12 (tile << 12), speed word = ((speed*167773)>>12) * (4915.2 if jump else 4096.0) >> 12. The op does not wait; pair it with WaitActorMoveDone.",
    "side_effects": "starts an NPC move; actor+568 |= 0x10",
-   "evidence": "RF4S.exe+0x1FBA10: `v20[0] = 2048; v20[3] = (167773*arg3 & ~0xFFF) >> 12; Npc_StartMoveTowards(id, v20); actor+568 |= 0x10`; Npc_StartMoveTowards +0x225A90: `if (!(cmd[1] & 8) && state != 3/4) Npc_FinalizeTeleportAndNotify`; corpus: 61 uses, e.g. PlayActorAnim(x, 9, 0); SkipActorAnimToEnd(x); MoveNpcToTileKeepAnim(x, reg0, reg1, 300).",
+   "evidence": "RF4S.exe+0x1FBA10: `v20[0] = 2048; v20[3] = (167773*arg3 & ~0xFFF) >> 12; Npc_StartMoveTowards(id, v20); actor+568 |= 0x10`; Npc_StartMoveTowards +0x225A90: `if (!(cmd[1] & 8) && state != 3/4) Npc_FinalizeTeleportAndNotify`; corpus: 61 uses, e.g. PlayActorAnim(x, 9, 0); SkipActorAnimToEnd(x); MoveNpcToPosKeepAnim(x, reg0, reg1, 300).",
    "alias_of": null,
    "handler": "Script_VMOp_MoveNpcToTileKeepAnim",
    "handler_rva": "0x1FBA10",
@@ -22149,16 +22289,16 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 81,
     "pc": "0x0316",
     "lines": [
      "    MoveActorByOffsetKeepFacing(actor(player), -16, 0, 100, 0)",
-     "    GetActorTilePosition(actor(Margaret))",
+     "    GetActorPosition(actor(Margaret))",
      "    EVAL (reg0 -= 16)",
-     "    MoveNpcToTileKeepAnim(actor(Margaret), reg0, reg1, 100)    ; <--",
+     "    MoveNpcToPosKeepAnim(actor(Margaret), reg0, reg1, 100)    ; <--",
      "    SetActorAuxYaw(actor(Margaret), 0)",
      "    WaitActorAuxYaw(actor(Margaret))",
      "    Wait(6000)"
@@ -22168,10 +22308,10 @@
   "122": {
    "op": 122,
    "op_hex": "0x07A",
-   "mnemonic": "MoveNpcToTileKeepAnim",
+   "mnemonic": "MoveNpcToPosKeepAnim",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "MoveNpcToTileKeepAnim(npc, x, y, speed)",
+   "prototype": "MoveNpcToPosKeepAnim(npc, x, y, speed)",
    "args": [
     {
      "name": "npc",
@@ -22183,18 +22323,18 @@
     },
     {
      "name": "x",
-     "type": "tile x (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -22209,7 +22349,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Moves an NPC to an absolute tile while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.",
+   "description": "Moves an NPC to an absolute position while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.",
    "details": "Cmd word0 = 0x800 (byte0 jump = 0, byte1 mode = 8): mode bit 3 makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset to the idle/walk clip). Speed = (167773*speed)>>12, no jump factor. Reads exactly 4 args. Then actor+568 |= 0x10. Move command built for Npc_StartMoveTowards (RF4S.exe+0x225A90): byte0 = jump flag (sets actor+568 bit 0x800000 and npc+20 bit 0x200), byte1 = mode (bit 1 -> actor+568 |= 0x20000 keep facing; bit 2 -> npc+20 |= 0x800 turn to the end angle; bit 3 -> skip Npc_FinalizeTeleportAndNotify, i.e. keep the current animation), target x/y in Q12 (tile << 12), speed word = ((speed*167773)>>12) * (4915.2 if jump else 4096.0) >> 12. The op does not wait; pair it with WaitActorMoveDone.",
    "side_effects": "starts an NPC move; actor+568 |= 0x10",
    "evidence": "RF4S.exe+0x1FBA10 shared with op 121, no opcode (vm+124) branch; see op 121. ",
@@ -22228,7 +22368,7 @@
    "arg_counts": {},
    "confidence": "high",
    "notes": "corpus: 0 uses. ",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": null
   },
@@ -22819,7 +22959,7 @@
      "    FaceEventActor(0, 100, 0)",
      "    WaitActorMoveDone(actor(player))    ; <--",
      "    EquipItemToPlayer(575)",
-     "    GetActorTilePosition(actor(player))",
+     "    GetActorPosition(actor(player))",
      "    SpawnEventActor(269, 101, reg0, reg1, 0)"
     ]
    }
@@ -22920,7 +23060,7 @@
    "description": "Wait until an actor has come within [range] tiles of the destination of its current move, so the script can chain the next waypoint before the actor stops.",
    "details": "Distance = Monster_DistanceToTarget (+0x23AA70): octagonal approximation on (pos >> 12). Player: target = qword_7FF75481B1D8 (the last move queued with Scene_QueueGenericMoveCommand); NPC: target = npc entry +80 (its Npc_StartMoveTowards destination). The handler RETURNS 1 (busy) while distance > range and 0 otherwise; it writes no VM register. Missing actor / no target -> 0 (no wait).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: MoveActorToTileFaceTravel(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next MoveActorToTileFaceTravel.",
+   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: MoveActorToPosFaceTravel(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next MoveActorToPosFaceTravel.",
    "alias_of": null,
    "handler": "ScriptVM_Op_QueryEntityBeyondRangeOfTarget",
    "handler_rva": "0x1FC7B0",
@@ -22946,9 +23086,9 @@
     "lines": [
      "    WaitActorAnimDone(actor(Clorica))",
      "    PlayActorAnim(actor(Clorica), 1, 1)",
-     "    MoveActorToTileFaceTravel(actor(Clorica), 250, 187, 80, 0)",
+     "    MoveActorToPosFaceTravel(actor(Clorica), 250, 187, 80, 0)",
      "    WaitActorNearMoveTarget(actor(Clorica), 10)    ; <--",
-     "    MoveActorToTileFaceTravel(actor(Clorica), 228, 228, 80, 0)",
+     "    MoveActorToPosFaceTravel(actor(Clorica), 228, 228, 80, 0)",
      "    WaitActorMoveDone(actor(Clorica))",
      "    TurnActorToFaceTarget(actor(player), actor(Clorica), 2)"
     ]
@@ -22985,7 +23125,7 @@
    "description": "Wait until an actor has come within [range] tiles of the destination of its current move, so the script can chain the next waypoint before the actor stops.",
    "details": "Distance = Monster_DistanceToTarget (+0x23AA70): octagonal approximation on (pos >> 12). Player: target = qword_7FF75481B1D8 (the last move queued with Scene_QueueGenericMoveCommand); NPC: target = npc entry +80 (its Npc_StartMoveTowards destination). The handler RETURNS 1 (busy) while distance > range and 0 otherwise; it writes no VM register. Missing actor / no target -> 0 (no wait).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: MoveActorToTileFaceTravel(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next MoveActorToTileFaceTravel.",
+   "evidence": "RF4S.exe+0x1FC7B0: `mov r11b,1 ... call Monster_DistanceToTarget; cmp eax,ebx; ja ret r11b(=1); xor r11b,r11b` -> the value is the handler's return (busy flag), not a register write; corpus 1 use: MoveActorToPosFaceTravel(tag3(2),250,187,..) -> WaitActorNearMoveTarget(tag3(2),10) -> next MoveActorToPosFaceTravel.",
    "alias_of": 131,
    "handler": "ScriptVM_Op_QueryEntityBeyondRangeOfTarget",
    "handler_rva": "0x1FC7B0",
@@ -23154,10 +23294,10 @@
   "135": {
    "op": 135,
    "op_hex": "0x087",
-   "mnemonic": "GetActorTilePosition",
+   "mnemonic": "GetActorPosition",
    "previous_mnemonic": "QueryActorTilePosition",
    "category": "query",
-   "prototype": "GetActorTilePosition(actor)",
+   "prototype": "GetActorPosition(actor)",
    "args": [
     {
      "name": "actor",
@@ -23169,12 +23309,12 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "GetActorTilePosition(0 player) / (4 Forte, in the party)",
-       "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0)"
+       "call": "GetActorPosition(0 player) / (4 Forte, in the party)",
+       "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberPosY(0)"
       },
       {
        "date": "2026-10-02",
-       "call": "GetActorTilePosition(0) and GetActorTilePosition_136(0) back to back",
+       "call": "GetActorPosition(0) and GetActorTilePosition_136(0) back to back",
        "observed": "398448 = 398448 (x 398, y 448): the twin gives the same position"
       }
      ]
@@ -23186,7 +23326,7 @@
    "description": "Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "Id 0: player world_x/world_y >> 12 (with g_globalGameStateFlags & 0x401000 the player pointer is NULL and the read would fault). Id 1-47: actor+88/+92 >> 12, or npc entry +192/+196 when no actor, or 0/0 when the entry is missing. Id >= 48: registers untouched. Returns 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorTilePosition(0 player) / (4 Forte, in the party) -> 425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0).",
+   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorPosition(0 player) / (4 Forte, in the party) -> 425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberPosY(0).",
    "alias_of": null,
    "handler": "ScriptVMOp_QueryActorWorldPositionAsTile",
    "handler_rva": "0x1FB2A0",
@@ -23204,7 +23344,7 @@
    },
    "confidence": "high",
    "notes": "True alias pair 135/136.",
-   "change_reason": "Naming convention: non-blocking query that writes VM registers -> Get.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": true,
    "example": {
     "bank": 426,
@@ -23213,7 +23353,7 @@
      "    FaceEventActor(0, 100, 0)",
      "    WaitActorMoveDone(actor(player))",
      "    EquipItemToPlayer(575)",
-     "    GetActorTilePosition(actor(player))    ; <--",
+     "    GetActorPosition(actor(player))    ; <--",
      "    SpawnEventActor(269, 101, reg0, reg1, 0)",
      "    PlayActorAnim(actor(player), 122, 0)",
      "    Wait(9200)"
@@ -23223,10 +23363,10 @@
   "136": {
    "op": 136,
    "op_hex": "0x088",
-   "mnemonic": "GetActorTilePosition",
+   "mnemonic": "GetActorPosition",
    "previous_mnemonic": "QueryActorTilePosition",
    "category": "query",
-   "prototype": "GetActorTilePosition(actor)",
+   "prototype": "GetActorPosition(actor)",
    "args": [
     {
      "name": "actor",
@@ -23238,12 +23378,12 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "GetActorTilePosition(0 player) / (4 Forte, in the party)",
-       "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberTileY(0)"
+       "call": "GetActorPosition(0 player) / (4 Forte, in the party)",
+       "observed": "425 / 481 = GetPlayerPosition; Forte 437 / 481, whose Y matches GetPartyMemberPosY(0)"
       },
       {
        "date": "2026-10-02",
-       "call": "GetActorTilePosition(0) and GetActorTilePosition_136(0) back to back",
+       "call": "GetActorPosition(0) and GetActorTilePosition_136(0) back to back",
        "observed": "398448 = 398448 (x 398, y 448): the twin gives the same position"
       }
      ]
@@ -23252,10 +23392,10 @@
    "optional_args_from": null,
    "returns": "reg0 = X tile, reg1 = Y tile",
    "blocking": "no",
-   "description": "Read an actor's current tile position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.",
+   "description": "Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.",
    "details": "Id 0: player world_x/world_y >> 12 (with g_globalGameStateFlags & 0x401000 the player pointer is NULL and the read would fault). Id 1-47: actor+88/+92 >> 12, or npc entry +192/+196 when no actor, or 0/0 when the entry is missing. Id >= 48: registers untouched. Returns 0.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorTilePosition(0) and GetActorTilePosition_136(0) back to back -> 398448 = 398448 (x 398, y 448): the twin gives the same position.",
+   "evidence": "RF4S.exe+0x1FB2A0: `*(a2+64) = x >> 12; *(a2+68) = y >> 12`; corpus: op 135 258 uses, typically followed by EVAL reg8 = reg0 / reg9 = reg1; op 136 11 uses. In-game test 2026-10-02 (user): GetActorPosition(0) and GetActorTilePosition_136(0) back to back -> 398448 = 398448 (x 398, y 448): the twin gives the same position.",
    "alias_of": 135,
    "handler": "ScriptVMOp_QueryActorWorldPositionAsTile",
    "handler_rva": "0x1FB2A0",
@@ -23273,7 +23413,7 @@
    },
    "confidence": "high",
    "notes": "True alias pair 135/136.",
-   "change_reason": "Naming convention: non-blocking query that writes VM registers -> Get.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": true,
    "example": {
     "bank": 124,
@@ -23284,7 +23424,7 @@
      "    EndDialogue()",
      "    GetActorTilePosition_136(var:0x40FE)    ; <--",
      "    EVAL (reg0 -= 20)",
-     "    MovePlayerToTile(reg0, reg1, 90, 140, 0)",
+     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()"
     ]
    }
@@ -23585,25 +23725,25 @@
   "142": {
    "op": 142,
    "op_hex": "0x08E",
-   "mnemonic": "MovePlayerToTile",
+   "mnemonic": "MovePlayerToPos",
    "previous_mnemonic": "MoveSceneActorToTile",
    "category": "actor",
-   "prototype": "MovePlayerToTile(x, y, facing, speed, run)",
+   "prototype": "MovePlayerToPos(x, y, facing, speed, run)",
    "args": [
     {
      "name": "x",
-     "type": "tile",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -23634,7 +23774,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk or run the player to an absolute tile, then turn to the given facing. Wait with WaitPlayerMoveDone (op 145).",
+   "description": "Walk or run the player to an absolute position, then turn to the given facing. Wait with WaitPlayerMoveDone (op 145).",
    "details": "Builds a move command {x<<12, y<<12, speed_q12 = (run ? 4915 : 4096) * ((167773*speed) >> 12) >> 12, yaw = 181*facing, mode byte 2 (10 if host+72 bit 0), run} and calls Scene_QueueGenericMoveCommand(host+872) (+0x22FD00), which always drives g_playerActor: sets control_flags 0x10000 (scripted move) and 0x30 (cleared instead with mode bit 8), 0x800000 when running, mode bit 2 sets g_playerFacingDirty, and spawns Scene_TickPlayerMoveCommand.",
    "side_effects": "player control_flags, spawns a player move task",
    "evidence": "RF4S.exe+0x204510 -> RF4S.exe+0x22FD00 (target is g_playerActor); corpus: 241 uses, followed by WaitPlayerMoveDone; facings 0/90/180/270, run 0/1.",
@@ -23653,7 +23793,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "The move queue (Scene_QueueGenericMoveCommand) always moves the player actor; 'SceneActor' hid that. Player noun per convention.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 140,
@@ -23662,7 +23802,7 @@
      "    SetSpeaker(Amber, Right, 1160, 0)",
      "    DIALOG #60100    ; \"＠しゅじんこうくん＠.\"",
      "    EndDialogue()",
-     "    MovePlayerToTile(185, 310, 90, 50, 0)    ; <--",
+     "    MovePlayerToPos(185, 310, 90, 50, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    PlayPlayerAnim(188, 0)",
      "    PlayActorAnim(actor(Amber), 188, 0)"
@@ -23672,25 +23812,25 @@
   "143": {
    "op": 143,
    "op_hex": "0x08F",
-   "mnemonic": "MovePlayerToTileFaceTravel",
+   "mnemonic": "MovePlayerToPosFaceTravel",
    "previous_mnemonic": "MoveSceneActorToTileFaceTravel",
    "category": "actor",
-   "prototype": "MovePlayerToTileFaceTravel(x, y, speed, run)",
+   "prototype": "MovePlayerToPosFaceTravel(x, y, speed, run)",
    "args": [
     {
      "name": "x",
-     "type": "tile",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -23713,7 +23853,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk or run the player to an absolute tile, facing the direction of travel (no end facing). Wait with WaitPlayerMoveDone (op 145).",
+   "description": "Walk or run the player to an absolute position, facing the direction of travel (no end facing). Wait with WaitPlayerMoveDone (op 145).",
    "details": "Same packing as op 142 but yaw 0 and mode byte 0 (8 if host+72 bit 0) -> Scene_QueueGenericMoveCommand (+0x22FD00), always the player actor; no facing-dirty, no keep-facing.",
    "side_effects": "player control_flags, spawns a player move task",
    "evidence": "RF4S.exe+0x2046E0: `v20 = 0; v16 = (host+72 & 1) ? 8 : 0; Scene_QueueGenericMoveCommand(host+872, &cmd)`; corpus: 300 uses, speed 100/200/80, run 0/1, followed by WaitPlayerMoveDone.",
@@ -23732,7 +23872,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Always moves the player (Scene_QueueGenericMoveCommand targets g_playerActor).",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 139,
@@ -23741,9 +23881,9 @@
      "    SetSpeaker(MC, Left, 1197, 16777655)",
      "    SetBoxShout()",
      "    DIALOG #59214    ; \"I'll save it!\"",
-     "    MovePlayerToTileFaceTravel(200, 180, 200, 1)    ; <--",
+     "    MovePlayerToPosFaceTravel(200, 180, 200, 1)    ; <--",
      "    WaitPlayerMoveDone()",
-     "    MovePlayerToTileFaceTravel(250, 165, 200, 1)",
+     "    MovePlayerToPosFaceTravel(250, 165, 200, 1)",
      "    PlayPlayerAnim(207, 0)"
     ]
    }
@@ -23751,25 +23891,25 @@
   "144": {
    "op": 144,
    "op_hex": "0x090",
-   "mnemonic": "MovePlayerToTileKeepFacing",
+   "mnemonic": "MovePlayerToPosKeepFacing",
    "previous_mnemonic": "MoveSceneActorStraight",
    "category": "actor",
-   "prototype": "MovePlayerToTileKeepFacing(x, y, speed, run)",
+   "prototype": "MovePlayerToPosKeepFacing(x, y, speed, run)",
    "args": [
     {
      "name": "x",
-     "type": "tile",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -23792,10 +23932,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Move the player in a straight line to an absolute tile without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).",
+   "description": "Move the player in a straight line to an absolute position without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).",
    "details": "Same packing as op 142 but yaw 0 and mode byte 4 (12 if host+72 bit 0) -> Scene_QueueGenericMoveCommand (+0x22FD00): mode bit 4 sets player control_flags 0x20000 (keep facing); always the player actor.",
    "side_effects": "player control_flags, spawns a player move task",
-   "evidence": "RF4S.exe+0x204870: `v16 = 4; if (host+72 & 1) v16 = 12; Scene_QueueGenericMoveCommand(host+872, &cmd)`; RF4S.exe+0x22FD00: `if (!(cmd[18] & 4)) flags &= ~0x20000 else flags |= 0x20000`; corpus: 50 uses (e.g. MovePlayerToTileKeepFacing(167,122,45,0) while an event actor walks alongside).",
+   "evidence": "RF4S.exe+0x204870: `v16 = 4; if (host+72 & 1) v16 = 12; Scene_QueueGenericMoveCommand(host+872, &cmd)`; RF4S.exe+0x22FD00: `if (!(cmd[18] & 4)) flags &= ~0x20000 else flags |= 0x20000`; corpus: 50 uses (e.g. MovePlayerToPosKeepFacing(167,122,45,0) while an event actor walks alongside).",
    "alias_of": null,
    "handler": "Script_VMOp_MoveActorStraight",
    "handler_rva": "0x204870",
@@ -23811,7 +23951,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Always moves the player (Scene_QueueGenericMoveCommand targets g_playerActor); renamed to match ops 142/143 and the NPC op MoveActorToTileKeepFacing.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 135,
@@ -23820,7 +23960,7 @@
      "    SetSpeakerVoice(995, 0)",
      "    DIALOG #56849    ; \"Thank you.\"",
      "    ClosePortraits(2)",
-     "    MovePlayerToTileKeepFacing(688, 180, 50, 0)    ; <--",
+     "    MovePlayerToPosKeepFacing(688, 180, 50, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    TurnPlayerToAngle(180, 2)",
      "    Wait(3000)"
@@ -23841,7 +23981,7 @@
    "description": "Wait until the player has finished a scripted move (ops 142-144) and any pending scripted turn (TurnActorToAngle / TurnActorToFaceTarget on actor 0). The player counterpart of WaitActorMoveDone (op 129).",
    "details": "busy = player control_flags & 0x10000 (scripted-move lock set by Scene_QueueGenericMoveCommand). If g_playerFacingDirty and not busy: returns 1 while facing_yaw != facing_b, then clears g_playerFacingDirty. Returns busy otherwise. The player pointer is NULL (fault) when g_globalGameStateFlags & 0x401000.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204A00 (Script_VMOp_QueryPlayerTurnBusy); op 129 with actor 0 delegates here; corpus: 1345 uses, right after TurnActorToFaceTarget(player, ...) and MoveSceneActor* ops.",
+   "evidence": "RF4S.exe+0x204A00 (Script_VMOp_QueryPlayerTurnBusy); op 129 with actor 0 delegates here; corpus: 1345 uses, right after TurnActorToFaceTarget(player, ...) and MoveSceneActor* ops. In-game test 2026-10-06 (user): TurnActorToAngle(0, 90, 5) + WaitPlayerMoveDone() + DIALOG -> the next box appeared only after the slow turn had finished.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerTurnBusy",
    "handler_rva": "0x204A00",
@@ -23858,14 +23998,14 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Naming convention: blocking op -> Wait...; it covers the scripted move lock (0x10000) as well as the turn, so 'Move' like op 129.",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 140,
     "pc": "0x4116",
     "lines": [
      "    DIALOG #60100    ; \"＠しゅじんこうくん＠.\"",
      "    EndDialogue()",
-     "    MovePlayerToTile(185, 310, 90, 50, 0)",
+     "    MovePlayerToPos(185, 310, 90, 50, 0)",
      "    WaitPlayerMoveDone()    ; <--",
      "    PlayPlayerAnim(188, 0)",
      "    PlayActorAnim(actor(Amber), 188, 0)",
@@ -23922,7 +24062,7 @@
      "    FaceEventActor(0, 100, 0)",
      "    WaitActorMoveDone(actor(player))",
      "    EquipItemToPlayer(575)    ; <--",
-     "    GetActorTilePosition(actor(player))",
+     "    GetActorPosition(actor(player))",
      "    SpawnEventActor(269, 101, reg0, reg1, 0)",
      "    PlayActorAnim(actor(player), 122, 0)"
     ]
@@ -24074,7 +24214,7 @@
     "pc": "0x0878",
     "lines": [
      "    EVAL (reg1 -= 2)",
-     "    MovePlayerToTile(reg0, reg1, 90, 140, 0)",
+     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()",
      "    PlayPlayerAnim(188, 0)    ; <--",
      "    WaitPlayerAnimDone()",
@@ -24086,10 +24226,10 @@
   "150": {
    "op": 150,
    "op_hex": "0x096",
-   "mnemonic": "TriggerActionAtTile",
+   "mnemonic": "TriggerActionAtPos",
    "previous_mnemonic": null,
    "category": "effect",
-   "prototype": "TriggerActionAtTile(action_id, x, y)",
+   "prototype": "TriggerActionAtPos(action_id, x, y)",
    "args": [
     {
      "name": "action_id",
@@ -24097,32 +24237,66 @@
      "values": "corpus 2-473; 65 and 105 always use the player's position",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-06",
+       "call": "TriggerActionAtPos(151 / 21 / 25 / 152 / 37, 212, 484) between two barrels",
+       "observed": "151 white smoke, 21 a lightning strike (like a monster spawning), 25 an explosion, 152 a white smoke puff, 37 a small blue diamond (playing-card shape)"
+      }
+     ],
+     "value_names": {
+      "21": {
+       "name": "spawn_lightning",
+       "text": "a lightning strike, as when a monster spawns",
+       "human_verified": true
+      },
+      "25": {
+       "name": "explosion",
+       "text": "an explosion",
+       "human_verified": true
+      },
+      "37": {
+       "name": "blue_diamond",
+       "text": "a small blue diamond (playing-card shape)",
+       "human_verified": true
+      },
+      "151": {
+       "name": "white_smoke",
+       "text": "a cloud of white smoke",
+       "human_verified": true
+      },
+      "152": {
+       "name": "smoke_puff",
+       "text": "a white smoke puff",
+       "human_verified": true
+      }
+     }
     },
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Spawns a scripted action (visual effect, projectile, explosion, prop task...) by action id at a tile. Scenes use it for sparkles, smoke, impacts and similar effects.",
+   "description": "Spawns a scripted action (visual effect, projectile, explosion, prop task...) by action id at a position. Scenes use it for sparkles, smoke, impacts and similar effects.",
    "details": "Action_TriggerActor(ctx+872 scene task, id, x<<12, y<<12) (RF4S.exe+0xB5520). For ids 65 and 105 it ignores the tile and fires from the player's task at the player's world position (null player in state 0x401000 would crash). Never blocks.",
    "side_effects": "spawns an action task",
-   "evidence": "RF4S.exe+0x21AAA0: `if (id == 65 || id == 105) Action_TriggerActor(player->task_back, id, player->world_x, player->world_y); else Action_TriggerActor(*(a1+872), id, x << 12, y << 12)`; corpus: 784 uses, top ids 151/21/25/152/37, often at GetPlayerPosition() reg0/reg1.",
+   "evidence": "RF4S.exe+0x21AAA0: `if (id == 65 || id == 105) Action_TriggerActor(player->task_back, id, player->world_x, player->world_y); else Action_TriggerActor(*(a1+872), id, x << 12, y << 12)`; corpus: 784 uses, top ids 151/21/25/152/37, often at GetPlayerPosition() reg0/reg1. In-game test 2026-10-06 (user): TriggerActionAtPos(151 / 21 / 25 / 152 / 37, 212, 484) between two barrels -> 151 white smoke, 21 a lightning strike (like a monster spawning), 25 an explosion, 152 a white smoke puff, 37 a small blue diamond (playing-card shape).",
    "alias_of": null,
    "handler": "Script_VMOp_TriggerActorAction",
    "handler_rva": "0x21AAA0",
@@ -24138,16 +24312,16 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
-   "human_verified": false,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
+   "human_verified": true,
    "example": {
     "bank": 94,
     "pc": "0x038A",
     "lines": [
      "    PlaySound(16785960)",
      "    GetPlayerPosition()",
-     "    TriggerActionAtTile(117, reg0, reg1)",
-     "    TriggerActionAtTile(117, reg0, reg1)    ; <--",
+     "    TriggerActionAtPos(117, reg0, reg1)",
+     "    TriggerActionAtPos(117, reg0, reg1)    ; <--",
      "    Wait(9000)",
      "    SetSpeaker(MC, Left, 35, 16777664)",
      "    DIALOG #38821    ; \"Hmm? It opened.\""
@@ -24253,7 +24427,7 @@
     "bank": 124,
     "pc": "0x0880",
     "lines": [
-     "    MovePlayerToTile(reg0, reg1, 90, 140, 0)",
+     "    MovePlayerToPos(reg0, reg1, 90, 140, 0)",
      "    WaitPlayerMoveDone()",
      "    PlayPlayerAnim(188, 0)",
      "    WaitPlayerAnimDone()    ; <--",
@@ -24289,7 +24463,7 @@
     },
     {
      "name": "x",
-     "type": "tiles",
+     "type": "script units (x)",
      "values": "script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)",
      "required_kind": "int",
      "notes": "",
@@ -24297,7 +24471,7 @@
     },
     {
      "name": "y",
-     "type": "tiles",
+     "type": "script units (y)",
      "values": "script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)",
      "required_kind": "int",
      "notes": "",
@@ -24881,10 +25055,10 @@
   "160": {
    "op": 160,
    "op_hex": "0x0A0",
-   "mnemonic": "MoveEventActorToTile",
+   "mnemonic": "MoveEventActorToPos",
    "previous_mnemonic": "EventNpcWalkToTile",
    "category": "actor",
-   "prototype": "MoveEventActorToTile(key, x, y, speed, run)",
+   "prototype": "MoveEventActorToPos(key, x, y, speed, run)",
    "args": [
     {
      "name": "key",
@@ -24896,18 +25070,18 @@
     },
     {
      "name": "x",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -24930,7 +25104,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "one frame or more: busy until the keyed actor exists (streamed in)",
-   "description": "Walk or run an event actor to an absolute tile. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.",
+   "description": "Walk or run an event actor to an absolute position. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.",
    "details": "Finds the keyed actor; active move task: task+8/+12 = x<<12 / y<<12, +20 bit 0 = run, +24 = base(+368 walk / +372 run) * ((167773*speed)>>12) >> 12. Otherwise starts one via EventActor_BeginMoveTaskWithFlags(host+872, desc) (+0x1D3AD0). If the key has no live actor yet the op returns busy.",
    "side_effects": "event actor move task",
    "evidence": "RF4S.exe+0x214390: `if (!actor) return 1;` else update/start; corpus 393 uses, argc 5 (keys 300/200/201, speed 100/50/150, run 0/1).",
@@ -24949,7 +25123,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Naming rule: verb first; event-cutscene actors use the noun EventActor (as in SetEventActorFacing / TriggerActionAtEventActor).",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 93,
@@ -24958,7 +25132,7 @@
      "    WaitCameraAtMark()",
      "    CALL L_03b6",
      "    EndDialogue()",
-     "    MoveEventActorToTile(300, 162, 232, 50, 0)    ; <--",
+     "    MoveEventActorToPos(300, 162, 232, 50, 0)    ; <--",
      "    WaitEventActorMoveDone(300)",
      "    Wait(3000)",
      "    CALL L_03c6"
@@ -24968,10 +25142,10 @@
   "161": {
    "op": 161,
    "op_hex": "0x0A1",
-   "mnemonic": "MoveEventActorToTileKeepFacing",
+   "mnemonic": "MoveEventActorToPosKeepFacing",
    "previous_mnemonic": "EventNpcWalkToTileKeepFacing",
    "category": "actor",
-   "prototype": "MoveEventActorToTileKeepFacing(key, x, y, speed, run)",
+   "prototype": "MoveEventActorToPosKeepFacing(key, x, y, speed, run)",
    "args": [
     {
      "name": "key",
@@ -24983,18 +25157,18 @@
     },
     {
      "name": "x",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles (absolute)",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -25017,10 +25191,10 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "one frame or more: busy until the keyed actor exists",
-   "description": "Like MoveEventActorToTile but the actor keeps its current facing while moving (side-step / back-pedal).",
+   "description": "Like MoveEventActorToPos but the actor keeps its current facing while moving (side-step / back-pedal).",
    "details": "Sets actor control_flags (+0x238) |= 0x20000 (the keep-facing bit that suppresses face-the-velocity) before the same update/start logic as op 160. The bit is not cleared by this op. Busy while the key has no live actor.",
    "side_effects": "event actor move task, control_flags 0x20000",
-   "evidence": "RF4S.exe+0x214670: `v21[142] |= 0x20000` then op-160 logic; corpus 25 uses, e.g. SpawnEventActor(35,300,212,122,270) -> MoveEventActorToTileKeepFacing(300, 237, 122, 25, 0) (slow sidestep).",
+   "evidence": "RF4S.exe+0x214670: `v21[142] |= 0x20000` then op-160 logic; corpus 25 uses, e.g. SpawnEventActor(35,300,212,122,270) -> MoveEventActorToPosKeepFacing(300, 237, 122, 25, 0) (slow sidestep).",
    "alias_of": null,
    "handler": "Script_VMOp_MoveEventActorToTileKeepFacing",
    "handler_rva": "0x214670",
@@ -25036,16 +25210,16 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Naming rule: verb first; event-cutscene actors use the noun EventActor (as in SetEventActorFacing / TriggerActionAtEventActor).",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 217,
     "pc": "0x0748",
     "lines": [
      "    PlayEventActorAnim(200, 9, 0)",
-     "    GetEventActorTilePosition(200)",
+     "    GetEventActorPosition(200)",
      "    EVAL (reg1 += 16)",
-     "    MoveEventActorToTileKeepFacing(200, reg0, reg1, 140, 1)    ; <--",
+     "    MoveEventActorToPosKeepFacing(200, reg0, reg1, 140, 1)    ; <--",
      "    WaitEventActorAnimDone(200)",
      "    PlayEventActorAnim(200, 11, 0)",
      "    WaitEventActorMoveDone(200)"
@@ -25217,7 +25391,7 @@
    "description": "Waits until an event actor has finished walking and turning. Waiting on a key that is not registered never ends.",
    "details": "Finds the record; if word5 bit 0x8 (turn pending) and actor+156 != +158 -> return 1; else clears bit 0x8 and returns word5 bit 0x4 (move task active). Missing key or actor returns 1 every frame. No register is written.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x214BC0: `v11 = (flags & 4) == 0; if ((flags & 8) && *(u16*)(a+156) != *(u16*)(a+158)) return 1; ... return !v11`; corpus: 509 uses right after MoveEventActorToTile.",
+   "evidence": "RF4S.exe+0x214BC0: `v11 = (flags & 4) == 0; if ((flags & 8) && *(u16*)(a+156) != *(u16*)(a+158)) return 1; ... return !v11`; corpus: 509 uses right after MoveEventActorToPos.",
    "alias_of": null,
    "handler": "Script_VMOp_WaitEventActorMoveDone",
    "handler_rva": "0x214BC0",
@@ -26290,10 +26464,10 @@
   "182": {
    "op": 182,
    "op_hex": "0x0B6",
-   "mnemonic": "GetEventActorTilePosition",
+   "mnemonic": "GetEventActorPosition",
    "previous_mnemonic": "QueryEventActorTilePosition",
    "category": "query",
-   "prototype": "GetEventActorTilePosition(event key)",
+   "prototype": "GetEventActorPosition(event key)",
    "args": [
     {
      "name": "event key",
@@ -26307,10 +26481,10 @@
    "optional_args_from": null,
    "returns": "reg0 = X tile, reg1 = Y tile",
    "blocking": "until the event actor exists",
-   "description": "Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorTilePosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
+   "description": "Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorPosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "Key lookup in g_calendarEventMng; returns 1 (retry) while the key or its actor is missing; else reg0 = actor+88 >> 12, reg1 = actor+92 >> 12.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2151E0; corpus: 27 uses, followed by EVAL reg1 += n and MoveEventActorToTile(key, reg0, reg1, ...).",
+   "evidence": "RF4S.exe+0x2151E0; corpus: 27 uses, followed by EVAL reg1 += n and MoveEventActorToPos(key, reg0, reg1, ...).",
    "alias_of": null,
    "handler": "Script_VMOp_GetEventActorTilePosition",
    "handler_rva": "0x2151E0",
@@ -26326,7 +26500,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Naming convention: register-writing query -> Get.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 94,
@@ -26335,8 +26509,8 @@
      "    WaitPlayerMoveDone()",
      "    CALL L_02f4",
      "    EndDialogue()",
-     "    GetEventActorTilePosition(300)    ; <--",
-     "    TriggerActionAtTile(19, reg0, reg1)",
+     "    GetEventActorPosition(300)    ; <--",
+     "    TriggerActionAtPos(19, reg0, reg1)",
      "    PlaySound(16786070)",
      "    UnregisterEventActor(309, 300)"
     ]
@@ -26517,7 +26691,7 @@
      "    PlayActorSplash(200)    ; <--",
      "    PlayActorAnim(actor(Vishnal), 1, 1)",
      "    Wait(9000)",
-     "    MoveActorToTileLockAi(actor(Vishnal), 200, 128, 0, 100, 0)"
+     "    MoveActorToPosLockAi(actor(Vishnal), 200, 128, 0, 100, 0)"
     ]
    }
   },
@@ -26531,18 +26705,18 @@
    "args": [
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -26583,8 +26757,8 @@
     "pc": "0x01AC",
     "lines": [
      "    EVAL (reg0 -= 24)",
-     "    MovePlayerToTileFaceTravel(reg0, reg1, 140, 0)",
-     "    GetActorTilePosition(actor(Kiel))",
+     "    MovePlayerToPosFaceTravel(reg0, reg1, 140, 0)",
+     "    GetActorPosition(actor(Kiel))",
      "    SetCameraPosition(reg0, reg1, 1)    ; <--",
      "    FadeScreenToClear(6000)",
      "    WaitForFade()",
@@ -26650,8 +26824,8 @@
      "    EVAL (var:0x14E = 1)",
      "    ReattachCameraToActor(actor(player), 1)    ; <--",
      "    WaitCameraAtMark()",
-     "    MovePlayerToTileFaceTravel(200, 200, 150, 0)",
-     "    MoveCompanionToTileFaceTravel(0, 180, 200, 150, 0)"
+     "    MovePlayerToPosFaceTravel(200, 200, 150, 0)",
+     "    MoveCompanionToPosFaceTravel(0, 180, 200, 150, 0)"
     ]
    }
   },
@@ -26701,12 +26875,12 @@
     "pc": "0x01C8",
     "lines": [
      "L_01b6:",
-     "    MovePlayerToTile(267, 109, 270, 100, 0)",
+     "    MovePlayerToPos(267, 109, 270, 100, 0)",
      "    WaitPlayerMoveDone()",
      "    HoldCameraInPlace(1)    ; <--",
      "    PlayPlayerAnim(64, 0)",
      "    Wait(1500)",
-     "    MovePlayerToTileKeepFacing(217, 109, 100, 0)"
+     "    MovePlayerToPosKeepFacing(217, 109, 100, 0)"
     ]
    }
   },
@@ -26775,18 +26949,18 @@
    "args": [
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -27304,7 +27478,7 @@
      "    ShowActorEmote(actor(player), 8)",
      "    WaitForPlayerEffect()    ; <--",
      "    Wait(9000)",
-     "    TriggerActionAtTile(196, 216, 137)",
+     "    TriggerActionAtPos(196, 216, 137)",
      "    ShakeCamera(5, 16)"
     ]
    }
@@ -27621,8 +27795,8 @@
      "    BR_Z (reg0 == 4) -> L_0518",
      "    SetCameraMapBounds(1)    ; <--",
      "    SetFlagBit(339, 1, 0, 0)",
-     "    TriggerActionAtTile(151, 125, 144)",
-     "    TriggerActionAtTile(151, 88, 160)"
+     "    TriggerActionAtPos(151, 125, 144)",
+     "    TriggerActionAtPos(151, 88, 160)"
     ]
    }
   },
@@ -28578,7 +28752,7 @@
    "description": "Stores the player's position in reg0 (x) and reg1 (y), and 1 in reg2. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "reg0 = player world_x >> 12, reg1 = world_y >> 12, reg2 = 1. The player pointer is null in state 0x401000 (the read would fault). No args.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x204A50: `a2[16] = *p_world_x >> 12; a2[17] = p_world_x[1] >> 12; a2[18] = 1`; corpus: 318 uses, followed by SetCameraTarget(reg0, reg1, ...) or TriggerActionAtTile(id, reg0, reg1). In-game test 2026-10-02 (user): GetPlayerPosition() in the Dragon Room -> 425 / 481 (script units = tile 53 / 60), reg2 = 1; the same tile from GetActorTilePosition(0) and GetPartyMemberTileY(-1).",
+   "evidence": "RF4S.exe+0x204A50: `a2[16] = *p_world_x >> 12; a2[17] = p_world_x[1] >> 12; a2[18] = 1`; corpus: 318 uses, followed by SetCameraTarget(reg0, reg1, ...) or TriggerActionAtPos(id, reg0, reg1). In-game test 2026-10-02 (user): GetPlayerPosition() in the Dragon Room -> 425 / 481 (script units = tile 53 / 60), reg2 = 1; the same tile from GetActorPosition(0) and GetPartyMemberPosY(-1).",
    "alias_of": null,
    "handler": "Script_VMOp_GetPlayerPosition",
    "handler_rva": "0x204A50",
@@ -29189,7 +29363,7 @@
      "    SpawnEventActorVariant(69, 304, 167, 207, 90, 100)",
      "    SpawnEventActorVariant(70, 305, 72, 233, 90, 100)",
      "    SetNpcEngaged(actor(Amber), 0)    ; <--",
-     "    StreamInNpcAtTile(actor(Amber), map(MAP_DUNG_Q06), 439, 209)",
+     "    StreamInNpcAtPos(actor(Amber), map(MAP_DUNG_Q06), 439, 209)",
      "    TurnActorToAngle(actor(Amber), 270, 2)",
      "    CALL L_0128"
     ]
@@ -29274,7 +29448,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Bring an NPC's actor into the current map (or just re-apply its schedule state). Use StreamInNpcAtTile (op 246) to also place it.",
+   "description": "Bring an NPC's actor into the current map (or just re-apply its schedule state). Use StreamInNpcAtPos (op 246) to also place it.",
    "details": "load == 0 -> NpcSchedule_RefreshEngagedNpcOrApplyState(id, 0). Otherwise sets g_npcStreamingController->+176 +48 bit 0, Npc_StreamInById(id, 0x367) (+0x225D20), clears the bit, then +0x226560(id).",
    "side_effects": "NPC streaming / schedule state",
    "evidence": "RF4S.exe+0x1FD830; unused in rf3.mc.",
@@ -30603,10 +30777,10 @@
   "246": {
    "op": 246,
    "op_hex": "0x0F6",
-   "mnemonic": "StreamInNpcAtTile",
+   "mnemonic": "StreamInNpcAtPos",
    "previous_mnemonic": null,
    "category": "actor",
-   "prototype": "StreamInNpcAtTile(npc, map, x, y)",
+   "prototype": "StreamInNpcAtPos(npc, map, x, y)",
    "args": [
     {
      "name": "npc",
@@ -30626,25 +30800,25 @@
     },
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "if argc < 4: forever (bug)",
-   "description": "Brings an NPC onto a map and places it on a tile at once (no walk-in), resetting it to its idle pose.",
+   "description": "Brings an NPC onto a map and places it on a spot at once (no walk-in), resetting it to its idle pose.",
    "details": "Sets the streaming guard bit, Npc_StreamInById(npc, map) (RF4S.exe+0x225D20: sets the actor's map field +84 and record+188, spawns/places it), clears the guard, writes actor +88/+92 and record +192/+196 = tile << 12, calls Npc_StopAnimAndClearOutfitOverride(actor, 0) (clears the emote) unless actor+568 bit 0x4, and for npc != 0 Npc_ResetActorPostTeleport + Npc_FinalizeTeleportAndNotify and clears actor +112/+120. argc < 4 returns 1 every frame.",
    "side_effects": "spawns/moves the NPC to the map",
    "evidence": "RF4S.exe+0x1FFC20: `Npc_StreamInById(id, arg1); *(a+88) = x << 12; *(a+92) = y << 12; *(rec+192) = ...; Npc_ResetActorPostTeleport; Npc_FinalizeTeleportAndNotify`; corpus: 196 uses, e.g. (tag3(14), tag4(28), 431, 209) before SetOrClearNpcSchedule on the same map.",
@@ -30663,7 +30837,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 143,
@@ -30672,7 +30846,7 @@
      "    SetSpeaker(Leon, Left, 1591, 16784760)",
      "    DIALOG #61794    ; \"Oh ho! Now that sounds fun. / Perhaps I will have a chat with Forte to…\"",
      "    EndDialogue()",
-     "    StreamInNpcAtTile(actor(Leon), map(MAP_CITY_00), 960, 208)    ; <--",
+     "    StreamInNpcAtPos(actor(Leon), map(MAP_CITY_00), 960, 208)    ; <--",
      "    Wait(18000)",
      "    FadeScreen(-16, 6000)",
      "    WaitForFade()"
@@ -30682,10 +30856,10 @@
   "247": {
    "op": 247,
    "op_hex": "0x0F7",
-   "mnemonic": "GetApproachTile",
+   "mnemonic": "GetApproachPos",
    "previous_mnemonic": "QueryTileFacingTarget",
    "category": "query",
-   "prototype": "GetApproachTile(mover, target)",
+   "prototype": "GetApproachPos(mover, target)",
    "args": [
     {
      "name": "mover",
@@ -30707,10 +30881,10 @@
    "optional_args_from": null,
    "returns": "reg0 = tile x, reg1 = tile y",
    "blocking": "no",
-   "description": "Get the tile right next to the target on the mover's side (one step back from the target toward the mover), i.e. where the mover should walk to stand in front of the target. reg0 = x, reg1 = y (tiles).",
+   "description": "Get the position right next to the target on the mover's side (one step back from the target toward the mover), i.e. where the mover should walk to stand in front of the target. reg0 = x, reg1 = y (tiles).",
    "details": "If distance(mover, target) > 1: (target pos - sincos(Math_GetFacingAngleFromAToB(mover, target)) * 1 tile) >> 12; else the mover's own tile. Written as u16 to reg0 / reg1. Either actor missing or an id >= 48 -> nothing written.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x1FFDC0; corpus 52 uses, e.g. TurnActorToFaceTarget(npc, player) -> GetApproachTile(npc, 0) -> MoveActorToTileFaceTravel(npc, reg0, reg1, 100, 0).",
+   "evidence": "RF4S.exe+0x1FFDC0; corpus 52 uses, e.g. TurnActorToFaceTarget(npc, player) -> GetApproachPos(npc, 0) -> MoveActorToPosFaceTravel(npc, reg0, reg1, 100, 0).",
    "alias_of": null,
    "handler": "ScriptVMOp_QueryTileOneStepBehindActorTowardTarget",
    "handler_rva": "0x1FFDC0",
@@ -30726,7 +30900,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Returns a tile (Get verb per the naming rules); the tile is adjacent to the TARGET on the mover's side, which the old name did not say.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 20,
@@ -30735,8 +30909,8 @@
      "    SetSpeaker(Leon, Right, 1, 0)",
      "    DIALOG #25402    ; \"You'd better be ready to face the consequences of your / actions.\"",
      "    EndDialogue()",
-     "    GetApproachTile(actor(Leon), 0)    ; <--",
-     "    MoveActorToTileFaceTravel(actor(Leon), reg0, reg1, 100, 0)",
+     "    GetApproachPos(actor(Leon), 0)    ; <--",
+     "    MoveActorToPosFaceTravel(actor(Leon), reg0, reg1, 100, 0)",
      "    WaitActorMoveDone(actor(Leon))",
      "    PlayActorAnim(actor(Leon), 188, 0)"
     ]
@@ -31266,7 +31440,7 @@
     "bank": 387,
     "pc": "0x0262",
     "lines": [
-     "    TriggerActionAtTile(126, reg0, reg1)",
+     "    TriggerActionAtPos(126, reg0, reg1)",
      "    HealPartyFull()",
      "    RestorePlayerRP()",
      "    SetActorStatusConditions(0, 4)    ; <--",
@@ -33043,7 +33217,7 @@
    "description": "Sets bit 0 of the scene context's +72 flags when the first argument is 0. Retail brackets one player move with (0, 1) and (0, 0), which looks like a set/clear pair, but on PC both calls just set the bit.",
    "details": "RF4S.exe+0x200FE0: if arg0 == 0 -> *(u32*)(host+72) |= 1. arg1 is never read. The reader of host+72 bit 0 was not located (a disp8 +0x48 scan is too broad to do safely).",
    "side_effects": "host+72 |= 1",
-   "evidence": "RF4S.exe+0x200FE0; corpus: 4 uses (bank 221), (0,1) ... (0,0) around MovePlayerToTileFaceTravel.",
+   "evidence": "RF4S.exe+0x200FE0; corpus: 4 uses (bank 221), (0,1) ... (0,0) around MovePlayerToPosFaceTravel.",
    "alias_of": null,
    "handler": "ScriptVMOp_SetScriptStateBit72_1_OnArgZero",
    "handler_rva": "0x200FE0",
@@ -33069,7 +33243,7 @@
      "    EVAL (reg0 = (reg0 + ((reg3 - reg0) / 2)))",
      "    EVAL (reg1 = (reg1 + ((reg4 - reg1) / 2)))",
      "    SetSceneReadyFlag(0, 1)    ; <--",
-     "    MovePlayerToTileFaceTravel(reg0, reg1, 110, 1)",
+     "    MovePlayerToPosFaceTravel(reg0, reg1, 110, 1)",
      "    WaitPlayerMoveDone()",
      "    SetSceneReadyFlag(0, 0)"
     ]
@@ -33501,7 +33675,7 @@
     "pc": "0x040A",
     "lines": [
      "    WaitCameraAtMark()",
-     "    MoveActorToTileFaceTravel(actor(Kiel), -10, 200, 400, 1)",
+     "    MoveActorToPosFaceTravel(actor(Kiel), -10, 200, 400, 1)",
      "    WaitActorMoveDone(actor(Kiel))",
      "    ResetNpcDailySchedule(actor(Kiel), -1)    ; <--",
      "    SetNpcVisible_317(5, 1)",
@@ -33802,7 +33976,7 @@
     "pc": "0x0286",
     "lines": [
      "    EndDialogue()",
-     "    MoveActorToTileFaceTravel(actor(Clorica), 730, 200, 150, 1)",
+     "    MoveActorToPosFaceTravel(actor(Clorica), 730, 200, 150, 1)",
      "    WaitActorMoveDone(actor(Clorica))",
      "    ApplyPendingNpcPlan(actor(Clorica))    ; <--",
      "    EVAL (var:0x14C = 1)",
@@ -33986,7 +34160,7 @@
    "description": "Make an NPC hold still for a while before resuming its schedule (used right after a conversation so the NPC does not walk off at once).",
    "details": "base = arg1 - (arg1 >> 2); if base > 0: advance the MMIX RNG and write npc record +212 (u16) = base + rand[0, base/2), record +216 = 0. NpcSchedule_Tick (+0x22BAF0) counts record +212 down and steps the schedule when it reaches 0.",
    "side_effects": "npc record +212 / +216; RNG state",
-   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after MoveNpcToTileKeepFacing + PlayActorAnim(x, 1, 1) at the end of a talk.",
+   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after MoveNpcToPosKeepFacing + PlayActorAnim(x, 1, 1) at the end of a talk.",
    "alias_of": null,
    "handler": "Script_VMOp_SetNpcActionDelayWithJitter",
    "handler_rva": "0x20D120",
@@ -34051,7 +34225,7 @@
    "description": "Make an NPC hold still for a while before resuming its schedule (used right after a conversation so the NPC does not walk off at once).",
    "details": "base = arg1 - (arg1 >> 2); if base > 0: advance the MMIX RNG and write npc record +212 (u16) = base + rand[0, base/2), record +216 = 0. NpcSchedule_Tick (+0x22BAF0) counts record +212 down and steps the schedule when it reaches 0.",
    "side_effects": "npc record +212 / +216; RNG state",
-   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after MoveNpcToTileKeepFacing + PlayActorAnim(x, 1, 1) at the end of a talk.",
+   "evidence": "RF4S.exe+0x20D120; corpus 353 uses, e.g. after MoveNpcToPosKeepFacing + PlayActorAnim(x, 1, 1) at the end of a talk.",
    "alias_of": 302,
    "handler": "Script_VMOp_SetNpcActionDelayWithJitter",
    "handler_rva": "0x20D120",
@@ -34431,7 +34605,7 @@
     "lines": [
      "    CALL L_030e",
      "    GetPlayerPosition()",
-     "    TriggerActionAtTile(126, reg0, reg1)",
+     "    TriggerActionAtPos(126, reg0, reg1)",
      "    HealPartyFull()    ; <--",
      "    RestorePlayerRP()",
      "    SetActorStatusConditions(0, 4)",
@@ -34531,7 +34705,7 @@
     "pc": "0x025E",
     "lines": [
      "    GetPlayerPosition()",
-     "    TriggerActionAtTile(126, reg0, reg1)",
+     "    TriggerActionAtPos(126, reg0, reg1)",
      "    HealPartyFull()",
      "    RestorePlayerRP()    ; <--",
      "    SetActorStatusConditions(0, 4)",
@@ -34755,7 +34929,7 @@
     "bank": 417,
     "pc": "0x01EE",
     "lines": [
-     "    TriggerActionAtTile(140, reg0, reg1)",
+     "    TriggerActionAtPos(140, reg0, reg1)",
      "    PlayActorAnim(actor(Kiel), 112, 0)",
      "    Wait(3000)",
      "    SetNpcVisible_317(5, 0)    ; <--",
@@ -36511,11 +36685,11 @@
     "bank": 75,
     "pc": "0x0214",
     "lines": [
-     "    MoveActorToTileLockAi(actor(Arthur), 114, 289, 0, 80, 0)",
+     "    MoveActorToPosLockAi(actor(Arthur), 114, 289, 0, 80, 0)",
      "    WaitActorMoveDone(actor(Arthur))",
      "    PlaySound(16785995)",
      "    GetVar1(0)    ; <--",
-     "    SpawnItemAtTile(reg0, 5, 1, 132, 282, 0)",
+     "    SpawnItemAtPos(reg0, 5, 1, 132, 282, 0)",
      "    Wait(3000)",
      "    CALL L_042a"
     ]
@@ -38588,7 +38762,7 @@
     "bank": 61,
     "pc": "0x0690",
     "lines": [
-     "    StreamInNpcAtTile(actor(Volkanon), map(MAP_CITY_00), 393, 319)",
+     "    StreamInNpcAtPos(actor(Volkanon), map(MAP_CITY_00), 393, 319)",
      "    WaitCameraAtMark()",
      "    ResetNpcDailySchedule(actor(Volkanon), -1)",
      "    RunEmEntryAltAction(265)    ; <--",
@@ -39664,18 +39838,18 @@
    "args": [
     {
      "name": "x",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     }
    ],
@@ -39685,7 +39859,7 @@
    "description": "Teleport the player to a tile on the current map and settle them on the ground.",
    "details": "player world_x = x << 12, world_y = y << 12, pos_z = 0 (skipped in state 0x401000), then Actor_SnapToGroundAndResetMotion (+0xA4ED0).",
    "side_effects": "player position",
-   "evidence": "RF4S.exe+0x205BF0; corpus 259 uses (literal tiles or reg0/reg1 from GetActorTilePosition).",
+   "evidence": "RF4S.exe+0x205BF0; corpus 259 uses (literal tiles or reg0/reg1 from GetActorPosition).",
    "alias_of": null,
    "handler": "Script_VMOp_TeleportPlayerToTile",
    "handler_rva": "0x205BF0",
@@ -39866,7 +40040,7 @@
     "pc": "0x2B06",
     "lines": [
      "    PlaceActorAndFace(actor(Amber), 228, 417, 180)",
-     "    MoveActorToTileLockAi(actor(Amber), 190, 310, 270, 300, 1)",
+     "    MoveActorToPosLockAi(actor(Amber), 190, 310, 270, 300, 1)",
      "    Wait(3000)",
      "    TurnPlayerToAngle_396(90, 3)    ; <--",
      "    WaitActorMoveDone(actor(Amber))",
@@ -41229,7 +41403,7 @@
    "optional_args_from": 2,
    "returns": null,
    "blocking": "no",
-   "description": "Prepare level, crafted bits and ingredient list for the NEXT item a script creates (GivePlayerItem, SpawnItemAtTile, ForcePlayerHoldItem, HandOrDropItem ...). The first such op uses and clears it.",
+   "description": "Prepare level, crafted bits and ingredient list for the NEXT item a script creates (GivePlayerItem, SpawnItemAtPos, ForcePlayerHoldItem, HandOrDropItem ...). The first such op uses and clears it.",
    "details": "g_pendingInteractionRecord_24B = {u16 1 (marker), u16 (arg1 << 1) & 0xE, u8 +4 = arg0, u16[6] at +6..+17 = args 2-7}; u16 at +18 = 1 when ingredients were given; the rest zeroed. Consumers test marker == 1 and clear the record: RF4S.exe+0x20F890 (give), +0x1FF720 / +0x1FF420 (hand/drop), +0x20DB90 (spawn at tile), +0x20FB90 (force hold). DropItem/DropItemStack ignore it.",
    "side_effects": "g_pendingInteractionRecord_24B",
    "evidence": "RF4S.exe+0x20F520; corpus: 2 uses, (0, 0, 1083) right before a dish is handed over.",
@@ -43039,7 +43213,7 @@
     "pc": "0x2DC8",
     "lines": [
      "    SetMusicLock(1)",
-     "    TriggerActionAtTile(176, 0, 0)",
+     "    TriggerActionAtPos(176, 0, 0)",
      "    SetWeather(1, 0)",
      "    SetWeatherTransition(1)    ; <--",
      "    SetSpeaker(Pico, Left, 10, 0)",
@@ -43188,10 +43362,10 @@
   "452": {
    "op": 452,
    "op_hex": "0x1C4",
-   "mnemonic": "SpawnItemAtTile",
+   "mnemonic": "SpawnItemAtPos",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "SpawnItemAtTile(item, quality, count, x, y, pickup)",
+   "prototype": "SpawnItemAtPos(item, quality, count, x, y, pickup)",
    "args": [
     {
      "name": "item",
@@ -43245,7 +43419,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Places an item in the world at a tile, either as a collectable drop or as a visual-only prop.",
+   "description": "Places an item in the world at a position, either as a collectable drop or as a visual-only prop.",
    "details": "The item record is built as id & 0x7FF | count << 11 with the quality byte(s) = quality-1 (9 bytes, or 1 byte for item types whose metadata kind <= 1). If the pending item-attribute record has marker 1 its attributes are merged in; the pending record is cleared either way. Then Item_SpawnAtPositionAsDropOrVisual(rec, x, y, pickup != 0) (RF4S.exe+0x1EF5C0).",
    "side_effects": "spawns an item object; consumes the staged item attributes",
    "evidence": "RF4S.exe+0x20DB90: `if ((unsigned)(v8 - 1) > 9) v8 = 1; v27 = id & 0x7FF | (u8)arg2 << 11; memset(quality, v8 - 1, n); ... Item_SpawnAtPositionAsDropOrVisual(&v27, v14, v17, v20 != 0)`; corpus: 18 uses, e.g. (1021, 1, 1, 221, 286, 0) and (60, 0, 1, reg9, reg8, 1).",
@@ -43264,7 +43438,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 75,
@@ -43273,7 +43447,7 @@
      "    WaitActorMoveDone(actor(Arthur))",
      "    PlaySound(16785995)",
      "    GetVar1(0)",
-     "    SpawnItemAtTile(reg0, 5, 1, 132, 282, 0)    ; <--",
+     "    SpawnItemAtPos(reg0, 5, 1, 132, 282, 0)    ; <--",
      "    Wait(3000)",
      "    CALL L_042a",
      "    EndDialogue()"
@@ -43344,18 +43518,18 @@
     },
     {
      "name": "x",
-     "type": "tile",
-     "values": "-1 together with y = -1 = the player's tile",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile; -1 together with y = -1 = the player's tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     }
    ],
@@ -43780,10 +43954,10 @@
   "459": {
    "op": 459,
    "op_hex": "0x1CB",
-   "mnemonic": "ShowRewardPopupAtTile",
+   "mnemonic": "ShowRewardPopupAtPos",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "ShowRewardPopupAtTile(item, x, y)",
+   "prototype": "ShowRewardPopupAtPos(item, x, y)",
    "args": [
     {
      "name": "item",
@@ -43813,7 +43987,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Shows a one-item reward popup ('You got ...!') anchored at a tile, with the reward jingle, and marks the item as discovered.",
+   "description": "Shows a one-item reward popup ('You got ...!') anchored at a position, with the reward jingle, and marks the item as discovered.",
    "details": "One record (id & 0x7FF | 0x800 = count 1, quality 0); popup header = player map (+0x54), (x, y); Sfx 0x100226D unless host+120 bit 0x40; RewardPopup_SpawnAndMarkItemsDiscovered. The item is not added to the inventory by this op.",
    "side_effects": "reward popup; marks item discovered",
    "evidence": "RF4S.exe+0x20E840: `v21 = v8 & 0x7FF | 0x800; WORD1(v24[7]) = x; WORD2(v24[7]) = y; ... RewardPopup_SpawnAndMarkItemsDiscovered(v24)`; corpus: 1 use (649 at the player's tile + 32).",
@@ -43832,16 +44006,16 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 74,
     "pc": "0x0424",
     "lines": [
      "    EndDialogue()",
-     "    GetActorTilePosition(actor(player))",
+     "    GetActorPosition(actor(player))",
      "    EVAL (reg0 += 32)",
-     "    ShowRewardPopupAtTile(649, reg0, reg1)    ; <--",
+     "    ShowRewardPopupAtPos(649, reg0, reg1)    ; <--",
      "    Wait(6000)",
      "    ShowActorEmote(actor(player), 6)",
      "    ShowActorEmote(actor(Margaret), 6)"
@@ -45923,18 +46097,18 @@
     },
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     }
    ],
@@ -45979,10 +46153,10 @@
   "496": {
    "op": 496,
    "op_hex": "0x1F0",
-   "mnemonic": "MoveCompanionToTile",
+   "mnemonic": "MoveCompanionToPos",
    "previous_mnemonic": "MoveCompanion",
    "category": "companion",
-   "prototype": "MoveCompanionToTile(slot, x, y, facing, speed, run)",
+   "prototype": "MoveCompanionToPos(slot, x, y, facing, speed, run)",
    "args": [
     {
      "name": "slot",
@@ -45994,18 +46168,18 @@
     },
     {
      "name": "x",
-     "type": "tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -46036,7 +46210,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walks a companion (or both) to a tile and turns it to the given facing at the end. Does not wait; WaitCompanionSettled waits for it.",
+   "description": "Walks a companion (or both) to a position and turns it to the given facing at the end. Does not wait; WaitCompanionSettled waits for it.",
    "details": "Cmd {byte0 = run, byte1 = 4 (turn to end angle), 181*facing, speed = ((167773*speed)>>12) * (run ? 4915.2 : 4096) >> 12, x<<12, y<<12}. Per NPC companion (char < 48): field_B4 &= ~0x10C, control_flags &= ~0x4 (unhide), bit 0x800000 = run, field_A0 (turn ease) = 2, Npc_StartMoveTowards, then actor+568 |= 0x10, record+48 &= ~0x30000000, actor+568 &= ~0x24.",
    "side_effects": "companion move; un-hides the companion",
    "evidence": "RF4S.exe+0x201F50: `v39[0] = run; v39[1] = 4; v40 = 181 * facing; ... v25->field_A0 = 2; Npc_StartMoveTowards(char_id, v39)`; corpus: 100 uses, e.g. (1, 283, 276, 180, 200, 1).",
@@ -46055,18 +46229,18 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "consistency pass: MoveCompanion -> MoveCompanionToTile",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 1007,
     "pc": "0x01F2",
     "lines": [
      "    SetCameraTarget(200, 138, 200)",
-     "    MovePlayerToTile(200, 216, 180, 200, 1)",
+     "    MovePlayerToPos(200, 216, 180, 200, 1)",
      "    Wait(1500)",
-     "    MoveCompanionToTile(1, 180, 224, 180, 200, 1)    ; <--",
+     "    MoveCompanionToPos(1, 180, 224, 180, 200, 1)    ; <--",
      "    Wait(1500)",
-     "    MoveCompanionToTile(0, 220, 224, 180, 200, 1)",
+     "    MoveCompanionToPos(0, 220, 224, 180, 200, 1)",
      "    WaitPlayerMoveDone()"
     ]
    }
@@ -46074,10 +46248,10 @@
   "497": {
    "op": 497,
    "op_hex": "0x1F1",
-   "mnemonic": "MoveCompanionToTileFaceTravel",
+   "mnemonic": "MoveCompanionToPosFaceTravel",
    "previous_mnemonic": "MoveCompanionNF",
    "category": "companion",
-   "prototype": "MoveCompanionToTileFaceTravel(slot, x, y, speed, run)",
+   "prototype": "MoveCompanionToPosFaceTravel(slot, x, y, speed, run)",
    "args": [
     {
      "name": "slot",
@@ -46089,18 +46263,18 @@
     },
     {
      "name": "x",
-     "type": "tile",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tile",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -46123,7 +46297,7 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk or run a companion (or both) to a tile, facing the way they walk. Wait with WaitCompanionSettled (op 502).",
+   "description": "Walk or run a companion (or both) to a position, facing the way they walk. Wait with WaitCompanionSettled (op 502).",
    "details": "Packet {byte run, 0, u16 facing 0, u16 speed_q12 = (run ? 4915 : 4096) * ((167773*speed) >> 12) >> 12, x << 12, y << 12}. For each selected companion with char id < 48: Npc_StartMoveTowards(id, packet) (+0x225A90), actor+568 |= 0x10 then &= ~0x24 (NPCs), record+48 &= ~0x30000000, control_flags &= ~4, +0xB4 &= ~0x10C. Unlike op 496 it does not set the actor's 0x800000 run bit.",
    "side_effects": "companion move command",
    "evidence": "RF4S.exe+0x202240; corpus: 56 uses, slots 0/1 in pairs, followed by the player-move wait and WaitCompanionSettled(0/1).",
@@ -46142,7 +46316,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "'NF' was cryptic; renamed to the Actor-op pattern (MoveActorToTileFaceTravel) since this is the variant without an end facing.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 589,
@@ -46150,10 +46324,10 @@
     "lines": [
      "L_02cc:",
      "    EVAL (var:0x414 = 1)",
-     "    MovePlayerToTile(216, 200, 180, 100, 1)",
-     "    MoveCompanionToTileFaceTravel(0, 216, 378, 100, 1)    ; <--",
+     "    MovePlayerToPos(216, 200, 180, 100, 1)",
+     "    MoveCompanionToPosFaceTravel(0, 216, 378, 100, 1)    ; <--",
      "    Wait(3000)",
-     "    MoveCompanionToTileFaceTravel(1, 216, 378, 100, 1)",
+     "    MoveCompanionToPosFaceTravel(1, 216, 378, 100, 1)",
      "    WaitCompanionSettled(0)"
     ]
    }
@@ -46306,7 +46480,7 @@
    "returns": null,
    "blocking": "no",
    "description": "Walks a companion (or both) by a relative tile offset, facing the way it walks (no end-facing argument). Does not wait.",
-   "details": "Cmd byte1 = 0 (mode 0: face travel), byte0 = run, speed as MoveCompanionToTile, destination = companion position + (d << 12); per NPC companion the same flag updates as MoveCompanionToTile, then Npc_StartMoveTowards.",
+   "details": "Cmd byte1 = 0 (mode 0: face travel), byte0 = run, speed as MoveCompanionToPos, destination = companion position + (d << 12); per NPC companion the same flag updates as MoveCompanionToPos, then Npc_StartMoveTowards.",
    "side_effects": "companion move",
    "evidence": "RF4S.exe+0x202800: `v36 = 0; LOBYTE(v36) = run; HIWORD(v36) = speed;` (mode byte stays 0) and the same companion loop as RF4S.exe+0x201F50; corpus: 19 uses, e.g. (0, 0, -100, 100, 0) next to MoveActorByOffsetFaceTravel(tag3(0), ...).",
    "alias_of": null,
@@ -46505,7 +46679,7 @@
    "description": "Wait until the selected companion(s) have finished moving and turning.",
    "details": "Returns 1 (re-run) while a selected companion's NPC record has +20 bit 0x8 (moving) or bit 0x800 with no actor or actor+158 != +156 (turn pending); else 0. Writes no register. Slot > 2 other than 2 returns 0 at once.",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x202EE0; corpus: 229 uses, bare statements after MoveCompanionToTile* / TurnCompanionToAngle.",
+   "evidence": "RF4S.exe+0x202EE0; corpus: 229 uses, bare statements after MoveCompanionToPos* / TurnCompanionToAngle.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryAnyCompanionStillTransitioning",
    "handler_rva": "0x202EE0",
@@ -46603,10 +46777,10 @@
   "504": {
    "op": 504,
    "op_hex": "0x1F8",
-   "mnemonic": "GetPartyMemberTileY",
+   "mnemonic": "GetPartyMemberPosY",
    "previous_mnemonic": "QueryPartyMemberTileY",
    "category": "query",
-   "prototype": "GetPartyMemberTileY(slot)",
+   "prototype": "GetPartyMemberPosY(slot)",
    "args": [
     {
      "name": "slot",
@@ -46618,8 +46792,8 @@
      "tests": [
       {
        "date": "2026-10-02",
-       "call": "GetPartyMemberTileY(0) with Forte as companion 1 / GetPartyMemberTileY(-1)",
-       "observed": "481 / 481 = Forte's and the player's Y from GetActorTilePosition"
+       "call": "GetPartyMemberPosY(0) with Forte as companion 1 / GetPartyMemberPosY(-1)",
+       "observed": "481 / 481 = Forte's and the player's Y from GetActorPosition"
       }
      ]
     }
@@ -46630,7 +46804,7 @@
    "description": "Read a party member's Y position into reg0 (0 if the slot is empty). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).",
    "details": "reg0 = (&g_playerActor)[slot + 1]->world_y (+0x5C) >> 12, 0 when empty (`mov [rdx+40h], r8d`).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x2123E0; corpus: 7 uses; bank 573 branches on reg1 right after it, which is a script bug (the op writes reg0). In-game test 2026-10-02 (user): GetPartyMemberTileY(0) with Forte as companion 1 / GetPartyMemberTileY(-1) -> 481 / 481 = Forte's and the player's Y from GetActorTilePosition.",
+   "evidence": "RF4S.exe+0x2123E0; corpus: 7 uses; bank 573 branches on reg1 right after it, which is a script bug (the op writes reg0). In-game test 2026-10-02 (user): GetPartyMemberPosY(0) with Forte as companion 1 / GetPartyMemberPosY(-1) -> 481 / 481 = Forte's and the player's Y from GetActorPosition.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPartyMemberWorldYTile",
    "handler_rva": "0x2123E0",
@@ -46646,7 +46820,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Naming convention: register-writing query -> Get.",
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": true,
    "example": {
     "bank": 573,
@@ -46654,10 +46828,10 @@
     "lines": [
      "    EVAL (var:0x414 = 1)",
      "    SetCameraTarget(288, 202, 300)",
-     "    MovePlayerToTile(288, 300, 180, 200, 1)",
-     "    GetPartyMemberTileY(0)    ; <--",
+     "    MovePlayerToPos(288, 300, 180, 200, 1)",
+     "    GetPartyMemberPosY(0)    ; <--",
      "    BR_Z (reg1 >= 486) -> L_05e6",
-     "    MoveCompanionToTileFaceTravel(0, 464, 484, 200, 1)",
+     "    MoveCompanionToPosFaceTravel(0, 464, 484, 200, 1)",
      "    JMP L_060c"
     ]
    }
@@ -52418,18 +52592,18 @@
    "args": [
     {
      "name": "x",
-     "type": "centre tile x",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "centre tile y",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
@@ -53020,7 +53194,7 @@
     "bank": 396,
     "pc": "0x0150",
     "lines": [
-     "    TriggerActionAtTile(465, 480, 0)",
+     "    TriggerActionAtPos(465, 480, 0)",
      "    FadeScreenToClear(30000)",
      "    WaitForFade()",
      "    ShowStaffCredits(2)    ; <--",
@@ -55095,12 +55269,12 @@
    "prototype": "GetDefeatPosition()",
    "args": [],
    "optional_args_from": null,
-   "returns": "reg0 = word +112 (x), reg1 = word +114 (y), in the same units the shipped scenes pass to TeleportActor / TriggerActionAtTile; in game a kill near tile (60, 22) read (455, 184), about 8 units per tile",
+   "returns": "reg0 = word +112 (x), reg1 = word +114 (y), in the same units the shipped scenes pass to TeleportActor / TriggerActionAtPos; in game a kill near tile (60, 22) read (455, 184), about 8 units per tile",
    "blocking": "no",
    "description": "Sets reg0/reg1 to the tile where the most recently defeated monster fell, e.g. to put the girl where Ambrosia fell. Shipped scenes use it only in monster-defeated scenes (type 17, and the type-68 scene after the Ambrosia fight), followed by a spawn or teleport at (reg0, reg1).",
    "details": "reg0 = (s16) host+112, reg1 = (s16) host+114. Filled by game event 1 (NpcAi_BeginScriptedEventFromRequestDescriptor, RF4S.exe+0x1F2040: host+112 = event word +6, host+114 = word +4). Every monster death records its id and tile (RF4S.exe+0x1F1330); when its 72-frame timer runs out (0 with DEFEAT_TIME_0), Quest_TickDailyTimersAndQueueEvents (RF4S.exe+0x1FA420) queues event 15 and event 1 with {id, y, x}. Other code that queues event 1 could also write the words (not checked).",
    "side_effects": "",
-   "evidence": "RF4S.exe+0x21DDC0: `*(a2+64) = *(s16*)(a1+112); *(a2+68) = *(s16*)(a1+114)`; writer RF4S.exe+0x1F2060 / +0x1F2068; corpus: 8 uses (7 in type-17 scenes, 1 in the type-68 scene after Ambrosia), followed by TeleportActor(x, reg0, reg1) or TriggerActionAtTile(151, reg0, reg1). In-game test 2026-10-06 (user): GetDefeatPosition() -> SetVar3(0/1) (Dragon Room entry, after killing a monster around tile (60, 22) of MAP_FIELD_02) -> X 455, Y 184 (first walk-in with no fresh kill showed 0, 0). 455/8, 184/8 = (56.9, 23): the values look like 1/8-tile units, not tiles.",
+   "evidence": "RF4S.exe+0x21DDC0: `*(a2+64) = *(s16*)(a1+112); *(a2+68) = *(s16*)(a1+114)`; writer RF4S.exe+0x1F2060 / +0x1F2068; corpus: 8 uses (7 in type-17 scenes, 1 in the type-68 scene after Ambrosia), followed by TeleportActor(x, reg0, reg1) or TriggerActionAtPos(151, reg0, reg1). In-game test 2026-10-06 (user): GetDefeatPosition() -> SetVar3(0/1) (Dragon Room entry, after killing a monster around tile (60, 22) of MAP_FIELD_02) -> X 455, Y 184 (first walk-in with no fresh kill showed 0, 0). 455/8, 184/8 = (56.9, 23): the values look like 1/8-tile units, not tiles.",
    "alias_of": null,
    "handler": "Script_VMOp_QuerySceneA1WordPair112",
    "handler_rva": "0x21DDC0",
@@ -56092,32 +56266,32 @@
   "677": {
    "op": 677,
    "op_hex": "0x2A5",
-   "mnemonic": "SpawnTileEffectObject",
+   "mnemonic": "SpawnEffectObjectAtPos",
    "previous_mnemonic": null,
    "category": "effect",
-   "prototype": "SpawnTileEffectObject(x, y)",
+   "prototype": "SpawnEffectObjectAtPos(x, y)",
    "args": [
     {
      "name": "x",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (x)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     },
     {
      "name": "y",
-     "type": "tiles",
-     "values": "",
+     "type": "script units (y)",
+     "values": "script units, 8 per tile",
      "required_kind": "int",
-     "notes": "",
+     "notes": "Same << 12 shift as TeleportActor (op 99), whose unit was seen in game 2026-10-06: 8 script units per map-editor tile, tile * 8 + 4 = the tile's centre.",
      "human_verified": false
     }
    ],
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Spawn the class-2050 floating object (the harvest-notification style effect actor) at a tile.",
+   "description": "Spawn the class-2050 floating object (the harvest-notification style effect actor) at a position.",
    "details": "Crop_SpawnFloatingHarvestNotificationActor(0x802, x << 12, y << 12) (+0x17CA70), then sets the spawned task's data+240 -> +324 = -25.",
    "side_effects": "spawns an effect task",
    "evidence": "RF4S.exe+0x21FEA0; corpus 1 use (bank 211, (180, 140)).",
@@ -56136,7 +56310,7 @@
    },
    "confidence": "medium",
    "notes": "",
-   "change_reason": null,
+   "change_reason": "2026-10-06: its x/y are script positions (8 units per map-editor tile, verified in game for TeleportActor / PlaceActorAndFace), not tiles, so the name says Pos.",
    "human_verified": false,
    "example": {
     "bank": 211,
@@ -56145,7 +56319,7 @@
      "    TurnActorToAngle(actor(Vishnal), 315, 2)",
      "    WaitActorMoveDone(actor(Vishnal))",
      "    Wait(1500)",
-     "    SpawnTileEffectObject(180, 140)    ; <--",
+     "    SpawnEffectObjectAtPos(180, 140)    ; <--",
      "    Wait(3000)",
      "    CALL L_5118",
      "    EndDialogue()"
@@ -56819,8 +56993,8 @@
      "    DIALOG #100429    ; \"＋[Completed All of the Story]＋ / Congratulations on finishing the enti…\"",
      "    EndDialogue()",
      "    SetFreeLookCameraMode(0)    ; <--",
-     "    TriggerActionAtTile(458, -120, 0)",
-     "    TriggerActionAtTile(459, 480, 0)",
+     "    TriggerActionAtPos(458, -120, 0)",
+     "    TriggerActionAtPos(459, 480, 0)",
      "    DIALOG #100430    ; \"A reward for completing the entire story?! / There are so many people …\""
     ]
    }

@@ -805,7 +805,7 @@ _M.update({
           "tile, KEEPING its current facing (no turn). arg0/arg1 = X/Y tiles, arg2 = speed, "
           "arg3 = run flag (0 = walk, non-zero = run). Like op 142 but without a facing arg.",
           ["x (tiles)", "y (tiles)", "speed", "run (0/1)"]),
-    150: ("TriggerActionAtTile", "effect",
+    150: ("TriggerActionAtPos", "effect",
           "Spawn a scripted Action (effect/task) at a world tile via Action_TriggerActor "
           "(g_actionConstructorTable dispatch — the 'Action 0xNN' family). arg0 = action id. "
           "arg1/arg2 = X/Y tiles. Action ids 65 and 105 auto-target the player's position "
@@ -928,7 +928,7 @@ _M.update({
     165: ("TriggerActionAtEventActor", "effect",
           "Spawn a scripted Action (VFX / SFX / trigger) at a spawned event actor's position "
           "via Action_TriggerAttacker. arg0 = event key, arg1 = action id. The "
-          "event-actor counterpart of TriggerActionAtTile (op 150).",
+          "event-actor counterpart of TriggerActionAtPos (op 150).",
           ["event key", "action id"]),
     179: ("QueryEventActorTurning", "query",
           "1 while a spawned event actor is still turning toward its target facing "
@@ -1023,7 +1023,7 @@ _M.update({
           "Bring an NPC into the scene (load its actor into rendering + activate it). arg0 = "
           "npc (char id, <48). arg1 = mode: non-zero force-streams the NPC (full load), 0 "
           "just re-applies its schedule state without streaming. Use before an NPC is needed "
-          "on screen. To also place it, use StreamInNpcAtTile (op 246).",
+          "on screen. To also place it, use StreamInNpcAtPos (op 246).",
           ["npc (char id)", "mode (0=refresh, 1=force load)"]),
     243: ("EndDialogueLock", "dialogue",
           "End the dialogue lock — release the player-input / scene lock held during a "
@@ -1300,7 +1300,7 @@ _M.update({
           "Despawn all the floating item-display visuals spawned by SpawnItemVisual (op 454). "
           "No args. Cleanup at the end of an item-reveal scene.",
           []),
-    459: ("ShowRewardPopupAtTile", "item",
+    459: ("ShowRewardPopupAtPos", "item",
           "Show a single-item reward popup ('You got [item]!') at a specific world TILE, with "
           "the reward jingle, and mark the item as discovered. arg0 = item id, arg1/arg2 = "
           "X/Y tiles. Unlike ShowRewardPopup (op 457), this places the popup at a chosen tile "
@@ -1505,7 +1505,7 @@ _M.update({
           "Read the total gold value of everything currently in the shipping box into the VM "
           "output (capped at 999,999,999). No args. For shipping-total dialogue.",
           []),
-    677: ("SpawnTileEffectObject", "effect",
+    677: ("SpawnEffectObjectAtPos", "effect",
           "Spawn a special class-2050 tile object — a floating harvest-notification-style "
           "effect actor — at a tile. arg0/arg1 = X/Y tiles. For scripted visual effects.",
           ["x (tiles)", "y (tiles)"]),
@@ -2299,10 +2299,10 @@ _M.update({
     116: ('MoveActorToTile_LockAI', 'actor',
         "Walk an actor to an ABSOLUTE tile position, then LOCK its AI (npc+568 |= 0x10) so nothing interrupts the staged pose — used when actors slide into cutscene positions and must hold. Args 1/2 are absolute tiles, not offsets: the move command stores x<<12 / y<<12 RAW with no world-position anchor added, on both the NPC and player/scene paths (ops 115-118 are the absolute family; 123-128 are the relative one). args: actor (0 = player), x, y (tiles), facing degrees (x181 -> u16 rotation), speed, jump flag (non-zero = jump/run, 1.2x speed multiplier).",
         ['actor (char id, 0=player)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'facing (degrees)', 'speed', 'jump (0/1)']),
-    117: ('MoveActorToTileFaceTravel', 'actor',
+    117: ('MoveActorToPosFaceTravel', 'actor',
         "Move an actor to an ABSOLUTE tile (x,y). Move-command mode byte = 0, so the actor turns to face its direction of travel (there is simply no final-facing argument); afterwards sets actor.control_flags(+0x238) bit 0x10, the same 'scene-controlled' bit the dispatcher sets on every NPC when a cutscene starts. Speed = (arg*167773>>12) x 1.2 when jump != 0.",
         ['actor (char id <48)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'speed', 'jump (0/1)']),
-    118: ('MoveActorToTileFaceTravel', 'actor',
+    118: ('MoveActorToPosFaceTravel', 'actor',
         "Move an actor to an ABSOLUTE tile (x,y). Move-command mode byte = 0, so the actor turns to face its direction of travel (there is simply no final-facing argument); afterwards sets actor.control_flags(+0x238) bit 0x10, the same 'scene-controlled' bit the dispatcher sets on every NPC when a cutscene starts. Speed = (arg*167773>>12) x 1.2 when jump != 0.",
         ['actor (char id <48)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'speed', 'jump (0/1)']),
     119: ('MoveActorToTileKeepFacing', 'actor',
@@ -2311,10 +2311,10 @@ _M.update({
     120: ('MoveActorToTileKeepFacing', 'actor',
         'Move an NPC to an ABSOLUTE tile while KEEPING its current facing (side-step / back-pedal): move-command mode byte = 2, which Npc_StartMoveTowards turns into control_flags 0x20000 (no auto-face). Afterwards sets control_flags bit 0x10 (scene-controlled), exactly like op 117. jump/run flag != 0 multiplies speed by 1.2 and sets the jump bit 0x800000.',
         ['npc (char id <48)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'speed', 'jump (0/1)']),
-    121: ('MoveNpcToTileKeepAnim', 'actor',
+    121: ('MoveNpcToPosKeepAnim', 'actor',
         'Move an NPC to an ABSOLUTE tile WITHOUT resetting its animation: cmd mode byte = 8, which makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset-to-idle/walk-anim routine), so whatever clip PlayActorAnim started keeps playing while the actor glides. No jump flag (byte0 = 0); speed = arg*167773>>12 (same scale as a non-jump walk). Sets control_flags 0x10 afterwards.',
         ['npc (char id <48)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'speed']),
-    122: ('MoveNpcToTileKeepAnim', 'actor',
+    122: ('MoveNpcToPosKeepAnim', 'actor',
         'Move an NPC to an ABSOLUTE tile WITHOUT resetting its animation: cmd mode byte = 8, which makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset-to-idle/walk-anim routine), so whatever clip PlayActorAnim started keeps playing while the actor glides. No jump flag (byte0 = 0); speed = arg*167773>>12 (same scale as a non-jump walk). Sets control_flags 0x10 afterwards.',
         ['npc (char id <48)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'speed']),
     124: ('MoveActorByOffset', 'actor',
@@ -2506,7 +2506,7 @@ _M.update({
     244: ('NpcShowItem', 'actor',
         "Make an NPC hold up the item it is carrying: needs the NPC's model to hold an item (+304 -> +178 in 1..1107). If the NPC's actor state is 20 it instead puts the item away and returns to idle (Npc_ResetActorPostTeleport + Npc_FinalizeTeleportAndNotify); otherwise it starts the show-item action (actor state 19, anim archive base+18, tick NpcAction_TickItemShow).",
         ['npc (char id, 1-47)']),
-    246: ('StreamInNpcAtTile', 'actor',
+    246: ('StreamInNpcAtPos', 'actor',
         "Stream an NPC into a given map and place it at a tile with no walk-on: sets the NPC actor's map id (actor+84, via Actor_SetFacingDirection which is misnamed) and record+188 to arg1, runs the schedule spawn/place, writes X/Y (tiles<<12) to actor+88/+92 and record+192/+196, stops its anim if not moving, then (for npc != 0) drops any held item and restores its idle pose.",
         ['npc (char id, <48)', 'map id', 'x (tiles)', 'y (tiles)']),
     249: ('SetNpcVisibleFlag', 'actor',
@@ -2780,7 +2780,7 @@ _M.update({
         'reg0 = 1 if the backpack has at least one EMPTY slot within its current capacity (15/30/45/60 from Inventory_GetPageSlotCount), else 0. No args.',
         []),
     421: ('SetNextItemAttributes', 'flow',
-        "Stage attributes for the NEXT item a script creates (GivePlayerItem, SpawnItemAtTile, ForcePlayerHoldItem, the NPC hand/attach-item ops; DropItem/DropItemStack do not read it): arg0 overrides the item's level byte (+4), arg1 sets the 3-bit 'crafted' field (bits 1-3 of the flags word +2), and args 2-7 fill the six u16 ingredient/material item-id slots (+6..+17, e.g. a dish's ingredients). The record is consumed and cleared by the first such op.",
+        "Stage attributes for the NEXT item a script creates (GivePlayerItem, SpawnItemAtPos, ForcePlayerHoldItem, the NPC hand/attach-item ops; DropItem/DropItemStack do not read it): arg0 overrides the item's level byte (+4), arg1 sets the 3-bit 'crafted' field (bits 1-3 of the flags word +2), and args 2-7 fill the six u16 ingredient/material item-id slots (+6..+17, e.g. a dish's ingredients). The record is consumed and cleared by the first such op.",
         ['level byte', 'crafted bits (0-7)', 'ingredient item ids (up to 6)']),
     422: ('SetNextItemAttributesPacked', 'flow',
         'Alternate staging form (marker 2): byte+4 = arg0, byte+6 = arg1, arg2 and args 3-5 packed as 10-bit fields. No consumer applies a marker-2 record - every item op only applies marker 1 and then clears the record - so in the shipped exe this op has no lasting effect beyond discarding any staged op-421 attributes.',
@@ -2821,7 +2821,7 @@ _M.update({
     451: ('GetDayOfWeek', 'time',
         'reg0 = (day - 1) % 6 where day is the calendar day-of-season field (cal_inner +12, 0 treated as 1); range 0-5.',
         []),
-    452: ('SpawnItemAtTile', 'item',
+    452: ('SpawnItemAtPos', 'item',
         'Spawn item arg0 in the world at tile (arg3, arg4) via Item_SpawnAtPositionAsDropOrVisual, as a pickup when arg5 != 0 or a visual-only prop when 0. arg1 is the QUALITY (clamped to 1-10, stored as arg1-1) and arg2 the COUNT (packed << 11). Staged op-421 attributes are applied.',
         ['item id', 'quality (1-10)', 'count', 'x tile', 'y tile', 'as pickup (0 = visual, 1 = pickup)']),
     456: ('QueryEquippedItemAttr', 'query',
