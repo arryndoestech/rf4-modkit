@@ -238,15 +238,16 @@ class TextTab:
         tv, m = self.tv, self.m
         tv.delete(*tv.get_children())
         n = 0
+        cap = guiutil.list_rows()           # once: it reads the settings file
         for key, text in m.rows.items():
             if not self._shown(key, text):
                 continue
             tv.insert("", "end", iid=self._iid(key), values=(key, shown(text)),
                       tags=self._tags(key, text))
             n += 1
-            if n >= guiutil.list_rows():
+            if n >= cap:
                 tv.insert("", "end", iid="…", values=("…", "(showing the first %d; search to narrow)"
-                                                      % guiutil.list_rows()))
+                                                      % cap))
                 break
         nch = sum(1 for k in m.rows if m.changed(k))
         self.count.config(text="%s %s%s" % (format(len(m.rows), ","), "lines" if m.is_text else "keys",

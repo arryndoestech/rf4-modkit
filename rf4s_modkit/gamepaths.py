@@ -10,6 +10,7 @@ the user did not mean.
 """
 from __future__ import annotations
 
+import copy
 import json
 import pathlib
 
@@ -24,17 +25,30 @@ def settings_path() -> pathlib.Path:
     return TOOLKIT / "settings.json"
 
 
+_settings_cache = None      # (path, mtime_ns, size, parsed): lists ask per row, re-read on change
+
+
 def _load_settings() -> dict:
+    """The settings as a fresh dict (callers may change it). Parsed once and kept while the
+    file is unchanged: big lists ask for a setting per row."""
+    global _settings_cache
+    p = settings_path()
     try:
-        return json.loads(settings_path().read_text(encoding="utf-8"))
+        st = p.stat()
+        key = (str(p), st.st_mtime_ns, st.st_size)
+        if _settings_cache is None or _settings_cache[:3] != key:
+            _settings_cache = key + (json.loads(p.read_text(encoding="utf-8")),)
+        return copy.deepcopy(_settings_cache[3])
     except (OSError, ValueError):
         return {}
 
 
 def _store_settings(d: dict) -> None:
+    global _settings_cache
     p = settings_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(d, indent=1), encoding="utf-8")
+    _settings_cache = None                  # same mtime tick + same size must not serve the old
 
 
 # ---- checks ------------------------------------------------------------------------ #

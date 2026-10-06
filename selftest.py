@@ -45,6 +45,20 @@ def _private_settings():
 
 
 _private_settings()
+
+
+def _no_editor_preload():
+    """The cutscene editor builds the Reference / Event Manager hidden a second after it
+    opens; the tests open and close editors and count windows, so that is off here (its own
+    test, test_cutscene_preload, turns it on)."""
+    try:
+        from cutscene_editor import app as _capp
+        _capp.CutsceneExplorer.PRELOAD = False
+    except Exception:  # noqa: BLE001 -- no Tk: no editor tests either
+        pass
+
+
+_no_editor_preload()
 # Extraction root: Bundle/extracted/ if present, else a flat Bundle/<bundle>/ layout.
 EXTRACTED = (BUNDLE_DIR / "extracted") if (BUNDLE_DIR / "extracted").is_dir() else BUNDLE_DIR
 
@@ -7600,15 +7614,18 @@ def test_script_debugger_var_writes():
         root.update()
         ed = p._var_edit
         opened = ed is not None and ed[1].get() == "7" and ed[1].selection_present()
+        if ed is not None:          # a background test window may lose the focus (which cancels)
+            ed[1].unbind("<FocusOut>")
         ed[1].delete(0, "end"); ed[1].insert(0, "600")          # does not fit 9 bits
-        ed[1].event_generate("<Return>"); root.update()
+        p._commit_var_edit(); root.update()   # = Enter
         kept = p._var_edit is not None and d.read_var(enc) == 7 and "does not fit" in p.status.cget("text")
         ed[1].delete(0, "end"); ed[1].insert(0, "0x1F")
-        ed[1].event_generate("<Return>"); root.update()
+        p._commit_var_edit(); root.update()   # = Enter
         written = p._var_edit is None and d.read_var(enc) == 31
-        p.set_var(); root.update()
+        p.set_var()
+        p._var_edit[1].unbind("<FocusOut>"); root.update()
         p._var_edit[1].insert("end", "9")
-        p._var_edit[1].event_generate("<Escape>"); root.update()
+        p.cancel_var_edit(); root.update()   # = Esc
         cancelled = p._var_edit is None and d.read_var(enc) == 31
         _check("Variables tab in place: the value cell opens with the value selected, a value "
                "that does not fit keeps it open with the reason, Enter writes, Esc cancels",
@@ -14365,9 +14382,11 @@ def test_cutscene_toolbox():
         trees = [w for w in _all_widgets(r.win) if w.winfo_class() == "Treeview"
                  and w is not getattr(r, "uses", None)]          # the Flags tab's 'Used by' list
         counts = [len(t.get_children()) for t in trees]
-        _check("Reference: flags, verified functions, text codes, characters, maps, items all list something",
-               tabs == ["Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items"]
-               and len(counts) == 6 and all(counts) and counts[0] > 1000, "%s %s" % (tabs, counts))
+        _check("Reference: flags, verified functions, text codes, characters, maps, items, trigger "
+               "types all list something",
+               tabs == ["Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items",
+                        "Trigger types"]
+               and len(counts) == 7 and all(counts) and counts[0] > 1000, "%s %s" % (tabs, counts))
         codes = [trees[2].item(i, "values") for i in trees[2].get_children()]
         from rf4s_modkit import textlint as _tl
         _num = next((c for c in codes if c[0] == "＠<n>＠"), None)
@@ -14637,6 +14656,78 @@ def test_entry_key_conflicts():
                refused and "never run" in msg and ok_keys is False and cx.doc.container.build() == before,
                msg[:120])
     finally:
+        root.destroy()
+
+
+def test_cutscene_preload():
+    """The cutscene editor preloads the Reference and Event Manager hidden once it is idle:
+    the bank scan on a worker thread, the Reference one tab per step, the Event Manager after
+    the scan. No step blocks the UI for long, opening reuses the preloaded windows, and edits
+    made while they are hidden are caught up when they are shown."""
+    print("cutscene editor preload:")
+    import time as _t
+    import gc as _gc
+    # earlier tests' Tk roots are freed by the cycle collector, on whichever thread runs it:
+    # free them here, on the main thread, before the worker thread starts (Tcl aborts when an
+    # interpreter is deleted on another thread; the toolkit itself keeps one root for life)
+    _gc.collect()
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from cutscene_editor import app as capp
+        root = tk.Tk(); root.withdraw()
+    except Exception as e:  # noqa: BLE001
+        _skip("preload", "no Tk: %s" % e); return
+    saved = (capp.CutsceneExplorer.PRELOAD, capp.CutsceneExplorer.PRELOAD_DELAY_MS)
+    capp.CutsceneExplorer.PRELOAD, capp.CutsceneExplorer.PRELOAD_DELAY_MS = True, 50
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    mc = _first("rf3.mc")
+    dirs = ([mc.parent] if mc else []) + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
+                                                     pathlib.Path(BUNDLE_DIR) / "bundlePatch2") if d.is_dir()]
+
+    def reader(n):
+        for d in dirs:
+            if (d / n).is_file():
+                return (d / n).read_bytes()
+        return None
+    try:
+        cx = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        if cx.doc.container is None:
+            _skip("preload", "rf3.mc not found"); return
+        root.update()
+        worst, end = 0.0, _t.perf_counter() + 120
+        while _t.perf_counter() < end:
+            t0 = _t.perf_counter()
+            root.update()
+            worst = max(worst, _t.perf_counter() - t0)
+            r, em = cx._reference, cx._em_window
+            if r is not None and r.built and (em is not None or cx.doc.em is None):
+                break
+            _t.sleep(0.01)
+        r, em = cx._reference, cx._em_window
+        hidden = (r is not None and r.built and r.win.state() == "withdrawn"
+                  and (cx.doc.em is None or (em is not None and em.win.state() == "withdrawn")))
+        _check("both windows are built hidden in the background", hidden,
+               "reference %s, event manager %s" % (r and r.built, em is not None))
+        _check("no single preload step blocked the UI for long", worst < 1.0, "%.2fs" % worst)
+        if not hidden:
+            return
+        cx.doc.notify("edit")                        # an edit while both are hidden
+        end = _t.perf_counter() + 0.6                # the editor passes it on after 200 ms
+        while _t.perf_counter() < end:
+            root.update()
+            _t.sleep(0.01)
+        stale = r._uses_stale and (em is None or em._stale)
+        same = cx.open_reference() is r and r.win.state() == "normal" and not r._uses_stale
+        if em is not None:
+            same = same and cx.open_event_manager() is em and em.win.state() == "normal" and not em._stale
+        _check("an edit while hidden only marks them stale; opening reuses the preloaded "
+               "windows and catches up", stale and same,
+               (r._uses_stale, em is None or em._stale, same))
+        _check("no Tk errors during the preload", not errs, str(errs[:1]))
+    finally:
+        capp.CutsceneExplorer.PRELOAD, capp.CutsceneExplorer.PRELOAD_DELAY_MS = saved
         root.destroy()
 
 
@@ -16629,7 +16720,7 @@ def run() -> int:
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
-              test_statement_operands, test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_reload_from_disk, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
+              test_statement_operands, test_var_uses, test_entry_key_conflicts, test_cutscene_multi_select, test_cutscene_preload, test_cutscene_reload_from_disk, test_cutscene_editor_workflows, test_cutscene_toolbox, test_event_manager, test_asset_explorer_gui, test_explorer_open_file, test_explorer_model_obj_import, test_explorer_model_glb_import, test_model_fast_render, test_skelanim_write, test_gltf_motion_roundtrip, test_gltf_import_all_motions, test_gltf_blender_roundtrip, test_model_glb_import, test_model_glb_blender, test_model_material, test_model_grow, test_blender_addon, test_explorer_tabs, test_backups, test_remembered_options, test_theme, test_text_tab, test_text_escapes, test_live_names_and_combo_keys, test_viewer_tabs, test_portraits,
               test_shader_archive,
               test_map_container_checks, test_map_editor_warps_and_saving):
         t0 = time.perf_counter()

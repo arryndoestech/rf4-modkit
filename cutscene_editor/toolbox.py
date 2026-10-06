@@ -331,13 +331,13 @@ class _Filtered(ttk.Frame):
         self._pending = None
         self.tree.delete(*self.tree.get_children())
         n = 0
+        cap = guiutil.list_rows()           # once: it reads the settings file
         for i in self._matching():
             shown = self.rows[i][:len(self.tree["columns"])]
             self.tree.insert("", "end", iid=str(i), values=shown)
             n += 1
-            if n >= guiutil.list_rows():
+            if n >= cap:
                 break
-        cap = guiutil.list_rows()
         self.count.config(text="%d shown%s" % (n, " (first %d)" % cap if n >= cap else ""))
 
     def selected(self):
@@ -350,26 +350,61 @@ class ReferenceWindow:
 
     TABS = ("Flags & variables", "Functions", "Text codes", "Characters", "Maps", "Items", "Trigger types")
 
-    def __init__(self, app):
+    STEP_MS = 30                # hidden build: the pause between tabs, so the editor stays responsive
+
+    def __init__(self, app, hidden=False):
+        """`hidden`: preloaded by the editor -- the window starts withdrawn and its tabs are
+        built one per idle step (show() finishes any still to build)."""
         self.app = app
         self.win = tk.Toplevel(app.frame)
+        if hidden:
+            self.win.withdraw()
         self.win.title("Cutscene Editor — Reference")
         self.win.geometry("1000x640")
         self.nb = ttk.Notebook(self.win)
         self.nb.pack(fill="both", expand=True, padx=6, pady=6)
         self.status = ttk.Label(self.win, foreground="#888")
         self.status.pack(fill="x", padx=8, pady=(0, 6))
-        self._flags()
-        self._functions()
-        self._text_codes()
-        self._simple("Characters", ("character", "use as"), (420, 300), character_choices(),
-                     "Character ids: arguments typed 'char id' take actor(Name) (or the number).")
-        self._simple("Maps", ("map", "use as"), (520, 300), map_choices(),
-                     "Map ids: arguments typed 'map id' take map(MAP_FILE) (or the number).")
-        self._simple("Items", ("item", "use as"), (520, 120), item_choices(),
-                     "Item ids: arguments typed 'item id' take the number.")
-        self._action_types()
-        self.apply_list_settings()
+        self._steps = [
+            self._flags, self._functions, self._text_codes,
+            lambda: self._simple("Characters", ("character", "use as"), (420, 300), character_choices(),
+                                 "Character ids: arguments typed 'char id' take actor(Name) (or the number)."),
+            lambda: self._simple("Maps", ("map", "use as"), (520, 300), map_choices(),
+                                 "Map ids: arguments typed 'map id' take map(MAP_FILE) (or the number)."),
+            lambda: self._simple("Items", ("item", "use as"), (520, 120), item_choices(),
+                                 "Item ids: arguments typed 'item id' take the number."),
+            self._action_types, self.apply_list_settings]
+        self._step_job = None
+        self._uses_stale = False
+        if hidden:
+            self._step_job = later(self.win, self._next_step, self.STEP_MS)
+        else:
+            self._finish_build()
+
+    @property
+    def built(self):
+        return not self._steps
+
+    def _next_step(self):
+        self._step_job = None
+        try:
+            if not self.win.winfo_exists() or not self._steps:
+                return
+        except tk.TclError:
+            return
+        self._steps.pop(0)()
+        if self._steps:
+            self._step_job = later(self.win, self._next_step, self.STEP_MS)
+
+    def _finish_build(self):
+        if self._step_job is not None:
+            try:
+                self.win.after_cancel(self._step_job)
+            except tk.TclError:
+                pass
+            self._step_job = None
+        while self._steps:
+            self._steps.pop(0)()
 
     def lists(self):
         """Every filterable list in the window."""
@@ -388,7 +423,11 @@ class ReferenceWindow:
             lst.show_export(on)
 
     def show(self, tab=None):
+        self._finish_build()                # opened while the preload was still building
         self.win.deiconify()
+        if self._uses_stale:                # edits made while it was hidden
+            self._uses_stale = False
+            self.refresh_uses()
         self.win.lift()
         if tab in self.TABS:
             self.nb.select(self.TABS.index(tab))
@@ -499,8 +538,14 @@ class ReferenceWindow:
         self.status.config(text="")
 
     def refresh_uses(self):
-        """After an edit: recount (the selection, and with it the 'Used by' list, follows)."""
-        if self.win.winfo_exists() and self._counting:
+        """After an edit: recount (the selection, and with it the 'Used by' list, follows).
+        Hidden (preloaded, or closed) or still building: recounted when shown."""
+        if not self.win.winfo_exists():
+            return
+        if not self.built or self.win.state() == "withdrawn":
+            self._uses_stale = True
+            return
+        if self._counting:
             self._count_uses()
 
     @staticmethod

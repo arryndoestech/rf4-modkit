@@ -75,6 +75,34 @@ class CutsceneExplorer:
             self.show_bank(focus_bank, focus_entry)
             if focus_pc is not None:
                 later(self.frame, lambda: self.view.focus_pc(focus_pc))
+        if self.PRELOAD:
+            later(self.frame, self._preload, self.PRELOAD_DELAY_MS)
+
+    # the Reference and Event Manager windows are built hidden once the editor is idle, so
+    # opening them is instant: the bank scan on a worker thread, the Reference one tab per
+    # idle step, the Event Manager when the scan is done (its use counts come from it)
+    PRELOAD = True
+    PRELOAD_DELAY_MS = 1000
+
+    def _preload(self):
+        try:
+            if not self.frame.winfo_exists() or self.doc.container is None:
+                return
+        except tk.TclError:
+            return
+        from . import toolbox
+        self.var_index_async(lambda _idx, _err: later(self.frame, self._preload_em, 200))
+        if self._reference is None:
+            self._reference = toolbox.ReferenceWindow(self, hidden=True)
+
+    def _preload_em(self):
+        try:
+            if not self.frame.winfo_exists() or self.doc.em is None or self._em_window is not None:
+                return
+        except tk.TclError:
+            return
+        w = self._em_window = EventManagerWindow(self, hidden=True)
+        return w
 
     # ------------------------------------------------------------------ #
     # layout
@@ -721,8 +749,8 @@ class CutsceneExplorer:
         """An open Reference window follows the Advanced settings at once."""
         r = self._reference
         try:
-            if r is not None and r.win.winfo_exists():
-                r.refresh_functions()
+            if r is not None and r.win.winfo_exists() and r.built:   # still building: its last
+                r.refresh_functions()                                # steps read the settings
                 r.apply_list_settings()
         except tk.TclError:
             pass
@@ -1583,13 +1611,13 @@ class CutsceneExplorer:
             return None
         w = self._em_window
         if w is not None and w.win.winfo_exists():
-            w.win.deiconify()
-            w.win.lift()
+            w.show()
             return w
         self._em_window = EventManagerWindow(self)
         return self._em_window
 
-    def _bank_scan(self, pos, bk):
+    @staticmethod
+    def _bank_scan(pos, bk):
         """One pass over a bank for both cross-bank indexes: ([(em entry id or None, scene
         entry, pc, stmt)] for the em bridge ops (371-374, 444; None = an entry id computed at
         run time), [(variable enc, access, scene entry, pc, stmt)] for every named variable
@@ -1616,12 +1644,17 @@ class CutsceneExplorer:
     def _scans(self):
         """[(bank pos, em list, variable list)] for every bank. A bank is re-scanned only when
         its bytes changed (a full scan takes seconds; one bank a fraction of one)."""
-        cache, out = self._em_bank_uses, []
-        for pos, bk in enumerate(self.doc.container.banks):
+        return self._scans_of(self.doc.container, self._em_bank_uses)
+
+    @classmethod
+    def _scans_of(cls, container, cache):
+        """_scans on plain data (no editor, no Tk objects: the worker thread runs it)."""
+        out = []
+        for pos, bk in enumerate(container.banks):
             data = bytes(bk.data)
             hit = cache.get(pos)
             if hit is None or hit[0] != data:
-                hit = cache[pos] = (data,) + self._bank_scan(pos, bk)
+                hit = cache[pos] = (data,) + cls._bank_scan(pos, bk)
             out.append((pos, hit[1], hit[2]))
         return out
 
@@ -1645,14 +1678,20 @@ class CutsceneExplorer:
         return self._var_uses
 
     def _build_var_index(self):
+        return self._var_index_of(self.doc.container, self.doc.em, self._em_bank_uses)
+
+    @classmethod
+    def _var_index_of(cls, c, em, cache):
+        """_build_var_index on plain data (no editor, no Tk objects: the worker thread runs
+        it, and a Tk object freed on that thread crashes Tcl)."""
         from rf4s_modkit import varuses
-        c, uses = self.doc.container, {}
-        for pos, _em, var in self._scans():
+        uses = {}
+        for pos, _em, var in cls._scans_of(c, cache):
             for enc, acc, entry, pc, st in var:
                 off, width, _sign = c.unpack_var(enc)
                 uses.setdefault((off, width), []).append(("script", pos, entry, pc, acc, st))
-        if self.doc.em is not None:
-            for off, width, acc, idx, where in varuses.em_uses(self.doc.em):
+        if em is not None:
+            for off, width, acc, idx, where in varuses.em_uses(em):
                 uses.setdefault((off, width), []).append(("em", idx, where, acc))
         return uses
 
@@ -1668,10 +1707,15 @@ class CutsceneExplorer:
             return
         import threading
         gen, box = self._var_gen, {}
+        # the worker gets plain data only: if it held the editor and was the last to let go
+        # of it (an editor closed mid-scan), the editor's Tk objects would be freed on the
+        # worker thread -- Tcl aborts the whole program ("async handler deleted by the wrong
+        # thread")
+        build, args = type(self)._var_index_of, (self.doc.container, self.doc.em, self._em_bank_uses)
 
         def work():
             try:
-                box["idx"] = self._build_var_index()
+                box["idx"] = build(*args)
             except Exception as e:  # noqa: BLE001 -- handed to the waiters
                 box["err"] = e
         th = self._var_thread = threading.Thread(target=work, daemon=True)

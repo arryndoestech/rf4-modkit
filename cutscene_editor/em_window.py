@@ -52,10 +52,13 @@ def _cap(s):
 
 
 class EventManagerWindow:
-    def __init__(self, app):
+    def __init__(self, app, hidden=False):
         self.app = app
         self.doc = app.doc
         self.win = win = tk.Toplevel(app.frame)
+        self._stale = False             # edits made while hidden: caught up on show()
+        if hidden:                      # preloaded by the editor: shown on first use
+            win.withdraw()
         win.title("Event Manager (em.bin)")
         win.geometry("1320x780")
         self.idx = None                 # the open entry
@@ -156,8 +159,18 @@ class EventManagerWindow:
     def refs(self, idx):
         return self.em.refs_to(idx)
 
+    def show(self):
+        self.win.deiconify()
+        self.win.lift()
+        if self._stale:
+            self._stale = False
+            self._doc_changed()
+
     def _doc_changed(self, _what=None):
         if not self.win.winfo_exists():
+            return
+        if self.win.state() == "withdrawn":     # hidden (preloaded): refresh when shown
+            self._stale = True
             return
         self._bodies, self._problems = {}, None
         self._counts = self._use_counts()        # incremental: only edited banks are re-scanned
