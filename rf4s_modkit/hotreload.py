@@ -728,6 +728,29 @@ def text_locale(pid=None, candidates=None):
     return None, count
 
 
+def live_text(pid=None):
+    """The dialogue TEXT archive the running game holds (bytes) -- it can have lines the
+    files on disk lack, e.g. the test lines optest.test_lines puts only into the game."""
+    g = _Game(pid)
+    try:
+        idx = g.find_archive(TEXT_ARCHIVE_PATH)
+        if idx is None:
+            raise HotReloadTechnicalError("cannot find the dialogue text archive in the game")
+        _e, ptr, rc = g.archive_entry(idx)
+        if not ptr or rc == 0:
+            raise HotReloadError("the dialogue text is not loaded in the game yet (still on the title screen?)")
+        head = g.read(ptr, 8)
+        if head[:4] != b"TEXT":
+            raise HotReloadTechnicalError("the game's resident dialogue text does not look like a TEXT archive")
+        count = struct.unpack_from("<I", head, 4)[0]
+        table = g.read(ptr, 8 + 8 * count)
+        end = max([8 + 8 * count] + [sum(struct.unpack_from("<II", table, 8 + 8 * i))
+                                      for i in range(count)])
+        return g.read(ptr, end)
+    finally:
+        g.close()
+
+
 def reload_text(data, pid=None):
     """Put `data` (a whole rf3mc.<locale> TEXT archive, the player's language) into the running
     game in place of the resident dialogue text. Returns a report dict."""
@@ -765,6 +788,51 @@ def reload_text(data, pid=None):
 def describe_text(report, locale=None):
     return ("dialogue text%s (%d lines, was %d) is live in the running game (pid %d)"
             % ((" rf3mc.%s" % locale) if locale else "", report["lines"], report["lines_before"], report["pid"]))
+
+
+# ---- em.bin (the Event Manager) ------------------------------------------------------------ #
+# em.bin stays resident too: archive 15207 ("rom:/script/em.bin", refcount 2) and a global
+# {u64 data, u32 size} pair at RVA_EM_DATA that the Event Manager reads it through. A scan of
+# the game's .data and its whole private heap (2026-10-06) found no other pointer into the
+# file, so swapping those two pointers (and the size) puts a new em.bin in place.
+EM_ARCHIVE_PATH = "rom:/script/em.bin"
+RVA_EM_DATA = 0x9EC7E0
+
+
+def reload_em(data, pid=None):
+    """Put `data` (a whole em.bin, 'EMF_' header) into the running game in place of the
+    resident Event Manager data. Returns a report dict."""
+    if data[:4] != b"EMF_" or len(data) < 8:
+        raise HotReloadError("not an em.bin (EMF_) file")
+    g = _Game(pid)
+    try:
+        idx = g.find_archive(EM_ARCHIVE_PATH)
+        if idx is None:
+            raise HotReloadTechnicalError("cannot find em.bin in the game's archive table")
+        glob = g.base + RVA_EM_DATA
+        new = g.alloc(len(data) + 16)
+        g.write(new, data)
+        g.suspend()
+        try:
+            entry, old, rc = g.archive_entry(idx)
+            if not old or rc == 0:
+                raise HotReloadError("em.bin is not loaded in the game yet (still on the title screen?)")
+            held, size = struct.unpack("<QI", g.read(glob, 12))
+            if g.read(old, 4) != b"EMF_" or held != old or size != g.u32(old + 4):
+                raise HotReloadTechnicalError("the game's Event Manager data does not look as "
+                                              "expected (unknown RF4S.exe build?)")
+            g.write(entry, struct.pack("<Q", new))
+            g.write(glob, struct.pack("<QI", new, len(data)))
+        except Exception:
+            g.resume()
+            g.free(new)
+            raise
+        g.resume()
+        if g.own_allocation(old):                     # an earlier reload's buffer of ours
+            g.free(old)
+        return {"pid": g.pid, "bytes": len(data), "bytes_before": size}
+    finally:
+        g.close()
 
 
 def reload_all(mc_data, pid=None, force=False, text_files=None):

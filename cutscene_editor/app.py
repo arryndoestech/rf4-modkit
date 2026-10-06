@@ -299,14 +299,16 @@ class CutsceneExplorer:
         db["menu"] = dm
         db.pack(side="left", padx=4)
         self.debug_menu = dm
-        Tip(db, "Reload in game (Ctrl+R): save, then put rf3.mc into the RUNNING game -- no "
-                "restart, any size. Refused while a scene plays (let it finish). The new scenes "
-                "apply from the next trigger / talk; a room's own scenes are re-read on use. The "
-                "dialogue text of the game's language is swapped in too (the game keeps it in "
-                "memory); em.bin still needs a restart.\n"
-                "Reload from disk (F5): read rf3.mc and its dialogue (and em.bin) again in the "
-                "editor, e.g. after optest.py or rf4mod changed them; stays on the same scene. Unsaved "
-                "edits and the undo history are dropped (it asks first).\n"
+        Tip(db, "The game parts act on ONE game: the one the Debugger is attached to. Attach "
+                "first (Debugger… → Attach).\n"
+                "Reload in game (Ctrl+R): save, then put rf3.mc, the dialogue text of the game's "
+                "language and em.bin into that game -- no restart, any size. Refused while a "
+                "scene plays (let it finish). The new scenes apply from the next trigger / talk; "
+                "a room's own scenes are re-read on use.\n"
+                "Reload from disk (F5): read every game file the editor shows again (rf3.mc, the "
+                "dialogue of every language, em.bin, the game's names), e.g. after optest.py or "
+                "rf4mod changed them, plus the test lines only the attached game has; stays on "
+                "the same scene. Unsaved edits and the undo history are dropped (it asks first).\n"
                 "Debugger: attach to the running game, watch its scripts, stop at breakpoints "
                 "(F9 on a statement), step through them.")
         rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
@@ -357,9 +359,10 @@ class CutsceneExplorer:
         self.status("Opened %s: %d banks" % (pathlib.Path(f).name, len(self.doc.container.banks)))
 
     def reload_from_disk(self):
-        """F5: read rf3.mc (and its dialogue and em.bin) again from disk -- e.g. after a
-        tool such as optest.py or the command line wrote it -- and stay on the same bank,
-        scene and statement where they still exist."""
+        """F5: read every game file the editor shows again from disk -- rf3.mc, the dialogue
+        of every language, em.bin / emdeb.bin and the game's name files -- e.g. after a tool
+        such as optest.py or the command line wrote them, and stay on the same bank, scene and
+        statement where they still exist."""
         self.flush_edits()
         parts = self.unsaved()
         if parts and not messagebox.askyesno(
@@ -380,6 +383,9 @@ class CutsceneExplorer:
         if not ok:
             self.status("rf3.mc was not found on disk -- nothing reloaded")
             return False
+        live = self._refresh_live_text()
+        from rf4s_modkit import gamenames            # character / item / map names (.eng files)
+        gamenames.reload()
         w, self._em_window = self._em_window, None         # it shows the old em.bin
         if w is not None and w.win.winfo_exists():
             w.win.destroy()
@@ -398,9 +404,21 @@ class CutsceneExplorer:
         else:
             self._show_scene()
         self._chrome()
-        self.status("Reloaded %s from disk: %d banks" % (
-            self.doc.path.name if self.doc.path else "rf3.mc", len(c.banks)))
+        self.status("Reloaded %s from disk: %d banks%s" % (
+            self.doc.path.name if self.doc.path else "rf3.mc", len(c.banks),
+            "; %d dialogue line(s) only in the running game (test lines) are shown too" % live
+            if live else ""))
         return True
+
+    def _refresh_live_text(self):
+        """Lines the game the script debugger is attached to has past the end of the dialogue
+        file (optest's test lines) -- shown marked 'running game only'. 0 when the debugger
+        is not attached: the editor never picks a running game on its own."""
+        pid = self.attached_pid()
+        if pid is None:
+            self.doc.live_lines = {}
+            return 0
+        return self.doc.refresh_live_text(pid)
 
     # ------------------------------------------------------------------ #
     # navigation
@@ -1839,17 +1857,30 @@ class CutsceneExplorer:
         note = " (originals of %s kept in %s)" % (", ".join(backed), self.BACKUP_DIR) if backed else ""
         how = []
         if "rf3.mc" in blobs:
-            how.append("Ctrl+R puts the scenes into the running game")
+            how.append("Ctrl+R (debugger attached) puts the scenes into the running game")
         if any(n.startswith("rf3mc.") for n in blobs):
             how.append("Ctrl+R puts the dialogue text into the running game too")
         if "em.bin" in blobs:
-            how.append("em.bin needs a game restart")
+            how.append("Ctrl+R puts em.bin into the running game too")
         self.status("Saved %s%s -- %s" % (", ".join(written), note, "; ".join(how)))
         return True
 
+    def attached_pid(self):
+        """The pid of the game the script debugger is attached to, else None. Reload in game
+        and the running-game text act on that game only -- never on one picked by themselves."""
+        d = self._debugger
+        dbg = getattr(d, "dbg", None) if d is not None else None
+        return dbg.g.pid if dbg is not None else None
+
     def reload_in_game(self):
-        """Save, then swap the saved rf3.mc into the running RF4S.exe (rf4s_modkit.hotreload)."""
+        """Save, then swap the saved rf3.mc, the dialogue of the game's language and em.bin
+        into the game the script debugger is attached to (rf4s_modkit.hotreload)."""
         from rf4s_modkit import hotreload
+        pid = self.attached_pid()
+        if pid is None:
+            self.status("Reload in game: attach to the game first (Debug → Debugger… → Attach); "
+                        "the reload goes to the game the debugger is attached to")
+            return False
         if self.unsaved() and not self.save_all():
             return False
         targets = self.save_targets() or {}
@@ -1857,18 +1888,18 @@ class CutsceneExplorer:
         if path is None or not pathlib.Path(path).is_file():
             self.status("Reload: no saved rf3.mc to load (set the game folder or save first)")
             return False
-        try:
-            pid = hotreload.pick_process(self._choose_game)
-        except hotreload.HotReloadError as e:
-            self.status("Reload: %s" % err_text(e))
-            return False
-        if pid is None:
-            self.status("Reload cancelled")
-            return False
+        em = targets.get("em.bin")
         try:
             self.frame.config(cursor="watch")
             self.frame.update_idletasks()
             r, (loc, t) = hotreload.reload_all(pathlib.Path(path).read_bytes(), pid=pid)
+            em_note = ""
+            if em is not None and pathlib.Path(em).is_file():
+                try:
+                    hotreload.reload_em(pathlib.Path(em).read_bytes(), pid=pid)
+                    em_note = "; em.bin swapped in too"
+                except hotreload.HotReloadError as e:
+                    em_note = "; em.bin not reloaded: %s (restart the game for em.bin changes)" % err_text(e)
         except hotreload.HotReloadError as e:
             self.status("Reload refused: %s" % err_text(e))
             return False
@@ -1877,8 +1908,12 @@ class CutsceneExplorer:
                 self.frame.config(cursor="")
             except tk.TclError:
                 pass
+        if loc and self.doc.live_lines:         # the game now holds the file's text only
+            self.doc.live_lines = {}
+            self.refresh_scene()
         self.status(hotreload.describe(r) + "; " + (hotreload.describe_text(t, loc) if loc else
-                    "dialogue text not reloaded: %s (restart the game for text changes)" % t))
+                    "dialogue text not reloaded: %s (restart the game for text changes)" % t)
+                    + em_note)
         return True
 
     def _choose_game(self, procs, question="Which one should get the scenes?"):

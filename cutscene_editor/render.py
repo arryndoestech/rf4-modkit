@@ -104,7 +104,8 @@ class SceneText:
             t = self.dlg(st.dialog_id)
             if t is None:
                 return f"{head}DIALOG #{st.dialog_id}  [no text in this locale]"
-            return f"{head}DIALOG #{st.dialog_id}  \"{t.replace(chr(10), ' / ')[:70]}\""
+            live = "  [running game only]" if self.doc.live_only(st.dialog_id) else ""
+            return f"{head}DIALOG #{st.dialog_id}  \"{t.replace(chr(10), ' / ')[:70]}\"{live}"
         if st.op < 0xFFF0:
             args = self.arg_strs(st)
             nm = self.emf_name(st)
@@ -292,7 +293,9 @@ class SceneText:
             who = self.line_speakers().get(pc)       # only a CERTAIN speaker is shown
             body = [("“%s”" % txt.replace("\n", " ⏎ "), "dlg")] if txt is not None else \
                    [("#%d  [no text in this locale]" % st.dialog_id, "warn")]
-            head = [(who + ": ", ("spk", self.speaker_colour(who)))] if who else []
+            if txt is not None and self.doc.live_only(st.dialog_id):
+                body.append(("  [running game only]", "warn"))
+            head =[(who + ": ", ("spk", self.speaker_colour(who)))] if who else []
             rows.append(Row(addr(pc, st) + ind + head + body, key, st))
             return speaker
         if st.op == 10:                                  # SetSpeakerVoice: a name plate

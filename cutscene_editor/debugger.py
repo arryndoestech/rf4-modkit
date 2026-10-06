@@ -272,6 +272,8 @@ class DebuggerPanel:
             self.status.config(text="attached; an earlier debugger had not detached -- undone: %s"
                                     % "; ".join(self.dbg.recovered), foreground="#b60")
         atexit.register(self._at_exit)          # closing the program detaches too
+        if self.app._refresh_live_text():       # test lines only this game has
+            self.app.refresh_scene()
         self._tick()
 
     def detach(self):
@@ -294,6 +296,12 @@ class DebuggerPanel:
             pass
         self._stopped.clear()
         self.app.debug_current = None
+        if self.app.doc.live_lines:             # they came from that game
+            self.app.doc.live_lines = {}
+            try:
+                self.app.refresh_scene()
+            except tk.TclError:
+                pass
         try:
             self.app.mark_debug()
             self.attach_btn.config(text="Attach to the game")

@@ -14558,6 +14558,36 @@ def test_cutscene_reload_from_disk():
         f.unlink()
         _check("a file that is gone: nothing reloaded, the open file stays",
                cx.reload_from_disk() is False and cx.doc.container is not None)
+        _arc = cx.doc.textarc
+        if _arc is not None:
+            _n = len(_arc)
+            cx.doc.live_lines = {_n: "a test line only the game has"}
+            _check("a line only the running game has (past the file's end) shows as text, marked "
+                   "live-only; file lines and other locales are untouched",
+                   cx.doc.text(_n) == "a test line only the game has" and cx.doc.live_only(_n)
+                   and not cx.doc.live_only(_n - 1) and cx.doc.text(_n, "jpn") is None
+                   and cx.doc.text(_n + 1) is None)
+            cx.doc.live_lines = {}
+        # Reload in game acts only on the game the debugger is attached to
+        from rf4s_modkit import hotreload as _H
+        import types as _types
+        _calls = []
+        _saved_h = (_H.reload_all, _H.reload_em, _H.pick_process, cx.save_targets)
+        try:
+            _H.pick_process = lambda *a, **k: (_ for _ in ()).throw(AssertionError("picked a game"))
+            _H.reload_all = lambda data, pid=None, **k: (_calls.append(("mc", pid)) or (
+                {"pid": pid, "bytes": len(data), "slots": []}, (None, "test")))
+            _H.reload_em = lambda data, pid=None: _calls.append(("em", pid)) or {"pid": pid}
+            cx.save_targets = lambda: {"rf3.mc": src, "em.bin": src}   # f is gone by now
+            _no = cx.reload_in_game()
+            cx._debugger = _types.SimpleNamespace(dbg=_types.SimpleNamespace(g=_types.SimpleNamespace(pid=4242)))
+            _yes = cx.reload_in_game()
+        finally:
+            _H.reload_all, _H.reload_em, _H.pick_process, cx.save_targets = _saved_h
+            cx._debugger = None
+        _check("Reload in game is refused while the debugger is not attached, and then reloads "
+               "rf3.mc and em.bin into the attached game only (never picks one itself)",
+               _no is False and _yes is True and _calls == [("mc", 4242), ("em", 4242)], repr(_calls))
         _dm = cx.debug_menu
         _items = {_dm.entrycget(i, "label"): _dm.entrycget(i, "accelerator")
                   for i in range(_dm.index("end") + 1) if _dm.type(i) == "command"}

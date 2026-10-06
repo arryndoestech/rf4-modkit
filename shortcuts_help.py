@@ -77,7 +77,7 @@ SHORTCUTS = [
     ("Cutscene Editor", [
         ("Anywhere in the editor", [
             ("Ctrl+S", "save into the game folder"),
-            ("Ctrl+R", "save and put the scenes and dialogue into the running game"),
+            ("Ctrl+R", "save and put the scenes, dialogue and em.bin into the game the debugger is attached to"),
             ("F5", "reload rf3.mc, its dialogue and em.bin from disk (drops unsaved edits after asking)"),
             ("Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)", "undo / redo"),
             ("Ctrl+F", "go to the scene search box"),

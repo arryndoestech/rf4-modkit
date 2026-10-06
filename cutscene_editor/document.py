@@ -29,6 +29,8 @@ class ScriptDocument:
         self.locale = "eng"
         self.arcs = {}                         # locale -> TextArchive (loaded on demand)
         self._missing = set()                  # locales the reader cannot supply
+        self.live_lines = {}                   # line id -> text the RUNNING game has past the
+        #                                        file's end (test lines; see refresh_live_text)
         self._em = None                        # emscript.EmScript | False (unavailable)
         self.emf_vars = None                   # emflags.EmFlagTable (FLG_/REG_ names)
         self.undo_stack, self.redo_stack = [], []
@@ -78,6 +80,7 @@ class ScriptDocument:
             return False
         c = script.Container(raw)
         self.arcs.clear()
+        self.live_lines = {}
         self._missing.clear()
         self._saved_text.clear()
         self._em = None
@@ -137,10 +140,41 @@ class ScriptDocument:
         arc = self.archive(locale)
         if arc is None or line_id is None:
             return None
+        if line_id >= len(arc):
+            return self.live_lines.get(line_id) if (locale or self.locale) == self.locale else None
         try:
             return arc.text(line_id)
         except Exception:
             return None
+
+    def live_only(self, line_id):
+        """True for a line only the running game has (past the end of the file)."""
+        arc = self.textarc
+        return arc is not None and line_id is not None and line_id >= len(arc)             and line_id in self.live_lines
+
+    def refresh_live_text(self, pid=None):
+        """Pick up the lines the game `pid` holds past the end of this locale's file
+        (optest.test_lines adds test lines only to the game). Shown read-only; nothing is
+        written. Returns how many were found (0 without a pid, or when that game shows
+        another language)."""
+        self.live_lines = {}
+        arc = self.textarc
+        if arc is None:
+            return 0
+        from rf4s_modkit import hotreload
+        if pid is None:
+            return 0
+        try:
+            data = hotreload.live_text(pid)
+            game = textdb.TextArchive.parse(data)
+            n = min(len(arc), len(game))
+            probe = [i for i in (1, 2, 3, 10, 100, n - 1) if 0 <= i < n]
+            if any(game.text(i) != arc.text(i) for i in probe):
+                return 0                       # the game shows another language
+            self.live_lines = {i: game.text(i) for i in range(len(arc), len(game))}
+        except Exception:                      # no game, title screen, ...: nothing to add
+            return 0
+        return len(self.live_lines)
 
     def other_locales(self):
         """{locale: archive} for every other locale the source can supply."""

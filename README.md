@@ -796,20 +796,25 @@ default), which runs every time you walk in. That scene starts while the warp's 
 still up, so the sweep waits half a second first. Otherwise a fade or anything else on screen
 would be hidden.
 
-**Reload from disk:** *🐞 Debug → ⟲ Reload rf3.mc + dialogue from disk* (F5) reads `rf3.mc`, its dialogue and `em.bin`
-again from disk, for when another tool (`optest.py`, `rf4mod script …`) changed the file while the
+**Reload from disk:** *🐞 Debug → ⟲ Reload rf3.mc + dialogue from disk* (F5) reads `rf3.mc`, the dialogue of every language, `em.bin` / `emdeb.bin` and the game's
+character, item and map names again from disk, for when another tool (`optest.py`, `rf4mod script …`) changed the file while the
 editor was open. It stays on the same scene; unsaved edits and the undo history are dropped (it
-asks first).
+asks first). While the script debugger is attached it also picks up dialogue lines that game holds past the
+end of the file (the test lines `optest.py` puts only into the running game) and shows them marked
+*[running game only]*; nothing is written.
 
-**No restart for scenes:** *🐞 Debug → ⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the running
-game, whatever the new size. The game keeps `rf3.mc` in memory for the whole session, so the
+**No restart for scenes:** *🐞 Debug → ⟳ Reload in game* (Ctrl+R) saves, then puts `rf3.mc` into the game
+the script debugger is attached to, whatever the new size. It works only while the debugger is
+attached, so the reload and the debugger always act on the same game (attach first: *🐞 Debug →
+Debugger… → Attach*). The game keeps `rf3.mc` in memory for the whole session, so the
 reload swaps that copy and the three bank buffers in place while the game is paused for a moment.
 It is refused while a scene is playing, so let the scene finish first. Changed scenes run from the
 next trigger or talk. The dialogue text is swapped in too: scripts show lines from one archive slot
 that the game fills with your language's `rf3mc.<locale>` at start and keeps in memory, and a line id
 past its line count shows line 0 ("Are you turning in for the night?"). So new or changed lines need
-this reload (the toolkit finds which language the game holds) or a restart. An `em.bin` change still needs a restart, and so does a file that
-is new to `Bundle\00_mods`. On the CLI: `rf4mod script reload [rf3.mc] [--force]` and
+this reload (the toolkit finds which language the game holds) or a restart. `em.bin` is swapped in too: the game keeps it in memory
+(one archive slot plus the Event Manager's own pointer to it), and the reload replaces both. A
+file that is new to `Bundle\00_mods` still needs a restart. On the CLI: `rf4mod script reload [rf3.mc] [--force]` and
 `rf4mod script live` (what the game currently holds). `rf4mod script log` watches the running game (read only) and lists every scene start and every piece of script code it saw run, flagging any the editor does not show or shows only as *unreached*. *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
