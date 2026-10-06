@@ -44,7 +44,7 @@ rf3Schedule.bin (custom binary, not NLCL):
                      (scripts can force a state via Script_VMOp_ResetNpcScheduleWithState).
 
 rf3ScheduleID.bin: NLCL, 3898 records x 12 B = the SPOTS (record base = archive + 28):
-    +0 u16 room (872-room enum)   +2 i16 x   +4 i16 y   (tile units; << 12 = world Q12)
+    +0 u16 room (872-room enum)   +2 i16 x   +4 i16 y   (script units, 8 per tile; << 12 = world Q12)
     +6 u8 facing (x 256 = angle)  +7 u8 action (copied to the day plan +7)
     +8 u8 wander (jitter radius, tiles)   +9 u8 weight (pick weight within the kind)
     +10 u8 flags, copied to the day plan +5 (NpcSchedule_PrepareDailyOutfitActionsAndPosition

@@ -3173,7 +3173,7 @@ Args:
 *handler:* `Script_VMOp_BeginDualScreenFadeWithKindAndDuration`
 *verified:* yes, in game
 
-Fade the screen to black or white (or partly). Returns at once; follow with WaitForFade to wait for it. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Without WaitForFade the next statements run while it fades, and a later FadeScreen takes over from the current opacity. A dialogue line waits for the fade to finish but is drawn under the overlay, so fade back before showing text.
+Fade the screen to black or white (or partly). Returns at once; follow with WaitForFade to wait for it. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Without WaitForFade the next statements run while it fades, and a later FadeScreen takes over from the current opacity. A dialogue line waits for the fade to finish but is drawn under the overlay, so fade back before showing text.
 
 Args:
   0. target (sign = colour (<= 0 black, > 0 white), |v|/16 = opacity: -16 black, +16 white, +-8 half) — verified in game
@@ -4461,7 +4461,7 @@ Args:
 ### `op 123` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffsetAndFace`
 
-Walks an actor (player or NPC) by a relative tile offset from where it stands and turns it to the given facing at the end. Does not wait.
+Walks an actor (player or NPC) by a relative offset in script units (8 per tile) from where it stands and turns it to the given facing at the end. Does not wait.
 
 Args:
   0. actor (>= 48 = no-op)
@@ -4492,8 +4492,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. dx
-  2. dy
+  1. dx (relative; 8 per tile)
+  2. dy (relative; 8 per tile)
   3. facing (end facing (0/90/180/270 ...))
   4. speed (corpus 100-150)
   5. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
@@ -4501,7 +4501,7 @@ Args:
 ### `op 124` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffsetAndFace`
 
-Walks an actor (player or NPC) by a relative tile offset from where it stands and turns it to the given facing at the end. Does not wait.
+Walks an actor (player or NPC) by a relative offset in script units (8 per tile) from where it stands and turns it to the given facing at the end. Does not wait.
 
 Args:
   0. actor (>= 48 = no-op)
@@ -4532,8 +4532,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. dx
-  2. dy
+  1. dx (relative; 8 per tile)
+  2. dy (relative; 8 per tile)
   3. facing (end facing (0/90/180/270 ...))
   4. speed (corpus 100-150)
   5. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
@@ -4541,7 +4541,7 @@ Args:
 ### `op 125` — MoveActorByOffsetFaceTravel(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_InterruptAi`
 
-Walks an actor (player or NPC) by a relative tile offset, facing the way it walks. Does not wait.
+Walks an actor (player or NPC) by a relative offset in script units (8 per tile), facing the way it walks. Does not wait.
 
 Args:
   0. actor (>= 48 = no-op)
@@ -4572,15 +4572,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. dx
-  2. dy
+  1. dx (relative; 8 per tile)
+  2. dy (relative; 8 per tile)
   3. speed (corpus 15-400, 100 typical)
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 126` — MoveActorByOffsetFaceTravel(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_InterruptAi`
 
-Walks an actor (player or NPC) by a relative tile offset, facing the way it walks. Does not wait.
+Walks an actor (player or NPC) by a relative offset in script units (8 per tile), facing the way it walks. Does not wait.
 
 Args:
   0. actor (>= 48 = no-op)
@@ -4611,15 +4611,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. dx
-  2. dy
+  1. dx (relative; 8 per tile)
+  2. dy (relative; 8 per tile)
   3. speed (corpus 15-400, 100 typical)
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 127` — MoveActorByOffsetKeepFacing(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_NoFaceUpdate`
 
-Moves an actor (player or NPC) by a relative tile offset while keeping its current facing, e.g. a step back or a side-step. Does not wait.
+Moves an actor (player or NPC) by a relative offset in script units (8 per tile) while keeping its current facing, e.g. a step back or a side-step. Does not wait.
 
 Args:
   0. actor (>= 48 = no-op)
@@ -4650,15 +4650,15 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. dx
-  2. dy
+  1. dx (relative; 8 per tile)
+  2. dy (relative; 8 per tile)
   3. speed (corpus 50-350)
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 128` — MoveActorByOffsetKeepFacing(actor, dx, dy, speed, jump)
 *handler:* `ScriptAction_MoveActorToRelativeOffset_NoFaceUpdate`
 
-Moves an actor (player or NPC) by a relative tile offset while keeping its current facing, e.g. a step back or a side-step. Does not wait.
+Moves an actor (player or NPC) by a relative offset in script units (8 per tile) while keeping its current facing, e.g. a step back or a side-step. Does not wait.
 
 Args:
   0. actor (>= 48 = no-op)
@@ -4689,8 +4689,8 @@ Args:
      - `24` = Barrett
      - `25` = Raven
      - `26` = Mistress Trupin
-  1. dx
-  2. dy
+  1. dx (relative; 8 per tile)
+  2. dy (relative; 8 per tile)
   3. speed (corpus 50-350)
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
@@ -7364,7 +7364,7 @@ Args:
 ### `op 394` — WarpPlayer(x, y)
 *handler:* `Script_VMOp_TeleportPlayerToTile`
 
-Teleport the player to a tile on the current map and settle them on the ground.
+Teleport the player to a position on the current map and settle them on the ground.
 
 Args:
   0. x (script units, 8 per tile)
@@ -7374,20 +7374,20 @@ Args:
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
 *verified:* yes, in game
 
-Turn the player to face an angle: degrees clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
+Turn the player to face an angle: degrees counter-clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
 
 Args:
-  0. facing (any angle in degrees, clockwise on screen from facing the camera: 0 = down (toward the camera), 45 = down-right, 90 = right, 180 = up (away from the camera), 270 = left (seen in game); the game stores 181 * degrees in a 65536-per-turn field, so angles land about 0.6 % short (180 -> 179.0 deg)) — verified in game
+  0. facing (any angle in degrees, counter-clockwise on screen from facing the camera: 0 = down (toward the camera), 45 = down-right, 90 = right, 180 = up (away from the camera), 270 = left (seen in game); the game stores 181 * degrees in a 65536-per-turn field, so angles land about 0.6 % short (180 -> 179.0 deg)) — verified in game
   1. ease (0 = turn at once; n = turn 1/2^n of the remaining angle each frame, so a higher n is a slower, softer turn (seen in game for 0-4; the shipped scripts use 0-3)) — verified in game
 
 ### `op 396` — TurnPlayerToAngle(facing, ease)
 *handler:* `Script_VMOp_SetPlayerFacingAndPose`
 *verified:* yes, in game
 
-Turn the player to face an angle: degrees clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
+Turn the player to face an angle: degrees counter-clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
 
 Args:
-  0. facing (any angle in degrees, clockwise on screen from facing the camera: 0 = down (toward the camera), 45 = down-right, 90 = right, 180 = up (away from the camera), 270 = left (seen in game); the game stores 181 * degrees in a 65536-per-turn field, so angles land about 0.6 % short (180 -> 179.0 deg)) — verified in game
+  0. facing (any angle in degrees, counter-clockwise on screen from facing the camera: 0 = down (toward the camera), 45 = down-right, 90 = right, 180 = up (away from the camera), 270 = left (seen in game); the game stores 181 * degrees in a 65536-per-turn field, so angles land about 0.6 % short (180 -> 179.0 deg)) — verified in game
   1. ease (0 = turn at once; n = turn 1/2^n of the remaining angle each frame, so a higher n is a slower, softer turn (seen in game for 0-4; the shipped scripts use 0-3)) — verified in game
 
 ### `op 397` — SetPartyOutfit(outfit)
@@ -9090,8 +9090,8 @@ Put a piece of furniture into a room (max 16 per room). reg0 = 1 if it was place
 Args:
   0. furniture (furniture id in the tile-object space (corpus 335-381))
   1. room (-1 = the current room)
-  2. x (-1 = default / player position)
-  3. y (-1 = default / player position)
+  2. x (8 per tile; -1 = default / player position)
+  3. y (8 per tile; -1 = default / player position)
 
 ### `op 590` — BreakFurniture()
 *handler:* `Script_VMOp_DropQuestBoxItems1022And1023AndDestroy`

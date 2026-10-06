@@ -2957,9 +2957,10 @@ def choice_problems(buf, stmts, text_count=None):
     return out
 
 
-def dump_text(container, dialog=None, banks=None, friendly=False):
+def dump_text(container, dialog=None, banks=None, friendly=True):
     """Full disassembly listing for the given banks (default: all).
-    `friendly=True` uses cutscene-author mnemonics for action opcodes."""
+    Action opcodes use their opcode_table.json names; `friendly=False` shows the
+    technical (exe handler) names instead."""
     out = []
     sel = container.banks if banks is None else [container.banks[i] for i in banks]
     for bk in sel:
@@ -3012,10 +3013,10 @@ def emf_entry_name(idx):
     return _emf_names.entry_name(idx)
 
 
-def format_scene(scene, dialog=None, show_addr=True, buf=None, friendly=False):
+def format_scene(scene, dialog=None, show_addr=True, buf=None, friendly=True):
     """Render a Scene as text. `dialog` = optional callable(line_id) -> str.
-    `friendly=True` shows the cutscene-author mnemonic (opcode_mnemonic) for action
-    opcodes instead of the technical name."""
+    Action opcodes use their opcode_table.json names (opcode_mnemonic); `friendly=False`
+    shows the technical (exe handler) name instead."""
     lines = []
     typ = "discovered" if scene.action_type < 0 else "type %d" % scene.action_type
     hdr = "; bank %d (%s) %s  entry @0x%04x  %d stmts" % (
@@ -3068,6 +3069,8 @@ def format_scene(scene, dialog=None, show_addr=True, buf=None, friendly=False):
             parts = []
             if st.mnem == "FRAME" and st.items:          # direct local-slot count
                 parts.append(str(st.items[0]))
+            if st.expr_refs and buf is not None:         # EVAL / BR_Z / BR_NZ / RET_NZ ...
+                parts.append("(%s)" % ", ".join(arg_repr(buf, r) for r in st.expr_refs if r is not None))
             if st.code_targets:
                 parts.append("-> " + ", ".join(tgt(t) for t in st.code_targets))
             lines.append("%s   %s %s" % (addr, st.mnem, " ".join(parts)))

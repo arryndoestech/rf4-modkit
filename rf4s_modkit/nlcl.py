@@ -776,7 +776,7 @@ FIELD_SCHEMAS = {
         # KIND_PREFIX[k+1]) (g_scheduleSlotKindPrefixTable, RF4S.exe+0x4DCF70) and the game
         # rolls one of them per day weighted by `weight` (NpcSchedule_PickRandomScheduleSlotByKind
         # +0x2318E0). room/x/y/facing/wander are consumed by NpcSchedule_PlaceNpcAtSliceWithJitter
-        # (+0x22EAA0: x,y tiles << 12; facing << 8; wander = jitter radius); weight/flags/busy by
+        # (+0x22EAA0: x,y script units << 12; facing << 8; wander = jitter radius); weight/flags/busy by
         # the picker (busy = runtime scratch); the flag bits are in FLAG_FIELDS and
         # schedule.py (re-read 2026-09-30: 0x1 run, 0x2 replaceable, 0x4 season 1 only,
         # 0x8 ignore crowding). The picker sums the weights of a kind in a u8, so a kind's

@@ -183,7 +183,7 @@ _M_OLDBASE = {
          "Lest. The scripts pick gendered lines/animations by branching on reg0 right after.", []),
     27:  ("IsPosing", "query", "1 if an actor's scripted pose is active.", ["actor"]),
     91:  ("FreezePlayer", "actor", "Lock or release player input.", ["freeze (0/1)"]),
-    92:  ("WarpPlayer", "actor", "Teleport the player to a map tile.", ["tile x", "tile y"]),
+    92:  ("WarpPlayer", "actor", "Teleport the player to a map tile.", ["x (script units)", "y (script units)"]),
     97:  ("GetPlayerSubstate", "query", "Read the player's substate id.", []),
     358: ("SetActorStatusFlag", "actor",
           "Set/clear the target actor's stats.status_flags bit 0x20 by char id (for char id 239 it "
@@ -195,11 +195,11 @@ _M_OLDBASE = {
     # --- NPC streaming / placement ---
     191: ("GetNpcFacingMode", "query", "Read a scene NPC's scripted-facing mode bits.", ["npc id"]),
     # --- companions ---
-    193: ("WarpCompanion", "companion", "Teleport companion(s) to a tile.", ["slot", "tile x", "tile y"]),
+    193: ("WarpCompanion", "companion", "Teleport companion(s) to a tile.", ["slot", "x (script units)", "y (script units)"]),
     194: ("MoveCompanion", "companion", "Move a companion toward a tile (choreographed, with facing).",
-          ["slot", "tile x", "tile y", "facing deg", "speed", "run"]),
+          ["slot", "x (script units)", "y (script units)", "facing deg", "speed", "run"]),
     195: ("MoveCompanionNF", "companion", "Move a companion toward a tile (no facing change).",
-          ["slot", "tile x", "tile y", "speed", "run"]),
+          ["slot", "x (script units)", "y (script units)", "speed", "run"]),
     196: ("MoveCompanionRel", "companion", "Move a companion relative to its current tile (with facing).",
           ["slot", "dx", "dy", "facing deg", "speed", "run"]),
     198: ("SetCompanionPose", "companion", "Set a companion's facing angle and pose.", ["slot", "facing deg", "pose"]),
@@ -687,7 +687,7 @@ _M[379] = ("PlayMusic", "audio",
     ["bgm id (or -1 = restore)"])
 
 # ---- camera ops decoded 2026-07-11 (ops 186-203; handlers RF4S.exe+0x20b150..0x20c2f0) ----
-# All camera anchors are stored as Q12 world coords (arg tiles << 12) in g_scriptMarkAnchorPosQ12;
+# All camera anchors are stored as Q12 world coords (arg script units << 12) in g_scriptMarkAnchorPosQ12;
 # most first set receiver flag 0x40000 ("script touched the camera this frame"). Player-lock
 # helpers Player_SetActorFlag1ForAllPlayers / Player_SetActorFlag4ForAllPlayers stop the player drifting while the camera is scripted.
 _M.update({
@@ -696,9 +696,9 @@ _M.update({
           "the map's camera bounds). arg2 non-zero additionally SNAPS the live camera to the "
           "anchor immediately (writes g_cameraPosQ12 + the map task's scroll origin) — the "
           "instant-cut variant; arg2 = 0 leaves the camera to ease there. The opening parks "
-          "its vista with (353, 0, snap=1). Coords are tiles (stored as Q12). IDA-verified "
+          "its vista with (353, 0, snap=1). Coords are script units, 8 per tile (stored as Q12). IDA-verified "
           "2026-08-10.",
-          ["x (tiles)", "y (tiles)", "snap camera now (0/1)"]),
+          ["x (script units)", "y (script units)", "snap camera now (0/1)"]),
     187: ("ReattachCameraToActor", "screen",
           "Re-attach the camera rig to the player(s) and optionally recenter on an actor. "
           "BLOCKING: holds the scene until it settles. arg0 = actor scene-slot to center on "
@@ -720,7 +720,7 @@ _M.update({
           "pairing is what paces the between-line camera sweeps. IDA-verified 2026-08-10 "
           "(Camera_ComputeDistanceVectorToTarget; the old 'zoom/distance' label was wrong — "
           "zoom is op 202).",
-          ["x (tiles)", "y (tiles)", "pan speed (/100 tiles per frame, cap 15)"]),
+          ["x (script units)", "y (script units)", "pan speed (/100 tiles per frame, cap 15)"]),
     194: ("FocusCameraOnPlayer", "screen",
           "Ease the camera onto the player and BLOCK the scene for a few frames while it "
           "settles. No args. Handy to 'return to the hero' between cutscene shots.",
@@ -756,16 +756,16 @@ _M.update({
 
 # ---- actor choreography decoded 2026-07-11 (ops 77-142; move/turn/anim primitives) ----
 # Shared conventions (IDA-verified): arg0 = actor char id (0 = player, 1..47 = villager NPC,
-# 48..0x2F cap; >=0x30 usually bails). Positions are TILES (stored internally <<12 = Q12).
+# 48..0x2F cap; >=0x30 usually bails). Positions are script units, 8 per map-editor tile (stored internally <<12 = Q12).
 # Facing angles are DEGREES (move cmds convert via *181 -> u16 where 65536 = 360 deg).
 # The "relative offset" move family builds a move command and differs only by move-kind +
 # whether it faces / locks / interrupts the actor's AI (see per-op notes).
 _M.update({
     99: ("TeleportActor", "actor",
          "Instantly warp an actor to a tile. arg0 = actor (char id, 0 = player). arg1/arg2 = "
-         "destination X/Y in tiles. The player is snapped to the ground; an NPC is streamed "
+         "destination X/Y in script units (8 per tile). The player is snapped to the ground; an NPC is streamed "
          "in if needed. No walk animation — use the Move* ops for a visible walk.",
-         ["actor (char id, 0=player)", "x (tiles)", "y (tiles)"]),
+         ["actor (char id, 0=player)", "x (script units)", "y (script units)"]),
     107: ("TurnActorToFaceTarget", "actor",
           "Rotate one actor to look at another — the workhorse for 'actors face each other "
           "before dialogue'. arg0 = turner (0 = player, 1..47 = villager, >=48 = monster). "
@@ -775,19 +775,19 @@ _M.update({
     115: ("MoveActorByOffset_LockAI", "actor",
           "Walk an actor by a RELATIVE tile offset, then LOCK its AI so nothing interrupts "
           "the pose (used when actors slide into staged cutscene positions and must hold). "
-          "Faces the given angle. args: actor (0=player), dx, dy (tiles), facing degrees, "
+          "Faces the given angle. args: actor (0=player), dx, dy (script units), facing degrees, "
           "speed, jump flag.",
-          ["actor (char id, 0=player)", "dx (tiles)", "dy (tiles)", "facing (degrees)", "speed", "jump (0/1)"]),
+          ["actor (char id, 0=player)", "dx (script units)", "dy (script units)", "facing (degrees)", "speed", "jump (0/1)"]),
     123: ("MoveActorByOffset", "actor",
           "Basic cutscene walk: move an actor by a RELATIVE tile offset and face the given "
-          "angle (no AI changes). args: actor (0=player), dx, dy (tiles), facing degrees, "
+          "angle (no AI changes). args: actor (0=player), dx, dy (script units), facing degrees, "
           "speed, jump flag.",
-          ["actor (char id, 0=player)", "dx (tiles)", "dy (tiles)", "facing (degrees)", "speed", "jump (0/1)"]),
+          ["actor (char id, 0=player)", "dx (script units)", "dy (script units)", "facing (degrees)", "speed", "jump (0/1)"]),
     142: ("MoveSceneActorToTile", "actor",
           "Move the scene-controlled actor (the player) to an ABSOLUTE tile, with facing. "
-          "arg0/arg1 = X/Y tiles, arg2 = facing degrees, arg3 = speed, arg4 = run flag "
+          "arg0/arg1 = X/Y script units, arg2 = facing degrees, arg3 = speed, arg4 = run flag "
           "(0 = walk, non-zero = run). No char-id arg — always the scene's own actor.",
-          ["x (tiles)", "y (tiles)", "facing (degrees)", "speed", "run (0/1)"]),
+          ["x (script units)", "y (script units)", "facing (degrees)", "speed", "run (0/1)"]),
 })
 
 
@@ -802,15 +802,15 @@ _M.update({
           ["actor (char id, 0=player)", "effect kind id"]),
     144: ("MoveSceneActorStraight", "actor",
           "Move the scene-controlled actor (the player) in a straight line to an ABSOLUTE "
-          "tile, KEEPING its current facing (no turn). arg0/arg1 = X/Y tiles, arg2 = speed, "
+          "tile, KEEPING its current facing (no turn). arg0/arg1 = X/Y script units, arg2 = speed, "
           "arg3 = run flag (0 = walk, non-zero = run). Like op 142 but without a facing arg.",
-          ["x (tiles)", "y (tiles)", "speed", "run (0/1)"]),
+          ["x (script units)", "y (script units)", "speed", "run (0/1)"]),
     150: ("TriggerActionAtPos", "effect",
           "Spawn a scripted Action (effect/task) at a world tile via Action_TriggerActor "
           "(g_actionConstructorTable dispatch — the 'Action 0xNN' family). arg0 = action id. "
           "arg1/arg2 = X/Y tiles. Action ids 65 and 105 auto-target the player's position "
           "instead of the passed tile.",
-          ["action id", "x (tiles)", "y (tiles)"]),
+          ["action id", "x (script units)", "y (script units)"]),
 })
 
 
@@ -857,14 +857,14 @@ _M.update({
           "per Actor_RecomputeAllStats). ARG ORDER IDA-VERIFIED 2026-08-17 (the old 'scene "
           "id, char id' labels were swapped): Script_VMOp_SpawnEventActor "
           "matches records on arg1 and stores arg0 as the char word.",
-          ["char id (model)", "event key (scene-local handle)", "x (tiles)", "y (tiles)",
+          ["char id (model)", "event key (scene-local handle)", "x (script units)", "y (script units)",
            "facing (degrees)"]),
     160: ("EventNpcWalkToTile", "actor",
           "Walk/run a spawned event NPC to an ABSOLUTE tile (updates an in-progress move or "
           "starts a new one). arg0 = event key, arg1/arg2 = X/Y tiles, arg3 = speed "
           "coefficient (scaled by the NPC's walk/run base speed), arg4 = run flag "
           "(0 = walk, non-zero = run).",
-          ["event key", "x (tiles)", "y (tiles)", "speed", "run (0/1)"]),
+          ["event key", "x (script units)", "y (script units)", "speed", "run (0/1)"]),
     167: ("EventActorPlayAnim", "actor",
           "Play an animation on a spawned event actor. arg0 = event key, arg1 = "
           "anim id, arg2 = loop flag (non-zero = keep repeating). Pair with "
@@ -898,7 +898,7 @@ _M.update({
           "address — same char/key order as op 153), arg2/arg3 = X/Y tiles, arg4 = facing "
           "degrees, arg5 = reserved (pass 0), arg6 = variant index (stored as index-1). Use "
           "for staged NPCs with an alternate pose/outfit variant.",
-          ["char id (model)", "event key (scene-local handle)", "x (tiles)", "y (tiles)",
+          ["char id (model)", "event key (scene-local handle)", "x (script units)", "y (script units)",
            "facing (degrees)", "(reserved, 0)", "variant index"]),
     158: ("SetMapAmbientColor", "screen",
           "Set the map's ambient RGB tint (mood / time-of-day lighting) — writes the three "
@@ -1260,7 +1260,7 @@ _M.update({
           "Find the NPC standing near tile (x, y) — within ~16 tiles and in the active input "
           "context — and queue a greeting / wave interaction event with them. arg0/arg1 = X/Y "
           "tiles. Sets that NPC as the interaction subject.",
-          ["x (tiles)", "y (tiles)"]),
+          ["x (script units)", "y (script units)"]),
 })
 
 
@@ -1305,7 +1305,7 @@ _M.update({
           "the reward jingle, and mark the item as discovered. arg0 = item id, arg1/arg2 = "
           "X/Y tiles. Unlike ShowRewardPopup (op 457), this places the popup at a chosen tile "
           "rather than on the player.",
-          ["item id", "x (tiles)", "y (tiles)"]),
+          ["item id", "x (script units)", "y (script units)"]),
 })
 
 
@@ -1507,8 +1507,8 @@ _M.update({
           []),
     677: ("SpawnEffectObjectAtPos", "effect",
           "Spawn a special class-2050 tile object — a floating harvest-notification-style "
-          "effect actor — at a tile. arg0/arg1 = X/Y tiles. For scripted visual effects.",
-          ["x (tiles)", "y (tiles)"]),
+          "effect actor — at a tile. arg0/arg1 = X/Y script units. For scripted visual effects.",
+          ["x (script units)", "y (script units)"]),
     700: ("QueryBackpackHasItem", "query",
           "Read 1 iff the player's backpack holds at least [min qty] of an item at [min "
           "quality] or better. arg0 = item id, arg1 = min quantity, arg2 = min quality. The "
@@ -1670,7 +1670,7 @@ _M.update({
           "Move a companion (or both, slot=2) by a RELATIVE tile offset WITHOUT changing its "
           "facing — the no-facing variant of MoveCompanionRel (op 498). arg0 = slot (0/1, "
           "2=both), arg1/arg2 = dx/dy tiles, arg3 = speed, arg4 = run flag (0=walk).",
-          ["slot (0/1, 2=both)", "dx (tiles)", "dy (tiles)", "speed", "run (0/1)"]),
+          ["slot (0/1, 2=both)", "dx (script units)", "dy (script units)", "speed", "run (0/1)"]),
     504: ("QueryPartyMemberTileY", "query",
           "Read a party member's Y tile coordinate into the VM output. arg0 = companion slot "
           "(0 = companion 1, 1 = companion 2; -1 = the player). Pairs with the char-id query "
@@ -2255,10 +2255,10 @@ _M.update({
         "Make a speaker PORTRAIT tremble: writes the tremble mask +66 = 127 >> n for n in 1..254 (the portrait's y flips by the +58 amplitude, 1 px by default, whenever (phase & mask) == 0, so n = 6 flips every 2 frames, n = 3 every 16); n = 0 (or 255) writes 0xFF = tremble off. arg0 = portrait character id (else no-op).",
         ['portrait character id', 'tremble level n (0 = off; larger = faster, 6 = every other frame)']),
     98: ('ShakeDialogueBox', 'dialogue',
-        "Shake the message box for N frames: writes the dialogue task's shake counter (+161, u8). DialogueBox_TickStateMachine offsets the box, name and text by the byte_7FF753E5E1D0 dx/dy pattern while the counter is non-zero and decrements it each frame (horizontal only while box style 3 is active). This is the same counter the shout/trembling styles arm with 10. The argument is truncated to a byte; any box-style op resets it to 0.",
+        "Shake the message box for N frames: writes the dialogue task's shake counter (+161, u8). DialogueBox_TickStateMachine offsets the box, name and text by the dx/dy pattern at RF4S.exe+0x4DE1D0 while the counter is non-zero and decrements it each frame (horizontal only while box style 3 is active). This is the same counter the shout/trembling styles arm with 10. The argument is truncated to a byte; any box-style op resets it to 0.",
         ['frames (u8; value & 0xFF)']),
     100: ('TeleportActor', 'actor',
-        'Instantly warp an actor to a tile. arg0 = actor (char id, 0 = player). arg1/arg2 = destination X/Y in tiles. The player is snapped to the ground; an NPC is streamed in if needed. No walk animation — use the Move* ops for a visible walk.',
+        'Instantly warp an actor to a tile. arg0 = actor (char id, 0 = player). arg1/arg2 = destination X/Y in script units (8 per tile). The player is snapped to the ground; an NPC is streamed in if needed. No walk animation — use the Move* ops for a visible walk.',
         ['actor (char id, 0=player)', 'x (tiles)', 'y (tiles)']),
     101: ('PlaceActorAndFace', 'actor',
         'Teleport an actor to a tile AND set its facing. arg0 = actor (0 = player, 1..47 NPC; >= 48 = no-op), arg1/arg2 = x/y tiles (as op 99: marks host+352, streams the NPC in, snaps the player to the ground), arg3 = facing in degrees (x181; player: facing_b + g_playerFacingDirty; NPC: target yaw +158 with ease shift +160 = 0, i.e. instant). There is no face-only mode: with fewer than 3 args the handler returns busy and the statement blocks forever; with exactly 3 the facing is taken from an uninitialised local.',
@@ -2318,7 +2318,7 @@ _M.update({
         'Move an NPC to an ABSOLUTE tile WITHOUT resetting its animation: cmd mode byte = 8, which makes Npc_StartMoveTowards skip Npc_FinalizeTeleportAndNotify (the reset-to-idle/walk-anim routine), so whatever clip PlayActorAnim started keeps playing while the actor glides. No jump flag (byte0 = 0); speed = arg*167773>>12 (same scale as a non-jump walk). Sets control_flags 0x10 afterwards.',
         ['npc (char id <48)', 'x (tiles, absolute)', 'y (tiles, absolute)', 'speed']),
     124: ('MoveActorByOffset', 'actor',
-        'Basic cutscene walk: move an actor by a RELATIVE tile offset and face the given angle (no AI changes). args: actor (0=player), dx, dy (tiles), facing degrees, speed, jump flag.',
+        'Basic cutscene walk: move an actor by a RELATIVE tile offset and face the given angle (no AI changes). args: actor (0=player), dx, dy (script units), facing degrees, speed, jump flag.',
         ['actor (char id, 0=player)', 'dx (tiles)', 'dy (tiles)', 'facing (degrees)', 'speed', 'jump (0/1)']),
     125: ('MoveActorByOffsetFaceTravel', 'actor',
         "Move an actor by a RELATIVE tile offset, turning to face the direction of travel (mode 0, no end-facing arg). NPC path first clears control_flags bit 0x4 (the 'hidden' bit op 141 sets) and actor+0xB4 bits 0x10C, then Npc_StartMoveTowards; actor 0 = player via the scene mover (mode 0, or 8 when ctx+72 bit 0 is set). 5 args, no facing.",

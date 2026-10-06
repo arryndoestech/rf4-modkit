@@ -679,7 +679,7 @@ ENTRY_TYPES = {
         "notes": "",
     },
     68: {
-        "name": "FlagGatedAutoScene",
+        "name": "AreaClearedScene",
         "summary": "Scene run when an area's monsters are all defeated: on a map (or any), when a packed game flag has a required value. Not a map-entry or per-frame trigger.",
         "bank": "primary (story bank 211+ or REG_SUBEV_NOW) first, then tail (slot 2)",
         "keys": [

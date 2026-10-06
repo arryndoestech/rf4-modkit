@@ -1148,7 +1148,7 @@ python rf4mod.py script dev-menus rf3.mc --text rf3mc.eng --bank 18  # the devs'
 python rf4mod.py script space rf3.mc [--bank N]                     # bytecode room left per bank (64 KiB each; fullest first)
 python rf4mod.py script reload                                       # push the game folder's rf3.mc into the RUNNING game (no restart)
 python rf4mod.py script log --seconds 300 --out log.json            # watch the RUNNING game: log the scene code it runs, flag any the editor doesn't show
-python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng --friendly # read the scene (author names)
+python rf4mod.py script disasm rf3.mc --bank 1 --text rf3mc.eng            # read the scene (op names)
 python rf4mod.py script set-text rf3mc.eng --line 8709 --text "New line!" -o rf3mc.eng   # reword a line
 python rf4mod.py text add rf3mc.eng --text "A whole new beat!" -o rf3mc.eng   # author a NEW line (prints its id)
 python rf4mod.py script set-speaker rf3.mc --bank 1 --pc 0x08c2 --speaker Vishnal --side right -o new.mc  # change who speaks

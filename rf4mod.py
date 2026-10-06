@@ -1877,9 +1877,9 @@ def cmd_script_info(a):
 
 
 def cmd_script_disasm(a):
-    c = script.Container(_resolve(a.file).read_bytes())
+    c = _script_load(a)                        # FLG_ / REG_ names in expressions
     banks = [a.bank] if a.bank is not None else None
-    out = script.dump_text(c, dialog=_dialog_fn(a.text), banks=banks, friendly=a.friendly)
+    out = script.dump_text(c, dialog=_dialog_fn(a.text), banks=banks, friendly=not a.technical)
     if a.out:
         pathlib.Path(a.out).write_text(out, encoding="utf-8")
         print(f"wrote {a.out} ({out.count(chr(10))} lines)")
@@ -4193,8 +4193,8 @@ def build_parser():
     sc1 = scsub.add_parser("disasm", help="disassemble scenes (--text resolves dialogue)")
     sc1.add_argument("file"); sc1.add_argument("--bank", type=int, default=None)
     sc1.add_argument("--text", help="rf3mc.<locale> TEXT archive for dialogue lines")
-    sc1.add_argument("--friendly", action="store_true",
-                     help="use cutscene-author mnemonics (WarpPlayer) instead of technical names")
+    sc1.add_argument("--technical", action="store_true",
+                     help="show the exe handler names instead of the op names (opcode_table.json)")
     sc1.add_argument("-o", "--out"); sc1.set_defaults(func=cmd_script_disasm)
     sc2 = scsub.add_parser("find", help="find scenes whose dialogue (lines and choice-menu options) contains TEXT")
     sc2.add_argument("file"); sc2.add_argument("query")
