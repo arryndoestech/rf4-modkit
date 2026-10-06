@@ -7,7 +7,6 @@ settings.json
 # the script debugger's recovery note while it is attached to a game (rf4s_modkit.scriptdbg)
 scriptdbg-recovery.json
 # the window icon, decoded from your game copy (app_icon.py): game art, never shipped
-toolkit_icon.png
 *.py[cod]
 
 # ---- regenerated / scratch output ---------------------------------------------

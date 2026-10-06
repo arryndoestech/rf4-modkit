@@ -10374,29 +10374,27 @@ def test_collision_stamp_modes():
 
 
 def test_app_icon():
-    """The window / taskbar icon: the 77th trophy (COLLECTION_76) read from the game copy,
-    squared, cached as a PNG next to settings.json (a scratch copy here), and set on the
-    root window for every later window too."""
-    print("toolkit icon (COLLECTION_76 from the game copy):")
+    """The window / taskbar icon: assets/app_icon.png (256 px) and assets/app_icon.ico (16..256)
+    shipped with the toolkit, set on the root window for every later window too; no game
+    file is read."""
+    print("toolkit icon (assets/app_icon.png / .ico):")
     try:
         import tkinter as tk
+        from PIL import Image
     except Exception:
-        _skip("app icon", "no tkinter"); return
+        _skip("app icon", "no tkinter / Pillow"); return
     import app_icon
-    if app_icon._texture_bytes() is None:
-        _skip("app icon", "no game copy with COLLECTION_76.texture"); return
-    cp = app_icon.cache_path()
-    if cp.exists():
-        cp.unlink()
     root = tk.Tk()
     root.withdraw()
     try:
         ok = app_icon.apply(root)
         im = app_icon.image()
-        _check("the icon is decoded from the game copy, squared and cached next to the "
-               "settings.json (the toolkit folder; a scratch copy here)", ok and im is not None and im.width == im.height
-               and cp.is_file() and cp.parent == _gamepaths.settings_path().parent,
-               (ok, im and im.size, str(cp)))
+        sizes = sorted(Image.open(app_icon.ICO).info.get("sizes", [])) if app_icon.ICO.is_file() else []
+        _check("the shipped icon is set (256 px square PNG, .ico with 16..256 px) and no game "
+               "texture is read", ok and im is not None and im.size == (256, 256)
+               and (16, 16) in sizes and (256, 256) in sizes
+               and not hasattr(app_icon, "_texture_bytes"),
+               (ok, im and im.size, sizes))
     finally:
         root.destroy()
 
