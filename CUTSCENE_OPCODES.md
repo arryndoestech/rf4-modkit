@@ -4147,10 +4147,10 @@ Args:
      - `25` = Raven
      - `26` = Mistress Trupin
 
-### `op 115` — WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)
+### `op 115` — WalkActorToAndFace(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
-Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
+Walk an actor to an absolute position and turn it to the given facing at the end. Returns at once; follow with WaitActorMoveDone to wait for arrival. Like every NPC move op it marks the NPC scene-controlled, so its schedule does not move it again until the scene ends.
 
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
@@ -4187,10 +4187,10 @@ Args:
   4. speed (100 = normal walk (x 167773/4096 internal scale))
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
-### `op 116` — WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)
+### `op 116` — WalkActorToAndFace(actor, x, y, facing, speed, jump)
 *handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
-Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.
+Walk an actor to an absolute position and turn it to the given facing at the end. Returns at once; follow with WaitActorMoveDone to wait for arrival. Like every NPC move op it marks the NPC scene-controlled, so its schedule does not move it again until the scene ends.
 
 Args:
   0. actor (0 = player, 1..47 NPC; >= 48 = no-op)
@@ -12555,8 +12555,8 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 104 | `TurnActorToAngle` | 105 | `GetEventActorIndexStub` | 106 | `RotateActorInPlace` |
 | 107 | `TurnActorToFaceTarget` | 108 | `TurnActorToFaceTarget` | 109 | `TurnActorToFaceTarget` |
 | 110 | `FaceEventActor` | 111 | `SetActorAuxYaw` | 112 | `SetActorAuxYaw` |
-| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `WalkActorToAndFaceLockAi` |
-| 116 | `WalkActorToAndFaceLockAi` | 117 | `WalkActorTo` | 118 | `WalkActorTo` |
+| 113 | `WaitActorAuxYaw` | 114 | `WaitActorAuxYaw` | 115 | `WalkActorToAndFace` |
+| 116 | `WalkActorToAndFace` | 117 | `WalkActorTo` | 118 | `WalkActorTo` |
 | 119 | `StepNpcTo` | 120 | `StepNpcTo` | 121 | `MoveNpcToPosKeepAnim` |
 | 122 | `MoveNpcToPosKeepAnim` | 123 | `MoveActorByOffset` | 124 | `MoveActorByOffset` |
 | 125 | `MoveActorByOffsetFaceTravel` | 126 | `MoveActorByOffsetFaceTravel` | 127 | `MoveActorByOffsetKeepFacing` |

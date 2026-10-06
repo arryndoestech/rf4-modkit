@@ -21764,10 +21764,10 @@
   "115": {
    "op": 115,
    "op_hex": "0x073",
-   "mnemonic": "WalkActorToAndFaceLockAi",
+   "mnemonic": "WalkActorToAndFace",
    "previous_mnemonic": "MoveActorToTile_LockAI",
    "category": "actor",
-   "prototype": "WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)",
+   "prototype": "WalkActorToAndFace(actor, x, y, facing, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21821,8 +21821,8 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.",
-   "details": "NPC: move cmd {byte0 jump, byte1 kind 4, u16 yaw 181*facing, u16 speed ((167773*speed)>>12)*(4096|4915.2)>>12, x<<12, y<<12}; npc+568 bit 0x800000 = jump, npc entry +160 = 2, Npc_StartMoveTowards (+0x225A90), then actor+568 |= 0x10 (AI lock). Player (id 0): same data queued with Scene_QueueGenericMoveCommand(host+872, kind 2) (+0x22FD00), no lock. Coordinates are absolute (no current-position anchor).",
+   "description": "Walk an actor to an absolute position and turn it to the given facing at the end. Returns at once; follow with WaitActorMoveDone to wait for arrival. Like every NPC move op it marks the NPC scene-controlled, so its schedule does not move it again until the scene ends.",
+   "details": "NPC: move cmd {byte0 jump, byte1 kind 4, u16 yaw 181*facing, u16 speed ((167773*speed)>>12)*(4096|4915.2)>>12, x<<12, y<<12}; npc+568 bit 0x800000 = jump, npc entry +160 = 2, Npc_StartMoveTowards (+0x225A90), then actor+568 |= 0x10 (scene-controlled: also set by the scene dispatcher at scene start and by every NPC move op; NpcAi_ResetNpcSceneStateAfterEvent (RF4S.exe+0x2265D0) clears it when the event ends, unless the NPC's schedule pause flag record+20 0x40 is on). Player (id 0): same data queued with Scene_QueueGenericMoveCommand(host+872, kind 2) (+0x22FD00), no lock. Coordinates are absolute (no current-position anchor).",
    "side_effects": "NPC move state, actor+568 bits 0x10 / 0x800000; or a queued player move",
    "evidence": "RF4S.exe+0x1FB380: `HIDWORD(v32)=dx<<12; v33=dy<<12; LOWORD(v32)=181*facing; ... Npc_StartMoveTowards(id,&cmd); *(u32*)(actor+568) |= 0x10`; corpus 226 uses, all argc 6 (speed 100/200/80, jump 0/1), typically followed by WaitActorMoveDone.",
    "alias_of": null,
@@ -21842,7 +21842,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
+   "change_reason": "2026-10-06: 'LockAi' was misleading: the scene-controlled bit it sets comes with every NPC move op and is cleared at the event's end; what this op adds is the end facing.",
    "human_verified": false,
    "example": {
     "bank": 139,
@@ -21851,7 +21851,7 @@
      "    SetSpeaker(MC, Left, 1522, 16777651)",
      "    DIALOG #59216    ; \"Whew...\"",
      "    WalkPlayerToAndFace(233, 322, 0, 100, 0)",
-     "    WalkActorToAndFaceLockAi(actor(Xiao Pai), 201, 322, 0, 100, 0)    ; <--",
+     "    WalkActorToAndFace(actor(Xiao Pai), 201, 322, 0, 100, 0)    ; <--",
      "    WaitPlayerMoveDone()",
      "    WaitActorMoveDone(actor(Xiao Pai))",
      "    SetSpeaker(XiaoPai, Left, 1039, 16782244)"
@@ -21861,10 +21861,10 @@
   "116": {
    "op": 116,
    "op_hex": "0x074",
-   "mnemonic": "WalkActorToAndFaceLockAi",
+   "mnemonic": "WalkActorToAndFace",
    "previous_mnemonic": "MoveActorToTile_LockAI",
    "category": "actor",
-   "prototype": "WalkActorToAndFaceLockAi(actor, x, y, facing, speed, jump)",
+   "prototype": "WalkActorToAndFace(actor, x, y, facing, speed, jump)",
    "args": [
     {
      "name": "actor",
@@ -21918,8 +21918,8 @@
    "optional_args_from": null,
    "returns": null,
    "blocking": "no",
-   "description": "Walk an actor to an absolute position and face the given direction, then lock the NPC's AI so it holds its staged position. Returns at once; follow with WaitActorMoveDone to wait for arrival.",
-   "details": "NPC: move cmd {byte0 jump, byte1 kind 4, u16 yaw 181*facing, u16 speed ((167773*speed)>>12)*(4096|4915.2)>>12, x<<12, y<<12}; npc+568 bit 0x800000 = jump, npc entry +160 = 2, Npc_StartMoveTowards (+0x225A90), then actor+568 |= 0x10 (AI lock). Player (id 0): same data queued with Scene_QueueGenericMoveCommand(host+872, kind 2) (+0x22FD00), no lock. Coordinates are absolute (no current-position anchor).",
+   "description": "Walk an actor to an absolute position and turn it to the given facing at the end. Returns at once; follow with WaitActorMoveDone to wait for arrival. Like every NPC move op it marks the NPC scene-controlled, so its schedule does not move it again until the scene ends.",
+   "details": "NPC: move cmd {byte0 jump, byte1 kind 4, u16 yaw 181*facing, u16 speed ((167773*speed)>>12)*(4096|4915.2)>>12, x<<12, y<<12}; npc+568 bit 0x800000 = jump, npc entry +160 = 2, Npc_StartMoveTowards (+0x225A90), then actor+568 |= 0x10 (scene-controlled: also set by the scene dispatcher at scene start and by every NPC move op; NpcAi_ResetNpcSceneStateAfterEvent (RF4S.exe+0x2265D0) clears it when the event ends, unless the NPC's schedule pause flag record+20 0x40 is on). Player (id 0): same data queued with Scene_QueueGenericMoveCommand(host+872, kind 2) (+0x22FD00), no lock. Coordinates are absolute (no current-position anchor).",
    "side_effects": "NPC move state, actor+568 bits 0x10 / 0x800000; or a queued player move",
    "evidence": "RF4S.exe+0x1FB380: `HIDWORD(v32)=dx<<12; v33=dy<<12; LOWORD(v32)=181*facing; ... Npc_StartMoveTowards(id,&cmd); *(u32*)(actor+568) |= 0x10`; corpus 226 uses, all argc 6 (speed 100/200/80, jump 0/1), typically followed by WaitActorMoveDone.",
    "alias_of": 115,
@@ -21939,7 +21939,7 @@
    },
    "confidence": "high",
    "notes": "True alias of op 115 (same handler, no opcode-dependent branch). Corpus op 116 uses register ids (REG_CHILD_ID, REG_WIFE_ID, reg0, reg9).",
-   "change_reason": "2026-10-06: the walk ops are named by what they do: Walk...To = walk there facing the way it walks, ...AndFace = then turn to a given facing, Step...To = move without turning.",
+   "change_reason": "2026-10-06: 'LockAi' was misleading: the scene-controlled bit it sets comes with every NPC move op and is cleared at the event's end; what this op adds is the end facing.",
    "human_verified": false,
    "example": {
     "bank": 126,
@@ -26834,7 +26834,7 @@
      "    PlayActorSplash(200)    ; <--",
      "    PlayActorAnim(actor(Vishnal), 1, 1)",
      "    Wait(9000)",
-     "    WalkActorToAndFaceLockAi(actor(Vishnal), 200, 128, 0, 100, 0)"
+     "    WalkActorToAndFace(actor(Vishnal), 200, 128, 0, 100, 0)"
     ]
    }
   },
@@ -36828,7 +36828,7 @@
     "bank": 75,
     "pc": "0x0214",
     "lines": [
-     "    WalkActorToAndFaceLockAi(actor(Arthur), 114, 289, 0, 80, 0)",
+     "    WalkActorToAndFace(actor(Arthur), 114, 289, 0, 80, 0)",
      "    WaitActorMoveDone(actor(Arthur))",
      "    PlaySound(16785995)",
      "    GetVar1(0)    ; <--",
@@ -40190,7 +40190,7 @@
     "pc": "0x2B06",
     "lines": [
      "    PlaceActorAndFace(actor(Amber), 228, 417, 180)",
-     "    WalkActorToAndFaceLockAi(actor(Amber), 190, 310, 270, 300, 1)",
+     "    WalkActorToAndFace(actor(Amber), 190, 310, 270, 300, 1)",
      "    Wait(3000)",
      "    TurnPlayerToAngle_396(90, 3)    ; <--",
      "    WaitActorMoveDone(actor(Amber))",
