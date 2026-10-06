@@ -756,7 +756,10 @@ its slot: `SetVar3(0, n)` feeds `＠０＠`), and the character, map and
 item ids with the form an argument takes, and the **trigger types**: what makes a scene
 run (the bank's type table, the keys each type compares, which trigger wins), one row per type with
 its keys, trigger count and matcher; double-clicking a type sets the Banks list's Trigger type
-filter to it. Double-click copies. **Where a variable is used:** the
+filter to it. Double-click copies. A click on a column heading sorts the list by it (again: the other way
+round); the Functions tab starts sorted by opcode. **Options → Advanced** adds *Show unverified
+instructions in the Reference* (the Functions tab lists every instruction, ✓ = checked in game) and
+*Export CSV buttons in the Reference* (each list saves the rows its filter lets through as a CSV). **Where a variable is used:** the
 flags list counts each variable's reads and writes over every bank and em.bin (unsaved edits
 included); selecting one lists every statement and em.bin entry that reads or writes it, and a
 double-click opens it. In the script view, right-click a statement → *Uses of FLG_X…* for each

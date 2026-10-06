@@ -688,6 +688,41 @@ class CutsceneExplorer:
         d["bank_listing"] = bool(on)
         gamepaths.set_setting(cls.PREFS_KEY, d)
 
+    @classmethod
+    def reference_unverified_setting(cls):
+        """'Show unverified instructions in the Reference' (Options -> Advanced): the Reference
+        window's Functions tab lists every instruction, not only the ones checked in game."""
+        return bool(cls._load_prefs().get("reference_unverified", False))
+
+    @classmethod
+    def set_reference_unverified_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["reference_unverified"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    @classmethod
+    def reference_csv_setting(cls):
+        """'Export CSV buttons in the Reference' (Options -> Advanced). Off by default."""
+        return bool(cls._load_prefs().get("reference_csv", False))
+
+    @classmethod
+    def set_reference_csv_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["reference_csv"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    def refresh_reference(self):
+        """An open Reference window follows the Advanced settings at once."""
+        r = self._reference
+        try:
+            if r is not None and r.win.winfo_exists():
+                r.refresh_functions()
+                r.apply_list_settings()
+        except tk.TclError:
+            pass
+
     def show_bank_listing(self, on):
         """Add or remove the Bank listing tab (after Overview) in this editor."""
         on = bool(on)

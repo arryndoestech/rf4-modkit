@@ -1251,6 +1251,28 @@ class App:
                             "scene, also those no trigger starts, with the code they share. Find "
                             "searches it; a double click opens that scene at that line.",
                   foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
+        self._ref_unverified = tk.BooleanVar(value=CutsceneExplorer.reference_unverified_setting())
+        self._ref_csv = tk.BooleanVar(value=CutsceneExplorer.reference_csv_setting())
+
+        def reference_changed():
+            CutsceneExplorer.set_reference_unverified_setting(bool(self._ref_unverified.get()))
+            CutsceneExplorer.set_reference_csv_setting(bool(self._ref_csv.get()))
+            cur = getattr(self, "_cutscene_ed", None)      # an open Reference follows at once
+            try:
+                if cur is not None and cur[0].winfo_exists():
+                    cur[1].refresh_reference()
+            except tk.TclError:
+                pass
+        ttk.Checkbutton(adv, text="Show unverified instructions in the Reference", variable=self._ref_unverified,
+                        command=reference_changed).pack(anchor="w", pady=(6, 0))
+        ttk.Label(adv, text="The Reference window's Functions tab lists every instruction, with a ✓ "
+                            "on the ones checked in game; unticked it lists only the checked ones.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
+        ttk.Checkbutton(adv, text="Export CSV buttons in the Reference", variable=self._ref_csv,
+                        command=reference_changed).pack(anchor="w", pady=(6, 0))
+        ttk.Label(adv, text="Every list in the Reference window gets an Export CSV… button that saves "
+                            "the rows the filter lets through, in the list's order.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
         # bottom row: the toolkit's version (commit + date, selectable for bug reports) on the
         # left, its text sitting on the same line as the bottom of Close on the right
         foot = ttk.Frame(body)

@@ -186,10 +186,22 @@ def control_info_text(mnem):
 
 
 # ---- widgets --------------------------------------------------------------------------- #
-class _Filtered(ttk.Frame):
-    """A filter box over a Treeview: every typed word must appear in the row."""
+def _sort_key(v):
+    """Sort key for a list cell: numbers (decimal or 0x hex) by value and before text, the
+    rest case-insensitively."""
+    s = str(v).strip()
+    try:
+        return (0, int(s, 0), "")
+    except ValueError:
+        return (1, 0, s.lower())
 
-    def __init__(self, parent, columns, widths, rows, on_select=None, on_activate=None, height=18):
+
+class _Filtered(ttk.Frame):
+    """A filter box over a Treeview: every typed word must appear in the row. A click on a
+    column heading sorts by that column (again: the other way round)."""
+
+    def __init__(self, parent, columns, widths, rows, on_select=None, on_activate=None, height=18,
+                 sort_by=None):
         super().__init__(parent)
         top = ttk.Frame(self)
         top.pack(fill="x", pady=(0, 4))
@@ -199,12 +211,18 @@ class _Filtered(ttk.Frame):
         e.pack(side="left", fill="x", expand=True, padx=4)
         self.count = ttk.Label(top, foreground="#888")
         self.count.pack(side="right")
+        self.export_btn = ttk.Button(top, text="Export CSV…", command=self.export_csv)
+        Tip(self.export_btn, "Save the rows shown (filtered and in this order) as a CSV file.")
+        self._export_shown = False
         f = ttk.Frame(self)
         f.pack(fill="both", expand=True)
         self.tree = ttk.Treeview(f, columns=columns, show="headings", height=height)
+        self._columns = list(columns)
+        self._sort = (self._columns.index(sort_by), False) if sort_by in self._columns else None
         for c, w in zip(columns, widths):
-            self.tree.heading(c, text=c)
+            self.tree.heading(c, text=c, command=lambda c=c: self.sort_by(c))
             self.tree.column(c, width=w, stretch=(w >= 200), anchor="w")
+        self._label_headings()
         sb = ttk.Scrollbar(f, command=self.tree.yview)
         self.tree.config(yscrollcommand=sb.set)
         self.tree.pack(side="left", fill="both", expand=True)
@@ -220,6 +238,85 @@ class _Filtered(ttk.Frame):
         self.entry = e
         self.fill()
 
+    def _label_headings(self):
+        for i, c in enumerate(self._columns):
+            mark = ""
+            if self._sort is not None and self._sort[0] == i:
+                mark = "  ▼" if self._sort[1] else "  ▲"
+            self.tree.heading(c, text=c + mark)
+
+    def sort_by(self, column, reverse=None):
+        """Sort the list by `column` (a click on its heading; a second click reverses it)."""
+        i = self._columns.index(column)
+        if reverse is None:
+            reverse = bool(self._sort and self._sort[0] == i and not self._sort[1])
+        self._sort = (i, reverse)
+        self._label_headings()
+        self.fill()
+
+    def show_export(self, on):
+        """Show / hide the Export CSV button (Options -> Advanced)."""
+        on = bool(on)
+        if on == self._export_shown:
+            return
+        if on:
+            self.export_btn.pack(side="right", padx=(0, 6), before=self.count)
+        else:
+            self.export_btn.pack_forget()
+        self._export_shown = on
+
+    def _matching(self):
+        """Row indexes that pass the filter, in the current sort order (no display cap)."""
+        words = self.q.get().lower().split()
+        out = []
+        for i in self._order():
+            if words:
+                low = " ".join(str(x) for x in self.rows[i]).lower()
+                if not all(w in low for w in words):
+                    continue
+            out.append(i)
+        return out
+
+    def shown_rows(self):
+        """The visible columns of every row the filter lets through, in the list's order
+        (all of them, also past the display cap)."""
+        n = len(self._columns)
+        return [["" if v is None else str(v) for v in self.rows[i][:n]] for i in self._matching()]
+
+    def write_csv(self, path):
+        import csv
+        with open(path, "w", encoding="utf-8-sig", newline="") as fh:     # BOM: Excel reads UTF-8
+            w = csv.writer(fh)
+            w.writerow(self._columns)
+            w.writerows(self.shown_rows())
+
+    def export_csv(self):
+        from tkinter import filedialog, messagebox
+        rows = self.shown_rows()
+        if not rows:
+            return
+        f = filedialog.asksaveasfilename(parent=self, title="Export list as CSV", defaultextension=".csv",
+                                         filetypes=[("CSV", "*.csv"), ("All", "*.*")])
+        if not f:
+            return
+        try:
+            self.write_csv(f)
+        except OSError as e:
+            messagebox.showerror("Export CSV", str(e), parent=self)
+
+    def set_rows(self, rows):
+        """Replace the rows (keeps the filter text and the sort)."""
+        self.rows = rows
+        self.fill()
+
+    def _order(self):
+        idx = list(range(len(self.rows)))
+        if self._sort is not None:
+            col, rev = self._sort
+            idx.sort(key=lambda k: _sort_key(self.rows[k][col] if col < len(self.rows[k]) else ""),
+                     reverse=rev)
+        return idx
+
     def _schedule(self):
         if self._pending is not None:
             self.after_cancel(self._pending)
@@ -233,14 +330,9 @@ class _Filtered(ttk.Frame):
                 pass
         self._pending = None
         self.tree.delete(*self.tree.get_children())
-        words = self.q.get().lower().split()
         n = 0
-        for i, r in enumerate(self.rows):
-            shown = r[:len(self.tree["columns"])]
-            if words:
-                low = " ".join(str(x) for x in r).lower()
-                if not all(w in low for w in words):
-                    continue
+        for i in self._matching():
+            shown = self.rows[i][:len(self.tree["columns"])]
             self.tree.insert("", "end", iid=str(i), values=shown)
             n += 1
             if n >= guiutil.list_rows():
@@ -277,6 +369,23 @@ class ReferenceWindow:
         self._simple("Items", ("item", "use as"), (520, 120), item_choices(),
                      "Item ids: arguments typed 'item id' take the number.")
         self._action_types()
+        self.apply_list_settings()
+
+    def lists(self):
+        """Every filterable list in the window."""
+        out, todo = [], [self.win]
+        while todo:
+            w = todo.pop()
+            if isinstance(w, _Filtered):
+                out.append(w)
+            todo.extend(w.winfo_children())
+        return out
+
+    def apply_list_settings(self):
+        """Follow Options -> Advanced: the Export CSV buttons."""
+        on = bool(getattr(type(self.app), "reference_csv_setting", lambda: False)())
+        for lst in self.lists():
+            lst.show_export(on)
 
     def show(self, tab=None):
         self.win.deiconify()
@@ -469,34 +578,62 @@ class ReferenceWindow:
                 return True
         return False
 
+    def _function_rows(self):
+        """(rows, intro text) for the Functions tab: the verified instructions, or every one
+        when Options -> Advanced -> 'Show unverified instructions in the Reference' is on."""
+        acts, ctl = verified_ops()
+        show_all = bool(getattr(type(self.app), "reference_unverified_setting", lambda: False)())
+        done = set(acts)
+        ops = sorted(int(k) for k in meta.TABLE["actions"]) if show_all else acts
+        rows = []
+        for r in meta.TABLE["control"].values():
+            if show_all or r.get("human_verified"):
+                m = r["mnemonic"]
+                rows.append((m, r.get("op_hex", ""), "✓" if r.get("human_verified") else "",
+                             CONTROL_HELP.get(m, ""), ("ctl", m)))
+        for op in ops:
+            rows.append((meta.prototype(op), "0x%03X" % op, "✓" if op in done else "",
+                         meta.describe(op) or "", ("op", op)))
+        n = len(acts) + len(ctl)
+        if show_all:
+            text = ("Every instruction (%d); the %d with a ✓ were checked in game by a person. "
+                    "Only the checked ones: untick 'Show unverified instructions in the Reference' "
+                    "(Options -> Advanced)." % (len(rows), n))
+        else:
+            text = ("Instructions a person has checked in game (%d so far). Mark more with "
+                    "\"human_verified\": true in refdata/opcode_table.json. To list every "
+                    "instruction here, tick 'Show unverified instructions in the Reference' "
+                    "(Options -> Advanced); every one is also in the Instruction picker." % n)
+        return rows, text
+
+    def refresh_functions(self):
+        """Rebuild the Functions list (after the Advanced setting changed)."""
+        rows, text = self._function_rows()
+        self._fn_intro.config(text=text)
+        self._fn_list.set_rows(rows)
+
     def _functions(self):
         f = ttk.Frame(self.nb, padding=6)
         self.nb.add(f, text=self.TABS[1])
-        acts, ctl = verified_ops()
-        ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=(
-            "Instructions a person has checked in game (%d so far). Mark more with "
-            "\"human_verified\": true in refdata/opcode_table.json. Every instruction, "
-            "verified or not, is in the Instruction picker." % (len(acts) + len(ctl)))).pack(anchor="w", pady=(0, 4))
-        rows = []
-        ctl_hex = {r["mnemonic"]: r.get("op_hex", "") for r in meta.TABLE["control"].values()}
-        for m in ctl:
-            rows.append((m, ctl_hex.get(m, ""), CONTROL_HELP.get(m, ""), ("ctl", m)))
-        for op in acts:
-            rows.append((meta.prototype(op), "0x%03X" % op, meta.describe(op) or "", ("op", op)))
+        rows, text = self._function_rows()
+        self._fn_intro = ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=text)
+        self._fn_intro.pack(anchor="w", pady=(0, 4))
         pw = ttk.PanedWindow(f, orient="vertical")
         pw.pack(fill="both", expand=True)
         top = ttk.Frame(pw)
         det = tk.Text(pw, height=12, wrap="word", font=("Consolas", 9))
-        t = _Filtered(top, ("Function", "Opcode", "Description"), (380, 110, 440), rows,
+        t = _Filtered(top, ("Function", "Opcode", "✓", "Description"), (360, 90, 30, 450), rows,
                       on_select=lambda r: self._show_fn(det, r),
-                      on_activate=lambda r: r and self.app.ask_insert_instruction(preset=r[3]), height=10)
+                      on_activate=lambda r: r and self.app.ask_insert_instruction(preset=r[4]), height=10,
+                      sort_by="Opcode")
         t.pack(fill="both", expand=True)
+        self._fn_list = t
         pw.add(top, weight=1)
         pw.add(det, weight=1)
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(4, 0))
         ttk.Button(b, text="Insert this instruction…",
-                   command=lambda: t.selected() and self.app.ask_insert_instruction(preset=t.selected()[3])).pack(side="left")
+                   command=lambda: t.selected() and self.app.ask_insert_instruction(preset=t.selected()[4])).pack(side="left")
 
     def _text_codes(self):
         """The codes a dialogue line can contain (textlint.token_reference)."""
@@ -617,7 +754,7 @@ class ReferenceWindow:
         det.config(state="normal")
         det.delete("1.0", "end")
         if r:
-            kind, key = r[3]
+            kind, key = r[4]
             det.insert("1.0", op_info_text(key) if kind == "op" else control_info_text(key))
         det.config(state="disabled")
 

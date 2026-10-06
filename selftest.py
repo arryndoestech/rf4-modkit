@@ -15137,6 +15137,43 @@ def test_cutscene_editor_workflows():
                and _br._type_ids.get(_br.type_filter.get()) == 6, _lab6)
         _br.type_filter.set("all triggers")
         _br.rebuild()
+        # Functions tab: sorted by opcode; Advanced settings: unverified instructions + CSV export
+        from cutscene_editor.app import CutsceneExplorer as _CE
+        _st = {"u": False, "c": False}
+        _saved_s = (_CE.__dict__["reference_unverified_setting"], _CE.__dict__["reference_csv_setting"])
+        try:
+            _CE.reference_unverified_setting = classmethod(lambda cls: _st["u"])
+            _CE.reference_csv_setting = classmethod(lambda cls: _st["c"])
+            cx.refresh_reference()
+            root.update()
+            _fl = _ref._fn_list
+            _ops = [int(row[1], 16) for row in _fl.shown_rows()]
+            _ok_sort = _ops == sorted(_ops) and all(row[2] == "✓" for row in _fl.rows)
+            _n_ver = len(_fl.rows)
+            _no_btn = not any(l._export_shown for l in _ref.lists())
+            _st.update(u=True, c=True)
+            cx.refresh_reference()
+            root.update()
+            _ok_all = len(_fl.rows) > _n_ver and any(row[2] == "" for row in _fl.rows)
+            _fl.sort_by("Opcode")                        # same column again: descending
+            _desc = [int(row[1], 16) for row in _fl.shown_rows()]
+            _fl.q.set("teleport")
+            _fl.fill()
+            import tempfile as _tf, csv as _csv
+            _csvp = pathlib.Path(_tf.mkdtemp(prefix="rf4s_refcsv_")) / "fn.csv"
+            _fl.write_csv(_csvp)
+            _cr = list(_csv.reader(open(_csvp, encoding="utf-8-sig")))
+            _ok_csv = (_cr[0] == ["Function", "Opcode", "✓", "Description"] and len(_cr) > 1
+                       and all("teleport" in " ".join(x).lower() for x in _cr[1:]))
+            _fl.q.set("")
+        finally:
+            _CE.reference_unverified_setting, _CE.reference_csv_setting = _saved_s
+        _check("Reference Functions: sorted by opcode (a heading click reverses it); the Advanced "
+               "settings add the unverified instructions (no ✓) and an Export CSV button on every "
+               "list, which writes the filtered rows",
+               _ok_sort and _no_btn and _ok_all and _desc == sorted(_desc, reverse=True) and _ok_csv
+               and all(l._export_shown for l in _ref.lists()),
+               "%s %s %s %s" % (_ok_sort, _no_btn, _ok_all, _ok_csv))
         _ref.win.destroy()
         # Save writes straight over the game folder's own files -- here a throwaway copy
         from rf4s_modkit import gamepaths as _gp
