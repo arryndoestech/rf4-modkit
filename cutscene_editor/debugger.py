@@ -40,6 +40,26 @@ def _sync_rows(tree, rows):
             tree.move(iid, "", i)
 
 
+class _StatusLine:
+    """The panel's messages, shown in the editor's status bar (config(text=..) like a label)."""
+
+    def __init__(self, app):
+        self.app, self.text = app, ""
+
+    def config(self, text=None, **_kw):
+        if text is not None:
+            self.text = text
+            try:
+                self.app.status(text)
+            except Exception:  # noqa: BLE001 -- the editor is closing
+                pass
+
+    configure = config
+
+    def cget(self, key):
+        return self.text if key == "text" else ""
+
+
 class DebuggerPanel:
     def __init__(self, app):
         self.app = app
@@ -116,7 +136,8 @@ class DebuggerPanel:
         top = ttk.Frame(w, padding=(4, 2) if docked else 4)
         top.pack(fill="x")
         if docked:
-            ttk.Label(top, text="🐞 Script debugger", font=("Segoe UI", 9, "bold")).pack(side="left", padx=(0, 6))
+            title = ttk.Label(top, text="🐞 Script debugger", font=("Segoe UI", 9, "bold"))
+            title.pack(side="left", padx=(0, 6))
         self.attach_btn = ttk.Button(top, text="Attach to the game", command=self.toggle_attach)
         self.attach_btn.pack(side="left")
         Tip(self.attach_btn, "Connect to the running RF4S.exe (its memory, no native debugger). "
@@ -137,11 +158,9 @@ class DebuggerPanel:
                 "still (the game's own calendar pause); it runs again on Continue / Detach.")
         self.clock = ttk.Label(top, text="", foreground="#58f")
         self.clock.pack(side="right", padx=8)
-        # packed after the right-hand controls so it only gets the space left between them;
-        # a long message wraps onto more lines instead of pushing the buttons off the window
-        self.status = ttk.Label(top, text="not attached", foreground="#888", width=1, anchor="w")
-        self.status.pack(side="left", padx=8, fill="x", expand=True)
-        self.status.bind("<Configure>", lambda e: e.widget.config(wraplength=max(e.width - 4, 40)))
+        # messages go to the editor's status bar: a label here changed the bar's height as
+        # they came and went (the panel jumped)
+        self.status = _StatusLine(self.app)
         about = ("Breakpoints stop a script just before the statement runs: the script waits there "
                  "until Continue or Step. Only game time stands still -- the rest of the world keeps "
                  "running (you may be able to walk around, monsters move, the camera and music go on). "
@@ -149,7 +168,7 @@ class DebuggerPanel:
                  "cannot be halted there). A breakpoint on code the game does not run yet waits until "
                  "you save + Reload in game.")
         if docked:
-            Tip(self.status, about)
+            Tip(title, about)
         else:
             hint(w, about, wrap=940).pack(anchor="w", padx=6)
         pw = ttk.PanedWindow(w, orient="horizontal")
