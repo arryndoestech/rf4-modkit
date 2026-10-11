@@ -534,8 +534,8 @@ def chest_problems(name, recs):
                 out.append(("INFO", i, f"chest #{i} gives nothing (loot row {row} is empty)"))
         ev = chest_scene(r, name) if r[10] else None
         if ev is not None and ev[1] is not None and ev[2] is None:
-            out.append(("WARN", i, f"chest #{i}: f10 = {r[10]} runs the map's scene keyed {ev[0]}, but "
-                                   f"its event bank has no type-2 entry with that key"))
+            out.append(("WARN", i, f"chest #{i}: f10 = {r[10]} runs scene {ev[0]}, but the map's "
+                                   f"script has no such scene"))
     return out
 
 
@@ -573,10 +573,10 @@ def chest_event(rec, name):
         return None
     key, bank, pc = hit
     if bank is None:
-        return f"Opening it runs the map's scene keyed {key} (f10 = {rec[10]}); rf3.mc not found"
+        return f"Opening it runs the map's scene {key} (f10 = {rec[10]}); the script file was not found"
     if pc is None:
-        return (f"Opening it runs the map's scene keyed {key} (f10 = {rec[10]}), but this map's "
-                f"event bank has no type-2 entry with that key: nothing happens")
+        return (f"Opening it runs the map's scene {key} (f10 = {rec[10]}), but the map's script "
+                f"has no such scene: nothing happens")
     from rf4s_modkit import scriptasm
     steps = []
     try:
@@ -591,8 +591,8 @@ def chest_event(rec, name):
             steps = steps[:6] + ["…"]
     except Exception:
         pass
-    return (f"Opening it runs scene key {key} (f10 = {rec[10]}, type 2 @{pc:04x} in the map's event "
-            f"bank)" + (": " + ", ".join(steps) if steps else ""))
+    return (f"Opening it runs the map's scene {key} (f10 = {rec[10]})"
+            + (": " + ", ".join(steps) if steps else ""))
 
 
 def chest_reveal(rec, recs):
@@ -1073,10 +1073,29 @@ def request_flag_index(widget, done=None):
                 fn(_FLAGS["idx"])
             except Exception:  # noqa: BLE001
                 pass
+    # one poll chain, however many callers wait -- a new one when the widget that ran it is gone
+    # (Tk drops a destroyed widget's pending after(), so that chain just stops)
+    pw = _FLAGS.get("poll_widget")
     try:
-        widget.after(150, poll)
+        alive = pw is not None and bool(pw.winfo_exists())
     except Exception:  # noqa: BLE001
-        pass
+        alive = False
+    if not alive:
+        _FLAGS["poll_widget"] = widget
+
+        def poll_once():
+            if _FLAGS["result"] is None:
+                try:
+                    widget.after(150, poll_once)
+                except Exception:  # noqa: BLE001
+                    _FLAGS["poll_widget"] = None
+                return
+            _FLAGS["poll_widget"] = None
+            poll()
+        try:
+            widget.after(150, poll_once)
+        except Exception:  # noqa: BLE001
+            _FLAGS["poll_widget"] = None
 
 
 def flag_users(rel, live=None):

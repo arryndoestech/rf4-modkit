@@ -59,7 +59,7 @@ class PaletteTab(ttk.Frame):
         cb.bind("<<ComboboxSelected>>", lambda _e: self._relayout())
         hint(self, "Click an object to pick it, then click the map to place it (the Add tool, "
                    "A). Right-click: add to / remove from Favorites. Pictures show the object as "
-                   "a new one looks; set its fields in the Inspector afterwards.", wrap=340).pack(anchor="w", fill="x", padx=4)
+                   "a new one looks; set its fields in the Inspect tab afterwards.", wrap=340).pack(anchor="w", fill="x", padx=4)
         body = ttk.Frame(self)
         body.pack(fill="both", expand=True, padx=4, pady=2)
         self.canvas = tk.Canvas(body, bg="#1b1b22", highlightthickness=0, cursor="hand2")

@@ -154,7 +154,7 @@ class ResizeDialog:
         o.insert("end", f"camera: {cam}\n\n" if cam else
                  f"camera: scrolls over the map (at least {rf4m.SMALL_MAP_TILES[0]} x "
                  f"{rf4m.SMALL_MAP_TILES[1]} tiles)\n\n")
-        o.insert("end", "Derived artefacts to fix:\n" if rep["todo"] else "Nothing derived needs fixing.\n")
+        o.insert("end", "To fix afterwards:\n" if rep["todo"] else "Nothing else needs fixing.\n")
         for t in rep["todo"]:
             o.insert("end", f"  • {t}\n")
         if side:
@@ -303,8 +303,7 @@ def unreadable_reason(m):
         w, h = struct.unpack_from("<II", body, 0)
         if w == 0 or h == 0 or len(body) != 8 + 4 * w * h:
             return (f"ATTR payload is {len(body)} bytes but its {w}x{h} header needs "
-                    f"{8 + 4 * w * h}. Edit the cells here, and change the size with "
-                    f"Map > Resize grid.")
+                    f"{8 + 4 * w * h}. Change the size with Properties > Resize grid….")
     try:
         m.decode_mobj()
         m.mapj_records()
@@ -327,11 +326,9 @@ def flag_reference(ed):
     ttk.Label(row, text="Filter").pack(side="left")
     ent = ttk.Entry(row, textvariable=q)
     ent.pack(side="left", fill="x", expand=True, padx=4)
-    info = ui.hint(win, "The named story / event flags (emdeb.bin): zone 1 of the flag array, "
-                        "by game bit number -- what the em.bin conditions and GameFlags_ReadField "
-                        "look up. Map objects and warps do NOT use these: their flags are zone-2 "
-                        "scene bits (game bit 4096 + the number), listed in the map editor's "
-                        "Flags… (Inspector). Double-click a row to copy its id.", wrap=560)
+    info = ui.hint(win, "The game's named story / event flags, by bit number. Map objects and "
+                        "warps do NOT use these: their flags are scene flags (Flags… in the Inspect "
+                        "tab). Double-click a row to copy its id.", wrap=560)
     info.pack(anchor="w", padx=8)
     lf = ttk.Frame(win)
     lf.pack(fill="both", expand=True, padx=6, pady=4)
@@ -384,12 +381,10 @@ def scene_flag_reference(ed, focus=None):
                     command=lambda: refill()).pack(side="left", padx=8)
     ttk.Button(top, text="Story / event flags (zone 1)…",
                command=ed.open_story_flags).pack(side="right")
-    ui.hint(win, "The game keeps all flags in one bit array. A map object's flag (f13), a warp's "
-                 "disable flag and script ops 443 / 444 / 445 all count in ZONE 2: the game adds "
-                 "4096 before it tests the bit, so flag 158 is game bit 4254. Zone-2 bits have "
-                 "no names in the game data -- what one means is who sets it and who reads it, "
-                 "listed below. The named story / event flags (emdeb) are zone 1, a different "
-                 "range: their numbers never match an object's flag.", wrap=800).pack(
+    ui.hint(win, "Object flags (f13), warp flags and the script's scene-flag commands share one "
+                 "range (flag 158 = game bit 4254). These flags have no names in the game data: "
+                 "what one means is who sets and reads it, listed below. Story / event flags are a "
+                 "separate range; their numbers never match an object's flag.", wrap=800).pack(
         anchor="w", padx=8)
     pw = ttk.Panedwindow(win, orient="vertical")
     pw.pack(fill="both", expand=True, padx=6, pady=4)

@@ -10822,7 +10822,7 @@ def test_map_editor_clipboard():
         dst.paste_object(None)
         told = [m for _t, m in box["msgs"][n_msgs:]]
         ok.append(("search spot refused", d1.si is None
-                   and any("never rolls search items on MAP_FIELD_01" in m for m in told)))
+                   and any("no search items on MAP_FIELD_01" in m for m in told)))
         # ... and into a map with an SI file: one more spot, drops copied
         sd = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_00.rf4m"), "MAP_CITY_00")
         n_si = len(sd.doc.si.spots)
@@ -11427,9 +11427,9 @@ def test_scene_flag_reference():
         form = ed.inspector.forms["mobj"]
         rec = list(ed.doc.map.mobj_records()[0])
         note = form._note(rec[0] & 0xFFFF, 13, 4, "flag", rec[13], rec)
-        _check("the Inspector spells the flag out: scene flag N = game bit 4096 + N, what it does "
-               "for this object, and who else uses it",
-               "scene flag 158 = game bit 4254" in note and "set when the room is cleared" in note
+        _check("the Inspector names the scene flag, what it does for this object, and who else "
+               "uses it",
+               "scene flag 158" in note and "set when the room is cleared" in note
                and "#1 seal door" in note and "#2 treasure chest" in note, note)
         win = ed.open_flag_reference and __import__("map_editor.dialogs", fromlist=["x"]).scene_flag_reference(ed, 158)
         for _ in range(20):
@@ -11481,12 +11481,12 @@ def test_map_editor_hardcoded_warps():
         ed.objects._delete_key()
         told = box["msgs"][before:]
         _check("Delete on it explains that it is built into the game and changes nothing",
-               told and "Built into the game" in told[0][0] and "RF4S.exe" in told[0][1]
+               told and "Built into the game" in told[0][0] and "cannot be moved" in told[0][1]
                and len(ed.doc.map.mobj_records()) == n_mobj
                and len(ed.doc.map.mapj_records()) == n_mapj, told)
         tip = _render.runtime_spawns(ed.doc)[0][2]
         _check("the hover text says it is built into the game, when it appears and what to do "
-               "instead", "Built into the game (RF4S.exe)" in tip and "Magic merchant" in tip
+               "instead", "Built into the game" in tip and "Magic merchant" in tip
                and "paint walls" in tip, tip)
         # the big built-in zones do not pop up by themselves: Shift shows them, the status line
         # says so, and the View tab's option brings the automatic popup back; objects keep theirs
@@ -12030,7 +12030,7 @@ def test_map_editor_sidecar_files():
         c5 = me.MapEditorPanel(tk.Frame(root), _rf4m.Rf4mMap.load(B / "MAP_CITY_05.rf4m"), "MAP_CITY_05")
         _check("MAP_CITY_06 (never rolls search items) has no spots and refuses new ones with the "
                "reason; MAP_CITY_05 opens SI_CITY_06.bin",
-               c6.doc.si is None and why and "never rolls search items" in why and raised
+               c6.doc.si is None and why and "no search items" in why and raised
                and c5.doc.si_path is not None and c5.doc.si_path.name == "SI_CITY_06.bin", why)
         sp0 = c5.doc.si.spots[0]
         c5.doc.si.spots += [_si.SearchSpot(sp0.x, sp0.y, sp0.pool) for _ in range(260)]

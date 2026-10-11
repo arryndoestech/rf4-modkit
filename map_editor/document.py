@@ -222,12 +222,10 @@ class MapDocument:
             return None
         from rf4s_modkit import areagroup
         if areagroup.base_map_id(self.base) is None:
-            return (f"{self.base or 'This map'} is not one of the game's map files, so the game "
-                    f"never loads search items for it.")
+            return f"{self.base or 'This map'} is not one of the game's maps, so it has no search items."
         if data.si_name_for_map(self.base) is None:
-            return (f"The game never rolls search items on {self.base}: the game's search-item "
-                    f"table has no file for this map, and one cannot be added without patching "
-                    f"the game. Only maps that already have an SI file can get search spots.")
+            return (f"The game has no search items on {self.base}, and that cannot be changed. Only "
+                    f"maps with a search-item file can get search spots.")
         return None
 
     def ensure_si(self):

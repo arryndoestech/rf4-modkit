@@ -58,7 +58,7 @@ class ObjectsTab(ttk.Frame):
         self.tree.bind("<Button-3>", self._menu)
         self._open = {"mobj": True, "warp": True, "runtime": True, "si": True}
         self._syncing = False
-        hint(self, "Double-click opens the Inspector; Del or right-click > Delete removes the "
+        hint(self, "Double-click opens the Inspect tab; Del or right-click > Delete removes the "
                    "selected object (Ctrl+Z undoes it) -- also objects the map view does not show. "
                    "Script spawns appear once the 'script spawns' layer is on (View tab); clicking one "
                    "opens its script line.").pack(anchor="w", padx=4, pady=4)
@@ -175,7 +175,7 @@ class ObjectsTab(ttk.Frame):
         m = tk.Menu(self, tearoff=False)
         m.add_command(label="Show on map", state="normal" if key else "disabled",
                       command=lambda: self.ed.select(key, center=True))
-        m.add_command(label="Open in Inspector", state="normal" if key else "disabled",
+        m.add_command(label="Open in Inspect tab", state="normal" if key else "disabled",
                       command=lambda: (self.ed.select(key, center=True), self.ed.show_tab("Inspect")))
         m.add_separator()
         m.add_command(label="Delete", command=lambda: (self.delete_row(iid)
@@ -242,7 +242,7 @@ class MapTab(ui.ScrollFrame):
                           state="readonly", width=22)
         sc.grid(row=1, column=1, sticky="w", pady=1)
         sc.bind("<<ComboboxSelected>>", lambda _e: self._commit_mgrp_controls())
-        ui.Tip(sc, "MGRP bits 0-3. 'Always …' plays that season's ambience and music whatever the "
+        ui.Tip(sc, "'Always …' plays that season's ambience and music whatever the "
                    "calendar says (the lowest bit wins if several are set). A seasonal copy of "
                    "a map (_SUMMER …) is loaded by the calendar either way.")
         self.weather = tk.BooleanVar()
@@ -250,8 +250,8 @@ class MapTab(ui.ScrollFrame):
                              command=self._commit_mgrp_controls)
         wc.grid(row=2, column=1, sticky="w")
         ttk.Label(p, text="Weather").grid(row=2, column=0, sticky="w")
-        ui.Tip(wc, "MGRP bit 4 (set = no weather): unticked, the map shows no rain or snow and "
-                   "the sound counts it as indoors -- dungeons and rooms.")
+        ui.Tip(wc, "Unticked: no rain or snow, and the sound counts the map as indoors (dungeons "
+                   "and rooms).")
         ttk.Label(p, text="Area").grid(row=3, column=0, sticky="w")
         self.group = tk.StringVar()
         self.group_choices = ["(none) -- zone 0"] + [
@@ -259,9 +259,8 @@ class MapTab(ui.ScrollFrame):
         gc = ttk.Combobox(p, textvariable=self.group, values=self.group_choices, state="readonly", width=34)
         gc.grid(row=3, column=1, sticky="w", pady=1)
         gc.bind("<<ComboboxSelected>>", lambda _e: self._commit_mgrp_controls())
-        ui.Tip(gc, "MGRP bits 5-25, the area group: the lowest set bit is the zone, which picks "
-                   "the music, the crate loot, the minimap group and the monster-gate table the "
-                   "game loads (see the lines below).")
+        ui.Tip(gc, "The area group: it picks the music, the crate loot, the minimap group and the "
+                   "monster-gate table (see the lines below).")
         ttk.Label(p, text="MGRP (raw)").grid(row=4, column=0, sticky="w")
         self.mgrp = tk.StringVar()
         e = ttk.Entry(p, textvariable=self.mgrp, width=12, state="readonly")   # (set it above)
@@ -291,8 +290,7 @@ class MapTab(ui.ScrollFrame):
             sw.grid(row=i, column=2, padx=4, pady=1)
             if slot == "night":
                 ui.Tip(sw, "With 'default' ticked the game uses 148,214,247 at night, or "
-                           "181,214,214 on maps the game's map table marks for it (bit 0x10 of "
-                           "the map's entry: indoor rooms, barns, caves and most dungeons); the "
+                           "181,214,214 in indoor rooms, barns, caves and most dungeons; the "
                            "swatch shows the one this map gets.")
             en = commit_entry(t, tv, lambda i=i: self._commit_tint_text(i), width=12)
             en.grid(row=i, column=3, sticky="w")
@@ -307,9 +305,8 @@ class MapTab(ui.ScrollFrame):
         bb.grid(row=0, column=1, sticky="e")
         ttk.Button(bb, text="+", width=3, command=lambda: self._mtxn(+1)).pack(side="left")
         ttk.Button(bb, text="−", width=3, command=lambda: self._mtxn(-1)).pack(side="left", padx=2)
-        hint(g, "Display layers = the MTXN chunk count: 1 draws the ground, 2 adds the overlay set "
-                "(only where the map id has one), 0 draws no ground at all. The MTXN value itself "
-                "is never read.").grid(row=1, column=0, columnspan=2, sticky="w")
+        hint(g, "1 draws the ground, 2 adds the overlay set (only where the map has one), 0 draws "
+                "no ground at all.").grid(row=1, column=0, columnspan=2, sticky="w")
         self.grid_lbl = ttk.Label(g)
         self.grid_lbl.grid(row=2, column=0, sticky="w", pady=(6, 0))
         ttk.Button(g, text="Resize grid…", command=ed.open_resize).grid(row=2, column=1, sticky="e", pady=(6, 0))
@@ -361,6 +358,8 @@ class MapTab(ui.ScrollFrame):
 
     # ---- commits -------------------------------------------------------- #
     def _commit_msea(self):
+        if self.ed.doc is None:                # no map open yet
+            return
         v = data.leading_int(self.msea.get())
         cur = self.ed.doc.map.get_ints("MSEA")
         if v is None or (cur and cur[0] == v):
@@ -401,6 +400,8 @@ class MapTab(ui.ScrollFrame):
         """Apply the Season / Weather / Area controls, each touching only its own bits: an
         unchanged control leaves its bits exactly as stored (several season bits, the
         castle's extra group bits 22 / 23)."""
+        if self.ed.doc is None:                # no map open yet
+            return
         v = self.ed.doc.map.mgrp() or 0
         cur = areagroup.season_of(v)
         sel = self.season.get()
@@ -434,11 +435,15 @@ class MapTab(ui.ScrollFrame):
         self.ed.apply(label, "props", lambda: self.ed.doc.map.set_mlig_colors(cols))
 
     def _commit_tint_default(self, i):
+        if self.ed.doc is None:                # no map open yet
+            return
         cols = self.ed.doc.map.mlig_colors()
         cols[i] = None if self.tints[i][0].get() else self._tint_defaults()[i]
         self._set_tints(cols, f"Set {rf4m.MLIG_SLOTS[i]} tint")
 
     def _commit_tint_text(self, i):
+        if self.ed.doc is None:                # no map open yet
+            return
         s = self.tints[i][1].get().strip().replace(";", ",").replace(" ", ",")
         parts = [p for p in s.split(",") if p]
         try:
@@ -453,6 +458,8 @@ class MapTab(ui.ScrollFrame):
         self._set_tints(cols, f"Set {rf4m.MLIG_SLOTS[i]} tint")
 
     def _pick_tint(self, i):
+        if self.ed.doc is None:                # no map open yet
+            return
         cols = self.ed.doc.map.mlig_colors()
         cur = cols[i] or self._tint_defaults()[i]
         res = colorchooser.askcolor(color="#%02x%02x%02x" % cur, title=f"{rf4m.MLIG_SLOTS[i]} tint")
@@ -461,6 +468,8 @@ class MapTab(ui.ScrollFrame):
             self._set_tints(cols, f"Set {rf4m.MLIG_SLOTS[i]} tint")
 
     def _mtxn(self, delta):
+        if self.ed.doc is None:                # no map open yet
+            return
         m = self.ed.doc.map
         idxs = [i for i, c in enumerate(m.chunks) if c.tag == b"MTXN"]
         if delta > 0 and len(idxs) >= 2:
@@ -494,7 +503,7 @@ def minimap_details(doc):
     others = [] if blank else [m for m in minimap.maps_on_sheet(minimap.effective_sheet(mid),
                                                                 base_only=True) if m != mid]
     names = [map_names.map_file(m) or str(m) for m in others]
-    lines = [f"Sheet {rec['sheet']} (resource {minimap.archive_id(mid)}); drawn: {tex}"]
+    lines = [f"Picture: {tex} (sheet {rec['sheet']})"]
     if minimap.is_blank(mid):
         lines.append("The HUD shows a blank picture for this map.")
     if minimap.is_composed(mid):
@@ -851,7 +860,7 @@ class EncountersTab(ui.ScrollFrame):
                                       "wave). All the map's gates together hold at most 10 live "
                                       "monsters. Hard mode turns 4 into 3 and anything above 4 "
                                       "into 4."),
-                (6, 0, "level", "level", "Gate level (header param_a): the gate is set to this "
+                (6, 0, "level", "level", "Gate level: the gate is set to this "
                                          "level when it spawns (0 = keep its own), and its "
                                          "monsters that are 16 or more levels below the gate are "
                                          "raised to it. Each Prince 'Stronger Monsters' step "
@@ -896,7 +905,7 @@ class EncountersTab(ui.ScrollFrame):
         self.teleport_cb = tp
         ui.Tip(tp, "Ticked: every 6 s or so the gate blinks out, stays away 1 s and reappears at a "
                    "random one of its positions (it can be the same one) -- the Rune Prana "
-                   "gates. Needs 2 or more gate positions. Header flag high byte 1 (0x100).\n"
+                   "gates. Needs 2 or more gate positions.\n"
                    "Greyed out for the gliding kinds (375-382): a gate that glides breaks when it "
                    "also teleports, so pick the same gate with 1000 HP (383-390), as the game "
                    "does. Picking a gliding kind unticks it.")
@@ -911,10 +920,10 @@ class EncountersTab(ui.ScrollFrame):
                              "the alternate roster otherwise. Every shipped gate uses one block "
                              "for both, so the time of day changes nothing; this tab edits the "
                              "roster.")
-        ui.Tip(vis, "Ticked: a gate you can see and break (header flag low byte 0).\n"
+        ui.Tip(vis, "Ticked: a gate you can see and break.\n"
                     "Unticked: an invisible spawner -- the game spawns the gate hidden and "
-                    "unhittable, and its monsters just appear (low byte 1; 700 of the game's "
-                    "1224 gates are like that). A hidden gate never glides.")
+                    "unhittable, and its monsters just appear (700 of the game's 1224 gates). A "
+                    "hidden gate never glides.")
         gb = ttk.Frame(g)
         gb.pack(fill="x", pady=(4, 0))
         ttk.Button(gb, text="Add (copy)", command=self._add_gate).pack(side="left")
@@ -957,7 +966,7 @@ class EncountersTab(ui.ScrollFrame):
         ui.Tip(ren, "Scatter radius of the selected spawn point, in sub-units (8 per tile): each "
                     "monster appears at a random angle and distance below this from the point, "
                     "on a walkable tile (up to 63 random samples, then on the point itself). 0 = "
-                    "always on the point. Only the low 16 bits are read.")
+                    "always on the point.")
         r = section(b, "Roster of the selected gate")
         self.roster = ttk.Treeview(r, columns=("mon", "lv", "w"), show="headings", height=6, selectmode="browse")
         for c, t, w in (("mon", "monster", 170), ("lv", "pick wt", 52), ("w", "weights", 80)):
@@ -996,9 +1005,9 @@ class EncountersTab(ui.ScrollFrame):
         t = self.gates
         t.delete(*t.get_children())
         if doc is None or doc.gen is None:
-            self.file_lbl.config(text="The game spawns no monster gates on this map: with its "
-                                      "area group (MGRP, Map tab) it loads no encounter table "
-                                      "here -- only dungeon and field rooms have one.")
+            self.file_lbl.config(text="No monster gates on this map: its Area (Properties tab) "
+                                      "loads no gate table. Only dungeons and fields have one.")
+            self._show_gate()                  # no gate: clear the previous map's gate fields
             self.shared_file_lbl.config(text="")
             self.roster.delete(*self.roster.get_children())
             self.mpts.delete(*self.mpts.get_children())
@@ -1406,9 +1415,8 @@ class ViewTab(ui.ScrollFrame):
         cb(L, "spawns", "script spawns", 9, 0, render.SPAWN_COLOR)
         cb(L, "grid", "tile grid lines", 9, 1)
         ui.Tip(cb(L, "regions", "script areas", 10, 1, render.REGION_COLOR),
-               "The areas the map's event script watches (PlayerRegionTrigger scenes): its scene "
-               "runs while the player stands inside and the named em.bin condition holds. "
-               "Click one to open its scene.")
+               "Areas the map's script watches: a scene runs while the player stands inside and "
+               "the named condition holds. Click one to open it.")
         ui.Tip(cb(L, "stamps", "object collision", 10, 0, render.STAMP_COLOR),
                "Hatched: the tiles the placed objects (trees, rocks, stones ...) stamp into the "
                "ATTR grid when the room loads -- collision the map file does not contain. "
@@ -1425,9 +1433,8 @@ class ViewTab(ui.ScrollFrame):
                    "explanation no longer pops up whenever the mouse passes over them. Off (the "
                    "default): hold Shift over one to see it -- the status line says when the "
                    "pointer is on one. On: it pops up on hover like the objects' tooltips.")
-        hint(L, "Script spawns are placed by the map's event script (rf3.mc), not the map file: "
-                "NPCs (round markers) and map objects (square markers); the "
-                "first time they are shown the script is scanned.", wrap=300).grid(
+        hint(L, "Script spawns come from the map's script, not the map file: NPCs (round "
+                "markers) and objects (square markers).", wrap=300).grid(
             row=12, column=0, columnspan=4, sticky="w", pady=(2, 0))
         # ---- flag state ----
         S = section(b, "Show objects as in")
@@ -1574,7 +1581,7 @@ class ProblemsTab(ttk.Frame):
         self.ed = ed
         top = ttk.Frame(self)
         top.pack(fill="x", padx=4, pady=4)
-        ttk.Button(top, text="Check now", command=self.run).pack(side="left")
+        ttk.Button(top, text="Validate", command=self.run).pack(side="left")
         self.summary = ttk.Label(top, font=ui.HINT_FONT)
         self.summary.pack(side="left", padx=6)
         self.tree = ttk.Treeview(self, columns=("msg",), show="tree", selectmode="browse", height=12)
@@ -1620,6 +1627,9 @@ class ProblemsTab(ttk.Frame):
         for kind, rx in _REF:
             m = rx.search(msg)
             if m and where in ("map", "search items", "monster gates"):
-                self.ed.select((kind, int(m.group(1), 16 if kind in ("gpos", "mpos") else 10)),
-                               center=True)
+                key = (kind, int(m.group(1), 16 if kind in ("gpos", "mpos") else 10))
+                if self.ed.doc is None or not self.ed._key_valid(key):
+                    self.ed.status("That object is gone -- press Validate again")
+                    return
+                self.ed.select(key, center=True)
                 return

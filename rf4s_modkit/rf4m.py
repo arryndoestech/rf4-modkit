@@ -1131,17 +1131,14 @@ class Rf4mMap:
         n = Counter(c.tag for c in self.chunks)
         return [
             ("mobj", "Objects", n[b"MOBJ"], ENGINE_MAX_CHUNKS[b"MOBJ"], True,
-             "Placed objects (MOBJ records), map parameter records included. Map_LoadById "
-             "keeps one pointer per object in a fixed array of 40 and never checks the count: "
-             "a 41st overwrites the next array."),
+             "Placed objects, map parameters included. The game holds 40; a 41st corrupts memory."),
             ("mapj", "Warps", n[b"MAPJ"], ENGINE_MAX_CHUNKS[b"MAPJ"], True,
-             "Warp zones (MAPJ records): Map_LoadById's warp array holds 10, unchecked."),
+             "Warp zones. The game holds 10; an 11th corrupts memory."),
             ("forage", "Forage", sum(1 for t in tids if t <= 8), mp.FORAGE_MAX_SPAWNS, True,
-             "Forage spawners (types 0..8: ore rocks, wood, stones, herbs, crops): "
-             "Map_HandleSpecialTriggerEntity spawns at most 32 per map."),
+             "Forage spawners (ore rocks, wood, stones, herbs, crops). The game spawns at most 32 "
+             "per map."),
             ("doors", "Doors / walls", sum(1 for t in tids if 82 <= t <= 195), mp.DOOR_SLOTS, False,
-             "Doors, roads and walls (types 82..195) share a 4-slot collision registry: a 5th "
-             "one copies door #0's collision instead of having its own."),
+             "Doors, roads and walls share 4 collision slots: a 5th copies door #0's collision."),
         ]
 
     def _entity_findings(self, W: int, H: int, has_grid: bool):

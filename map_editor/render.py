@@ -124,13 +124,13 @@ class GroundLoader:
             self.cache.popitem(last=False)
 
     def get_blocking(self, base, sel, w, h, scenery=False):
-        key = (base, sel, scenery)
+        key = (base, sel, scenery, w, h)          # the stitch is laid out for the grid size
         if key not in self.cache:
             self.put(key, self.decode(self.reader, base, sel, w, h, scenery))
         return self.get(key)
 
     def request(self, base, sel, w, h, scenery=False):
-        key = (base, sel, scenery)
+        key = (base, sel, scenery, w, h)
         if not (HAS_PIL and self.reader) or (sel == "off" and not scenery) or key in self.cache:
             return
         if self._worker is None:
@@ -146,7 +146,7 @@ class GroundLoader:
         while True:
             reader, base, sel, w, h, scenery, gen = self._req.get()
             img = None if gen != self.generation else self.decode(reader, base, sel, w, h, scenery)
-            self._res.put(((base, sel, scenery), img, gen))
+            self._res.put(((base, sel, scenery, w, h), img, gen))
 
     def _poll(self):
         ready = []
@@ -636,10 +636,9 @@ RUNTIME_WALL_COLOR = "#ff7050"
 
 
 # what the editor tells a modder about the game's own warps / walls (tooltip, Objects tab)
-HARDCODED_NOTE = ("Built into the game (RF4S.exe), not stored in this map: its position, size, "
-                  "destination and the condition it appears on are fixed in the game's code, so "
-                  "the editor shows it but cannot move, resize or remove it (that would need a "
-                  "patched game).")
+HARDCODED_NOTE = ("Built into the game, not stored in this map: its position, size, destination "
+                  "and when it appears are fixed, so it is shown but cannot be moved, resized or "
+                  "removed.")
 
 
 def runtime_spawns(doc):

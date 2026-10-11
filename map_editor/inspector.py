@@ -139,9 +139,8 @@ class EntityForm(Form):
         ttk.Button(b, text="Delete", width=7, command=lambda: ed.delete(self.key)).pack(side="left")
         fb = ttk.Button(b, text="Flags…", width=7, command=self._flags)
         fb.pack(side="right")
-        ui.Tip(fb, "The scene flags (zone 2) -- the numbering of this object's flag: every flag "
-                   "with everything that sets, clears or reads it on every map and in the event "
-                   "scripts, starting at this object's flag.")
+        ui.Tip(fb, "Every scene flag and what sets, clears or reads it, on every map and in the "
+                   "scripts. Opens at this object's flag.")
 
     def _flags(self):
         rec = self._rec() if self.key is not None else None
@@ -343,8 +342,7 @@ class EntityForm(Form):
         val = rec[fi]
         if fi == 13 and "flag" in meaning.lower() and val not in (0, -1):
             from rf4s_modkit import flagusers
-            parts.append(f"scene flag {val} = game bit {flagusers.ZONE2_BASE + val} (zone 2 -- not "
-                         f"in the story-flag list)")
+            parts.append(f"scene flag {val} (not a story flag)")
             role = flagusers.object_role(rec)
             if role:
                 parts.append(f"for this object: {role}")
@@ -491,11 +489,9 @@ class WarpForm(Form):
         self.vflag = tk.StringVar()
         self.flag_e = commit_entry(f, self.vflag, self._commit, width=6)
         self.flag_e.pack(side="left", padx=2)
-        flag_tip = ("Scene flag 0..2559 (GameFlags zone 2, absolute bit 4096 + id) that DISABLES "
-                    "the warp while it is set. The castle exits use 632, for example. Two "
-                    "exceptions: in some global game states (flags 0x401000) the flag is not "
-                    "checked at all, and in state 0x1000 the warp instead stays off while any "
-                    "monster the game tracks is alive.")
+        flag_tip = ("Scene flag 0..2559 that turns the warp OFF while it is set (the castle exits "
+                    "use 632). In some game states the flag is ignored, and in one the warp stays "
+                    "off while any tracked monster is alive.")
         ui.Tip(self.flag_e, flag_tip)
         self.flag_lbl = ttk.Label(self, font=ui.HINT_FONT, foreground=ui.MUTED, wraplength=300)
         self.flag_lbl.pack(anchor="w")
@@ -543,8 +539,8 @@ class WarpForm(Form):
         if rec[0] == -1:
             self.flag_lbl.config(text="")
         else:
-            txt = (f"scene flag {rec[0]} = game bit {4096 + rec[0]}; the warp is off while it is "
-                   f"set\n{emflags.zone2_text(rec[0])}")
+            txt = (f"scene flag {rec[0]}: the warp is off while it is set\n"
+                   f"{emflags.zone2_text(rec[0])}")
             if 0 <= rec[0] < 2560:
                 txt += "\n" + self.ed.flag_uses_text(rec[0], skip=("warp", self.key[1]))
             self.flag_lbl.config(text=txt)
@@ -628,13 +624,10 @@ class SpotForm(Form):
         ttk.Button(b2, text="Center", width=7, command=lambda: ed.center_on(self.key)).pack(side="left")
         ttk.Button(b2, text="Duplicate", width=9, command=lambda: ed.duplicate(self.key)).pack(side="left", padx=2)
         ttk.Button(b2, text="Delete spot", command=lambda: ed.delete(self.key)).pack(side="left")
-        hint(self, "Daily ground pickups: at most two items per map per day (sleeping rerolls "
-                   "them). They only appear once the story has reached step 39, and only on "
-                   "about half of your visits: the game rolls a coin on each map entry, and a "
-                   "lost roll means nothing that visit and at most one item on a later visit "
-                   "that day -- so test by re-entering a few times. item = entry & 0x7FF, "
-                   "weight = one byte (keep a pool's total <= 255). Stock files share one pool "
-                   "between spots; editing a spot here gives it its own copy.").pack(anchor="w", pady=(4, 0))
+        hint(self, "Daily ground pickups: at most two per map per day (sleeping rerolls them), "
+                   "from story step 39 on, and only on about half of your visits -- re-enter a "
+                   "few times to test. Keep a drop list's total weight at 255 or less. Editing a "
+                   "spot's drops gives it its own list.").pack(anchor="w", pady=(4, 0))
 
     def _spot(self):
         si = self.doc.si
@@ -704,8 +697,7 @@ class SpotForm(Form):
         from rf4s_modkit import search_items
 
         def do():
-            self.doc.si.spots[self.key[1]].pool.entries.append(
-                search_items.DropEntry(item_id=v[0], weight=v[1] or 1))
+            self._own_pool().entries.append(search_items.DropEntry(item_id=v[0], weight=v[1] or 1))
         self.ed.apply(f"Add item {v[0]} to spot #{self.key[1]}", "si", do)
 
     def _replace(self):
@@ -715,7 +707,7 @@ class SpotForm(Form):
             return
 
         def do():
-            e = self.doc.si.spots[self.key[1]].pool.entries[int(s[0])]
+            e = self._own_pool().entries[int(s[0])]
             e.item_id, e.weight = v
         self.ed.apply(f"Edit spot #{self.key[1]} drop", "si", do)
 
@@ -725,8 +717,18 @@ class SpotForm(Form):
             return
 
         def do():
-            del self.doc.si.spots[self.key[1]].pool.entries[int(s[0])]
+            del self._own_pool().entries[int(s[0])]
         self.ed.apply(f"Remove drop from spot #{self.key[1]}", "si", do)
+
+    def _own_pool(self):
+        """The selected spot's drop pool, first copied when other spots share it (the game's
+        files give every spot of a map one pool): an edit here changes this spot only."""
+        from rf4s_modkit import search_items
+        sp = self.doc.si.spots[self.key[1]]
+        if any(o is not sp and o.pool is sp.pool for o in self.doc.si.spots):
+            sp.pool = search_items.DropPool(entries=[search_items.DropEntry(e.item_id, e.weight)
+                                                     for e in sp.pool.entries])
+        return sp.pool
 
 
 # --------------------------------------------------------------------------- #
@@ -928,7 +930,7 @@ class PaintOptions(ttk.Frame):
 
     def fill_values(self, doc, colors):
         """The value table for `doc` (rebuilt only when the grid changed)."""
-        key = (id(doc), doc.attr_version if doc else None)
+        key = (doc, doc.attr_version if doc else None)
         if key == self._values_for or doc is None or doc.grid is None:
             return
         self._values_for = key

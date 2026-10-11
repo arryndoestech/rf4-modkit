@@ -76,8 +76,7 @@ def walk_readout(value):
 
 def walk_help():
     """The mask table as text, for the hover help."""
-    out = ["A tile stops an actor when  cell & ~mask & 0x1018F  is nonzero",
-           "(Actor_TryMoveWithTileSlide RF4S.exe+0x1937B0):"]
+    out = ["A tile stops an actor when  cell & ~mask & 0x1018F  is nonzero:"]
     for who, m, _src in ACTOR_MASKS:
         stop = [f"0x{b:X}" for b in (0x2, 0x4, 0x8, 0x80, 0x100, 0x10000) if b & ~m & MOVE_BITS]
         out.append("  %-24s mask 0x%-6X blocked by %s" % (who, m, ", ".join(stop)))
@@ -135,7 +134,7 @@ def attr_notes(v):
     NAMED = 0x786FF7FF
     rest = v & ~NAMED
     if rest:
-        n.append("render:0x%X" % rest)
+        n.append("unk:0x%X" % rest)
     return ",".join(n) if n else "empty (walkable)"
 
 
@@ -206,7 +205,7 @@ def _field_help(title, choices, note):
 
 def surface_help():
     """Hover text for the surface dropdown itself."""
-    return _field_help("The surface field (loader group D).", SURFACE_CHOICES,
+    return _field_help("Surface (one per tile).", SURFACE_CHOICES,
                        "The loader copies a cell as stored, but no shipped tile carries more\n"
                        "than ONE of these: verified over every shipped map, 3,280,534 cells,\n"
                        "not one with two of them set. That is why this is a dropdown.")
@@ -214,16 +213,14 @@ def surface_help():
 
 def stairs_help():
     """Hover text for the stairs dropdown."""
-    return _field_help("The stair field (loader group B, 0x1C0E00).", STAIR_CHOICES,
-                       "The game replaces the whole group when it writes one of these\n"
-                       "(Map_SetAttrTileFlags), and no shipped tile carries two of them,\n"
-                       "so a tile has one stair direction at most.")
+    return _field_help("Stairs (one per tile).", STAIR_CHOICES,
+                       "No shipped tile carries two of these, so a tile has one at most.")
 
 
-_SURFACE_NOTE = ("Surface field (loader group D): a tile may carry only ONE of\n"
+_SURFACE_NOTE = ("A tile may carry only ONE of\n"
                  "flower / grass / fishable water / 0x8000 / snow / gangway /\n"
                  "mansion-floor. No shipped tile sets two.")
-_STAIR_NOTE = ("Stair field (loader group B): a tile may carry only ONE of the three\n"
+_STAIR_NOTE = ("A tile may carry only ONE of the three\n"
                "stair directions and 0x80000. No shipped tile sets two.")
 _WALK_NOTE = "\n\n" + walk_help()
 
@@ -240,16 +237,16 @@ ATTR_BIT_HELP = {
          "actors pass, though a thrown item still reacts to it.",
     0x8: "Deep water. Blocks the player too (unless water boots are equipped),\n"
          "party members, monsters and NPCs; triggers the splash and counts as\n"
-         "water for fishing (Map_IsNonWaterTileAt tests 0x4008).",
+         "water for fishing (like 0x4000).",
     0x10: "Splash surface.\n"
           "Never blocks walking (it is outside the 0x1018F movement group). It is\n"
           "read only by the projectile masks (0x18: a thrown item splashes) and by\n"
           "the tile-ahead mask 0x14018. No shipped map authors it, and no placed\n"
           "object's collision template contains it.",
     0x20: "Farm soil: tillable, and the gate for tile objects and entity spawns.\n"
-          "Tilling also needs the map to have a farm field (Tool_TillGroundAnd-\n"
-          "SpawnSoilTile88 RF4S.exe+0x189F80 fails on a map without one, whatever\n"
-          "the tile says). Removing 0x20 from a farm tile makes the game drop the\n"
+          "Tilling also needs the map to have a farm field (it fails on a map\n"
+          "without one, whatever the tile says). Removing 0x20 from a farm tile\n"
+          "makes the game drop the\n"
           "crop on it when the farm display is rebuilt.",
     0x40: "Flower ground.\n"
           "Engine reads it: the flower-planting tick clears and re-sets it on a\n"
@@ -266,7 +263,7 @@ ATTR_BIT_HELP = {
     0x2000: "Grass ground.\n"
             "NOT read by any engine code found.\n" + _SURFACE_NOTE,
     0x4000: "Fishable water.\n"
-            "Map_IsNonWaterTileAt (RF4S.exe+0x1839C0) counts it as water with 0x8,\n"
+            "The game counts it as water, like 0x8,\n"
             "and a tile ahead with it (mask 0x14018) lets the player's charged tool\n"
             "action go ahead (the fishing-rod cast). It never blocks walking.\n" + _SURFACE_NOTE,
     0x10000: "Stops only the knock-back slide.\n"
@@ -288,14 +285,13 @@ ATTR_BIT_HELP = {
               "The stone templates stamp it together with 0x4.",
     0x8000000: "Object footprint marker.\n"
                "Placed objects stamp it into the grid when the room loads: the\n"
-               "collision templates of trees, rocks, stumps and stones (g_mapEntity-\n"
-               "Templates RF4S.exe+0x4D5030, e.g. 0x8000002 on trees) carry it, and\n"
-               "Map_SetupBossRoomLayoutPrep writes it onto the Sharance Maze filler.\n"
+               "collision of trees, rocks, stumps and stones carries it (0x8000002 on\n"
+               "trees), and the Sharance Maze writes it onto its filler tiles.\n"
                "Not normally painted -- the View tab's 'object collision' layer shows\n"
                "where the objects put it. No reader of the bit itself was found.",
     0x20000000: "Gangway.\n"
-                "The airship gangway (object 294) stamps 0x20000001 through\n"
-                "Map_SetAttrTileFlags when the room loads. Shipped maps also carry it\n"
+                "The airship gangway (object 294) stamps 0x20000001 when the\n"
+                "room loads. Shipped maps also carry it\n"
                 "as one connected walkable region on 17 maps (Melody Street, the\n"
                 "Obsidian Mansion Theatre, nine FIELD maps, ROOM_25/26). No reader of\n"
                 "the bit was found.\n" + _SURFACE_NOTE,

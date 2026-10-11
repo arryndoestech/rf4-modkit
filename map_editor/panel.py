@@ -163,14 +163,11 @@ class MapEditorPanel:
         menu.add_command(label="Export map view as PNG…", command=self.export_png)
         mb["menu"] = menu
         mb.pack(side="left")
-        ui.Tip(mb, "Save (Ctrl+S) writes this map's changed files -- the map, its search spots, "
-                   "its monster gates -- straight over the ones the game loads from your game folder, "
-                   "without asking (with backups on -- Options → Advanced in the main window -- "
-                   "the originals are copied to ModdingBackup first). 'Save … as…' writes a copy "
-                   "elsewhere instead.\n"
-                   "Farm, field and Selphia maps come in four seasons (…_SUMMER, _AUTUMN, "
-                   "_WINTER): the game loads the one for the current season. 'Copy changes to "
-                   "the other seasons…' carries this map's object / warp / ATTR changes over.")
+        ui.Tip(mb, "Save (Ctrl+S) writes the changed files (map, search spots, monster gates) over "
+                   "the ones the game loads. With backups on (Options → Advanced), the originals are "
+                   "copied to the backup folder first. 'Save … as…' writes a copy elsewhere.\n"
+                   "Farm, field and Selphia maps have one file per season; 'Copy changes to the "
+                   "other seasons…' copies object, warp and ATTR changes to them.")
         self.undo_btn = ttk.Button(bar, text="↶", width=3, command=self.undo)
         self.undo_btn.pack(side="left", padx=(6, 0))
         ui.Tip(self.undo_btn, lambda: self._undo_tip("undo"))
@@ -569,6 +566,8 @@ class MapEditorPanel:
             old.deactivate()
             if old.name in tools.PAINT_TOOLS and old.name != "pick":
                 self.prev_paint_tool = old.name
+            if name == "pick" and old.name != "pick":     # Pick returns to the tool it came from
+                self.pick_return_tool = old.name
         self._tool_name = name
         self.tool_var.set(name)
         t = self.tools[name]
@@ -668,6 +667,8 @@ class MapEditorPanel:
             self.status("Cancelled")
         else:
             self.tool.cancel()
+            if self.sel is None and self.tool.name in ("add", "warp"):
+                self.set_tool("select")        # Esc: back to Select (the palette says so)
             self.select(None)
 
     def context_menu(self, e, key):
@@ -1019,8 +1020,8 @@ class MapEditorPanel:
         cap = rf4m.ENGINE_MAX_CHUNKS[tag]
         n = sum(1 for ch in self.doc.map.chunks if ch.tag == tag)
         if n >= cap:
-            return (f"this map already has {n} {tag.decode()} chunks -- the game holds {cap}; "
-                    f"delete one first")
+            return (f"this map already has {n} {'objects' if kind == 'mobj' else 'warps'} -- the game "
+                    f"holds {cap}; delete one first")
         return None
 
     def copied_record(self, r, dx=0, dy=0, src=None):
@@ -1658,7 +1659,13 @@ class MapEditorPanel:
         it is done; '' until then."""
         from rf4s_modkit import flagusers
         if data.flag_index() is None:
-            data.request_flag_index(self.frame, lambda _i: self.inspector.show_selection(self.sel))
+            if not getattr(self, "_flag_wait", False):      # once, not on every refresh / drag step
+                self._flag_wait = True
+
+                def ready(_i):
+                    self._flag_wait = False
+                    self.inspector.show_selection(self.sel)
+                data.request_flag_index(self.frame, ready)
             return "(looking up who else uses this flag ...)"
         d = self.doc
         live = (d.base, d.map.mobj_records(), d.map.mapj_records()) if d and d.base else None
@@ -1822,9 +1829,11 @@ class MapEditorPanel:
 
     def stats_line(self):
         d = self.doc
+        if d is None:
+            return ""
         W, H = (d.grid[0], d.grid[1]) if d.grid else (0, 0)
         params = sum(1 for o in d.objs if o["category"] == "mapparam")
-        return (f"{W}×{H} grid · {len(d.objs)} MOBJ records ({params} map parameters) · "
+        return (f"{W}×{H} grid · {len(d.objs)} objects ({params} map parameters) · "
                 f"{len(d.map.mapj_records())} warps · {len(d.map.find(b'MTXN'))} display layer(s) · "
                 f"{len(d.si.spots) if d.si else 0} search spots · "
                 f"{sum(len(p) for p in d.gen.patterns) if d.gen else 0} gates")

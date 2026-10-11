@@ -154,7 +154,10 @@ class MapView(ttk.Frame):
 
     # ---- ground ------------------------------------------------------------ #
     def ground_key(self):
-        return (self.doc.base, self.ground_sel, self.scenery) if self.doc is not None else None
+        d = self.doc
+        if d is None:
+            return None
+        return (d.base, self.ground_sel, self.scenery, *(d.grid[:2] if d.grid else (0, 0)))
 
     def request_ground(self):
         d = self.doc
@@ -668,7 +671,10 @@ class MapView(ttk.Frame):
     def _alt(self, down):
         """Alt pressed / released with the pointer over the map: show / drop the ATTR tip."""
         p = self._pointer_e
-        if p is None or self.doc is None or not self.canvas.winfo_ismapped():
+        try:
+            if p is None or self.doc is None or not self.canvas.winfo_ismapped():
+                return None
+        except tk.TclError:                    # this view's tab was closed: its binding stays
             return None
         self._tip_at(p, self.ALT_MASK if down else 0)
         return "break"
@@ -760,17 +766,17 @@ class MapView(ttk.Frame):
         regions = getattr(self.st, "regions", None) or []
         if kind == "region" and i < len(regions):
             rg = regions[i]
-            when = (f"while em.bin condition {rg['cond_name']} holds" if rg["cond"] >= 0
+            when = (f"while {rg['cond_name']} holds" if rg["cond"] >= 0
                     else "every time (no condition)")
             return (f"script area: tiles ({rg['x0'] >> 3}, {rg['y0'] >> 3})-({rg['x1'] >> 3}, "
-                    f"{rg['y1'] >> 3})\nthe event script's scene @0x{rg['event_id']:04x} runs when "
-                    f"the player stands inside, {when} -- click to open it")
+                    f"{rg['y1'] >> 3})\na script scene runs while the player stands inside, "
+                    f"{when} -- click to open it")
         if kind == "spawn" and self.st.spawns and i < len(self.st.spawns):
             sp = self.st.spawns[i]
             more = (f"\nspawned by {sp['copies']} lines of the script (alternatives); click opens "
                     f"the first") if sp.get("copies", 1) > 1 else ""
             if sp.get("kind") == "entity":
-                return (f"{sp['name']} (MOBJ type {sp['type_id'] & 0xFFFF})  tile ({sp['x'] >> 3}, "
+                return (f"{sp['name']} (type {sp['type_id'] & 0xFFFF})  tile ({sp['x'] >> 3}, "
                         f"{sp['y'] >> 3})\nplaced by the event script (SpawnMapEntity) once its "
                         f"scene runs -- click to open the line" + more)
             return (f"{sp['name']} (char {sp['char_id']}, instance {sp['instance']})\n"

@@ -504,7 +504,7 @@ class PickTool(Tool):
         t = self.view.tile_at(e)
         if t is not None:
             self.ed.set_paint_value(self.doc.cell(*t))
-            self.ed.set_tool(self.ed.prev_paint_tool or "paint")
+            self.ed.set_tool(getattr(self.ed, "pick_return_tool", None) or self.ed.prev_paint_tool or "paint")
 
 
 # --------------------------------------------------------------------------- #
@@ -535,7 +535,7 @@ class AddTool(Tool):
         if what == "entity":
             tid = ed.add_type
             if tid is None:
-                ed.status("Pick an entity type first (Inspector > Add).")
+                ed.status("Pick an entity type first (Inspect tab).")
                 return
             why = ed.room_for("mobj")
             if why:
@@ -605,6 +605,10 @@ class WarpTool(Tool):
         b = self.view.tile_at(e, clamp=True)
         a, self.a = self.a, None
         self.view.preview_rect(None)
+        why = self.ed.room_for("warp")
+        if why:
+            self.ed.status(f"Can't add: {why}")
+            return
         x0, y0 = min(a[0], b[0]), min(a[1], b[1])
         w, h = abs(a[0] - b[0]) + 1, abs(a[1] - b[1]) + 1
         # a new warp leads back into this map until a destination is picked: the BASE id, since
@@ -618,7 +622,7 @@ class WarpTool(Tool):
             j = self.doc.map.add_mapj_record([-1, x0 * 8, y0 * 8, w * 8, h * 8, here,
                                               ax * 8 + 4, ay * 8 + 4, 0])
         self.ed.select(("warp", j))
-        self.ed.status(f"Added warp #{j} ({w}x{h} tiles) -- pick its destination in the Inspector")
+        self.ed.status(f"Added warp #{j} ({w}x{h} tiles) -- pick its destination in the Inspect tab")
 
 
 TOOLS = (SelectTool, PaintTool, FillTool, RectTool, PickTool, AddTool, WarpTool)
