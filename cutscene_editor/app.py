@@ -843,7 +843,8 @@ class CutsceneExplorer:
     def _warn_freezes(self, what):
         """After an edit: warn about scene patterns that freeze or break the game: a menu
         followed by its last option's line (script.choice_line_freezes) and SetDialogueSuppressed
-        misuse (script.dialogue_suppress_problems)."""
+        misuse (script.dialogue_suppress_problems), and a masked menu whose options can all be
+        hidden (script.choice_empty_mask_problems)."""
         if self.scene is None:
             return
         stmts = self.scene.stmts
@@ -851,6 +852,7 @@ class CutsceneExplorer:
         msgs = ["Menu at 0x%04x: %s" % (pc, script.freeze_text(line, dp))
                 for pc, dp, line in script.choice_line_freezes(stmts)]
         msgs += ["0x%04x: %s" % (pc, m) for pc, _lvl, m in script.dialogue_suppress_problems(self.bank.data, stmts)]
+        msgs += ["Menu at 0x%04x: %s" % (pc, m) for pc, _lvl, m in script.choice_empty_mask_problems(self.bank.data, stmts)]
         if msgs:
             messagebox.showwarning("Check this scene", "%s was applied, but:\n\n%s" % (
                 what, "\n\n".join(msgs)), parent=self.frame)

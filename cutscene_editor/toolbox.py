@@ -1614,6 +1614,7 @@ class InstructionPicker:
     #           answer stays readable in reg0 (the shipped menus' usual form, 350 of them).
     CHOICE_NEXT = "<next>"
     CHOICE_NEXT_DISP = "→ continue after the menu"
+    CHOICE_SKIP_DISP = "→ skip the menu (continue after it)"
 
     def _choice_ui(self, tg, tdef):
         opts = [(self.CHOICE_NEXT_DISP, self.CHOICE_NEXT)] + tg
@@ -1649,6 +1650,21 @@ class InstructionPicker:
         Tip(ab, "Add another option at the bottom of the menu.")
         for _ in range(2):
             self._choice_add_row(render=False)
+        gf = ttk.Frame(self.form)
+        gf.grid(row=201, column=0, columnspan=2, sticky="we", pady=(0, 4))
+        ttk.Label(gf, text="If no option would be shown:").pack(side="left", padx=(0, 6))
+        self._choice_guard = tk.StringVar(value=self.CHOICE_SKIP_DISP)
+        gopts = [(self.CHOICE_SKIP_DISP, self.CHOICE_NEXT)] + tg
+        self._choice_guard_opts = dict(gopts)
+        gc = FilterCombo(gf, [d for d, _t in gopts], on_pick=lambda _t: self._changed(), width=40,
+                         textvariable=self._choice_guard)
+        gc.pack(side="left", fill="x", expand=True)
+        Tip(gc, "When every option's condition is false, the game would show ALL the options "
+                "and send any pick to the first option's branch. The form adds a check before "
+                "the menu (BR_Z (reg0)) that goes here instead. Not added when an option is "
+                "always shown.")
+        self._choice_guard_row = gf
+        self._choice_guard.trace_add("write", lambda *_a: self._changed())
         self._choice_mode_changed(rebuild=False)
 
     def _choice_add_row(self, render=True):
@@ -1732,14 +1748,19 @@ class InstructionPicker:
                     "that sends each answer to its target. reg0 = the option's number counted "
                     "from 0 in this list, also when options above it are hidden. Make sure at least "
                     "one condition is true: with none, the game shows every option and any pick "
-                    "goes to the first option's target. Conditions can't read reg0 (the "
-                    "SetChoiceVisibleBit lines overwrite it).")
+                    "goes to the first option's target, so the form adds a check that goes "
+                    "to 'If no option would be shown' instead. Conditions can't read reg0 "
+                    "(the SetChoiceVisibleBit lines overwrite it).")
         else:
             hint = ("Every option is shown and jumps straight to its target. To hide options "
                     "or keep the answer for later, pick 'store the answer in reg0'.")
         if cancel:
             hint += " Cancel picks the last option."
         self._choice_hint.config(text=hint)
+        if reg0:
+            self._choice_guard_row.grid()
+        else:
+            self._choice_guard_row.grid_remove()
         self._choice_refresh()
         if rebuild:
             self._changed()
@@ -1763,6 +1784,13 @@ class InstructionPicker:
         if i is not None:
             var.set(str(i))
 
+    @staticmethod
+    def _always_shown(cond):
+        try:
+            return int(cond or "1", 0) != 0
+        except ValueError:
+            return False
+
     def _choice_listing(self, m):
         """The listing of the choice form: the menu alone ("jump"), or the visibility ops +
         menu + SWITCH (reg0) ("reg0"). '<next>' targets land on a label after the block."""
@@ -1780,6 +1808,11 @@ class InstructionPicker:
         if self.choice_mode.get() == "reg0":
             for k, (_line, cond, _t) in enumerate(rows):
                 out.append("SetChoiceVisibleBit(%d, %s)" % (k, cond or "1"))
+            if not any(self._always_shown(cond) for _l, cond, _t in rows):
+                # every option can be hidden: an empty mask would show them all and leave
+                # reg0 = 0 (script.choice_empty_mask_problems) -- reg0 = 'any shown' here
+                g = self._choice_guard.get().strip()
+                out.append("BR_Z (reg0) -> %s" % target(self._choice_guard_opts.get(g, g)))
             if all(t == self.CHOICE_NEXT for _l, _c, t in rows):
                 dest = target(self.CHOICE_NEXT)       # nothing to branch on: just keep reg0
                 out.append("%s %s" % (m, ", ".join("#%s -> %s" % (line, dest) for line, _c, _t in rows)))
@@ -1900,8 +1933,23 @@ class InstructionPicker:
         if not text:
             return False
         err = self.app.assemble_check(text)[2] if self.app.doc.container is not None else "no rf3.mc loaded"
-        self.check_lbl.config(text=("✗ " + err) if err else "✓ assembles", foreground="#b00" if err else "#080")
+        warn = None if err else self._lint(text)
+        if err:
+            self.check_lbl.config(text="✗ " + err, foreground="#b00")
+        elif warn:
+            self.check_lbl.config(text="⚠ assembles, but: " + warn, foreground="#b06000")
+        else:
+            self.check_lbl.config(text="✓ assembles", foreground="#080")
         return not err
+
+    def _lint(self, text):
+        """The engine-behaviour warnings for the listing (scriptasm.lint_listing): menus that
+        freeze, an empty visibility mask, … -- shown under the preview, Insert still works."""
+        try:
+            probs = scriptasm.lint_listing(text, resolver=self.app.doc.container.asm_resolver)
+        except Exception:  # noqa: BLE001 -- e.g. a jump to an existing pc outside the snippet
+            return None
+        return " ".join(m for _pc, _lvl, m in probs[:2]) or None
 
     # ---- actions ----------------------------------------------------------------- #
     def insert(self):

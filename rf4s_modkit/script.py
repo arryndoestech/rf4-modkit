@@ -2614,7 +2614,7 @@ def _code_touches_mask(by_pc, start, _depth=0):
     return False
 
 
-def _static_choice_mask(buf, stmts, idx, joins):
+def _static_choice_mask(buf, stmts, idx, joins, detail=None):
     """Visibility-mask bits the ops right before stmts[idx] leave KNOWN: {bit: 0/1}.
 
     Walks back over the straight-line run of action statements (stopping at a control op or
@@ -2623,7 +2623,12 @@ def _static_choice_mask(buf, stmts, idx, joins):
     i (shl wraps at 32) for every non-zero arg i; 611 (..ClearSceneChoiceVisibleMaskRange)
     clears bits [start, start+count) of dword 0; 612 (..ToggleSceneChoiceVisibleBit) sets or
     clears one bit of the 128 (dword index clamped to 3). A non-static arg makes the bits it
-    touches unknown. Returns (known, touched) -- touched False when no mask op was seen."""
+    touches unknown. Returns (known, touched) -- touched False when no mask op was seen.
+    `detail` (a dict) gets 'dynamic' = the bits a 612 in the run sets from a run-time value
+    and 'opaque' = True when bits came from somewhere this can't follow (a helper, a
+    non-constant bit index or 610 / 611 argument, an earlier path)."""
+    if detail is not None:
+        detail.update(dynamic=set(), opaque=False)
     run = []
     if stmts[idx].pc in joins:                        # reached from elsewhere too
         return {}, False
@@ -2646,6 +2651,8 @@ def _static_choice_mask(buf, stmts, idx, joins):
     # only hides option 1 (seen in game 2026-10-02).
     if run and not _mask_set_on_a_path(stmts, j + 1):
         known = {b: 0 for b in range(128)}
+    elif detail is not None:
+        detail["opaque"] = True
     by_pc = None
     for s in reversed(run):
         if s.mnem == "CALL":
@@ -2656,6 +2663,8 @@ def _static_choice_mask(buf, stmts, idx, joins):
             if s.code_targets and _code_touches_mask(by_pc, s.code_targets[0]):
                 touched = True
                 known = {}
+                if detail is not None:
+                    detail["opaque"] = True
             continue
         vals = [_const_arg(buf, a) for a in s.args]
         if s.op == 610:
@@ -2666,6 +2675,8 @@ def _static_choice_mask(buf, stmts, idx, joins):
                 b = i & 31
                 if v is None:
                     known.pop(b, None)
+                    if detail is not None:
+                        detail["opaque"] = True
                 elif v:
                     known[b] = 1
         elif s.op == 611:
@@ -2674,6 +2685,8 @@ def _static_choice_mask(buf, stmts, idx, joins):
             if st_ is None or cnt is None:
                 for b in range(32):
                     known.pop(b, None)
+                if detail is not None:
+                    detail["opaque"] = True
             else:
                 for k in range(min(cnt, 32)):
                     known[(st_ + k) & 31] = 0
@@ -2682,12 +2695,18 @@ def _static_choice_mask(buf, stmts, idx, joins):
             bit, val = (vals + [None, None])[:2]
             if bit is None:
                 known = {}
+                if detail is not None:
+                    detail["opaque"] = True
             else:
                 b = min(bit >> 5, 3) * 32 + (bit & 31)
                 if val is None:
                     known.pop(b, None)
+                    if detail is not None:
+                        detail["dynamic"].add(b)
                 else:
                     known[b] = 1 if val else 0
+                    if detail is not None:
+                        detail["dynamic"].discard(b)
     return known, touched
 
 
@@ -2954,6 +2973,52 @@ def choice_problems(buf, stmts, text_count=None):
                         "the game jumps to target[visible row], not target[option] (reg0 = the "
                         "original option index). Point every option at one label and "
                         "SWITCH on reg0 (the shipped idiom)"))
+    return out + choice_empty_mask_problems(buf, stmts, joins)
+
+
+EMPTY_MASK_FIX = ("Put BR_Z (reg0) -> <where to go instead> right before the menu (after the "
+                  "last SetChoiceVisibleBit reg0 is 1 when some option is shown, 0 when none "
+                  "is), or make one option always shown.")
+
+
+def choice_empty_mask_problems(buf, stmts, joins=None):
+    """Masked menus whose mask can end up EMPTY: [(pc, 'warning', message)].
+
+    An empty mask is the same as no mask (Script_VMStep's option loop queues every row while
+    the 128-bit mask at scene+244 is zero), so the hidden options all show; the pick then
+    finds no set bit in SceneEvent_FinalizeAndPickFromBitmap (RF4S.exe+0x1F49C0) and reg0 is
+    not written -- it keeps the 0 the last SetChoiceVisibleBit (RF4S.exe+0x21C5C0: reg0 =
+    'any bit set') left, so a SWITCH (reg0) after the menu takes the first option's branch
+    whatever the player picked. Flagged: every option's bit is set from a run-time condition
+    or provably cleared, and none is provably set. Menus whose bits come from a helper or an
+    earlier path, or that a branch separates from the visibility ops (the BR_Z (reg0) guard),
+    are not judged."""
+    out = []
+    if joins is None:
+        joins = set()
+        for s0 in stmts:
+            joins.update(t for t in s0.code_targets if t is not None)
+    for idx, st in enumerate(stmts):
+        if st.mnem not in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") or not st.items:
+            continue
+        detail = {}
+        known, touched = _static_choice_mask(buf, stmts, idx, joins, detail)
+        if not touched or detail["opaque"] or any(v == 1 for v in known.values()):
+            continue
+        opts = range(min(len(st.items), MAX_CHOICE_OPTIONS))
+        dyn = [b for b in opts if b in detail["dynamic"]]
+        if not all(b in detail["dynamic"] or known.get(b) == 0 for b in opts):
+            continue
+        if dyn:
+            what = ("every option's visibility depends on a condition (option%s %s), so all "
+                    "of them can be hidden at once" % ("" if len(dyn) == 1 else "s",
+                                                      ", ".join(str(b + 1) for b in dyn[:8])))
+        else:
+            what = "every option is hidden"
+        out.append((st.pc, "warning", "%s. The game then shows EVERY option and does not "
+                    "store the pick in reg0 (it stays 0), so a SWITCH (reg0) after the menu "
+                    "takes the first option's branch whatever the player picks. %s"
+                    % (what[:1].upper() + what[1:], EMPTY_MASK_FIX)))
     return out
 
 

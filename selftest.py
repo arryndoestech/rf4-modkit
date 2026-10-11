@@ -7126,23 +7126,52 @@ def test_choice_form():
         kt, kok = fill("reg0", "PROMPT_CHOICE_FORCED", [(100, "always", nxt), (101, "always", nxt)])
         _check("reg0 mode, every answer continues: no SWITCH, reg0 kept",
                kok and "SWITCH" not in kt and kt.count("SetChoiceVisibleBit") == 2, kt)
-        rt, rok = fill("reg0", "PROMPT_CHOICE", [(100, "always", ent), (101, "reg1 == 2", nxt),
+        rt, rok = fill("reg0", "PROMPT_CHOICE", [(100, "reg1 == 1", ent), (101, "reg1 == 2", nxt),
                                                  (102, "reg1 != 2", ent)])
         new = c.insert_after(bk, dlg, rt)
         sc2 = next(s for s in script.disassemble_bank(c.banks[27]) if new in s.stmts)
         ks = sorted(sc2.stmts)
-        got = [sc2.stmts[q] for q in ks[ks.index(new):ks.index(new) + 5]]
-        menu, sw = got[3], got[4]
+        got = [sc2.stmts[q] for q in ks[ks.index(new):ks.index(new) + 6]]
+        guard, menu, sw = got[3], got[4], got[5]
         stl = list(sc2.stmts.values())
         res = script.choice_results(c.banks[27].data, stl, [x.pc for x in stl].index(menu.pc))
-        _check("reg0 mode: visibility ops, menu -> one label, SWITCH (reg0) to the targets; "
-               "choice_results sees reg0 written",
-               rok and [g.op for g in got[:3]] == [612] * 3 and menu.mnem == "PROMPT_CHOICE"
+        _check("reg0 mode: visibility ops, the all-hidden guard, menu -> one label, SWITCH (reg0) "
+               "to the targets; choice_results sees reg0 written",
+               rok and [g.op for g in got[:3]] == [612] * 3 and guard.mnem == "BR_Z"
+               and guard.code_targets == [sw.pc + sw.size] and menu.mnem == "PROMPT_CHOICE"
                and set(menu.code_targets) == {sw.pc} and sw.mnem == "SWITCH"
                and sw.code_targets[1] == sw.pc + sw.size and isinstance(res, list) and len(res) == 3,
                (rt, [g.mnem for g in got]))
+        at, _aok = fill("reg0", "PROMPT_CHOICE", [(100, "always", ent), (101, "reg1 == 2", ent)])
+        _check("reg0 mode: no guard when an option is always shown", "BR_Z" not in at, at)
+        p.preview.delete("1.0", "end")
+        p.preview.insert("1.0", rt.replace("BR_Z (reg0) -> L_after_menu\n", ""))
+        p._typed()
+        p.check()
+        _check("a hand-edited listing without the guard is flagged under the preview (Insert "
+               "still allowed)", "⚠" in p.check_lbl.cget("text") and "EVERY" in p.check_lbl.cget("text"),
+               p.check_lbl.cget("text")[:120])
     finally:
         root.destroy()
+    # script.choice_empty_mask_problems on its own: flags only menus whose options can all be
+    # hidden; the shipped corpus has none
+    from rf4s_modkit import scriptasm
+    tail = "PROMPT_CHOICE #100 -> L_a, #101 -> L_a\nL_a:\nSWITCH (reg0) -> L_b, L_b\nL_b:\nRET\n"
+    flagged = {}
+    for k, head in (("dynamic", "SetChoiceVisibleBit(0, reg1 == 2)\nSetChoiceVisibleBit(1, reg1 != 2)\n"),
+                    ("zero", "SetChoiceVisibleBit(0, 0)\nSetChoiceVisibleBit(1, 0)\n"),
+                    ("always", "SetChoiceVisibleBit(0, reg1 == 2)\nSetChoiceVisibleBit(1, 1)\n"),
+                    ("guarded", "SetChoiceVisibleBit(0, reg1 == 2)\nSetChoiceVisibleBit(1, reg1 != 2)\n"
+                                "BR_Z (reg0) -> L_b\n"),
+                    ("unmasked", "")):
+        flagged[k] = any("EVERY" in m for _p, _l, m in
+                         scriptasm.lint_listing(head + tail, resolver=c.asm_resolver))
+    shipped = sum(len(script.choice_empty_mask_problems(b.data, sorted(x.stmts.values(), key=lambda t: t.pc)))
+                  for b, x in script.iter_scenes(c))
+    _check("empty-mask warning: all-conditional and all-hidden menus flagged; an always-shown "
+           "option, the BR_Z (reg0) guard, an unmasked menu and every shipped menu are not",
+           flagged == {"dynamic": True, "zero": True, "always": False, "guarded": False,
+                       "unmasked": False} and shipped == 0, (flagged, shipped))
 
 
 def test_choice_results():
