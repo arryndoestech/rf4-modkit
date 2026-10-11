@@ -1670,7 +1670,9 @@ class InstructionPicker:
         cond = tk.StringVar(value="always")
         ce = ttk.Entry(f, textvariable=cond, width=16)
         Tip(ce, "'always', or a condition such as FLG_SOMETHING, reg1 == 2 or "
-                "FLG_A && !FLG_B: the option is only shown while it is true.")
+                "FLG_A && !FLG_B: the option is only shown while it is true. Don't read "
+                "reg0 here: each SetChoiceVisibleBit sets reg0 (1 = some option is shown), "
+                "so copy it to another register first.")
         cond_parts = [cl, ce]
         rm = ttk.Button(f, text="✕", width=3)
         tgt = tk.StringVar()
@@ -1728,8 +1730,10 @@ class InstructionPicker:
         if reg0:
             hint = ("Inserts one SetChoiceVisibleBit per option, the menu, and a SWITCH on reg0 "
                     "that sends each answer to its target. reg0 = the option's number counted "
-                    "from 0 in this list, also when options above it are hidden. If no option's "
-                    "condition is true, the game shows every option and leaves reg0 unchanged.")
+                    "from 0 in this list, also when options above it are hidden. Make sure at least "
+                    "one condition is true: with none, the game shows every option and any pick "
+                    "goes to the first option's target. Conditions can't read reg0 (the "
+                    "SetChoiceVisibleBit lines overwrite it).")
         else:
             hint = ("Every option is shown and jumps straight to its target. To hide options "
                     "or keep the answer for later, pick 'store the answer in reg0'.")
