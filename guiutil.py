@@ -112,6 +112,16 @@ def install_error_logging(root=None):
 
     def tk_hook(etype, value, tb):
         value.__traceback__ = tb
+        if isinstance(value, OSError):          # a save / export / open that hit a file problem
+            try:
+                from tkinter import messagebox
+                where = getattr(value, "filename", None)
+                messagebox.showerror("Couldn't do that", "%s%s\n\nIs the file open in another "
+                                     "program, read-only, or the disk full?" % (
+                                         ("%s:\n" % where) if where else "", value.strerror or value))
+                return
+            except Exception:  # noqa: BLE001 -- no Tk left: log it as below
+                pass
         log_error("a button / event handler", value)
     if root is not None:
         root.report_callback_exception = tk_hook

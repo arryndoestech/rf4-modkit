@@ -421,6 +421,12 @@ class SourceTab(ttk.Frame):
             self.mark_error(err)
             self.set_msg("error: " + err, "err")
             return False
+        same, _l2, _e2 = app.assemble_check(self.listing(), strict=False)
+        if same is not None and region == same:
+            # only comments, labels or spelling differ: the same code, so nothing to rewrite (a
+            # rewrite would still move the scene within a bank in the game's original layout)
+            self.set_msg("no change: the listing assembles to the same code as the scene")
+            return False
         entry = app.scene.entry_pc
         box = {}
         before = bytes(app.bank.data)

@@ -1526,7 +1526,8 @@ class InstructionPicker:
         out = []
         for m in CONTROL_ORDER:
             r = next((x for x in meta.TABLE["control"].values() if x["mnemonic"] == m), {})
-            out.append((CONTROL_GROUP, "ctl:" + m, m, _first_sentence(CONTROL_HELP.get(m, "")),
+            out.append((CONTROL_GROUP, "ctl:" + m, m,
+                        meta.control_summary(m) or _first_sentence(CONTROL_HELP.get(m, "")),
                         bool(r.get("human_verified")),
                         "%s %s %s %s" % (m, r.get("op_hex", ""), CONTROL_HELP.get(m, ""), r.get("description", ""))))
         seen_fam = set()
@@ -1543,8 +1544,9 @@ class InstructionPicker:
                 ver = all(meta.human_verified(o) for o in ops)
             else:
                 ver = meta.human_verified(op)
-            out.append((meta.category_label(op), "op:%d" % op, m, _first_sentence(meta.describe(op) or ""), ver,
-                        "%s %d 0x%03x %s" % (m, op, op, meta.describe(op) or "")))
+            what = meta.summary(op) or _first_sentence(meta.describe(op) or "")
+            out.append((meta.category_label(op), "op:%d" % op, m, what, ver,
+                        "%s %d 0x%03x %s %s" % (m, op, op, what, meta.describe(op) or "")))
         return out
 
     def _favourites(self, ents):

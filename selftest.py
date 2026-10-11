@@ -118,6 +118,14 @@ def _first(glob):
         return None
 
 
+def _shipped_container():
+    """A fresh script.Container of the game's original rf3.mc (_shipped; tests may edit it),
+    or None when there is no rf3.mc."""
+    from rf4s_modkit import script as _scr
+    mc = _shipped("rf3.mc")
+    return _scr.Container(mc.read_bytes()) if mc is not None else None
+
+
 def _shipped(glob):
     """The game's ORIGINAL copy of a file: the one in ModdingBackup when a save (or a mod)
     replaced the game's file, else the game's own. Tests that pin addresses or counts in
@@ -2594,7 +2602,7 @@ def _try_parse(p):
 def test_script():
     print("script (rf3.mc cutscene bytecode):")
     from rf4s_modkit import script
-    p = _first("rf3.mc")
+    p = _shipped("rf3.mc")
     if not p:
         _skip("script", "rf3.mc not extracted")
         return
@@ -5993,7 +6001,7 @@ def test_script_authoring():
            _refused("SetDialogueBoxStyle") and _refused("op94 1")
            and scriptasm.assemble("op93 2\nop94", 0x1000) is not None
            and script.meta.arg_range(93) == (1, 1) and script.meta.arg_range(94) == (0, 0))
-    p = _first("rf3.mc")
+    p = _shipped("rf3.mc")
     if not p:
         _skip("script authoring", "rf3.mc not extracted")
         return
@@ -6488,7 +6496,7 @@ def test_script_authoring():
            _bad[:3] or f"{len(_bare)} bare opN left: {_bare}")
     # the developers' test menus: bank 18 (Jones) carries the event / festival / date menus
     _tp = _first("rf3mc.eng")
-    _mc = _first("rf3.mc")
+    _mc = _shipped("rf3.mc")
     if _tp and _mc:
         import rf4mod as _rf4m
         try:
@@ -6579,7 +6587,7 @@ def test_bank_relink():
            and scriptasm.int_literal_bytes(-5) == b"\x18\xfb" and scriptasm.int_literal_bytes(1000) == b"\x1a\xe8\x03"
            and scriptasm.int_literal_bytes(40000) == b"\x19\x40\x9c"
            and scriptasm.Assembler().operand("actor(Forte)") == ("expr", b"\x03\x04\x00\x00\x00\x00"))
-    p = _first("rf3.mc")
+    p = _shipped("rf3.mc")
     if not p:
         _skip("bank relink", "rf3.mc not extracted")
         return
@@ -6656,7 +6664,7 @@ def test_script_relink_edits():
     words are enforced."""
     print("script edits rebuild the bank (no trampolines):")
     from rf4s_modkit import script, bankrelink as br
-    p = _first("rf3.mc")
+    p = _shipped("rf3.mc")
     if not p:
         _skip("relinked edits", "rf3.mc not extracted")
         return
@@ -6876,7 +6884,7 @@ def test_emflags_extras():
            and "daily greeting done" in _ef.zone2_text(1042) and "recipe 341" in _ef.zone2_text(1403)
            and "shop-door" in _ef.zone2_text(745) and "PAST THE END" in _ef.zone2_text(2600),
            _ef.zone2_text(1011))
-    p = _first("rf3.mc")
+    p = _shipped("rf3.mc")
     if p:
         c = script.Container(p.read_bytes())
         script.install_emflags_var_resolver(c, t2)
@@ -6914,7 +6922,7 @@ def test_portrait_faces():
         missing = [f for s_ in range(29) for _i, f, _m in pt.faces(s_)
                    if not (bm.parent / (f + ".texture")).is_file()]
         _check("every listed face file ships", not missing, f"{len(missing)} missing {missing[:3]}")
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("shipped face ids fit the face lists", "rf3.mc not extracted")
         return
@@ -6984,12 +6992,12 @@ def test_cutscene_bank_listing():
         _skip("bank listing", f"cutscene_editor/tkinter not importable ({e})")
         return
     from rf4s_modkit import script
-    if not _first("rf3.mc"):
+    if not _shipped("rf3.mc"):
         _skip("bank listing", "rf3.mc not extracted")
         return
 
     def reader(n):
-        f = _first(n)
+        f = _shipped(n)
         return f.read_bytes() if f else None
 
     CE = ce.CutsceneExplorer
@@ -7093,11 +7101,10 @@ def test_choice_form():
     the block. The listing assembles and inserts as written."""
     print("choice menus: Add-an-instruction form:")
     import tkinter as tk
-    from map_editor import data as _med
     from rf4s_modkit import script
     from cutscene_editor import toolbox
     from cutscene_editor.app import CutsceneExplorer
-    c = _med.rf3mc_container(live=False)
+    c = _shipped_container()
     if c is None:
         _skip("choice form", "rf3.mc not found"); return
     bk = c.banks[27]
@@ -7667,9 +7674,8 @@ def test_choice_results():
     (ops 610-612) does the pick go to reg0 as the option's index; the mask may be set right
     before the menu, inside a CALLed helper, or before branches that rejoin (shop menus)."""
     print("choice menus: reg0:")
-    from map_editor import data as _med
     from rf4s_modkit import script, scriptasm
-    c = _med.rf3mc_container(live=False)
+    c = _shipped_container()
     if c is None:
         _skip("choice reg0", "rf3.mc not found"); return
 
@@ -7713,7 +7719,7 @@ def test_visibility_audit():
         _skip("visibility audit", f"cutscene_editor not importable ({e})"); return
 
     def reader(n):
-        f = _first(n)
+        f = _shipped(n)
         return f.read_bytes() if f else None
     doc = ScriptDocument(reader)
     doc.load_from_reader()
@@ -7808,9 +7814,8 @@ def test_script_debugger():
     debugger code. Plus the live-value evaluator against the static one."""
     print("script debugger (simulated game):")
     import struct as _st
-    from map_editor import data as _med
     from rf4s_modkit import scriptdbg as _sd, script as _sc, hotreload as _hr
-    c = _med.rf3mc_container(live=False)
+    c = _shipped_container()
     if c is None:
         _skip("script debugger", "rf3.mc not found"); return
     FILE = bytes(c.build())
@@ -8128,9 +8133,8 @@ def test_script_debugger_var_writes():
     around the field keep their values, and a value that does not fit is refused."""
     print("script debugger variable writes (fake flag store):")
     import struct as _st
-    from map_editor import data as _med
     from rf4s_modkit import scriptdbg as _sd, flagstate as _fs
-    c = _med.rf3mc_container(live=False)
+    c = _shipped_container()
     if c is None:
         _skip("variable writes", "rf3.mc not found"); return
 
@@ -8267,7 +8271,7 @@ def test_script_debugger_edits():
         _skip("script debugger edits", "no tkinter: %s" % e); return
     import struct, time, tempfile
     from rf4s_modkit import script, scriptdbg, hotreload
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("script debugger edits", "rf3.mc not extracted"); return
     dirs = [mc.parent] + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
@@ -8531,24 +8535,27 @@ def test_scene_log():
     statement is 'shown', real unreached code 'unreached', a stub the list skips 'not shown',
     a pc inside a statement 'torn'."""
     print("scene log (running-game logger) classification:")
-    from map_editor import data as _med
-    from rf4s_modkit import scenelog
-    c = _med.rf3mc_container(live=False)
-    if c is None:
+    from rf4s_modkit import scenelog, script as _script
+    mc = _shipped("rf3.mc")                # the pcs below are the game's own (a mod moves them)
+    if mc is None:
         _skip("scene log", "rf3.mc not found"); return
+    c = _script.Container(mc.read_bytes())
     log = scenelog.SceneLog.__new__(scenelog.SceneLog)     # no game needed for the check
     log.c, log.starts, log.bank_differs = c, [], set()
-    log.samples = {(308, 0x7456): 5,      # the Dragon Room's order-board scene (registered)
+    # a registered scene of the Dragon Room's bank (its entry, and one byte into that statement)
+    reg = next(sc.entry_pc for sc in _script.disassemble_bank(c.banks[308])
+               if sc.action_type >= 0 and _script.decode_statement(c.banks[308].data, sc.entry_pc + 1) is None)
+    log.samples = {(308, reg): 5,         # a registered scene of the Dragon Room (shown)
                    (232, 0x4428): 2,      # real unreached code
                    (308, 0x01AA): 2,      # the lone JMP stub the bank list skips
-                   (308, 0x7457): 2}      # the middle of a statement
+                   (308, reg + 1): 2}     # the middle of a statement
     got = log.classify()
     _check("the logger sorts samples: shown / unreached / not shown / torn",
-           got == {(308, 0x7456): "shown", (232, 0x4428): "unreached",
-                   (308, 0x01AA): "not shown", (308, 0x7457): "torn"}, got)
+           got == {(308, reg): "shown", (232, 0x4428): "unreached",
+                   (308, 0x01AA): "not shown", (308, reg + 1): "torn"}, got)
     rep = "\n".join(log.report())
     _check("its report lists what needs a look (unreached, not shown, torn seen twice)",
-           "bank 232 @4428" in rep and "bank 308 @01aa" in rep and "bank 308 @7457" in rep, rep)
+           "bank 232 @4428" in rep and "bank 308 @01aa" in rep and "bank 308 @%04x" % (reg + 1) in rep, rep)
 
 
 def test_cutscene_graph():
@@ -8758,13 +8765,13 @@ def test_cutscene_editor_authoring():
         _skip("editor authoring", f"cutscene_editor/tkinter not importable ({e})")
         return
     from rf4s_modkit import script, scriptasm
-    p = _first("rf3.mc")
+    p = _shipped("rf3.mc")
     if not p:
         _skip("editor authoring", "rf3.mc not extracted")
         return
 
     def reader(n):
-        f = _first(n)
+        f = _shipped(n)
         return f.read_bytes() if f else None
 
     box = _headless_dialogs()
@@ -9457,7 +9464,7 @@ def test_live_names_and_combo_keys():
         _check("Up / Down step a dropdown's value and apply it (stopping at the ends); Alt+Down opens the list",
                got == ["b", "c", "one"] and cb.get() == "c" and fc.get() == "one" and down
                and root.bind_class("TCombobox", "<Alt-Down>") != "", got)
-        mc = _first("rf3.mc")
+        mc = _shipped("rf3.mc")
         from rf4s_modkit import gamenames as G, gamepaths, textdb
         real = gamepaths.find_bundle_dir()
         npc = real / "bundleMain" / "rf3TxtNpc_split2_1.eng" if real else None
@@ -12866,10 +12873,10 @@ def test_map_editor_labels():
             if not (a03 and a04):
                 _skip("monster gate sprites", "no GenA03 / GenA04")
             else:
-                _check("visible monster gates draw as the Gate actor (A04), hidden spawners keep "
-                       "the 'G' (A03, header flag 1); the selection ring fits the gate and goes "
-                       "with the selection",
-                       a04[1] == a04[0] >= 1 and a04[2] == 0 and a04[3][2] - a04[3][0] > 40
+                _check("visible monster gates draw as the Gate actor with a small G on top (A04), "
+                       "hidden spawners only the G (A03, header flag 1); the selection ring fits "
+                       "the gate and goes with the selection",
+                       a04[1] == a04[0] >= 1 and a04[2] == a04[0] and a04[3][2] - a04[3][0] > 40
                        and a03[1] == 0 and a03[2] == a03[0] >= 1 and a03[3][2] - a03[3][0] < 40,
                        got)
         # a tooltip near a monitor edge wraps and stays on that monitor
@@ -14827,7 +14834,7 @@ def test_cutscene_toolbox():
         import cutscene_editor as ce
     except Exception as e:
         _skip("cutscene toolbox", "no tkinter: %s" % e); return
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("cutscene toolbox", "rf3.mc not extracted"); return
     dirs = [mc.parent] + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
@@ -15093,7 +15100,7 @@ def test_statement_operands():
     opcode (one group and one colour per operand), in both views, named in the Alt explanation."""
     print("statement operands (View -> Operands):")
     from rf4s_modkit import script
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("statement operands", "rf3.mc not extracted"); return
     c = script.Container(mc.read_bytes())
@@ -15176,7 +15183,7 @@ def test_var_uses():
     import struct as _st
     from rf4s_modkit import script, varuses as vu, emscript
     from rf4s_modkit.emflags import EmFlagTable
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("variable uses", "rf3.mc not extracted"); return
     c = script.Container(mc.read_bytes())
@@ -15276,7 +15283,7 @@ def test_entry_key_conflicts():
     across the tail -> primary -> global lookup."""
     print("scene trigger keys already in use:")
     from rf4s_modkit import script
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("trigger key conflicts", "rf3.mc not extracted"); return
     c = script.Container(mc.read_bytes())
@@ -15356,7 +15363,7 @@ def test_cutscene_preload():
     capp.CutsceneExplorer.PRELOAD, capp.CutsceneExplorer.PRELOAD_DELAY_MS = True, 50
     errs = []
     root.report_callback_exception = lambda *a: errs.append(a)
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     dirs = ([mc.parent] if mc else []) + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",
                                                      pathlib.Path(BUNDLE_DIR) / "bundlePatch2") if d.is_dir()]
 
@@ -15419,7 +15426,7 @@ def test_cutscene_reload_from_disk():
         _skip("reload from disk", "no tkinter: %s" % e); return
     import shutil, tempfile
     from rf4s_modkit import script
-    src = _first("rf3.mc")
+    src = _shipped("rf3.mc")
     if not src:
         _skip("reload from disk", "rf3.mc not extracted"); return
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_reload_"))
@@ -15546,7 +15553,7 @@ def test_cutscene_multi_select():
     def reader(n):
         p = _first(n)
         return p.read_bytes() if p else None
-    if not _first("rf3.mc"):
+    if not _shipped("rf3.mc"):
         _skip("multi-row selection", "rf3.mc not extracted"); return
     root = tk.Tk(); root.withdraw()
     errs = []
@@ -15607,9 +15614,9 @@ def test_cutscene_multi_select():
             return e
         try:
             v._context_menu(_at(keys[2]))
-            inside = (len(v.multi), menus[-1][1:3])
+            inside = (len(v.multi), [m for m in menus[-1] if m.startswith(("Copy", "Delete"))])
             v._context_menu(_at(keys[10]))
-            outside = (len(v.multi), v.sel == keys[10], menus[-1][1])
+            outside = (len(v.multi), v.sel == keys[10], next(m for m in menus[-1] if m.startswith("Copy")))
         finally:
             tk.Menu.tk_popup = _popup
         _check("right-click inside a multi-selection keeps it and offers 'Copy / Delete 4 lines'; "
@@ -15636,7 +15643,7 @@ def test_cutscene_editor_workflows():
         import cutscene_editor as ce
     except Exception as e:
         _skip("cutscene editor workflows", "no tkinter: %s" % e); return
-    mc = _first("rf3.mc")
+    mc = _shipped("rf3.mc")
     if not mc:
         _skip("cutscene editor workflows", "rf3.mc not extracted"); return
     dirs = [mc.parent] + [d for d in (pathlib.Path(BUNDLE_DIR) / "bundleMain",

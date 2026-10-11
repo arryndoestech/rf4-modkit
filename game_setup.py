@@ -301,7 +301,9 @@ class _Setup:
         total, largest = sum(sizes.values()), max(sizes.values())
         ans = messagebox.askyesnocancel("Unpack the game files", (
             "The map editor and the name lookups read the game's files unpacked "
-            f"(about {_human(total)}, a few minutes). The game runs the same with them.\n\n"
+            f"(about {_human(total)}, a few minutes). The game runs the same with them, but "
+            "its voices are English only afterwards (both voice archives use the same file "
+            "names).\n\n"
             "Delete each archive once it is unpacked?\n\n"
             f"Yes: unpack and delete the archives - needs only about {_human(largest)} free "
             "while it works, and the folder stays the same size.\n"
@@ -339,8 +341,9 @@ class _Setup:
 
         ok, err = _run_with_progress(self.win, "Unpacking the game files", work)
         if not ok:
-            messagebox.showerror("Unpack", f"Unpacking stopped:\n{err}\n\nRun it again later from "
-                                 "Options... -> General -> Game folder -> Change... (it resumes).", parent=self.win)
+            messagebox.showerror("Unpack", f"Unpacking stopped:\n{err}\n\nRun it again later: "
+                                 "Options… → General → Game folder → Change… → Unpack the game "
+                                 "files… (it picks up where it stopped).", parent=self.win)
         return ok
 
 

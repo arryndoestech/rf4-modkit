@@ -387,9 +387,9 @@ class Source:
         mani = bpath.parent / "Manifest.plist"
         man = mbundle.Manifest(mani) if mani.is_file() else None
         if man is None and bpath.stat().st_size > 256 * 1024 * 1024:
-            raise RuntimeError(
-                f"{bpath.name} is large and no Manifest.plist sits beside it; "
-                f"open the Manifest instead to browse it lazily.")
+            raise ValueError(
+                f"{bpath.name} is too large to open on its own. Put it next to its "
+                f"Manifest.plist, or open the game folder.")
         bundle = mbundle.Bundle(bpath, manifest=man)
         src = cls(f"Bundle: {bpath.name}")
         for name in bundle.names():
@@ -465,6 +465,10 @@ class _GenHost:
         if self.pane is not None:
             self.pane.refresh()
         self.redraw()
+
+    def _update_gate_focus(self):
+        """The Gates list calls this after a pick (the map editor outlines the gate's points
+        then). Here set_active_gate already redrew the picture with that gate's points bright."""
 
     def apply(self, label, _aspects, fn):
         try:
@@ -856,8 +860,7 @@ class App:
         hb = ttk.Button(bar, text="Help", command=lambda: shortcuts_help.open_help(self.root))
         hb.pack(side="right", padx=(2, 4))
         from guiutil import Tip as _Tip
-        _Tip(hb, "Every keyboard shortcut and mouse gesture of the toolkit: the explorer, the map "
-                 "editor, the Cutscene Editor, the Event Manager and the text editor.")
+        _Tip(hb, "Every keyboard shortcut and mouse gesture.")
         self._help_btn = hb
         flt = ttk.Frame(bar)
         flt.pack(side="right", padx=(0, 4))
@@ -964,10 +967,6 @@ class App:
             self._paned.forget(self._left)                # hide the file tree
             self._collapse_btn.config(text="Files ▶")
             self._left_collapsed = True
-        deps = []
-        deps.append("Pillow:" + ("yes" if HAS_PIL else "no"))
-        deps.append("BC7:" + ("yes" if texture.HAS_BC else "no"))
-        self.status.config(text="  ·  ".join(deps))
 
     # ---- source loading -------------------------------------------------- #
     def load_source(self, factory, game=False):
@@ -984,6 +983,7 @@ class App:
         else:
             self._back_btn.pack(side="left", padx=2, after=self._open_btn)
         self._cur_iid = None
+        self._fill_cat_box()                    # this list's categories (keeps the pick if it has it)
         self._refresh_tree()
 
     def _post_open_menu(self):
@@ -1002,6 +1002,8 @@ class App:
             self.load_source(lambda: Source.from_folder(EXTRACTED), game=True)
         elif DEFAULT_MANIFEST.is_file():
             self.load_source(lambda: Source.from_manifest(DEFAULT_MANIFEST), game=True)
+        else:
+            self.status.config(text="No game folder chosen yet: Options… → General → Game folder → Change…")
 
     def open_path(self, p: pathlib.Path):
         if p.is_dir():
@@ -1074,8 +1076,9 @@ class App:
         import backup_dialog
         from guiutil import Tip
         ttk.Label(body, text="Backups", font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        ttk.Label(body, text="Every save of a game file first copies it into the backup folder, so a "
-                             "bad save can be undone.\n"
+        ttk.Label(body, text="With either setting below on, every save of a game file first copies it "
+                             "into the backup folder, so a bad save can be undone. Both are off by "
+                             "default.\n"
                              "The folder only holds copies: you can delete it, or anything in it, at any "
                              "time to free space (Open shows it). The toolkit makes it again at the next "
                              "save; Restore can then only offer the versions saved since.",
@@ -1111,6 +1114,16 @@ class App:
 
         def choose():
             d = filedialog.askdirectory(title="Backup folder", parent=win)
+            bd = gamepaths.find_bundle_dir()
+            if d and bd is not None:
+                try:
+                    inside = pathlib.Path(d).resolve().is_relative_to(pathlib.Path(bd).resolve())
+                except (OSError, ValueError):
+                    inside = False
+                if inside:
+                    messagebox.showerror("Backup folder", "Pick a folder outside the game's Bundle "
+                                         "folder: the game would load the backups.", parent=win)
+                    return
             if d:
                 gamepaths.set_setting("backup_dir", d)
                 self._bk_dir.set(str(gamepaths.backup_root()))
@@ -1175,8 +1188,7 @@ class App:
             show_game()
         cg = ttk.Button(gen, text="Change…", command=change_game)
         cg.pack(anchor="w", pady=(4, 0))
-        Tip(cg, "Pick the game copy every tool uses (its Bundle folder), or make one. A new folder "
-                "is used from the next start.")
+        Tip(cg, "Choose the game folder every tool uses, or make a copy. Takes effect after a restart.")
         ttk.Label(gen, text="File list", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
         gm = ttk.Checkbutton(gen, text="Group maps by area", variable=self.group_maps_var,
                              command=self.cmd_group_maps)
@@ -1243,10 +1255,9 @@ class App:
                 pass
         ttk.Checkbutton(ce, text="Variable editor", variable=self._var_editor,
                         command=var_editor_changed).pack(anchor="w", pady=(4, 0))
-        ttk.Label(ce, text="Adds a Variables… button and editing to Reference → Flags & variables: rename "
-                           "variables (the game's too) and name unused bits as variables of your own. The "
-                           "names are kept in emdeb_extra.json next to the game's emdeb.bin (the game never "
-                           "reads it). Off: the list is read-only and that file is never written.",
+        ttk.Label(ce, text="Adds a Variables… button to Reference → Flags & variables: rename variables "
+                           "and name unused bits as your own. The names go in a separate file the game "
+                           "never reads. Off: the list is read-only.",
                   foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
         ttk.Label(ce, text="Add-an-instruction list", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
         self._list_groups = {}
@@ -1343,8 +1354,8 @@ class App:
         before = gamepaths.find_bundle_dir()
         was_unpacked = before is not None and gamepaths.is_unpacked(before)
         if game_setup.run(self.root, current=before) and gamepaths.find_bundle_dir() != before:
-            messagebox.showinfo("Game folder", "Saved. Close and start the toolkit again to "
-                                "use the new game folder in every tool.", parent=self.root)
+            messagebox.showinfo("Game folder", "Saved. Restart the toolkit now: until then some "
+                                "tools still use the old game folder.", parent=self.root)
         elif before is not None and not was_unpacked and gamepaths.is_unpacked(before):
             messagebox.showinfo("Game folder", "The game files are unpacked. Close and start "
                                 "the toolkit again so every tool reads them.", parent=self.root)
@@ -1555,6 +1566,12 @@ class App:
 
     # ---- tabs ------------------------------------------------------------ #
     def _on_close(self):
+        ed = getattr(self, "_cutscene_ed", None)       # its window goes with the main one
+        try:
+            if ed is not None and ed[0].winfo_exists() and not ed[1].confirm_discard("close the toolkit"):
+                return
+        except tk.TclError:
+            pass
         for doc in list(self._docs):
             if not self._confirm_close(doc, "close the toolkit"):
                 return
@@ -1943,7 +1960,7 @@ class App:
             self._hide_map_view_if_unused(doc)
         except Exception as e:
             self._clear_content(doc)   # drop any partial widgets the failed handler packed
-            self._view_hex(name, data, error=str(e))
+            self._view_hex(name, data, error=err_text(e))
             self._hide_map_view_if_unused(doc)
 
     def _hide_map_view_if_unused(self, doc=None):
@@ -2375,7 +2392,7 @@ class App:
         doc.cur_data = blob
         self._show(name, blob, doc)
         which = f"frame {frame + 1} " if frame is not None else ""
-        size = "same size, bundle patch-able" if len(blob) == before else f"was {before:,}"
+        size = "same size" if len(blob) == before else f"was {before:,}"
         if changes:
             size += "; " + ", ".join("%dx%d -> %dx%d" % (c["old"] + c["new"]) for c in changes)
         self.status.config(text=f"Replaced {which}pixels from {pathlib.Path(f).name} -> "
@@ -2454,8 +2471,16 @@ class App:
                     data = loader()
                 except Exception as e:  # noqa: BLE001
                     self.status.config(text=f"navigate failed: {err_text(e)}"); return
+                key = self._entry_key(name)
+                other = next((d for d in self._docs if d.key == key and d is not doc), None)
+                if other is not None:              # already open: one tab per file
+                    self._select_doc(other)
+                    return
+                if doc.is_dirty():                 # never replace unsaved edits: a new tab
+                    self._open_in_tab(key, name, data, "new")
+                    return
                 doc.cur_name, doc.cur_data = name, data
-                doc.key, doc.saved = self._entry_key(name), data
+                doc.key, doc.saved = key, data
                 self._show(name, data, doc)
                 self._retitle(doc)
                 return
@@ -2655,15 +2680,13 @@ class App:
                 mid, resolved = rooms[cand][0], cand
                 break
         if mid is None:
-            info.config(text=f"Couldn't map '{stem}' to a room id (rf4s_rooms.csv). "
-                             f"Cutscene events are keyed per-map; this file isn't in the room table.")
+            info.config(text=f"{stem} is not a known room, so it has no scenes.")
             return
 
         raw = self.source.read_named("rf3.mc") if self.source else None
         if not raw:
-            info.config(text=f"{resolved} = mapId {mid}. Its cutscene events live in rf3.mc "
-                             f"(bundlePatch1), which isn't in the current source. Open the "
-                             f"Manifest (or add rf3.mc) to browse them here.")
+            info.config(text="This map's scenes are in rf3.mc, which isn't in the file list. "
+                             "Click Back to the game to see them here.")
             return
         try:
             container = script.Container(raw)
@@ -2704,11 +2727,9 @@ class App:
         entries.sort(key=lambda e: (e[0], e[1]), reverse=True)
         ndlg = sum(e[0] for e in entries)
 
-        info.config(text=f"{resolved}  (mapId {mid})  →  event bank {bank_index}:  "
-                         f"{len(entries)} scenes, {ndlg} dialogue lines"
-                         + ("  —  double-click a scene to edit it (biggest first)."
-                            if entries else "  —  no cutscene events are registered for this map "
-                                            "(New scene on this map… mints the first one)."))
+        info.config(text=f"{resolved}: {len(entries)} scenes, {ndlg} dialogue lines"
+                         + (" — double-click one to edit it." if entries
+                            else " — no scenes yet (New scene on this map… adds one)."))
 
         lf = ttk.Frame(frame)
         lf.pack(fill="both", expand=True, padx=6, pady=4)
@@ -2724,8 +2745,8 @@ class App:
         for nline, nstmt, epc, ok, preview in entries:
             flag = "" if ok else " [partial]"
             # the dialogue preview first: the sidebar is narrow
-            lb.insert("end", f"{nline:>2} lines  {preview or '(no dialogue)'}   "
-                             f"@0x{epc:04x}, {nstmt} stmts{flag}")
+            lb.insert("end", f"{nline:>2} lines  {preview or '(no dialogue)'}"
+                             + (" (partly read)" if flag else ""))
             row_entry_pc.append(epc)
 
         def open_editor(_e=None):
@@ -2745,9 +2766,8 @@ class App:
                                            default_type=cutscene_editor.map_enter_type())
             if res is not None:
                 self.status.config(
-                    text=f"new scene @0x{res[0]:04x} minted in event bank {bank_index} (in the "
-                         f"editor's rf3.mc — use its Save menu or Install; this tab "
-                         f"lists the shipped file)")
+                    text="New scene added in the Cutscene Editor. Save it there; this list shows "
+                         "the saved file.")
             return res
 
         lb.bind("<Double-Button-1>", open_editor)
@@ -2756,12 +2776,11 @@ class App:
         nsb = ttk.Button(frame, text="New scene on this map…", command=new_scene)
         nsb.pack(fill="x", padx=6, pady=(0, 2))
         ttk.Label(frame, foreground="#888", justify="left",
-                  text="New scene… = add a scene that plays when the player enters this map "
-                       "(MapEnterScene, type 6). Only the map's last one runs: if it already has "
-                       "one, the dialog says so").pack(fill="x", padx=6)
+                  text="New scene…: a scene that plays when the player enters this map. Only one "
+                       "runs per map; the dialog warns if there is one already.").pack(fill="x", padx=6)
         if ta is None:
-            ttk.Label(frame, justify="left", text="(no dialogue previews until rf3mc.<locale> "
-                                                  "is in the source)").pack(fill="x", padx=6)
+            ttk.Label(frame, justify="left", text="(no dialogue previews: the dialogue file isn't in "
+                                                  "the file list)").pack(fill="x", padx=6)
         ttk.Frame(frame, height=4).pack()
         if not entries:
             b.config(state="disabled")
@@ -2912,10 +2931,8 @@ class App:
         box.pack(fill="both", expand=True)
         ttk.Label(box, text="rf3.mc — the cutscene and event scripts", font=("Segoe UI", 11, "bold")).pack(anchor="w")
         ttk.Label(box, wraplength=640, justify="left", foreground="#666", text=(
-            "Every scene, NPC talk and map event of the game, compiled for the script VM (the "
-            "dialogue text is in rf3mc.<locale>). It opens in the Cutscene Editor, which reads the "
-            "rf3.mc of this source (the copy the game loads) together with the dialogue text and "
-            "em.bin.")).pack(anchor="w", pady=(6, 10))
+            "Every scene, NPC talk and map event of the game. It opens in the Cutscene Editor, "
+            "together with the dialogue text and the event rules.")).pack(anchor="w", pady=(6, 10))
         b = ttk.Button(box, text="Open in the Cutscene Editor", command=self.cmd_cutscene_editor)
         b.pack(anchor="w")
         from guiutil import Tip
@@ -2936,10 +2953,8 @@ class App:
         bar = ttk.Frame(doc.content); bar.pack(fill="x", pady=3)
         ttk.Button(bar, text="Open Event Manager\u2026", command=self.cmd_event_manager
                    ).pack(side="left", padx=6)
-        ttk.Label(bar, text="272 trigger entries: decoded conditions + actions, "
-                            "rf3.mc scene cross-refs, in-place editing "
-                            "(CLI: rf4mod.py em list / show / set)."
-                  ).pack(side="left")
+        ttk.Label(bar, text="The game's event rules (what starts a date, a marriage, a shop …). "
+                            "Open the Event Manager to read and edit them.").pack(side="left")
         self._view_hex(name, data)
 
     def _view_strings(self, name, data):
@@ -3182,10 +3197,8 @@ class App:
                         command=lambda: self._export_model_glb(m, stem, state.get("skel")))
         gb.pack(side="right", padx=4)
         from guiutil import Tip as _Tip
-        _Tip(gb, "Write a .glb that Blender opens with the skeleton ready to pose: the model in "
-                 "its rest pose with bones, skin and textures, plus the motion picked in the "
-                 "'motion' row as an animation (or none). Animate it in Blender, export a .glb, "
-                 "then bring it back with Import motion…. " + BLENDER_HINT)
+        _Tip(gb, "Write a .glb for Blender: the model with its skeleton and textures, plus the motion "
+                 "picked below. Bring an edited motion back with Import motion…. " + BLENDER_HINT)
         bb = ttk.Button(bar, text="Import from Blender…", command=lambda: self._import_model_glb(name))
         bb.pack(side="right", padx=4)
         from guiutil import Tip as _Tip
@@ -3468,7 +3481,7 @@ class App:
                     break
                 written.append((fn, a))
             self.status.config(text=f"Installed {len(written)} motion(s)"
-                                    + (" (originals in ModdingBackup)" if gamepaths.keep_originals() else "")
+                                    + (" (originals kept in the backup folder)" if gamepaths.keep_originals() else "")
                                     + " -- restart the game to see them")
         else:
             d = pathlib.Path(answer)
@@ -4018,7 +4031,7 @@ class App:
         nb = ttk.Notebook(doc.content); nb.pack(fill="both", expand=True)
         txt = self._make_text_tab(nb, "Timeline", mono=True, doc=doc)
         txt.insert("end", asatk.render(data))
-        txt.insert("end", "\n\n" + "-" * 60 + "\nOpcode legend (V=IDA-verified, D=data-inferred):\n")
+        txt.insert("end", "\n\n" + "-" * 60 + "\nEvent legend (V = confirmed, D = inferred from the data):\n")
         for op in sorted(asatk.OPCODES):
             mn, kind, conf, desc = asatk.OPCODES[op]
             txt.insert("end", f"  op{op:<3d} [{conf}] {mn:<10s} {desc}\n")
@@ -4357,8 +4370,8 @@ class App:
         items = _load_item_names()
         names = {int(k): v for k, v in items.items()}
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"rf3ItemStrengthening: {len(t)} rows x 296 B  (74 s32 per item; "
-                            "rows 1108..1149 = level/quality tier rows)").pack(side="left", padx=6)
+        ttk.Label(bar, text=f"Upgrade and food bonuses — {len(t)} rows (rows 1108-1149 are the "
+                            "level / quality tiers)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
         only_nz = tk.BooleanVar(value=True)
@@ -4455,7 +4468,7 @@ class App:
             detail.config(state="disabled")
         doc._str_set = set_field; doc._str_vars = (fieldv, valv); doc._str_tree = tv   # (selftest)
         tv.bind("<<TreeviewSelect>>", on_select)
-        detail.insert("end", "Select a row for the full decoded record (readers, units, flags).")
+        detail.insert("end", "Select a row to see all its values.")
         detail.config(state="disabled")
 
     def _view_gifts(self, name, data):
@@ -4467,8 +4480,7 @@ class App:
         name_fn = lambda i: items.get(i, "")
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
         who = chars.get(num, "?")
-        ttk.Label(bar, text=f"Gift preferences — char {num} {who}  (archive {14850 + num})",
-                  ).pack(side="left", padx=6)
+        ttk.Label(bar, text=f"Gift preferences — {who} ({num})").pack(side="left", padx=6)
         tv = ttk.Treeview(doc.content, columns=("aff", "item", "fp"), show="headings", height=20)
         for c, w in (("aff", 130), ("item", 320), ("fp", 90)):
             tv.heading(c, text={"aff": "affinity", "item": "item / target", "fp": "FP / note"}[c])
@@ -5149,8 +5161,8 @@ class App:
         g = route.RouteGraph.parse(data)
         rooms = [(rid, r) for rid, r in enumerate(g.rooms()) if r.node_count]
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"Navigation graph (TRCS) — {len(g.nodes)} nodes, {len(g.edges)} edges "
-                            f"in {len(rooms)} rooms; positions are tiles, edge cost = walk cost",
+        ttk.Label(bar, text=f"NPC walking routes — {len(g.nodes)} points, {len(g.edges)} links "
+                            f"in {len(rooms)} rooms (positions in tiles)",
                   wraplength=700).pack(side="left", padx=6)
         tv = ttk.Treeview(doc.content, columns=("kind", "id", "detail"), show="tree headings", height=18)
         tv.heading("#0", text="room / node / edge"); tv.column("#0", width=230)
@@ -5243,9 +5255,8 @@ class App:
         from rf4s_modkit import route
         gb = _find_extracted("rf3route.bin")
         ttk.Label(doc.content, wraplength=900, justify="left",
-                  text="Next-hop matrix hop[dst][src] (nibbles) derived from rf3route.bin; the game walks "
-                       "it hop by hop (Nav_BuildPathFromAToB). It is not edited directly: change the graph "
-                       "and regenerate this file.").pack(fill="x", padx=6, pady=4)
+                  text="The ways NPCs walk between route points, worked out from rf3route.bin. Don't "
+                       "edit it directly: change rf3route.bin and recompute this file.").pack(fill="x", padx=6, pady=4)
         if gb:
             g = route.RouteGraph.parse(gb)
             rr = route.RouteResult.parse(data, len(g.nodes))
@@ -5633,9 +5644,9 @@ class App:
             return chars.get(cid, "")
 
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"Quest / Request database (archive 16342) — {t.entry_count} requests."
-                            "  Each = posting NPC (client) + category template; the objective,"
-                            " count and reward are rolled at runtime.").pack(side="left", padx=6)
+        ttk.Label(bar, text=f"Requests — {t.entry_count}. Each is a villager and a request type; the "
+                            "game picks the item or monster, the count and the reward when it posts "
+                            "one.").pack(side="left", padx=6)
         ttk.Label(bar, text="  Search #/client:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=14).pack(side="left", padx=2)
 
@@ -5857,10 +5868,9 @@ class App:
         info.bind("<Configure>", lambda e: info.config(wraplength=max(200, e.width - 16)))
         base_text = {"t": "Hover a column heading for what it means; double-click a cell to edit it."}
         if pre_cols:
-            base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here "
-                              "(RF4S.exe+0x4DCF70 groups the spots into kinds); a kind with several "
-                              "spots picks one of them each day by weight. Type 'kind 26' in the search "
-                              "box to list one kind's spots.")
+            base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here; a "
+                              "kind with several spots picks one of them each day by weight. Type "
+                              "'kind 26' in the search box to list one kind's spots.")
         if used_col:
             base_text["t"] = ("'used by' = the player spell, the monsters (their attack timeline) or the "
                               "timeline that fires the row; an empty cell is fired from game code (boss "
@@ -5911,8 +5921,8 @@ class App:
             sb.pack(side="right", fill="y"); txt.pack(fill="both", expand=True)
             body = (about + "\n\n" if about else "") + "Fields:\n" + "\n".join(
                 f"  {n} ({ty} at +{o}): {notes.get(n, '')}" for n, o, ty in fields)
-            txt.insert("1.0", "The modkit's research notes for this table (RF4S.exe+RVA = where the "
-                              "game reads it).\n\n" + body)
+            txt.insert("1.0", "Notes on this table and its fields.\n\n"
+                              + re.sub(r"\s*\(?RF4S\.exe\+0x[0-9A-Fa-f]+\)?", "", body))
             txt.config(state="disabled")
             ttk.Button(win, text="Close", command=win.destroy).pack(pady=4)
             return win
@@ -6241,8 +6251,7 @@ class App:
         namefn = lambda i: tbl.get(i, "")
 
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"rf3CropParam: {t.entry_count} crops × {t.record_size} B  "
-                            "(season affinity + growth tuning)").pack(side="left", padx=6)
+        ttk.Label(bar, text=f"Crops — {t.entry_count} (seasons and growth)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
         only_crops = tk.BooleanVar(value=True)
@@ -6336,7 +6345,7 @@ class App:
                 messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i))
-            self.status.config(text=f"Applied crop {i} — Save…/Extract… to write a loose override")
+            self.status.config(text=f"Applied crop {i} — Save table… or Extract… writes the file")
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -6368,9 +6377,8 @@ class App:
         items = _load_item_names()
 
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"Monster / character templates — {t.entry_count} char_ids × "
-                            f"{t.record_size} B   (id: <48 human · 48-199 field · 200-253 boss)"
-                  ).pack(side="left", padx=6)
+        ttk.Label(bar, text=f"Monsters and characters — {t.entry_count} (ids below 48: people · "
+                            "48-199: monsters · 200-253: bosses)").pack(side="left", padx=6)
         ttk.Label(bar, text="Search #/name:").pack(side="left")
         sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
 
@@ -6441,7 +6449,7 @@ class App:
                 messagebox.showerror("Edit failed", err_text(e)); return
             doc.cur_data = t.build()
             fill(); tv.selection_set(str(i)); tv.see(str(i)); render_sheet(i)
-            self.status.config(text=f"Applied char {i} — Save… to write a loose override")
+            self.status.config(text=f"Applied #{i} — Save… writes the file")
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -6513,8 +6521,8 @@ class App:
         reader = self.source.read_named if self.source else None
         self.cutscene_editor()
         if reader is None or reader("rf3.mc") is None:
-            self.status.config(text="Cutscene editor: open the Manifest (or a bundle with rf3.mc) "
-                                    "first, or use 'Open rf3.mc…' in the window.")
+            self.status.config(text="rf3.mc isn't in the file list: click Back to the game, or use "
+                                    "Open rf3.mc… in the Cutscene Editor.")
 
     def cmd_event_manager(self):
         """Open the Cutscene editor and pop its Event Manager (em.bin) window straight
@@ -6548,7 +6556,7 @@ class App:
             panel = getattr(doc, "_map_panel", None)
             img = panel.render_to_image() if panel is not None else None
             if img is None:
-                self.status.config(text="Map export needs Pillow + an ATTR grid.")
+                self.status.config(text="This map can't be exported as a picture.")
                 return
             f = filedialog.asksaveasfilename(defaultextension=".png", initialfile=stem + ".png",
                                              filetypes=[("PNG", "*.png")])

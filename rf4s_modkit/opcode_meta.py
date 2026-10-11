@@ -3395,6 +3395,19 @@ def describe(op):
     return e["d"] if e else _humanize(technical(op)) + "."
 
 
+def summary(op):
+    """A short plain line on what action `op` does (opcode_table.json "summary", e.g. "Fade the
+    screen to black or white"), or None."""
+    r = TABLE["actions"].get(str(op))
+    return (r or {}).get("summary")
+
+
+def control_summary(mnemonic):
+    """The short line of a control instruction (DIALOG, BR_Z, ...), or None."""
+    r = next((x for x in TABLE["control"].values() if x["mnemonic"] == mnemonic), None)
+    return (r or {}).get("summary")
+
+
 def arg_names(op):
     e = META.get(op)
     return list(e["a"]) if e else []

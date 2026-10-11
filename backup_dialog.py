@@ -49,10 +49,8 @@ def open_restore(parent, names=None, on_restored=None, answer=None):
     f = ttk.Frame(win, padding=10)
     f.pack(fill="both", expand=True)
     ttk.Label(f, wraplength=780, justify="left", foreground="#666", text=(
-        "Every save of a game file keeps the file as it was before as a previous version (how "
-        "many: Options), and the very first save keeps the original. Pick a version and "
-        "Restore: it goes back over the game file, and the file as it is now is kept as a "
-        "previous version, so this can be undone the same way.")).pack(anchor="w", pady=(0, 6))
+        "Pick a version and click Restore to put it back over the game file. Which versions are "
+        "kept is set in Options → Advanced.")).pack(anchor="w", pady=(0, 6))
     tv = ttk.Treeview(f, columns=("when", "size"), show="tree headings", height=14)
     tv.heading("#0", text="file / version")
     tv.heading("when", text="version")
@@ -98,9 +96,11 @@ def open_restore(parent, names=None, on_restored=None, answer=None):
             status.config(text="pick a version first")
             return None
         target, src = rows[sel[0]]
+        kept = ("The file as it is now is kept as a previous version." if gamepaths.keep_previous() > 0
+                else "The file as it is now is not kept (previous versions are off in Options).")
         ok = answer if answer is not None else messagebox.askyesno(
-            "Restore", "Put this version back as\n%s?\n\n%s\n\nThe file as it is now is kept as a "
-                       "previous version." % (target, _when(src, src == gamepaths.backup_path(target))),
+            "Restore", "Put this version back as\n%s?\n\n%s\n\n%s"
+                       % (target, _when(src, src == gamepaths.backup_path(target)), kept),
             parent=win)
         if not ok:
             return None
@@ -109,8 +109,7 @@ def open_restore(parent, names=None, on_restored=None, answer=None):
         except OSError as e:
             messagebox.showerror("Restore", "Could not restore %s:\n%s" % (target.name, e), parent=win)
             return None
-        status.config(text="restored %s (%s) -- editors that have it open: reopen it; the game: "
-                           "restart, or Ctrl+R in the Cutscene Editor for rf3.mc / dialogue"
+        status.config(text="Restored %s (%s). Reopen it where it is open; restart the game to see it."
                       % (target.name, _when(src, src == gamepaths.backup_path(target))))
         fill()
         if on_restored:

@@ -153,9 +153,7 @@ class TextTab:
         Tip(sa, "Write the file anywhere.")
         sv = ttk.Button(bar, text="Save", command=self.save)
         sv.pack(side="right", padx=2)
-        Tip(sv, "Write the file where the game loads it (Bundle\\00_mods when the game has it only "
-                "packed; with backups on, the original is kept in ModdingBackup), or back to the "
-                "file it was opened from.")
+        Tip(sv, "Write the file where the game loads it, or back to the file it was opened from.")
         self.count = ttk.Label(bar)
         self.count.pack(side="left", padx=6)
         ttk.Label(bar, text="Search:").pack(side="left")
@@ -411,7 +409,7 @@ class TextTab:
             return None
         self._saved(blob)
         note = self._reload_note()
-        self._status("Saved %s%s -- %s" % (path, " (original kept in %s)" % gamepaths.BACKUP_DIR
+        self._status("Saved %s%s -- %s" % (path, " (original kept in the backup folder)"
                                            if backup else "", note))
         return path
 
