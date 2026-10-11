@@ -318,6 +318,10 @@ class Inspector(ScrollFrame):
             ttk.Button(box, text="Open the Event Manager", command=self.app.open_event_manager).pack(anchor="w", pady=(4, 0))
 
     def _arg_rows(self, st, txt):
+        """One control per argument: a list (named / common values, characters, maps, items;
+        type into it too) where the argument has values to pick, else a text box -- filled
+        with the listing form (actor(Forte), not tag3(4)). Below it only what the control
+        doesn't already say: the value's meaning, the help, the flag a leaf names."""
         app, f = self.app, self.form
         if not st.args:
             hint(f, "(this action takes no arguments)").pack(anchor="w", padx=8, pady=4)
@@ -332,59 +336,66 @@ class Inspector(ScrollFrame):
             v = vals[i] if i < len(vals) else ""
             nm, hint_txt = txt.arg_name(st.op, i, v)
             sp = argspec.spec(st.op, i)
-            if nm not in ("target", "voice sfx id", "emote/mood"):   # SetSpeaker's by-value names stay
+            by_value = nm in ("target", "voice sfx id", "emote/mood")   # SetSpeaker names these by value
+            if not by_value:
                 nm, hint_txt = sp.label, sp.help
-            row = ttk.Frame(box)
-            row.pack(fill="x", pady=(3, 0))
-            ttk.Label(row, text=nm, width=16, anchor="w", wraplength=112, justify="left").pack(side="left")
-            var = tk.StringVar(value=scriptasm.call_arg(scriptasm.operand_text(buf, off, st.op, i)))
-            e = commit_entry(row, var, lambda i=i, var=var: app.set_arg(st.pc, i, var.get()), width=14)
-            e.pack(side="left", fill="x", expand=True)
-            Tip(e, "Listing syntax: a number, actor(Forte), map(MAP_CITY_00), (FLG_X + 1), a "
-                   "named value, or @0xNNNN to point at an existing expression. Enter applies.")
-            if self.primary is None:
-                self.primary = e
-            choices = script.enum_arg_choices(st.op, i)
-            notes = []
-            lbl = txt.value_label(st.op, i, v, nm)
-            if lbl:
-                notes.append("= " + lbl)
-            else:
-                cur = sp.note(var.get())
-                if cur:
-                    notes.append(cur)
-            notes += txt.arg_notes(st, i)
             if script.meta.arg_verified(st.op, i):
-                notes.append("✓ verified in game")
-            if hint_txt:
-                notes.append(hint_txt)
-            if choices:
-                labels = ["%d  %s" % (val, lab) + (("  (%s)" % d) if d else "") for val, lab, d in choices]
-                pick = FilterCombo(box, labels, lambda t, i=i: to_int(t.split()[0]) is not None
-                                   and app.set_arg(st.pc, i, script.meta.value_name(st.op, i, to_int(t.split()[0]))
-                                                   or t.split()[0]), width=34)
-                num, ok = script.arg_constant(buf, off)
-                cur = next((s for s, (val, _l, _d) in zip(labels, choices) if ok and val == num), "")
-                pick.var.set(cur)
-                pick.pack(fill="x", padx=(110, 0))
-                Tip(pick, "Pick a named value (type to filter); it is applied at once.")
-            elif sp.kind == "face":
-                self._face_picker(box, st, i, var)
-            elif sp.kind == "number" and sp.options:
-                opts = dict(sp.options)
-                pick = FilterCombo(box, [d for d, _t in sp.options],
-                                   lambda d, i=i, opts=opts: d in opts and app.set_arg(st.pc, i, opts[d]),
-                                   width=34)
-                pick.var.set(next((d for d, t in sp.options if t == var.get().strip()), ""))
-                pick.pack(fill="x", padx=(110, 0))
-                Tip(pick, "Common values (named ones first, then what the game's own scenes use "
-                          "most); picking one applies it. You can also type in the box above"
-                          + (", in seconds (e.g. 1.5 s)." if sp.unit is not None else "."))
+                nm += " ✓"
+            lab = ttk.Label(box, text=nm, anchor="w", font=("Segoe UI", 9, "bold"))
+            lab.pack(anchor="w", pady=(6, 0))
+            row = ttk.Frame(box)
+            row.pack(fill="x", padx=(8, 0))
+            Tip(lab, (sp.raw_help or nm) + ("\n\n✓ = verified in game" if nm.endswith("✓") else ""))
+            raw = scriptasm.call_arg(scriptasm.operand_text(buf, off, st.op, i))
+            named = script.arg_repr(buf, off, st.op, i)
+            # a tag3 / tag4 constant reads as the actor / map it names (it assembles to the same)
+            text = named if raw.startswith("tag") and named.startswith(("actor(", "map(")) else raw
+            num, is_const = script.arg_constant(buf, off)
+            opts = [] if (by_value or sp.kind == "face") else list(sp.options)
+            notes = []
+            if opts:
+                disp = next((d for d, t in opts if t in (raw, named, text)), None)
+                if disp is None and is_const:
+                    disp = next((d for d, _t in opts if to_int(d.split()[0]) == num), None)
+
+                def commit(t, i=i, sp=sp):
+                    t = (t or "").strip()
+                    return bool(t) and app.set_arg(st.pc, i, sp.token(t))
+                pick = FilterCombo(row, [d for d, _t in opts], commit, width=30)
+                pick.var.set(disp if disp is not None else text)
+                pick.pack(side="left", fill="x", expand=True)
+                Tip(pick, "Pick a value (type to filter), or type one -- a number, an expression"
+                          + (", or seconds (1.5 s)" if sp.unit is not None else "") + " -- and press Enter.")
+                ctl = pick
+                if disp is None:                     # an expression / unlisted value: say what it is
+                    m = sp.note(text) or (("= " + txt.value_label(st.op, i, v, nm)) if txt.value_label(st.op, i, v, nm) else None)
+                    if m:
+                        notes.append(m)
             else:
-                self._typed_picker(box, st, i, var)
+                var = tk.StringVar(value=text)
+                e = commit_entry(row, var, lambda i=i, var=var, sp=sp: app.set_arg(st.pc, i, sp.token(var.get())),
+                                 width=14)
+                e.pack(side="left", fill="x", expand=True)
+                Tip(e, "A number, actor(Forte), map(MAP_CITY_00), (FLG_X + 1), a named value"
+                       + (", seconds (1.5 s)" if sp.unit is not None else "") + ". Enter applies.")
+                ctl = e
+                lbl = txt.value_label(st.op, i, v, nm)
+                m = ("= " + lbl) if lbl else sp.note(text)
+                if m:
+                    notes.append(m)
+                if sp.kind == "face" and script.portrait_speaker_slot(st.op) is None:
+                    self._face_picker(box, st, i, var)
+                elif not by_value:
+                    self._typed_picker(box, st, i, var)
+            if self.primary is None:
+                self.primary = ctl
+            notes += [n for n in txt.arg_notes(st, i) if not n.startswith("= ")]   # flag notes
+            if hint_txt:
+                short = hint_txt.split("; ")[0].split(". ")[0].rstrip(".")
+                notes.append(short + ("…" if len(short) < len(hint_txt.rstrip(".")) else ""))
             if notes:
                 ttk.Label(box, text="\n".join(notes), font=("Segoe UI", 8), foreground="#2a6a8a",
-                          wraplength=320, justify="left").pack(anchor="w", padx=(110, 0))
+                          wraplength=280, justify="left").pack(anchor="w", padx=(8, 0))
 
         self._map_button(box, st, buf)
 
@@ -408,7 +419,7 @@ class Inspector(ScrollFrame):
             fp.set_value(int(var.get().strip(), 0))
         except ValueError:
             pass
-        fp.frame.pack(anchor="w", padx=(110, 0), pady=(2, 0))
+        fp.frame.pack(anchor="w", padx=(8, 0), pady=(2, 0))
 
     def _typed_picker(self, box, st, i, var):
         """A character / map / item picker under an argument the table types as one."""
@@ -426,7 +437,7 @@ class Inspector(ScrollFrame):
         pick = FilterCombo(box, [d for d, _t in opts],
                            lambda d, i=i: d in tok and self.app.set_arg(st.pc, i, tok[d]), width=34)
         pick.var.set(cur)
-        pick.pack(fill="x", padx=(110, 0))
+        pick.pack(fill="x", padx=(8, 0))
         Tip(pick, "Pick a %s (type to filter); it is applied at once." % {
             "actor": "character", "map": "map", "item": "item"}[kind])
 
@@ -461,7 +472,7 @@ class Inspector(ScrollFrame):
                                 if script.leaf_slot_kind(st.op, mi) == "map" else str(chosen))
             return toolbox.MapPointPicker(box, mid, cur(ix), cur(iy), done, lock=lock, note=note)
         b = ttk.Button(box, text="📍 Pick x / y on the map…", command=open_picker)
-        b.pack(anchor="w", padx=(110, 0), pady=(4, 0))
+        b.pack(anchor="w", padx=(8, 0), pady=(6, 0))
         Tip(b, "Show the map and click the new position (1/8-tile units). The map is the one "
                "the instruction runs on: its map argument, else this bank's map; only a scene "
                "not tied to a map lets you choose.")

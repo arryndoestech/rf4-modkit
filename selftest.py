@@ -15678,9 +15678,9 @@ def test_cutscene_editor_workflows():
             return out
         shown = entries(cx.inspector, [])
         combos = [ch.get() for ch in _walk_widgets(cx.inspector) if isinstance(ch, ttk.Combobox)]
-        _check("Inspector shows arguments in listing syntax (raw tag3(..) / tag4(..)), and its pickers "
-               "name the character and the map",
-               any(v.startswith("tag3(") for v in shown) and any(v.startswith("tag4(") for v in shown)
+        _check("Inspector shows one control per argument with no raw tag3(..) / tag4(..) text: the "
+               "character and the map are named in their lists",
+               not any(v.startswith(("tag3(", "tag4(")) for v in shown + combos)
                and any(c.startswith("MAP_") for c in combos)
                and any(c and not c.startswith("MAP_") and any(ch.isalpha() for ch in c) for c in combos),
                str(shown[:4]) + " " + str(combos[:4]))
