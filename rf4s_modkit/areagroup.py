@@ -54,7 +54,7 @@ GROUP_LABELS = {
     5: "Selphia town", 6: "rooms / interiors", 7: "the farm", 8: "fields around Selphia",
     9: "DUNG_A Yokmir Forest", 10: "DUNG_B Water Ruins", 11: "DUNG_C Obsidian Mansion",
     12: "DUNG_D Leon Karnak", 13: "DUNG_E Floating Empire", 14: "DUNG_F World of Fields",
-    15: "DUNG_G Yokmir Cave", 16: "DUNG_H Delirium Lava Ruins", 17: "DUNG_I (unnamed)",
+    15: "DUNG_G Yokmir Cave", 16: "DUNG_H Delirium Lava Ruins", 17: "DUNG_I Forest of Beginnings",
     18: "DUNG_J Idra Cave", 19: "DUNG_K Maya Road", 20: "DUNG_L Sechs Territory",
     21: "DUNG_M Rune Prana", 22: "farm-house rooms", 23: "farm-house / barn rooms",
     24: "(unused)", 25: "DUNG_O / DUNG_P",
