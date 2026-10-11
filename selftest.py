@@ -7248,6 +7248,141 @@ def test_argspec():
            all(names.get(op) and names.get(w) for op, (w, _a) in A.WAITS.items()), A.WAITS)
 
 
+def test_edit_instruction():
+    """Edit instruction (F2 / the Script view's right-click menu): the Add window without the
+    instruction list, its fields filled in from the selected action; Apply replaces the
+    statement in one undoable edit (what jumped to it reaches the new one); the same code
+    again changes nothing; opening Add afterwards brings the list back."""
+    print("cutscene editor: Edit instruction:")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from rf4s_modkit import script
+    except Exception as e:
+        _skip("edit instruction", f"cutscene_editor not importable ({e})"); return
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("edit instruction", "rf3.mc not found"); return
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("edit instruction", f"no display for Tk ({e})"); return
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        c = ex.doc.container
+        hit = None                                  # a scene with a FadeScreen and a SetSpeaker
+        for pos in range(len(c.banks)):
+            for sc in script.disassemble_bank(c.banks[pos]):
+                fade = next((q for q, t in sc.stmts.items() if t.op == 334 and len(t.args) == 2
+                             and script.arg_constant(c.banks[pos].data, t.args[1])[1]), None)
+                spk = next((q for q, t in sc.stmts.items() if script.is_portrait_op(t.op)), None)
+                if fade is not None and spk is not None:
+                    hit = (pos, sc.entry_pc, fade, spk)
+                    break
+            if hit:
+                break
+        if hit is None:
+            _skip("edit instruction", "no scene with FadeScreen + SetSpeaker"); return
+        pos, entry, fade, spk = hit
+        ex.show_bank(pos, entry)
+        ex.select((fade, None))
+        orig = c.build()
+        n_undo = len(ex.doc.undo_stack)
+        p = ex.ask_edit_instruction()
+        root.update()
+        cur = script.arg_constant(ex.bank.data, ex.stmt(fade).args[1])[0]
+        _check("Edit opens the form of the selected FadeScreen with its own values, without the "
+               "instruction list, with Apply",
+               p is not None and p.edit_pc == fade and str(p._left) not in [str(x) for x in p._pw.panes()]
+               and p._insert_btn.cget("text") == "Apply" and p.op_fields[1].token() == str(cur)
+               and p.text().startswith("FadeScreen("), (p.text() if p else None))
+        same = p.insert()
+        _check("Apply without a change changes nothing (no undo step)",
+               same is None and ex.doc.container.build() == orig and len(ex.doc.undo_stack) == n_undo)
+        p.op_fields[1].var.set("2 s")
+        p._rebuild()
+        ok = p.insert()
+        new_st = ex.stmt(ex.sel[0]) if ex.sel else None
+        _check("Apply replaces it: FadeScreen(…, 12000) selected, one undo step, the window closes",
+               ok is True and new_st is not None and new_st.op == 334
+               and script.arg_constant(ex.bank.data, new_st.args[1])[0] == 12000
+               and len(ex.doc.undo_stack) == n_undo + 1 and not p.win.winfo_ismapped(), p.text())
+        ex.undo()
+        _check("undo puts the original back byte for byte", ex.doc.container.build() == orig)
+        ex.select((spk, None))
+        st = ex.stmt(spk)
+        p = ex.ask_edit_instruction()
+        root.update()
+        slot, side = script.portrait_speaker_slot(st.op)
+        _check("a SetSpeaker opens with its speaker and side (in the opcode) and its face",
+               p.key == ("op", st.op) and p.text().startswith("SetSpeaker(%d, %d" % (slot, side)),
+               p.text())
+        p.show()
+        root.update()
+        _check("opening Add afterwards brings the instruction list and Insert back",
+               p.edit_pc is None and str(p._left) in [str(x) for x in p._pw.panes()]
+               and p._insert_btn.cget("text") == "Insert")
+        # a dialogue line: its text to change (a new line), or another existing line
+        dlg = next(q for q, t in ex.scene.stmts.items() if t.mnem == "DIALOG")
+        ex.select((dlg, None))
+        old_id = ex.stmt(dlg).dialog_id
+        old_text = ex.doc.text(old_id)
+        n_lines = len(ex.doc.textarc.entries)
+        n_undo = len(ex.doc.undo_stack)
+        p = ex.ask_edit_instruction()
+        root.update()
+        from rf4s_modkit import textesc as _te
+        opened = (p.key == ("ctl", "DIALOG") and p.dlg_mode.get() == "new"
+                  and _te.from_edit(p.dlg_form.txt.get("1.0", "end-1c")) == old_text)
+        same = p.insert()
+        p.dlg_form.set_text("Edited by selftest")
+        ok = p.insert()
+        new_st = ex.stmt(ex.sel[0]) if ex.sel else None
+        _check("Edit on a DIALOG opens its text; Apply unchanged does nothing; new text becomes a "
+               "new line the statement shows (the old line keeps its text), one undo step",
+               opened and same is None and ok is True and new_st is not None and new_st.mnem == "DIALOG"
+               and new_st.dialog_id != old_id and ex.doc.text(new_st.dialog_id) == "Edited by selftest"
+               and ex.doc.text(old_id) == old_text and len(ex.doc.textarc.entries) > n_lines
+               and len(ex.doc.undo_stack) == n_undo + 1,
+               (opened, same, ok, new_st and new_st.dialog_id, old_id))
+        ex.undo()
+        ex.select((dlg, None))
+        p = ex.ask_edit_instruction()
+        root.update()
+        p.dlg_mode.set("existing")
+        p._dialogue_mode()
+        p.line.var.set(str(old_id + 1))
+        p._rebuild()
+        ok2 = p.insert()
+        st2 = ex.stmt(ex.sel[0]) if ex.sel else None
+        _check("'an existing line' points the DIALOG at another line id",
+               ok2 is True and st2 is not None and st2.dialog_id == old_id + 1, (ok2, p.text()))
+        ex.undo()
+        ex.select((fade_now(ex), None))
+        p = ex.ask_edit_instruction()
+        root.update()
+        before = ex.doc.container.build()
+        p.op_fields[1].var.set("3 s")
+        p.win.event_generate("<Escape>")
+        root.update()
+        _check("Esc closes the Edit window without applying (no prompt)",
+               not p.win.winfo_ismapped() and ex.doc.container.build() == before)
+    finally:
+        if root is not None:
+            root.destroy()
+
+
+def fade_now(ex):
+    """The open scene's first FadeScreen (test_edit_instruction)."""
+    return next(q for q, t in ex.scene.stmts.items() if t.op == 334)
+
+
 def script_ops_count():
     from rf4s_modkit import script
     return script.DISPATCHABLE_ACTION_OPS
@@ -14440,6 +14575,30 @@ def test_cutscene_toolbox():
         _check("SetSpeaker: character + side pickers pick the opcode (Forte, Right = op 25, written 4, 1)",
                p.text().startswith("SetSpeaker(4, 1") and
                cx.assemble_check(p.text())[0][:2] == bytes([25, 0]), p.text())
+        p.preset(("op", 628))                      # SetRegisters: reg0 .. reg9, the rest optional
+        labels = [f.parts[0].cget("text") for f in p.op_fields]
+        regs = p.op_fields
+        regs[0].var.set("5")
+        regs[2].var.set("7")
+        p._rebuild()
+        gap_ok = p.check()
+        gap_msg = p.check_lbl.cget("text")
+        gap_ins = p.insert()
+        regs[1].var.set("6")
+        p._rebuild()
+        three = p.text()
+        for k, f in enumerate(regs):
+            f.var.set(str(k))
+        p._rebuild()
+        ten = p.text()
+        _check("SetRegisters shows reg0 .. reg9 (reg1 .. reg9 optional); a gap (reg1 empty, reg2 set) "
+               "is refused with a message and Insert does nothing; in order it writes only what is "
+               "set; all ten assemble",
+               labels[0] == "reg0" and labels[9] == "reg9 (optional)" and len(labels) == 10
+               and gap_ok is False and "in order" in gap_msg and gap_ins is False
+               and three == "SetRegisters(5, 6, 7)" and cx.assemble_check(three)[2] is None
+               and ten.count(",") == 9 and cx.assemble_check(ten)[2] is None,
+               (labels[:2], labels[-1:], gap_msg, three, ten))
         p.preset(("ctl", "PROMPT_CHOICE"))
         p._choice_add_row()
         p._rebuild()
@@ -16923,7 +17082,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

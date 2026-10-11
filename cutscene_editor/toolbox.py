@@ -1199,6 +1199,8 @@ class InstructionPicker:
         pw.pack(fill="both", expand=True, padx=6, pady=6)
         left = ttk.Frame(pw)
         pw.add(left, weight=1)
+        self._pw, self._left = pw, left
+        self.edit_pc = None             # Edit instruction: the statement Apply replaces
         top = ttk.Frame(left)
         top.pack(fill="x")
         ttk.Label(top, text="Search").pack(side="left")
@@ -1268,18 +1270,23 @@ class InstructionPicker:
         Tip(ra, "Insert goes right after the statement selected in the Script tab.")
         rb_ = ttk.Radiobutton(bb, text="before it", value="before", variable=self.where)
         rb_.pack(side="left", padx=6)
+        self._where_btns = (ra, rb_)
         Tip(rb_, "Insert goes right before the selected statement (so also where a jump to it lands).")
         cb = ttk.Button(bb, text="Close", command=self.win.withdraw)
         cb.pack(side="right")
         Tip(cb, "Hide this window (it keeps what you filled in).")
         ib = ttk.Button(bb, text="Insert", command=self.insert)
         ib.pack(side="right", padx=4)
+        self._insert_btn = ib
         Tip(ib, "Insert the listing at the selected statement of the open scene (Ctrl+Enter) "
                 "and close this window; the new statement is selected in the script. If it "
                 "can't be inserted the window stays open and says why.")
         sb2 = ttk.Button(bb, text="Whole scene in the Source tab", command=self._source_tab)
         sb2.pack(side="right", padx=4)
+        self._source_btn = sb2
         Tip(sb2, "Prefer typing? The Source tab has the whole scene as editable listing text.")
+        # Esc closes the window without inserting / applying anything (and without asking)
+        self.win.bind("<Escape>", lambda _e: (self.win.withdraw(), "break")[1])
         self.win.bind("<Control-Return>", lambda _e: (self.insert(), "break")[1])
         self.win.protocol("WM_DELETE_WINDOW", self.win.withdraw)
         self._tree_pending = None
@@ -1391,6 +1398,8 @@ class InstructionPicker:
         s = self.tree.selection()
         if not s or s[0].startswith("grp:"):
             return
+        if self.edit_pc is not None:        # Edit instruction: the (hidden) list's late select event
+            return
         iid = s[0]
         if iid.startswith(("fav:", "rec:")):
             iid = iid[4:]
@@ -1489,7 +1498,8 @@ class InstructionPicker:
                             if x is not None)
         self.max_args = max(self.max_args, self.opt_from, n_args if (r.get("size") or [0, 0])[1] is not None else 0)
         self.op = op
-        for i in range(max(self.opt_from, min(n_args, self.max_args))):
+        first = self.max_args if argspec.all_fields(op) else max(self.opt_from, min(n_args, self.max_args))
+        for i in range(first):
             self._op_field(i)
         if self.max_args > len(self.op_fields):
             self.more_btn = ttk.Button(self.form, text="＋ another argument", command=self._more)
@@ -1502,7 +1512,7 @@ class InstructionPicker:
                 Tip(b, "Click the position on the map instead of typing x and y (1/8-tile units).")
         if not self.op_fields and not fam and self.max_args == 0:
             ttk.Label(self.form, text="(no arguments)", foreground="#777").grid(row=10, column=1, sticky="w")
-        w = argspec.wait_after(op)
+        w = argspec.wait_after(op) if self.edit_pc is None else None
         if w is not None:
             cb = ttk.Checkbutton(self.form, text="then wait until it's done (adds %s)" % w[0],
                                  variable=self.wait_var, command=self._changed)
@@ -1986,7 +1996,7 @@ class InstructionPicker:
             last = max(last, min(rng[0], len(args)) if rng else 0)
             toks = [a or "0" for a in args[:last]]
             line = scriptasm.action_line(op, toks)
-            wl = argspec.wait_line(op, toks) if self.wait_var.get() else None
+            wl = argspec.wait_line(op, toks) if (self.wait_var.get() and self.edit_pc is None) else None
             return line + ("\n" + wl if wl else "")
         m = key
         if m == "DIALOG" and self.dlg_mode.get() == "new":
@@ -2101,6 +2111,10 @@ class InstructionPicker:
         text = self.text()
         if not text:
             return False
+        gap = None if self.manual else self._gap_problem()
+        if gap:
+            self.check_lbl.config(text="✗ " + gap, foreground="#b00")
+            return False
         err = self.app.assemble_check(text)[2] if self.app.doc.container is not None else "no rf3.mc loaded"
         warn = None if err else self._lint(text)
         if err:
@@ -2111,6 +2125,25 @@ class InstructionPicker:
             self.check_lbl.config(text="✓ assembles", foreground="#080")
         return not err
 
+    def _gap_problem(self):
+        """An optional argument left empty before one that is filled in: the arguments are
+        positional, so the empty one would silently become 0. None when they are in order."""
+        if not self.key or self.key[0] != "op":
+            return None
+        empty = None
+        for i, f in enumerate(getattr(self, "op_fields", [])):
+            if i < self.opt_from:
+                continue
+            if not f.token():
+                empty = empty if empty is not None else i
+            elif empty is not None:
+                a, b = argspec.spec(self.op, empty).label, argspec.spec(self.op, i).label
+                if argspec.all_fields(self.op):
+                    return ("fill the registers in order: %s is empty but %s is set (empty "
+                            "registers can only come after the last one you set)" % (a, b))
+                return ("fill the optional arguments in order: %s is empty but %s is set" % (a, b))
+        return None
+
     def _lint(self, text):
         """The engine-behaviour warnings for the listing (scriptasm.lint_listing): menus that
         freeze, an empty visibility mask, … -- shown under the preview, Insert still works."""
@@ -2120,10 +2153,101 @@ class InstructionPicker:
             return None
         return " ".join(m for _pc, _lvl, m in probs[:2]) or None
 
+    # ---- edit mode --------------------------------------------------------------- #
+    def _set_mode(self, editing):
+        """Edit instruction: no instruction list, no where-to-insert choice, Apply. Add: all
+        of them back."""
+        panes = [str(x) for x in self._pw.panes()]
+        if editing and str(self._left) in panes:
+            self._pw.forget(self._left)
+        elif not editing and str(self._left) not in panes:
+            self._pw.insert(0, self._left, weight=1)
+        for w in self._where_btns + (self._source_btn,):
+            if editing:
+                w.pack_forget()
+        if not editing and not self._where_btns[0].winfo_ismapped():
+            self._source_btn.pack_forget()
+            for w in self._where_btns:
+                w.pack(side="left", padx=(0, 6))
+            self._source_btn.pack(side="right", padx=4)
+        self._insert_btn.config(text="Apply" if editing else "Insert")
+        self.win.title("Cutscene Editor — Edit an instruction" if editing
+                       else "Cutscene Editor — Add an instruction")
+
+    def edit(self, pc):
+        """Open the form of the action or dialogue line at `pc`, filled in from it; Apply
+        replaces it."""
+        st = self.app.stmt(pc)
+        if st is None or (st.op >= 0xFFF0 and st.mnem != "DIALOG"):
+            return False
+        self.edit_pc = pc
+        self._set_mode(True)
+        self.win.deiconify()
+        self.win.lift()
+        if st.mnem == "DIALOG":
+            return self._edit_dialogue(st)
+        self.set_instruction(("op", st.op))
+        fam = meta.OPCODE_ARGS.get(st.op) or []
+        for f, a in zip(self.fam_fields, fam):          # SetSpeaker: the speaker / side in the opcode
+            f.var.set(next((d for d, t in f.opts.items() if t == a["value"]), a["value"]))
+        buf = self.app.bank.data
+        for i, off in enumerate(st.args):
+            while len(self.op_fields) <= i and len(self.op_fields) < self.max_args:
+                self._op_field(len(self.op_fields))
+            if i >= len(self.op_fields):
+                break
+            f = self.op_fields[i]
+            toks = [scriptasm.call_arg(scriptasm.operand_text(buf, off, st.op, i)),
+                    script.arg_repr(buf, off, st.op, i)]
+            disp = next((d for d, t in f.opts.items() if t in toks), None)
+            f.var.set(disp if disp is not None else toks[0])
+        if getattr(self, "more_btn", None) is not None and len(self.op_fields) >= self.max_args:
+            self.more_btn.grid_remove()
+        self._sync_faces()
+        self._rebuild()
+        return True
+
+    def _edit_dialogue(self, st):
+        """A DIALOG in the Edit window: 'a new line' holds its text to change (Apply saves it
+        as a new line when it differs, so other scenes showing the old one keep it), 'an
+        existing line' its id to point it at another line."""
+        from rf4s_modkit import textesc
+        self.dlg_mode.set("new")
+        self.set_instruction(("ctl", "DIALOG"))
+        self._set_desc("Change what this line says (saved as a new line when the text changes; "
+                       "other scenes that show the old line keep it), add a speaker or box "
+                       "change before it, or point it at another existing line.")
+        self.dlg_form.set_text(textesc.to_edit(self.app.doc.text(st.dialog_id) or ""))
+        self.line.var.set(str(st.dialog_id))
+        self._rebuild()
+        return True
+
     # ---- actions ----------------------------------------------------------------- #
     def insert(self):
         if not self.check():
             return False
+        if self.edit_pc is not None and self._new_dialogue():     # Edit on a DIALOG: its text
+            spec, _err = self.dlg_form.value()
+            ok = self.app.replace_dialogue(self.edit_pc, spec["speaker"], spec["text"],
+                                           spec.get("face", 0), spec.get("box"))
+            if ok is None:
+                self.check_lbl.config(text="no change: same text, speaker and box", foreground="#555")
+                return None
+            if ok:
+                self.check_lbl.config(text="")
+                self.win.withdraw()
+            return ok
+        if self.edit_pc is not None:                    # Edit instruction: Apply
+            ok = self.app.replace_statement(self.edit_pc, self.text())
+            if ok is None:
+                self.check_lbl.config(text="no change: this is the same code as the statement",
+                                      foreground="#555")
+                return None
+            if ok:
+                self._remember()
+                self.check_lbl.config(text="")
+                self.win.withdraw()
+            return ok
         before = self.where.get() == "before"
         w = self.app._insert_where(before)
         if w is None:
@@ -2188,6 +2312,10 @@ class InstructionPicker:
             pass
 
     def show(self, preset=None, before=None):
+        if self.edit_pc is not None:                    # back from Edit instruction
+            self.edit_pc = None
+            self._set_mode(False)
+            self.key = None if preset is None else self.key
         self.win.deiconify()
         self.win.lift()
         if before is not None:

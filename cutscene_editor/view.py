@@ -90,6 +90,7 @@ class ScriptView(ttk.Frame):
         t.bind("<Return>", lambda _e: (app.focus_editor(), "break")[1])
         t.bind("<Delete>", lambda _e: (app.delete_selected(), "break")[1])
         t.bind("<Insert>", lambda _e: (app.ask_insert_instruction(), "break")[1])
+        t.bind("<F2>", lambda _e: (app.ask_edit_instruction(), "break")[1])
         t.bind("<F9>", lambda _e: (app.toggle_breakpoint(), "break")[1])
         t.bind("<Button-3>", self._context_menu)
         t.bind("<Motion>", self._motion)
@@ -245,6 +246,10 @@ class ScriptView(ttk.Frame):
         # one entry: the instruction window has its own "after / before it" choice
         m.add_command(label="Add instruction…  (Insert)", state=st,
                       command=lambda: app.ask_insert_instruction())
+        cur = app.stmt(app.sel[0]) if has else None
+        editable = cur is not None and (cur.op < 0xFFF0 or cur.mnem == "DIALOG") and not self.multi
+        m.add_command(label="Edit instruction…  (F2)", state="normal" if editable else "disabled",
+                      command=lambda: app.ask_edit_instruction())
         m.add_separator()
         n = len(self.multi)
         m.add_command(label=("Copy %d lines  (Ctrl+C)" % n) if n else "Copy line  (Ctrl+C)", state=st,

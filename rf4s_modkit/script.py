@@ -1869,6 +1869,13 @@ class Container:
         m, key = self._relink(bank, lambda m: m.insert_after(pc, _listing_of(specs), self.asm_resolver, strict=strict))
         return self._pc(m, key)
 
+    def replace_statement(self, bank, pc, specs, strict=True):
+        """Replace the statement at `pc` (which must fall through) with `specs` (listing
+        text): whatever reached it reaches the new statements, which continue where it
+        did. One rebuild. Returns the new statements' first pc."""
+        m, key = self._relink(bank, lambda m: m.replace(pc, _listing_of(specs), self.asm_resolver, strict=strict))
+        return self._pc(m, key)
+
     def rewrite_scene(self, bank, entry_pc, specs, strict=True):
         """Replace the scene at `entry_pc` with `specs` (listing text; END is added when it
         can fall off its end). The trigger is unchanged: the new body sits where the old

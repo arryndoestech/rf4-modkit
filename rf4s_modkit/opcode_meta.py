@@ -4944,6 +4944,12 @@ def arg_limit(op):
     return ARG_LIMITS.get(op)
 
 
+# Argument counts the handler is known to take beyond what the shipped rf3.mc passes (checked
+# in RF4S.exe): these widen arg_range. SetRegisters (ops 628 / 629, both
+# Script_VMOp_ExportArgsAsCtxOutArray10 RF4S.exe+0x21D390) copies arg i into reg i for
+# i < min(count, 10): 1-10 arguments set reg0.. in order; the game itself passes 1-4.
+ARG_RANGE_EXE = {628: (1, 10), 629: (1, 10)}
+
 # The fewest / most arguments each op passes in the shipped rf3.mc (refdata/
 # script_arg_counts.json, gen_arg_counts.py). Handlers take the count the statement carries
 # and read a missing argument as stack garbage: op 93 with no argument
@@ -4967,7 +4973,7 @@ def arg_range(op):
             _ARG_RANGES = {int(k): (int(v[0]), int(v[1])) for k, v in raw.items()}
         except (OSError, ValueError, KeyError):
             _ARG_RANGES = {}
-    return _ARG_RANGES.get(op)
+    return ARG_RANGE_EXE.get(op) or _ARG_RANGES.get(op)
 
 
 def arg_count_problem(op, n):
@@ -4981,7 +4987,8 @@ def arg_count_problem(op, n):
     row = table_row(op)
     opt = row.get("optional_args_from") if row else None
     if n > r[1]:
-        why = "the shipped game never passes more"
+        why = ("the handler reads no more" if op in ARG_RANGE_EXE
+               else "the shipped game never passes more")
     elif opt is not None and n >= opt:          # the handler copes; only the shipped form differs
         why = "the shipped game always passes at least %d" % r[0]
     else:

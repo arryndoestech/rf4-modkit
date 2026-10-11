@@ -746,7 +746,15 @@ common ones. Timers take seconds: type `1.5 s` in a Wait, fade or shake and the 
 value (each counts differently: Wait 12000 per second, the fades 6000, the shake 60), and every
 field says what its value means (`= 0.5 s`, `= facing right`). Portrait faces are pictures to pick.
 Walks, turns, fades and shakes offer *then wait until it's done*, which adds the matching wait.
-The form scrolls; *Insert* stays at the bottom. Characters, maps, items, flags and named values are pickers.
+The form scrolls; *Insert* stays at the bottom, and Esc closes the window without inserting.
+Characters, maps, items, flags and named values are pickers. SetRegisters shows reg0 … reg9: fill
+them in order (the form refuses an empty register before a filled one).
+
+**Editing an instruction the same way.** *Edit instruction…* (right-click a line, or F2) opens the
+same form without the list, filled in from the selected action; *Apply* replaces the statement in
+one undoable step (whatever jumped to it reaches the new one). On a dialogue line it holds the
+line's text: changed text is saved as a new line (other scenes that show the old one keep it), and
+*an existing line* points the statement at another line. Esc closes it without changing anything.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,
 and choice menus, switches and random jumps take rows. DIALOG writes **a new line** (speaker,
 side, face, box style and text, added in every locale) or shows an existing one by id. Every x / y

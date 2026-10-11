@@ -1188,6 +1188,42 @@ class CutsceneExplorer:
             self._select_new(box.get("pc"))
         return ok
 
+    def replace_statement(self, pc, listing):
+        """Replace the statement at `pc` with `listing` (the Edit instruction window): one
+        undoable edit; the first new statement is selected. False (with a message) when it
+        does not assemble or cannot be replaced; None when the listing is the same code."""
+        err = self.assemble_check(listing)[2]
+        if err:
+            messagebox.showinfo("Edit instruction", err)
+            return False
+        st = self.stmt(pc)
+        before = bytes(self.bank.data)
+        box = {}
+        ok = self.apply("Edit %s @0x%04x" % (script.opcode_mnemonic(st.op) if st else "statement", pc),
+                        lambda: box.update(pc=self.doc.container.replace_statement(self.bank, pc, listing)))
+        if not ok:
+            return False
+        if bytes(self.bank.data) == before:
+            self.status("no change: the edited instruction is the same code")
+            return None
+        self._select_new(box.get("pc"))
+        return True
+
+    def ask_edit_instruction(self, pc=None):
+        """The instruction window for the selected action or dialogue line, its fields filled
+        in from the statement; Apply replaces it. Branches and menus are edited in the
+        Inspector."""
+        if pc is None:
+            pc = self.sel[0] if self.sel else None
+        st = self.stmt(pc)
+        if st is None or (st.op >= 0xFFF0 and st.mnem != "DIALOG"):
+            self.status("Edit instruction works on actions and dialogue lines; branches and "
+                        "menus are edited in the Inspector")
+            return None
+        p = self.ask_insert_instruction()
+        p.edit(pc)
+        return p
+
     def set_opcode(self, pc, op):
         """Change a statement's opcode, keeping its arguments (e.g. ops 94-97, the box style)."""
         st = self.stmt(pc)
@@ -1255,6 +1291,41 @@ class CutsceneExplorer:
 
     _picker = None
     _reference = None
+
+    def replace_dialogue(self, pc, speaker, text, face, box_style):
+        """Edit instruction on a DIALOG: it shows `text` -- the line it shows already when the
+        text is the same, else a new line (every locale, as Insert does; other scenes that
+        show the old line keep it) -- with an optional speaker cue and box style before it.
+        One undoable edit. True / False, None for no change."""
+        st = self.stmt(pc)
+        if st is None or st.mnem != "DIALOG":
+            return False
+        same = text == (self.doc.text(st.dialog_id) or "")
+        if same and speaker is None and box_style is None:
+            self.status("no change: the line, speaker and box are as they were")
+            return None
+        if not same and not self.check_text(text, "The new line"):
+            return False
+        box = {}
+
+        def do():
+            nid = st.dialog_id
+            if not same:
+                nid, _l = self.doc.add_line(text, self.pad_locales.get())
+            box["id"] = nid
+            specs = []
+            if speaker is not None:
+                specs.append("op%d %d, 0" % (script.portrait_opcode(*speaker), int(face or 0)))
+            if box_style is not None:
+                specs.append("op%d" % (94 + box_style) if 0 <= box_style <= 3 else "op93 %d" % box_style)
+            specs.append("DIALOG #%d" % nid)
+            box["pc"] = self.doc.container.replace_statement(self.bank, pc, "\n".join(specs))
+        if not self.apply("Edit DIALOG @0x%04x" % pc, do):
+            return False
+        if not same:
+            self._edited_lines.add((self.doc.locale, box["id"]))
+        self._select_new(box.get("pc"))
+        return True
 
     def ask_insert_instruction(self, before=None, preset=None):
         """The Instruction picker (one per editor): pick any instruction, fill its arguments,

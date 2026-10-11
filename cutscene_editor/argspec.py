@@ -178,15 +178,29 @@ def portrait_slot_of_arg(op, i):
     return None
 
 
+# ops whose arguments are the registers reg0, reg1, ... in order (all shown, by register name)
+REGISTER_OPS = {"SetRegisters"}
+
+
+def all_fields(op):
+    """True when the form shows every argument at once (SetRegisters: reg0 .. reg9) instead
+    of '+ another argument'."""
+    return meta.mnemonic(op) in REGISTER_OPS
+
+
 def spec(op, i):
     """The ArgSpec of argument i of action `op` (the last named argument repeats)."""
     from . import toolbox                                   # pickers (character / map / item lists)
     a, repeated = _row_arg(op, i)
     name = (a.get("name") or "arg").split(" (")[0]
     label = name if not repeated else "%s #%d" % (name, i - len((meta.table_row(op) or {}).get("args") or []) + 2)
+    if meta.mnemonic(op) in REGISTER_OPS:
+        label = "reg%d" % i
     typ = (a.get("type") or "").lower()
     raw_help = ((a.get("type") or "") + (": " + a["values"] if a.get("values") else "")).strip()
     help_ = clean_help(a.get("values") or "")
+    if meta.mnemonic(op) in REGISTER_OPS:
+        help_ = "the value reg%d gets" % i
     unit = UNITS.get(typ)
     if unit is not None:
         if unit.what not in help_ and "= 1 s" not in help_:
