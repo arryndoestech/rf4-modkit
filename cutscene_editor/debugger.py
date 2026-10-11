@@ -177,7 +177,7 @@ class DebuggerPanel:
         self.lists = nb = ttk.Notebook(pw)
         pw.add(nb, weight=3)
         vmf, bpf = ttk.Frame(nb, padding=2), ttk.Frame(nb, padding=2)
-        nb.add(vmf, text="Script VMs")
+        nb.add(vmf, text="Running scripts")
         nb.add(bpf, text="Breakpoints")
         self.vm_tree = ttk.Treeview(vmf, columns=("state", "where", "pc"), show="headings",
                                     height=5 if docked else 12)
@@ -274,7 +274,7 @@ class DebuggerPanel:
                             "stands at uses it. Double-click: the first statement using it.")
         right = ttk.Frame(pw, padding=(6, 0))
         pw.add(right, weight=2)
-        ttk.Label(right, text="Selected VM", font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        ttk.Label(right, text="Selected script", font=("Segoe UI", 9, "bold")).pack(anchor="w")
         dsb = ttk.Scrollbar(right, orient="vertical")
         dsb.pack(side="right", fill="y")
         self.detail = tk.Text(right, width=44, height=8 if docked else 30, font=("Consolas", 9),
@@ -430,7 +430,7 @@ class DebuggerPanel:
             rows[str(v.addr)] = (state, self._where(v), shown)
         _sync_rows(t, rows)
         stopped = sum(1 for v in self._vms if v.addr in self.dbg.held)
-        self.lists.tab(0, text="Script VMs (%d%s)" % (len(rows), ", %d stopped" % stopped if stopped else ""))
+        self.lists.tab(0, text="Running scripts (%d%s)" % (len(rows), ", %d stopped" % stopped if stopped else ""))
         if keep and t.exists(keep):
             t.selection_set(keep)
         elif self._vms:

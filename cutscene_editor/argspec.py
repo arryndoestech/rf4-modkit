@@ -45,9 +45,15 @@ def common_values(op, i):
 class Unit:
     """A timer argument: `per_second` raw units make one second."""
 
-    def __init__(self, per_second, what):
+    def __init__(self, per_second, what, zero="immediate", negative=None):
         self.per_second = per_second
         self.what = what                        # "12000 = 1 s" style note for the help
+        self.zero = zero                        # what 0 means ("immediate", "no limit")
+        self.negative = negative                # what a value below 0 means (None: not shown)
+
+    def variant(self, zero=None, negative=None):
+        """The same unit with this argument's meaning of 0 / negative values."""
+        return Unit(self.per_second, self.what, zero or self.zero, negative or self.negative)
 
     def describe(self, raw):
         """'0.5s' for a raw value (None for a non-number)."""
@@ -55,8 +61,11 @@ class Unit:
             v = int(raw, 0) if isinstance(raw, str) else int(raw)
         except (TypeError, ValueError):
             return None
-        s = v / self.per_second
-        return ("%gs" % round(s, 3)) if v else "immediate"
+        if v == 0:
+            return self.zero
+        if v < 0:
+            return self.negative
+        return "%gs" % round(v / self.per_second, 3)
 
     _SECONDS = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\s*$", re.I)
 
@@ -92,12 +101,22 @@ NAMED = {
 # ---- help text --------------------------------------------------------------------------- #
 _INTERNAL = re.compile(r"RF4S\.exe|\+0x[0-9A-Fa-f]{3,}|\bg_\w+|\b[A-Z][A-Za-z0-9]+_[A-Z]\w+|"
                        r"\bFUN_\w+|\bIDB\b|\bhandler\b|\btag[34]\b|\b\d{4}-\d{2}-\d{2}\b")
+# struct offsets, bit masks and archive ids: only the fragment goes (the sentence around it
+# usually still says something useful, e.g. "non-zero = run: speed x1.2 and jump bit 0x800000")
+_FRAGMENTS = (
+    r"\s*\(?\b(?:at |in |of |from |to )?(?:the )?(?:high dword of )?(?:npc record|host|record|actor|work|ctx|entry)"
+    r"\s*\+\s*\d+(?:\s*bits?\s*[\d-]+)?\)?",
+    r"\s*\(\+\d+\)",
+    r"\s*(?:and )?(?:\w+ )?bit 0x[0-9A-Fa-f]+",
+    r"\s*\(archive \d+\)",
+)
 
 
 def clean_help(text):
     """`text` without the reverse-engineering notes: parentheses and sentences that name
-    exe offsets, g_ tables, handler functions or dates go; 'corpus' becomes 'the game's
-    scripts'; 'seen in game' notes go (the field already says verified)."""
+    exe offsets, g_ tables, handler functions or dates go; struct offsets, bit masks and
+    archive ids are cut out of their sentence; 'corpus' becomes 'the game'; 'seen in game'
+    notes go (the field already says verified)."""
     if not text:
         return ""
     t = text
@@ -107,8 +126,15 @@ def clean_help(text):
                                     re.search(r"seen in game|corpus|via ", m.group(0))) else m.group(0), t)
     parts = re.split(r"(?<=[.;])\s+", t)
     t = " ".join(p for p in parts if not _INTERNAL.search(p))
-    t = re.sub(r"\bthe corpus\b|\bcorpus\b", "the game's scripts", t)
-    t = re.sub(r"\s+([,.;])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" ;,")
+    for frag in _FRAGMENTS:
+        t = re.sub(frag, "", t)
+    # "corpus 30-400" / "corpus always 1" / "corpus passes 0": what the game's own scenes use
+    t = re.sub(r"\b(?:the )?corpus(?= (?:passes|has|uses|only|never|keeps|sets)\b)", "the game", t)
+    t = re.sub(r"\b(?:the )?corpus\s+always\b", "the game always uses", t)
+    t = re.sub(r"\b(?:the )?corpus\b", "the game uses", t)
+    t = re.sub(r"\s+([,.;:])", r"\1", re.sub(r"\s{2,}", " ", t)).strip(" ;,:")
+    if re.fullmatch(r"(?:stored|packed(?: into)?|written|kept|read)", t):
+        return ""                                       # nothing left but the verb of an offset
     return t
 
 
@@ -202,7 +228,10 @@ def spec(op, i):
     if meta.mnemonic(op) in REGISTER_OPS:
         help_ = "the value reg%d gets" % i
     unit = UNITS.get(typ)
-    if unit is not None:
+    vals = a.get("values") or ""
+    if unit is not None:                    # this argument's own meaning of 0 / -1
+        unit = unit.variant(zero="no limit" if re.search(r"\b0 = no limit", vals) else None,
+                            negative="immediate" if re.search(r"-1 = immediate", vals) else None)
         if unit.what not in help_ and "= 1 s" not in help_:
             help_ = help_ + ("; " if help_ else "") + unit.what
         help_ += " — you can type seconds, e.g. 1.5 s"

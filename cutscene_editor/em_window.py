@@ -1301,15 +1301,17 @@ class EventManagerWindow:
         uses, refs = self.uses(e.idx), self.refs(e.idx)
         later = len(self.em.entries) - e.idx - 1
         msg = "Remove #%d %s?" % (e.idx, self.label(e.idx))
-        if uses:
-            msg += "\n\n%d scene statement%s use it by number — they are NOT updated." % (
-                len(uses), "" if len(uses) == 1 else "s")
-        if later:
-            msg += ("\n\nThe %d entr%s after it move down one number. References inside em.bin are "
-                    "renumbered; scenes (rf3.mc) are not." % (later, "y" if later == 1 else "ies"))
-        if refs:
-            msg += "\n\nUsed by %d other entr%s, so it will be emptied in place instead (numbers stay)." % (
-                len(refs), "y" if len(refs) == 1 else "ies")
+        if uses or refs:
+            who = []
+            if uses:
+                who.append("%d scene statement%s" % (len(uses), "" if len(uses) == 1 else "s"))
+            if refs:
+                who.append("%d other entr%s" % (len(refs), "y" if len(refs) == 1 else "ies"))
+            msg += ("\n\nIt is used by %s, so it is emptied in place instead: no numbers change."
+                    % " and ".join(who))
+        elif later:
+            msg += ("\n\nThe %d entr%s after it move down one number (references inside em.bin "
+                    "follow)." % (later, "y" if later == 1 else "ies"))
         if not messagebox.askyesno("Remove entry", msg, parent=self.win):
             return None
         idx = e.idx

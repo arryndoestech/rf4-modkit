@@ -12,6 +12,7 @@ Fields commit on Enter or when they lose focus, as one undo step, only when the 
 changed. The explanation of the statement (the Alt-hover text) is shown at the bottom."""
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from tkinter import ttk
 
@@ -280,7 +281,9 @@ class Inspector(ScrollFrame):
 
     # ---- action -------------------------------------------------------------------- #
     def _action_form(self, st, txt):
-        self._header(script.opcode_mnemonic(st.op), st, script.opcode_describe(st.op))
+        from . import argspec as _argspec
+        desc = script.opcode_describe(st.op) or ""
+        self._header(script.opcode_mnemonic(st.op), st, _argspec.clean_help(desc) or desc)
         bad = [script.meta.arg_count_problem(st.op, len(st.args))]
         bad += [script.meta.arg_value_problem(st.op, i, v) for i, v in
                 ((i, script.static_arg(self.app.bank, st, i)) for i in range(len(st.args))) if v is not None]
@@ -345,7 +348,8 @@ class Inspector(ScrollFrame):
             lab.pack(anchor="w", pady=(6, 0))
             row = ttk.Frame(box)
             row.pack(fill="x", padx=(8, 0))
-            Tip(lab, (sp.raw_help or nm) + ("\n\n✓ = verified in game" if nm.endswith("✓") else ""))
+            Tip(lab, (argspec.clean_help(sp.raw_help) or sp.help or nm)
+                + ("\n\n✓ = verified in game" if nm.endswith("✓") else ""))
             raw = scriptasm.call_arg(scriptasm.operand_text(buf, off, st.op, i))
             named = script.arg_repr(buf, off, st.op, i)
             # a tag3 / tag4 constant reads as the actor / map it names (it assembles to the same)
@@ -363,6 +367,31 @@ class Inspector(ScrollFrame):
                     return bool(t) and app.set_arg(st.pc, i, sp.token(t))
                 pick = FilterCombo(row, [d for d, _t in opts], commit, width=30)
                 pick.var.set(disp if disp is not None else text)
+                shown = pick.var.get()
+
+                def settle(pick=pick, commit=commit, sp=sp, opts=dict(opts), shown=shown):
+                    """Losing focus (or Ctrl+S) keeps a typed value like a text box does: a
+                    listed value, a number or a time applies; half-typed filter text is put back."""
+                    t = pick.var.get().strip()
+                    if t == shown:
+                        return
+                    if t in opts or re.fullmatch(r"-?(0x[0-9A-Fa-f]+|\d+)", t) or (
+                            sp.unit is not None and sp.unit.parse(t) is not None):
+                        commit(t)
+                    else:
+                        pick.var.set(shown)
+
+                def away(_e=None, pick=pick, settle=settle):
+                    def check():                       # still inside (its drop-down list): wait
+                        try:
+                            f = pick.focus_get()
+                        except (KeyError, tk.TclError):
+                            f = None
+                        if f is None or not str(f).startswith(str(pick)):
+                            settle()
+                    pick.after(30, check)
+                pick.bind("<FocusOut>", away, add="+")
+                pick._commit = settle                  # flush_edits (Ctrl+S, switching scene)
                 pick.pack(side="left", fill="x", expand=True)
                 Tip(pick, "Pick a value (type to filter), or type one -- a number, an expression"
                           + (", or seconds (1.5 s)" if sp.unit is not None else "") + " -- and press Enter.")
@@ -464,7 +493,14 @@ class Inspector(ScrollFrame):
         def open_picker():
             mid, lock, note, mi = toolbox.position_map(st.op, r.get("args") or [], cur, app.bank)
 
+            ctx = (app.bank_pos, app.scene.entry_pc if app.scene is not None else None, st.pc, st.op)
+
             def done(x, y, chosen):
+                cur_st = app.stmt(ctx[2])
+                if (app.bank_pos, app.scene.entry_pc if app.scene is not None else None) != ctx[:2] \
+                        or cur_st is None or cur_st.op != ctx[3]:
+                    app.status("The scene changed since Pick on the map opened: nothing was set")
+                    return
                 app.set_arg(st.pc, ix, str(x))
                 app.set_arg(st.pc, iy, str(y))
                 if mi is not None and mid is None and chosen is not None and mi < len(st.args):
@@ -484,7 +520,8 @@ class Inspector(ScrollFrame):
                  "JMP": "Jump", "CALL": "Call a subroutine, then continue here",
                  "EVAL": "Write a flag, register or variable", "FRAME": "Scene setup",
                  "SWITCH": "Jump by value", "SWITCH_CLAMP": "Jump by threshold",
-                 "JMP_WEIGHTED": "Jump to a random target", "RET": "Return"}
+                 "JMP_WEIGHTED": "Jump to a random target, by weight", "JMP_RAND": "Jump to a random target",
+                 "RET": "Return", "RET_NZ": "Return when the condition is TRUE"}
         desc = script.control_tooltip(st.mnem) or ""
         desc = desc.split("\n", 1)[1] if "\n" in desc else desc
         self._header(words.get(st.mnem, st.mnem), st, desc)
@@ -515,14 +552,13 @@ class Inspector(ScrollFrame):
                 if self.primary is None:
                     self.primary = e
             if st.mnem == "JMP_WEIGHTED":
-                note = ("Change a weight here (Enter applies). A weight that reads game state is "
-                        "changed in the Source tab.")
+                note = "Change a weight here (Enter applies). Use Edit (F2) for a weight that reads game state."
             elif st.mnem in ("SWITCH", "SWITCH_CLAMP"):
-                note = ("Numbers in the value can be changed here. To change what it reads, edit "
-                        "the scene in the Source tab.") if lits else ""   # e.g. reg0: nothing to edit
+                note = ("Change a number here (Enter applies). To change what it reads, use Edit "
+                        "(F2).") if lits else ""   # e.g. reg0: nothing to edit
             else:
-                note = ("Numbers in the expression can be changed here. To change the condition "
-                        "itself, edit the scene in the Source tab.")
+                note = ("Change a number here (Enter applies). To change the condition itself, use "
+                        "Edit (F2).")
             if note:
                 hint(box, note, wrap=320).pack(anchor="w", pady=(4, 0))
         if st.mnem in ("SWITCH", "SWITCH_CLAMP", "JMP_RAND", "JMP_WEIGHTED"):
@@ -660,10 +696,18 @@ class Inspector(ScrollFrame):
         for k, item, tgt in txt.choice_options(st):
             box = section(f, "Option %d" % (k + 1) + txt.reg0_text(res, k)
                           + ("  (selected)" if option == k else ""))
-            tv = tk.StringVar(value=(app.doc.text(item) or ""))
-            e = commit_entry(box, tv, lambda item=item, tv=tv: (app.doc.text(item) is not None
-                                                                and tv.get() != app.doc.text(item)
-                                                                and app.set_text(item, tv.get())), width=40)
+            tv = tk.StringVar(value=textesc.to_edit(app.doc.text(item) or ""))
+
+            def commit_option(item=item, tv=tv):
+                if app.doc.text(item) is None:
+                    return False
+                try:
+                    new = textesc.from_edit(tv.get())   # \red, \btn(a) ... -> the game's codes
+                except textesc.EscapeError as ex:
+                    app.status("Option text: %s" % ex)
+                    return False
+                return new != app.doc.text(item) and app.set_text(item, new)
+            e = commit_entry(box, tv, commit_option, width=40)
             e.pack(fill="x")
             Tip(e, "This option's text (Enter applies; it edits the line everywhere it is used).")
             if option == k or (option is None and self.primary is None):

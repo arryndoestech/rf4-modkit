@@ -314,7 +314,7 @@ class CutsceneExplorer:
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
-        Tip(nb, "Mint a new scene in the open bank: pick when it plays, its keys and its body.")
+        Tip(nb, "Create a new scene in the open bank: when it plays, its keys and its body.")
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
@@ -334,20 +334,11 @@ class CutsceneExplorer:
         db["menu"] = dm
         db.pack(side="left", padx=4)
         self.debug_menu = dm
-        Tip(db, "Launch game: save, then start RF4S.exe from the game folder set in the "
-                "toolkit's setup (it reads the saved files at start).\n"
-                "The other game parts act on ONE game: the one the Debugger is attached to. "
-                "Attach first (Debugger… → Attach).\n"
-                "Reload in game (Ctrl+R): save, then put rf3.mc, the dialogue text of the game's "
-                "language and em.bin into that game -- no restart, any size. Refused while a "
-                "scene plays (let it finish). The new scenes apply from the next trigger / talk; "
-                "a room's own scenes are re-read on use.\n"
-                "Reload from disk (F5): read every game file the editor shows again (rf3.mc, the "
-                "dialogue of every language, em.bin, the game's names), e.g. after optest.py or "
-                "rf4mod changed them, plus the test lines only the attached game has; stays on "
-                "the same scene. Unsaved edits and the undo history are dropped (it asks first).\n"
-                "Debugger: attach to the running game, watch its scripts, stop at breakpoints "
-                "(F9 on a statement), step through them.")
+        Tip(db, "Launch game: save, then start the game.\n"
+                "Reload in game (Ctrl+R): save, then load your scenes, text and em.bin into the "
+                "game the Debugger is attached to (not while a scene plays).\n"
+                "Reload from disk (F5): read the game files again (drops unsaved edits; asks first).\n"
+                "Debugger: attach to the game, set breakpoints (F9), step through scripts.")
         rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
         # laid out before everything else, so a narrow window squeezes the middle of the
         # toolbar, never the Reference button at its right end
@@ -390,10 +381,45 @@ class CutsceneExplorer:
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("rf3.mc", err_text(e))
             return
+        self._file_replaced()
         self.bank = self.scene = self.bank_pos = None
         self.browser.rebuild()
         self._show_scene()
         self.status("Opened %s: %d banks" % (pathlib.Path(f).name, len(self.doc.container.banks)))
+
+    def _file_replaced(self):
+        """Another rf3.mc (Open, F5, Restore): forget what described the old one -- the
+        variable / Event Manager use lists (and a scan of it still running), the selection,
+        breakpoints, the Triggers tab's bank, the Event Manager window, an open Edit window."""
+        self._em_uses = self._var_uses = None
+        self._var_gen += 1
+        self._em_bank_uses.clear()
+        self.sel = None
+        self.breakpoints.clear()
+        self._bp_ops.clear()
+        try:
+            self.triggers.show(None)
+        except Exception:  # noqa: BLE001 -- refreshed with the next bank anyway
+            pass
+        w, self._em_window = self._em_window, None
+        try:
+            if w is not None and w.win.winfo_exists():
+                w.win.destroy()
+        except tk.TclError:
+            pass
+        p = self._picker
+        try:
+            if p is not None and p.win.winfo_exists() and p.edit_pc is not None:
+                p.edit_pc = None
+                p.win.withdraw()
+        except tk.TclError:
+            pass
+        ref = self._reference
+        try:
+            if ref is not None and ref.win.winfo_exists():
+                later(self.frame, ref.refresh_uses, 200)
+        except tk.TclError:
+            pass
 
     def reload_from_disk(self):
         """F5: read every game file the editor shows again from disk -- rf3.mc, the dialogue
@@ -423,9 +449,7 @@ class CutsceneExplorer:
         live = self._refresh_live_text()
         from rf4s_modkit import gamenames            # character / item / map names (.eng files)
         gamenames.reload()
-        w, self._em_window = self._em_window, None         # it shows the old em.bin
-        if w is not None and w.win.winfo_exists():
-            w.win.destroy()
+        self._file_replaced()                        # the Event Manager window shows the old em.bin
         self.bank = self.scene = self.bank_pos = None
         self.sel = None
         self.browser.rebuild()
@@ -476,6 +500,8 @@ class CutsceneExplorer:
 
     def open_bank(self, pos):
         """Show a bank: its first scene, and its triggers."""
+        if self._keep_source_edit(pos):
+            return
         from .browser import scene_rows
         c = self.doc.container
         scenes = scene_rows(c.banks[pos])
@@ -488,9 +514,24 @@ class CutsceneExplorer:
             self.scene = None
             self._show_scene()
             self.nb.select(TABS.index("Triggers"))
-            self.status("%s has no scenes yet — New scene… mints the first one" % catalog.bank_title(self.bank))
+            self.status("%s has no scenes yet — New scene… creates the first one" % catalog.bank_title(self.bank))
+
+    def _keep_source_edit(self, pos, entry_pc=None):
+        """True when the user wants to stay: the Source tab has an edited listing of the open
+        scene that isn't applied, and another scene is about to be shown."""
+        if self.scene is None or (pos, entry_pc) == (self.bank_pos, self.scene.entry_pc):
+            return False
+        try:
+            pending = self.source.pending()
+        except Exception:  # noqa: BLE001
+            pending = False
+        return pending and not messagebox.askyesno(
+            "Source tab", "The Source tab has an edited listing that isn't applied.\n\nDiscard it?",
+            parent=self.parent)
 
     def open_scene(self, pos, entry_pc, *, focus_pc=None, tab=None, reveal=True):
+        if self._keep_source_edit(pos, entry_pc):
+            return
         self.flush_edits()
         c = self.doc.container
         bank = c.banks[pos]
@@ -517,9 +558,7 @@ class CutsceneExplorer:
                         if s_.entry_pc == entry_pc), None)
         self.status("%s · scene @0x%04x · %d statements%s" % (
             catalog.bank_title(bank), entry_pc, len(sc.stmts),
-            (" · unreached: %s of them only this reaches -- nothing in this bank registers or "
-             "CALLs it (the engine could still start it at a fixed address, or it is left-over "
-             "code); the rest is code a registered scene runs too"
+            (" · not started by any trigger or CALL in this bank (%s statements only it reaches)"
              % (own if own is not None else "none"))
             if sc.action_type < 0 else ""))
 
@@ -2025,8 +2064,8 @@ class CutsceneExplorer:
                 self.status("Restored %s -- your unsaved edits are still open here; save them over "
                             "it, or reopen the editor to load the restored file" % _target.name)
                 return
-            self._load()
-            self.status("Restored %s and reloaded it" % _target.name)
+            if self.reload_from_disk():
+                self.status("Restored %s and reloaded it" % _target.name)
         return backup_dialog.open_restore(self.frame, names=names, on_restored=restored)
 
     def save_to_game(self):
@@ -2314,6 +2353,7 @@ class CutsceneExplorer:
             if not root:
                 return False
         import tempfile
+        self.rebuild_trampolined_banks()            # as Save does
         files = {"rf3.mc": self.doc.container.build()}
         for loc in self.doc.dirty_locales():
             files["rf3mc.%s" % loc] = self.doc.arcs[loc].build()
@@ -2329,6 +2369,8 @@ class CutsceneExplorer:
         except Exception as e:  # noqa: BLE001
             messagebox.showerror("Install", err_text(e))
             return False
+        if "em.bin" in files:
+            self._save_em_names()                   # your entry names, as Save keeps them
         self.doc.mark_saved(script_=True, locales=self.doc.dirty_locales(), em="em.bin" in files)
         self._chrome()
         messagebox.showinfo("Install", "Installed %s into %s.\nRestart the game to load them (it "

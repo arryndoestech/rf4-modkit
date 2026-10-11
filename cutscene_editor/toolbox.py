@@ -131,14 +131,14 @@ def flag_rows(doc):
     for lo, hi, name, detail in emflags.ZONE2_BLOCKS:
         ids = str(emflags.ZONE2_BASE + lo) if lo == hi else "%d – %d" % (emflags.ZONE2_BASE + lo, emflags.ZONE2_BASE + hi)
         rows.append(("zone 2: " + name, "zone-2 bit", ids, "1", "0 / 1",
-                     detail + "  (ops 318 / 443 / 445 and map objects, not an EVAL variable)",
+                     detail + "  (set by map objects and a few instructions; can't be used in EVAL)",
                      "flag@%d/1" % (emflags.ZONE2_BASE + lo)))
     return rows
 
 
 def variable_choices(doc):
     """[(display, token)] for EVAL / condition pickers: the emdeb variables and the registers."""
-    out = [("reg%d  (VM register)" % i, "reg%d" % i) for i in range(10)]
+    out = [("reg%d  (register)" % i, "reg%d" % i) for i in range(10)]
     for name, kind, bid, w, rng, desc, tok in flag_rows(doc):
         if kind != "zone-2 bit":
             out.append(("%s  %s" % (name, desc[:40]), tok))
@@ -486,15 +486,11 @@ class ReferenceWindow:
         f = ttk.Frame(self.nb, padding=6)
         self.nb.add(f, text=self.TABS[0])
         ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=(
-            "emdeb.bin's variables: FLG_ = a 1-bit flag, REG_ = a number, EV_ = an event slot. "
-            "id = the bit offset in the game-flags store, width = bits. Use the name in a "
-            "condition or EVAL: BR_Z (FLG_X == 1) -> …, EVAL (REG_Y = 3). Zone-2 rows are the "
-            "recovered bits past emdeb's names. reads / writes = how many statements of every "
-            "bank and em.bin entries use it (unsaved edits included); select a variable to list "
-            "them below, double-click a use to open it. Double-click a variable = copy its "
-            "name. With Options -> Cutscene Editor -> Variable editor on, the buttons below "
-            "rename variables (the game's too) and name free bits as variables of your own: "
-            "names are the toolkit's, the game stores bit positions only.")).pack(anchor="w", pady=(0, 4))
+            "The game's flags (FLG_, on/off), numbers (REG_) and event slots (EV_). Use a name in "
+            "a condition or EVAL, e.g. EVAL (REG_Y = 3). reads / writes = how many scenes and Event "
+            "Manager entries use it; select one to list them below, double-click a use to open "
+            "it, double-click a variable to copy its name. Options -> Cutscene Editor -> Variable "
+            "editor adds Rename and New variable.")).pack(anchor="w", pady=(0, 4))
         self._flag_base = flag_rows(self.app.doc)
         pw = ttk.PanedWindow(f, orient="vertical")
         pw.pack(fill="both", expand=True)
@@ -603,6 +599,10 @@ class ReferenceWindow:
         except Exception as e:  # noqa: BLE001
             from tkinter import messagebox
             messagebox.showerror("Variables", "Could not save the names: %s" % err_text(e), parent=self.win)
+            self.app.reload_variables()                # back to what the file holds
+            self._flag_base = flag_rows(self.app.doc)
+            self._var_free_text()
+            self._var_refill()
             return False
         self.app.reload_variables()
         self._flag_base = flag_rows(self.app.doc)
@@ -839,6 +839,9 @@ class ReferenceWindow:
         """Select variable `name` in the Flags tab (the script view's 'Uses of …')."""
         self.show(self.TABS[0])
         t = self.flag_list
+        if getattr(self, "var_filter", None) is not None and self.var_filter.get() != "all":
+            self.var_filter.set("all")
+            t.rows = self._flag_rows(self.app._var_uses)
         t.q.set(name)
         t.fill()
         for iid in t.tree.get_children():
@@ -871,10 +874,8 @@ class ReferenceWindow:
                     "Only the checked ones: untick 'Show unverified instructions in the Reference' "
                     "(Options -> Advanced)." % (len(rows), n))
         else:
-            text = ("Instructions a person has checked in game (%d so far). Mark more with "
-                    "\"human_verified\": true in refdata/opcode_table.json. To list every "
-                    "instruction here, tick 'Show unverified instructions in the Reference' "
-                    "(Options -> Advanced); every one is also in the Instruction picker." % n)
+            text = ("Instructions checked in game (%d so far). To list all of them, tick 'Show "
+                    "unverified instructions in the Reference' (Options -> Advanced)." % n)
         return rows, text
 
     def refresh_functions(self):
@@ -943,17 +944,10 @@ class ReferenceWindow:
         f = ttk.Frame(self.nb, padding=6)
         self.nb.add(f, text="Trigger types")
         ttk.Label(f, foreground="#666", wraplength=940, justify="left", text=(
-            "A trigger type is WHEN a scene runs. Every bank starts with a table of 74 slots, one "
-            "per trigger type; a slot lists that type's triggers: {scene pc, keys}. Each situation in the "
-            "game (entering a map, talking to an NPC, interacting with an event actor, a warp "
-            "landing, a gift...) has its type number built in: the game loads the bank that fits "
-            "the situation (the map's bank, the NPC's bank, the town event's or story chapter's "
-            "bank), walks that type's triggers, compares their keys with what is happening (a map "
-            "id, an event-actor key, a warp number, an item, a talk-line index...; -1 is usually a "
-            "wildcard) and runs the winner's scene. Conditions such as a story flag are mostly not "
-            "in the trigger: the scene tests them itself at its start (the Event Manager guard). "
-            "So a scene's trigger is bank + type + keys - the Triggers tab edits them. "
-            "Double-click a type = show only its scenes in the Banks list.")).pack(anchor="w", pady=(0, 4))
+            "A trigger type is WHEN a scene runs (entering a map, talking to someone, a warp, a "
+            "gift …). A trigger = its bank + type + keys (what must match; -1 usually means any). "
+            "Story conditions are checked by the scene itself. Edit triggers in the Triggers tab. "
+            "Double-click a type to list its scenes in the Banks list.")).pack(anchor="w", pady=(0, 4))
         rows = []
         for t in sorted(et.ENTRY_TYPES):
             sp = et.ENTRY_TYPES[t]
@@ -983,12 +977,13 @@ class ReferenceWindow:
             t = r[5]
             sp = et.ENTRY_TYPES[t]
             lines = ["type %d  %s" % (t, sp["name"]), "", sp.get("summary", "")]
-            if sp.get("bank"):
-                lines += ["", "Bank: " + sp["bank"]]
+            bank_txt = argspec.clean_help(sp.get("bank") or "")
+            if bank_txt:
+                lines += ["", "Bank: " + bank_txt]
             ks = sp.get("keys") or []
             lines += ["", "Keys:" if ks else "Keys: none"]
             for k in ks:
-                lines.append("  %s  %s: %s%s" % (k["index"], k["name"], k.get("meaning", ""),
+                lines.append("  %s  %s: %s%s" % (k["index"], k["name"], argspec.clean_help(k.get("meaning", "")),
                                                  "  (-1 = any)" if k.get("wildcard") else ""))
             lines += ["", "Which trigger runs: " + self._PICK.get(sp.get("select"), sp.get("select") or "?")]
             st = et.CORPUS_STATS.get(t)
@@ -997,12 +992,9 @@ class ReferenceWindow:
                     st["entries"], ", ".join("%d %s" % (v, k) for k, v in st["banks"].items())))
             else:
                 lines.append("In the shipped file: none (the game's code knows this type, no scene uses it)")
-            if sp.get("confidence"):
-                lines.append("Confidence: " + sp["confidence"])
-            if sp.get("matcher"):
-                lines.append("Matcher: " + sp["matcher"])
-            if sp.get("notes"):
-                lines += ["", sp["notes"]]
+            notes = argspec.clean_help(sp.get("notes") or "")
+            if notes:
+                lines += ["", notes]
             det.insert("1.0", "\n".join(lines))
         det.config(state="disabled")
 
@@ -1349,8 +1341,7 @@ class _Field:
         w.grid(row=row, column=1, sticky="we", pady=2)
         self.widget = w
         self.parts.append(w)
-        Tip(w, tip or ((label[:1].upper() + label[1:]) + (": " + hint if hint else "")
-                       + ". It fills in the listing below."))
+        Tip(w, tip or ((label[:1].upper() + label[1:]) + (": " + hint if hint else "")))
         self.hint, self.hint_lbl = hint, None
         if hint or spec is not None:
             h = ttk.Label(parent, text=hint, foreground="#777", wraplength=520, justify="left",
@@ -1623,6 +1614,10 @@ class InstructionPicker:
 
     def _picked(self, _e=None):
         s = self.tree.selection()
+        if s and s[0] == getattr(self, "_skip_select", None):   # the preset's own event
+            self._skip_select = None
+            return
+        self._skip_select = None
         if not s or s[0].startswith("grp:"):
             return
         if self.edit_pc is not None:        # Edit instruction: the (hidden) list's late select event
@@ -1643,6 +1638,8 @@ class InstructionPicker:
             iid = "op:%d" % first
         if self.tree.exists(iid):
             self.tree.see(iid)
+            if iid not in self.tree.selection():
+                self._skip_select = iid            # its <<TreeviewSelect>> arrives after this
             self.tree.selection_set(iid)
         self.set_instruction(key)
 
@@ -1788,7 +1785,7 @@ class InstructionPicker:
             label += " (optional)"
             default = ""
             hint = "leave empty to leave it out. " + hint
-        tip = "%s: %s\n\nIt fills in the listing below." % (sp.label, sp.raw_help or "(no notes)")
+        tip = "%s: %s" % (sp.label, argspec.clean_help(sp.raw_help) or sp.help or "(no notes)")
         f = self._add(label, hint[:400], sp.options, default, spec=sp, tip=tip)
         self.op_fields.append(f)
         if sp.kind == "face":
@@ -1820,8 +1817,13 @@ class InstructionPicker:
 
     def pick_on_map(self, ix, iy):
         mid, lock, note, mi = self.position_map()
+        fields = self.op_fields                        # this form's fields
 
         def done(x, y, chosen):
+            if self.op_fields is not fields:           # another instruction is shown now
+                self.check_lbl.config(text="✗ the picked position belongs to a form that was "
+                                           "closed: open Pick on map… again", foreground="#b00")
+                return
             self.op_fields[ix].var.set(str(x))
             self.op_fields[iy].var.set(str(y))
             if mi is not None and mid is None and chosen is not None and mi < len(self.op_fields):
@@ -2103,7 +2105,8 @@ class InstructionPicker:
         tgt = tk.StringVar()
         tc = FilterCombo(f, [d for d, _t in self._choice_opts], on_pick=lambda _t: self._changed(),
                          width=28, textvariable=tgt)
-        tgt.set(self.CHOICE_NEXT_DISP)
+        tgt.set(self.CHOICE_NEXT_DISP if self.edit_pc is None
+                else (self._choice_opts[0][0] if self._choice_opts else "0x0000"))
         Tip(tc, "Where this answer continues: a statement of this scene, or straight on "
                 "after the menu.")
         arrow = ttk.Label(f, text="→")
@@ -2153,13 +2156,9 @@ class InstructionPicker:
         reg0 = self.choice_mode.get() == "reg0"
         cancel = self.key == ("ctl", "PROMPT_CHOICE")
         if reg0:
-            hint = ("Inserts one SetChoiceVisibleBit per option, the menu, and a SWITCH on reg0 "
-                    "that sends each answer to its target. reg0 = the option's number counted "
-                    "from 0 in this list, also when options above it are hidden. Make sure at least "
-                    "one condition is true: with none, the game shows every option and any pick "
-                    "goes to the first option's target, so the form adds a check that goes "
-                    "to 'If no option would be shown' instead. Conditions can't read reg0 "
-                    "(the SetChoiceVisibleBit lines overwrite it).")
+            hint = ("Adds a 'show when' check per option, the menu, and a jump on reg0 to each "
+                    "option's target. reg0 = the option's number from 0 (hidden options count "
+                    "too). Conditions can't read reg0.")
         else:
             hint = ("Every option is shown and jumps straight to its target. To hide options "
                     "or keep the answer for later, pick 'store the answer in reg0'.")
@@ -2361,8 +2360,11 @@ class InstructionPicker:
     def check(self):
         if self._new_dialogue():
             _spec, err = self.dlg_form.value()
-            self.check_lbl.config(text=("✗ " + err) if err else
-                                  "✓ a new line: Insert adds it in every locale",
+            ok_txt = ("✓ Apply saves it (a new line only if you changed the text)" if self.edit_pc is not None
+                      else "✓ Insert adds it as a new line"
+                      + (" in every language" if getattr(self.app, "pad_locales", None) is not None
+                         and self.app.pad_locales.get() else ""))
+            self.check_lbl.config(text=("✗ " + err) if err else ok_txt,
                                   foreground="#b00" if err else "#080")
             return not err
         text = self.text()
@@ -2387,6 +2389,9 @@ class InstructionPicker:
         positional, so the empty one would silently become 0. None when they are in order."""
         if not self.key or self.key[0] != "op":
             return None
+        for i, f in enumerate(getattr(self, "op_fields", [])):
+            if i < self.opt_from and not f.token():
+                return "fill in %s (it has no default)" % argspec.spec(self.op, i).label
         empty = None
         for i, f in enumerate(getattr(self, "op_fields", [])):
             if i < self.opt_from:
@@ -2439,6 +2444,9 @@ class InstructionPicker:
         if st is None:
             return False
         self.edit_pc = pc
+        app = self.app
+        self._edit_ctx = (app.bank_pos, app.scene.entry_pc if app.scene is not None else None, pc,
+                          bytes(app.bank.data[pc:pc + st.size]))
         self._set_mode(True)
         self.win.deiconify()
         self.win.lift()
@@ -2515,7 +2523,8 @@ class InstructionPicker:
                 self.e_op.var.set(mm.group(2))
                 self.e_val.var.set(mm.group(3).strip())
         elif m in ("BR_Z", "BR_NZ", "RET_NZ"):
-            mm = re.match(r"^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$", expr)
+            mm = (None if re.search(r"&&|\|\|", expr)        # several conditions: keep it whole
+                  else re.match(r"^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$", expr))
             if mm:
                 self.c_left.var.set(mm.group(1).strip())
                 self.c_cmp.var.set(mm.group(2))
@@ -2617,10 +2626,29 @@ class InstructionPicker:
         self._rebuild()
         return True
 
+    def _edit_stale(self):
+        """Why Apply may not go ahead: the scene was switched, or an edit / undo changed the
+        statement since this window opened (the pc would name another statement). None = fine."""
+        ctx = getattr(self, "_edit_ctx", None)
+        app = self.app
+        if ctx is None or app.bank is None or app.scene is None:
+            return "Nothing to apply to: open Edit again (F2)."
+        pos, entry, pc, code = ctx
+        st = app.stmt(pc)
+        if (pos, entry) != (app.bank_pos, app.scene.entry_pc) or st is None \
+                or bytes(app.bank.data[pc:pc + st.size]) != code:
+            return "The scene changed since this window opened: select the statement and open Edit again (F2)."
+        return None
+
     # ---- actions ----------------------------------------------------------------- #
     def insert(self):
         if not self.check():
             return False
+        if self.edit_pc is not None:
+            why = self._edit_stale()
+            if why:
+                self.check_lbl.config(text="✗ " + why, foreground="#b00")
+                return False
         if self.edit_pc is not None and self._new_dialogue():     # Edit on a DIALOG: its text
             spec, _err = self.dlg_form.value()
             ok = self.app.replace_dialogue(self.edit_pc, spec["speaker"], spec["text"],

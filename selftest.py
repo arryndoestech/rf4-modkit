@@ -11274,8 +11274,11 @@ def test_cutscene_install_leaves_no_temp():
         dirty_locales=lambda: ["eng"], em_dirty=lambda: True,
         em=types.SimpleNamespace(build=lambda: b"EM-bytes"),
         mark_saved=lambda **k: saved.update(k))
+    steps = []
     fake = types.SimpleNamespace(doc=doc, _refuse_broken_text=lambda what: False,
-                                 _chrome=lambda: None, status=lambda *a, **k: None)
+                                 _chrome=lambda: None, status=lambda *a, **k: None,
+                                 rebuild_trampolined_banks=lambda: steps.append("rebuild") or 0,
+                                 _save_em_names=lambda: steps.append("em names"))
     try:
         ok = cls.install(fake)
         mods = bundle / "00_mods"

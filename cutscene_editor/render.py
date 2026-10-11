@@ -527,7 +527,9 @@ class SceneText:
                 out += ["", "operands (hex, as stored):"] + ["    " + x for x in leg]
             return "\n".join(out)
         op = st.op
-        out = [script.opcode_prototype(op), "", script.opcode_describe(op) or ""]
+        from .argspec import clean_help
+        desc = script.opcode_describe(op) or ""
+        out = [script.opcode_prototype(op), "", clean_help(desc) or desc]
         sp = script.portrait_speaker_slot(op)
         if sp is not None:
             out.append("Speaker: %s   Side: %s" % (script.portrait_speaker_name(op), "left" if sp[1] == 0 else "right"))

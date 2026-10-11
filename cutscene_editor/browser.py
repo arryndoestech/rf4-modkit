@@ -86,7 +86,7 @@ class Browser(ttk.Frame):
         self.show_empty = tk.BooleanVar(value=False)
         cb = ttk.Checkbutton(br, text="empty banks", variable=self.show_empty, command=self.rebuild)
         cb.pack(side="right", padx=(4, 0))          # packed before the dropdown: never squeezed out
-        Tip(cb, "Also list banks with no scene yet (most maps): the Triggers tab mints a first one.")
+        Tip(cb, "Also list banks with no scene yet (most maps).")
         self.type_filter = tk.StringVar(value=ALL_TRIGGERS)
         self._type_ids = {ALL_TRIGGERS: None}       # dropdown text -> trigger type (None = all)
         tc = ttk.Combobox(br, textvariable=self.type_filter, values=[ALL_TRIGGERS], width=12,

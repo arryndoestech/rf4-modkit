@@ -247,8 +247,8 @@ class SourceTab(ttk.Frame):
         for text, cmd, tip in (
                 ("Check", self.check, "Assemble without applying: reports the size, or the first "
                                       "error with its line (highlighted)."),
-                ("Apply to scene", self.apply, "Assemble and make the scene play this listing (the "
-                                               "new body is appended; the scene's start jumps to it)."),
+                ("Apply to scene", self.apply, "Assemble this listing and replace the scene with it "
+                                               "(Ctrl+Z undoes it)."),
                 ("Reload", lambda: self.load(force=True), "Discard hand edits and regenerate the "
                                                          "listing from the scene."),
                 ("Syntax help", self.toggle_help, "Show / hide the listing grammar.")):
@@ -483,8 +483,8 @@ class TriggersTab(ttk.Frame):
         bar = ttk.Frame(self)
         bar.pack(fill="x", padx=2, pady=2)
         for text, cmd, tip in (
-                ("New scene…", app.ask_new_scene, "Mint a brand-new scene in this bank: pick WHEN it "
-                                                  "plays (the trigger type), its keys, and write its body."),
+                ("New scene…", app.ask_new_scene, "Create a new scene in this bank: when it plays, its "
+                                                  "keys and its body."),
                 ("Open", self.open_selected, "Open the selected trigger's scene (double-click works too)."),
                 ("Remove", self.remove, "Unregister the selected trigger: it stops firing; the "
                                         "scene's code stays as dead bytes.")):
@@ -709,11 +709,12 @@ class TriggerDetail(ttk.Frame):
                 continue
             spec = self._spec(typ, k)
             name = names[k]
-            hint = (spec.get("meaning") or "")[:220]
+            from . import argspec as _argspec
+            hint = _argspec.clean_help(spec.get("meaning") or "")
+            if len(hint) > 220:
+                hint = hint[:219].rstrip() + "…"
             if spec.get("wildcard"):
                 hint = "-1 = any. " + hint
-            if tag != 1:
-                hint = "(tag %d) %s" % (tag, hint)
             opts = self._key_options(name)
             var = tk.StringVar()
             tokmap = dict(opts) if opts else None
@@ -830,6 +831,8 @@ class TriggerDetail(ttk.Frame):
         def done(x1, y1, x2, y2, _mid):
             for v, val in zip(box_field[2], (x1, y1, x2 - x1, y2 - y1)):
                 v.set(str(val))
+            if mapf is not None and lock is None and _mid is not None:    # the map was chosen here
+                mapf[2].set(next((d for d, t in (mapf[3] or {}).items() if t == str(_mid)), str(_mid)))
         self._box_picker = toolbox.MapBoxPicker(self, mid, cur, done, lock=lock, note=note)
         return self._box_picker
 
