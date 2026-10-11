@@ -50,13 +50,13 @@ class Unit:
         self.what = what                        # "12000 = 1 s" style note for the help
 
     def describe(self, raw):
-        """'0.5 s' for a raw value (None for a non-number)."""
+        """'0.5s' for a raw value (None for a non-number)."""
         try:
             v = int(raw, 0) if isinstance(raw, str) else int(raw)
         except (TypeError, ValueError):
             return None
         s = v / self.per_second
-        return ("%g s" % round(s, 3)) if v else "immediate"
+        return ("%gs" % round(s, 3)) if v else "immediate"
 
     _SECONDS = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\s*$", re.I)
 
@@ -116,7 +116,8 @@ def clean_help(text):
 class ArgSpec:
     """kind: 'enum' | 'actor' | 'map' | 'item' | 'face' | 'number' (see module doc)."""
 
-    def __init__(self, label, help_, kind, options, default, unit=None, raw_help=""):
+    def __init__(self, label, help_, kind, options, default, unit=None, raw_help="", meanings=None):
+        self.meanings = meanings or {}          # token -> 'right', '0.5s' (the list's words)
         self.label = label
         self.help = help_
         self.kind = kind
@@ -139,13 +140,15 @@ class ArgSpec:
         return t
 
     def note(self, token):
-        """A live note for the current value: '= 0.5 s', '= facing right', or None."""
+        """A live note for the current value: '= 0.5s', '= right', or None."""
         tok = (token or "").strip()
         if self.unit is not None:
             d = self.unit.describe(tok)
             if d:
                 return "= " + d
-        for disp, t in self.options:
+        if tok in self.meanings:
+            return "= " + self.meanings[tok]
+        for disp, t in self.options:                # enum lists: '90  right'
             if t == tok and "  " in disp:
                 return "= " + disp.split("  ", 1)[1]
         return None
@@ -211,26 +214,23 @@ def spec(op, i):
     options, seen = [], set()
 
     def add(v, words):
+        """One list entry: what the value means with the raw value beside it ('0.5s  (6000)',
+        'right  (90)'), or just the value when it has no meaning to show ('1')."""
         if v in seen:
             return
         seen.add(v)
-        extra = []
-        if unit is not None:
-            d = unit.describe(v)
-            if d:
-                extra.append(d)
-        if words:
-            extra.append(words)
-        options.append(("%d  %s" % (v, " · ".join(extra)) if extra else str(v), str(v)))
+        meaning = words or (unit.describe(v) if unit is not None else None)
+        options.append(("%s  (%d)" % (meaning, v) if meaning else str(v), str(v)))
     for v, words in NAMED.get(typ, ()):
         add(v, words)
     kind = "face" if portrait_slot_of_arg(op, i) is not None else "number"
     if typ.startswith("script units") or kind == "face":
         common = []                     # a position / face only means something on its map / character
-    for v, n in common:
-        add(v, "used %d× in the game" % n if v not in dict(NAMED.get(typ, ())) else "")
+    for v, _n in common:
+        add(v, None)
     default_v = common[0][0] if common else (NAMED[typ][0][0] if typ in NAMED else 0)
-    return ArgSpec(label, help_, kind, options, str(default_v), unit=unit, raw_help=raw_help)
+    return ArgSpec(label, help_, kind, options, str(default_v), unit=unit, raw_help=raw_help,
+                   meanings={t: d.rsplit("  (", 1)[0] for d, t in options if d.endswith(")")})
 
 
 # ---- waits ----------------------------------------------------------------------------------- #

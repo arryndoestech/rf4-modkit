@@ -3763,7 +3763,7 @@ def test_script():
     # accuracy pin (IDA-verified 2026-07-11): five high-use scene-ops had FEWER arg labels than the
     # handler actually reads (undocumented args a modder can't see in the tooltip). Each was confirmed
     # by decompiling the VM-op handler's arg extraction (arr[cnt-3]/-5/-7) + cross-checked vs scene
-    # values. Pin the added/corrected labels: op464 DropItemStack +quality; op609 RollRandomPoint
+    # values. Pin the added/corrected labels: op464 DropItemStack +level; op609 RollRandomPoint
     # +center x/y/radius; op405 SetMonsterFarmLovedToday +loved bit; op478 SpawnNpcScripted +scripted
     # bit30; op10 SetSpeakerVoice name-string + chime/tone (2026-08-18: arg0 is the NAME-PLATE string
     # id loaded with mode 2 / no portrait dispatch, not a dialogue line — the captain monologue and
@@ -3771,7 +3771,7 @@ def test_script():
     def _la(_o):
         return [_a.lower() for _a in om.arg_names(_o)]
     _labelfix = (
-        len(om.arg_names(464)) == 3 and any("quality" in _a for _a in _la(464))
+        len(om.arg_names(464)) == 3 and any(_a.startswith("level") for _a in _la(464))
         and [_a.split(" ")[0] for _a in _la(609)] == ["x", "y", "radius"]
         and len(om.arg_names(405)) == 2 and any("plant" in _a for _a in _la(405))
         and len(om.arg_names(478)) == 2 and any("held" in _a for _a in _la(478))
@@ -7212,10 +7212,18 @@ def test_argspec():
            not bad_help and not bad_label, (bad_help[:4], bad_label[:4]))
     wait, fade_t, fade_d, walk_sp = A.spec(2, 0), A.spec(334, 0), A.spec(334, 1), A.spec(117, 3)
     _check("timers take seconds: Wait '1.5 s' = 18000 (12000 per second), FadeScreen '1 s' = 6000; "
-           "the field explains a raw value ('= 0.5 s')",
+           "the field explains a raw value ('= 0.5s')",
            wait.token("1.5 s") == "18000" and fade_d.token("1 s") == "6000"
-           and wait.note("6000") == "= 0.5 s" and fade_d.note("0") == "= immediate",
+           and wait.note("6000") == "= 0.5s" and fade_d.note("0") == "= immediate",
            (wait.token("1.5 s"), fade_d.token("1 s"), wait.note("6000")))
+    give_lv = A.spec(423, 2)
+    _check("list entries are short: '0.5s  (6000)', 'right  (90)', a plain common value is just '1'; "
+           "GivePlayerItem's third argument is the item level",
+           [d for d, _t in wait.options[:1]] == ["0.5s  (6000)"]
+           and ("right  (90)", "90") in A.spec(103, 1).options
+           and [d for d, _t in A.spec(423, 1).options[:1]] == ["1"]
+           and give_lv.label == "level" and "quality" not in give_lv.help,
+           (wait.options[:2], A.spec(423, 1).options[:2], give_lv.label, give_lv.help))
     _check("defaults are the game's own: FadeScreen(-16 black, 6000), walk speed 100; named values "
            "for the fade colour and the compass",
            fade_t.default == "-16" and fade_d.default == "6000" and walk_sp.default == "100"

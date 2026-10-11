@@ -41659,7 +41659,7 @@
    "mnemonic": "GivePlayerItem",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "GivePlayerItem(item, count, quality)",
+   "prototype": "GivePlayerItem(item, count, level)",
    "args": [
     {
      "name": "item",
@@ -41707,9 +41707,9 @@
      ]
     },
     {
-     "name": "quality",
+     "name": "level",
      "type": "1..10",
-     "values": "stored as quality-1 in each quality byte",
+     "values": "stored as level-1 in each level byte",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -41773,7 +41773,7 @@
    "mnemonic": "GivePlayerItem",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "GivePlayerItem(item, count, quality)",
+   "prototype": "GivePlayerItem(item, count, level)",
    "args": [
     {
      "name": "item",
@@ -41821,9 +41821,9 @@
      ]
     },
     {
-     "name": "quality",
+     "name": "level",
      "type": "1..10",
-     "values": "stored as quality-1 in each quality byte",
+     "values": "stored as level-1 in each level byte",
      "required_kind": "int",
      "notes": "",
      "human_verified": true,
@@ -41887,7 +41887,7 @@
    "mnemonic": "ForcePlayerHoldItem",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "ForcePlayerHoldItem(item, count, quality)",
+   "prototype": "ForcePlayerHoldItem(item, count, level)",
    "args": [
     {
      "name": "item",
@@ -41906,7 +41906,7 @@
      "human_verified": false
     },
     {
-     "name": "quality",
+     "name": "level",
      "type": "1..10",
      "values": "> 10 treated as 1",
      "required_kind": "int",
@@ -43515,7 +43515,7 @@
    "mnemonic": "SpawnItemAtPos",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "SpawnItemAtPos(item, quality, count, x, y, pickup)",
+   "prototype": "SpawnItemAtPos(item, level, count, x, y, pickup)",
    "args": [
     {
      "name": "item",
@@ -43526,9 +43526,9 @@
      "human_verified": false
     },
     {
-     "name": "quality",
+     "name": "level",
      "type": "item level 1-10",
-     "values": "outside 1..10 -> 1; stored as quality-1",
+     "values": "outside 1..10 -> 1; stored as level-1",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -44178,7 +44178,7 @@
    "mnemonic": "AddRewardItem",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "AddRewardItem(slot, item, quality, count)",
+   "prototype": "AddRewardItem(slot, item, level, count)",
    "args": [
     {
      "name": "slot",
@@ -44197,9 +44197,9 @@
      "human_verified": false
     },
     {
-     "name": "quality",
+     "name": "level",
      "type": "1..10",
-     "values": "out of range -> 1; stored as quality-1",
+     "values": "out of range -> 1; stored as level-1",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -44459,7 +44459,7 @@
    "mnemonic": "DropItemStack",
    "previous_mnemonic": null,
    "category": "item",
-   "prototype": "DropItemStack(item, quality, count)",
+   "prototype": "DropItemStack(item, level, count)",
    "args": [
     {
      "name": "item",
@@ -44470,9 +44470,9 @@
      "human_verified": false
     },
     {
-     "name": "quality",
+     "name": "level",
      "type": "item level",
-     "values": "0 treated as 1; stored as quality-1",
+     "values": "0 treated as 1; stored as level-1",
      "required_kind": "int",
      "notes": "",
      "human_verified": false

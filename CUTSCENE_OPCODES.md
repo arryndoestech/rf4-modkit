@@ -8890,7 +8890,7 @@ Args:
   2. field0 (record +8 bits 10-19)
   3. packed (packed into the high dword of record +8)
 
-### `op 423` — GivePlayerItem(item, count, quality)
+### `op 423` — GivePlayerItem(item, count, level)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
 *verified:* yes, in game
 
@@ -8900,9 +8900,9 @@ Args:
   0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. count (stack size (5 bits)) — verified in game
-  2. quality (stored as quality-1 in each quality byte) — verified in game
+  2. level (stored as level-1 in each level byte) — verified in game
 
-### `op 424` — GivePlayerItem(item, count, quality)
+### `op 424` — GivePlayerItem(item, count, level)
 *handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
 *verified:* yes, in game
 
@@ -8912,9 +8912,9 @@ Args:
   0. item — verified in game
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. count (stack size (5 bits)) — verified in game
-  2. quality (stored as quality-1 in each quality byte) — verified in game
+  2. level (stored as level-1 in each level byte) — verified in game
 
-### `op 425` — ForcePlayerHoldItem(item, count, quality)
+### `op 425` — ForcePlayerHoldItem(item, count, level)
 *handler:* `Script_VMOp_ForcePlayerHoldItemOrConsume`
 
 Put an item straight into the player's hands with the pick-up jingle (bypassing the bag). With item 0 it instead uses up the stack the player is holding.
@@ -8923,7 +8923,7 @@ Args:
   0. item (0 = use up the currently held stack instead)
      - *(enum: 1108 values — use the in-editor picker or the id database)*
   1. count (stack size)
-  2. quality (> 10 treated as 1)
+  2. level (> 10 treated as 1)
 
 ### `op 428` — TakeItem(item, count, level_filter)
 *handler:* `Script_VMOp_TakeItemFromAnyContainer`
@@ -8956,7 +8956,7 @@ Uses up items from the stack the player is holding out (e.g. the item just hande
 Args:
   0. count (-1 = the whole held stack)
 
-### `op 452` — SpawnItemAtPos(item, quality, count, x, y, pickup)
+### `op 452` — SpawnItemAtPos(item, level, count, x, y, pickup)
 *handler:* `Script_VMOp_SpawnItemAtTileAsDropOrVisual`
 
 Places an item in the world at a position, either as a collectable drop or as a visual-only prop.
@@ -8964,7 +8964,7 @@ Places an item in the world at a position, either as a collectable drop or as a 
 Args:
   0. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. quality (outside 1..10 -> 1; stored as quality-1)
+  1. level (outside 1..10 -> 1; stored as level-1)
   2. count (packed << 11 (low 5 bits used))
   3. x
   4. y
@@ -9022,7 +9022,7 @@ Args:
   1. x
   2. y
 
-### `op 460` — AddRewardItem(slot, item, quality, count)
+### `op 460` — AddRewardItem(slot, item, level, count)
 *handler:* `Script_VMOp_AddItemToRewardSlotPopup`
 
 Put an item into a reward-popup slot (adds it and queues the popup), marking it discovered.
@@ -9031,7 +9031,7 @@ Args:
   0. slot
   1. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  2. quality (out of range -> 1; stored as quality-1)
+  2. level (out of range -> 1; stored as level-1)
   3. count (out of range -> 1)
 
 ### `op 462` — GiveRewardItems(item1, count1, item2, count2, item3, count3, item4, count4)
@@ -9058,7 +9058,7 @@ Args:
   0. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
-### `op 464` — DropItemStack(item, quality, count)
+### `op 464` — DropItemStack(item, level, count)
 *handler:* `Script_VMOp_DropItemStackAtPlayer`
 
 Drops a stack of an item on the ground at the player's feet, with the item jingle.
@@ -9066,7 +9066,7 @@ Drops a stack of an item on the ground at the player's feet, with the item jingl
 Args:
   0. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  1. quality (0 treated as 1; stored as quality-1)
+  1. level (0 treated as 1; stored as level-1)
   2. count (packed << 11)
 
 ### `op 563` — EquipScriptedWeapon(item)
