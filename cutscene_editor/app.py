@@ -708,6 +708,28 @@ class CutsceneExplorer:
         return bool(cls._load_prefs().get("pad_locales", True))
 
     @classmethod
+    def list_group_setting(cls, which):
+        """'Show "Most used"' / 'Show "Recently used"' (Options -> Cutscene Editor): the groups
+        on top of the Add-an-instruction list. `which` = 'most_used' | 'recent'. On by default."""
+        return bool(cls._load_prefs().get("list_" + which, True))
+
+    @classmethod
+    def set_list_group_setting(cls, which, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["list_" + which] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    def refresh_instruction_list(self):
+        """An open Add-an-instruction window follows the list options at once."""
+        p = self._picker
+        try:
+            if p is not None and p.win.winfo_exists():
+                p.fill_tree()
+        except tk.TclError:
+            pass
+
+    @classmethod
     def bank_listing_setting(cls):
         """'Bank listing tab' (Options -> Advanced): the whole open bank as one read-only
         listing. Off by default."""

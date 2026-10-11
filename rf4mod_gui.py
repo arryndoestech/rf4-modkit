@@ -1230,6 +1230,28 @@ class App:
                            "shows in every language. Unticked, only the language you edit gets it: "
                            "players of the other languages would see a wrong line instead.",
                   foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
+        ttk.Label(ce, text="Add-an-instruction list", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        self._list_groups = {}
+        for which, text, note in (
+                ("most_used", 'Show "Most used"',
+                 "A fixed group on top: DIALOG, the choice menu, EVAL and the verified instructions "
+                 "the game's own scenes use most (not your own habits)."),
+                ("recent", 'Show "Recently used"',
+                 "The last 8 instructions you inserted.")):
+            var = tk.BooleanVar(value=CutsceneExplorer.list_group_setting(which))
+            self._list_groups[which] = var
+
+            def group_changed(which=which, var=var):
+                CutsceneExplorer.set_list_group_setting(which, bool(var.get()))
+                cur = getattr(self, "_cutscene_ed", None)  # an open editor follows at once
+                try:
+                    if cur is not None and cur[0].winfo_exists():
+                        cur[1].refresh_instruction_list()
+                except tk.TclError:
+                    pass
+            ttk.Checkbutton(ce, text=text, variable=var, command=group_changed).pack(anchor="w", pady=(4, 0))
+            ttk.Label(ce, text=note, foreground="#666", wraplength=380,
+                      justify="left").pack(anchor="w", padx=(20, 0))
         # -- Advanced: backups (off by default)
         adv = tab("Advanced")
         self._options_backups(adv, win)

@@ -738,7 +738,9 @@ anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 instruction…*; the window inserts it after the selected one, or before it (a choice in the window,
 back to "after" once inserted). The list shows the instructions verified in game (untick the box
 for all ~700), with **Most used** (what the game's own scenes use most) and **Recently used** on
-top, each with a one-line Description; search finds them by it ("fade", "walk"). Picking
+top (*Most used* is a fixed list: the instructions the game's own scenes use most; either group
+can be switched off in Options → Cutscene Editor), each with a one-line Description; search finds
+them by it ("fade", "walk"). Picking
 one shows a one-line description (*More…* for the rest) and a form with one field per argument.
 Each field starts at the value the game's own scenes use most (walk speed 100, a fade to black over
 1 second) and lists the named values (compass directions, fade colours, turn speeds) and the other

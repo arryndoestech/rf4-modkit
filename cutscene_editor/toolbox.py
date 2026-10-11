@@ -1386,8 +1386,11 @@ class InstructionPicker:
         ents = self.entries()
         by_iid = {e[1]: e for e in ents}
         if not words:
-            for grp, prefix, iids in ((RECENT_GROUP, "rec:", self.recent()),
-                                      (FAVOURITE_GROUP, "fav:", self._favourites(ents))):
+            show = type(self.app).list_group_setting if hasattr(type(self.app), "list_group_setting") \
+                else (lambda _w: True)
+            for grp, prefix, iids in ((RECENT_GROUP, "rec:", self.recent() if show("recent") else []),
+                                      (FAVOURITE_GROUP, "fav:",
+                                       self._favourites(ents) if show("most_used") else [])):
                 rows = [by_iid[i] for i in iids if i in by_iid]
                 if not rows:
                     continue

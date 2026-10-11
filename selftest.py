@@ -10046,6 +10046,7 @@ def test_explorer_tabs():
         win = app.cmd_options()
         again = app.cmd_options()
         boxes = [w for w in _all_widgets(win) if isinstance(w, gui.ttk.Checkbutton)]
+        _box_texts = [b.cget("text") for b in boxes]
         _tabs = [app._options_nb.tab(t, "text") for t in app._options_nb.tabs()]
         _in = {app._options_nb.tab(str(w.winfo_parent()), "text") if str(w.winfo_parent()) in
                app._options_nb.tabs() else None: w.cget("text") for w in boxes}
@@ -10101,6 +10102,17 @@ def test_explorer_tabs():
             _pl[0].invoke()
         _check("'Add new lines to every language' is in Options -> Cutscene Editor and saved for the editor",
                _pl_ok and _CE.pad_locales_setting() == _pl_before)
+        _lg = {w: [b for b in boxes if b.cget("text") == t]
+               for w, t in (("most_used", 'Show "Most used"'), ("recent", 'Show "Recently used"'))}
+        _lg_ok = all(_lg.values()) and all(_CE.list_group_setting(w) for w in _lg)
+        for _w, _bs in _lg.items():
+            if _bs:
+                _bs[0].invoke()
+                _lg_ok = _lg_ok and _CE.list_group_setting(_w) is False
+                _bs[0].invoke()
+                _lg_ok = _lg_ok and _CE.list_group_setting(_w) is True
+        _check("'Show \"Most used\"' / 'Show \"Recently used\"' are in Options -> Cutscene Editor, on by "
+               "default and saved for the editor", _lg_ok, {w: bool(b) for w, b in _lg.items()})
         _bl = [b for b in boxes if b.cget("text") == "Bank listing tab"]
         _bl_before = _CE.bank_listing_setting()
         if _bl:
@@ -10129,9 +10141,10 @@ def test_explorer_tabs():
         _check("Options… is on the toolbar (Game folder… moved into it), opens one window, and its tick box "
                "switches the mouse wheel between zoom and scroll (saved in settings.json)",
                "Options…" in bar_texts and "Game folder…" not in bar_texts
-               and again is win and len(boxes) == 5 and ticked_before
+               and again is win and len(_box_texts) == len(set(_box_texts))   # built once: no duplicate boxes
+               and ticked_before
                and after_untick == ("scroll", "scroll") and after_tick == "zoom",
-               (bar_texts, ticked_before, after_untick, after_tick))
+               (bar_texts, ticked_before, after_untick, after_tick, _box_texts))
         _check("explorer tabs raised no callback errors", not errs, str(errs[:1]))
     finally:
         try:
@@ -14760,6 +14773,17 @@ def test_cutscene_toolbox():
                "inserted EVAL under Recently used; a Most used row opens that instruction",
                p.only_ver.get() and fav and fav[0] == "fav:ctl:DIALOG" and rec and rec[0] == "rec:ctl:EVAL"
                and p.key == ("op", 2), (fav[:3], rec[:3], p.key))
+
+        type(cx).set_list_group_setting("most_used", False)
+        type(cx).set_list_group_setting("recent", False)
+        cx.refresh_instruction_list()
+        gone = (not p.tree.exists("grp:" + tb_.FAVOURITE_GROUP) and not p.tree.exists("grp:" + tb_.RECENT_GROUP))
+        type(cx).set_list_group_setting("most_used", True)
+        type(cx).set_list_group_setting("recent", True)
+        cx.refresh_instruction_list()
+        back = p.tree.exists("grp:" + tb_.FAVOURITE_GROUP) and p.tree.exists("grp:" + tb_.RECENT_GROUP)
+        _check("switching 'Most used' / 'Recently used' off in Options removes them from an open "
+               "list at once; on brings them back", gone and back)
         # x / y arguments: pick the point on the scene's map (1/8-tile units)
         from rf4s_modkit import script as _s
         c = cx.doc.container
