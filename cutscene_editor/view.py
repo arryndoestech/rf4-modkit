@@ -234,7 +234,7 @@ class ScriptView(ttk.Frame):
 
     def _context_menu(self, e):
         """Right-click: select the row (a row inside a multi-selection keeps it, so Copy and
-        Delete act on all of them), then offer the insert / delete actions."""
+        Delete act on all of them), then offer the insert / edit / delete actions."""
         if not (self.multi and self._row_key_at(e) in self.multi):
             self._click(e)
         else:
@@ -247,7 +247,7 @@ class ScriptView(ttk.Frame):
         m.add_command(label="Add instruction…  (Insert)", state=st,
                       command=lambda: app.ask_insert_instruction())
         cur = app.stmt(app.sel[0]) if has else None
-        editable = cur is not None and (cur.op < 0xFFF0 or cur.mnem == "DIALOG") and not self.multi
+        editable = cur is not None and not self.multi
         m.add_command(label="Edit instruction…  (F2)", state="normal" if editable else "disabled",
                       command=lambda: app.ask_edit_instruction())
         m.add_separator()

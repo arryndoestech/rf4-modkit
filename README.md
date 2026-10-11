@@ -738,7 +738,7 @@ anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 instruction…*; the window inserts it after the selected one, or before it (a choice in the window,
 back to "after" once inserted). The list shows the instructions verified in game (untick the box
 for all ~700), with **Most used** (what the game's own scenes use most) and **Recently used** on
-top, each with a line on what it does; search finds them by what they do ("fade", "walk"). Picking
+top, each with a one-line Description; search finds them by it ("fade", "walk"). Picking
 one shows a one-line description (*More…* for the rest) and a form with one field per argument.
 Each field starts at the value the game's own scenes use most (walk speed 100, a fade to black over
 1 second) and lists the named values (compass directions, fade colours, turn speeds) and the other
@@ -751,16 +751,20 @@ Characters, maps, items, flags and named values are pickers. SetRegisters shows 
 them in order (the form refuses an empty register before a filled one).
 
 **Editing an instruction the same way.** *Edit instruction…* (right-click a line, or F2) opens the
-same form without the list, filled in from the selected action; *Apply* replaces the statement in
+same form without the list, filled in from the selected statement (any kind: actions, dialogue,
+menus, conditions, jumps, switches, EVAL, FRAME); *Apply* replaces the statement in
 one undoable step (whatever jumped to it reaches the new one). On a dialogue line it holds the
 line's text: changed text is saved as a new line (other scenes that show the old one keep it), and
-*an existing line* points the statement at another line. Esc closes it without changing anything.
+*an existing line* points the statement at another line. A statement the form can't hold exactly
+(say, an EVAL that only compares) opens as its listing text instead. Esc closes it without changing
+anything.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,
 and choice menus, switches and random jumps take rows. DIALOG writes **a new line** (speaker,
 side, face, box style and text, added in every locale) or shows an existing one by id. Every x / y
 position has **📍 Pick on
 map…**: click the spot on the rendered map of the scene (1/8-tile units, as the script stores them).
-The listing the form makes is shown live and checked, and it can be edited by hand. *Insert* puts it
+The listing the form makes is checked live; tick *Advanced: show the listing* (remembered) to see
+and hand-edit it. *Insert* puts it
 after or before the selected statement and closes the window (the new statement is selected). The Inspector
 edits existing statements the same way: short argument names, the value's meaning, the named and
 common values, face pictures, the character / map / item pickers and *Pick x / y on the map*.

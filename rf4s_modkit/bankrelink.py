@@ -720,17 +720,22 @@ class BankModel:
         return items[0].old_pc
 
     def replace(self, key, text, resolver=None, strict=True):
-        """The statement `key` (which must fall through) becomes the statements of `text`:
-        every path that reached it -- the statement above, every branch / call / entry --
-        runs the new ones, which fall through to the statement that followed it. Returns
-        the first new key."""
+        """The statement `key` becomes the statements of `text`: every path that reached it
+        -- the statement above, every branch / call / entry -- runs the new ones. A
+        statement that falls through is replaced by code that continues to the statement
+        that followed it; one that never does (a jump, a menu, END) only by code that never
+        does either. Returns the first new key."""
         i, s = self._stmt_at(key)
-        if not s.falls or i + 1 >= len(self.code) or not isinstance(self.code[i + 1], Stmt):
-            raise RelinkError("the statement at 0x%04x never falls through; only a statement "
-                              "that continues to the next one can be replaced here" % key)
-        items = self.listing_items(text, resolver, tail=self.code[i + 1].old_pc, strict=strict)
+        nxt = self.code[i + 1] if i + 1 < len(self.code) and isinstance(self.code[i + 1], Stmt) else None
+        if s.falls and nxt is None:
+            raise RelinkError("the statement at 0x%04x has nothing after it to continue to" % key)
+        items = self.listing_items(text, resolver, tail=nxt.old_pc if nxt is not None else None,
+                                   strict=strict)
         if not items:
             raise RelinkError("nothing to replace 0x%04x with (empty listing)" % key)
+        if not s.falls and items[-1].falls:
+            raise RelinkError("the statement at 0x%04x never continues to the next one, so its "
+                              "replacement must not either (end it with a jump, a menu or END)" % key)
         self.code[i:i + 1] = items
         self.redirect(s.old_pc, items[0].old_pc)
         return items[0].old_pc

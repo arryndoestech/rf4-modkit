@@ -1078,42 +1078,9 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
                 note = "  ".join(bits)
         else:
             mn = st.mnem
-            if mn == "FRAME":
-                body = "FRAME %d" % (st.items[0] if st.items else 0)
-            elif mn in ("CALL", "JMP"):
-                body = "%s %s" % (mn, tgt(st.code_targets[0] if st.code_targets else None))
-            elif mn in ("EVAL", "RET_NZ"):
-                body = "%s %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None))
-            elif mn in ("BR_Z", "BR_NZ"):
-                body = "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
-                                        tgt(st.code_targets[0] if st.code_targets else None))
-            elif mn in ("SWITCH", "SWITCH_CLAMP"):
-                body = "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
-                                        ", ".join(tgt(t) for t in st.code_targets))
-            elif mn == "JMP_RAND":
-                body = "JMP_RAND %s" % ", ".join(tgt(t) for t in st.code_targets)
-            elif mn == "JMP_WEIGHTED":
-                body = "JMP_WEIGHTED " + ", ".join("%s -> %s" % (_cond_text(buf, e), tgt(t))
-                                              for t, e in zip(st.code_targets, st.expr_refs))
-            elif mn == "PROMPT_CHOICE":
-                c0 = st.code_targets[0] if st.code_targets else None
-                last = st.code_targets[len(st.items)] if len(st.code_targets) > len(st.items) else None
-                # the CANCEL slot is never taken; written only when it isn't the default
-                parts = ["CANCEL -> %s" % tgt(c0)] if (c0 != last or not st.items) else []
-                for k, item in enumerate(st.items):
-                    t = st.code_targets[k + 1] if k + 1 < len(st.code_targets) else None
-                    parts.append("#%d -> %s" % (item, tgt(t)))
-                body = "PROMPT_CHOICE " + ", ".join(parts)
-                note = _choice_note(st.items, dialog, _choice_results(scene, bank, pc)) if comments else ""
-            elif mn == "PROMPT_CHOICE_FORCED":
-                parts = []
-                for k, item in enumerate(st.items):
-                    t = st.code_targets[k] if k < len(st.code_targets) else None
-                    parts.append("#%d -> %s" % (item, tgt(t)))
-                body = "PROMPT_CHOICE_FORCED " + ", ".join(parts)
-                note = _choice_note(st.items, dialog, _choice_results(scene, bank, pc)) if comments else ""
-            else:
-                body = mn
+            body = _control_body(buf, st, tgt)
+            if mn in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") and comments:
+                note = _choice_note(st.items, dialog, _choice_results(scene, bank, pc))
         line = "    %s%s" % (addr, body)
         if comments and "REG_MAIN_SCENARIO" in body:
             cps = _checkpoint_note(body)
@@ -1122,6 +1089,55 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
             line = "%-52s ; %s" % (line, note)
         lines.append(line)
     return "\n".join(lines)
+
+
+def _control_body(buf, st, tgt):
+    """The listing text of control statement `st` (no address, no comment); `tgt(pc)` writes
+    a jump target (a label, or 0xPC)."""
+    mn = st.mnem
+    if mn == "FRAME":
+        return "FRAME %d" % (st.items[0] if st.items else 0)
+    if mn == "DIALOG":
+        return "DIALOG #%d" % st.dialog_id
+    if mn in ("CALL", "JMP"):
+        return "%s %s" % (mn, tgt(st.code_targets[0] if st.code_targets else None))
+    if mn in ("EVAL", "RET_NZ"):
+        return "%s %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None))
+    if mn in ("BR_Z", "BR_NZ"):
+        return "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
+                                tgt(st.code_targets[0] if st.code_targets else None))
+    if mn in ("SWITCH", "SWITCH_CLAMP"):
+        return "%s %s -> %s" % (mn, _cond_text(buf, st.expr_refs[0] if st.expr_refs else None),
+                                ", ".join(tgt(t) for t in st.code_targets))
+    if mn == "JMP_RAND":
+        return "JMP_RAND %s" % ", ".join(tgt(t) for t in st.code_targets)
+    if mn == "JMP_WEIGHTED":
+        return "JMP_WEIGHTED " + ", ".join("%s -> %s" % (_cond_text(buf, e), tgt(t))
+                                          for t, e in zip(st.code_targets, st.expr_refs))
+    if mn == "PROMPT_CHOICE":
+        c0 = st.code_targets[0] if st.code_targets else None
+        last = st.code_targets[len(st.items)] if len(st.code_targets) > len(st.items) else None
+        # the CANCEL slot is never taken; written only when it isn't the default
+        parts = ["CANCEL -> %s" % tgt(c0)] if (c0 != last or not st.items) else []
+        for k, item in enumerate(st.items):
+            t = st.code_targets[k + 1] if k + 1 < len(st.code_targets) else None
+            parts.append("#%d -> %s" % (item, tgt(t)))
+        return "PROMPT_CHOICE " + ", ".join(parts)
+    if mn == "PROMPT_CHOICE_FORCED":
+        parts = []
+        for k, item in enumerate(st.items):
+            t = st.code_targets[k] if k < len(st.code_targets) else None
+            parts.append("#%d -> %s" % (item, tgt(t)))
+        return "PROMPT_CHOICE_FORCED " + ", ".join(parts)
+    return mn
+
+
+def statement_text(buf, st):
+    """One statement as a listing line with absolute targets (0xPC): what the Edit
+    instruction window starts from. Assembles back to the same statement."""
+    if st.op < 0xFFF0:
+        return action_line(st.op, [operand_text(buf, a, st.op, i) for i, a in enumerate(st.args)])
+    return _control_body(buf, st, lambda t: "0x0000" if t is None else "0x%04x" % t)
 
 
 def _checkpoint_note(body):

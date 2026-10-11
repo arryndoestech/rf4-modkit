@@ -35,7 +35,8 @@ def _private_settings():
     d = _gamepaths._load_settings()
     for k in ("map_view", "group_maps_by_area", "season_note_shown", "map_wheel", "map_minimap_hidden",
               "map_palette_favorites", "cutscene_editor", "theme", "backup_originals", "backup_previous",
-              "backup_dir", "list_rows", "ui_scale"):
+              "backup_dir", "list_rows", "ui_scale", "cutscene_show_listing",
+              "cutscene_recent_instructions"):
         d.pop(k, None)
     # the GUI tests expect a save to keep the original (backups are off by default for users)
     d["backup_originals"], d["backup_previous"] = True, 1
@@ -7384,6 +7385,132 @@ def test_edit_instruction():
     finally:
         if root is not None:
             root.destroy()
+
+
+def test_edit_every_kind():
+    """Edit instruction opens every kind of statement (actions and all 15 control kinds the
+    shipped scenes use): filled into its form when the form can hold it exactly, else as its
+    own listing text; Apply unchanged is a no-op either way. A branch's target and a switch's
+    rows can be changed."""
+    print("cutscene editor: Edit on every statement kind:")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from rf4s_modkit import script
+    except Exception as e:
+        _skip("edit every kind", f"cutscene_editor not importable ({e})"); return
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("edit every kind", "rf3.mc not found"); return
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("edit every kind", f"no display for Tk ({e})"); return
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        c = ex.doc.container
+        found = {}                                  # kind -> (bank pos, scene entry, pc)
+        from cutscene_editor import toolbox as _tbx
+        kinds = set(_tbx.CONTROL_ORDER) | {"action"}
+        for pos in range(len(c.banks)):
+            for sc in script.disassemble_bank(c.banks[pos]):
+                for q, t in sc.stmts.items():
+                    k = t.mnem if t.op >= 0xFFF0 else "action"
+                    if k in kinds and k not in found and k != "DIALOG":
+                        found[k] = (pos, sc.entry_pc, q)
+            if len(found) >= len(kinds) - 1:
+                break
+        bad, manual = [], []
+        for k, (pos, entry, q) in sorted(found.items()):
+            ex.show_bank(pos, entry)
+            ex.select((q, None))
+            before = ex.doc.container.build()
+            try:
+                p = ex.ask_edit_instruction()
+                root.update()
+                r = p.insert()
+                if p.manual:
+                    manual.append(k)
+                if r is not None or ex.doc.container.build() != before:
+                    bad.append((k, r, p.text()[:80]))
+                p.win.withdraw()
+            except Exception as e:  # noqa: BLE001
+                bad.append((k, repr(e)[:100]))
+        _check("Edit opens every statement kind the scenes use (%d kinds) and Apply unchanged "
+               "changes nothing" % len(found), not bad and len(found) >= 14, (sorted(found), bad, manual))
+        # the listing box: hidden by default (Advanced), remembered when ticked; shown by
+        # itself when the form can't hold a statement (a bare-comparison EVAL)
+        from rf4s_modkit import gamepaths as _gp
+        p = ex.ask_insert_instruction(preset=("op", 2))
+        root.update()
+        hidden = p._listing_box.winfo_manager() == ""
+        p.adv_var.set(True)
+        p._show_listing(persist=True)
+        root.update()
+        shown_saved = p._listing_box.winfo_manager() == "pack" and _gp.get_setting(p.LISTING_KEY) is True
+        p.adv_var.set(False)
+        p._show_listing(persist=True)
+        ev = None
+        for pos in range(len(c.banks)):
+            for sc in script.disassemble_bank(c.banks[pos]):
+                for q, t in sc.stmts.items():
+                    if t.mnem == "EVAL" and "==" in scriptasm_text(c.banks[pos].data, t):
+                        ev = (pos, sc.entry_pc, q)
+                        break
+                if ev:
+                    break
+            if ev:
+                break
+        auto = None
+        if ev is not None:
+            ex.show_bank(ev[0], ev[1])
+            ex.select((ev[2], None))
+            p = ex.ask_edit_instruction()
+            root.update()
+            auto = p.manual and p._listing_box.winfo_manager() == "pack" and "==" in p.text()
+            p.win.withdraw()
+        _check("the listing is hidden by default (Advanced), remembered when shown, and shown by "
+               "itself for a statement the form can't hold (a bare-comparison EVAL)",
+               hidden and shown_saved and auto is True, (hidden, shown_saved, auto))
+        # change a BR_Z's target and a SWITCH's first row
+        for kind in ("BR_Z", "SWITCH"):
+            pos, entry, q = found[kind]
+            ex.show_bank(pos, entry)
+            ex.select((q, None))
+            st = ex.stmt(q)
+            others = [x for x in ex.scene.stmts if x not in st.code_targets and x != q]
+            new_t = others[-1]
+            p = ex.ask_edit_instruction()
+            root.update()
+            n_undo = len(ex.doc.undo_stack)
+            disp = next((d for d, t in p._targets() if t == "0x%04x" % new_t), "0x%04x" % new_t)
+            if kind == "BR_Z":
+                p.t1.var.set(disp)
+            else:
+                p.rows[0][1][0][0].set(disp)
+            p._rebuild()
+            ok = p.insert()
+            st2 = ex.stmt(ex.sel[0]) if ex.sel else None
+            moved = st2 is not None and st2.mnem == kind and len(ex.doc.undo_stack) == n_undo + 1
+            _check("Edit changes a %s's %s and applies it as one undoable step" % (
+                       kind, "target" if kind == "BR_Z" else "first row"),
+                   ok is True and moved, (ok, p.text()[:100]))
+            ex.undo()
+    finally:
+        if root is not None:
+            root.destroy()
+
+
+def scriptasm_text(buf, st):
+    """scriptasm.statement_text (test_edit_every_kind)."""
+    from rf4s_modkit import scriptasm
+    return scriptasm.statement_text(buf, st)
 
 
 def fade_now(ex):
@@ -17090,7 +17217,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_edit_every_kind, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

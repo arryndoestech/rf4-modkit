@@ -1216,9 +1216,7 @@ class CutsceneExplorer:
         if pc is None:
             pc = self.sel[0] if self.sel else None
         st = self.stmt(pc)
-        if st is None or (st.op >= 0xFFF0 and st.mnem != "DIALOG"):
-            self.status("Edit instruction works on actions and dialogue lines; branches and "
-                        "menus are edited in the Inspector")
+        if st is None:
             return None
         p = self.ask_insert_instruction()
         p.edit(pc)

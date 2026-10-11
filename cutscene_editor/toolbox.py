@@ -1219,7 +1219,7 @@ class InstructionPicker:
         tf.pack(fill="both", expand=True, pady=(4, 0))
         self.tree = ttk.Treeview(tf, columns=("op", "v"), show="tree headings")
         self.tree.heading("#0", text="instruction")
-        self.tree.heading("op", text="what it does")
+        self.tree.heading("op", text="Description")
         self.tree.heading("v", text="✓")
         self.tree.column("#0", width=270)
         self.tree.column("op", width=320, anchor="w")
@@ -1249,16 +1249,29 @@ class InstructionPicker:
         bb.pack(side="bottom", fill="x", pady=(6, 4))
         self.check_lbl = ttk.Label(right, wraplength=680, justify="left")
         self.check_lbl.pack(side="bottom", anchor="w", pady=(4, 0))
-        self.preview = tk.Text(right, height=5, font=("Consolas", 10), wrap="none", undo=True)
-        self.preview.pack(side="bottom", fill="x")
-        self.preview.bind("<Key>", self._typed)
-        ph = ttk.Frame(right)
-        ph.pack(side="bottom", fill="x")
+        # Advanced: the listing the form makes (hidden unless asked for; remembered)
+        advrow = ttk.Frame(right)
+        advrow.pack(side="bottom", fill="x", pady=(4, 0))
+        self.adv_var = tk.BooleanVar(value=self._listing_setting())
+        ac = ttk.Checkbutton(advrow, text="Advanced: show the listing (the text that gets inserted, "
+                                          "editable by hand)", variable=self.adv_var,
+                             command=lambda: self._show_listing(persist=True))
+        ac.pack(side="left")
+        Tip(ac, "The form writes a listing line (the Source tab's language). Show it to see or "
+                "hand-edit exactly what gets inserted / applied.")
+        self._listing_box = ttk.Frame(right)
+        ph = ttk.Frame(self._listing_box)
+        ph.pack(fill="x")
         ttk.Label(ph, text="Listing (what gets inserted — you can also edit it by hand):").pack(side="left")
         self.rebuild_btn = ttk.Button(ph, text="Rebuild from the form", command=self._rebuild)
         Tip(self.rebuild_btn, "Throw away your hand edits of the listing and write it again from "
                               "the form.")
-        ttk.Separator(right).pack(side="bottom", fill="x", pady=6)
+        self.preview = tk.Text(self._listing_box, height=5, font=("Consolas", 10), wrap="none", undo=True)
+        self.preview.pack(fill="x")
+        self.preview.bind("<Key>", self._typed)
+        self._sep = ttk.Separator(right)
+        self._sep.pack(side="bottom", fill="x", pady=6)
+        self._show_listing()
         # middle: the form, scrolling when it is taller than the window
         self._scroll = ScrollFrame(right, width=600)
         self._scroll.pack(fill="both", expand=True)
@@ -1299,7 +1312,7 @@ class InstructionPicker:
         self._tree_pending = later(self.win, self.fill_tree, 150)
 
     def entries(self):
-        """[(group, iid, text, what it does, verified, search text)] -- control instructions,
+        """[(group, iid, text, description, verified, search text)] -- control instructions,
         then every named action op by category (a family such as SetSpeaker once)."""
         out = []
         for m in CONTROL_ORDER:
@@ -1434,6 +1447,30 @@ class InstructionPicker:
         else:
             self._control_form(key[1])
         self._rebuild()
+
+    LISTING_KEY = "cutscene_show_listing"           # gamepaths setting: Advanced listing shown
+
+    @classmethod
+    def _listing_setting(cls):
+        try:
+            from rf4s_modkit import gamepaths
+            return bool(gamepaths.get_setting(cls.LISTING_KEY, False))
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _show_listing(self, persist=False):
+        """Show / hide the listing box (Advanced); `persist` remembers the choice."""
+        if self.adv_var.get():
+            if self._listing_box.winfo_manager() != "pack":
+                self._listing_box.pack(side="bottom", fill="x", before=self._sep)
+        else:
+            self._listing_box.pack_forget()
+        if persist:
+            try:
+                from rf4s_modkit import gamepaths
+                gamepaths.set_setting(self.LISTING_KEY, bool(self.adv_var.get()))
+            except Exception:  # noqa: BLE001
+                pass
 
     def _set_desc(self, text, tail=""):
         """The description: its first sentence (More… shows the rest), then `tail`."""
@@ -1771,10 +1808,14 @@ class InstructionPicker:
     CHOICE_SKIP_DISP = "→ skip the menu (continue after it)"
 
     def _choice_ui(self, tg, tdef):
-        opts = [(self.CHOICE_NEXT_DISP, self.CHOICE_NEXT)] + tg
+        # editing a menu: no "continue after the menu" (a menu never falls through; what
+        # follows it in the bank is unrelated code)
+        opts = ([] if self.edit_pc is not None else [(self.CHOICE_NEXT_DISP, self.CHOICE_NEXT)]) + tg
+        self._edit_cancel = None                # Edit: a cancel target that is not the last option's
         self._choice_opts = opts
         self._choice_meta = {}
         mf = ttk.Frame(self.form)
+        self._choice_mode_frame = mf
         mf.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 2))
         ttk.Label(mf, text="When the player picks an option:").pack(side="left", padx=(0, 8))
         for val, lab, tip in (
@@ -1975,7 +2016,8 @@ class InstructionPicker:
                 out.append("L_answer:")
                 out.append("SWITCH (reg0) -> " + ", ".join(target(t) for _l, _c, t in rows))
         else:
-            out.append("%s %s" % (m, ", ".join("#%s -> %s" % (line, target(t)) for line, _c, t in rows)))
+            cancel = ("CANCEL -> %s, " % self._edit_cancel) if (self._edit_cancel and m == "PROMPT_CHOICE") else ""
+            out.append("%s %s%s" % (m, cancel, ", ".join("#%s -> %s" % (line, target(t)) for line, _c, t in rows)))
         if uses_next:
             out.append("L_after_menu:")
         return "\n".join(out)
@@ -2176,10 +2218,11 @@ class InstructionPicker:
                        else "Cutscene Editor — Add an instruction")
 
     def edit(self, pc):
-        """Open the form of the action or dialogue line at `pc`, filled in from it; Apply
-        replaces it."""
+        """Open the form of the statement at `pc` -- any kind -- filled in from it; Apply
+        replaces it. When the form cannot show it exactly, the listing box holds the
+        statement's own text to edit instead (nothing is lost)."""
         st = self.app.stmt(pc)
-        if st is None or (st.op >= 0xFFF0 and st.mnem != "DIALOG"):
+        if st is None:
             return False
         self.edit_pc = pc
         self._set_mode(True)
@@ -2187,6 +2230,12 @@ class InstructionPicker:
         self.win.lift()
         if st.mnem == "DIALOG":
             return self._edit_dialogue(st)
+        if st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+            self._edit_choice(st)
+            return self._verify_edit(st)
+        if st.op >= 0xFFF0:
+            self._edit_control(st)
+            return self._verify_edit(st)
         self.set_instruction(("op", st.op))
         fam = meta.OPCODE_ARGS.get(st.op) or []
         for f, a in zip(self.fam_fields, fam):          # SetSpeaker: the speaker / side in the opcode
@@ -2205,6 +2254,137 @@ class InstructionPicker:
         if getattr(self, "more_btn", None) is not None and len(self.op_fields) >= self.max_args:
             self.more_btn.grid_remove()
         self._sync_faces()
+        self._rebuild()
+        return self._verify_edit(st)
+
+    # ---- edit: control statements --------------------------------------------------- #
+    @staticmethod
+    def _inner(expr):
+        """An expression without the parentheses around all of it."""
+        e = (expr or "").strip()
+        while e.startswith("(") and e.endswith(")") and script._outer_parens_match(e):
+            e = e[1:-1].strip()
+        return e
+
+    def _set_target(self, field_or_var, opts, pc):
+        tok = "0x%04x" % pc if pc is not None else "0x0000"
+        disp = next((d for d, t in opts if t == tok), tok)
+        field_or_var.set(disp)
+
+    def _set_rows(self, values):
+        """Make the form's repeating rows hold `values` (one list of cell texts per row)."""
+        for f, _row in list(self.rows):
+            f.destroy()
+        self.rows.clear()
+        for vals in values:
+            self._add_row(render=False)
+            for (var, _o), v in zip(self.rows[-1][1], vals):
+                var.set(v)
+
+    def _edit_control(self, st):
+        """Fill the form of a control statement (EVAL, branches, jumps, CALL, RET, FRAME,
+        switches, random jumps) from it."""
+        m = st.mnem
+        self.set_instruction(("ctl", m))
+        buf = self.app.bank.data
+        expr = self._inner(scriptasm.operand_text(buf, st.expr_refs[0])) if st.expr_refs else ""
+        tg = self._targets()
+        tdisp = {t: d for d, t in tg}
+
+        def target_text(pc):
+            tok = "0x%04x" % pc if pc is not None else "0x0000"
+            return tdisp.get(tok, tok)
+        if m == "EVAL":
+            mm = re.match(r"^(.*?[^=!<>|&+*/%-])\s*(\|\|=|&&=|\+=|-=|\*=|/=|%=|=(?!=))\s*(.+)$", expr)
+            if mm:
+                self.e_var.var.set(mm.group(1).strip())
+                self.e_op.var.set(mm.group(2))
+                self.e_val.var.set(mm.group(3).strip())
+        elif m in ("BR_Z", "BR_NZ", "RET_NZ"):
+            mm = re.match(r"^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$", expr)
+            if mm:
+                self.c_left.var.set(mm.group(1).strip())
+                self.c_cmp.var.set(mm.group(2))
+                self.c_right.var.set(mm.group(3).strip())
+            else:
+                self.c_left.var.set(expr)
+                self.c_cmp.var.set("(is non-zero)")
+            if m != "RET_NZ" and st.code_targets:
+                self.t1.var.set(target_text(st.code_targets[0]))
+        elif m in ("JMP", "CALL") and st.code_targets:
+            t = st.code_targets[0]
+            tok = "0x%04x" % t
+            self.t1.var.set(next((d for d, k in self.t1.opts.items() if k == tok), tok))
+        elif m == "FRAME":
+            self.n.var.set(str(st.items[0] if st.items else 0))
+        elif m in ("SWITCH", "SWITCH_CLAMP"):
+            self.sel_f.var.set(expr)
+            self._set_rows([[target_text(t)] for t in st.code_targets])
+        elif m == "JMP_RAND":
+            self._set_rows([[target_text(t)] for t in st.code_targets])
+        elif m == "JMP_WEIGHTED":
+            self._set_rows([[self._inner(scriptasm.operand_text(buf, e)), target_text(t)]
+                            for t, e in zip(st.code_targets, st.expr_refs)])
+        self._set_desc((CONTROL_HELP.get(m, "") + " ").strip())
+        self._rebuild()
+
+    def _verify_edit(self, st):
+        """The form must give back exactly this statement before anything is changed: when
+        its listing does not assemble to the statement's own bytes (an expression the form's
+        fields cannot hold, ...), the listing box gets the statement's own text to edit."""
+        own = scriptasm.statement_text(self.app.bank.data, st)
+        try:
+            a = self.app.assemble_check(self.text())[0]
+            b = self.app.assemble_check(own)[0]
+        except Exception:  # noqa: BLE001
+            a, b = None, None
+        if a is not None and a == b:
+            return True
+        self.manual = True
+        self.adv_var.set(True)                  # the listing is the only way to edit it: show it
+        self._show_listing()
+        self.preview.config(state="normal")
+        self.preview.delete("1.0", "end")
+        self.preview.insert("1.0", own)
+        self.rebuild_btn.pack(side="right")
+        self.check()
+        self.check_lbl.config(text="The form can't show this statement exactly, so the listing "
+                                   "below holds it as it is: edit the text and Apply.",
+                              foreground="#b36200")
+        return True
+
+    def _edit_choice(self, st):
+        """A choice menu in the Edit window: its options (line -> target) as rows, in the
+        'jump' form -- a menu that stores its answer in reg0 keeps its SetChoiceVisibleBit
+        lines and SWITCH, which are statements of their own."""
+        self.choice_mode.set("jump")
+        self.set_instruction(("ctl", st.mnem))
+        self._choice_mode_frame.grid_remove()
+        cancel = st.mnem == "PROMPT_CHOICE"
+        tg = list(st.code_targets)
+        opt_tg = tg[1:] if cancel else tg
+        self._edit_cancel = ("0x%04x" % tg[0]) if (cancel and tg and opt_tg and tg[0] != opt_tg[-1]) else None
+        for f, _row in list(self.rows):
+            f.destroy()
+        self.rows.clear()
+        disp = {t: d for d, t in self._choice_opts}
+        for k, item in enumerate(st.items):
+            self._choice_add_row(render=False)
+            row = self.rows[-1][1]
+            row[0][0].set(str(item))
+            tok = "0x%04x" % opt_tg[k] if k < len(opt_tg) else ""
+            row[2][0].set(disp.get(tok, tok))
+        self._choice_refresh()
+        reg0 = script.choice_results(self.app.bank.data, sorted(self.app.scene.stmts.values(), key=lambda x: x.pc),
+                                     [x.pc for x in sorted(self.app.scene.stmts.values(), key=lambda x: x.pc)].index(st.pc))
+        note = ("This menu stores the answer in reg0: the SetChoiceVisibleBit lines before it and "
+                "the SWITCH after it are statements of their own (edit them separately). "
+                if reg0 is not None else "")
+        self._choice_hint.config(text=note + "Change an option's line or where it goes, add or "
+                                 "remove options. " + ("Cancel picks the last option." if cancel else ""))
+        self._set_desc("Edit this choice menu's options." + (
+            " Its Cancel goes to 0x%04x, not the last option's target; that is kept." % tg[0]
+            if self._edit_cancel else ""))
         self._rebuild()
         return True
 
