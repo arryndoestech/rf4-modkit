@@ -7174,6 +7174,63 @@ def test_choice_form():
                        "unmasked": False} and shipped == 0, (flagged, shipped))
 
 
+def test_argspec():
+    """How the instruction form and the Inspector present arguments (cutscene_editor.argspec):
+    short labels, help without engine internals, seconds for the timers, the shipped game's
+    most common value as the default, named values (compass, fade colour), the wait a
+    fade / walk / turn is followed by; and the picker list (verified first, Most used, a
+    Recently used list saved on Insert)."""
+    print("instruction form: argument presentation:")
+    import re as _re
+    from rf4s_modkit import opcode_meta as meta
+    from cutscene_editor import argspec as A
+    bad_help, bad_label = [], []
+    for k, r in meta.TABLE["actions"].items():
+        if not r.get("human_verified") or r.get("category") == "noop":
+            continue
+        for i in range(len(r.get("args") or [])):
+            sp = A.spec(int(k), i)
+            if _re.search(r"RF4S\.exe|\+0x[0-9A-Fa-f]{4}|\bg_[a-z]", sp.help):
+                bad_help.append("%s.%s" % (meta.mnemonic(int(k)), sp.label))
+            if len(sp.label) > 24 or "(" in sp.label:
+                bad_label.append(sp.label)
+    _check("verified ops: every argument's help is free of exe offsets / g_ tables, labels are short",
+           not bad_help and not bad_label, (bad_help[:4], bad_label[:4]))
+    wait, fade_t, fade_d, walk_sp = A.spec(2, 0), A.spec(334, 0), A.spec(334, 1), A.spec(117, 3)
+    _check("timers take seconds: Wait '1.5 s' = 18000 (12000 per second), FadeScreen '1 s' = 6000; "
+           "the field explains a raw value ('= 0.5 s')",
+           wait.token("1.5 s") == "18000" and fade_d.token("1 s") == "6000"
+           and wait.note("6000") == "= 0.5 s" and fade_d.note("0") == "= immediate",
+           (wait.token("1.5 s"), fade_d.token("1 s"), wait.note("6000")))
+    _check("defaults are the game's own: FadeScreen(-16 black, 6000), walk speed 100; named values "
+           "for the fade colour and the compass",
+           fade_t.default == "-16" and fade_d.default == "6000" and walk_sp.default == "100"
+           and fade_t.note("-16") == "= black" and A.spec(103, 1).note("90") == "= right",
+           (fade_t.default, fade_d.default, walk_sp.default))
+    _check("character / emote / position arguments do not take one scene's values: the player, "
+           "no emote, 0",
+           A.spec(117, 0).default in ("0", "actor(player)") and A.spec(16, 1).default == "0"
+           and A.spec(117, 1).default == "0" and A.spec(16, 0).kind == "face",
+           (A.spec(117, 0).default, A.spec(16, 1).default, A.spec(117, 1).default, A.spec(16, 0).kind))
+    _check("waits: a fade adds WaitForFade, a walk waits on its actor, a shake with no time "
+           "limit adds none",
+           A.wait_line(334, ["-16", "6000"]) == "WaitForFade()"
+           and A.wait_line(117, ["actor(Forte)", "0", "0", "100", "0"]) == "WaitActorMoveDone(actor(Forte))"
+           and A.wait_line(197, ["3", "0"]) is None and A.wait_line(197, ["3", "12"]) == "WaitForPlayerEffect()"
+           and A.wait_line(2, ["6000"]) is None)
+    # every op a wait is offered for, and the wait itself, is verified in game
+    names = {}
+    for o in range(script_ops_count()):                 # a name shared by several ops: any verified one
+        names[meta.mnemonic(o)] = names.get(meta.mnemonic(o)) or bool(meta.human_verified(o))
+    _check("every op with an offered wait, and every wait, is verified in game",
+           all(names.get(op) and names.get(w) for op, (w, _a) in A.WAITS.items()), A.WAITS)
+
+
+def script_ops_count():
+    from rf4s_modkit import script
+    return script.DISPATCHABLE_ACTION_OPS
+
+
 def test_choice_results():
     """What a choice writes to reg0 (script.choice_results): only behind a visibility mask
     (ops 610-612) does the pick go to reg0 as the option's index; the mask may be set right
@@ -14360,7 +14417,7 @@ def test_cutscene_toolbox():
                p.text().startswith("SetSpeaker(4, 1") and
                cx.assemble_check(p.text())[0][:2] == bytes([25, 0]), p.text())
         p.preset(("ctl", "PROMPT_CHOICE"))
-        p._add_row()
+        p._choice_add_row()
         p._rebuild()
         _check("a choice form with an added option assembles (one more option than the form starts with)",
                len(p.rows) == 3 and p.text().count("->") == 3 and cx.assemble_check(p.text())[2] is None,
@@ -14374,6 +14431,17 @@ def test_cutscene_toolbox():
                ok and len(cx.scene.stmts) == n0 + 1 and cx.stmt(cx.sel[0]).mnem == "EVAL", p.text())
         cx.undo()
         _check("undo removes it again", len(cx.scene.stmts) == n0)
+        p.q.set("")
+        p.fill_tree()
+        tb_ = ce.toolbox
+        fav = p.tree.get_children("grp:" + tb_.FAVOURITE_GROUP)
+        rec = p.tree.get_children("grp:" + tb_.RECENT_GROUP) if p.tree.exists("grp:" + tb_.RECENT_GROUP) else ()
+        p.tree.selection_set("fav:op:2")
+        root.update()
+        _check("the list opens on verified instructions, with Most used (DIALOG first) and the "
+               "inserted EVAL under Recently used; a Most used row opens that instruction",
+               p.only_ver.get() and fav and fav[0] == "fav:ctl:DIALOG" and rec and rec[0] == "rec:ctl:EVAL"
+               and p.key == ("op", 2), (fav[:3], rec[:3], p.key))
         # x / y arguments: pick the point on the scene's map (1/8-tile units)
         from rf4s_modkit import script as _s
         c = cx.doc.container
@@ -16831,7 +16899,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

@@ -16,18 +16,25 @@ assembler as the Source tab.
 """
 from __future__ import annotations
 
-import json
+import re
 import tkinter as tk
 from tkinter import ttk
 
-from guiutil import FilterCombo, Tip, later
+from guiutil import FilterCombo, ScrollFrame, Tip, later
 from guiutil import err_text
 import guiutil
 from rf4s_modkit import opcode_meta as meta
 from rf4s_modkit import script, scriptasm
 
+from . import argspec
+
 PLACEHOLDER = ("(unbound)", "(unused)", "nop", "invalid")
-CONTROL_GROUP = "Flow & dialogue (control)"
+CONTROL_GROUP = "Dialogue lines, menus & jumps"
+FAVOURITE_GROUP = "★ Most used"
+RECENT_GROUP = "↻ Recently used"
+RECENT_KEY = "cutscene_recent_instructions"   # gamepaths setting: the last few inserted
+RECENT_MAX = 8
+FAVOURITE_COUNT = 14
 CONTROL_ORDER = ("DIALOG", "EVAL", "BR_Z", "BR_NZ", "JMP", "CALL", "RET", "RET_NZ", "PROMPT_CHOICE",
                  "PROMPT_CHOICE_FORCED", "SWITCH", "SWITCH_CLAMP", "JMP_RAND", "JMP_WEIGHTED", "FRAME")
 CONTROL_HELP = {
@@ -135,6 +142,15 @@ def variable_choices(doc):
         if kind != "zone-2 bit":
             out.append(("%s  %s" % (name, desc[:40]), tok))
     return out
+
+
+def _first_sentence(text, limit=90):
+    """The first sentence of a description, without engine notes, cut to `limit` chars."""
+    from .argspec import clean_help
+    t = clean_help(text) or text or ""
+    m = re.match(r"(.+?[.!?])(?:\s|$)", t, re.S)
+    t = (m.group(1) if m else t).replace("\n", " ").strip()
+    return t if len(t) <= limit else t[:limit - 1].rstrip() + "…"
 
 
 def verified_ops():
@@ -1103,8 +1119,10 @@ class MapBoxPicker(MapPointPicker):
 class _Field:
     """One labelled input: an editable, filterable combobox (display -> token) or an entry."""
 
-    def __init__(self, parent, row, label, hint, options, default, on_change, width=46):
+    def __init__(self, parent, row, label, hint, options, default, on_change, width=46, spec=None,
+                 tip=None):
         self.row = row
+        self.spec = spec                        # argspec.ArgSpec: seconds, live '= 0.5 s' note
         self.opts = dict(options)
         self.parts = []                         # the label, input and hint (hide / show)
         lab = ttk.Label(parent, text=label)
@@ -1122,14 +1140,28 @@ class _Field:
         w.grid(row=row, column=1, sticky="we", pady=2)
         self.widget = w
         self.parts.append(w)
-        Tip(w, (label[:1].upper() + label[1:]) + (": " + hint if hint else "")
-            + ". It fills in the listing below.")
-        if hint:
-            h = ttk.Label(parent, text=hint, foreground="#777", wraplength=380, justify="left",
+        Tip(w, tip or ((label[:1].upper() + label[1:]) + (": " + hint if hint else "")
+                       + ". It fills in the listing below."))
+        self.hint, self.hint_lbl = hint, None
+        if hint or spec is not None:
+            h = ttk.Label(parent, text=hint, foreground="#777", wraplength=520, justify="left",
                           font=("Segoe UI", 8))
             h.grid(row=row + 1, column=1, sticky="w")
             self.parts.append(h)
-        self.var.trace_add("write", lambda *_a: on_change())
+            self.hint_lbl = h
+        self.var.trace_add("write", lambda *_a: (self._note(), on_change()))
+        self._note()
+
+    def _note(self):
+        """The hint line, led by what the current value means ('= 0.5 s', '= facing right')."""
+        if self.hint_lbl is None:
+            return
+        n = self.spec.note(self.token()) if self.spec is not None else None
+        try:
+            self.hint_lbl.config(text=(n + "   " if n else "") + (self.hint or ""),
+                                 foreground="#2a6a8a" if n else "#777")
+        except tk.TclError:
+            pass
 
     def hide(self):
         for w in self.parts:
@@ -1141,6 +1173,8 @@ class _Field:
 
     def token(self):
         v = self.var.get().strip()
+        if self.spec is not None:
+            return self.spec.token(v)
         return self.opts.get(v, v)
 
 
@@ -1155,6 +1189,8 @@ class InstructionPicker:
         self.key = None                 # ("op", n) | ("ctl", mnemonic)
         self.dlg_mode = tk.StringVar(value="new")      # DIALOG: a new line or an existing one
         self.choice_mode = tk.StringVar(value="jump")  # choice menu: "jump" | "reg0" (see _choice_ui)
+        self.wait_var = tk.BooleanVar(value=True)      # "then wait until it's done" (argspec.WAITS)
+        self.face_pickers = []                         # [(arg index, FacePicker)]
         self.fields = []
         self.rows = []                  # repeating rows (targets / choice options)
         self.manual = False
@@ -1169,20 +1205,22 @@ class InstructionPicker:
         self.q = tk.StringVar()
         se = ttk.Entry(top, textvariable=self.q)
         se.pack(side="left", fill="x", expand=True, padx=4)
-        Tip(se, "Filter the instructions by name, opcode number or description.")
-        self.only_ver = tk.BooleanVar(value=False)
+        Tip(se, "Filter the instructions by what they do (e.g. 'fade', 'walk', 'music'), "
+                "their name or opcode number.")
+        self.only_ver = tk.BooleanVar(value=True)
         vc = ttk.Checkbutton(left, text="only instructions verified in game", variable=self.only_ver,
                              command=self.fill_tree)
         vc.pack(anchor="w")
-        Tip(vc, "List only the instructions someone has checked in the running game.")
+        Tip(vc, "List only the instructions someone has checked in the running game (untick "
+                "to see all ~700, most of them untested).")
         tf = ttk.Frame(left)
         tf.pack(fill="both", expand=True, pady=(4, 0))
         self.tree = ttk.Treeview(tf, columns=("op", "v"), show="tree headings")
         self.tree.heading("#0", text="instruction")
-        self.tree.heading("op", text="opcode")
+        self.tree.heading("op", text="what it does")
         self.tree.heading("v", text="✓")
-        self.tree.column("#0", width=250)
-        self.tree.column("op", width=80, anchor="w")
+        self.tree.column("#0", width=270)
+        self.tree.column("op", width=320, anchor="w")
         self.tree.column("v", width=24, anchor="center")
         sb = ttk.Scrollbar(tf, command=self.tree.yview)
         self.tree.config(yscrollcommand=sb.set)
@@ -1193,27 +1231,37 @@ class InstructionPicker:
 
         right = ttk.Frame(pw, padding=(8, 0))
         pw.add(right, weight=2)
+        # top: the name and a one-line description (More… shows all of it)
         self.title = ttk.Label(right, font=("Segoe UI", 11, "bold"))
         self.title.pack(anchor="w")
-        self.desc = ttk.Label(right, wraplength=680, justify="left", foreground="#444")
-        self.desc.pack(anchor="w", pady=(2, 6))
-        self.form = ttk.Frame(right)
-        self.form.pack(fill="x")
-        self.form.columnconfigure(1, weight=1)
-        ttk.Separator(right).pack(fill="x", pady=6)
+        drow = ttk.Frame(right)
+        drow.pack(fill="x", pady=(2, 6))
+        self.desc = ttk.Label(drow, wraplength=680, justify="left", foreground="#444")
+        self.desc.pack(side="left", anchor="w")
+        self.more_btn_desc = ttk.Button(drow, text="More…", width=7, command=self._toggle_desc)
+        Tip(self.more_btn_desc, "Show the whole description (Less… hides it again).")
+        self._desc_full, self._desc_open = "", False
+        # bottom, pinned (packed first so a long form never pushes them out of the window):
+        # where to insert, the buttons, the check line and the listing preview
+        bb = ttk.Frame(right)
+        bb.pack(side="bottom", fill="x", pady=(6, 4))
+        self.check_lbl = ttk.Label(right, wraplength=680, justify="left")
+        self.check_lbl.pack(side="bottom", anchor="w", pady=(4, 0))
+        self.preview = tk.Text(right, height=5, font=("Consolas", 10), wrap="none", undo=True)
+        self.preview.pack(side="bottom", fill="x")
+        self.preview.bind("<Key>", self._typed)
         ph = ttk.Frame(right)
-        ph.pack(fill="x")
+        ph.pack(side="bottom", fill="x")
         ttk.Label(ph, text="Listing (what gets inserted — you can also edit it by hand):").pack(side="left")
         self.rebuild_btn = ttk.Button(ph, text="Rebuild from the form", command=self._rebuild)
         Tip(self.rebuild_btn, "Throw away your hand edits of the listing and write it again from "
                               "the form.")
-        self.preview = tk.Text(right, height=7, font=("Consolas", 10), wrap="none", undo=True)
-        self.preview.pack(fill="both", expand=True)
-        self.preview.bind("<Key>", self._typed)
-        self.check_lbl = ttk.Label(right, wraplength=680, justify="left")
-        self.check_lbl.pack(anchor="w", pady=(4, 0))
-        bb = ttk.Frame(right)
-        bb.pack(fill="x", pady=(6, 0))
+        ttk.Separator(right).pack(side="bottom", fill="x", pady=6)
+        # middle: the form, scrolling when it is taller than the window
+        self._scroll = ScrollFrame(right, width=600)
+        self._scroll.pack(fill="both", expand=True)
+        self.form = self._scroll.body
+        self.form.columnconfigure(1, weight=1)
         self.where = tk.StringVar(value="after")
         ra = ttk.Radiobutton(bb, text="after the selected statement", value="after", variable=self.where)
         ra.pack(side="left")
@@ -1244,13 +1292,14 @@ class InstructionPicker:
         self._tree_pending = later(self.win, self.fill_tree, 150)
 
     def entries(self):
-        """[(group, iid, text, opcode text, verified, search text)] -- control instructions,
+        """[(group, iid, text, what it does, verified, search text)] -- control instructions,
         then every named action op by category (a family such as SetSpeaker once)."""
         out = []
         for m in CONTROL_ORDER:
             r = next((x for x in meta.TABLE["control"].values() if x["mnemonic"] == m), {})
-            out.append((CONTROL_GROUP, "ctl:" + m, m, r.get("op_hex", ""), bool(r.get("human_verified")),
-                        "%s %s %s" % (m, CONTROL_HELP.get(m, ""), r.get("description", ""))))
+            out.append((CONTROL_GROUP, "ctl:" + m, m, _first_sentence(CONTROL_HELP.get(m, "")),
+                        bool(r.get("human_verified")),
+                        "%s %s %s %s" % (m, r.get("op_hex", ""), CONTROL_HELP.get(m, ""), r.get("description", ""))))
         seen_fam = set()
         for op in range(script.DISPATCHABLE_ACTION_OPS):
             m = meta.mnemonic(op)
@@ -1262,39 +1311,90 @@ class InstructionPicker:
                     continue
                 seen_fam.add(m)
                 ops = [o for o in meta.OPCODE_ARGS if meta.mnemonic(o) == m]
-                optxt = "0x%03X–0x%03X" % (min(ops), max(ops))
                 ver = all(meta.human_verified(o) for o in ops)
             else:
-                optxt = "0x%03X" % op
                 ver = meta.human_verified(op)
-            out.append((meta.category_label(op), "op:%d" % op, m, optxt, ver,
-                        "%s %d %s" % (m, op, meta.describe(op) or "")))
+            out.append((meta.category_label(op), "op:%d" % op, m, _first_sentence(meta.describe(op) or ""), ver,
+                        "%s %d 0x%03x %s" % (m, op, op, meta.describe(op) or "")))
         return out
 
+    def _favourites(self, ents):
+        """The verified instructions the shipped scenes use most (DIALOG first): iids."""
+        uses = []
+        for _g, iid, _t, _w, ver, _h in ents:
+            if not ver:
+                continue
+            if iid.startswith("op:"):
+                m = meta.mnemonic(int(iid[3:]))
+                n = sum((meta.table_row(o) or {}).get("uses") or 0 for o in range(script.DISPATCHABLE_ACTION_OPS)
+                        if meta.mnemonic(o) == m) if meta.OPCODE_ARGS.get(int(iid[3:])) else \
+                    (meta.table_row(int(iid[3:])) or {}).get("uses") or 0
+                uses.append((n, iid))
+        top = [iid for _n, iid in sorted(uses, reverse=True)[:FAVOURITE_COUNT]]
+        return ["ctl:DIALOG", "ctl:PROMPT_CHOICE_FORCED", "ctl:EVAL"] + top
+
+    @staticmethod
+    def recent():
+        try:
+            from rf4s_modkit import gamepaths
+            v = gamepaths.get_setting(RECENT_KEY, []) or []
+            return [x for x in v if isinstance(x, str)][:RECENT_MAX]
+        except Exception:  # noqa: BLE001 -- settings unreadable: no recent list
+            return []
+
+    def _remember(self):
+        """Put the current instruction at the top of the Recently used list (saved)."""
+        if not self.key:
+            return
+        iid = "%s:%s" % self.key
+        if self.key[0] == "op" and meta.OPCODE_ARGS.get(self.key[1]):
+            iid = "op:%d" % min(o for o in meta.OPCODE_ARGS if meta.mnemonic(o) == meta.mnemonic(self.key[1]))
+        lst = [iid] + [x for x in self.recent() if x != iid]
+        try:
+            from rf4s_modkit import gamepaths
+            gamepaths.set_setting(RECENT_KEY, lst[:RECENT_MAX])
+        except Exception:  # noqa: BLE001
+            pass
+
     def fill_tree(self):
+        """The list: Recently used and Most used on top (only while not searching), then every
+        instruction by category. A row's iid is 'op:N' / 'ctl:NAME' (a copy on top 'fav:' /
+        'rec:' + that)."""
         self._tree_pending = None
         self.tree.delete(*self.tree.get_children())
         words = self.q.get().lower().split()
+        ents = self.entries()
+        by_iid = {e[1]: e for e in ents}
+        if not words:
+            for grp, prefix, iids in ((RECENT_GROUP, "rec:", self.recent()),
+                                      (FAVOURITE_GROUP, "fav:", self._favourites(ents))):
+                rows = [by_iid[i] for i in iids if i in by_iid]
+                if not rows:
+                    continue
+                g = self.tree.insert("", "end", iid="grp:" + grp, text=grp, open=True)
+                for _g, iid, text, what, ver, _h in rows:
+                    self.tree.insert(g, "end", iid=prefix + iid, text=text, values=(what, "✓" if ver else ""))
         groups = {}
         n = 0
-        for grp, iid, text, optxt, ver, hay in self.entries():
+        for grp, iid, text, what, ver, hay in ents:
             if self.only_ver.get() and not ver:
                 continue
             if words and not all(w in hay.lower() for w in words):
                 continue
             if grp not in groups:
                 groups[grp] = self.tree.insert("", "end", iid="grp:" + grp, text=grp, open=bool(words))
-            self.tree.insert(groups[grp], "end", iid=iid, text=text, values=(optxt, "✓" if ver else ""))
+            self.tree.insert(groups[grp], "end", iid=iid, text=text, values=(what, "✓" if ver else ""))
             n += 1
-        if CONTROL_GROUP in groups and not words:
-            self.tree.item(groups[CONTROL_GROUP], open=True)
         return n
 
     def _picked(self, _e=None):
         s = self.tree.selection()
         if not s or s[0].startswith("grp:"):
             return
-        kind, _, key = s[0].partition(":")
+        iid = s[0]
+        if iid.startswith(("fav:", "rec:")):
+            iid = iid[4:]
+        kind, _, key = iid.partition(":")
         self.set_instruction((kind, int(key) if kind == "op" else key))
 
     def preset(self, key):
@@ -1326,8 +1426,29 @@ class InstructionPicker:
             self._control_form(key[1])
         self._rebuild()
 
-    def _add(self, label, hint, options, default, width=46):
-        f = _Field(self.form, 2 * len(self.fields) + 10, label, hint, options, default, self._changed, width)
+    def _set_desc(self, text, tail=""):
+        """The description: its first sentence (More… shows the rest), then `tail`."""
+        text = argspec.clean_help(text) or text
+        m = re.match(r"(.+?[.!?])(\s|$)", text, re.S)
+        first = m.group(1) if m else text
+        self._desc_full = text + ("\n" + tail if tail else "")
+        self._desc_short = first + ("\n" + tail if tail else "")
+        self._desc_open = False
+        if len(first) < len(text.strip()):
+            self.more_btn_desc.config(text="More…")
+            self.more_btn_desc.pack(side="left", anchor="n", padx=6)
+        else:
+            self.more_btn_desc.pack_forget()
+        self.desc.config(text=self._desc_short)
+
+    def _toggle_desc(self):
+        self._desc_open = not self._desc_open
+        self.desc.config(text=self._desc_full if self._desc_open else self._desc_short)
+        self.more_btn_desc.config(text="Less…" if self._desc_open else "More…")
+
+    def _add(self, label, hint, options, default, width=46, spec=None, tip=None):
+        f = _Field(self.form, 2 * len(self.fields) + 10, label, hint, options, default, self._changed, width,
+                   spec=spec, tip=tip)
         self.fields.append(f)
         return f
 
@@ -1338,9 +1459,10 @@ class InstructionPicker:
         self.title.config(text=meta.prototype(op))
         ver = "✓ verified in game" if (meta.human_verified(op) if not fam else all(
             meta.human_verified(o) for o in meta.OPCODE_ARGS if meta.mnemonic(o) == m)) else "not yet verified in game"
-        self.desc.config(text="%s\n%s · %s" % (meta.describe(op) or "", meta.category_label(op), ver))
+        self._set_desc(meta.describe(op) or "", "%s · %s" % (meta.category_label(op), ver))
         self.op_fields = []
         self.fam_fields = []
+        self.face_pickers = []
         if fam:
             ops = [o for o in meta.OPCODE_ARGS if meta.mnemonic(o) == m]
             for i, a in enumerate(fam):
@@ -1349,8 +1471,9 @@ class InstructionPicker:
                     v = meta.OPCODE_ARGS[o][i]["value"]
                     if v not in vals:
                         vals.append(v)
-                self.fam_fields.append(self._add(a["name"], "encoded in the opcode (%s)" % a["encoding"],
-                                                 [(v, v) for v in vals], a["value"], width=30))
+                self.fam_fields.append(self._add(a["name"], "", [(v, v) for v in vals], a["value"], width=30,
+                                                 tip="%s: part of the instruction itself (%s)."
+                                                     % (a["name"], a["encoding"])))
         self.args = r.get("args") or [{"name": n} for n in meta.arg_names(op)]
         # how many arguments: the shipped game's fewest / most (meta.arg_range: a missing one
         # is read as leftover memory), else the table's optional_args_from; the last named
@@ -1379,20 +1502,38 @@ class InstructionPicker:
                 Tip(b, "Click the position on the map instead of typing x and y (1/8-tile units).")
         if not self.op_fields and not fam and self.max_args == 0:
             ttk.Label(self.form, text="(no arguments)", foreground="#777").grid(row=10, column=1, sticky="w")
+        w = argspec.wait_after(op)
+        if w is not None:
+            cb = ttk.Checkbutton(self.form, text="then wait until it's done (adds %s)" % w[0],
+                                 variable=self.wait_var, command=self._changed)
+            cb.grid(row=950, column=1, sticky="w", pady=(6, 0))
+            Tip(cb, "This instruction doesn't wait by itself: the next statements run while it is "
+                    "still going. Tick this to add %s after it, as the game's own scenes do." % w[0])
+        self._sync_faces()
 
     def _op_field(self, i):
-        """The form field of argument i (the last named argument repeats past the list)."""
+        """The form field of argument i (the last named argument repeats past the list): a
+        short label, help in game terms, named / common values to pick from and the game's
+        most common value to start with (argspec); a face picker for a portrait face."""
         op = self.op
         a = self.args[min(i, len(self.args) - 1)] if self.args else {"name": "arg"}
-        kind, opts, default = _arg_spec(op, i, a)
-        hint = ((a.get("type") or "") + (": " + a["values"] if a.get("values") else ""))[:300]
-        hint = ("✓ verified in game. " if a.get("human_verified") else "not verified in game. ") + hint
-        label = a["name"] if i < len(self.args) else "%s #%d" % (a["name"], i - len(self.args) + 2)
+        sp = argspec.spec(op, i)
+        hint = sp.help
+        if not a.get("human_verified"):
+            hint = "not verified in game yet. " + hint
+        label, default = sp.label, sp.default
         if i >= self.opt_from:
             label += " (optional)"
             default = ""
             hint = "leave empty to leave it out. " + hint
-        self.op_fields.append(self._add(label, hint, opts, default))
+        tip = "%s: %s\n\nIt fills in the listing below." % (sp.label, sp.raw_help or "(no notes)")
+        f = self._add(label, hint[:400], sp.options, default, spec=sp, tip=tip)
+        self.op_fields.append(f)
+        if sp.kind == "face":
+            from .dialogs import FacePicker
+            fp = FacePicker(self.form, on_change=lambda v, f=f: f.var.set(str(v)), reader=self.app.doc.reader)
+            fp.frame.grid(row=f.row, column=2, rowspan=2, sticky="nw", padx=4)
+            self.face_pickers.append((i, fp))
 
     def _field_value(self, i):
         """Argument i's value as an int (map(MAP_X) / actor(...) leaves resolved), or None."""
@@ -1401,6 +1542,8 @@ class InstructionPicker:
         t = self.op_fields[i].token()
         if t.startswith("map(") and t.endswith(")"):
             return script.map_leaf_value(t[4:-1])
+        if t.startswith("actor(") and t.endswith(")"):
+            return script.actor_leaf_value(t[6:-1])
         try:
             return int(t, 0)
         except ValueError:
@@ -1501,7 +1644,7 @@ class InstructionPicker:
     def _control_form(self, m):
         r = next((x for x in meta.TABLE["control"].values() if x["mnemonic"] == m), {})
         self.title.config(text=r.get("prototype") or m)
-        self.desc.config(text=CONTROL_HELP.get(m, ""))
+        self._set_desc(CONTROL_HELP.get(m, ""))
         tg = self._targets()
         tdef = tg[0][1] if tg else "0x0000"
         if m == "DIALOG":
@@ -1841,7 +1984,10 @@ class InstructionPicker:
                     last = i + 1
             rng = meta.arg_range(op)                   # a family member may need more (SetSpeaker)
             last = max(last, min(rng[0], len(args)) if rng else 0)
-            return scriptasm.action_line(op, [a or "0" for a in args[:last]])
+            toks = [a or "0" for a in args[:last]]
+            line = scriptasm.action_line(op, toks)
+            wl = argspec.wait_line(op, toks) if self.wait_var.get() else None
+            return line + ("\n" + wl if wl else "")
         m = key
         if m == "DIALOG" and self.dlg_mode.get() == "new":
             spec, _err = self.dlg_form.value()
@@ -1876,7 +2022,30 @@ class InstructionPicker:
             return self._choice_listing(m)
         return m
 
+    def _sync_faces(self):
+        """Point each face picker at its character: the speaker the opcode names (SetSpeaker
+        family) or the character argument (ShowPortrait, ids 0-23 = portrait rows)."""
+        if not self.face_pickers or not self.key or self.key[0] != "op":
+            return
+        op = self.key[1]
+        if self.fam_fields:
+            op = meta.op_from_opcode_args(meta.mnemonic(op), [f.token() for f in self.fam_fields]) or op
+        for i, fp in self.face_pickers:
+            src = argspec.portrait_slot_of_arg(op, i)
+            slot = None
+            if src == "op":
+                slot = script.portrait_speaker_slot(op)[0]
+            elif isinstance(src, int):
+                v = self._field_value(src)
+                slot = v if v is not None and 0 <= v <= 23 else None
+            if slot != fp.slot:
+                fp.set_slot(slot)
+            v = self._field_value(i)
+            if v is not None and v != fp._value:
+                fp.set_value(v)
+
     def _changed(self):
+        self._sync_faces()
         if self._pending is not None:
             self.win.after_cancel(self._pending)
         self._pending = later(self.win, self._rebuild_if_auto, 120)
@@ -1971,6 +2140,7 @@ class InstructionPicker:
             nid = self.app._insert_dialogue(pc, spec["speaker"], spec["text"], spec.get("face", 0),
                                             spec.get("box"), before)
             if nid is not None:
+                self._remember()
                 self.where.set("after")
                 self.dlg_form.set_text("")
                 self.check_lbl.config(text="")
@@ -1978,6 +2148,7 @@ class InstructionPicker:
             return nid
         ok = self.app.insert_before(pc, self.text()) if before else self.app.insert_after(pc, self.text())
         if ok:
+            self._remember()
             self.where.set("after")
             self.check_lbl.config(text="")
             self.win.withdraw()                 # done: back to the script, the new one selected

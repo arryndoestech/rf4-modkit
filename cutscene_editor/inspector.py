@@ -327,9 +327,13 @@ class Inspector(ScrollFrame):
         buf = app.bank.data
         vals = txt.arg_strs(st)
         self.primary = None
+        from . import argspec
         for i, off in enumerate(st.args):
             v = vals[i] if i < len(vals) else ""
             nm, hint_txt = txt.arg_name(st.op, i, v)
+            sp = argspec.spec(st.op, i)
+            if nm not in ("target", "voice sfx id", "emote/mood"):   # SetSpeaker's by-value names stay
+                nm, hint_txt = sp.label, sp.help
             row = ttk.Frame(box)
             row.pack(fill="x", pady=(3, 0))
             ttk.Label(row, text=nm, width=16, anchor="w", wraplength=112, justify="left").pack(side="left")
@@ -345,6 +349,10 @@ class Inspector(ScrollFrame):
             lbl = txt.value_label(st.op, i, v, nm)
             if lbl:
                 notes.append("= " + lbl)
+            else:
+                cur = sp.note(var.get())
+                if cur:
+                    notes.append(cur)
             notes += txt.arg_notes(st, i)
             if script.meta.arg_verified(st.op, i):
                 notes.append("✓ verified in game")
@@ -360,6 +368,18 @@ class Inspector(ScrollFrame):
                 pick.var.set(cur)
                 pick.pack(fill="x", padx=(110, 0))
                 Tip(pick, "Pick a named value (type to filter); it is applied at once.")
+            elif sp.kind == "face":
+                self._face_picker(box, st, i, var)
+            elif sp.kind == "number" and sp.options:
+                opts = dict(sp.options)
+                pick = FilterCombo(box, [d for d, _t in sp.options],
+                                   lambda d, i=i, opts=opts: d in opts and app.set_arg(st.pc, i, opts[d]),
+                                   width=34)
+                pick.var.set(next((d for d, t in sp.options if t == var.get().strip()), ""))
+                pick.pack(fill="x", padx=(110, 0))
+                Tip(pick, "Common values (named ones first, then what the game's own scenes use "
+                          "most); picking one applies it. You can also type in the box above"
+                          + (", in seconds (e.g. 1.5 s)." if sp.unit is not None else "."))
             else:
                 self._typed_picker(box, st, i, var)
             if notes:
@@ -367,6 +387,28 @@ class Inspector(ScrollFrame):
                           wraplength=320, justify="left").pack(anchor="w", padx=(110, 0))
 
         self._map_button(box, st, buf)
+
+    def _face_picker(self, box, st, i, var):
+        """The portrait face as pictures: the speaker the opcode names (SetSpeaker family)
+        or the character argument (ShowPortrait, ids 0-23)."""
+        from . import argspec
+        from .dialogs import FacePicker
+        src = argspec.portrait_slot_of_arg(st.op, i)
+        slot = None
+        if src == "op":
+            slot = script.portrait_speaker_slot(st.op)[0]
+        elif isinstance(src, int) and src < len(st.args):
+            c = script.static_arg(self.app.bank, st, src)
+            slot = c if c is not None and 0 <= c <= 23 else None
+        if slot is None:
+            return
+        fp = FacePicker(box, on_change=lambda v: self.app.set_arg(st.pc, i, str(v)), reader=self.app.doc.reader)
+        fp.set_slot(slot)
+        try:
+            fp.set_value(int(var.get().strip(), 0))
+        except ValueError:
+            pass
+        fp.frame.pack(anchor="w", padx=(110, 0), pady=(2, 0))
 
     def _typed_picker(self, box, st, i, var):
         """A character / map / item picker under an argument the table types as one."""

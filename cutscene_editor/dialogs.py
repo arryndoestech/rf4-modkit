@@ -151,11 +151,28 @@ def ask_variable_value(parent, panel, choices, name=None, enc=None):
 _THUMBS = {}
 
 
+def _cached_thumb(key):
+    """(hit, image) from the thumbnail cache. An image made under another Tk root (one
+    since destroyed: a closed editor, a test's window) cannot be shown in this one: a
+    miss, so it is drawn again."""
+    if key not in _THUMBS:
+        return False, None
+    img = _THUMBS[key]
+    if img is None:
+        return True, None
+    root = getattr(tk, "_default_root", None)
+    if root is not None and getattr(img, "tk", None) is not root.tk:
+        del _THUMBS[key]
+        return False, None
+    return True, img
+
+
 def face_thumbnail(reader, file_name, size=64):
     """A Tk image of a portrait face texture, cropped to its visible part (cached)."""
     key = (file_name, size)
-    if key in _THUMBS:
-        return _THUMBS[key]
+    hit, img = _cached_thumb(key)
+    if hit:
+        return img
     img = None
     try:
         from PIL import Image, ImageTk
@@ -268,8 +285,9 @@ class FacePicker:
 def box_thumbnail(reader, style, w=150, h=44):
     """A Tk image of a message-box style: the top edge of talk_win<n> with its tail (cached)."""
     key = ("box", style, w, h)
-    if key in _THUMBS:
-        return _THUMBS[key]
+    hit, img = _cached_thumb(key)
+    if hit:
+        return img
     img = None
     try:
         from PIL import Image, ImageTk

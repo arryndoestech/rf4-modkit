@@ -88,6 +88,7 @@ rf4s-modkit/
 ├── script_explorer.py   # launches the cutscene editor (the cutscene_editor/ package)
 ├── cutscene_editor/     # the cutscene editor: rf3.mc + rf3mc.<locale> + em.bin, one undo history
 ├── gen_opcode_reference.py  # regenerates CUTSCENE_OPCODES.md + opcodes_list.csv from opcode_meta
+├── gen_arg_common.py        # regenerates refdata/script_arg_common.json: each argument's most used values in the shipped rf3.mc
 ├── gen_map_names_json.py    # writes out/map_names.json (map id -> name, MAP_* file, minimap sheet)
 ├── gen_exe_tables_json.py   # regenerates refdata/rf4s_exe_tables.json: chest loot, crate pools, area BGM (tables that exist only in RF4S.exe)
 ├── gen_minimap_sheets.py    # renders out/minimap_sheets/: every minimap picture with its rf3MapMiniPos rows drawn on
@@ -735,9 +736,17 @@ anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
 **Adding instructions without typing them.** Right-click in the script (or the Insert key): *Add
 instruction…*; the window inserts it after the selected one, or before it (a choice in the window,
-back to "after" once inserted). It opens a list of every instruction
-by category, searchable, with ✓ on the ones verified in game. Picking one shows its description and
-a form with one field per argument. Characters, maps, items, flags and named values are pickers.
+back to "after" once inserted). The list shows the instructions verified in game (untick the box
+for all ~700), with **Most used** (what the game's own scenes use most) and **Recently used** on
+top, each with a line on what it does; search finds them by what they do ("fade", "walk"). Picking
+one shows a one-line description (*More…* for the rest) and a form with one field per argument.
+Each field starts at the value the game's own scenes use most (walk speed 100, a fade to black over
+1 second) and lists the named values (compass directions, fade colours, turn speeds) and the other
+common ones. Timers take seconds: type `1.5 s` in a Wait, fade or shake and the field writes the raw
+value (each counts differently: Wait 12000 per second, the fades 6000, the shake 60), and every
+field says what its value means (`= 0.5 s`, `= facing right`). Portrait faces are pictures to pick.
+Walks, turns, fades and shakes offer *then wait until it's done*, which adds the matching wait.
+The form scrolls; *Insert* stays at the bottom. Characters, maps, items, flags and named values are pickers.
 Optional and repeating arguments can be added, jump targets come from the scene's own statements,
 and choice menus, switches and random jumps take rows. DIALOG writes **a new line** (speaker,
 side, face, box style and text, added in every locale) or shows an existing one by id. Every x / y
@@ -745,7 +754,8 @@ position has **📍 Pick on
 map…**: click the spot on the rendered map of the scene (1/8-tile units, as the script stores them).
 The listing the form makes is shown live and checked, and it can be edited by hand. *Insert* puts it
 after or before the selected statement and closes the window (the new statement is selected). The Inspector
-offers the same character / map / item pickers and *Pick x / y on the map* for existing statements.
+edits existing statements the same way: short argument names, the value's meaning, the named and
+common values, face pictures, the character / map / item pickers and *Pick x / y on the map*.
 For writing by hand, the **Source** tab holds the whole scene as editable listing text.
 
 **Reference.** *📖 Reference* lists the flags and variables (emdeb.bin's FLG_ / REG_ / EV_ names,
