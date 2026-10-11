@@ -7544,6 +7544,22 @@ def test_variable_editor():
         ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
         ref = ex.open_reference("Flags & variables")
         root.update()
+        CE = type(ex)
+        # opt-in: off by default -- no Variables… button, no editing, nothing written
+        side_before = side.read_text(encoding="utf-8")
+        _dlg.ask_new_variable = lambda parent, t: {"name": "FLG_SHOULD_NOT", "width": 1, "bit": None,
+                                                    "description": ""}
+        off_new = ref._var_new()
+        _check("the variable editor is off by default: no Variables… button, no edit buttons, nothing "
+               "written to emdeb_extra.json",
+               CE.variable_editor_setting() is False and ex._var_btn.winfo_manager() == ""
+               and ref._var_edit_box.winfo_manager() == "" and off_new is None
+               and side.read_text(encoding="utf-8") == side_before)
+        CE.set_variable_editor_setting(True)
+        ex.apply_variable_editor()
+        root.update()
+        _check("switched on in Options, the open editor shows the Variables… button and the buttons",
+               ex._var_btn.winfo_manager() == "pack" and ref._var_edit_box.winfo_manager() == "pack")
         tbl = ex.doc.emf_vars
         real_new = saved[2]
         # bad input is refused in the dialog
@@ -7620,6 +7636,10 @@ def test_variable_editor():
                and ex.doc.emf_vars.get("REG_MAIN_SCENARIO") is not None)
     finally:
         _ef.find_extra, _ef.extra_path_default, _dlg.ask_new_variable, _dlg.ask_line = saved
+        try:
+            ce.CutsceneExplorer.set_variable_editor_setting(False)
+        except Exception:  # noqa: BLE001
+            pass
         if root is not None:
             root.destroy()
         script.set_packed_var_resolver(None)
@@ -10221,6 +10241,16 @@ def test_explorer_tabs():
             _pl[0].invoke()
         _check("'Add new lines to every language' is in Options -> Cutscene Editor and saved for the editor",
                _pl_ok and _CE.pad_locales_setting() == _pl_before)
+        _ve = [b for b in boxes if b.cget("text") == "Variable editor"]
+        _ve_before = _CE.variable_editor_setting()
+        if _ve:
+            _ve[0].invoke()
+        _ve_on = _CE.variable_editor_setting()
+        if _ve:
+            _ve[0].invoke()
+        _check("'Variable editor' is in Options -> Cutscene Editor, off by default and saved for the editor",
+               bool(_ve) and _ve_before is False and _ve_on is True and _CE.variable_editor_setting() is False,
+               (_ve_before, _ve_on))
         _lg = {w: [b for b in boxes if b.cget("text") == t]
                for w, t in (("most_used", 'Show "Most used"'), ("recent", 'Show "Recently used"'))}
         _lg_ok = all(_lg.values()) and all(_CE.list_group_setting(w) for w in _lg)

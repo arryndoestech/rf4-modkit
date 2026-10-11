@@ -772,8 +772,9 @@ edits existing statements the same way: short argument names, the value's meanin
 common values, face pictures, the character / map / item pickers and *Pick x / y on the map*.
 For writing by hand, the **Source** tab holds the whole scene as editable listing text.
 
-**Variables.** *Variables…* (toolbar) opens the Reference on Flags & variables, which is also the
-variable editor. **New variable…** names free bits of the game-flag store (bits 3017–4095 are
+**Variables.** Opt-in: tick Options → Cutscene Editor → *Variable editor* (off by default; off, the
+list is read-only and nothing is written). Then *Variables…* (toolbar) opens the Reference on Flags &
+variables, which is also the variable editor. **New variable…** names free bits of the game-flag store (bits 3017–4095 are
 unused by the game's own table) as an on/off flag or a 2–16-bit number; scripts and event
 conditions can use the name at once. **Rename…** renames any variable, the game's own too:
 the game stores bit positions only, so no game file changes, and a game variable keeps

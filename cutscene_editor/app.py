@@ -111,6 +111,7 @@ class CutsceneExplorer:
         self.frame = ttk.Frame(self.parent)
         self.frame.pack(fill="both", expand=True)
         self._build_toolbar()
+        self.apply_variable_editor()             # the Variables… button: Options -> Cutscene Editor
         paned = Paned(self.frame, orient="horizontal")
         paned.pack(fill="both", expand=True)
         self._paned = paned
@@ -318,10 +319,10 @@ class CutsceneExplorer:
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
         vb = ttk.Button(bar, text="Variables…", command=lambda: self.open_reference("Flags & variables"))
-        vb.pack(side="left")
         Tip(vb, "The game's flags and numbers by name, with where each is used: rename them, "
                 "name unused bits as new variables of your own.")
         db = ttk.Menubutton(bar, text="🐞 Debug")
+        self._var_btn, self._var_btn_before = vb, db            # shown with the Variable editor option
         dm = tk.Menu(db, tearoff=False)
         dm.add_command(label="▶ Launch game", command=self.launch_game)
         dm.add_separator()
@@ -710,6 +711,37 @@ class CutsceneExplorer:
         """'Add new lines to every language' (Options -> Cutscene Editor): a new dialogue line gets the
         same id in every other locale (untranslated). On by default."""
         return bool(cls._load_prefs().get("pad_locales", True))
+
+    @classmethod
+    def variable_editor_setting(cls):
+        """'Variable editor' (Options -> Cutscene Editor): rename variables and name free bits
+        as your own (Reference -> Flags & variables, the Variables… button), saved in
+        emdeb_extra.json. Off by default: the list is read-only and nothing is written."""
+        return bool(cls._load_prefs().get("variable_editor", False))
+
+    @classmethod
+    def set_variable_editor_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["variable_editor"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    def apply_variable_editor(self):
+        """Show / hide the Variables… button and the open Reference's editor buttons."""
+        try:
+            if self.variable_editor_setting():
+                if self._var_btn.winfo_manager() != "pack":
+                    self._var_btn.pack(side="left", before=self._var_btn_before)
+            else:
+                self._var_btn.pack_forget()
+        except (tk.TclError, AttributeError):
+            pass
+        r = self._reference
+        try:
+            if r is not None and r.win.winfo_exists():
+                r.apply_variable_editor()
+        except tk.TclError:
+            pass
 
     @classmethod
     def list_group_setting(cls, which):

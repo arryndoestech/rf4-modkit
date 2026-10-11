@@ -439,6 +439,31 @@ class ReferenceWindow:
         on = bool(getattr(type(self.app), "reference_csv_setting", lambda: False)())
         for lst in self.lists():
             lst.show_export(on)
+        self.apply_variable_editor()
+
+    def variable_editor_on(self):
+        return bool(getattr(type(self.app), "variable_editor_setting", lambda: False)())
+
+    def apply_variable_editor(self):
+        """Follow Options -> Cutscene Editor -> Variable editor (off by default): the New /
+        Rename / Restore / Delete buttons, the Show filter and the free-bits line."""
+        box = getattr(self, "_var_edit_box", None)
+        if box is None:
+            return
+        try:
+            if self.variable_editor_on():
+                if box.winfo_manager() != "pack":
+                    box.pack(side="left")
+                if self.free_lbl.winfo_manager() != "pack":
+                    self.free_lbl.pack(anchor="w", pady=(2, 0))
+            else:
+                box.pack_forget()
+                self.free_lbl.pack_forget()
+                if self.var_filter.get() != "all":
+                    self.var_filter.set("all")
+                    self._var_refill()
+        except tk.TclError:
+            pass
 
     def show(self, tab=None):
         self._finish_build()                # opened while the preload was still building
@@ -467,9 +492,9 @@ class ReferenceWindow:
             "recovered bits past emdeb's names. reads / writes = how many statements of every "
             "bank and em.bin entries use it (unsaved edits included); select a variable to list "
             "them below, double-click a use to open it. Double-click a variable = copy its "
-            "name. The buttons below rename variables (the game's too) and name free bits as "
-            "variables of your own: names are the toolkit's, the game stores bit positions "
-            "only.")).pack(anchor="w", pady=(0, 4))
+            "name. With Options -> Cutscene Editor -> Variable editor on, the buttons below "
+            "rename variables (the game's too) and name free bits as variables of your own: "
+            "names are the toolkit's, the game stores bit positions only.")).pack(anchor="w", pady=(0, 4))
         self._flag_base = flag_rows(self.app.doc)
         pw = ttk.PanedWindow(f, orient="vertical")
         pw.pack(fill="both", expand=True)
@@ -501,8 +526,10 @@ class ReferenceWindow:
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(4, 0))
         ttk.Button(b, text="Copy name", command=lambda: t.selected() and self.copy(t.selected()[7])).pack(side="left")
-        # the variable editor: names are the toolkit's (the game stores bit positions only), kept
-        # in emdeb_extra.json next to emdeb.bin; scripts and em.bin are never rewritten for them
+        # the variable editor (opt-in: Options -> Cutscene Editor -> Variable editor): names are
+        # the toolkit's (the game stores bit positions only), kept in emdeb_extra.json next to
+        # emdeb.bin; scripts and em.bin are never rewritten for them
+        self._var_edit_box = ve = ttk.Frame(b)
         for text, cmd, tip in (
                 ("New variable…", self._var_new,
                  "Name an unused range of game-flag bits: an on/off flag or a number. Scripts and "
@@ -513,12 +540,12 @@ class ReferenceWindow:
                  "keeps answering to its original name as well."),
                 ("Restore name", self._var_restore, "Give a renamed game variable its original name back."),
                 ("Delete", self._var_delete, "Delete one of your own variables (the game's cannot be deleted).")):
-            bt = ttk.Button(b, text=text, command=cmd)
+            bt = ttk.Button(ve, text=text, command=cmd)
             bt.pack(side="left", padx=(6, 0))
             Tip(bt, tip)
-        ttk.Label(b, text="  Show").pack(side="left", padx=(12, 2))
+        ttk.Label(ve, text="  Show").pack(side="left", padx=(12, 2))
         self.var_filter = tk.StringVar(value="all")
-        fc = ttk.Combobox(b, textvariable=self.var_filter, state="readonly", width=34,
+        fc = ttk.Combobox(ve, textvariable=self.var_filter, state="readonly", width=34,
                           values=["all", "unused by scripts and events", "yours", "renamed", "the game's"])
         fc.pack(side="left")
         fc.bind("<<ComboboxSelected>>", lambda _e: self._var_refill())
@@ -526,8 +553,8 @@ class ReferenceWindow:
                 "code can still use a variable by its bit position, so for something new prefer "
                 "New variable (free bits) over taking over an unused game variable.")
         self.free_lbl = ttk.Label(f, foreground="#666")
-        self.free_lbl.pack(anchor="w", pady=(2, 0))
         self._var_free_text()
+        self.apply_variable_editor()
         self._counting = False               # the reads / writes counts start when this tab shows
         self.nb.bind("<<NotebookTabChanged>>", lambda _e: self._flags_tab_shown(), add="+")
 
@@ -565,8 +592,11 @@ class ReferenceWindow:
         return tbl.get(r[0])
 
     def _var_save(self, what, select=None):
-        """Write emdeb_extra.json and make every view use the new names."""
+        """Write emdeb_extra.json and make every view use the new names (only with the
+        variable editor switched on)."""
         from rf4s_modkit import emflags
+        if not self.variable_editor_on():
+            return False
         tbl = self._var_table()
         try:
             tbl.save_extras(tbl.extra_path or emflags.extra_path_default())
@@ -605,7 +635,7 @@ class ReferenceWindow:
     def _var_new(self):
         from . import dialogs
         tbl = self._var_table()
-        if tbl is None:
+        if tbl is None or not self.variable_editor_on():
             return None
         spec = dialogs.ask_new_variable(self.win, tbl)
         if spec is None:
@@ -617,7 +647,7 @@ class ReferenceWindow:
     def _var_rename(self):
         from . import dialogs
         tbl, v = self._var_table(), self._var_selected()
-        if v is None:
+        if v is None or not self.variable_editor_on():
             return None
         old = v.name
 
@@ -643,7 +673,7 @@ class ReferenceWindow:
 
     def _var_restore(self):
         tbl, v = self._var_table(), self._var_selected()
-        if v is None:
+        if v is None or not self.variable_editor_on():
             return None
         if v.extra or v.orig == v.name:
             self.status.config(text="%s has its original name" % v.name)
@@ -656,7 +686,7 @@ class ReferenceWindow:
     def _var_delete(self):
         from tkinter import messagebox
         tbl, v = self._var_table(), self._var_selected()
-        if v is None:
+        if v is None or not self.variable_editor_on():
             return None
         if not v.extra:
             self.status.config(text="%s is one of the game's variables: only your own can be deleted "

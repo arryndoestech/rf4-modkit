@@ -1230,6 +1230,24 @@ class App:
                            "shows in every language. Unticked, only the language you edit gets it: "
                            "players of the other languages would see a wrong line instead.",
                   foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
+        ttk.Label(ce, text="Variables", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
+        self._var_editor = tk.BooleanVar(value=CutsceneExplorer.variable_editor_setting())
+
+        def var_editor_changed():
+            CutsceneExplorer.set_variable_editor_setting(bool(self._var_editor.get()))
+            cur = getattr(self, "_cutscene_ed", None)      # an open editor follows at once
+            try:
+                if cur is not None and cur[0].winfo_exists():
+                    cur[1].apply_variable_editor()
+            except tk.TclError:
+                pass
+        ttk.Checkbutton(ce, text="Variable editor", variable=self._var_editor,
+                        command=var_editor_changed).pack(anchor="w", pady=(4, 0))
+        ttk.Label(ce, text="Adds a Variables… button and editing to Reference → Flags & variables: rename "
+                           "variables (the game's too) and name unused bits as variables of your own. The "
+                           "names are kept in emdeb_extra.json next to the game's emdeb.bin (the game never "
+                           "reads it). Off: the list is read-only and that file is never written.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
         ttk.Label(ce, text="Add-an-instruction list", font=("Segoe UI", 9, "bold")).pack(anchor="w", pady=(12, 0))
         self._list_groups = {}
         for which, text, note in (
