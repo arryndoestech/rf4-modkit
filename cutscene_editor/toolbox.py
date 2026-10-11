@@ -40,8 +40,9 @@ CONTROL_HELP = {
     "CALL": "Run the code at the target as a subroutine; its RET comes back here.",
     "RET": "End the scene (or return from a CALL).",
     "RET_NZ": "End the scene (or return from a CALL) when the condition is TRUE.",
-    "PROMPT_CHOICE": "A choice menu: each option is a dialogue line and where it goes; Cancel "
-                     "(B button) goes to the cancel target.",
+    "PROMPT_CHOICE": "A choice menu: each option is a dialogue line and where it goes. Cancel "
+                     "(B button) moves the cursor to the last option, so the last option "
+                     "doubles as the cancel answer.",
     "PROMPT_CHOICE_FORCED": "A choice menu that cannot be cancelled.",
     "SWITCH": "Jump to target number N, where N is the selector's value (0 = the first).",
     "SWITCH_CLAMP": "Like SWITCH, but values past the end use the last target.",
@@ -1153,6 +1154,7 @@ class InstructionPicker:
         self.win.geometry("1150x700")
         self.key = None                 # ("op", n) | ("ctl", mnemonic)
         self.dlg_mode = tk.StringVar(value="new")      # DIALOG: a new line or an existing one
+        self.choice_mode = tk.StringVar(value="jump")  # choice menu: "jump" | "reg0" (see _choice_ui)
         self.fields = []
         self.rows = []                  # repeating rows (targets / choice options)
         self.manual = False
@@ -1555,7 +1557,7 @@ class InstructionPicker:
         elif m == "JMP_WEIGHTED":
             self._rows_ui("weighted targets", [("weight", [], "1"), ("target", tg, tdef)], 2)
         elif m in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
-            self._rows_ui("options (line id → target)", [("line id", [], "0"), ("target", tg, tdef)], 2)
+            self._choice_ui(tg, tdef)
         else:
             ttk.Label(self.form, text="(no operands)", foreground="#777").grid(row=10, column=1, sticky="w")
 
@@ -1600,6 +1602,192 @@ class InstructionPicker:
 
     def _row_tokens(self):
         return [[opts.get(v.get().strip(), v.get().strip()) for v, opts in row] for _f, row in self.rows]
+
+    # ---- choice menus -------------------------------------------------------------- #
+    # One opcode, two ways the shipped scripts use it (Script_VMStep 0xFFF4 / 0xFFF5 always
+    # jumps to the target of the picked VISIBLE row; SceneEvent_FinalizeAndPickFromBitmap
+    # RF4S.exe+0x1F49C0 writes reg0 = the picked option's ORIGINAL index, but only when a
+    # visibility op (610 / 611 / 612) set a bit of the mask before the menu):
+    #   "jump": every option has its own target -- the menu jumps there directly;
+    #   "reg0": SetChoiceVisibleBit(k, show-when) per option, every option -> one label,
+    #           then SWITCH (reg0) -> the options' targets. Options can be hidden, and the
+    #           answer stays readable in reg0 (the shipped menus' usual form, 350 of them).
+    CHOICE_NEXT = "<next>"
+    CHOICE_NEXT_DISP = "→ continue after the menu"
+
+    def _choice_ui(self, tg, tdef):
+        opts = [(self.CHOICE_NEXT_DISP, self.CHOICE_NEXT)] + tg
+        self._choice_opts = opts
+        self._choice_meta = {}
+        mf = ttk.Frame(self.form)
+        mf.grid(row=5, column=0, columnspan=3, sticky="w", pady=(0, 2))
+        ttk.Label(mf, text="When the player picks an option:").pack(side="left", padx=(0, 8))
+        for val, lab, tip in (
+                ("jump", "jump to its target",
+                 "Each option jumps straight to its own target. Simple, but every option is "
+                 "always shown and nothing remembers which one was picked."),
+                ("reg0", "store the answer in reg0, then branch",
+                 "The answer (0 = first option, 1 = second, …) goes into reg0, then a SWITCH "
+                 "on reg0 sends each answer to its target. Lets you hide options with a "
+                 "'show when' condition, and later code can still read reg0. This is how most "
+                 "of the game's own menus are built.")):
+            rb = ttk.Radiobutton(mf, text=lab, value=val, variable=self.choice_mode,
+                                 command=self._choice_mode_changed)
+            rb.pack(side="left", padx=(0, 10))
+            Tip(rb, tip)
+        self._choice_hint = ttk.Label(self.form, foreground="#777", wraplength=640, justify="left",
+                                      font=("Segoe UI", 8))
+        self._choice_hint.grid(row=6, column=0, columnspan=3, sticky="w", pady=(0, 4))
+        box = ttk.LabelFrame(self.form, text="options (top to bottom as they appear in the menu)",
+                             padding=4)
+        box.grid(row=200, column=0, columnspan=2, sticky="we", pady=4)
+        self._rows_box = box
+        self._choice_rows_frame = ttk.Frame(box)
+        self._choice_rows_frame.pack(fill="x")
+        ab = ttk.Button(box, text="＋ add option", command=self._choice_add_row)
+        ab.pack(anchor="w", pady=(4, 0))
+        Tip(ab, "Add another option at the bottom of the menu.")
+        for _ in range(2):
+            self._choice_add_row(render=False)
+        self._choice_mode_changed(rebuild=False)
+
+    def _choice_add_row(self, render=True):
+        f = ttk.Frame(self._choice_rows_frame)
+        f.pack(fill="x", pady=1)
+        num = ttk.Label(f, width=3, anchor="e")
+        num.pack(side="left")
+        line = tk.StringVar(value="0")
+        le = ttk.Entry(f, textvariable=line, width=8)
+        le.pack(side="left", padx=(4, 0))
+        Tip(le, "The dialogue line (#id) this option shows.")
+        # packed right to left after the line id, the option's text last: a narrow window
+        # squeezes the text preview, never the target
+        txt = ttk.Label(f, width=12, foreground="#555", anchor="w")
+        fb = ttk.Button(f, text="…", width=2, command=lambda: self._choice_find_line(line))
+        fb.pack(side="left")
+        Tip(fb, "Search this locale's dialogue for the option's text and use its id.")
+        cl = ttk.Label(f, text="show when")
+        cond = tk.StringVar(value="always")
+        ce = ttk.Entry(f, textvariable=cond, width=16)
+        Tip(ce, "'always', or a condition such as FLG_SOMETHING, reg1 == 2 or "
+                "FLG_A && !FLG_B: the option is only shown while it is true.")
+        cond_parts = [cl, ce]
+        rm = ttk.Button(f, text="✕", width=3)
+        tgt = tk.StringVar()
+        tc = FilterCombo(f, [d for d, _t in self._choice_opts], on_pick=lambda _t: self._changed(),
+                         width=28, textvariable=tgt)
+        tgt.set(self.CHOICE_NEXT_DISP)
+        Tip(tc, "Where this answer continues: a statement of this scene, or straight on "
+                "after the menu.")
+        arrow = ttk.Label(f, text="→")
+        rm.pack(side="right", padx=4)
+        tc.pack(side="right")
+        arrow.pack(side="right", padx=(2, 4))
+        txt.pack(side="left", fill="x", expand=True, padx=(4, 6))
+        row = [(line, {}), (cond, {"always": "1", "": "1"}), (tgt, dict(self._choice_opts))]
+        entry = (f, row)
+        entry_meta = {"num": num, "txt": txt, "cond": cond_parts}
+        rm.config(command=lambda: self._choice_del_row(entry))
+        Tip(rm, "Remove this option.")
+        self.rows.append(entry)
+        self._choice_meta[id(entry)] = entry_meta
+        line.trace_add("write", lambda *_a: (self._choice_line_text(line, txt), self._changed()))
+        cond.trace_add("write", lambda *_a: self._changed())
+        tgt.trace_add("write", lambda *_a: self._changed())
+        self._choice_line_text(line, txt)
+        self._choice_refresh()
+        if render:
+            self._changed()
+
+    def _choice_del_row(self, entry):
+        if entry in self.rows and len(self.rows) > 1:
+            self.rows.remove(entry)
+            entry[0].destroy()
+            self._choice_refresh()
+            self._changed()
+
+    def _choice_refresh(self):
+        """Number the rows and show / hide the 'show when' column for the mode."""
+        reg0 = self.choice_mode.get() == "reg0"
+        for k, entry in enumerate(self.rows):
+            mt = self._choice_meta.get(id(entry))
+            if not mt:
+                continue
+            mt["num"].config(text="%d." % (k + 1))
+            cl, ce = mt["cond"]
+            if reg0:
+                ce.pack(side="right", before=mt["txt"])
+                cl.pack(side="right", padx=(6, 4), before=mt["txt"])
+            else:
+                ce.pack_forget()
+                cl.pack_forget()
+
+    def _choice_mode_changed(self, rebuild=True):
+        reg0 = self.choice_mode.get() == "reg0"
+        cancel = self.key == ("ctl", "PROMPT_CHOICE")
+        if reg0:
+            hint = ("Inserts one SetChoiceVisibleBit per option, the menu, and a SWITCH on reg0 "
+                    "that sends each answer to its target. reg0 = the option's number counted "
+                    "from 0 in this list, also when options above it are hidden. If no option's "
+                    "condition is true, the game shows every option and leaves reg0 unchanged.")
+        else:
+            hint = ("Every option is shown and jumps straight to its target. To hide options "
+                    "or keep the answer for later, pick 'store the answer in reg0'.")
+        if cancel:
+            hint += " Cancel picks the last option."
+        self._choice_hint.config(text=hint)
+        self._choice_refresh()
+        if rebuild:
+            self._changed()
+
+    def _choice_line_text(self, var, label):
+        t = None
+        try:
+            t = self.app.doc.text(int(var.get().strip().lstrip("#")))
+        except (ValueError, TypeError, AttributeError):
+            pass
+        t = (t or "").replace("\n", " ")
+        try:
+            label.config(text=('"%s"' % (t[:30] + ("…" if len(t) > 30 else ""))) if t
+                         else "(no such line)", foreground="#555" if t else "#b00")
+        except tk.TclError:
+            pass
+
+    def _choice_find_line(self, var):
+        from . import dialogs
+        i = dialogs.pick_line(self.win, self.app.doc)
+        if i is not None:
+            var.set(str(i))
+
+    def _choice_listing(self, m):
+        """The listing of the choice form: the menu alone ("jump"), or the visibility ops +
+        menu + SWITCH (reg0) ("reg0"). '<next>' targets land on a label after the block."""
+        rows = [(line.lstrip("#") or "0", cond, tgt) for line, cond, tgt in self._row_tokens()]
+        uses_next = False
+
+        def target(t):
+            nonlocal uses_next
+            if t == self.CHOICE_NEXT:
+                uses_next = True
+                return "L_after_menu"
+            return t
+
+        out = []
+        if self.choice_mode.get() == "reg0":
+            for k, (_line, cond, _t) in enumerate(rows):
+                out.append("SetChoiceVisibleBit(%d, %s)" % (k, cond or "1"))
+            if all(t == self.CHOICE_NEXT for _l, _c, t in rows):
+                dest = target(self.CHOICE_NEXT)       # nothing to branch on: just keep reg0
+                out.append("%s %s" % (m, ", ".join("#%s -> %s" % (line, dest) for line, _c, _t in rows)))
+            else:
+                out.append("%s %s" % (m, ", ".join("#%s -> L_answer" % line for line, _c, _t in rows)))
+                out.append("L_answer:")
+                out.append("SWITCH (reg0) -> " + ", ".join(target(t) for _l, _c, t in rows))
+        else:
+            out.append("%s %s" % (m, ", ".join("#%s -> %s" % (line, target(t)) for line, _c, t in rows)))
+        if uses_next:
+            out.append("L_after_menu:")
+        return "\n".join(out)
 
     # ---- the listing ------------------------------------------------------------- #
     def listing(self):
@@ -1647,10 +1835,8 @@ class InstructionPicker:
             return "JMP_RAND " + ", ".join(r[0] for r in rows)
         if m == "JMP_WEIGHTED":
             return "JMP_WEIGHTED " + ", ".join("(%s) -> %s" % (w, t) for w, t in rows)
-        if m == "PROMPT_CHOICE":
-            return "PROMPT_CHOICE " + ", ".join("#%s -> %s" % (i, t) for i, t in rows)
-        if m == "PROMPT_CHOICE_FORCED":
-            return "PROMPT_CHOICE_FORCED " + ", ".join("#%s -> %s" % (i, t) for i, t in rows)
+        if m in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+            return self._choice_listing(m)
         return m
 
     def _changed(self):

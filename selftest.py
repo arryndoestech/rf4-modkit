@@ -7071,6 +7071,80 @@ def test_cutscene_bank_listing():
            (_no_addr, _pcs_kept, _with_addr, _src_clean, _gutter_ok, _gutter_off))
 
 
+def test_choice_form():
+    """The Add-an-instruction form for a choice menu: 'jump' writes the menu alone; 'reg0'
+    writes SetChoiceVisibleBit per option (its show-when condition), the menu with one shared
+    target and SWITCH (reg0) to the options' targets; '→ continue after the menu' lands after
+    the block. The listing assembles and inserts as written."""
+    print("choice menus: Add-an-instruction form:")
+    import tkinter as tk
+    from map_editor import data as _med
+    from rf4s_modkit import script
+    from cutscene_editor import toolbox
+    from cutscene_editor.app import CutsceneExplorer
+    c = _med.rf3mc_container(live=False)
+    if c is None:
+        _skip("choice form", "rf3.mc not found"); return
+    bk = c.banks[27]
+    sc = script.disassemble_bank(bk)[0]
+    dlg = next(s.pc for s in sc.stmts.values() if s.mnem == "DIALOG")
+
+    class _Doc:
+        container, reader = c, None
+
+        def text(self, i):
+            return {100: "Yes", 101: "No", 102: "Later"}.get(i)
+
+    class _App:
+        pass
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        a = _App()
+        a.frame, a.doc, a.scene, a.bank = root, _Doc(), sc, bk
+        a._suggest = CutsceneExplorer._suggest
+        a.assemble_check = lambda t, base=None, strict=True: CutsceneExplorer.assemble_check(a, t, base, strict)
+        p = toolbox.InstructionPicker(a)
+        ent = next(d for d, t in p._targets() if t == "0x%04x" % sc.entry_pc)
+        nxt = toolbox.InstructionPicker.CHOICE_NEXT_DISP
+
+        def fill(mode, m, rows):
+            p.choice_mode.set(mode)
+            p.set_instruction(("ctl", m))
+            while len(p.rows) < len(rows):
+                p._choice_add_row(render=False)
+            for (_f, row), (line, cond, tgt) in zip(p.rows, rows):
+                row[0][0].set(str(line))
+                row[1][0].set(cond)
+                row[2][0].set(tgt)
+            p._rebuild()
+            return p.text(), p.check()
+        jt, jok = fill("jump", "PROMPT_CHOICE", [(100, "always", ent), (101, "always", nxt)])
+        _check("jump mode: the menu alone, 'continue' lands after it",
+               jok and jt.splitlines() == ["PROMPT_CHOICE #100 -> 0x%04x, #101 -> L_after_menu" % sc.entry_pc,
+                                           "L_after_menu:"], jt)
+        kt, kok = fill("reg0", "PROMPT_CHOICE_FORCED", [(100, "always", nxt), (101, "always", nxt)])
+        _check("reg0 mode, every answer continues: no SWITCH, reg0 kept",
+               kok and "SWITCH" not in kt and kt.count("SetChoiceVisibleBit") == 2, kt)
+        rt, rok = fill("reg0", "PROMPT_CHOICE", [(100, "always", ent), (101, "reg1 == 2", nxt),
+                                                 (102, "reg1 != 2", ent)])
+        new = c.insert_after(bk, dlg, rt)
+        sc2 = next(s for s in script.disassemble_bank(c.banks[27]) if new in s.stmts)
+        ks = sorted(sc2.stmts)
+        got = [sc2.stmts[q] for q in ks[ks.index(new):ks.index(new) + 5]]
+        menu, sw = got[3], got[4]
+        stl = list(sc2.stmts.values())
+        res = script.choice_results(c.banks[27].data, stl, [x.pc for x in stl].index(menu.pc))
+        _check("reg0 mode: visibility ops, menu -> one label, SWITCH (reg0) to the targets; "
+               "choice_results sees reg0 written",
+               rok and [g.op for g in got[:3]] == [612] * 3 and menu.mnem == "PROMPT_CHOICE"
+               and set(menu.code_targets) == {sw.pc} and sw.mnem == "SWITCH"
+               and sw.code_targets[1] == sw.pc + sw.size and isinstance(res, list) and len(res) == 3,
+               (rt, [g.mnem for g in got]))
+    finally:
+        root.destroy()
+
+
 def test_choice_results():
     """What a choice writes to reg0 (script.choice_results): only behind a visibility mask
     (ops 610-612) does the pick go to reg0 as the option's index; the mask may be set right
@@ -16716,7 +16790,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,
