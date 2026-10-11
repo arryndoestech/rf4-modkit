@@ -7294,8 +7294,16 @@ def test_edit_instruction():
         ex.select((fade, None))
         orig = c.build()
         n_undo = len(ex.doc.undo_stack)
+        # first a form WITH "+ another argument" (SetChoiceVisibleMask), then Edit on a form
+        # without one: the old button is gone and must not be touched (it crashed: a stale
+        # more_btn of the earlier form)
+        p0 = ex.ask_insert_instruction(preset=("op", 610))
+        root.update()
+        had_more = p0.more_btn is not None
         p = ex.ask_edit_instruction()
         root.update()
+        _check("Edit after a form that had '+ another argument' opens cleanly (no stale button)",
+               had_more and p is not None and p.edit_pc == fade and p.more_btn is None)
         cur = script.arg_constant(ex.bank.data, ex.stmt(fade).args[1])[0]
         _check("Edit opens the form of the selected FadeScreen with its own values, without the "
                "instruction list, with Apply",

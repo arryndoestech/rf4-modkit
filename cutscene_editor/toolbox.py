@@ -1465,6 +1465,7 @@ class InstructionPicker:
         r = meta.table_row(op) or {}
         fam = meta.OPCODE_ARGS.get(op)
         m = meta.mnemonic(op)
+        self.more_btn = None            # this form's "+ another argument" (set below when it has one)
         self.title.config(text=meta.prototype(op))
         ver = "✓ verified in game" if (meta.human_verified(op) if not fam else all(
             meta.human_verified(o) for o in meta.OPCODE_ARGS if meta.mnemonic(o) == m)) else "not yet verified in game"
