@@ -423,9 +423,16 @@ class SourceTab(ttk.Frame):
             return False
         entry = app.scene.entry_pc
         box = {}
+        before = bytes(app.bank.data)
         ok = app.apply("Rewrite scene @0x%04x" % entry,
                        lambda: box.update(base=app.doc.container.rewrite_scene(app.bank, entry, text,
                                                                                strict=False)))
+        if ok and bytes(app.bank.data) == before:
+            # the relink is byte-exact: a listing that only differs in comments, labels or
+            # spelling rebuilds the same bank (and leaves no undo step)
+            self.load(force=True)
+            self.set_msg("no change: the listing assembles to the same code as the scene")
+            return False
         if ok:
             self.load(force=True)
             self.set_msg("applied: the bank was rebuilt with the new body in place; the scene now "

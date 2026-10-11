@@ -8309,10 +8309,22 @@ def test_cutscene_editor_authoring():
         _check("Apply to scene of an untouched listing is a no-op (no second body appended)",
                noop is False and len(ex.bank.data) == n_bank and not doc.script_dirty())
         ex.source.text.insert("end", "\n; selftest: same content, different text\n")
-        ok = ex.source.apply()
+        n_undo = len(doc.undo_stack)
+        same = ex.source.apply()
         sig1 = scriptasm.scene_signature(ex.scene, ex.bank.data)
-        _check("Apply to scene keeps the scene's signature (bank rebuilt, body in place)",
-               bool(ok) and sig0 == sig1 and doc.script_dirty())
+        _check("Apply of a listing that only adds a comment rebuilds the same bytes: nothing "
+               "changes, no undo step, the Source tab says so",
+               same is False and sig0 == sig1 and len(ex.bank.data) == n_bank and not doc.script_dirty()
+               and len(doc.undo_stack) == n_undo and "no change" in ex.source.msg.cget("text"),
+               ex.source.msg.cget("text")[:100])
+        lines = ex.source.text.get("1.0", "end-1c").splitlines()
+        k = next(i for i, ln in enumerate(lines) if ln.strip().startswith("DIALOG"))
+        ex.source.text.delete("1.0", "end")
+        ex.source.text.insert("1.0", "\n".join(lines[:k] + ["EVAL (reg0 = 1)"] + lines[k:]))
+        ok = ex.source.apply()
+        _check("Apply to scene of a real change rebuilds the bank with the body in place",
+               bool(ok) and doc.script_dirty() and len(doc.undo_stack) == n_undo + 1
+               and "EVAL" in ex.source.text.get("1.0", "end-1c"), ex.source.msg.cget("text")[:100])
         ex.source.text.insert("end", "\nNoSuchOpcodeXYZ 1\n")
         bad = ex.source.check()
         _check("Source Check reports a bad line inline (no modal)", bad is None
