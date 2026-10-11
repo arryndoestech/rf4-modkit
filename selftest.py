@@ -117,6 +117,20 @@ def _first(glob):
         return None
 
 
+def _shipped(glob):
+    """The game's ORIGINAL copy of a file: the one in ModdingBackup when a save (or a mod)
+    replaced the game's file, else the game's own. Tests that pin addresses or counts in
+    the shipped data use this, so a modded game folder doesn't fail them."""
+    live = _first(glob)
+    if live is None:
+        return None
+    try:
+        orig = _gamepaths.backup_path(live)
+    except Exception:  # noqa: BLE001 -- no backup folder configured
+        orig = None
+    return orig if orig is not None and orig.is_file() else live
+
+
 def test_bplist():
     print("bplist:")
     for f in ("KeyBindings.plist", "MUKeyCodeConversion.plist"):
@@ -8128,13 +8142,15 @@ def test_cutscene_graph():
         import tkinter as tk
         import cutscene_editor as ce
         from cutscene_editor import cfg
-        from map_editor import data as _med
         from rf4s_modkit import script
     except Exception as e:
         _skip("control-flow graph", f"cutscene_editor not importable ({e})"); return
-    c = _med.rf3mc_container(live=False)
-    if c is None:
+    # the shipped rf3.mc (the addresses below are the game's own; a modded game folder
+    # moves them), for the layout checks and the editor alike
+    mc = _shipped("rf3.mc")
+    if mc is None:
         _skip("control-flow graph", "rf3.mc not found"); return
+    c = script.Container(mc.read_bytes())
     bank = c.banks[c.n_primary + 196]                   # MAP_FIELD_36: GetDayOfWeek branches
     sc = script.disassemble_bank(bank)[0]
     bl = cfg.scene_graph(sc)
@@ -8166,7 +8182,7 @@ def test_cutscene_graph():
            ([(hex(g.root), len(g.starts), int(g.w)) for g in gs2[:4]], int(w2), int(h2)))
 
     def reader(n):
-        f = _first(n)
+        f = mc if n == "rf3.mc" else _first(n)
         return f.read_bytes() if f else None
     root = None
     try:
