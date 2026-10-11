@@ -772,6 +772,17 @@ edits existing statements the same way: short argument names, the value's meanin
 common values, face pictures, the character / map / item pickers and *Pick x / y on the map*.
 For writing by hand, the **Source** tab holds the whole scene as editable listing text.
 
+**Variables.** *Variables…* (toolbar) opens the Reference on Flags & variables, which is also the
+variable editor. **New variable…** names free bits of the game-flag store (bits 3017–4095 are
+unused by the game's own table) as an on/off flag or a 2–16-bit number; scripts and event
+conditions can use the name at once. **Rename…** renames any variable, the game's own too:
+the game stores bit positions only, so no game file changes, and a game variable keeps
+answering to its original name as well (**Restore name** gives it back). **Delete** removes
+your own. *Show* filters the list to variables unused by scripts and events, yours, renamed
+or the game's. The game's code can still use a variable by its bit position, so prefer New
+variable over taking over an unused game one. The names are kept in `emdeb_extra.json` next to
+`emdeb.bin` (with the Event Manager's entry names); every tool reads them.
+
 **Reference.** *📖 Reference* lists the flags and variables (emdeb.bin's FLG_ / REG_ / EV_ names,
 bit id, width, value range and Japanese label, plus the recovered zone-2 bits), the functions
 verified in game (with everything the opcode table knows about each), the **text codes** a

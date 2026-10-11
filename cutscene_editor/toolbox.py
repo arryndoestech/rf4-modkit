@@ -125,7 +125,8 @@ def flag_rows(doc):
         w = v.bit_width
         rng = "0 / 1" if w == 1 else "0 – %d" % ((1 << w) - 1)
         kind = {"FLG": "flag", "REG": "value", "EV": "event"}.get(v.kind, v.kind or "")
-        desc = (v.jp_name or "") + ("  (your variable)" if v.extra else "")
+        desc = (v.jp_name or "") + ("  (your variable)" if v.extra else "") + (
+            "  (renamed from %s)" % v.orig if not v.extra and v.orig != v.name else "")
         rows.append((v.name, kind, str(v.bit_offset), str(w), rng, desc, v.name))
     for lo, hi, name, detail in emflags.ZONE2_BLOCKS:
         ids = str(emflags.ZONE2_BASE + lo) if lo == hi else "%d – %d" % (emflags.ZONE2_BASE + lo, emflags.ZONE2_BASE + hi)
@@ -466,7 +467,9 @@ class ReferenceWindow:
             "recovered bits past emdeb's names. reads / writes = how many statements of every "
             "bank and em.bin entries use it (unsaved edits included); select a variable to list "
             "them below, double-click a use to open it. Double-click a variable = copy its "
-            "name.")).pack(anchor="w", pady=(0, 4))
+            "name. The buttons below rename variables (the game's too) and name free bits as "
+            "variables of your own: names are the toolkit's, the game stores bit positions "
+            "only.")).pack(anchor="w", pady=(0, 4))
         self._flag_base = flag_rows(self.app.doc)
         pw = ttk.PanedWindow(f, orient="vertical")
         pw.pack(fill="both", expand=True)
@@ -498,6 +501,33 @@ class ReferenceWindow:
         b = ttk.Frame(f)
         b.pack(fill="x", pady=(4, 0))
         ttk.Button(b, text="Copy name", command=lambda: t.selected() and self.copy(t.selected()[7])).pack(side="left")
+        # the variable editor: names are the toolkit's (the game stores bit positions only), kept
+        # in emdeb_extra.json next to emdeb.bin; scripts and em.bin are never rewritten for them
+        for text, cmd, tip in (
+                ("New variable…", self._var_new,
+                 "Name an unused range of game-flag bits: an on/off flag or a number. Scripts and "
+                 "event conditions can use the name at once."),
+                ("Rename…", self._var_rename,
+                 "Give the selected variable another name (the game's own ones too: the game only "
+                 "stores bit positions, so nothing in the game files changes). A game variable "
+                 "keeps answering to its original name as well."),
+                ("Restore name", self._var_restore, "Give a renamed game variable its original name back."),
+                ("Delete", self._var_delete, "Delete one of your own variables (the game's cannot be deleted).")):
+            bt = ttk.Button(b, text=text, command=cmd)
+            bt.pack(side="left", padx=(6, 0))
+            Tip(bt, tip)
+        ttk.Label(b, text="  Show").pack(side="left", padx=(12, 2))
+        self.var_filter = tk.StringVar(value="all")
+        fc = ttk.Combobox(b, textvariable=self.var_filter, state="readonly", width=34,
+                          values=["all", "unused by scripts and events", "yours", "renamed", "the game's"])
+        fc.pack(side="left")
+        fc.bind("<<ComboboxSelected>>", lambda _e: self._var_refill())
+        Tip(fc, "Unused = no script statement or em.bin entry reads or writes it. The game's own "
+                "code can still use a variable by its bit position, so for something new prefer "
+                "New variable (free bits) over taking over an unused game variable.")
+        self.free_lbl = ttk.Label(f, foreground="#666")
+        self.free_lbl.pack(anchor="w", pady=(2, 0))
+        self._var_free_text()
         self._counting = False               # the reads / writes counts start when this tab shows
         self.nb.bind("<<NotebookTabChanged>>", lambda _e: self._flags_tab_shown(), add="+")
 
@@ -510,9 +540,143 @@ class ReferenceWindow:
             self._counting = True
             self._count_uses()
 
+    # ---- the variable editor ------------------------------------------------------- #
+    def _var_table(self):
+        return getattr(self.app.doc, "emf_vars", None)
+
+    def _var_free_text(self):
+        tbl = self._var_table()
+        if tbl is None:
+            self.free_lbl.config(text="emdeb.bin is not loaded: variables can't be edited")
+            return
+        fr = tbl.free_ranges()
+        n = sum(b - a + 1 for a, b in fr)
+        self.free_lbl.config(text="Free for new variables: %s (%d bits). Your variables: %d · renamed: %d. "
+                                  "Names live in %s (the game never reads them)." % (
+            ", ".join("bits %d–%d" % r if r[0] != r[1] else "bit %d" % r[0] for r in fr[:4]) or "none",
+            n, len(tbl.extras), len(tbl.renamed), "emdeb_extra.json"))
+
+    def _var_selected(self):
+        r = self.flag_list.selected()
+        tbl = self._var_table()
+        if r is None or tbl is None or r[8] is None:
+            self.status.config(text="select one of emdeb.bin's variables (or yours) first")
+            return None
+        return tbl.get(r[0])
+
+    def _var_save(self, what, select=None):
+        """Write emdeb_extra.json and make every view use the new names."""
+        from rf4s_modkit import emflags
+        tbl = self._var_table()
+        try:
+            tbl.save_extras(tbl.extra_path or emflags.extra_path_default())
+        except Exception as e:  # noqa: BLE001
+            from tkinter import messagebox
+            messagebox.showerror("Variables", "Could not save the names: %s" % err_text(e), parent=self.win)
+            return False
+        self.app.reload_variables()
+        self._flag_base = flag_rows(self.app.doc)
+        self._var_free_text()
+        self._var_refill(select)
+        self.status.config(text=what)
+        return True
+
+    def _var_refill(self, select=None):
+        """Refill the list (filter / counts); `select` = the variable to select and show. When
+        a search, the Show filter or the row cap hides it, the list is searched for its name,
+        so the variable you just added or renamed is always in view."""
+        t = self.flag_list
+        t.rows = self._flag_rows(self.app._var_uses)
+        t.fill()
+        if not select:
+            return
+        for attempt in range(2):
+            for iid in t.tree.get_children():
+                if t.rows[int(iid)][0] == select:
+                    t.tree.selection_set(iid)
+                    t.tree.see(iid)
+                    return
+            if attempt == 0:
+                t.q.set(select)
+                self.var_filter.set("all")
+                t.rows = self._flag_rows(self.app._var_uses)
+                t.fill()
+
+    def _var_new(self):
+        from . import dialogs
+        tbl = self._var_table()
+        if tbl is None:
+            return None
+        spec = dialogs.ask_new_variable(self.win, tbl)
+        if spec is None:
+            return None
+        v = tbl.add_variable(spec["name"], spec["width"], spec["description"], bit_offset=spec["bit"])
+        self._var_save("added %s (bits %d–%d)" % (v.name, v.bit_offset, v.bit_offset + v.bit_width - 1), v.name)
+        return v
+
+    def _var_rename(self):
+        from . import dialogs
+        tbl, v = self._var_table(), self._var_selected()
+        if v is None:
+            return None
+        old = v.name
+
+        def check(new):
+            new = new.strip()
+            clash = tbl.by_name.get(new) or tbl._orig.get(new)
+            if clash is not None and clash is not v:
+                raise ValueError("the name %s is taken (bit %d)" % (new, clash.bit_offset))
+            import re
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", new):
+                raise ValueError("a name is letters, digits and _ (e.g. FLG_MY_QUEST_DONE)")
+        new = dialogs.ask_line(self.win, "Rename variable",
+                               "New name for %s (bits %d–%d). Scripts and event conditions show the new "
+                               "name; the game files don't change.%s" % (
+                                   old, v.bit_offset, v.bit_offset + v.bit_width - 1,
+                                   "" if v.extra else " Its original name %s keeps working too." % v.orig),
+                               check, initial=old)
+        if not new or new.strip() == old:
+            return None
+        tbl.rename(old, new.strip())
+        self._var_save("renamed %s to %s" % (old, new.strip()), new.strip())
+        return new.strip()
+
+    def _var_restore(self):
+        tbl, v = self._var_table(), self._var_selected()
+        if v is None:
+            return None
+        if v.extra or v.orig == v.name:
+            self.status.config(text="%s has its original name" % v.name)
+            return None
+        old = v.name
+        tbl.restore_name(old)
+        self._var_save("%s is %s again" % (old, v.name), v.name)
+        return v.name
+
+    def _var_delete(self):
+        from tkinter import messagebox
+        tbl, v = self._var_table(), self._var_selected()
+        if v is None:
+            return None
+        if not v.extra:
+            self.status.config(text="%s is one of the game's variables: only your own can be deleted "
+                                    "(Rename… gives it another name)" % v.name)
+            return None
+        n = len((self.app._var_uses or {}).get((v.bit_offset, v.bit_width), ()))
+        msg = "Delete your variable %s (bits %d–%d)?" % (v.name, v.bit_offset, v.bit_offset + v.bit_width - 1)
+        if n:
+            msg += ("\n\n%d statement(s) / event entries use it: they keep working (the game "
+                    "stores the bits), but show them as var:0x… instead of a name." % n)
+        if not messagebox.askyesno("Delete variable", msg, parent=self.win):
+            return None
+        tbl.remove_variable(v.name)
+        self._var_save("deleted %s" % v.name)
+        return v.name
+
     def _flag_rows(self, index):
         """The list rows: (name, kind, id, width, reads, writes, description, token, key).
-        key = (bit offset, width) of an emdeb variable (None for the zone-2 rows)."""
+        key = (bit offset, width) of an emdeb variable (None for the zone-2 rows). The
+        Show filter (all / unused / yours / renamed / the game's) applies."""
         rows = []
         for name, kind, bid, w, _rng, desc, tok in self._flag_base:
             key = (int(bid), int(w)) if kind != "zone-2 bit" else None
@@ -525,6 +689,21 @@ class ReferenceWindow:
                 r = sum(1 for x in u if x[-2 if x[0] == "script" else 3] != "write") if u else 0
                 w_ = sum(1 for x in u if x[-2 if x[0] == "script" else 3] != "read") if u else 0
             rows.append((name, kind, bid, w, r, w_, desc, tok, key))
+        flt = self.var_filter.get() if hasattr(self, "var_filter") else "all"
+        tbl = self._var_table()
+        if flt != "all" and tbl is not None:
+            def keep(row):
+                v = tbl.get(row[0]) if row[8] is not None else None
+                if flt == "yours":
+                    return v is not None and v.extra
+                if flt == "renamed":
+                    return v is not None and not v.extra and v.orig != v.name
+                if flt == "the game's":
+                    return v is not None and not v.extra
+                if flt.startswith("unused"):
+                    return row[8] is not None and index is not None and row[4] == 0 and row[5] == 0
+                return True
+            rows = [r for r in rows if keep(r)]
         return rows
 
     def _count_uses(self):

@@ -7507,6 +7507,125 @@ def test_edit_every_kind():
             root.destroy()
 
 
+def test_variable_editor():
+    """The variable editor (Reference -> Flags & variables, toolbar Variables…): a new variable
+    in free bits (on/off or a 2-16-bit number) that scripts can use at once; renaming a game
+    variable (the listing shows the new name, its story-checkpoint comments follow, the original
+    name still assembles), restoring it, deleting your own; bad input refused; the names saved in
+    emdeb_extra.json (a scratch copy here) with its em.bin entry names kept."""
+    print("cutscene editor: variable editor:")
+    import json
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from cutscene_editor import dialogs as _dlg
+        from rf4s_modkit import emflags as _ef, script, scriptasm
+    except Exception as e:
+        _skip("variable editor", f"cutscene_editor not importable ({e})"); return
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("variable editor", "rf3.mc not found"); return
+    side = pathlib.Path(tempfile.mkdtemp(prefix="rf4s_vars_")) / "emdeb_extra.json"
+    side.write_text(json.dumps({"entries": {"7": "SelftestEntry"}}), encoding="utf-8")
+    saved = (_ef.find_extra, _ef.extra_path_default, _dlg.ask_new_variable, _dlg.ask_line)
+    _ef.find_extra = lambda: str(side)
+    _ef.extra_path_default = lambda: str(side)
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("variable editor", f"no display for Tk ({e})"); return
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ref = ex.open_reference("Flags & variables")
+        root.update()
+        tbl = ex.doc.emf_vars
+        real_new = saved[2]
+        # bad input is refused in the dialog
+        errs = [real_new(ref.win, tbl, _auto=a).get("error", "") for a in (
+            {"name": "REG_MAIN_SCENARIO"}, {"name": "FLG_X", "kind": "number", "bits": "17"},
+            {"name": "FLG_X", "where": "bit", "bit": "5000"}, {"name": "1bad"})]
+        _check("New variable refuses a taken name, more than 16 bits, a bit a script can't reach, a "
+               "bad name", all(errs), errs)
+        _dlg.ask_new_variable = lambda parent, t: real_new(parent, t, _auto={
+            "name": "REG_SELFTEST_COUNT", "kind": "number", "bits": "5", "description": "test"})
+        v = ref._var_new()
+        root.update()
+        t2 = ex.doc.emf_vars
+        nv = t2.get("REG_SELFTEST_COUNT")
+        free0 = _ef.EmFlagTable.load(_ef.find_emdeb(), extra=False).free_ranges()[0][0]
+        side_d = json.loads(side.read_text(encoding="utf-8"))
+        asm_ok = ex.assemble_check("EVAL (REG_SELFTEST_COUNT = 31)")[2] is None
+        _check("New variable: a 5-bit number in the first free bits, saved (entry names kept), usable "
+               "in a script at once",
+               v is not None and nv is not None and nv.bit_offset == free0 and nv.bit_width == 5
+               and asm_ok and side_d.get("entries") == {"7": "SelftestEntry"}
+               and any(x["name"] == "REG_SELFTEST_COUNT" for x in side_d.get("variables", [])),
+               (nv, asm_ok, side_d))
+        # rename the main-story register (a game variable)
+        ref.flag_list.q.set("REG_MAIN_SCENARIO")
+        ref.flag_list.fill()
+        iid = next(i for i in ref.flag_list.tree.get_children()
+                   if ref.flag_list.rows[int(i)][0] == "REG_MAIN_SCENARIO")
+        ref.flag_list.tree.selection_set(iid)
+        _dlg.ask_line = lambda *a, **k: "REG_STORY"
+        ref._var_rename()
+        root.update()
+        t3 = ex.doc.emf_vars
+        c = ex.doc.container
+        hit = None
+        for pos in range(len(c.banks)):
+            for sc in script.disassemble_bank(c.banks[pos]):
+                txt = scriptasm.scene_listing(sc, c.banks[pos])
+                if "REG_STORY ==" in txt or "REG_STORY >=" in txt:
+                    hit = txt
+                    break
+            if hit:
+                break
+        _check("Rename a game variable: the listings show the new name with their story-checkpoint "
+               "comments, the original name still assembles, the sidecar records it",
+               t3.get("REG_STORY") is not None and t3.get("REG_STORY").bit_offset == 0
+               and hit is not None and " = " in hit.split("REG_STORY", 1)[1].split("\n", 1)[0]
+               and ex.assemble_check("EVAL (REG_MAIN_SCENARIO = 1)")[2] is None
+               and json.loads(side.read_text(encoding="utf-8")).get("renames") == {"REG_MAIN_SCENARIO": "REG_STORY"},
+               (hit or "")[:200])
+        ref.var_filter.set("renamed")
+        ref._var_refill()
+        shown = [r[0] for r in ref.flag_list.rows]
+        ref.var_filter.set("all")
+        ref._var_refill("REG_STORY")
+        ref._var_restore()
+        t4 = ex.doc.emf_vars
+        _check("the 'renamed' filter lists it; Restore name gives REG_MAIN_SCENARIO back",
+               shown == ["REG_STORY"] and t4.get("REG_MAIN_SCENARIO").name == "REG_MAIN_SCENARIO"
+               and script.MAIN_SCENARIO_NAME == "REG_MAIN_SCENARIO", shown)
+        # delete your own (the game's can't be)
+        ref._var_refill("REG_SELFTEST_COUNT")
+        from tkinter import messagebox as _mb
+        _yes = _mb.askyesno
+        _mb.askyesno = lambda *a, **k: True
+        try:
+            ref._var_delete()
+            ref._var_refill("REG_MAIN_SCENARIO")
+            refused = ref._var_delete()
+        finally:
+            _mb.askyesno = _yes
+        _check("Delete removes your variable; a game variable can't be deleted",
+               ex.doc.emf_vars.get("REG_SELFTEST_COUNT") is None and refused is None
+               and ex.doc.emf_vars.get("REG_MAIN_SCENARIO") is not None)
+    finally:
+        _ef.find_extra, _ef.extra_path_default, _dlg.ask_new_variable, _dlg.ask_line = saved
+        if root is not None:
+            root.destroy()
+        script.set_packed_var_resolver(None)
+        script.MAIN_SCENARIO_NAME = "REG_MAIN_SCENARIO"
+
+
 def scriptasm_text(buf, st):
     """scriptasm.statement_text (test_edit_every_kind)."""
     from rf4s_modkit import scriptasm
@@ -17241,7 +17360,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_edit_every_kind, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_edit_every_kind, test_variable_editor, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

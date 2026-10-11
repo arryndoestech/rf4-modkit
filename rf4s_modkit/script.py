@@ -381,6 +381,9 @@ _EXPR_ASSIGN = {16: "=", 17: "*=", 18: "/=", 19: "%=", 20: "+=", 21: "-=",
 # None => disasm_expr falls back to the raw `var:0xNN` form. Module-global so every
 # disasm_expr / arg_repr call site picks it up once installed.
 _packed_var_resolver = None
+# the name the listing shows for the main-story register (REG_MAIN_SCENARIO, or the modder's
+# rename of it): the story-checkpoint comments look for it (scriptasm._checkpoint_note)
+MAIN_SCENARIO_NAME = "REG_MAIN_SCENARIO"
 
 
 def set_packed_var_resolver(fn):
@@ -395,6 +398,10 @@ def install_emflags_var_resolver(container, emf_table, with_offset=False):
     header masks + an EmFlagTable-like object (needs `.by_offset(bit)` -> obj with
     `.name`). Returns the installed resolver. Unknown offsets stay `var:0xNN`.
     If `with_offset`, names are suffixed `@bit` for disambiguation."""
+    global MAIN_SCENARIO_NAME
+    ms = emf_table.get("REG_MAIN_SCENARIO") if hasattr(emf_table, "get") else None
+    MAIN_SCENARIO_NAME = ms.name if ms is not None else "REG_MAIN_SCENARIO"   # follows a rename
+
     def resolve(enc):
         bit_off, width, signed = container.unpack_var(enc)
         v = emf_table.by_offset(bit_off)

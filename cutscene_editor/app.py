@@ -317,6 +317,10 @@ class CutsceneExplorer:
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
+        vb = ttk.Button(bar, text="Variables…", command=lambda: self.open_reference("Flags & variables"))
+        vb.pack(side="left")
+        Tip(vb, "The game's flags and numbers by name, with where each is used: rename them, "
+                "name unused bits as new variables of your own.")
         db = ttk.Menubutton(bar, text="🐞 Debug")
         dm = tk.Menu(db, tearoff=False)
         dm.add_command(label="▶ Launch game", command=self.launch_game)
@@ -1373,6 +1377,12 @@ class CutsceneExplorer:
             r = self._reference = toolbox.ReferenceWindow(self)
         r.show(tab)
         return r
+
+    def reload_variables(self):
+        """After a variable was added / renamed / deleted (emdeb_extra.json saved): re-read the
+        names everywhere -- the disassembly, the assembler, the open views."""
+        self.doc._install_resolvers()
+        self.refresh_scene()
 
     def show_var_uses(self, name):
         """The Reference window's Flags tab on variable `name`, with every statement and em.bin

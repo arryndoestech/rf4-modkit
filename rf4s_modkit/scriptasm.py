@@ -1082,7 +1082,7 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
             if mn in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") and comments:
                 note = _choice_note(st.items, dialog, _choice_results(scene, bank, pc))
         line = "    %s%s" % (addr, body)
-        if comments and "REG_MAIN_SCENARIO" in body:
+        if comments and script.MAIN_SCENARIO_NAME in body:
             cps = _checkpoint_note(body)
             note = "  ".join(x for x in (note, cps) if x)
         if note:
@@ -1145,7 +1145,7 @@ def _checkpoint_note(body):
     into REG_MAIN_SCENARIO in a statement (names from the developers' story debug menus,
     opcode_meta.STORY_CHECKPOINTS)."""
     out = []
-    for v in re.findall(r"REG_MAIN_SCENARIO\s*(?:==|!=|>=|<=|=|<|>)\s*(\d+)", body):
+    for v in re.findall(re.escape(script.MAIN_SCENARIO_NAME) + r"\s*(?:==|!=|>=|<=|=|<|>)\s*(\d+)", body):
         nm = script.meta.story_checkpoint_name(int(v))
         if nm and "%s = %s" % (v, nm) not in out:
             out.append("%s = %s" % (v, nm))

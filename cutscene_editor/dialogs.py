@@ -33,6 +33,139 @@ def _run(win, focus):
     win.wait_window()
 
 
+def ask_line(parent, title, prompt, validate, initial=""):
+    """One-line prompt whose OK runs `validate(text)` first (errors inline). Text or None."""
+    win = _modal(parent, title)
+    ttk.Label(win, text=prompt, justify="left", wraplength=520).pack(anchor="w", padx=8, pady=(8, 4))
+    var = tk.StringVar(value=initial or "")
+    e = ttk.Entry(win, textvariable=var, width=48)
+    e.pack(fill="x", padx=8)
+    e.select_range(0, "end")
+    err = ttk.Label(win, text="", foreground="#b02020", wraplength=520, justify="left")
+    err.pack(fill="x", padx=8, pady=(2, 0))
+    out = {"text": None}
+
+    def ok(_e=None):
+        t = var.get().strip()
+        try:
+            validate(t)
+        except Exception as ex:  # noqa: BLE001 - shown inline
+            err.config(text=str(ex))
+            return "break"
+        out["text"] = t
+        win.destroy()
+    bb = ttk.Frame(win)
+    bb.pack(fill="x", padx=8, pady=6)
+    ttk.Button(bb, text="OK", command=ok).pack(side="right", padx=2)
+    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
+    e.bind("<Return>", ok)
+    _run(win, e)
+    return out["text"]
+
+
+def ask_new_variable(parent, tbl, _auto=None):
+    """New variable: a name, on/off flag or a number (2-16 bits; a script can address 16 at
+    most), where (the next free bits, or a bit you choose) and an optional description.
+    Returns {name, width, bit (None = next free), description} or None. `_auto` (tests): a
+    dict of field values to submit without showing the dialog."""
+    win = _modal(parent, "New variable")
+    frm = ttk.Frame(win, padding=8)
+    frm.pack(fill="both", expand=True)
+    ttk.Label(frm, text="A variable is a range of bits in the game's flag store that scripts and "
+                        "event conditions read and write by name. The name is only the toolkit's.",
+              wraplength=460, justify="left", foreground="#555").grid(row=0, column=0, columnspan=3, sticky="w")
+    name = tk.StringVar(value="FLG_")
+    kind = tk.StringVar(value="flag")
+    bits = tk.StringVar(value="8")
+    where = tk.StringVar(value="auto")
+    bit = tk.StringVar(value="")
+    desc = tk.StringVar(value="")
+    ttk.Label(frm, text="Name").grid(row=1, column=0, sticky="w", pady=(8, 2))
+    ne = ttk.Entry(frm, textvariable=name, width=36)
+    ne.grid(row=1, column=1, columnspan=2, sticky="we", pady=(8, 2))
+    ttk.Label(frm, text="Type").grid(row=2, column=0, sticky="w")
+    ttk.Radiobutton(frm, text="on / off flag (1 bit)", value="flag", variable=kind).grid(row=2, column=1, sticky="w")
+    nr = ttk.Frame(frm)
+    nr.grid(row=3, column=1, columnspan=2, sticky="w")
+    ttk.Radiobutton(nr, text="number of", value="number", variable=kind).pack(side="left")
+    sp = ttk.Spinbox(nr, from_=2, to=16, width=4, textvariable=bits)
+    sp.pack(side="left", padx=4)
+    rng = ttk.Label(nr, foreground="#555")
+    rng.pack(side="left")
+    nxt = tbl.free_ranges()
+    ttk.Label(frm, text="Where").grid(row=4, column=0, sticky="w", pady=(6, 0))
+    ttk.Radiobutton(frm, text="the next free bits (%s)" % ("bit %d" % nxt[0][0] if nxt else "none free"),
+                    value="auto", variable=where).grid(row=4, column=1, columnspan=2, sticky="w", pady=(6, 0))
+    br = ttk.Frame(frm)
+    br.grid(row=5, column=1, columnspan=2, sticky="w")
+    ttk.Radiobutton(br, text="starting at bit", value="bit", variable=where).pack(side="left")
+    ttk.Entry(br, textvariable=bit, width=8).pack(side="left", padx=4)
+    ttk.Label(frm, text="Description").grid(row=6, column=0, sticky="w", pady=(6, 0))
+    ttk.Entry(frm, textvariable=desc, width=36).grid(row=6, column=1, columnspan=2, sticky="we", pady=(6, 0))
+    err = ttk.Label(frm, text="", foreground="#b02020", wraplength=460, justify="left")
+    err.grid(row=7, column=0, columnspan=3, sticky="w", pady=(6, 0))
+    out = {"spec": None}
+
+    def width():
+        if kind.get() == "flag":
+            return 1
+        try:
+            return int(bits.get())
+        except ValueError:
+            return None
+
+    def show_range(*_a):
+        w = width() if kind.get() == "number" else None
+        rng.config(text="bits: values 0 – %d" % ((1 << w) - 1) if w and 2 <= w <= 16 else "bits (2 – 16)")
+    for v in (kind, bits):
+        v.trace_add("write", show_range)
+    show_range()
+
+    def ok(_e=None):
+        w = width()
+        if w is None or not (1 <= w <= 16):
+            err.config(text="a number takes 2 to 16 bits (a script can address 16 at most)")
+            return "break"
+        b = None
+        if where.get() == "bit":
+            try:
+                b = int(bit.get(), 0)
+            except ValueError:
+                err.config(text="type the first bit (a number), or pick 'the next free bits'")
+                return "break"
+        probe = type(tbl)([])                          # validate on a copy: nothing changes on error
+        probe.variables = list(tbl.variables)
+        probe.by_name = dict(tbl.by_name)
+        probe._orig = dict(tbl._orig)
+        try:
+            probe.add_variable(name.get().strip(), w, desc.get().strip(), bit_offset=b)
+        except ValueError as ex:
+            err.config(text=str(ex))
+            return "break"
+        if b is not None and b >= 4096:
+            err.config(text="bits from 4096 on can't be named in a script (scripts address bits 0 – 4095)")
+            return "break"
+        out["spec"] = {"name": name.get().strip(), "width": w, "bit": b, "description": desc.get().strip()}
+        win.destroy()
+    bb = ttk.Frame(win, padding=(8, 0, 8, 8))
+    bb.pack(fill="x")
+    ttk.Button(bb, text="Add", command=ok).pack(side="right", padx=2)
+    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
+    win.bind("<Return>", ok)
+    if _auto is not None:                              # tests: fill in and submit
+        for var, key in ((name, "name"), (kind, "kind"), (bits, "bits"), (where, "where"), (bit, "bit"),
+                         (desc, "description")):
+            if key in _auto:
+                var.set(str(_auto[key]))
+        ok()
+        if win.winfo_exists():
+            out["error"] = err.cget("text")
+            win.destroy()
+        return out["spec"] if out["spec"] is not None else {"error": out.get("error", "")}
+    _run(win, ne)
+    return out["spec"]
+
+
 def ask_spec(parent, title, prompt, validate, initial=""):
     """One-field prompt whose OK runs `validate(text)` first (errors inline)."""
     win = _modal(parent, title)

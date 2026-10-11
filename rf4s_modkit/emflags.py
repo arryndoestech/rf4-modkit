@@ -139,10 +139,11 @@ def _char_name(cid):
 
 class Variable:
     """One Event-Manager variable (a flag or register)."""
-    __slots__ = ("name", "jp_name", "bit_offset", "bit_width", "kind", "extra")
+    __slots__ = ("name", "jp_name", "bit_offset", "bit_width", "kind", "extra", "orig")
 
     def __init__(self, name, jp_name, bit_offset, bit_width):
         self.name = name
+        self.orig = name                     # the name emdeb.bin (or its creator) gave it
         self.jp_name = jp_name
         self.bit_offset = bit_offset
         self.bit_width = bit_width
@@ -166,6 +167,8 @@ class EmFlagTable:
                              "use EmFlagTable.parse(data) or EmFlagTable.load(path).")
         self.variables = variables                       # list[Variable] in file order
         self.by_name = OrderedDict((v.name, v) for v in variables)
+        self._orig = {v.orig: v for v in variables}       # emdeb.bin's own names
+        self.renamed = OrderedDict()                      # emdeb name -> the modder's name
         self._by_offset = None
         self.extra_path = None
 
@@ -256,13 +259,21 @@ class EmFlagTable:
             raise FileNotFoundError(path)
         with open(path, "r", encoding="utf-8") as f:
             items = json.load(f)
+        renames = {}
         if isinstance(items, dict):
+            renames = items.get("renames") or {}
             items = items.get("variables", [])
         n = 0
         for it in items:
             self.add_variable(it["name"], int(it.get("width", 1)), it.get("jp", "") or "",
                               bit_offset=int(it["bit_offset"]), _from_file=True)
             n += 1
+        for orig, new in renames.items():             # the game's variables, renamed by the modder
+            if orig in self._orig and not self._orig[orig].extra:
+                try:
+                    self.rename(orig, new)
+                except ValueError:
+                    pass                               # a clash (hand-edited file): keep emdeb's name
         self.extra_path = path
         return n
 
@@ -280,8 +291,9 @@ class EmFlagTable:
         import re
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name or ""):
             raise ValueError("variable name %r must be an identifier (e.g. FLG_MY_QUEST_DONE)" % (name,))
-        if name in self.by_name:
-            raise ValueError("variable %r already exists (bit %d)" % (name, self.by_name[name].bit_offset))
+        if name in self.by_name or name in self._orig:
+            other = self.by_name.get(name) or self._orig[name]
+            raise ValueError("variable %r already exists (bit %d)" % (name, other.bit_offset))
         width = int(width)
         if not (1 <= width <= 32):
             raise ValueError("width %d out of range 1..32" % width)
@@ -315,6 +327,7 @@ class EmFlagTable:
         v.extra = True
         self.variables.append(v)
         self.by_name[name] = v
+        self._orig[name] = v
         if self._by_offset is not None:
             for b in range(bit_offset, bit_offset + width):
                 self._by_offset.setdefault(b, v)
@@ -332,24 +345,105 @@ class EmFlagTable:
         return GAMEFLAGS_BITS - max((v.bit_offset + max(1, v.bit_width) for v in self.variables
                                       if v.bit_offset < GAMEFLAGS_BITS), default=0)
 
+    # ---- renaming (names are the toolkit's: the game stores bit positions only) -----
+    def rename(self, name, new):
+        """Give the variable `name` (its current or emdeb.bin name) the name `new`. A game
+        variable keeps answering to its emdeb.bin name too (listings and notes written with
+        it still assemble); everything shows `new`. Returns the Variable."""
+        import re
+        v = self.get(name)
+        if v is None:
+            raise ValueError("no variable %r" % (name,))
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", new or ""):
+            raise ValueError("variable name %r must be an identifier (e.g. FLG_MY_QUEST_DONE)" % (new,))
+        if new == v.name:
+            return v
+        clash = self.by_name.get(new) or self._orig.get(new)
+        if clash is not None and clash is not v:
+            raise ValueError("the name %s is taken by the variable at bit %d" % (new, clash.bit_offset))
+        v.name = new
+        if v.extra:
+            del self._orig[v.orig]
+            v.orig = new
+            self._orig[new] = v
+        elif new == v.orig:
+            self.renamed.pop(v.orig, None)
+        else:
+            self.renamed[v.orig] = new
+        self.by_name = OrderedDict((x.name, x) for x in self.variables)
+        return v
+
+    def restore_name(self, name):
+        """A renamed game variable gets its emdeb.bin name back."""
+        v = self.get(name)
+        if v is None or v.extra:
+            raise ValueError("%r is not one of the game's variables" % (name,))
+        return self.rename(v.name, v.orig)
+
+    def remove_variable(self, name):
+        """Delete a modder-defined variable (the game's own cannot be deleted)."""
+        v = self.get(name)
+        if v is None or not v.extra:
+            raise ValueError("%r is not one of your variables (only those can be deleted)" % (name,))
+        self.variables.remove(v)
+        self.by_name.pop(v.name, None)
+        self._orig.pop(v.orig, None)
+        self._by_offset = None
+        return v
+
+    def free_ranges(self, lo=0, hi=None):
+        """[(first bit, last bit)] of the unused runs in bits lo..hi-1 (default: zone 1)."""
+        hi = GAMEFLAGS_BITS if hi is None else hi
+        used = bytearray(hi)
+        for v in self.variables:
+            for b in range(max(lo, v.bit_offset), min(hi, v.bit_offset + max(1, v.bit_width))):
+                used[b] = 1
+        out, start = [], None
+        for b in range(lo, hi):
+            if not used[b] and start is None:
+                start = b
+            elif used[b] and start is not None:
+                out.append((start, b - 1))
+                start = None
+        if start is not None:
+            out.append((start, hi - 1))
+        return out
+
     def save_extras(self, path=None):
-        """Write the sidecar JSON (all extras). Returns the path written."""
+        """Write the sidecar JSON: your variables and the renames of the game's (the other
+        keys in it, e.g. em.bin entry names, are kept). Returns the path written."""
         import json
         path = path or self.extra_path
         if not path:
             raise ValueError("no sidecar path: pass one (e.g. <bundle>/emdeb_extra.json)")
+        d = {}
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    d = json.load(f)
+            except (OSError, ValueError):
+                d = {}
+            if isinstance(d, list):
+                d = {}
         items = [OrderedDict(name=v.name, width=v.bit_width, bit_offset=v.bit_offset, jp=v.jp_name or "")
                  for v in self.extras]
+        d["_comment"] = ("modder-defined Event-Manager variables, renames of the game's ones and "
+                         "em.bin entry names (merged by the RF4S modkit; the game itself never reads names)")
+        d["variables"] = items
+        if self.renamed:
+            d["renames"] = dict(self.renamed)
+        else:
+            d.pop("renames", None)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"_comment": "modder-defined Event-Manager variables (merged by the RF4S "
-                                   "modkit into emdeb.bin's table; the game itself never reads names)",
-                       "variables": items}, f, ensure_ascii=False, indent=1)
+            json.dump(d, f, ensure_ascii=False, indent=1)
         self.extra_path = path
         return path
 
     # ---- lookup ---------------------------------------------------------------
     def get(self, name):
-        return self.by_name.get(name)
+        """The variable called `name`, or the game variable emdeb.bin calls `name` (renamed or
+        not); None."""
+        return self.by_name.get(name) or self._orig.get(name)
 
     def find(self, substr):
         """All variables whose name contains `substr` (case-insensitive)."""
@@ -411,7 +505,7 @@ class EmFlagTable:
     def _resolve(self, name_or_var):
         if isinstance(name_or_var, Variable):
             return name_or_var
-        v = self.by_name.get(name_or_var)
+        v = self.get(name_or_var)
         if v is None:
             raise KeyError("no Event-Manager variable named %r" % (name_or_var,))
         return v
