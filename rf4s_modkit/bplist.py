@@ -250,7 +250,8 @@ class BplistWriter:
                     return index_of_container[id(obj)]
             elif not isinstance(obj, (bytes, bytearray)):
                 # (type, value): keeps True / 1 / 1.0 apart even though they compare equal
-                skey = (type(obj), obj)
+                skey = ((float, struct.pack("<d", obj)) if isinstance(obj, float)
+                        else (type(obj), obj))          # -0.0 == 0.0 but is another value
                 if skey in index_of_scalar:
                     return index_of_scalar[skey]
                 index_of_scalar[skey] = len(nodes)

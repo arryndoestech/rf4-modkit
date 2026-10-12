@@ -14173,8 +14173,8 @@ def test_map_editor_placed_objects():
             outside += "MOBJ" in x and "outside the" in x
             shared += "shares its one-shot flag" in x
     _check("shipped maps: no off-grid entity warning (was 228); the one-shot flags two records "
-           "of one map share are all warned (66: 63 seal doors, 3 crates)",
-           outside == 0 and shared == 66, (outside, shared))
+           "of one map share are warned, except seal doors (one room flag by design): 3 crates",
+           outside == 0 and shared == 3, (outside, shared))
     # --- (0, 0) is a real position; resize moves it and a knock-back target ------------
     m = _rf4m.Rf4mMap.parse(base.build())
     i0 = m.add_mobj_record(rec(71, x=0, y=0))

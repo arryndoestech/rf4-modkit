@@ -368,7 +368,7 @@ MOBJ_DISPLAY: dict[int, str] = {
     85: "door: Bell Hotel Lobby (winter)",  # DOOR_CITY_00_00_WINTER
     86: "door: Porcoline's Kitchen",  # DOOR_CITY_00_01
     87: "door: Porcoline's Kitchen (summer)",  # DOOR_CITY_00_01_SUMMER
-    88: "door: Farm (autumn)",  # DOOR_CITY_00_01_AUTUMN
+    88: "door: Porcoline's Kitchen (autumn)",  # DOOR_CITY_00_01_AUTUMN
     89: "door: Porcoline's Kitchen (winter)",  # DOOR_CITY_00_01_WINTER
     90: "door: Sainte-Coquille Manor",  # DOOR_CITY_00_02
     91: "door: Sainte-Coquille Manor (summer)",  # DOOR_CITY_00_02_SUMMER

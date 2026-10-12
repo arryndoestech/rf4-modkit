@@ -117,6 +117,10 @@ def materials(data):
 
 def resolve_material(data, material):
     mats = materials(data)
+    if isinstance(material, str) and material.isdigit():
+        named = [m for m in mats if m.name == material]     # 465 shipped materials are named '02' ...
+        if named:
+            return named[0]
     if isinstance(material, int) or (isinstance(material, str) and material.isdigit()):
         i = int(material)
         if not 0 <= i < len(mats):

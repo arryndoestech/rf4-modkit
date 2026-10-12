@@ -326,9 +326,19 @@ def _cond_text(opid: int, ops: list[int]) -> str:
     rendered = [fmt_operand(o) for o in ops]
     if opid in CMP_COND_OPS and ops and (ops[0] & HI) and ((ops[0] & MASK) in CMP or (ops[0] & MASK) == 0x93):
         return name + " " + " ".join(rendered)
+    if opid in CMP_COND_OPS and not _name_round_trips(name, opid):
+        name = _op_label(opid)                    # 'r0(0, 5)' would not read back: RegCmp.0x6a(0, 5)
     if not ops:
         return name
     return name + "(" + ", ".join(rendered) + ")"
+
+
+def _name_round_trips(name: str, opid: int) -> bool:
+    """True when the assembler reads `name` back as `opid`."""
+    try:
+        return _name_to_op(name) == opid
+    except AibnError:
+        return False
 
 
 def _call_text(opid: int, ops: list[int]) -> str:
@@ -559,8 +569,8 @@ def _name_to_op(name: str) -> int:
 _RE_CALL = re.compile(r"^(!?)([A-Za-z_][A-Za-z0-9_.]*)\((.*)\)$")
 _RE_REGSET = re.compile(r"^r(\d)\s*(\+=|=)\s*(\S+)$")
 _RE_CMP = re.compile(r"^(r\d|[A-Za-z_][A-Za-z0-9_.]*)\s+(==|<=|>=|cmp\.always)(?:\s+(.*))?$")
-_RE_LABEL = re.compile(r"^(-?\d+):$")
-_RE_SUB = re.compile(r"^sub\s+(-?\d+):$")
+_RE_LABEL = re.compile(r"^(-?\d+|NULL|0x[0-9A-Fa-f]+|[<>=!]=?):$")
+_RE_SUB = re.compile(r"^sub\s+(\S+):$")
 _RE_IF = re.compile(r"^if\s*\((.*)\)\s*\{$")
 _RE_ELIF = re.compile(r"^\}\s*else\s+if\s*\((.*)\)\s*\{$")
 _RE_GOTO = re.compile(r"^(goto|call)\s+(\S+)$")

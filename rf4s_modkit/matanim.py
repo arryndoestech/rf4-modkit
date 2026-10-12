@@ -739,6 +739,9 @@ def build(anim):
         w.raw(struct.pack("<QIIII", 0, str_end, 0, len(ents), 0))
     for pos, sc, oc, pc in ents:
         w.raw(struct.pack("<IHBB", pos, sc, oc, pc))
+    if st > 0xFFFF:
+        raise MatAnimError("the animation is too large: its string pool would start past 64 KiB "
+                           "(the file header keeps that offset in 16 bits) -- use fewer keys")
     struct.pack_into("<IHHII", w.buf, 0x10, sref[anim.file_name] + 2, 0, st, rlt, len(w.buf))
     return bytes(w.buf)
 

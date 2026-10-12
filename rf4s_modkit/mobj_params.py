@@ -420,8 +420,26 @@ PICKUP_KIND_ITEMS = {0: (48,), 1: (48, 49, 50, 51), 2: (48, 49, 50, 51, 52, 53)}
 
 # Gatherable kind -> crop sprite basename (archive 1366+kind; file names skip the
 # unused kind 25, so minerals shift by one — verified against file_toc.tsv).
+_CROP_SPRITES = {}
+
+
 def gather_kind_sprite(kind: int) -> str | None:
+    """The crop sprite basename of a gatherable kind: archive 1366 + kind in the game's file
+    table (crop_050_1 ... from kind 38 on, crop_024_0 for kind 25); without RF4S.exe the old
+    formula, which holds for kinds 1-24 and 26-37."""
     k = int(kind)
+    if not _CROP_SPRITES:
+        try:
+            import re
+            from . import exetables, magicnames
+            for aid, path in magicnames.archive_paths(exetables.exe_bytes(), 1366, 1366 + 200).items():
+                mm = re.fullmatch(r"rom:/crop/([^/]+)\.bntx", path or "")
+                if mm:
+                    _CROP_SPRITES[aid - 1366] = mm.group(1)
+        except Exception:  # noqa: BLE001 -- no exe: the formula below
+            _CROP_SPRITES[-1] = None
+    if k in _CROP_SPRITES:
+        return _CROP_SPRITES[k]
     if 1 <= k <= 24:
         return "crop_%03d" % k
     if 26 <= k <= 37:

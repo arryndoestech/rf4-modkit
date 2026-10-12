@@ -911,14 +911,23 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
     m = _model.parse(data)
     rest_notes, rest_moved, keep_file = [], [], ()
     if not isinstance(path, list):
-        gl = _gltf.read_gltf(path)
+        gl = path if isinstance(path, tuple) else _gltf.read_gltf(path)
         changes, rest_notes = rest_pose_changes(m, gl)
         if changes and bones:
             data = set_rest_pose(data, changes)
             m = _model.parse(data)
             rest_moved = [m.bones[i].name for i in sorted(changes)]
         elif changes:
-            keep_file = [m.bones[i].name for i in changes]
+            def under_moved(b):                    # a moved bone, or a child of one (its world
+                i = b.index                        # matrix in the file goes through the move)
+                seen = set()
+                while i is not None and i >= 0 and i not in seen:
+                    if i in changes:
+                        return True
+                    seen.add(i)
+                    i = m.bones[i].parent
+                return False
+            keep_file = [b.name for b in m.bones if under_moved(b)]
             rest_notes.append(f"the file moves the rest pose of {len(changes)} bone(s) ("
                               + ", ".join(m.bones[i].name for i in sorted(changes)[:6])
                               + ("…" if len(changes) > 6 else "") + "); not taken (import with bones "
@@ -981,7 +990,10 @@ def import_glb(data, path, *, mapping=None, remove=(), remove_missing=False, bon
         rest = [me for me in rest if me.name not in add]
     drop = {_mw.resolve_shape(m, x) for x in remove}
     if remove_missing:
-        drop |= {sh.index for sh in m.shapes if sh.index not in plan and sh.index not in extra}
+        drop |= {sh.index for sh in m.shapes if sh.index not in plan and sh.index not in extra
+                 and sh.index not in new_plan}
+    if drop & set(new_plan):
+        raise MeshImportError("a shape added by this import cannot also be removed")
     if drop & set(extra):
         raise MeshImportError("a shape cannot be removed and receive added meshes")
     for si, parts in extra.items():

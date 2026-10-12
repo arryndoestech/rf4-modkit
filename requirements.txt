@@ -1,6 +1,7 @@
 # RF4S Modding Toolkit — Python dependencies
 #
-# Two third-party packages cover everything image-related (plus numpy, optional, for fast encoding). Both are imported
+# Pillow and texture2ddecoder cover everything image-related; numpy is optional (faster
+# encoding). They are imported
 # inside try/except blocks, so the CLI's non-image features (bplist, mbundle,
 # textdb, AIBN, strings, NLCL, gen, MOBJ/MAPJ edit, selftest) work without them.
 # Install both for the full GUI + map-editor + texture experience.

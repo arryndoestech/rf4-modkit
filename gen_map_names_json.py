@@ -2,11 +2,11 @@
 """Generate out/map_names.json -- the map-id registry: in-game name, .rf4m file, HUD-band
 notes and the minimap sheet / placement for every map id.
 
-Sources (vendored in rf4s_modkit/; the minimap table is re-baked from your bundle when found):
+Sources (refdata/; --bake also refreshes the minimap table from your game):
   * map_names.json       rf3TxtMapName.eng  (nsFileArchive 15183; row = map id + 1)
   * map_overmodels.json  g_mapResourceTable order -> MAP_* file per id
   * map_minimap.json     rf3MapMiniPos.bin  (nsFileArchive 11839) -> minimap sheet + placement
-                         (re-baked from Bundle/**/rf3MapMiniPos.bin, or --minipos PATH)
+                         (--bake: re-read from Bundle/**/rf3MapMiniPos.bin, or --minipos PATH)
 
 Output: one object per map id, keys are decimal strings "0".."873":
   name         in-game display name (whitespace-trimmed; placeholder rows kept verbatim)
@@ -26,7 +26,7 @@ Output: one object per map id, keys are decimal strings "0".."873":
     npc_parent   {sheet, texture, icon [x, y], slot} for interiors whose NPC icons are drawn
                  on another sheet, else null
 
-Run:  python gen_map_names_json.py [--minipos PATH] [--out PATH] [--no-bake]
+Run:  python gen_map_names_json.py [--minipos PATH] [--out PATH] [--bake]
 """
 import argparse
 import json
@@ -84,12 +84,14 @@ def entry(map_id: int) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--minipos", help="rf3MapMiniPos.bin to bake into refdata/map_minimap.json "
-                                      "(default: auto-detect under Bundle/)")
+                                      "(implies --bake)")
     ap.add_argument("--out", help=f"output path (default: {OUT / 'map_names.json'})")
-    ap.add_argument("--no-bake", action="store_true", help="use the vendored map_minimap.json as-is")
+    ap.add_argument("--bake", action="store_true",
+                    help="refresh refdata/map_minimap.json from the game's rf3MapMiniPos.bin first "
+                         "(an edited file then becomes the shipped table)")
     a = ap.parse_args(argv)
 
-    src = None if a.no_bake else (pathlib.Path(a.minipos) if a.minipos else find_minipos())
+    src = pathlib.Path(a.minipos) if a.minipos else (find_minipos() if a.bake else None)
     if src is not None:
         n = minimap.bake(src)
         print(f"baked refdata/map_minimap.json from {src} ({n} records)")

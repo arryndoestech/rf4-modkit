@@ -246,7 +246,13 @@ def set_field(table: nlcl.NlclTable, char_id: int, field: str, value: int) -> No
     kill_xp/tame_base/base_level/ai_script/model/anim/drop*_id/drop*_pm/elem_*/res_*) on a
     monster record. The retired names atk/def/mat raise with a hint (they named the wrong
     stat: +44/+48/+52 are STR/INT/VIT)."""
+    if field in _RETIRED:
+        raise nlcl.NlclError(f"{field!r} is now {_RETIRED[field]!r} "
+                             f"(the stat columns are str / int / vit)")
     table.set_field(char_id, field, value, STEM)
+
+
+_RETIRED = {"atk": "flat_atk", "def": "flat_def", "mat": "flat_mat", "mdf": "flat_mdf"}
 
 
 def save(table: nlcl.NlclTable, path) -> None:

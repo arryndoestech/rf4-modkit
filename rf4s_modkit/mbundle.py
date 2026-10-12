@@ -202,6 +202,27 @@ def _safe_join(root: pathlib.Path, rel: str) -> pathlib.Path:
 # --------------------------------------------------------------------------- #
 # Mutating operations (require a Manifest to stay runtime-correct)
 # --------------------------------------------------------------------------- #
+def _bplist_next_object(bundle_path, off):
+    """Where the next bplist object after `off` starts (a data blob, the root dict, the
+    offset table -- whatever a grow must not reach), or None when the trailer can't be read."""
+    import struct as _st
+    try:
+        with open(bundle_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(size - 32)
+            tr = f.read(32)
+            int_size, _ref, n_obj, _top, table = tr[6], tr[7], *_st.unpack(">QQQ", tr[8:32])
+            if not (1 <= int_size <= 8) or table >= size or n_obj > 50_000_000:
+                return None
+            f.seek(table)
+            raw = f.read(int_size * n_obj)
+    except (OSError, ValueError, IndexError):
+        return None
+    offs = [int.from_bytes(raw[i:i + int_size], "big") for i in range(0, len(raw), int_size)]
+    return min([o for o in offs if o > off] + [table])
+
+
 def patch_inplace(bundle_path, manifest: Manifest, filename: str, new_bytes: bytes,
                   *, allow_grow=False) -> dict:
     """
@@ -231,6 +252,10 @@ def patch_inplace(bundle_path, manifest: Manifest, filename: str, new_bytes: byt
             if other != filename and o_size and o_off < end and o_off + o_size > old_off:
                 raise MbundleError(f"growing {filename!r} to {len(new_bytes)} bytes would "
                                    f"overwrite {other!r}; use append_repack")
+        limit = _bplist_next_object(bundle_path, old_off)
+        if limit is None or end > limit:
+            raise MbundleError(f"growing {filename!r} to {len(new_bytes)} bytes would overwrite "
+                               f"the bundle's table of contents; use append_repack")
     with open(bundle_path, "r+b") as f:
         f.seek(old_off)
         f.write(new_bytes)

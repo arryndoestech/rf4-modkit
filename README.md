@@ -13,18 +13,8 @@ Mods are written into the game's `Bundle\` folder, so it's best to mod a **copy*
 the game and keep your Steam install as it is (you then start the game from the
 copy's `RF4S.exe` to try your mods). Any install works, though.
 
-1. **Unzip the toolkit anywhere**, for example into your game copy. If you don't have
-   a copy yet, the toolkit makes one for you on first start (step 2). If you unzip it
-   inside the copy, it finds the game there on its own, whether it ends up as
-   `<copy>\rf4s-modkit\`, `<copy>\rf4s-modkit\rf4s-modkit\` (Windows' *Extract
-   All…* adds that second folder) or `<copy>\tools\modding\`:
-
-   ```
-   Rune Factory 4 Special\
-   ├── Bundle\            ← the game's (Manifest.plist, bundleMain.mbundle, …)
-   ├── RF4S.exe
-   └── rf4s-modkit\       ← this folder (start.bat, rf4mod_gui.py, README.md, …)
-   ```
+1. **Unzip the toolkit anywhere.** It never looks for the game by itself: the first
+   start asks for the game folder, or makes a copy for you (step 3).
 
 2. **Double-click `start.bat`** in this folder. The first time, it finds 64-bit Python 3.10+
    (and offers to install it with winget if there is none), creates a private
@@ -32,12 +22,12 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    a minute. After that it just starts the GUI. Keep its console window open while
    you work: closing it closes the GUI, and any error shows up there.
 
-   **By hand instead:** open a terminal in the game folder (in Explorer: click the
+   **By hand instead:** open a terminal in the toolkit folder (in Explorer: click the
    address bar, type `cmd`, press Enter), install the libraries once and start the GUI:
 
    ```bat
-   py -m pip install -r tools\modding\requirements.txt
-   py tools\modding\rf4mod_gui.py
+   py -m pip install -r requirements.txt
+   py rf4mod_gui.py
    ```
 
    (`py` is the launcher the python.org installer always adds; `python` works too
@@ -68,61 +58,28 @@ copy's `RF4S.exe` to try your mods). Any install works, though.
    Then it opens the game's bundles. Pick a map for the **map editor**, or use the
    **Cutscenes** button for the **cutscene editor**. The command-line tool is
    `rf4mod.py --help` (in this folder); `rf4mod.py game` shows or sets the game copy.
-4. *(Optional)* check the install: `py tools\modding\rf4mod.py selftest --quick`
+4. *(Optional)* check the install: `py rf4mod.py selftest --quick` in the toolkit folder
    (about a minute; drop `--quick` for the full run, several minutes). It should end
    with `N/N checks passed`. Checks that need extracted files are *skipped*, not failed.
 
-Edits are saved as separate files and never overwrite the game's bundles unless you
-choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod).
-
-Everything is grounded in the `RF4S.exe` loader code (reverse-engineered in IDA);
-code comments cite the IDA function names and `RF4S.exe+RVA` each fact was verified
-against.
+Edits are written as loose files under `Bundle\`; the packed `.mbundle` archives are never
+changed unless you choose to; see [Three ways to install a mod](#three-ways-to-install-a-mod).
 
 ```
 rf4s-modkit/
-├── rf4mod.py            # the command-line tool (start here)
-├── rf4mod_gui.py        # the graphical asset explorer (Tkinter)
-├── map_explorer.py      # launches the map editor (the map_editor/ package)
-├── map_editor/          # the map editor: map + SI + Gen editing with one undo history
-├── script_explorer.py   # launches the cutscene editor (the cutscene_editor/ package)
-├── cutscene_editor/     # the cutscene editor: rf3.mc + rf3mc.<locale> + em.bin, one undo history
-├── gen_opcode_reference.py  # regenerates CUTSCENE_OPCODES.md + opcodes_list.csv from opcode_meta
-├── gen_arg_common.py        # regenerates refdata/script_arg_common.json: each argument's most used values in the shipped rf3.mc
-├── gen_map_names_json.py    # writes out/map_names.json (map id -> name, MAP_* file, minimap sheet)
-├── gen_exe_tables_json.py   # regenerates refdata/rf4s_exe_tables.json: chest loot, crate pools, area BGM (tables that exist only in RF4S.exe)
-├── gen_minimap_sheets.py    # renders out/minimap_sheets/: every minimap picture with its rf3MapMiniPos rows drawn on
-├── CUTSCENE_OPCODES.md  # greppable reference: every reversed cutscene opcode + enum-arg values + em.bin ops
-├── opcodes_list.csv  # flat list: op_dec, op_hex, mnemonic, handler, category, prototype, description (all 763 + control)
-├── selftest.py          # validates the toolkit against your installed bundles
-├── README.md
-└── rf4s_modkit/         # the importable Python library
-    ├── script.py        # rf3.mc cutscene VM    disassemble + edit + author-by-name + triggers
-    ├── scriptasm.py     # cutscene ASSEMBLER: listing language + expression compiler (the inverse of script.py)
-    ├── entry_types.py   # what each trigger type keys on (the scene trigger catalogue)
-    ├── opcode_meta.py    # cutscene opcode names / args / descriptions (editor tooltips)
-    ├── bplist.py        # Muteki binary plist  read + write
-    ├── mbundle.py       # .mbundle archives     read + repack + Manifest sync
-    ├── ident.py         # magic-based file-type identification
-    ├── textdb.py        # TEXT string archives  read + write  (translations!)
-    ├── matanim.py       # .bfmat material animations  parse + evaluate + byte-exact write (texsrt UV scroll, texture patterns = BM_* eye blinks, opacity fades); JSON dump / retime
-    ├── shaderarchive.py # shaders: loose Muteki GLSL (compiled) preprocess/replace + .bfsha FSHA/BNSH source read/extract
-    ├── skelanim.py      # .bfskl skeletal animations (FSKA) parse + evaluate; poses / skins a .model (render_skeletal_animation)
-    ├── texture.py       # .texture (BC7/RGBA8)  decode->PNG + encode from PNG into ANY template (flipbooks too); .model textures in place
-    ├── bcenc.py         # BC1/BC3/BC7 encoders  same-size re-encodes (numpy-accelerated, pure-Python fallback)
-    ├── rf4m.py          # .rf4m maps            parse + rebuild + full edit
-    ├── mapground.py     # ground-texture atlas  stitch + layer composite + export/import (tile split)
-    ├── chestloot.py     # chest + crate loot (shipped in refdata/rf4s_exe_tables.json): chest rows (RF4S.exe+0x9EFA60, row = f8), crate pools per area group (zone = MGRP group bit - 5)
-    ├── exetables.py     # read tables out of RF4S.exe (RVA -> file offset); only gen_exe_tables_json.py and the selftest use it
-    ├── areagroup.py     # a map's MGRP: zone, the Gen archive the gate spawner loads, area labels, effects + conflict checks
-    ├── map_names.py     # map id -> in-game name / MAP_* file, HUD location-band rules
-    ├── minimap.py       # map id -> mini_map_* picture + placement (rf3MapMiniPos)
-    ├── aibn.py          # AI scripts            disassemble + assemble
-    ├── gen.py           # Gen*.bin encounters   read + edit
-    ├── nlcl.py          # rf3*/rf4* param tables read + edit (named schemas)
-    ├── search_items.py  # SI_*.bin daily pickups read + write + footer parse
-    ├── strings_file.py  # Apple .strings        read + write
-    └── res_container.py # NN BFRES/BNTX/PSB     inspect
+├── start.bat            # double-click: sets up Python and starts the GUI
+├── rf4mod_gui.py        # the graphical asset explorer
+├── rf4mod.py            # the command-line tool
+├── map_explorer.py      # the map editor on its own
+├── script_explorer.py   # the cutscene editor on its own
+├── optest.py            # in-game tests of cutscene instructions (see below)
+├── CUTSCENE_OPCODES.md  # every cutscene instruction, its arguments and values
+├── OPCODE_TABLE.md      # the same names as one table (from refdata/opcode_table.json)
+├── opcodes_list.csv     # flat list of all 702 instructions + the control opcodes
+├── gen_*.py             # regenerate the reference files above and the refdata/ tables
+├── selftest.py          # checks the toolkit against your game
+├── refdata/             # names and tables the tools ship with
+└── rf4s_modkit/         # the Python library every tool uses
 ```
 
 ## Install
@@ -142,35 +99,10 @@ non-image features (`bplist`, `mbundle`, `textdb`, `aibn`, `strings`, `nlcl`, `g
 MOBJ/MAPJ edit, `selftest`) still work without them — but for the GUI, the map editor,
 and any texture work, install both.
 
-### Standard install (pip + virtualenv)
+### By hand
 
-The [Quick start](#quick-start-windows-fresh-python) above is enough on Windows. For
-an isolated environment, run this from the toolkit folder (the one holding
-`rf4mod.py`):
-
-```bash
-# 1. Create + activate a virtualenv (optional but recommended)
-python -m venv .venv
-# Windows (PowerShell):    .venv\Scripts\Activate.ps1
-# Windows (cmd):           .venv\Scripts\activate.bat
-# Linux/macOS:             source .venv/bin/activate
-
-# 2. Install the two third-party deps from requirements.txt
-pip install -r requirements.txt
-
-# 3. Verify against your installed RF4S bundles (see "Bundle layout" below)
-python rf4mod.py selftest
-# expect: "N/N checks passed"; checks that need extracted files are skipped
-```
-
-### Conda install
-
-```bash
-conda create -n rf4s python=3.12
-conda activate rf4s
-pip install -r requirements.txt
-python rf4mod.py selftest
-```
+`py -m venv .venv`, `.venv\Scripts\activate`, `pip install -r requirements.txt`, then
+`python rf4mod_gui.py` (what `start.bat` does for you).
 
 ### Bundle layout
 
@@ -216,7 +148,7 @@ are *skipped*, not failed. A green run looks like:
   [PASS] mapground tile 0 at screen top-left  (tile-0 pixel matches stitched (4,4))
   [PASS] MAPJ f5 = dest_map (Selphia exits)   (f5 ids=[4, 28, 32, …])
 …
-66/66 checks passed
+N/N checks passed
 ```
 
 If you see fewer-than-expected passes:
@@ -226,8 +158,7 @@ If you see fewer-than-expected passes:
 - **texture2ddecoder missing**: BC7 decode skips with `texture2ddecoder not
   installed`. Install with `pip install texture2ddecoder>=1.0`.
 - **Bundles not extracted**: most map/texture/text checks skip with `no … extracted`.
-  Either extract them with `rf4mod bundle extract …` or point the toolkit at the
-  full `Bundle/` directory (see "Bundle layout" above).
+  Unpack the game: `rf4mod.py unpack` (or the setup window's *Unpack*).
 - **Real failure (`[FAIL] …`)**: file an issue with the failing check's name and
   the file (if any) it was operating on.
 
@@ -245,21 +176,6 @@ run `start.bat` again: it rebuilds `.venv` with it.
 
 **Windows: `python` not found.** Install Python 3.10+ from <https://python.org>;
 during install, tick *Add Python to PATH*. Or use the `py` launcher (`py -3.12`).
-
-**Linux: `ModuleNotFoundError: No module named 'tkinter'`.** Tkinter ships
-separately from Python on many distros. Install:
-- Debian/Ubuntu: `sudo apt install python3-tk`
-- Fedora/RHEL:   `sudo dnf install python3-tkinter`
-- Arch:          `sudo pacman -S tk`
-
-**macOS: GUI text rendering looks tiny.** Use the python.org Python (not the
-Homebrew one) — its Tk bundle has Retina support; Homebrew Python uses a
-non-HiDPI Tcl/Tk by default.
-
-**`ImportError: texture2ddecoder requires a C extension`** on a fresh OS install.
-You need a C build toolchain for the wheel-less platforms. Modern wheels exist for
-Windows / macOS / Linux x86_64 + arm64 — upgrade pip first
-(`pip install --upgrade pip`) and the wheel should grab the right binary.
 
 **Performance: map editor is slow on huge maps at high zoom.** The background image is
 `(w*cp, h*cp)` pixels and is rebuilt when the grid or zoom changes (selections, drags and
@@ -289,7 +205,7 @@ file names (`rf4s_modkit/assetcat.py`), so nothing has to be opened to sort 38,0
 area, which opens and closes (all of `MAP_DUNG_M*` under **Rune Prana**, every street of the
 town under **Selphia**, a shop's upper floor with the shop, a dungeon's entrance and depths with
 the dungeon); untick it for the plain file list. The choice is
-kept in `settings.json` and shared with the standalone map editor's map list (`rf4mod.py map`),
+kept in `settings.json` and shared with the standalone map editor's map list (`map_explorer.py`),
 which groups its maps the same way.
 
 **Editing .bin files.** Every game `.bin` can be changed from the explorer: the data tables in the table editor, **AI scripts** (`AI_*.bin`) by editing their listing and pressing *Assemble* (the same assembler as `rf4mod ai asm`; every shipped script rebuilds byte-exact), the **skill XP curves** (`rf3ParamSkillExp*`: set one level or scale every level to a percentage), **rf3ItemStrengthening** (set any field of the selected item), **rf3PresentCategory** (add / remove an item of a gift category), em.bin through *Open Event Manager…*, and rf3RouteResult by *Recompute from rf3route.bin* (it is derived from the route graph). *Save as…* writes the file.
@@ -305,7 +221,7 @@ changed lines or lines with problems. *＋ New line* appends a line whose number
 TEXT lines are addressed by number, so they can't be removed. `.strings` files also take
 *＋ New key…* and *Delete key*. *Revert line* goes back to the text as the file was opened.
 *Save* writes the file where the game loads it (`Bundle\00_mods` when the game only has it
-packed; the original is kept in `ModdingBackup`), or back to the file you opened from disk.
+packed), or back to the file you opened from disk.
 *Save as…* writes anywhere. The game keeps the dialogue text (`rf3mc.<locale>`) in memory:
 the Cutscene Editor's *🐞 Debug → ⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
 restart, but the editors' character, item, map and skill names follow the saved file at once.
@@ -419,8 +335,8 @@ across all three.
 
 **Saving.** *Save* (Ctrl+S) writes the map's changed files -- the `.rf4m`, its search spots
 (`SI_*.bin`) and its encounters (`Gen*.bin`) -- straight over the ones the game loads from your
-game folder, without asking (into `Bundle\00_mods` for a file the game only has packed). The
-first time, the originals are copied to `ModdingBackup` in the game folder. *Save … as…*
+game folder, without asking (into `Bundle\00_mods` for a file the game only has packed).
+Turn on Backups (*Options…* → Advanced) to keep the originals. *Save … as…*
 writes a copy elsewhere. To see a change, leave the map in the game and enter it again (a file
 new to `Bundle\00_mods` needs a game restart: the game only looks for new files when it
 starts). The farm, the fields, Selphia's
@@ -476,8 +392,7 @@ shows its ATTR decode.
 and only when the value changed; a failed edit restores the files and says why. A press
 becomes a drag only after 4 px, so clicking never nudges anything, and a whole drag or
 paint stroke is one step. **Unsaved changes are guarded** -- switching map (list, file,
-warp) or closing asks first, for the map *and* its sidecars -- and every file saves through
-its own Save dialog (never over the game's extracted files); **Save map** warns before
+warp) or closing asks first, for the map *and* its sidecars -- and **Save** warns before
 writing a map the loader would choke on. The raw chunk editor refuses an edit that would
 leave the map unreadable. **Export PNG** (Save menu) writes exactly the current view,
 transparent where no base layer is drawn.
@@ -490,20 +405,13 @@ grid** (below) -- the same checks as `rf4mod map validate` -- plus the encounter
 (weights vs. spawn points, empty tables, ids outside the gate / monster ranges) and the
 search spots (empty pools, one-byte weight wrap, spots off the grid).
 
-**Script spawns:** what the map's *event script* places is not in the `.rf4m`. Actors come from
-`SpawnEventActor`, `SpawnEventActorVariant` or `SpawnEventActorEx` in the map's `rf3.mc` bank:
-NPCs, monsters such as the hungry Silver Wolf in Sechs Territory (MAP_DUNG_L13), and
-interactibles such as char 269 "Search". Map objects come from `SpawnMapEntity`, which builds
-the same record as a `.rf4m` MOBJ. The *script spawns* layer shows both: actors as round
-markers, objects as square markers without their sprite, since they only exist in game
-once their scene has run. Clicking one opens its script line in the Cutscene editor. A
-spawn whose type or position the script computes can't be placed.
+**Script spawns:** characters, monsters and objects a map's scenes place at run time (not in
+the `.rf4m`). The *script spawns* layer marks them; a click opens the script line in the
+Cutscene editor. Spawns whose position the script computes can't be shown.
 
-**Script areas:** the boxes the map's event script watches (`PlayerRegionTrigger`, type-3
-scenes). Such a scene runs while the player stands inside its box and the em.bin condition it
-names holds; MAP_FIELD_27's lantern puzzle, for example, has six, gated by
-`EV_HUTAGO_NOT_CLEAR`. The *script areas* layer draws each box as a dashed outline labelled with
-its condition; hovering says when it fires and clicking opens its scene in the Cutscene editor.
+**Script areas:** the boxes a map's scenes watch (a scene runs while the player stands inside
+and its em.bin condition holds). The *script areas* layer draws them dashed; hover says when
+one fires, a click opens its scene.
 
 Code: `map_editor/` -- `document` (files, undo, dirty tracking), `render` (ground loader,
 background, overlay primitives shared by canvas and PNG), `view` (canvas), `tools`,
@@ -511,27 +419,18 @@ background, overlay primitives shared by canvas and PNG), `view` (canvas), `tool
 `data` (map ids, sidecar files, names). Every map edit goes through the verified `rf4m`
 writers and re-serialises a byte-valid map.
 
-### Resizing a map, and why the atlas check exists
+### Resizing a map
 
-The ATTR grid is the **only** thing the engine sizes a map from, so changing it is never
-a local edit. `Map_SpawnEntity` derives the ground-atlas tile grid from ATTR alone —
-`cols = ceil(24*W/512)`, `rows = ceil(24*H/512)` — then loops `i` over `cols*rows` and
-loads tile `i` as **archive id `base + i`**, with no bounds check of any kind. Tiles of a
-set occupy consecutive ids (`MAP_FIELD_01_0000`…`_0015` are 8813…8828 and `_1000` follows
-at 8829), so a map whose grid outgrew its atlas does *not* draw blanks: it loads whatever
-files come next — the overlay layer's tiles, then the next map's set — and shows them as
-ground. `map validate` catches exactly this:
+The game sizes a map's ground art from its ATTR grid alone: one 512-px tile per 21⅓ map
+tiles, numbered row by row. A grid that outgrows its tile set does not draw blanks, it shows
+the next files' art. `map validate` (and Validate in the editor) reports:
 
-| finding | what it means |
+| finding | meaning |
 |---|---|
-| **missing tiles** (ERROR) | the grid asks for more tiles than the set ships; those cells draw another set's art. The message names the exact files to author |
-| **past 96 tile slots** (ERROR) | `Map_SpawnEntity` keeps one widget pointer per tile in its 888-byte work buffer from `+8`, and the decoration-model pointer sits at `+776` → **96 slots**. Tile 96 overwrites it, 97 the task pointer, 98 the archive id. The biggest shipped map needs 30 tiles, so only an edited map can hit this. Checked from ATTR alone, no texture files needed |
-| **extra tiles** (WARN) | more tiles than the grid spawns; harmless (four shipped overlays do it) but usually means the grid shrank |
-| **interior gap / short of extent** (WARN) | tiles are pitched at exactly 512 px, so an old last-column (narrow) tile that a resize turned into an interior one leaves an untextured strip |
-
-Swept over all 872 shipped maps (1270 tiled + 139 single layers): **no stock map trips the
-ERRORs**, and the four `extra` hits are the same four the ground-texture notes flag as not
-matching the grid formula.
+| **missing tiles** (ERROR) | the grid needs tiles the set lacks; the message names the files to make |
+| **past 96 tile slots** (ERROR) | more ground tiles than the game has room for; the map breaks (no shipped map needs over 30) |
+| **extra tiles** (WARN) | the set has more tiles than the grid uses; harmless |
+| **interior gap** (WARN) | a narrow edge tile became an inner tile after a resize: an untextured strip |
 
 `rf4mod map resize-attr` does the resize *and* prints the derived-artefact list up front:
 
@@ -554,8 +453,8 @@ back** — the exporter takes its aspect from the map's current ATTR.
 ## Map ids, names and minimap sheets
 
 ```bash
-python gen_map_names_json.py      # (re)build out/map_names.json from the vendored tables
-python gen_exe_tables_json.py     # (re)extract refdata/rf4s_exe_tables.json from RF4S.exe (only for a new game build)
+python gen_map_names_json.py      # (re)build out/map_names.json
+python gen_exe_tables_json.py     # re-read the refdata/rf4s_exe_*.json tables from RF4S.exe (only for a new game build)
 python gen_minimap_sheets.py      # render out/minimap_sheets/ (needs Bundle/ + Pillow)
 python gen_minimap_sheets.py --labels names --clean --zoom 4   # vanilla pictures + room names -> out/minimap_sheets_named/
 ```
@@ -575,15 +474,10 @@ deviates from that name, and the **minimap** block. The library behind it:
 | `map_names.py` | `map_name(id)` in-game name · `map_file(id)` / `map_id_for_file("MAP_ROOM_06A.rf4m")` · `is_building_entrance(id)` (signboard warps) · `label_note(id)` (farm/barn names, maze floor, the Cliff ↔ Volkanon Bridge swap) |
 | `minimap.py` | `texture(id)` the `mini_map_*.texture` the HUD draws · `variants(id)` the save-state swaps · `record(id)` origin / fog-of-war rect / Q12 scale / NPC-icon parent sheet · `pos_to_sheet(id, x, y)` · `bake()` re-vendors the table from your bundle |
 
-How the game picks the picture (from `Minimap_BuildForMap`, RF4S.exe+0x13B3F0): the map id
-indexes **`rf3MapMiniPos.bin`** (873 × 52 B); dword 0 is a sheet number and the picture is
-resource **12199 + sheet** (`mini_map_00_city` … `mini_map_dung_q04`; 73 or > 87 → the blank
-`99_dummy`). Then a few sheets are swapped by save state: town (a scene flag + a Prince Point
-order), Water Ruins (story ≥ 0x52), farm (`REG_FARM_LV`), your room (`REG_MYROOM`, Newlywed
-mode uses the `_sk_` set), barns (`REG_MON_HOUSEn_L/R_LV`), and two field sheets (scene flags
-70 / 134). Sharance Maze floors are composed at runtime from the `mini_map_rnd_*` tiles.
-Many maps share a sheet; the rest of the record places the map on it and drives the
-room-by-room fog-of-war reveal. Full field list: `rf4s_modkit/minimap.py`.
+How the game picks the picture: `rf3MapMiniPos.bin` gives each map id a sheet (`mini_map_*`)
+and its place on it. A few sheets are swapped by save state (town, Water Ruins, farm, your room,
+barns, two fields), and Sharance Maze floors are put together at run time. Field list:
+`rf4s_modkit/minimap.py`.
 
 ## Cutscene Editor
 
@@ -600,10 +494,8 @@ main GUI's **Cutscenes** toolbar button, the **Open in Cutscene Editor →** but
 scene list, or by clicking a *script spawn* in the map editor (it opens on that exact line). It
 reads the files by basename from the loaded source, so it works best with a **Manifest** open.
 
-Its foundation is a **complete reverse-engineering of the Script VM opcode table** (702
-dispatchable slots, `g_sceneActionHandlerTable`): every reachable opcode has a curated
-author-facing **name, argument labels and description** (`rf4s_modkit/opcode_meta.py`, and the
-greppable [`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) reference).
+Every instruction has a name, argument labels and a description;
+[`CUTSCENE_OPCODES.md`](CUTSCENE_OPCODES.md) lists them all.
 
 **The window** has three panes:
 
@@ -653,9 +545,7 @@ never pile up dead code; the editor follows the open scene and the selection to 
 addresses. Same-size edits (a line id, a number, a speaker, a branch target) are still patched
 in place. A bank can hold 64 KB (every address in it is 16-bit); an edit that would pass that is
 refused with a message. The game copies each bank into a buffer sized from the rf3.mc header,
-so the rebuild also raises those header sizes when a bank grows (statically verified in
-RF4S.exe: `MycfBankSlot_Create` +0x23F950 sizes the buffer once, `MycfBankSlot_LoadBank`
-+0x23F9C0 fills it without a bounds check).
+so the rebuild also raises those header sizes when a bank grows.
 
 Files edited by earlier toolkit versions, which inserted code by **trampolining** (new code
 appended at the bank's end, reached through a jump written over the original statement), still
@@ -729,8 +619,10 @@ makes the file clean again, and closing or opening another `rf3.mc` asks first. 
 writes the changed files straight into your game folder without asking, over the copies the
 game loads: an unpacked `Bundle\bundlePatch1\rf3.mc`, `Bundle\bundleMain\rf3mc.<locale>` and so
 on, or an existing `Bundle\00_mods` override. A file the game only has inside a packed
-`.mbundle` goes to `Bundle\00_mods`. The first time a file is overwritten, the original is copied
-to `ModdingBackup\` in the game folder, keeping the same path; copy it back to undo everything. A
+`.mbundle` goes to `Bundle\00_mods` -- except rf3.mc and the em.bin files while
+`bundlePatch1.mbundle` / `bundlePatch2.mbundle` are still packed: those archives beat any loose
+copy, so unpack them first (`rf4mod.py unpack`). With Backups on (*Options…* → Advanced), the
+original is kept in `ModdingBackup\`. A
 file opened with *Open rf3.mc…* is saved back where it was opened. *Save … as…* writes a copy
 anywhere, and *Install as loose files* puts copies in `Bundle\00_mods`.
 
@@ -886,13 +778,7 @@ debugger per game at a time, and *Reload in game* waits until no script is stopp
 Everything the editor does is also on the CLI (`rf4mod script listing / asm / check / insert /
 delete / set-val / set-target / set-speaker / triggers / add-trigger / remove-trigger / set-trigger /
 normalize`, `rf4mod em …`,
-`rf4mod text add --pad-to N`). Corpus-verified: every operand in the shipped file compiles back to
-identical bytes-or-text, and the type tables are read count-exact (10,169 registered scenes).
-`selftest.py` covers the container round-trip, in-place and rebuilt argument edits, literal
-edits, relinked insert/delete/rewrite (every shipped bank rebuilds byte-exact; an edit keeps every
-other scene's flow), folding old trampolines, dialogue rewrite, search, the explanation for every
-opcode, and a
-headless drive of the editor (`test_cutscene_editor_authoring`, `test_cutscene_editor_workflows`).
+`rf4mod text add --pad-to N`). Every shipped bank reads and rebuilds byte for byte.
 
 Code: `cutscene_editor/` — `document` (the files, one undo history, unsaved tracking), `render`
 (story rows, listing lines, explanations, overview), `browser`, `view` (Script tab), `inspector`,
@@ -961,7 +847,7 @@ Models and their motions (`.bfskl`) round-trip through Blender as glTF (`.glb`):
 3. **Animate** in Blender. Keep the bone and action names: an action's name decides which
    motion file it replaces. Export the .glb (every action; untouched ones are fine).
 4. **Import** in the Model tab: **Import all motions…** lists only the actions that differ from
-   the game's motions and installs the ones you tick (originals kept in ModdingBackup), or
+   the game's motions and installs the ones you tick, or
    **Import motion…** replaces the motion picked in the list. Command line: `res model-glb`,
    `res motion-import`, `res motion-import-all`.
 
@@ -1013,9 +899,9 @@ from Blender.
 | UI layout / config | `.minterface`, `.plist` | `rf4mod plist` | ✅ full (bplist) |
 | Game text | `rf3mc.*`, TEXT archives, `.strings` | explorer text editor, Cutscene Editor, `rf4mod text` / `rf4mod strings` | ✅ full |
 | Engine UI text | `.strings` | `rf4mod strings` | ✅ full |
-| Textures | `.texture` | `rf4mod texture` | ✅ decode all; **encode from PNG into any template, in the template's own format**: BC7 / BC3 / BC1 are re-encoded by the built-in `bcenc` encoders at the **same size** (the file stays `bundle patch`-able in place), raw formats are kept, `--fmt RGBA8` (4×) / `BC7` / `BC3` / `BC1` force one; flipbook frames and strips; ✅ **any image size** (statically verified, not yet tried in game): the frame is stored at the PNG's size (the loader reads only format / width / height and uploads level 0; mip levels come from the driver), block formats need multiples of 4 (else `--fmt RGBA8`); the tool prints what the size change does in game — sprites with quad data (13,237 of 13,366 textures) keep their on-screen size and only stretch if the aspect changes, sprites without it grow/shrink with the pixels, **map ground tiles must keep their size** (fixed 512-px grid); `rf4mod map ground-export` / `ground-import` round-trip a whole ground layer as one PNG |
+| Textures | `.texture` | `rf4mod texture` | ✅ decode; encode a PNG into any texture in its own format (`--fmt` forces one), at any size (map ground tiles must stay 512 px); flipbook frames; `map ground-export` / `ground-import` for a whole ground layer |
 | Maps | `.rf4m` | `rf4mod map` | ✅ chunk-level; `map validate` checks the game loader's rules **and the ground atlas against the ATTR grid**; `map resize-attr` resizes the tile grid and lists every derived artefact it invalidates |
-| Monster/NPC AI | `AI_*.bin` (AIBN) | `rf4mod ai` | ✅ full (token + text); `disasm --annotate` adds the verified operand meanings, `ai ops` / `ai actions` print the opcode and scripted-action references (every handler re-read 2026-09-17) |
+| Monster/NPC AI | `AI_*.bin` (AIBN) | `rf4mod ai` | ✅ full (token + text); `disasm --annotate` adds the verified operand meanings, `ai ops` / `ai actions` print the opcode and scripted-action references |
 | Attack move timelines | `as_atk_*.bin` (690) | `rf4mod asatk` | ✅ decode (`show`/`summary`) + **assembler/editor**: `dump` → edit listing → `asm`, or point edits `set` / `insert --frame` / `delete`; byte-exact on every stock file; GUI Edit tab |
 | Cutscene / event scripts | `rf3.mc` | `rf4mod script`, cutscene editor (`script_explorer.py`) | ✅ full: disassemble, a listing language that assembles back byte-exact (every shipped bank), insert / delete / rewrite with the **bank rebuilt in place**, new scene triggers (`script add-trigger` / the editor's New scene…); opcode names from `refdata/opcode_table.json` |
 | Search-item spots | `SI_*.bin` (288) | GUI table editor, map editor | ✅ daily ground-pickup spots, item pools and weights (footer rebuilt) |
@@ -1024,18 +910,18 @@ from Blender.
 | Event Manager triggers | `em.bin`, `emdeb.bin` | `rf4mod em` | ✅ conditions/actions decode; in-place edit; **structural**: add / remove entries, condition terms and actions from a readable spec (`em add / remove / add-cond / remove-cond / add-action / remove-action`; the container is rebuilt, stock re-serialises byte-exact) |
 | Skill XP curves | `rf3ParamSkillExp*.bin` | `rf4mod skill` | ✅ decode + `skill set FILE LEVEL XP` / `--scale PCT` (every level) |
 | Monster encounter tables | `Gen*.bin` (NLCL) | `rf4mod gen` | ✅ full: gates / weights / rosters / positions, add & remove gates and monsters (rebuilds the file + footer; all 690 stock files round-trip byte-exact) |
-| Game-data param tables | `rf3*/rf4*.bin` (NLCL) | `rf4mod param` | ✅ item prices/stats, crops, recipes, skills, fish spawn/size weights (`Fishing_rate_*`, named fields), schedule spots (`rf3ScheduleID`)…; **rows can be added / removed** (`param add --copy N --set …` / `param remove`; header counts + footer regenerated) and `param info` states per table whether the engine honours an extra row (count read from the file, capped by a constant, or bound to a TEXT twin that must be extended too). **Fixed-point fields** (the game stores value × 4096, Q12 -- or × 128 for the crop growth rates, Q7) show as percentages (4096 = `100%`, 6144 = `150%`; `param info` prints `6144(150%)`) and take `150%` (or `1.5x`) or the stored whole number when edited: rf3ParamMagic's damage scalars, rf3NpcParam's element affinities and status resistances, rf3UseItemParam's %-of-max fields, rf3ParamSkill's growth and RP discount, the minimap scale. **Bit-set fields** (rf3ParamMagic `flags`, rf3UseItemParam `effect_bits`, the equipment / schedule / shop flag words) show in hex and get a *Flags…* button with one tick box per bit -- named where the game's use is known (Fire … Love, Magic, Ignore DEF, No random spread, Always 1 damage; Cure / Inflict each status, Level up); on the command line `param set rf3ParamMagic.bin 1 "flags=+Ignore DEF,-Fire"` sets and clears single bits (names, `bitN` or masks). CSV export keeps the stored numbers |
+| Game-data param tables | `rf3*/rf4*.bin` (NLCL) | `rf4mod param` | ✅ named fields for items, crops, recipes, skills, fishing, schedules...; add / remove rows (`param info` says whether the game reads an added row); fixed-point fields as percentages (`150%`); flag fields by name (`param set rf3ParamMagic.bin 1 "flags=+Ignore DEF,-Fire"`) |
 | NPC gift preferences | `rf3PresentNpc01..27.bin`, `rf3PresentCategory.bin` | `rf4mod gift` | ✅ move items between loved / liked / disliked / neutral, set the FP code and the one −10 "signature" dislike, add range / category entries; the file is rebuilt (sub-list offsets + NLCLINK tail), all 28 stock tables round-trip byte-exact |
 | Monster taming foods | `rf3MonsterPresent.bin` | `rf4mod gift monster-set` / `monster-clear` | ✅ the 4 per-species (item, tame bonus) slots |
 | NPC daily schedules | `rf3Schedule.bin` + `rf3ScheduleID.bin` | `rf4mod schedule` | ✅ per-(NPC, state) itineraries: set / add / remove stops, JSON decode → edit → encode (index sections recomputed; stock re-encodes byte-exact); spot kinds resolved to rooms |
 | NPC navigation graph | `rf3route.bin` (TRCS), `rf3RouteResult.bin` | `rf4mod route` | ✅ rooms → nodes → edges decode / JSON / encode (byte-exact), game-accurate path walk, next-hop matrix regeneration after graph edits |
-| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ **`.model` meshes read**: `res model-info` / `model-export` (OBJ + MTL + PNG) / `model-render` (UVs wrap, vertex colour, additive BlendType); ✅ **`.model` meshes written** (`rf4s_modkit.modelwrite`, statically verified, not yet tried in game): `res model-import MODEL SHAPE mesh.obj` replaces one shape's geometry with any vertex / triangle count (memory pool, buffer sizes, submesh, bounds and every relocated pointer rebuilt; an unmodified export re-imports byte-identically; skin weights copied from the nearest original vertex), `res model-transform` moves / scales / rotates a shape in place; ✅ **Import from Blender** (`rf4s_modkit.meshimport`, statically verified): `res model-import-glb MODEL FILE.glb` / the Model tab rebuild every shape a glTF has a same-named mesh for, **with its bone weights** (kept to the shape's influence count, bones without a skinning matrix folded into their parent); new parts appended to a shape (`--add`) or made **new shapes** (`--new`, `rf4s_modkit.modelgrow`: SHAP / VRTX arrays, name dictionary and relocation table grown), shapes hidden (`--remove`), bones' rest pose moved (`--bones`); unmodified Export for Blender files re-import byte-identically (all 912 mesh files), untouched Blender round trips too (55 of 61 sampled; the other 6 render identically); ✅ **material settings** (`rf4s_modkit.matedit`, what the loader reads, in place): `res model-material MODEL` lists them, `res model-material MODEL MAT --wrap-u clamp --blend 2 -o OUT` changes texture wrap (every material) and DrawOrder / BlendType / CombineType / CombineColor00 (where the material carries them); GUI Model tab > Materials…; ✅ **`.bfmat` material animations played and written** (all 59 rebuild byte for byte): `res model-gif` and Play in the GUI's Model tab show texsrt UV scroll, texture patterns (BM_* eye blinks / emblem swaps, anim_com* frame flips) and opacity fades; the `.bfmat` is found by stem or by material name (SYS_MENU_ANIME_09 -> anim_com09); `res bfmat-info` lists curves (`--json` dumps an editable file), `res bfmat-build JSON OUT` encodes it, `res bfmat-set IN OUT --speed 2` retimes; ✅ **`.bfskl` skeletal animations played** (all 2,001 parse): `res anim-info` (`--json` dump, `--model` binding) / `res anim-gif MODEL ANIM out.gif`, and the Model tab's motion row — bones bind by name, skinned meshes blended through the inverse bind matrices; ✅ **textures embedded in a `.model`** (the BNTX of the 164 map over-models, character / monster / weapon / effect cards): `res texture-list` / `texture-decode` / `texture-encode` replace one texture in its own format — **in place** at the same size (file size and every container field unchanged), or **at any other size** (model UVs are normalised): the embedded BNTX is rebuilt and the `.model`'s embedded files, file table, relocated pointers and outer `_RLT` move with it (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game) |
+| Models / skeletons / materials | `.model` `.bfskl` `.bfmat` `.bfsha` | `rf4mod res` | ✅ read, OBJ / glTF export, preview renders; write: shapes from OBJ or Blender (with bone weights), new and hidden shapes, bone rest pose, material settings, embedded textures (any size), `.bfmat` material animations (play, edit, retime), `.bfskl` motions (play, import). Written models are statically checked, not yet tried in game. See [Animating in Blender](#animating-in-blender) |
 | Emote / portraits | `.psbData` (loaded) `.emtbytes` (never loaded by the PC exe) | `rf4mod psb` | ✅ full E-mote PSB v4 reader (all 130 parse; `.emtbytes` header decrypted): `psb info` (atlas, face-frame timelines 0-5 = 通常/怒り/哀しみ/笑顔/驚き/照れ, variables), `psb dump -o DIR [--resources]` (whole tree → JSON), `psb textures -o DIR [--parts]` (RGBA8 / ASTC atlas → PNG, plus every named part crop); ✅ **repaint a portrait**: `psb replace-texture X.psbData edited.png -o out/` (same size; only the atlas bytes change, re-parsed and checked). Keep part outlines where they are — the mesh/part rectangles are absolute atlas pixels |
 | Sound-id table | `common_audio_data.bdat`, `voice_en_audio_data.bdat` (`voice_jp_…` ships but is never loaded) | `rf4mod sound` | ✅ `list` / `show` / `find` (all three tables) / `set` volume · priority · flags / point an id at another file / `add` a brand-new id / `remove`; byte-exact rebuild of all 3 stock tables; PlaySound / PlaySoundOnFreeVoice listings show the file name. New sound: drop `SE_MYMOD.ogg` (or .wav/.flac/.mp3, sniffed by magic) under `Bundle\00_mods\`, `rf4mod sound add common_audio_data.bdat auto SE_MYMOD.ogg -o my.bdat`, `rf4mod install <game> common_audio_data.bdat my.bdat`, restart, `PlaySound(<id>)` |
 | Audio | `.ogg` `.wav` `.flac` `.mp3` | `rf4mod ident` | ➡️ swap (standard formats; the loader sniffs OggS / RIFF / fLaC / else MP3 — AIFF is not decoded; the one shipped `UISelect.aif` is referenced nowhere in the exe) |
 | Video | `.webm` | `rf4mod ident` | ➡️ swap (re-encode w/ ffmpeg) |
 | Images / fonts | `.png` `.ttf` `.ttc` | `rf4mod ident` | ➡️ edit directly |
-| Shaders | `.glsl` `.glsl.inc` (bundleMuteki), `.bfsha` | `rf4mod shader` | ✅ the game compiles **only the loose bundleMuteki GLSL** (`mtk_body/item/billboard` = every model, from source at each start, no shader cache): `shader list`, `shader extract mtk_body -o dir` (includes inlined as GL gets them), `shader replace mtk_body_f.glsl edited.glsl -o dir` (checks includes / `#version` / `main`) then `install`. `.bfsha` GLSL is never compiled on PC (the nn::gfx shader init is a stub), so it is read + extracted only (`shader list/extract rf4cmv.bfsha`); `.hlsl` files are never loaded |
+| Shaders | `.glsl` `.glsl.inc` (bundleMuteki), `.bfsha` | `rf4mod shader` | ✅ the game compiles **only the loose bundleMuteki GLSL** (`mtk_body/item/billboard` = every model, from source at each start, no shader cache): `shader list`, `shader extract mtk_body -o dir` (includes inlined as GL gets them), `shader replace mtk_body_f.glsl edited.glsl -o dir` (checks includes / `#version` / `main`) then `install`. `.bfsha` GLSL is never compiled on PC (the game never compiles it), so it is read + extracted only (`shader list/extract rf4cmv.bfsha`); `.hlsl` files are never loaded |
 
 ✅ = the toolkit fully reads and rewrites it · 🔍 = identify + structural inspect ·
 ➡️ = standard format, edit/replace with off-the-shelf tools
@@ -1045,9 +931,10 @@ from Blender.
 At startup the game indexes **every file under `Bundle\`** (all sub-folders, by file
 name) and mounts that index **ahead of** the `.mbundle` archives; the first match
 wins. A missing `.mbundle` is just skipped, so the game also runs from a fully
-extracted `Bundle\` (verified in `BundleManager_LoadManifest`, the `Bundle/**`
-file-system index, and the game's own log). Files next to `RF4S.exe` are **not**
-looked at. So:
+extracted `Bundle\`. Files next to `RF4S.exe` are **not** looked at.
+Exception: while `bundlePatch1.mbundle` / `bundlePatch2.mbundle` are still packed, their files
+(rf3.mc and the em.bin files among them) win over any loose copy -- unpack them first
+(`rf4mod.py unpack`); `rf4mod.py mods` lists such ignored files. So:
 
 1. **Loose file (recommended — no repack, uninstall by deleting it).**
    ```bash
@@ -1148,6 +1035,7 @@ python rf4mod.py ai disasm m08 --flat          # one opcode per line, every toke
 python rf4mod.py ai ops 0x1E                   # what SidestepAroundTarget takes and does
 python rf4mod.py ai actions 3                  # scripted action 3 (InvokeScriptedAction 3)
 python rf4mod.py ai asm m08.txt -o AI_m08.bin
+```
 
 The listing reads like a small language and assembles back byte-exactly:
 
@@ -1180,6 +1068,7 @@ write `!Action(args)` to omit it), `rN += v` / `rN = v` the register ops, and co
 written as expressions (`DistanceToTarget <= 110`, `RandomChance(50)`, `ActorIsNpcKind`).
 `rf4mod ai ops <name-or-id>` explains any opcode.
 
+```bash
 # Edit a cutscene / event script (rf3.mc): find a scene by its dialogue, read it, then
 # reword a line, retune an action arg, or insert a beat — inserts rebuild the bank in place.
 python rf4mod.py script find rf3.mc "about to call you" --text rf3mc.eng   # → bank + pc of matches
@@ -1231,7 +1120,7 @@ python rf4mod.py param info rf3ItemList.bin                            # the 2nd
 
 # Event Manager structure: new trigger entries, condition terms and actions
 python rf4mod.py em add --clone EV_BOSS_SP_DEAD --cond-a "Season == 3 AND Hour > 20" --alt-action "REG_MAIN_SCENARIO += 2" -o em.bin   # prints the new id
-python rf4mod.py em add-cond EV_CMN_DAYTIME "FLG_RAIN == 0" --slot 0 -o em.bin        # AND a term onto OR-slot 0 (omit --slot for a new OR-slot)
+python rf4mod.py em add-cond EV_CMN_DAYTIME "Hour >= 18" --slot 0 -o em.bin        # AND a term onto OR-slot 0 (omit --slot for a new OR-slot)
 python rf4mod.py em add-action EV_BOSS_SP_DEAD "FLG_DATE_FES_NOW = (REG_MAIN_SCENARIO == 0)" --stream alt -o em.bin
 python rf4mod.py em remove EV_SUBEV_COM_14_A --blank -o em.bin                        # empty an entry but keep every id stable
 
@@ -1283,17 +1172,17 @@ python rf4mod.py gen area GenA                 # roster across dungeon area A
 python rf4mod.py gen info GenA01.bin           # gates + spawns of one file
 python rf4mod.py gen set GenA01.bin 0 1 --spawn 0=50 -o out.bin   # spawn Orc Archer
 
-# Monster / character templates (rf3NpcParam.bin, archive 14812): stats, drops, elements, AI
+# Monster / character templates (rf3NpcParam.bin): stats, drops, elements, AI
 python rf4mod.py monster show Orc              # full sheet: stats, drops(names), elements%, AI file
 python rf4mod.py monster list --range 48-80    # roster (id, name, HP, ATK, kind)
 python rf4mod.py monster free                  # cut ids usable for a data-only NEW monster
-python rf4mod.py monster set 49 --set hp=2000 atk=150 elem_fire=4096 -o out.bin  # buff High Orc
+python rf4mod.py monster set 49 --set hp=2000 flat_atk=150 elem_fire=4096 -o out.bin  # buff High Orc
 # author a brand-new monster in a cut slot (no EXE patch): clone art/behaviour, then retune
 python rf4mod.py monster clone --src 48 --dst 179 -o new.bin      # seed slot 179 from Orc
-python rf4mod.py monster set 179 --set hp=1500 def=200 drop0_id=95 drop0_pm=300 --file new.bin -o new.bin
+python rf4mod.py monster set 179 --set hp=1500 flat_def=200 drop0_id=95 drop0_pm=300 --file new.bin -o new.bin
 # …or do the WHOLE data-only new-monster mod in one shot (clone + name + encounter + package):
 python rf4mod.py monster new --name "Test Golem" --from Orc \
-    --set hp=1800 atk=140 def=250 elem_fire=-2048 drop0_id=95 drop0_pm=250 \
+    --set hp=1800 flat_atk=140 flat_def=250 elem_fire=-2048 drop0_id=95 drop0_pm=250 \
     --encounter GenA01.bin --out-dir mymod/     # writes rf3NpcParam.bin + rf3TxtNpc_* + GenA01.bin
 ```
 
@@ -1315,30 +1204,16 @@ print(man.find_file("rf3.mc"))            # -> ('bundlePatch1.mbundle', {'size':
 
 ## Notes & limits
 
-- **Block-compressed encoders** (`rf4s_modkit/bcenc.py`, pure Python, numpy-accelerated
-  when numpy is installed): `rf4mod texture encode` / `map ground-import` / `res
-  texture-encode` re-encode BC7 (mode 6, plus mode 5 for alpha edges and for flat blocks,
-  which round-trip exactly), BC3 and BC1 (1-bit alpha only when a block needs it); at the
-  source's own size the result can go back with `rf4mod bundle patch`. Quality on a
-  512² ground tile: BC7 ≈ 46 dB PSNR (mean error < 1/255), BC3/BC1 ≈ 37 dB; a 512² tile
-  takes ≈ 2.5 s (BC7) / 1 s (BC3) / 0.7 s (BC1) with numpy, ≈ 30 s / 6 s / 5 s without.
-  `--fmt RGBA8` keeps the old lossless path (4 B/px: a 512² tile grows from 264 KB to 1 MB
-  and needs a loose override or bundle repack; the container's DESC size, `_RLT` offset and
-  per-frame pointers are patched). **The PNG may have another size**: the loader
-  reads only format / width / height / level 0 (the graphics driver builds the mipmaps), so
-  the container is rebuilt around the new size and the tools say what the change does in
-  game — a sprite with its own quad data keeps its on-screen size (a new aspect ratio
-  stretches), one without grows with the texture, and **map ground tiles must keep their
-  size** (fixed 512-px grid). Block formats need multiples of 4 (BC1 a square block grid);
-  otherwise use `--fmt RGBA8`. Replacements are single-level.
-  BC2 / ASTC (not shipped) have no encoder and fall back to RGBA8.
+- **Texture encoding** is built in (numpy makes it ~10x faster): BC7 ≈ 46 dB, BC3/BC1 ≈ 37 dB
+  on a ground tile; a 512² tile takes ≈ 2.5 s with numpy, ≈ 30 s without. A PNG of another size
+  rebuilds the texture around it: a sprite with its own quad data keeps its on-screen size, one
+  without grows with the texture, map ground tiles must stay 512 px. Block formats need sizes
+  in multiples of 4 (else `--fmt RGBA8`). BC2 / ASTC sources are re-encoded as RGBA8.
 - **Textures inside `.model`**: at the same size they are replaced in place
   (`texture.bntx_replace`, its own format or BC3 ↔ BC7); at **another size** the embedded
   BNTX is rebuilt and everything after it in the `.model` moves with it
-  (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game). The embedded BNTX is loaded by the same code as `.texture`
-  (`GfxCTR_Model_BuildFromResource` hands it to `SpriteResourceRegistry_AcquireSlotForBfres`,
-  RF4S.exe+0x1B5595), which reads only each BRTI's format / width / height / mip-0 pointer,
-  so nothing else in the container needs touching.
+  (`modelwrite.replace_embedded_file`; statically verified, not yet tried in game). The game
+  reads only each texture's format, size and first mip level, so nothing else needs touching.
 - **Mesh editing**: `.model` geometry is read (OBJ / glTF export, preview renders, the map
   editor's scenery layer) **and written back** — shape geometry from OBJ (skin weights
   copied from the nearest original vertex) or from Blender's glTF (with the painted bone

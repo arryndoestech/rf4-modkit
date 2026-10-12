@@ -1,6 +1,6 @@
 # RF4S Cutscene Opcode Reference
 
-Reverse-engineered `rf3.mc` cutscene Script VM opcodes (`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 702 slots).
+Every `rf3.mc` cutscene instruction (702 slots).
 
 Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — **682** named opcodes across 14 categories (plus 20 reserved/unused slots), the control-flow opcodes, the expression grammar, and the **em.bin** Event-Manager opcodes scenes bridge to. Do not edit by hand; re-run the generator to refresh. This is the GUI-free companion to the editor's Alt-hover tooltips.
 
@@ -23,12 +23,12 @@ Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` �
 - [Control opcodes (flow backbone)](#control-opcodes-flow-backbone) (15 ops)
 - [Expression operands (argument encoding)](#expression-operands-argument-encoding)
 - [Event Manager (em.bin) opcodes](#event-manager-embin-opcodes)
+- [Reserved / unused slots](#reserved--unused-slots)
 - [Opcode index (by number)](#opcode-index-by-number)
 
 ## Dialogue & portraits
 
 ### `op 1` — SetDialogueSuppressed(suppressed)
-*handler:* `Script_VMOp_SetDialogueSuppressed`
 *verified:* yes, in game
 
 Dialogue suppression switch: 1 makes every following DIALOG skip its line (nothing is shown), 0 turns lines back on. Sets bit 3 (0x8) of the scene control word (g_sceneAuxControlFlags = g_currentSceneContext+120) from bit 0 of the argument. With no box open a skipped DIALOG finishes at once; with a box still open (after its line was confirmed) the skipped DIALOG waits for that box to finish again, which never happens: the scene FREEZES. Close the box (EndDialogue) before turning it on, and turn it off again before the scene ends (only an engine reset of the scene context clears it). Unused by the shipped scripts.
@@ -39,7 +39,6 @@ Args:
      - `1` = skip_lines
 
 ### `op 5` — ShowPortrait(character, face, side)
-*handler:* `Script_VMOp_ShowPortrait`
 *verified:* yes, in game
 
 Show or change a character's E-mote portrait on the left or right side without touching the name plate, text blip, voice or emote icons. A DIALOG line must come after it (usually after the SetSpeaker… that names the speaker): the portrait belongs to the next line shown.
@@ -52,7 +51,6 @@ Args:
      - `1` = right
 
 ### `op 6` — ShowPortraitWithEmote(character, side, expression, emote_or_voice)
-*handler:* `Script_VMOp_ShowPortraitWithEmote`
 
 Show or update a character's E-mote speaker portrait on one side of the dialogue box, with an optional emote icon or voice clip. Does not change the name plate or the text blip, so it is used to change a listener's face between lines.
 
@@ -63,7 +61,6 @@ Args:
   3. emote_or_voice (0 = none; 186..192 = emote icon shown on the portrait; >= 0x1F0 (496) = play that voice/sfx id instead)
 
 ### `op 7` — ShowPortraitWithEmote(character, side, expression, emote_or_voice)
-*handler:* `Script_VMOp_ShowPortraitWithEmote`
 
 Show or update a character's E-mote speaker portrait on one side of the dialogue box, with an optional emote icon or voice clip. Does not change the name plate or the text blip, so it is used to change a listener's face between lines.
 
@@ -74,7 +71,6 @@ Args:
   3. emote_or_voice (0 = none; 186..192 = emote icon shown on the portrait; >= 0x1F0 (496) = play that voice/sfx id instead)
 
 ### `op 8` — SetSpeakerName(name_id)
-*handler:* `Dialogue_ProcessLineDirective`
 
 Set the message-box name plate (and the matching text blip) for the following DIALOG lines. Shows no text and no portrait (except event-participant ids 27-33 / 41-47, which also bring up that participant's portrait).
 
@@ -82,7 +78,6 @@ Args:
   0. name_id (0 = player's own saved name; 1..26 villager; 27..47 event participant; >= 48 name-archive entry; 0xFFFF = '???')
 
 ### `op 9` — SetSpeakerName(name_id)
-*handler:* `Dialogue_ProcessLineDirective`
 
 Set the message-box name plate (and the matching text blip) for the following DIALOG lines. Shows no text and no portrait (except event-participant ids 27-33 / 41-47, which also bring up that participant's portrait).
 
@@ -90,7 +85,6 @@ Args:
   0. name_id (0 = player's own saved name; 1..26 villager; 27..47 event participant; >= 48 name-archive entry; 0xFFFF = '???')
 
 ### `op 10` — SetSpeakerVoice(name_id, blip)
-*handler:* `Script_VMOp_SetSpeakerVoice`
 *verified:* yes, in game
 
 Set the speaker for the following DIALOG lines to a named voice: name plate plus a chosen text blip, no portrait. Used for off-screen, unnamed or non-villager speakers. It does not remove a portrait already on screen (seen in game): clear it first if the voice should speak alone.
@@ -106,7 +100,6 @@ Args:
      - `4` = player_blip
 
 ### `op 11` — SetSpeakerNameVisible(visible)
-*handler:* `ScriptVMOp11_SetSceneStateBit0FromArg`
 *verified:* yes, in game
 
 Hides (0) or shows (non-zero) the speaker-name label for the following DIALOG lines. Authors wrap sound-effect lines such as "*MUNCH*" in SetSpeakerNameVisible(0) ... SetSpeakerNameVisible(1).
@@ -117,7 +110,6 @@ Args:
      - `1` = show name
 
 ### `op 12` — SetSpeakerById(speaker, face, side)
-*handler:* `Script_VMOp_SetSpeakerById`
 
 Speaker cue by character id: shows that character's portrait on the given side, sets the name plate and the text blip for the next DIALOG. The generic form of the per-character SetSpeaker ops, without emote icon or voice.
 
@@ -154,7 +146,6 @@ Args:
   2. side (0 = left portrait, 1 = right portrait)
 
 ### `op 13` — SetSpeakerById(speaker, face, side)
-*handler:* `Script_VMOp_SetSpeakerById`
 
 Speaker cue by character id: shows that character's portrait on the given side, sets the name plate and the text blip for the next DIALOG. The generic form of the per-character SetSpeaker ops, without emote icon or voice.
 
@@ -191,7 +182,6 @@ Args:
   2. side (0 = left portrait, 1 = right portrait)
 
 ### `op 14` — SetSpeakerByIdWithEmote(speaker, side, expression, emote)
-*handler:* `Script_VMOp_SetSpeakerByIdWithEmote`
 
 Speaker cue by a runtime character id (typically the spouse in REG_WIFE_ID): portrait with an expression on the given side, name plate, text blip, and an optional emote icon or voice clip.
 
@@ -229,7 +219,6 @@ Args:
   3. emote (0 = none; 186-192 emote icon over the portrait; >= 0x1F0 = a voice/sfx id played immediately)
 
 ### `op 15` — SetSpeakerByIdWithEmote(speaker, side, expression, emote)
-*handler:* `Script_VMOp_SetSpeakerByIdWithEmote`
 
 Speaker cue by a runtime character id (typically the spouse in REG_WIFE_ID): portrait with an expression on the given side, name plate, text blip, and an optional emote icon or voice clip.
 
@@ -268,7 +257,6 @@ Args:
 
 ### `op 16` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Before story progress 2 (the opening's name entry sets it) the name plate reads '???' instead of the player's name.
@@ -302,7 +290,6 @@ Args:
 
 ### `op 17` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = MC (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): the player (Lest/Frey) speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Before story progress 2 (the opening's name entry sets it) the name plate reads '???' instead of the player's name.
@@ -336,7 +323,6 @@ Args:
 
 ### `op 18` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -370,7 +356,6 @@ Args:
 
 ### `op 19` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Vishnal (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Vishnal speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -404,7 +389,6 @@ Args:
 
 ### `op 20` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -438,7 +422,6 @@ Args:
 
 ### `op 21` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Clorica (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Clorica speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -472,7 +455,6 @@ Args:
 
 ### `op 22` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -506,7 +488,6 @@ Args:
 
 ### `op 23` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Volkanon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Volkanon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -540,7 +521,6 @@ Args:
 
 ### `op 24` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -574,7 +554,6 @@ Args:
 
 ### `op 25` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Forte (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Forte speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -608,7 +587,6 @@ Args:
 
 ### `op 26` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -642,7 +620,6 @@ Args:
 
 ### `op 27` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Kiel (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Kiel speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -676,7 +653,6 @@ Args:
 
 ### `op 28` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -710,7 +686,6 @@ Args:
 
 ### `op 29` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Bado (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Bado speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -744,7 +719,6 @@ Args:
 
 ### `op 30` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -778,7 +752,6 @@ Args:
 
 ### `op 31` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Margaret (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Margaret speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -812,7 +785,6 @@ Args:
 
 ### `op 32` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -846,7 +818,6 @@ Args:
 
 ### `op 33` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dylas (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dylas speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -880,7 +851,6 @@ Args:
 
 ### `op 34` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -914,7 +884,6 @@ Args:
 
 ### `op 35` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Arthur (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Arthur speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -948,7 +917,6 @@ Args:
 
 ### `op 36` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -982,7 +950,6 @@ Args:
 
 ### `op 37` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Porcoline (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Porcoline speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1016,7 +983,6 @@ Args:
 
 ### `op 38` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1050,7 +1016,6 @@ Args:
 
 ### `op 39` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = XiaoPai (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): XiaoPai speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1084,7 +1049,6 @@ Args:
 
 ### `op 40` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1118,7 +1082,6 @@ Args:
 
 ### `op 41` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = LinFa (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): LinFa speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1152,7 +1115,6 @@ Args:
 
 ### `op 42` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1186,7 +1148,6 @@ Args:
 
 ### `op 43` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Amber (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Amber speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1220,7 +1181,6 @@ Args:
 
 ### `op 44` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1254,7 +1214,6 @@ Args:
 
 ### `op 45` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Illuminata (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Illuminata speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1288,7 +1247,6 @@ Args:
 
 ### `op 46` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1322,7 +1280,6 @@ Args:
 
 ### `op 47` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Doug (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Doug speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1356,7 +1313,6 @@ Args:
 
 ### `op 48` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1390,7 +1346,6 @@ Args:
 
 ### `op 49` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Blossom (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Blossom speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1424,7 +1379,6 @@ Args:
 
 ### `op 50` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1458,7 +1412,6 @@ Args:
 
 ### `op 51` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Dolce (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Dolce speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1492,7 +1445,6 @@ Args:
 
 ### `op 52` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1526,7 +1478,6 @@ Args:
 
 ### `op 53` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Jones (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Jones speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1560,7 +1511,6 @@ Args:
 
 ### `op 54` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1594,7 +1544,6 @@ Args:
 
 ### `op 55` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Nancy (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Nancy speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1628,7 +1577,6 @@ Args:
 
 ### `op 56` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1662,7 +1610,6 @@ Args:
 
 ### `op 57` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Leon (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Leon speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1696,7 +1643,6 @@ Args:
 
 ### `op 58` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1730,7 +1676,6 @@ Args:
 
 ### `op 59` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ventuswill (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ventuswill speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1764,7 +1709,6 @@ Args:
 
 ### `op 60` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1798,7 +1742,6 @@ Args:
 
 ### `op 61` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Son (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Son speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1832,7 +1775,6 @@ Args:
 
 ### `op 62` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1866,7 +1808,6 @@ Args:
 
 ### `op 63` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Daughter (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Daughter speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1900,7 +1841,6 @@ Args:
 
 ### `op 64` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1934,7 +1874,6 @@ Args:
 
 ### `op 65` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Pico (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Pico speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -1968,7 +1907,6 @@ Args:
 
 ### `op 66` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Slot 25 has no portrait art: only the name plate changes, the previous portrait stays up.
@@ -2002,7 +1940,6 @@ Args:
 
 ### `op 67` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Soldier (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Soldier speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. Slot 25 has no portrait art: only the name plate changes, the previous portrait stays up.
@@ -2036,7 +1973,6 @@ Args:
 
 ### `op 68` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -2070,7 +2006,6 @@ Args:
 
 ### `op 69` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Ethelberd (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Ethelberd speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -2104,7 +2039,6 @@ Args:
 
 ### `op 70` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -2138,7 +2072,6 @@ Args:
 
 ### `op 71` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Barrett (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Barrett speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -2172,7 +2105,6 @@ Args:
 
 ### `op 72` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -2206,7 +2138,6 @@ Args:
 
 ### `op 73` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Raven (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Raven speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue.
@@ -2240,7 +2171,6 @@ Args:
 
 ### `op 74` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Left (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the left side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. CRASHES THE GAME: slot 29 has no portrait art and the portrait code dereferences the missing sprite (in-game 2026-10-02, op 74; op 75 takes the same path). Unused by the shipped scripts.
@@ -2274,7 +2204,6 @@ Args:
 
 ### `op 75` — SetSpeaker(character, side, face, trigger1, trigger2, trigger3)
 *opcode arguments:* character = Traveler (opcode = 16 + 2 * character + side), side = Right (opcode & 1)
-*handler:* `Script_VMOp_SetSpeaker`
 *verified:* yes, in game
 
 Speaker cue for the following DIALOG line(s): Traveler speaks, portrait on the right side. Shows the E-mote portrait with the given face, sets the name plate and text blip when the speaker changes, and optionally plays a voice clip and shows up to two emote icons over the portrait (186 blush, 187 teardrop, 188 sweat, 189 white puff, 190 '!', 191 '?', 192 '!?'; a third icon is ignored; a voice id 0x1000000+n plays the clip). Carries no text; stays in effect until the next speaker op or EndDialogue. CRASHES THE GAME: slot 29 has no portrait art and the portrait code dereferences the missing sprite (in-game 2026-10-02, op 74; op 75 takes the same path). Unused by the shipped scripts.
@@ -2307,7 +2236,6 @@ Args:
      - `192` = exclaim_question
 
 ### `op 77` — SlidePortraitToX(character, x, speed)
-*handler:* `Script_VMOp_SlidePortraitToX`
 
 Slides a speaker portrait horizontally to an absolute screen x. Returns immediately; follow with WaitPortraitSettled to wait for the slide.
 
@@ -2344,7 +2272,6 @@ Args:
   2. speed (stored as ~speed*1024 per tick; corpus 40)
 
 ### `op 78` — SlidePortraitToX(character, x, speed)
-*handler:* `Script_VMOp_SlidePortraitToX`
 
 Slides a speaker portrait horizontally to an absolute screen x. Returns immediately; follow with WaitPortraitSettled to wait for the slide.
 
@@ -2381,7 +2308,6 @@ Args:
   2. speed (stored as ~speed*1024 per tick; corpus 40)
 
 ### `op 79` — SlidePortraitBy(character, dx, speed)
-*handler:* `Script_VMOp_SlidePortraitBy`
 
 Slides a speaker portrait horizontally by a relative amount (negative = left). Returns immediately; WaitPortraitSettled waits for it.
 
@@ -2418,7 +2344,6 @@ Args:
   2. speed (corpus 5..200, mostly 30-100)
 
 ### `op 80` — SlidePortraitBy(character, dx, speed)
-*handler:* `Script_VMOp_SlidePortraitBy`
 
 Slides a speaker portrait horizontally by a relative amount (negative = left). Returns immediately; WaitPortraitSettled waits for it.
 
@@ -2455,7 +2380,6 @@ Args:
   2. speed (corpus 5..200, mostly 30-100)
 
 ### `op 81` — WaitPortraitSettled(character)
-*handler:* `Script_VMOp_WaitPortraitSettled`
 
 Waits until the given speaker portrait has finished sliding. If no on-screen portrait belongs to that character it continues at once.
 
@@ -2490,7 +2414,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 82` — WaitPortraitSettled(character)
-*handler:* `Script_VMOp_WaitPortraitSettled`
 
 Waits until the given speaker portrait has finished sliding. If no on-screen portrait belongs to that character it continues at once.
 
@@ -2525,7 +2448,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 83` — ClosePortraits(which)
-*handler:* `Script_VMOp_ClosePortraits`
 
 Dismiss one or both speaker portraits and wait until they have slid away.
 
@@ -2533,7 +2455,6 @@ Args:
   0. which (0 = side-0 portrait (host+88), 1 = side-1 portrait (host+96), anything else = both)
 
 ### `op 84` — SetPortraitField62(character, value, apply)
-*handler:* `Script_VMOp_SetPortraitField62`
 
 Writes a value into an unused field of the left portrait. Every shipped use passes apply = 0, so it does nothing in the retail game; it looks like a disabled portrait 'pulse' effect (130, 90, 120, 100 in a row).
 
@@ -2570,7 +2491,6 @@ Args:
   2. apply (0 = do nothing; non-zero = write)
 
 ### `op 89` — SetPortraitTremble(character, level)
-*handler:* `Script_VMOp_SetPortraitTremble`
 
 Makes a speaker portrait tremble (shake up and down); 0 stops it. Used for scared or shivering lines.
 
@@ -2606,7 +2526,6 @@ Args:
   1. level (0 = off; 1..6 larger = faster (6 = every other frame, 3 = every 16 frames); corpus 0-6)
 
 ### `op 90` — SetPortraitTremble(character, level)
-*handler:* `Script_VMOp_SetPortraitTremble`
 
 Makes a speaker portrait tremble (shake up and down); 0 stops it. Used for scared or shivering lines.
 
@@ -2642,13 +2561,11 @@ Args:
   1. level (0 = off; 1..6 larger = faster (6 = every other frame, 3 = every 16 frames); corpus 0-6)
 
 ### `op 92` — EndDialogue()
-*handler:* `ScriptVMOp_DialogueTeardownBubblesAndCommit_NoArgs`
 *verified:* yes, in game
 
 Close the dialogue box and both portraits at the end of a spoken exchange and clear the current speaker, so the next DIALOG without a SetSpeaker is narration. Waits until the box has closed.
 
 ### `op 93` — SetDialogueBoxStyle(style)
-*handler:* `ScriptVMOp_SetDialogueSpeakerEmoteByArg`
 *verified:* yes, in game
 
 Set the message-box style for the following lines: normal, shout, thought, trembling or tail-only. The general form of the fixed box-style ops 94-97 and the only way to get style 4.
@@ -2662,31 +2579,26 @@ Args:
      - `4` = tail_only
 
 ### `op 94` — SetBoxNormal()
-*handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 *verified:* yes, in game
 
 Switch the message box to the normal style (style 0). Stays until another box-style op or the box closes.
 
 ### `op 95` — SetBoxShout()
-*handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 *verified:* yes, in game
 
 Switch the message box to the shout style (style 1): a jagged box, and the whole screen shakes when it appears (seen in game). Stays until another box-style op or the box closes.
 
 ### `op 96` — SetBoxThought()
-*handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 *verified:* yes, in game
 
 Switch the message box to the thought style (style 2): a cloud box with a bubble-trail tail that floats for about a second (does not delay the line). Stays until another box-style op or the box closes.
 
 ### `op 97` — SetBoxTrembling()
-*handler:* `ScriptVMOp_SetDialogueSpeakerEmoteFromOpcode`
 *verified:* yes, in game
 
 Switch the message box to the trembling style (style 3): a wobbly box that shakes sideways when it appears (seen in game). Stays until another box-style op or the box closes.
 
 ### `op 98` — ShakeDialogueBox(frames)
-*handler:* `Script_VMOp_ShakeDialogueBox`
 
 Shake the message box (box, name and text) for a number of frames. Only the low byte of the argument is used.
 
@@ -2694,7 +2606,6 @@ Args:
   0. frames (value & 0xFF; 9000 -> 40 frames)
 
 ### `op 243` — EndDialogueLock(mode)
-*handler:* `Script_VMOp_EndDialogueLock`
 
 Release the conversation lock so control can return to the player at the end of a talk.
 
@@ -2702,7 +2613,6 @@ Args:
   0. mode (must be 0; any other value does nothing)
 
 ### `op 319` — SetNpcNicknameForPlayer(npc, nickname)
-*handler:* `Script_VMOp_SetNpcEmoteByte`
 
 Sets what an NPC calls the player: from now on, the player-name placeholder in that NPC's lines shows the chosen nickname instead of the player's name. Used after dialogue choices like "I'll call you ..., just like always".
 
@@ -2738,7 +2648,6 @@ Args:
   1. nickname (entry of rf3TxtHeroNickName (archive 15177): 94 Darling, 95 Honey, 99 Princess, 103 Dearest, 161 My Lady, 178 Your Highness, 185 Prince ...; 0 = use the player's name)
 
 ### `op 320` — SetNpcNicknameForPlayer(npc, nickname)
-*handler:* `Script_VMOp_SetNpcEmoteByte`
 
 Sets what an NPC calls the player: from now on, the player-name placeholder in that NPC's lines shows the chosen nickname instead of the player's name. Used after dialogue choices like "I'll call you ..., just like always".
 
@@ -2774,7 +2683,6 @@ Args:
   1. nickname (entry of rf3TxtHeroNickName (archive 15177): 94 Darling, 95 Honey, 99 Princess, 103 Dearest, 161 My Lady, 178 Your Highness, 185 Prince ...; 0 = use the player's name)
 
 ### `op 365` — SetButtonIconSlot(slot, icon)
-*handler:* `Script_VMOp_WriteVarArrayKind15`
 *verified:* yes, in game
 
 Choose which button icon the ＠字＠ token in the next dialogue lines shows (e.g. 'press ＠字＠ repeatedly'). Slot 0 is the plain ＠字＠.
@@ -2808,7 +2716,6 @@ Args:
      - `193` = dpad
 
 ### `op 366` — SetTextSlotEntries(archive, slot, entries...)
-*handler:* `Script_VMOp_WriteVarArrayKind13AndKind14Multi`
 
 Fill the text slots that the ＠その他n＠ dialogue token prints: slot n shows entry bank14[n] of archive bank13[n] (with ＠ replaced by the player's name). Used for the nickname choice lists ('What would you like me to call you?'); GetVar14 (op 367) reads the entries back.
 
@@ -2818,7 +2725,6 @@ Args:
   2. entries... (entry for slot, slot+1, ...; out-of-range slots dropped)
 
 ### `op 413` — SetDialogueBoxY(y)
-*handler:* `Script_VMOp_SetEntries8DwordFromArg`
 
 Moves the dialogue box to a fixed screen height for the rest of the conversation (0 = default).
 
@@ -2826,7 +2732,6 @@ Args:
   0. y (0 = default (110); corpus 50)
 
 ### `op 415` — SetSubstitutionHighlight(enabled)
-*handler:* `Script_VMOp_SetEntries4Bit2ByZero`
 
 Turn the colour highlight of inserted words (item / map / name substitutions) off or back on for the following DIALOG lines.
 
@@ -2834,7 +2739,6 @@ Args:
   0. enabled (0 = turn the highlight markup of substituted text OFF (sets global bit 4); non-zero = back on)
 
 ### `op 555` — SetNpcAttentionRadius(npc, radius)
-*handler:* `Script_VMOp_SetNpcAttentionRadius`
 
 Set how far away an NPC 'radiates' for chatter: villagers within this many script position units (8 per tile) of it on the same map get flagged as its audience. 0 turns it off.
 
@@ -2870,7 +2774,6 @@ Args:
   1. radius (0 = off; 8 per tile (60 = 7.5 tiles); stored as a byte, so 1000 becomes 232)
 
 ### `op 556` — SetNpcAttentionRadius(npc, radius)
-*handler:* `Script_VMOp_SetNpcAttentionRadius`
 
 Set how far away an NPC 'radiates' for chatter: villagers within this many script position units (8 per tile) of it on the same map get flagged as its audience. 0 turns it off.
 
@@ -2906,7 +2809,6 @@ Args:
   1. radius (0 = off; 8 per tile (60 = 7.5 tiles); stored as a byte, so 1000 becomes 232)
 
 ### `op 610` — SetChoiceVisibleMask(choice visible...)
-*handler:* `Script_VMOp_SetSceneChoiceVisibleMaskFromArgs`
 
 Choose which options the next choice menu shows: one flag per option (arg i non-zero shows option i). Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.
 
@@ -2914,7 +2816,6 @@ Args:
   0. choice visible... (arg i non-zero shows option i of the next PROMPT_CHOICE (i < 32; higher args wrap))
 
 ### `op 611` — ClearChoiceVisibleRange(start, count)
-*handler:* `Script_VMOp_ClearSceneChoiceVisibleMaskRange`
 
 Hide a run of options (start .. start+count-1) in the next choice menu's visibility mask. Hidden options close up, and the menu jumps to the target of the VISIBLE row the player picked (the first listed target for the first shown option ...), not of the option -- so masked menus usually give every option the same target and SWITCH on reg0, where the pick writes the option's ORIGINAL index. The mask is for the next menu only (picking clears it). An all-zero mask means no mask: every option shows and reg0 is left as it was.
 
@@ -2923,7 +2824,6 @@ Args:
   1. count (number of options to hide (not an end index))
 
 ### `op 612` — SetChoiceVisibleBit(index, visible)
-*handler:* `Script_VMOp_ToggleSceneChoiceVisibleBit`
 *verified:* yes, in game
 
 Show or hide one option of the next choice menu by setting / clearing its bit in the visibility mask. The mask only counts once a bit is set: then only the options with set bits show; while it is empty every option shows (seen in game). Careful: with an option hidden the menu jumps by visible position (the 2nd shown option takes the 2nd listed target), so shipped scripts send every option to one label and branch on reg0.
@@ -2933,7 +2833,6 @@ Args:
   1. visible (non-zero shows the option, 0 hides it) — verified in game
 
 ### `op 613` — CalcChoicePrescroll(option)
-*handler:* `Script_VMOp_CalcChoiceDialogPrescrollFromVisibleMask`
 
 Choose which row the next choice menu opens on (default highlight). Call right before PROMPT_CHOICE; pass a visible-row index (subtract hidden options yourself).
 
@@ -2941,7 +2840,6 @@ Args:
   0. option (the visible row the next choice menu should open on)
 
 ### `op 614` — SetDialogueBoxMode(mode)
-*handler:* `Script_VMOp_SetDialogueSpeakerSideByte`
 *verified:* yes, in game
 
 Switch the dialogue box style for the following lines: 0 = the normal box; 1 = the Order Symbol (prince/princess) layout: the ring frame around the screen (prince_bg_01/02), the portrait 31 px higher, choice menus restyled (red diamond rows, placed right of centre), and HUD counters raised by ops 653-655 stay visible during the box; 2 = the cinematic event box: a dark see-through box in mid-screen, the speaker's name as plain text instead of the green plate, the portrait faded, a Next / Fast Fwd / View / Cancel help bar, and (per the code) no text blips. It stays set until changed; the shipped scripts only use 1 (21 times, the Order Symbol) and set it back to 0 themselves.
@@ -2953,7 +2851,6 @@ Args:
      - `2` = cinematic
 
 ### `op 615` — SetNextChoiceDescription(value 1, value 2, value 3)
-*handler:* `Script_VMOp_SetNextChoiceDescription`
 *verified:* yes, in game
 
 Make the next DIALOG the description of the next choice row instead of showing it: the Nth armed line describes row N of the following PROMPT_CHOICE / PROMPT_CHOICE_FORCED and is shown in the dialogue box while that row is highlighted. Takes 1 to 3 numbers, positional: value 1 prints through ＠金０＠, value 2 through ＠木０＠, value 3 through ＠石０＠ (shipped line 8858); values not passed are 0, and the shipped scripts mostly pass a single 0 (a description with no numbers). Give neighbouring rows different description lines: when the highlight moves to a row whose description is the same line id, the box is not reloaded and keeps the previous row's numbers (in game 2026-10-02).
@@ -2964,7 +2861,6 @@ Args:
   2. value 3 (-> var bank 6 slot 0) — verified in game
 
 ### `op 623` — SetDialogueAutoAdvance(mode)
-*handler:* `Script_VMOp_SetDialogueAutoAdvanceTimingMode`
 
 Make the following dialogue lines close by themselves (after a reading time or a fixed number of frames), or back to manual with 0. While on, the player cannot skip ahead.
 
@@ -2972,7 +2868,6 @@ Args:
   0. mode (0 = wait for the player; 1 = timer from the text length (7*(len/3)+30 frames); N >= 2 = close after N frames)
 
 ### `op 624` — SetDialogueHoldFrames(frames)
-*handler:* `Script_VMOp_SetDialogueHoldFrameCounter`
 
 Stops the player from advancing or skipping the dialogue box for the given number of frames.
 
@@ -2980,7 +2875,6 @@ Args:
   0. frames (corpus always 90 (1.5 s))
 
 ### `op 698` — SetShopkeeperMessage(message)
-*handler:* `Script_VMOp_WriteJustmMessageRegAndCallback`
 
 Show a shopkeeper line in the shop menu and remember it as the current shop greeting.
 
@@ -2988,7 +2882,6 @@ Args:
   0. message (0-359, entry of text archive 15206)
 
 ### `op 699` — SetNarrationModeIf(enable)
-*handler:* `Script_VMOp_SetDialogueSecondarySpeakerIfNonzero`
 
 Switch the dialogue box to narration mode (no name label, muted blips) - the mode byte op 614 also writes. 0 does nothing.
 
@@ -2998,7 +2891,6 @@ Args:
 ## Camera / screen
 
 ### `op 158` — SetMapAmbientColor(red, green, blue, apply_now)
-*handler:* `ScriptVM_Op_SetMapColorTriple`
 
 Override the current map's light colour with one RGB value for every time of day (day, evening and night all get the same colour). Used with a darkening loop for dramatic scenes.
 
@@ -3009,7 +2901,6 @@ Args:
   3. apply_now (non-zero = reload now; 0 = on the next map tick)
 
 ### `op 159` — ResetMapAmbientColor(apply now)
-*handler:* `Script_VMOp_ResetMapAmbientColor`
 
 Restore the map's own ambient colours after SetMapAmbientColor (op 158) tinted them, e.g. when a darkening effect ends.
 
@@ -3017,7 +2908,6 @@ Args:
   0. apply now (non-zero = reload the palette immediately; 0 = on the next map tick)
 
 ### `op 186` — SetCameraPosition(x, y, snap)
-*handler:* `Script_VMOp_SetCameraPositionCoords`
 
 Points the camera at a tile. With snap = 1 the camera cuts there immediately (the usual use); with 0 it only sets the target, clamped to the map's camera bounds.
 
@@ -3027,7 +2917,6 @@ Args:
   2. snap (1 = cut there now; 0 = set the target only)
 
 ### `op 187` — ReattachCameraToActor(character, snap)
-*handler:* `Script_VMOp_ResetCameraToActorVariant`
 
 Hand the camera back to the player rig after scripted camera work and, optionally, snap it straight onto a character (usually the player or the NPC just placed).
 
@@ -3036,7 +2925,6 @@ Args:
   1. snap (non-zero = hard-snap camera target/position to the character; 0 = only re-attach)
 
 ### `op 188` — HoldCameraInPlace(exact)
-*handler:* `Script_VMOp_SnapCameraToPlayer`
 
 Stop the camera from following the player and leave it where it is, so actors can walk out of or around a fixed shot.
 
@@ -3044,7 +2932,6 @@ Args:
   0. exact (1 = keep the exact current position (corpus always 1); 0 = commit it clamped into the map's camera bounds)
 
 ### `op 189` — ResetCameraToPlayer(snap)
-*handler:* `Script_VMOp_WarpPlayerAndResetCamera`
 
 Gives the camera back to the player (normal follow camera). With snap = 1 it also cuts straight to the player's position, typically right after warping the player.
 
@@ -3052,7 +2939,6 @@ Args:
   0. snap (1 = also cut the camera to the player now)
 
 ### `op 190` — SetCameraTarget(x, y, speed)
-*handler:* `Script_VMOp_SetCameraTarget`
 
 Pans the camera to a tile at a constant speed. Follow with WaitCameraAtMark to hold the script until it arrives.
 
@@ -3062,7 +2948,6 @@ Args:
   2. speed (arg/100 tiles per frame, max 15; corpus 50-800, 200 and 400 typical)
 
 ### `op 191` — ResetCameraToActor(actor, speed)
-*handler:* `Script_VMOp_ResetCameraToActor`
 
 Re-attach the camera to follow an actor and bring it onto that actor (snap or ease). Holds the script for a few frames while the camera settles.
 
@@ -3071,7 +2956,6 @@ Args:
   1. speed (0 = snap camera target+position onto the actor; -1 (65535) = attach only; other = ease speed (/100 tiles per frame, same channel as op 190; 200 typical))
 
 ### `op 192` — ResetCameraToActor(actor, speed)
-*handler:* `Script_VMOp_ResetCameraToActor`
 
 Re-attach the camera to follow an actor and bring it onto that actor (snap or ease). Holds the script for a few frames while the camera settles.
 
@@ -3080,7 +2964,6 @@ Args:
   1. speed (0 = snap camera target+position onto the actor; -1 (65535) = attach only; other = ease speed (/100 tiles per frame, same channel as op 190; 200 typical))
 
 ### `op 193` — SetCameraTargetToCurrentPosition(speed)
-*handler:* `Script_VMOp_SetCameraAnchorToPlayerOrTarget`
 
 Makes the camera's current position its target so it stops where it is. A non-zero speed first clamps that position into the map's camera bounds and eases there. Unused by the shipped scripts.
 
@@ -3088,7 +2971,6 @@ Args:
   0. speed (0 = hold exactly where it is; -1 = clamp only; other = pull back inside the bounds at arg/100 tiles per frame)
 
 ### `op 194` — FocusCameraOnPlayer(unused)
-*handler:* `Script_VMOp_FocusCameraOnPlayerWait`
 
 Point the camera target back at the player (clamped to the map bounds) and hold the script for 3 frames. Usually followed by WaitCameraAtMark.
 
@@ -3096,12 +2978,10 @@ Args:
   0. unused (retail passes 200/300/400; the handler reads no args)
 
 ### `op 195` — WaitCameraAtMark()
-*handler:* `Script_VMOp_QueryCameraAtMarkAnchor`
 
 Wait until the camera has arrived at the target set by SetCameraPosition / SetCameraTarget (within half a tile on each axis). This paces scripted camera pans.
 
 ### `op 196` — WaitCameraNearMark(range)
-*handler:* `Script_VMOp_QueryPlayerMovedBeyondDistFromAnchor`
 
 Wait until the camera is within [range] tiles of its target on both axes: WaitCameraAtMark with a custom tolerance.
 
@@ -3109,7 +2989,6 @@ Args:
   0. range (per-axis tolerance)
 
 ### `op 197` — ShakeCamera(kind, duration)
-*handler:* `Script_OpRequestCameraJitterEffect`
 *verified:* yes, in game
 
 Shake the screen for a number of frames. A running shake is only replaced by an equal or stronger kind; kind 0 stops it.
@@ -3126,7 +3005,6 @@ Args:
   1. duration (frames (60 = 1 s; seen in game); 0 = no limit, until ShakeCamera(0, 0) or a stronger shake) — verified in game
 
 ### `op 199` — SetCameraTargetActor(actor, speed)
-*handler:* `Script_VMOp_SetCameraTargetActor`
 
 Pans the camera to where an actor stands now (it does not keep following). Follow with WaitCameraAtMark.
 
@@ -3135,7 +3013,6 @@ Args:
   1. speed (arg/100 tiles per frame, max 15; corpus 100-800)
 
 ### `op 200` — SetCameraTargetActor(actor, speed)
-*handler:* `Script_VMOp_SetCameraTargetActor`
 
 Pans the camera to where an actor stands now (it does not keep following). Follow with WaitCameraAtMark.
 
@@ -3144,7 +3021,6 @@ Args:
   1. speed (arg/100 tiles per frame, max 15; corpus 100-800)
 
 ### `op 201` — SetCameraSettleMode(on)
-*handler:* `Script_VMOp_SetCameraSettleMode`
 
 Turns on (or off) the camera's soft landing: scripted pans slow down as they reach their target instead of stopping abruptly.
 
@@ -3152,7 +3028,6 @@ Args:
   0. on (non-zero = on, 0 = off; corpus always 1)
 
 ### `op 202` — SetCameraZoom(zoom, snap)
-*handler:* `Script_VMOp_SetCameraZoom`
 *verified:* yes, in game
 
 Set the camera zoom (pull-back distance), either easing to it or snapping.
@@ -3162,7 +3037,6 @@ Args:
   1. snap (0 = glide to the new distance at a steady 8 units per frame; non-zero = jump to it at once (both seen in game)) — verified in game
 
 ### `op 203` — SetCameraMapBounds(apply_zoom)
-*handler:* `Script_VMOp_ApplyCameraMapBoundsAndZoom`
 
 Restore the normal map camera after scripted camera moves: re-applies the current map's camera clamp bounds and the small-map zoom.
 
@@ -3170,7 +3044,6 @@ Args:
   0. apply_zoom (0 = write the small-map camera distance into the player camera rig (work+68) only; non-zero = apply it via Camera_SetDistanceAndZoomFactor)
 
 ### `op 334` — FadeScreen(target, duration)
-*handler:* `Script_VMOp_BeginDualScreenFadeWithKindAndDuration`
 *verified:* yes, in game
 
 Fade the screen to black or white (or partly). Returns at once; follow with WaitForFade to wait for it. Only the opacity fades: the colour (black / white) switches at once, so fade to white from a clear screen, not from black. Without WaitForFade the next statements run while it fades, and a later FadeScreen takes over from the current opacity. A dialogue line waits for the fade to finish but is drawn under the overlay, so fade back before showing text.
@@ -3180,7 +3053,6 @@ Args:
   1. duration (frames = duration/100 (6000 = 60 frames = 1 s); 0 = immediate; 100..199 is also immediate) — verified in game
 
 ### `op 335` — FadeScreenToClear(duration)
-*handler:* `Script_VMOp_FadeScreenToClearOverDuration`
 *verified:* yes, in game
 
 Fade the screen back in (to fully clear) over the given time, keeping the current fade colour. The reveal counterpart of FadeScreen (op 334); follow with WaitForFade to block.
@@ -3189,7 +3061,6 @@ Args:
   0. duration (frames = value / 100 (6000 = 60 frames = 1 s)) — verified in game
 
 ### `op 336` — SetFadeColor(red, green, blue, frames)
-*handler:* `Script_VMOp_SetFadeColorRGBOverDuration`
 
 Set the colour the screen fades through (e.g. white 255,255,255 or black 0,0,0), either instantly or blended over a number of frames. Pair with FadeScreen.
 
@@ -3200,7 +3071,6 @@ Args:
   3. frames (0 = snap; n = reach the colour over n fade-task steps)
 
 ### `op 412` — BlackScreen(to_black, duration)
-*handler:* `rf3sScriptExecExtCmd_BlackScreen`
 *verified:* yes, in game
 
 Fade to or from a solid black overlay and wait for the fade to finish. The overlay is separate from FadeScreen and is not removed when the scene ends: a scene that leaves it on keeps the screen black through warps and later scenes until something calls BlackScreen(0, ...) (observed in the custom opening, 2026-10-03). Shipped scenes always pair the two (101 x on, 102 x off).
@@ -3210,7 +3080,6 @@ Args:
   1. duration (fade length handed to FadeTask_Init (15/30/60/180 in the corpus); 0 or -1 = immediate) — verified in game
 
 ### `op 595` — SetMinimapMarker(target)
-*handler:* `Script_VMOp_SetMinimapMarkerOrClear`
 
 Show a marker on the minimap (value stored as its target), or clear it with -1. The scene flag it sets is cleared again when the event ends.
 
@@ -3244,7 +3113,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 617` — ShowStaffCredits(mode)
-*handler:* `Script_VMOp_SpawnOrConfigureItemPickupIconTaskStaff`
 
 Starts the staff-credits sequence; calling it again while the credits task runs signals it to finish.
 
@@ -3256,30 +3124,25 @@ Args:
      - `3` = Credits (top)
 
 ### `op 618` — WaitStaffCreditsDone()
-*handler:* `Script_VMOp_QueryActiveItemPickupIcon`
 
 Wait until the staff-credits roll started by ShowStaffCredits (op 617) has finished.
 
 ### `op 653` — ShowLumberCounter()
-*handler:* `Script_VMOp_ShowLumberCounter`
 *verified:* yes, in game
 
 Make the lumber counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.
 
 ### `op 654` — ShowStoneCounter()
-*handler:* `Script_VMOp_ShowStoneCounter`
 *verified:* yes, in game
 
 Make the material stone counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.
 
 ### `op 655` — ShowPrincePointCounter()
-*handler:* `Script_VMOp_ShowPrincePointCounter`
 *verified:* yes, in game
 
 Make the Prince Points counter in the screen corner slide in and show the player's current amount (it slides away again after a few seconds). To have it visible during a scene, call SetDialogueBoxMode(1) after it, before the dialogue (as the Order Symbol does); otherwise it only appears once the scene ends. Once shown during a scene it stays on screen until the scene ends.
 
 ### `op 656` — SetMapScrollSpeedX(speed, snap)
-*handler:* `Script_VMOp_SetMapUvScrollSpeedXTarget`
 
 Set how fast the map's scrolling layer moves horizontally (the cloud sky on the airship deck); 0 stops it. Op 657 is the vertical channel.
 
@@ -3288,7 +3151,6 @@ Args:
   1. snap (1 = jump to the new speed, 0 = ease towards it)
 
 ### `op 657` — SetMapScrollSpeedY(speed, snap)
-*handler:* `Script_VMOp_SetMapUvScrollSpeedYTarget`
 
 Set the Y speed of the map's scrolling texture layer (e.g. flowing water). Unused by the shipped scripts.
 
@@ -3297,7 +3159,6 @@ Args:
   1. snap (non-zero = jump to it, 0 = ease)
 
 ### `op 683` — PlayCutsceneVideo(video)
-*handler:* `Script_VMOp_PlayCutsceneVideoOrAdvanceDialogue`
 *verified:* yes, in game
 
 Play a full-motion video. If a dialogue box is still open, it is closed first and the op waits.
@@ -3345,7 +3206,6 @@ Args:
      - `38` = m20_leon
 
 ### `op 685` — SetFreeLookCameraMode(mode)
-*handler:* `Script_VMOp_SetGlobalDword302E4`
 
 Control the free-look camera task: enable stick control, exit or pause it.
 
@@ -3353,12 +3213,10 @@ Args:
   0. mode (0 = default, 1 = stick/d-pad drives the free-look camera, 2 = exit (sfx 0x100223F, word reset, task paused), 3 = pause without reset)
 
 ### `op 687` — RebuildMinimap()
-*handler:* `Script_VMOp_RebuildMinimapForActiveContext`
 
 Rebuild the minimap for the current map, e.g. after a bridge or gate flag changed.
 
 ### `op 688` — ToggleMinimap(visible)
-*handler:* `Script_VMOp_ToggleMinimapVisibilityAndQueueFade`
 
 Shows or hides the minimap (with its fade).
 
@@ -3368,7 +3226,6 @@ Args:
 ## Actors & player
 
 ### `op 85` — SetPortraitTargetY(character, target_y)
-*handler:* `Script_VMOp_SetPortraitTargetY`
 
 Move a speaker portrait vertically: sets a target screen y that the portrait eases toward (1/4 of the remaining distance per frame).
 
@@ -3404,7 +3261,6 @@ Args:
   1. target_y (0 = no easing (y holds))
 
 ### `op 86` — SetPortraitTargetY(character, target_y)
-*handler:* `Script_VMOp_SetPortraitTargetY`
 
 Move a speaker portrait vertically: sets a target screen y that the portrait eases toward (1/4 of the remaining distance per frame).
 
@@ -3440,7 +3296,6 @@ Args:
   1. target_y (0 = no easing (y holds))
 
 ### `op 87` — JoltPortraitY(character, jolt)
-*handler:* `Script_VMOp_JoltPortraitY`
 
 Give a speaker portrait a quick vertical jolt (a hop or drop that springs back), e.g. when a character is startled.
 
@@ -3476,7 +3331,6 @@ Args:
   1. jolt (extra y offset, halves toward 0 every frame)
 
 ### `op 88` — JoltPortraitY(character, jolt)
-*handler:* `Script_VMOp_JoltPortraitY`
 
 Give a speaker portrait a quick vertical jolt (a hop or drop that springs back), e.g. when a character is startled.
 
@@ -3512,7 +3366,6 @@ Args:
   1. jolt (extra y offset, halves toward 0 every frame)
 
 ### `op 99` — TeleportActor(actor, x, y)
-*handler:* `Script_VMOp_TeleportActorToCoords`
 *verified:* yes, in game
 
 Instantly puts an actor (player or NPC) on a spot, without a walk animation. An NPC is loaded into the map if needed.
@@ -3550,7 +3403,6 @@ Args:
   2. y (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
 
 ### `op 100` — TeleportActor(actor, x, y)
-*handler:* `Script_VMOp_TeleportActorToCoords`
 
 Instantly puts an actor (player or NPC) on a tile, without a walk animation. An NPC is loaded into the map if needed.
 
@@ -3587,7 +3439,6 @@ Args:
   2. y (script units, 8 per tile; +x = right, +y = down (toward the camera)) — verified in game
 
 ### `op 101` — PlaceActorAndFace(actor, x, y, facing)
-*handler:* `ScriptAction_PlaceActorOrSetFacing`
 *verified:* yes, in game
 
 Teleport an actor to a spot and set its facing instantly. Streams the NPC into the map if it is not loaded yet.
@@ -3626,7 +3477,6 @@ Args:
   3. facing (0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)) — verified in game
 
 ### `op 102` — PlaceActorAndFace(actor, x, y, facing)
-*handler:* `ScriptAction_PlaceActorOrSetFacing`
 
 Teleport an actor to a tile and set its facing instantly. Streams the NPC into the map if it is not loaded yet.
 
@@ -3664,7 +3514,6 @@ Args:
   3. facing (0-359 degrees, counter-clockwise on screen: 0 = facing down (toward the camera), 90 = right, 180 = up (away), 270 = left (seen in game 2026-10-06)) — verified in game
 
 ### `op 103` — TurnActorToAngle(actor, facing, ease)
-*handler:* `ScriptVM_Op_SetEntityFacingAngleByteScaled`
 *verified:* yes, in game
 
 Turn an actor (player or NPC) to a fixed compass direction, either instantly or easing toward it. Pair with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145) to wait for the turn.
@@ -3702,7 +3551,6 @@ Args:
   2. ease (0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame)) — verified in game
 
 ### `op 104` — TurnActorToAngle(actor, facing, ease)
-*handler:* `ScriptVM_Op_SetEntityFacingAngleByteScaled`
 
 Turn an actor (player or NPC) to a fixed compass direction, either instantly or easing toward it. Pair with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145) to wait for the turn.
 
@@ -3739,7 +3587,6 @@ Args:
   2. ease (0 = snap instantly; n = each frame close 1/2^n of the remaining angle (2 = a quarter per frame)) — verified in game
 
 ### `op 106` — RotateActorInPlace(npc, degrees, frames)
-*handler:* `ScriptVM_Op_RotateEntityFacingByStepsWithCounter`
 
 Spins an NPC in place: turns it by the given degrees every frame for the given number of frames, and waits until done.
 
@@ -3776,7 +3623,6 @@ Args:
   2. frames (corpus 9..120; <= 0 never finishes)
 
 ### `op 107` — TurnActorToFaceTarget(turner, target, ease)
-*handler:* `ScriptAction_TurnActorToFaceTarget`
 *verified:* yes, in game
 
 Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).
@@ -3841,7 +3687,6 @@ Args:
   2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)) — verified in game
 
 ### `op 108` — TurnActorToFaceTarget(turner, target, ease)
-*handler:* `ScriptAction_TurnActorToFaceTarget`
 
 Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).
 
@@ -3905,7 +3750,6 @@ Args:
   2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)) — verified in game
 
 ### `op 109` — TurnActorToFaceTarget(turner, target, ease)
-*handler:* `ScriptAction_TurnActorToFaceTarget`
 
 Turn one actor to look at another - the usual setup before two characters talk. The turn snaps or eases; wait for it with WaitActorMoveDone (op 129) / WaitPlayerMoveDone (op 145).
 
@@ -3969,7 +3813,6 @@ Args:
   2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame (corpus mostly 2)) — verified in game
 
 ### `op 110` — FaceEventActor(actor, event_actor, ease)
-*handler:* `Script_VMOp_FaceEventActor`
 
 Turns an actor (player or NPC) to face an event actor, i.e. a monster or prop the scene registered under an event key. Does not wait; follow with WaitActorMoveDone / WaitPlayerMoveDone.
 
@@ -4006,7 +3849,6 @@ Args:
   2. ease (0 = snap, 1-3 = ease (2 in 101 of 113 uses))
 
 ### `op 111` — SetActorAuxYaw(actor, angle)
-*handler:* `Script_VMOp_SetActorRotationRaw`
 
 Sets the target of an actor's secondary yaw (a second rotation separate from the body facing that TurnActorToAngle changes); the engine eases towards it. Scenes use it after an emote to make a character glance aside and back (60 then 0). Pair with WaitActorAuxYaw.
 
@@ -4042,7 +3884,6 @@ Args:
   1. angle (target of the secondary yaw; corpus 0, +/-30..60, 315-340)
 
 ### `op 112` — SetActorAuxYaw(actor, angle)
-*handler:* `Script_VMOp_SetActorRotationRaw`
 
 Sets the target of an actor's secondary yaw (a second rotation separate from the body facing that TurnActorToAngle changes); the engine eases towards it. Scenes use it after an emote to make a character glance aside and back (60 then 0). Pair with WaitActorAuxYaw.
 
@@ -4078,7 +3919,6 @@ Args:
   1. angle (target of the secondary yaw; corpus 0, +/-30..60, 315-340)
 
 ### `op 113` — WaitActorAuxYaw(actor)
-*handler:* `Script_VMOp_QueryActorRotating`
 
 Waits until the actor's secondary yaw has reached the target set by SetActorAuxYaw.
 
@@ -4113,7 +3953,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 114` — WaitActorAuxYaw(actor)
-*handler:* `Script_VMOp_QueryActorRotating`
 
 Waits until the actor's secondary yaw has reached the target set by SetActorAuxYaw.
 
@@ -4148,7 +3987,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 115` — WalkActorToAndFace(actor, x, y, facing, speed, jump)
-*handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
 Walk an actor to an absolute position and turn it to the given facing at the end. Returns at once; follow with WaitActorMoveDone to wait for arrival. Like every NPC move op it marks the NPC scene-controlled, so its schedule does not move it again until the scene ends.
 
@@ -4188,7 +4026,6 @@ Args:
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
 ### `op 116` — WalkActorToAndFace(actor, x, y, facing, speed, jump)
-*handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiAndFace`
 
 Walk an actor to an absolute position and turn it to the given facing at the end. Returns at once; follow with WaitActorMoveDone to wait for arrival. Like every NPC move op it marks the NPC scene-controlled, so its schedule does not move it again until the scene ends.
 
@@ -4228,7 +4065,6 @@ Args:
   5. jump (non-zero = run/jump: speed x1.2 and jump bit 0x800000)
 
 ### `op 117` — WalkActorTo(actor, x, y, speed, jump)
-*handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
 Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
 
@@ -4267,7 +4103,6 @@ Args:
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 118` — WalkActorTo(actor, x, y, speed, jump)
-*handler:* `ScriptAction_MoveActorToAbsoluteTile_LockAiNoFace`
 
 Walks an NPC to an absolute position, turning to face the way it walks (no end facing). Does not wait; follow with WaitActorMoveDone.
 
@@ -4306,7 +4141,6 @@ Args:
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 119` — StepNpcTo(npc, x, y, speed, jump)
-*handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
 Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
 
@@ -4345,7 +4179,6 @@ Args:
   4. jump (non-zero = run/jump: speed x1.2 and jump bit)
 
 ### `op 120` — StepNpcTo(npc, x, y, speed, jump)
-*handler:* `ScriptVMOp_NpcStartMoveWithSpeedAndMode`
 
 Move an NPC to an absolute position without turning it (side-step / back-pedal), then lock its AI. Returns at once; use WaitActorMoveDone to wait.
 
@@ -4384,7 +4217,6 @@ Args:
   4. jump (non-zero = run/jump: speed x1.2 and jump bit)
 
 ### `op 121` — MoveNpcToPosKeepAnim(npc, x, y, speed)
-*handler:* `Script_VMOp_MoveNpcToTileKeepAnim`
 
 Moves an NPC to an absolute position while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
 
@@ -4422,7 +4254,6 @@ Args:
   3. speed (corpus 17-800)
 
 ### `op 122` — MoveNpcToPosKeepAnim(npc, x, y, speed)
-*handler:* `Script_VMOp_MoveNpcToTileKeepAnim`
 
 Moves an NPC to an absolute position while keeping the animation that is currently playing (e.g. a knocked-back or flying pose started with PlayActorAnim), instead of switching to the walk cycle.
 
@@ -4460,7 +4291,6 @@ Args:
   3. speed (corpus 17-800)
 
 ### `op 123` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
-*handler:* `ScriptAction_MoveActorToRelativeOffsetAndFace`
 
 Walks an actor (player or NPC) by a relative offset in script units (8 per tile) from where it stands and turns it to the given facing at the end. Does not wait.
 
@@ -4500,7 +4330,6 @@ Args:
   5. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 124` — MoveActorByOffset(actor, dx, dy, facing, speed, jump)
-*handler:* `ScriptAction_MoveActorToRelativeOffsetAndFace`
 
 Walks an actor (player or NPC) by a relative offset in script units (8 per tile) from where it stands and turns it to the given facing at the end. Does not wait.
 
@@ -4540,7 +4369,6 @@ Args:
   5. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 125` — MoveActorByOffsetFaceTravel(actor, dx, dy, speed, jump)
-*handler:* `ScriptAction_MoveActorToRelativeOffset_InterruptAi`
 
 Walks an actor (player or NPC) by a relative offset in script units (8 per tile), facing the way it walks. Does not wait.
 
@@ -4579,7 +4407,6 @@ Args:
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 126` — MoveActorByOffsetFaceTravel(actor, dx, dy, speed, jump)
-*handler:* `ScriptAction_MoveActorToRelativeOffset_InterruptAi`
 
 Walks an actor (player or NPC) by a relative offset in script units (8 per tile), facing the way it walks. Does not wait.
 
@@ -4618,7 +4445,6 @@ Args:
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 127` — MoveActorByOffsetKeepFacing(actor, dx, dy, speed, jump)
-*handler:* `ScriptAction_MoveActorToRelativeOffset_NoFaceUpdate`
 
 Moves an actor (player or NPC) by a relative offset in script units (8 per tile) while keeping its current facing, e.g. a step back or a side-step. Does not wait.
 
@@ -4657,7 +4483,6 @@ Args:
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 128` — MoveActorByOffsetKeepFacing(actor, dx, dy, speed, jump)
-*handler:* `ScriptAction_MoveActorToRelativeOffset_NoFaceUpdate`
 
 Moves an actor (player or NPC) by a relative offset in script units (8 per tile) while keeping its current facing, e.g. a step back or a side-step. Does not wait.
 
@@ -4696,7 +4521,6 @@ Args:
   4. jump (0 = walk, non-zero = jump/run gait, speed x1.2)
 
 ### `op 129` — WaitActorMoveDone(actor, ignored...)
-*handler:* `Script_VMOp_QueryNpcAnimDone`
 
 Wait until an actor has finished its scripted move and any pending turn. Put it after Move*/Turn* ops. For actor 0 it waits on the player (same as WaitPlayerMoveDone (op 145)).
 
@@ -4732,7 +4556,6 @@ Args:
   1. ignored... (extra args are accepted but never read (corpus has up to 6))
 
 ### `op 130` — WaitActorMoveDone(actor, ignored...)
-*handler:* `Script_VMOp_QueryNpcAnimDone`
 
 Wait until an actor has finished its scripted move and any pending turn. Put it after Move*/Turn* ops. For actor 0 it waits on the player (same as WaitPlayerMoveDone (op 145)).
 
@@ -4768,7 +4591,6 @@ Args:
   1. ignored... (extra args are accepted but never read (corpus has up to 6))
 
 ### `op 131` — WaitActorNearMoveTarget(actor, range)
-*handler:* `ScriptVM_Op_QueryEntityBeyondRangeOfTarget`
 
 Wait until an actor has come within [range] tiles of the destination of its current move, so the script can chain the next waypoint before the actor stops.
 
@@ -4804,7 +4626,6 @@ Args:
   1. range (octagonal distance, same units as the move x/y)
 
 ### `op 132` — WaitActorNearMoveTarget(actor, range)
-*handler:* `ScriptVM_Op_QueryEntityBeyondRangeOfTarget`
 
 Wait until an actor has come within [range] tiles of the destination of its current move, so the script can chain the next waypoint before the actor stops.
 
@@ -4840,7 +4661,6 @@ Args:
   1. range (octagonal distance, same units as the move x/y)
 
 ### `op 133` — PlayActorAnim(actor, anim, loop)
-*handler:* `Script_VMOp_PlayActorActionAnim`
 
 Play an animation clip on an actor, looping or once. Anim id 1 returns the actor to its default idle behaviour. For the player it first enters the scripted-talk state.
 
@@ -4877,7 +4697,6 @@ Args:
   2. loop (non-zero sets scene_node flag 4 (loop/hold); 0 clears it for NPCs only)
 
 ### `op 134` — PlayActorAnim(actor, anim, loop)
-*handler:* `Script_VMOp_PlayActorActionAnim`
 
 Play an animation clip on an actor, looping or once. Anim id 1 returns the actor to its default idle behaviour. For the player it first enters the scripted-talk state.
 
@@ -4914,7 +4733,6 @@ Args:
   2. loop (non-zero sets scene_node flag 4 (loop/hold); 0 clears it for NPCs only)
 
 ### `op 137` — WaitActorAnimDone(npc)
-*handler:* `ScriptVMOp_QueryNpcExistsLoadedAndNotIdle`
 
 Wait until an NPC's current one-shot animation (e.g. after PlayActorAnim or HandOrDropItem) has finished. Returns immediately if the NPC is not spawned.
 
@@ -4949,7 +4767,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 138` — WaitActorAnimDone(npc)
-*handler:* `ScriptVMOp_QueryNpcExistsLoadedAndNotIdle`
 
 Wait until an NPC's current one-shot animation (e.g. after PlayActorAnim or HandOrDropItem) has finished. Returns immediately if the NPC is not spawned.
 
@@ -4984,7 +4801,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 141` — SetActorOpacity(actor, opacity)
-*handler:* `ScriptVMOp_SetActorInvulnerability`
 
 Fade or hide an actor's model: 0 hides it, any other value shows it at that opacity percent.
 
@@ -5020,7 +4836,6 @@ Args:
   1. opacity (0 = hide (sets hidden bit, alpha untouched); 1..100 = show at that opacity)
 
 ### `op 142` — WalkPlayerToAndFace(x, y, facing, speed, run)
-*handler:* `Script_VMOp_MoveActorToCoords`
 
 Walk or run the player to an absolute position, then turn to the given facing. Wait with WaitPlayerMoveDone (op 145).
 
@@ -5032,7 +4847,6 @@ Args:
   4. run (0 = walk, non-zero = run animation and +20% speed)
 
 ### `op 143` — WalkPlayerTo(x, y, speed, run)
-*handler:* `ScriptVM_Op_QueueMoveCommandToCoords`
 
 Walk or run the player to an absolute position, facing the direction of travel (no end facing). Wait with WaitPlayerMoveDone (op 145).
 
@@ -5043,7 +4857,6 @@ Args:
   3. run (0 = walk, non-zero = run)
 
 ### `op 144` — StepPlayerTo(x, y, speed, run)
-*handler:* `Script_VMOp_MoveActorStraight`
 
 Move the player in a straight line to an absolute position without turning (keeps the current facing, e.g. backing away or side-stepping). Wait with WaitPlayerMoveDone (op 145).
 
@@ -5054,18 +4867,15 @@ Args:
   3. run (0 = walk, non-zero = run)
 
 ### `op 145` — WaitPlayerMoveDone()
-*handler:* `Script_VMOp_QueryPlayerTurnBusy`
 *verified:* yes, in game
 
 Wait until the player has finished a scripted move (ops 142-144) and any pending scripted turn (TurnActorToAngle / TurnActorToFaceTarget on actor 0). The player counterpart of WaitActorMoveDone (op 129).
 
 ### `op 147` — RestorePlayerEquip()
-*handler:* `ScriptVMOp147_RestoreDefaultEquipAndIdle`
 
 Undo a scripted EquipItemToPlayer (op 146): put back the item that op 146 stashed and return the player to idle.
 
 ### `op 149` — PlayPlayerAnim(anim, loop)
-*handler:* `ScriptVM_Op_BeginPlayerScriptedTalkWithAnim`
 
 Play an animation on the player during a cutscene (entering scripted-talk mode first if needed). Anim 1 returns the player to the default idle. Wait for one-shot clips with op 152.
 
@@ -5074,12 +4884,10 @@ Args:
   1. loop (non-zero sets the loop bit; 0 leaves the bit unchanged)
 
 ### `op 152` — WaitPlayerAnimDone()
-*handler:* `Script_VMOp_QueryPlayerScriptReady`
 
 Waits until the player's current one-shot animation (started with the player talk/anim ops) has finished.
 
 ### `op 153` — SpawnEventActor(char, key, x, y, facing)
-*handler:* `Script_VMOp_SpawnEventActor`
 
 Spawn an event (cutscene) actor under a scene-local key, or reposition it if that key already exists. Later event-actor ops address it by the key. x / y are script units: 8 per map-editor tile, so tile (40, 15) is (320, 120), its centre (324, 124) (in game: a Captain spawned with (324, 124) stood on tile (40, 15) of Leon Karnak D19).
 
@@ -5092,7 +4900,6 @@ Args:
   4. facing
 
 ### `op 154` — SpawnEventActorVariant(char, event_key, x, y, facing, variant)
-*handler:* `Script_VMOp_SpawnEventActorVariant`
 
 Registers a new event actor (a scene extra such as a monster or crowd member) under an event key at a tile, with a variant index. Later event-actor ops address it by the key.
 
@@ -5106,7 +4913,6 @@ Args:
   5. variant (stored as variant-1; corpus 1-180 and registers)
 
 ### `op 155` — SpawnEventActorEx(char, event_key, x, y, facing, flag, scalar)
-*handler:* `Script_VMOp_SpawnEventActorEx`
 
 Registers a new event actor like SpawnEventActorVariant but with an extra flag and a percentage value whose effect is not identified. Only used for character 215 in two scenes.
 
@@ -5121,7 +4927,6 @@ Args:
   6. scalar (stored as float arg*0.01 at record +16; corpus 0/100)
 
 ### `op 156` — UnregisterEventActor(char, event_key)
-*handler:* `Script_VMOp_UnregisterEventActor`
 
 Removes an event actor that matches both the character id and the event key; the engine despawns it on its next sweep. No death animation (compare KillEventActor).
 
@@ -5131,7 +4936,6 @@ Args:
   1. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
 ### `op 160` — WalkEventActorTo(key, x, y, speed, run)
-*handler:* `Script_VMOp_MoveEventActorToTile`
 
 Walk or run an event actor to an absolute position. Updates the move if one is already in progress. Returns at once; use WaitEventActorMoveDone to wait.
 
@@ -5143,7 +4947,6 @@ Args:
   4. run (0 = walk speed base (+368), 1 = run speed base (+372))
 
 ### `op 161` — StepEventActorTo(key, x, y, speed, run)
-*handler:* `Script_VMOp_MoveEventActorToTileKeepFacing`
 
 Like WalkEventActorTo but the actor keeps its current facing while moving (side-step / back-pedal).
 
@@ -5155,7 +4958,6 @@ Args:
   4. run
 
 ### `op 162` — TurnEventActorToAngle(key, facing, ease)
-*handler:* `ScriptVMOp_SetMonsterFacingDegrees`
 
 Turn an event actor to a facing (degrees), instantly or eased. Pair with WaitEventActorMoveDone to wait for the turn.
 
@@ -5165,7 +4967,6 @@ Args:
   2. ease (turn easing: each frame the facing moves by remaining >> ease; 0 = snap, 2 = typical smooth turn)
 
 ### `op 163` — TurnEventActorToFaceTarget(event_key, target, ease)
-*handler:* `Script_VMOp_TurnEventActorToFaceTarget`
 
 Turns an event actor to face the player or an NPC.
 
@@ -5202,7 +5003,6 @@ Args:
   2. ease (0 = snap, 1-2 = ease)
 
 ### `op 164` — WaitEventActorMoveDone(event_key)
-*handler:* `Script_VMOp_WaitEventActorMoveDone`
 
 Waits until an event actor has finished walking and turning. Waiting on a key that is not registered never ends.
 
@@ -5210,7 +5010,6 @@ Args:
   0. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
 ### `op 167` — PlayEventActorAnim(event key, anim, loop)
-*handler:* `Script_VMOp_PlayEventActorAnim`
 
 Play an animation on a spawned event actor (event key 100+). Wait for a one-shot clip with WaitEventActorAnimDone (op 169).
 
@@ -5220,7 +5019,6 @@ Args:
   2. loop (non-zero = loop, 0 = play once (clears the loop bit))
 
 ### `op 168` — SkipEventActorAnimToEnd(key)
-*handler:* `Script_VMOp_SkipEventActorAnimToEnd`
 
 Jump an event actor's current animation to its last frame, so a pose just started (e.g. lying down) shows its end pose at once. The event-actor twin of SkipActorAnimToEnd (op 250).
 
@@ -5228,7 +5026,6 @@ Args:
   0. key
 
 ### `op 169` — WaitEventActorAnimDone(event_key)
-*handler:* `Script_VMOp_WaitEventActorAnimDone`
 
 Waits until an event actor's current one-shot animation (started with PlayEventActorAnim) has finished. A missing key waits forever.
 
@@ -5236,7 +5033,6 @@ Args:
   0. event_key (the scene-local key given when the event actor was spawned (corpus 100-306))
 
 ### `op 170` — SetEventActorAnimSpeed(event_key, speed_percent)
-*handler:* `Script_VMOp_SetEventActorAnimSpeed`
 
 Set a spawned event actor's animation playback speed in percent (0 freezes the current pose). Movement speed is not affected.
 
@@ -5245,7 +5041,6 @@ Args:
   1. speed_percent (100 = normal, 50 = half, 0 = freeze the pose)
 
 ### `op 171` — SetEventActorAlpha(event_key, alpha_percent)
-*handler:* `Script_VMOp_SetEventActorAlpha`
 
 Make a spawned event actor translucent (1-100 % opacity) or hide it (0). Used for ghosts and fade-in/out effects, often in a loop with a register.
 
@@ -5254,7 +5049,6 @@ Args:
   1. alpha_percent (1-100 = opacity; 0 = hide the actor)
 
 ### `op 172` — ShowEventActorEmote(event_key, emote)
-*handler:* `Script_VMOp_ShowEventActorEmote`
 
 Shows an emote icon (surprise, sweat, heart...) over an event actor, with a sound for some icons; 0 clears it.
 
@@ -5263,7 +5057,6 @@ Args:
   1. emote (0 = clear; corpus 1-27, mostly 6 and 15)
 
 ### `op 173` — SetEventActorInScriptFlag(event_key)
-*handler:* `Script_VMOp_SetEventActorInScriptFlag`
 
 Mark a spawned event actor (typically a monster) as under script control, so its monster AI takes its scripted branch. There is no op that clears the mark.
 
@@ -5271,7 +5064,6 @@ Args:
   0. event_key (key given to SpawnEventActor)
 
 ### `op 174` — AddActorHeightOffset(actor, delta)
-*handler:* `ScriptVMOp_AddVerticalVelocityToActorClampedByJumpFlag`
 
 Raise or lower a character's drawn height by a delta (negative = up). Unless the actor is flagged airborne the result is clamped so it cannot go below ground. Scripts lift with -64 and then add 8 per frame to drop back down.
 
@@ -5280,7 +5072,6 @@ Args:
   1. delta (negative = up (-64 lifts one tile-ish), positive = down)
 
 ### `op 175` — SetEventActorHeight(event key, height)
-*handler:* `Script_VMOp_SetEventActorHeight`
 
 Set a spawned event actor's height: where its overhead widgets, effects and damage numbers are placed.
 
@@ -5289,7 +5080,6 @@ Args:
   1. height (height above the actor (corpus 36))
 
 ### `op 176` — SetEventActorScale(event_key, scale)
-*handler:* `Script_VMOp_SetEventActorScale`
 
 Sets the uniform model scale of an event actor in percent (100 = normal).
 
@@ -5298,7 +5088,6 @@ Args:
   1. scale (100 = normal size, 50 = half)
 
 ### `op 177` — EnableEventActorWandering(event key, unused)
-*handler:* `ScriptVMOp_EnableEventActorWandering`
 *verified:* yes, in game
 
 Let a spawned event actor wander on its own: it stands in its idle animation for 90-217 frames, then walks in a random direction for 30-93 frames, and repeats, turning back when it strays about 42 tiles from where it stood when this op ran. Used right after SpawnEventActor / TurnEventActorIntoNpc for animals that should roam (the captive Woolies in Idra Cave B1). Leave it out to keep the actor standing still.
@@ -5308,7 +5097,6 @@ Args:
   1. unused (shipped scripts pass 1; never read) — verified in game
 
 ### `op 178` — SetEventActorAuxYaw(event_key, angle)
-*handler:* `Script_VMOp_SetEventActorAuxYaw`
 
 Sets the target of an event actor's secondary yaw, the same rotation SetActorAuxYaw sets for roster actors (not the body facing that TurnEventActorToAngle changes). The engine eases towards it; the corpus uses it to make a character glance left and right.
 
@@ -5317,7 +5105,6 @@ Args:
   1. angle (target of the secondary yaw; corpus 350, 30, 0)
 
 ### `op 179` — WaitEventActorAuxYaw(key)
-*handler:* `Script_VMOp_WaitEventActorAuxYaw`
 
 Wait until an event actor has finished turning to the angle set with SetEventActorAuxYaw (op 178). The event-actor twin of WaitActorAuxYaw (op 113).
 
@@ -5325,7 +5112,6 @@ Args:
   0. key
 
 ### `op 180` — KillEventActor(event_key)
-*handler:* `Script_VMOp_KillEventActor`
 
 Kills an event actor on the spot: it plays its death animation, is knocked back, falls and is removed.
 
@@ -5333,7 +5119,6 @@ Args:
   0. event_key (the key the event actor was spawned with)
 
 ### `op 181` — TurnEventActorIntoNpc(event_key)
-*handler:* `ScriptVMOp_TurnEventActorIntoNpc`
 *verified:* yes, in game
 
 Turn a spawned event actor into a peaceful, talkable NPC-like prop: it stops fighting altogether (no attacks on the player, no retaliation when hit, no attacks on other monsters), keeps its idle animation and stays where it is, and the player can now interact with it. Which scene talking runs is chosen by the actor's EVENT KEY: the type-2 entry with that key in the map's tail bank, then the primary bank, then the global bank (no entry = nothing happens). It is NOT removed, gets no villager features (schedule, gifts, friendship) and does not join the party. The shipped scripts call it right after SpawnEventActor for mounts and extras (e.g. Ventuswill in bank 216 before MountActor). To remove an event actor use KillEventActor or UnregisterEventActor.
@@ -5342,7 +5127,6 @@ Args:
   0. event_key (key given to SpawnEventActor) — verified in game
 
 ### `op 183` — SetActorAIScript(actor, ai script)
-*handler:* `ScriptVM_Op_SetEntityLevelAndSpawnMonster`
 
 Give an actor (usually a spawned event monster) a different monster-AI script, e.g. to make a boss start fighting or a spawned monster behave a certain way.
 
@@ -5351,7 +5135,6 @@ Args:
   1. ai script (monster AI script id (loads archive id+1); -1 = only flag the current script)
 
 ### `op 184` — SetActorIgnoredByMonsters(target, set)
-*handler:* `ScriptVMOp_SetActorOrEventActorStatusEquipBit10000000`
 
 Make monsters ignore an actor (or stop ignoring it): sets or clears the status bit that monster AI skips when choosing or keeping a target.
 
@@ -5360,7 +5143,6 @@ Args:
   1. set (non-zero sets the bit, 0 clears it)
 
 ### `op 185` — PlayActorSplash(actor)
-*handler:* `Script_VMOp_PlayActorSplashAnim`
 
 Play the water-splash reaction on a character: a squash-and-stretch bob, the splash sound and three ripple effects.
 
@@ -5395,7 +5177,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 206` — SetActorHeldItem(actor, item)
-*handler:* `Script_VMOp_CancelNpcPathOrPlayerEquipMainhand`
 *verified:* yes, in game
 
 Make an NPC hold a tool or equipment item in hand (arg 1 >= 2), restore its configured equipment (1) or clear its held tool models (0); for the player (actor 0) give the item and equip it as the weapon. It works on the NPC's equipment models, not on a hand prop given by HandOrDropItem: after HandOrDropItem(Forte, Cabbage), SetActorHeldItem(Forte, 0) left the Cabbage in her hand (she pulled it out, GetNpcHeldItem still 1, in game). In game: item 559 put a hoe in Forte's hand, 328 a sword, 0 emptied it, 1 restored her own equipment (and her gifted White Ribbon appeared on her head).
@@ -5433,7 +5214,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 207` — SetActorHeldItem(actor, item)
-*handler:* `Script_VMOp_CancelNpcPathOrPlayerEquipMainhand`
 *verified:* yes, in game
 
 Make an NPC hold an item in their hand (or put it away), or give the player an item and equip it as their weapon. Used when a character pulls out a tool or hands something over.
@@ -5471,7 +5251,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 211` — ShowActorEmote(actor, icon)
-*handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 *verified:* yes, in game
 
 Show an emote balloon icon over an actor (the player or an NPC), with a sound for some icons. Icons: 1 heart, 2 bones, 3 annoyed (scribble), 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22 bones (stays longer), 23 bad mood (scribble), 24 sleepy (growing Z), 25 treasure chest, 26 nothing (pauses the actor's action), 27 heart (pops in), 28 bones; any other id shows the anger mark; 0 clears it. All seen in game.
@@ -5531,7 +5310,6 @@ Args:
      - `28` = bones_c
 
 ### `op 212` — ShowActorEmote(actor, icon)
-*handler:* `ScriptVMOp_StopActorAnimAndClearOutfitOverride`
 *verified:* yes, in game
 
 Show an emote balloon icon over an actor (the player or an NPC), with a sound for some icons. Icons: 1 heart, 2 bones, 3 annoyed (scribble), 4 note, 5 notes, 6 '!', 7 '?', 8 '!?', 9 sweat, 10 anger mark, 11 blush, 12 turnip, 13 Zzz, 14 light bulb, 15 '…', 22 bones (stays longer), 23 bad mood (scribble), 24 sleepy (growing Z), 25 treasure chest, 26 nothing (pauses the actor's action), 27 heart (pops in), 28 bones; any other id shows the anger mark; 0 clears it. All seen in game.
@@ -5591,7 +5369,6 @@ Args:
      - `28` = bones_c
 
 ### `op 217` — ApplyFriendshipDelta(npc, mode, amount)
-*handler:* `ScriptVM_Op_ApplyFriendshipDeltaToNpc`
 
 Add to, subtract from, or set an NPC's friendship points. The mode is written as the add/sub/set keyword, not a number.
 
@@ -5628,7 +5405,6 @@ Args:
   2. amount (xp to add/subtract, or the absolute points for set)
 
 ### `op 221` — AdjustCurrentNpcFriendship(mode, amount)
-*handler:* `ScriptVMOp_NpcFriendshipAdjustByKindWithCurrentInteraction`
 
 Changes the friendship of the NPC the player is currently interacting with: add, subtract or set, chosen by the kind of the first argument. Unused by the shipped scripts.
 
@@ -5637,7 +5413,6 @@ Args:
   1. amount
 
 ### `op 222` — LockNpcPose(npc)
-*handler:* `ScriptVMOp_NpcLockFacingAndSetActionFlags`
 
 Freeze an NPC for a cutscene: saves its current facing and sets the flags that stop its AI from moving or turning it on its own.
 
@@ -5672,7 +5447,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 223` — SetNpcEngaged(npc, engaged)
-*handler:* `ScriptVMOp_SetNpcEngagedFlagAndRefreshSchedule`
 
 Pull an NPC out of its daily schedule for a scene (or hand it back), refreshing its schedule state immediately.
 
@@ -5708,7 +5482,6 @@ Args:
   1. engaged (non-zero = take the NPC out of its schedule; 0 = release it back)
 
 ### `op 224` — SetNpcEngaged(npc, engaged)
-*handler:* `ScriptVMOp_SetNpcEngagedFlagAndRefreshSchedule`
 
 Pull an NPC out of its daily schedule for a scene (or hand it back), refreshing its schedule state immediately.
 
@@ -5744,7 +5517,6 @@ Args:
   1. engaged (non-zero = take the NPC out of its schedule; 0 = release it back)
 
 ### `op 225` — StreamInNpc(npc, load)
-*handler:* `ScriptVM_Op_StreamInNpcOrRefresh`
 
 Bring an NPC's actor into the current map (or just re-apply its schedule state). Use StreamInNpcAtPos (op 246) to also place it.
 
@@ -5780,7 +5552,6 @@ Args:
   1. load (0 = only re-apply the schedule state; non-zero = force-load the NPC into the map)
 
 ### `op 233` — SkipNpcDailyGreeting(npc, unused)
-*handler:* `Script_VMOp_SkipNpcDailyGreeting`
 
 Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Traced in game 2026-10-02 (breakpoints on the talk-start code, not yet seen on screen): flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
 
@@ -5816,7 +5587,6 @@ Args:
   1. unused (never read; the corpus always passes 1)
 
 ### `op 234` — SkipNpcDailyGreeting(npc, unused)
-*handler:* `Script_VMOp_SkipNpcDailyGreeting`
 
 Mark a villager's daily greeting as already played, so their next talk skips the DailyGreeting scene (entry type 22, a morning / day / evening line picked by friendship or weather) and goes straight to normal talk. It does not hide anyone. Sets two flags: GameFlags zone-2 bit 1037 + id (cleared every morning) and record +52 bit 0x20000000 (survives sleep, cleared by the next talk); the game sets the same flag itself after a greeting has played. A greeting is also skipped when the villager has a pending type-30 event, takes part in today's town event (sub-event), or has certain story flags set, so in normal play the difference is rare. Traced in game 2026-10-02 (breakpoints on the talk-start code, not yet seen on screen): flagged Clorica / Volkanon skipped the greeting lookup, unflagged Bado ran it, all else equal. The second argument is never read.
 
@@ -5852,7 +5622,6 @@ Args:
   1. unused (never read; the corpus always passes 1)
 
 ### `op 244` — ShowNpcHeldItem(npc)
-*handler:* `Script_VMOp_BeginNpcItemShow`
 
 Make an NPC hold up the item in its hand (after HandOrDropItem); if it is already in the show pose, it puts the item away and returns to normal instead. Does nothing when the NPC holds no item.
 
@@ -5887,7 +5656,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 246` — StreamInNpcAtPos(npc, map, x, y)
-*handler:* `ScriptAction_StreamInNpcAtPosition`
 
 Brings an NPC onto a map and places it on a spot at once (no walk-in), resetting it to its idle pose.
 
@@ -5925,7 +5693,6 @@ Args:
   3. y (script units, 8 per tile)
 
 ### `op 248` — SetNpcVisibleFlag(npc, visible)
-*handler:* `Script_VMOp_SetNpcVisibleFlag`
 
 Set or clear an NPC's record bit 0x800 (+52), used together with SetNpcVisible when an NPC leaves a scene. What the bit gates was not traced.
 
@@ -5961,7 +5728,6 @@ Args:
   1. visible (0 sets npc record +52 bit 0x800, non-zero clears it)
 
 ### `op 249` — SetNpcVisibleFlag(npc, visible)
-*handler:* `Script_VMOp_SetNpcVisibleFlag`
 
 Set or clear an NPC's record bit 0x800 (+52), used together with SetNpcVisible when an NPC leaves a scene. What the bit gates was not traced.
 
@@ -5997,7 +5763,6 @@ Args:
   1. visible (0 sets npc record +52 bit 0x800, non-zero clears it)
 
 ### `op 250` — SkipActorAnimToEnd(actor)
-*handler:* `ScriptVMOp_SyncActorAnimFrameFromWidget`
 
 Jump an actor's current animation to its last frame, so a pose just started (e.g. lying down, sitting) shows its end pose at once.
 
@@ -6032,7 +5797,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 251` — SkipActorAnimToEnd(actor)
-*handler:* `ScriptVMOp_SyncActorAnimFrameFromWidget`
 
 Jump an actor's current animation to its last frame, so a pose just started (e.g. lying down, sitting) shows its end pose at once.
 
@@ -6067,7 +5831,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 252` — SetActorAnimSpeedScale(actor, speed)
-*handler:* `ScriptVMOp_SetActorAnimSpeedScale`
 
 Set how fast an actor's animation plays (percent). 0 freezes the current pose. The actor counterpart of SetEventActorAnimSpeed (op 170).
 
@@ -6103,7 +5866,6 @@ Args:
   1. speed (100 = normal, 50 = half, 0 = frozen, 200 = double)
 
 ### `op 253` — SetActorAnimSpeedScale(actor, speed)
-*handler:* `ScriptVMOp_SetActorAnimSpeedScale`
 
 Set how fast an actor's animation plays (percent). 0 freezes the current pose. The actor counterpart of SetEventActorAnimSpeed (op 170).
 
@@ -6139,7 +5901,6 @@ Args:
   1. speed (100 = normal, 50 = half, 0 = frozen, 200 = double)
 
 ### `op 254` — SetActorAnimFrame(actor, frame)
-*handler:* `ScriptVMOp_SetActorAnimFrameDirect`
 
 Jump an actor's current animation to a given frame (no blending); combine with SetActorAnimSpeedScale(actor, 0) to hold a pose.
 
@@ -6175,7 +5936,6 @@ Args:
   1. frame (frame of the current clip)
 
 ### `op 256` — SetActorStatusConditions(target, action)
-*handler:* `ScriptVMOp_SetActorStatusConditionsByMaskAndTargetSelect`
 
 Cure or inflict status ailments on the player or a companion. Retail only uses it to cure (action 0 or 4) before story battles.
 
@@ -6184,7 +5944,6 @@ Args:
   1. action (0 = clear 0x2F (poison/seal/paralysis/sleep + cold; keeps fatigue 0x10), 1 = set 0x2F, 2 = set cold 0x20, 3 = clear 0x0F, 4 = clear fatigue+cold 0x30; other = nothing)
 
 ### `op 261` — SetNpcRecordFlag80000000(npcs)
-*handler:* `ScriptVMOp_SetNpcFriendshipBit80000000_RangeOrList`
 
 Set bit 0x80000000 of the listed NPCs' record word +52 (or of all villagers 1..23 when arg0 is 0). What the bit does is not known.
 
@@ -6218,7 +5977,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 263` — ResetNpcToIdle(npc)
-*handler:* `ScriptVMOp_RespawnNpcAtScheduledPosition`
 
 End an NPC's scripted action: put away what it is holding, return it to its idle animation and clear its movement target. The NPC stays where it is.
 
@@ -6253,7 +6011,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 264` — ResetNpcToIdle(npc)
-*handler:* `ScriptVMOp_RespawnNpcAtScheduledPosition`
 
 End an NPC's scripted action: put away what it is holding, return it to its idle animation and clear its movement target. The NPC stays where it is.
 
@@ -6288,7 +6045,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 266` — SetOrClearNpcSchedule(npc, map, x, y, facing, apply, kind, sub kind, state)
-*handler:* `Script_VMOp_NpcScheduleOrClear`
 
 Give an NPC a scripted destination (map, tile and facing) that it walks to on its own, e.g. to gather villagers for an event; with apply = 0 the NPC's schedule work state is reset instead. Check arrival with IsNpcAtScheduledSpot (op 268).
 
@@ -6331,7 +6087,6 @@ Args:
   8. state (0/1)
 
 ### `op 267` — SetOrClearNpcSchedule(npc, map, x, y, facing, apply, kind, sub kind, state)
-*handler:* `Script_VMOp_NpcScheduleOrClear`
 
 Give an NPC a scripted destination (map, tile and facing) that it walks to on its own, e.g. to gather villagers for an event; with apply = 0 the NPC's schedule work state is reset instead. Check arrival with IsNpcAtScheduledSpot (op 268).
 
@@ -6374,7 +6129,6 @@ Args:
   8. state (0/1)
 
 ### `op 270` — ReleaseNpcScriptedPlacement(npc, full_reset)
-*handler:* `Script_VMOp_RefreshNpcSchedule`
 
 Hands an NPC that a script placed back to its normal daily schedule. Does nothing if the NPC was not script-placed.
 
@@ -6410,7 +6164,6 @@ Args:
   1. full_reset (0 = re-apply today's schedule state in place; non-zero = full schedule + AI reset)
 
 ### `op 271` — ReleaseNpcScriptedPlacement(npc, full_reset)
-*handler:* `Script_VMOp_RefreshNpcSchedule`
 
 Hands an NPC that a script placed back to its normal daily schedule. Does nothing if the NPC was not script-placed.
 
@@ -6446,7 +6199,6 @@ Args:
   1. full_reset (0 = re-apply today's schedule state in place; non-zero = full schedule + AI reset)
 
 ### `op 275` — SetNpcPresenceState(npc, mode)
-*handler:* `ScriptVMOp275_SetNpcPresenceStateAndFlag768`
 
 Start (mode 1) or end (-1) dating a villager: sets / clears record +52 bit 22, the flag IsDatingNpc (op 274) and em.bin's PARTNER_<name> queries read. Each marriage candidate's successful confession scene ends with it.
 
@@ -6482,7 +6234,6 @@ Args:
   1. mode (1 = present (corpus always 1); -1 = clear the presence bit; other = set the presence bit but clear the present flag)
 
 ### `op 281` — SetNpcDateState(npc, state)
-*handler:* `NpcSchedule_ApplyStateAndAwardFriendship`
 
 Set an NPC's date state. Setting 4 (the date went well) also awards friendship: up to the next level on the very first date, otherwise +55.
 
@@ -6524,7 +6275,6 @@ Args:
      - `5` = turned you down
 
 ### `op 284` — MountActor(character, mount_key)
-*handler:* `Script_VMOp_MountActor`
 
 Put a character on a rideable event actor (spawned with SpawnEventActor), or pass 0 to make them dismount.
 
@@ -6560,7 +6310,6 @@ Args:
   1. mount_key (0 = dismount (snap to ground); else the SpawnEventActor key of the monster to ride)
 
 ### `op 286` — ShakeActor(actor, frames)
-*handler:* `ScriptVM_Op_SetActorShakeFramesLow16`
 
 Make an actor tremble for a number of frames (a quick jitter, e.g. on an impact or a fright).
 
@@ -6596,7 +6345,6 @@ Args:
   1. frames (shake countdown (corpus 4..30))
 
 ### `op 287` — SetNpcOutfit(npc, outfit)
-*handler:* `ScriptVMOp_SetNpcOutfitVariantAndPersistBitsInRecord`
 
 Change an NPC's outfit: 0 normal clothes, 1 pajamas, 2 swimsuit (both kept until changed back), 3 the third outfit (probably wedding) for this scene only.
 
@@ -6636,7 +6384,6 @@ Args:
      - `3` = Variant 3
 
 ### `op 289` — CarryBaby(actor)
-*handler:* `ScriptVMOp_ActorCarryBaby_Dakko240`
 
 Make the player or an NPC (usually the spouse) pick up and hold the baby: spawns the baby model in their arms and plays the carry pose.
 
@@ -6671,7 +6418,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 291` — SpawnChildEventActor(x, y)
-*handler:* `Script_VMOp_SpawnChildEventActor`
 
 If the player has a child, registers the child as an event actor (key 512) at the given tile with a random facing. Unused by the shipped scripts.
 
@@ -6680,7 +6426,6 @@ Args:
   1. y (record word3)
 
 ### `op 293` — ResetNpcDailySchedule(npc, state)
-*handler:* `Script_VMOp_ResetNpcDailySchedule`
 
 Hand an NPC back to its normal daily routine at the end of a scene. With -1 the NPC gets today's schedule state again and is released from the scene.
 
@@ -6716,7 +6461,6 @@ Args:
   1. state (-1 = today's state (every corpus use); other = explicit state)
 
 ### `op 294` — ResetNpcDailySchedule(npc, state)
-*handler:* `Script_VMOp_ResetNpcDailySchedule`
 
 Hand an NPC back to its normal daily routine at the end of a scene. With -1 the NPC gets today's schedule state again and is released from the scene.
 
@@ -6752,7 +6496,6 @@ Args:
   1. state (-1 = today's state (every corpus use); other = explicit state)
 
 ### `op 295` — ResetNpcScheduleWithState(npc, state)
-*handler:* `Script_VMOp_ResetNpcScheduleWithState`
 
 Re-parse an NPC's schedule plan with an explicit state and apply today's calendar, then clear the scene's placement bit for that NPC.
 
@@ -6788,7 +6531,6 @@ Args:
   1. state (schedule state to apply)
 
 ### `op 296` — ApplyNpcScheduleState(npc, state)
-*handler:* `Script_VMOp_ApplyNpcScheduleState`
 
 Puts an NPC back where its schedule says it should be now (position and pose for a schedule state) without resetting its AI, and releases it from the scene.
 
@@ -6824,7 +6566,6 @@ Args:
   1. state (-1 = today's state (corpus always -1))
 
 ### `op 297` — ApplyNpcScheduleState(npc, state)
-*handler:* `Script_VMOp_ApplyNpcScheduleState`
 
 Puts an NPC back where its schedule says it should be now (position and pose for a schedule state) without resetting its AI, and releases it from the scene.
 
@@ -6860,7 +6601,6 @@ Args:
   1. state (-1 = today's state (corpus always -1))
 
 ### `op 298` — ApplyPendingNpcPlan(npc)
-*handler:* `NpcSchedule_ApplyPendingNpcPlan`
 
 Re-reads an NPC's schedule plan for today (including a schedule a script just set with SetOrClearNpcSchedule) and applies it, releasing the NPC from the scene.
 
@@ -6895,7 +6635,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 299` — ApplyPendingNpcPlan(npc)
-*handler:* `NpcSchedule_ApplyPendingNpcPlan`
 
 Re-reads an NPC's schedule plan for today (including a schedule a script just set with SetOrClearNpcSchedule) and applies it, releasing the NPC from the scene.
 
@@ -6930,7 +6669,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 301` — RefreshNpcScheduleForToday(npc)
-*handler:* `Script_VMOp_RefreshNpcScheduleForToday`
 
 Recompute an NPC's schedule for today and re-apply its daily plan, without releasing it from the scene. Unused by the shipped scripts.
 
@@ -6965,7 +6703,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 302` — SetNpcActionDelay(npc, wait)
-*handler:* `Script_VMOp_SetNpcActionDelayWithJitter`
 
 Make an NPC hold still for a while before resuming its schedule (used right after a conversation so the NPC does not walk off at once).
 
@@ -7001,7 +6738,6 @@ Args:
   1. wait (base wait; stored jittered to [0.75x, 1.125x); corpus 1200 / 600 / 300)
 
 ### `op 303` — SetNpcActionDelay(npc, wait)
-*handler:* `Script_VMOp_SetNpcActionDelayWithJitter`
 
 Make an NPC hold still for a while before resuming its schedule (used right after a conversation so the NPC does not walk off at once).
 
@@ -7037,12 +6773,10 @@ Args:
   1. wait (base wait; stored jittered to [0.75x, 1.125x); corpus 1200 / 600 / 300)
 
 ### `op 313` — RestorePlayerRP()
-*handler:* `Script_VMOp_RestorePlayerRPFull`
 
 Refills the player's RP to the maximum.
 
 ### `op 315` — QueueNpcGreetingEvent(x, y)
-*handler:* `Friendship_QueueNpcWaveEvent`
 
 Finds the first NPC on the current map within 16 tiles of the given tile and starts an interaction event (type 4) with it, putting the player into talk mode. Unused by the shipped scripts.
 
@@ -7051,7 +6785,6 @@ Args:
   1. y
 
 ### `op 316` — SetNpcVisible(npc, visible)
-*handler:* `Script_VMOp_SetNpcVisibility`
 
 Show or hide a spawned NPC's model. The NPC keeps existing and acting while hidden.
 
@@ -7087,7 +6820,6 @@ Args:
   1. visible (0 = hide, non-zero = show)
 
 ### `op 317` — SetNpcVisible(npc, visible)
-*handler:* `Script_VMOp_SetNpcVisibility`
 
 Show or hide a spawned NPC's model. The NPC keeps existing and acting while hidden.
 
@@ -7123,7 +6855,6 @@ Args:
   1. visible (0 = hide, non-zero = show)
 
 ### `op 322` — SetNpcNickname(npc, nickname)
-*handler:* `Script_VMOp_SetNpcMoodByte`
 
 Set the nickname the player uses for this NPC: dialogue that names the NPC through its name token (e.g. ＠ビシュナル＠) then prints this nickname. Used right after the 'what should I call you' choices.
 
@@ -7159,7 +6890,6 @@ Args:
   1. nickname (entry of text archive 15177 (nickname list); corpus 7-176)
 
 ### `op 323` — SetNpcNickname(npc, nickname)
-*handler:* `Script_VMOp_SetNpcMoodByte`
 
 Set the nickname the player uses for this NPC: dialogue that names the NPC through its name token (e.g. ＠ビシュナル＠) then prints this nickname. Used right after the 'what should I call you' choices.
 
@@ -7195,7 +6925,6 @@ Args:
   1. nickname (entry of text archive 15177 (nickname list); corpus 7-176)
 
 ### `op 327` — EndActorTransformAndSetOutfit(actor, mode)
-*handler:* `Script_VMOp_SetActorOutfitVariant`
 
 End an actor's character-change transform and/or put it in outfit variant 3 (the corpus uses 3 on the spouse in wedding-memory scenes).
 
@@ -7231,7 +6960,6 @@ Args:
   1. mode (255 = end a character-change transform; 3 = (after ending any active one) switch to outfit variant 3; other = only end an active one)
 
 ### `op 328` — EndActorTransformAndSetOutfit(actor, mode)
-*handler:* `Script_VMOp_SetActorOutfitVariant`
 
 End an actor's character-change transform and/or put it in outfit variant 3 (the corpus uses 3 on the spouse in wedding-memory scenes).
 
@@ -7267,7 +6995,6 @@ Args:
   1. mode (255 = end a character-change transform; 3 = (after ending any active one) switch to outfit variant 3; other = only end an active one)
 
 ### `op 330` — SetActorOutfit(actor, outfit)
-*handler:* `Script_VMOp_SetActorOutfitDirect`
 
 Instantly switch an actor's costume, with no transformation effect.
 
@@ -7307,7 +7034,6 @@ Args:
      - `3` = Variant 3
 
 ### `op 331` — SetActorOutfit(actor, outfit)
-*handler:* `Script_VMOp_SetActorOutfitDirect`
 
 Instantly switch an actor's costume, with no transformation effect.
 
@@ -7347,7 +7073,6 @@ Args:
      - `3` = Variant 3
 
 ### `op 369` — TryMountPlayerOnHostActor(unused)
-*handler:* `Script_VMOp_QueryPlayerCanInteractWithActor`
 
 Tries to put the player on the script's host actor (the monster being talked to) as a mount. reg1 = 0 if the player is busy; reg0 = 2 if already riding, else the mount result.
 
@@ -7355,7 +7080,6 @@ Args:
   0. unused (the handler reads no args; the corpus passes 1)
 
 ### `op 393` — FreezePlayer(release)
-*handler:* `Script_VMOp_SetPlayerScriptedFreeze`
 
 Lock the player's controls for a cutscene (0) or give them back (1). Note the inverted argument: scenes start with FreezePlayer(0) and end with FreezePlayer(1).
 
@@ -7363,7 +7087,6 @@ Args:
   0. release (0 = freeze the player, non-zero = release)
 
 ### `op 394` — WarpPlayer(x, y)
-*handler:* `Script_VMOp_TeleportPlayerToTile`
 
 Teleport the player to a position on the current map and settle them on the ground.
 
@@ -7372,7 +7095,6 @@ Args:
   1. y (script units, 8 per tile)
 
 ### `op 395` — TurnPlayerToAngle(facing, ease)
-*handler:* `Script_VMOp_SetPlayerFacingAndPose`
 *verified:* yes, in game
 
 Turn the player to face an angle: degrees counter-clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
@@ -7382,7 +7104,6 @@ Args:
   1. ease (0 = turn at once; n = turn 1/2^n of the remaining angle each frame, so a higher n is a slower, softer turn (seen in game for 0-4; the shipped scripts use 0-3)) — verified in game
 
 ### `op 396` — TurnPlayerToAngle(facing, ease)
-*handler:* `Script_VMOp_SetPlayerFacingAndPose`
 *verified:* yes, in game
 
 Turn the player to face an angle: degrees counter-clockwise on screen from facing the camera (0 down, 90 right, 180 up, 270 left). Ease 0 turns at once; ease n turns 1/2^n of the remaining angle each frame (higher = slower). Does not wait; WaitPlayerMoveDone waits for the turn.
@@ -7392,7 +7113,6 @@ Args:
   1. ease (0 = turn at once; n = turn 1/2^n of the remaining angle each frame, so a higher n is a slower, softer turn (seen in game for 0-4; the shipped scripts use 0-3)) — verified in game
 
 ### `op 397` — SetPartyOutfit(outfit)
-*handler:* `Script_VMOp_SetPartyOutfitVariantAndSyncFriendship`
 
 Change the outfit of the player and both companions at once (normal, pajamas, swimsuit, wedding, bath). The outfits worn before are returned in reg0-reg2 so they can be restored.
 
@@ -7400,7 +7120,6 @@ Args:
   0. outfit (0 normal, 1 pajamas, 2 swimsuit, 3 wedding, 4 bath (4 = variant 2 for companions and sets player control bit 0))
 
 ### `op 400` — SetPlayerMale(male)
-*handler:* `Script_VMOp_SetPlayerCharacterLestOrFrey`
 
 Switches the player character to Lest (1) or Frey (0) and resets the player's name to that character's default name, overwriting a custom name.
 
@@ -7408,12 +7127,10 @@ Args:
   0. male (non-zero = Lest, 0 = Frey)
 
 ### `op 427` — SetWeaponSkillsToLevel30()
-*handler:* `Script_VMOp_SetFirst6WeaponSkillsToLevel30`
 
 Sets the player's six weapon skills (skill slots 0-5) to level 30, then refreshes the skill-rank bits. Higher levels are lowered to 30. Used by debug/test scripts.
 
 ### `op 472` — SetGuestNpcTitle(npc, title)
-*handler:* `Script_VMOp_SetGuestNpcTitle`
 
 Set a traveller's title: byte +2 of the guest record, the index of the first word of their speaker label ('<title> <name>', from rf3TxtTravelerTitleM / W). Normally rolled 0-64 each day.
 
@@ -7422,7 +7139,6 @@ Args:
   1. title (0-64 (>= 65 ignored))
 
 ### `op 474` — SetGuestRosterGate(gate, rebuild)
-*handler:* `Script_VMOp_SetCurrentEventLeadNpcAndClearFlag2`
 
 Controls the daily visiting-guest roster: writes its gate byte (0 = no guests) and optionally forces the roster to be rebuilt. Unused by the shipped scripts.
 
@@ -7431,7 +7147,6 @@ Args:
   1. rebuild (non-zero = clear the 'already built' bit so the roster is rebuilt)
 
 ### `op 475` — SetNpcStateByte(npc, value)
-*handler:* `Script_VMOp_SetNpcFriendshipByteAt58`
 
 Writes a byte (offset 58) of an NPC's record. What the game uses it for is not known.
 
@@ -7467,7 +7182,6 @@ Args:
   1. value (corpus 0/1)
 
 ### `op 492` — SetNpcFacingMode(mode)
-*handler:* `Script_VMOp_SetSceneNpcFacingModeAndStandInFrontOfPlayer`
 
 Sets the talking NPC's facing mode (read back by GetNpcFacingMode). Mode 1 also makes it step to a spot in front of the player.
 
@@ -7475,22 +7189,18 @@ Args:
   0. mode (1 = walk to a point in front of the player; 0/2 clear the stand point)
 
 ### `op 562` — RefreshSceneNpcs()
-*handler:* `Script_VMOp_RefreshAllNpcsOnSceneLoadAndUnblockVM`
 
 Put every NPC back where its schedule says it should be now, and release the script block set by StartFestivalContest (op 559).
 
 ### `op 589` — PickUpHostObject()
-*handler:* `Script_VMOp_PlayerPickupSceneObject1Tile`
 
 Makes the player pick up and carry the object the script belongs to (e.g. a furniture piece).
 
 ### `op 594` — CommitGrabbedObject()
-*handler:* `Script_VMOp_PlayerCommitGrabbedItemToBagIfThrowable`
 
 If the player is holding a grabbed object flagged throwable (bit 0x200000), put it into the bag.
 
 ### `op 620` — MarkSpouseCleared(spouse)
-*handler:* `Script_VMOp_UnlockMonsterDexEntryAchievement`
 
 Record the marriage to this NPC in the system save (unlocks them for the Newlywed mode) and finalize the wedding.
 
@@ -7498,7 +7208,6 @@ Args:
   0. spouse (the NPC just married (REG_WIFE_ID / reg0))
 
 ### `op 660` — SetActorInvulnerable(actor, on)
-*handler:* `Script_VMOp_SetActorStatusFlagBit0x20Or0x10000ByCharId`
 
 Make a character or event monster immune to attacks (1) or vulnerable again (0). Retail uses it on scripted fight monsters until the fight begins. For character 239 a different, special shield bit is used.
 
@@ -7507,7 +7216,6 @@ Args:
   1. on (non-zero = invulnerable, 0 = normal)
 
 ### `op 661` — SetActorStatFlagRecompute(target, on)
-*handler:* `Script_VMOp_SetActorStatusFlagBit0x20000RecomputeByCharId`
 
 Set or clear status bit 0x20000 on an actor's stats and recompute its stats; clearing also caps current HP at the new max HP.
 
@@ -7543,7 +7251,6 @@ Args:
   1. on (non-zero sets, 0 clears)
 
 ### `op 662` — SetActorControlBit4000(actor, on)
-*handler:* `Script_VMOp_SetActorArmorBreakBit0x4000ByCharId`
 
 Set or clear bit 0x4000 of a character's control flags. Its effect is not known; the only retail use sets it on Ventuswill (char 21) before a story fight.
 
@@ -7579,7 +7286,6 @@ Args:
   1. on (non-zero = set, 0 = clear)
 
 ### `op 663` — MakeActorUntameable(actor)
-*handler:* `Script_VMOp_SetActorHpRegenRateZeroByCharId`
 
 Make a monster impossible to tame (e.g. story bosses and event monsters spawned by the script).
 
@@ -7614,7 +7320,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 664` — SetActorUnlimitedSight(target)
-*handler:* `Script_VMOp_SetActorUnlimitedSight`
 
 Make a monster notice the party at any distance and from any direction, so it engages right away.
 
@@ -7649,7 +7354,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 665` — SetActorFacing(actor, degrees)
-*handler:* `Script_VMOp_SetActorPadA0FacingAngleByCharId`
 
 Instantly set a character's facing direction in degrees (no turning animation).
 
@@ -7685,7 +7389,6 @@ Args:
   1. degrees (degrees (multiplied by 181 into u16 angle units))
 
 ### `op 679` — IncrementPlayerSkillLevel(skill)
-*handler:* `Script_VMOp_IncrementPlayerSkillLevelByIdx`
 
 Raise one of the player's skills by one level (a scripted training reward). No cap, no XP reset and no stat recalculation.
 
@@ -7731,7 +7434,6 @@ Args:
      - `37` = Bartering
 
 ### `op 680` — ApplyAttackToPlayer(attack)
-*handler:* `Script_VMOp_CombatApplyAttackEntryToPlayer`
 
 Apply a combat attack entry to the player as if hit by it (damage / knockback / status or a scripted reaction, depending on the entry).
 
@@ -7739,12 +7441,10 @@ Args:
   0. attack (combat attack table entry (corpus 151, 158..164))
 
 ### `op 692` — CancelPendingDate()
-*handler:* `Script_VMOp_OnFirstMarriageAcceptanceUnlockAndReset`
 
 Cancel a date that is promised or due today: the first villager (1-23) with date state 1 or 2 is reset to 0 and the post-date cleanup (em.bin EV_DATE_FINISH) runs. Does nothing if no date is pending.
 
 ### `op 701` — SetPlayerSkillXp(skill, xp)
-*handler:* `Script_VMOp_SetPlayerSkillXpByIdx`
 
 Set the XP of one player skill directly (the corpus uses it to zero every skill).
 
@@ -7793,12 +7493,10 @@ Args:
 ## Companions & party
 
 ### `op 311` — HealPartyFull()
-*handler:* `Script_VMOp_HealPartyHPFull`
 
 Restore the player and both companions to full HP.
 
 ### `op 312` — SetPartyHpByShift(shift)
-*handler:* `Script_VMOp_HealPartyHPByShift`
 
 Change party HP by a power-of-two fraction of max HP. A negative value sets the player's HP to max/2^n (story injuries: -2 = a quarter, -4 = a sixteenth); a positive value heals the player by max/2^n and sets each companion's HP to max/2^n.
 
@@ -7806,12 +7504,10 @@ Args:
   0. shift (>= 0: player heals max>>shift, companions' HP = max>>shift; < 0: player HP = max>>-shift (companions untouched))
 
 ### `op 314` — CurePartyStatus()
-*handler:* `Script_VMOp_ClearPartyStatusConditions`
 
 Cure poison, paralysis, sleep, seal and cold on the player and both companions. Fatigue and faint stay.
 
 ### `op 402` — RecallFarmMonster(record)
-*handler:* `Script_VMOp_MonsterFarmSpawnOrClearFlags`
 
 Take a barn monster off its farm-area work so it stays in the barn. With -1 it acts on the monster the script belongs to and also cancels its seed-planting order.
 
@@ -7819,7 +7515,6 @@ Args:
   0. record (0..199 = g_MonsterFarmTable index; -1 = the script's own monster (host+32))
 
 ### `op 405` — SetFarmMonsterPlantOrder(farm slot, plant)
-*handler:* `Script_VMOp_SetMonsterFarmLovedTodayBit`
 
 Give a barn monster the standing order to also plant seeds (1) or cancel it (0). Used by the monster work-assignment menu.
 
@@ -7828,7 +7523,6 @@ Args:
   1. plant (1 = also plant seeds, 0 = stop)
 
 ### `op 410` — TameEventMonster(key)
-*handler:* `Script_VMOp_TameEventMonster`
 
 Tame a spawned event monster and add it to the player's monsters (as if tamed in the field). reg0 = the registration result (2 = success).
 
@@ -7836,7 +7530,6 @@ Args:
   0. key
 
 ### `op 476` — RecruitNpcToParty(npc)
-*handler:* `Script_VMOp_RecruitNpcToParty`
 
 Add an NPC to the player's party. If it is not loaded, it is streamed in at the player's position first. If both companion slots are full, companion 1 is dismissed (ending a date with them).
 
@@ -7871,7 +7564,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 477` — RecruitNpcToParty(npc)
-*handler:* `Script_VMOp_RecruitNpcToParty`
 
 Add an NPC to the player's party. If it is not loaded, it is streamed in at the player's position first. If both companion slots are full, companion 1 is dismissed (ending a date with them).
 
@@ -7906,7 +7598,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 478` — RecruitNpcToPartyHeld(npc, held)
-*handler:* `Script_VMOp_RecruitNpcToPartyHeld`
 
 Adds an NPC to the player's party (streaming them in at the player's position if they are not loaded) and marks them as held by the scene.
 
@@ -7942,7 +7633,6 @@ Args:
   1. held (non-zero = mark the NPC scene-held; corpus always 1)
 
 ### `op 479` — RecruitNpcToPartyHeld(npc, held)
-*handler:* `Script_VMOp_RecruitNpcToPartyHeld`
 
 Adds an NPC to the player's party (streaming them in at the player's position if they are not loaded) and marks them as held by the scene.
 
@@ -7978,22 +7668,18 @@ Args:
   1. held (non-zero = mark the NPC scene-held; corpus always 1)
 
 ### `op 480` — RecruitHostNpcToParty()
-*handler:* `Script_VMOp_WakeSceneChildOfCurrentInteractionNpc`
 
 Add the NPC whose talk script is running to the party - the 'sure, I'll come along' branch. If both slots are full, companion 1 is dismissed.
 
 ### `op 483` — DismissBothCompanions()
-*handler:* `Script_VMOp_SyncBothCompanionsToScene`
 
 Send both companions away: villagers go back to their schedule (walking off with the departure effect if their schedule is elsewhere), a date in progress ends, and a tamed monster returns to its barn.
 
 ### `op 484` — DismissBothCompanionsQuiet()
-*handler:* `Script_VMOp_SyncBothCompanionsToScene_SetSyncFlag1`
 
 Send both party companions away like DismissBothCompanions (op 483), but without the departure effect.
 
 ### `op 485` — DismissBothCompanionsEx(return_to_schedule, no_effect)
-*handler:* `Script_VMOp_SyncBothCompanionsToScene_WithFlags`
 
 Send both party companions away with options: force them back to their normal schedule and/or skip the departure effect. Retail always passes (1, 1), e.g. right after the wedding.
 
@@ -8002,7 +7688,6 @@ Args:
   1. no_effect (non-zero = no departure effect)
 
 ### `op 486` — DismissCompanionByCharId(char id, return to schedule, no effect)
-*handler:* `Script_VMOp_SyncCompanionMatchingCharIdWithFlags`
 
 Send one specific companion away (the one with this character id); nothing happens if no companion matches.
 
@@ -8012,7 +7697,6 @@ Args:
   2. no effect (non-zero = skip the departure effect (mode bit 1))
 
 ### `op 488` — SetCompanionScriptedPresence(release)
-*handler:* `Script_VMOp_SetCompanionScriptedPresence`
 
 Take both companions' AI under script control for a scene (0) or give it back (non-zero). Unused by the shipped scripts.
 
@@ -8020,7 +7704,6 @@ Args:
   0. release (0 = hand both companions to the script; non-zero = release them and reset their AI)
 
 ### `op 489` — SetCompanionsSceneHeld(release)
-*handler:* `Script_VMOp_SetCompanionNpcRecordScriptedFlagAndQueueEncounter`
 
 Mark both current companions as held by the scene (0), or release them (non-zero). Releasing at night (before 6:00 or after 18:00) also queues the late-night 'time to go home' check for each companion.
 
@@ -8028,7 +7711,6 @@ Args:
   0. release (0 = hold both companions for the scene; non-zero = release them (and at night queue the late-night companion check))
 
 ### `op 494` — SetCompanionVisible(slot, visible)
-*handler:* `Script_VMOp_SetCompanionArmorBreakBit4`
 
 Hides or shows the companions (e.g. hide both before a scene, show one before moving it).
 
@@ -8040,7 +7722,6 @@ Args:
   1. visible (0 = hide, non-zero = show)
 
 ### `op 495` — WarpCompanion(slot, x, y)
-*handler:* `Script_VMOp_TeleportCompanionsToTile`
 
 Instantly puts a companion (or both) on a tile.
 
@@ -8053,7 +7734,6 @@ Args:
   2. y (script units, 8 per tile)
 
 ### `op 496` — WalkCompanionToAndFace(slot, x, y, facing, speed, run)
-*handler:* `Script_VMOp_CompanionMoveTowardsTileFineGrained`
 
 Walks a companion (or both) to a position and turns it to the given facing at the end. Does not wait; WaitCompanionSettled waits for it.
 
@@ -8069,7 +7749,6 @@ Args:
   5. run (non-zero = run gait, speed x1.2)
 
 ### `op 497` — WalkCompanionTo(slot, x, y, speed, run)
-*handler:* `Script_VMOp_CompanionMoveTowardsTileNoFacing`
 
 Walk or run a companion (or both) to a position, facing the way they walk. Wait with WaitCompanionSettled (op 502).
 
@@ -8084,7 +7763,6 @@ Args:
   4. run
 
 ### `op 498` — MoveCompanionByOffset(slot, dx, dy, facing, speed, run)
-*handler:* `Script_VMOp_CompanionMoveRelativeFromCurrent`
 
 Walk a companion (or both) by an offset from where they stand, ending with the given facing. Returns at once; WaitCompanionSettled waits for arrival.
 
@@ -8100,7 +7778,6 @@ Args:
   5. run (speed x1.2 + jump bit)
 
 ### `op 499` — MoveCompanionByOffsetFaceTravel(slot, dx, dy, speed, run)
-*handler:* `Script_VMOp_CompanionMoveRelativeFromCurrentNoFacing`
 
 Walks a companion (or both) by a relative tile offset, facing the way it walks (no end-facing argument). Does not wait.
 
@@ -8115,7 +7792,6 @@ Args:
   4. run (non-zero = run gait, speed x1.2)
 
 ### `op 500` — TurnCompanionToAngle(slot, facing, ease)
-*handler:* `Script_VMOp_SetCompanionFacingAngleAndPose`
 
 Turn a companion (or both) to a compass direction, snapping or easing - the companion version of TurnActorToAngle (op 103).
 
@@ -8128,7 +7804,6 @@ Args:
   2. ease (0 = snap; n = close 1/2^n of the remaining angle per frame)
 
 ### `op 501` — TurnCompanionToFaceTarget(slot, target, ease)
-*handler:* `Script_VMOp_SetCompanionFaceTargetAndPose`
 
 Turn a companion (or both) to face the player or an NPC.
 
@@ -8141,7 +7816,6 @@ Args:
   2. ease (turn easing at actor+160 (0 = snap; 2 = typical); non-zero also sets record +20 bit 0x800)
 
 ### `op 502` — WaitCompanionSettled(slot)
-*handler:* `Script_VMOp_QueryAnyCompanionStillTransitioning`
 
 Wait until the selected companion(s) have finished moving and turning.
 
@@ -8152,7 +7826,6 @@ Args:
      - `2` = Both
 
 ### `op 503` — ShowCompanionEmote(slot, emote)
-*handler:* `Script_VMOp_StopCompanionAnimAndClearOutfitOverride`
 
 Shows an emote icon over a companion (or both) with its sound; 0 clears it.
 
@@ -8164,14 +7837,12 @@ Args:
   1. emote (0 = clear; corpus 6, 7, 8, 15)
 
 ### `op 506` — WarpMonstersToPlayer()
-*handler:* `Script_VMOp_TeleportAllCompanionMonstersToPlayer`
 
 Move any monster companions in the party to the player's position (villager companions stay where they are).
 
 ## Flags & variables
 
 ### `op 214` — SetNpcStoryFlag(npc)
-*handler:* `Script_VMOp_SetNpcStoryFlag`
 
 Mark a villager as met (GameFlags zone-2 bit 981 + char id) -- the flag that stops their first-meeting introduction from playing; 0 marks every villager 1..23.
 
@@ -8179,7 +7850,6 @@ Args:
   0. npc (1..47 (flag range covers 1..23); 0 = every loaded NPC 1..23)
 
 ### `op 215` — ClearNpcStoryFlag(npc)
-*handler:* `Script_VMOp_ClearPerNpcFlagBase981`
 
 Clear a villager's met flag (GameFlags zone-2 bit 981 + id) - the counterpart of SetNpcStoryFlag (op 214); their first-meeting introduction can play again.
 
@@ -8214,17 +7884,14 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 290` — SetWifeStatusAndAdvanceFamilyDay()
-*handler:* `Script_VMOp_SetWifeStatusAndAdvanceFamilyDay`
 
 Set the spouse status game flag to 2 and run the once-a-day family update: add a day to the married-days counter and set or clear each child's 'birthday today' talk flag.
 
 ### `op 292` — RegisterChildBirth()
-*handler:* `ScriptVMOp_CommitMarriageToSpouseAndFireAchievements`
 
 Record the birth of the player's first child: sets the child count, the child's birthday (today), marks the child as present in town, loads its default name and resets the pregnancy day counter. Does nothing if a child already exists.
 
 ### `op 318` — SetNpcBirthdayGiftFlag(npc)
-*handler:* `Script_VMOp_SetPackedGameFlag`
 
 Mark that the player gave this NPC a gift on its birthday (game flag 1007 + char id). Only sets, never clears.
 
@@ -8232,7 +7899,6 @@ Args:
   0. npc (0-29 in the bit range 1007-1036)
 
 ### `op 340` — SetVar0(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind0`
 *verified:* yes, in game
 
 Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).
@@ -8242,7 +7908,6 @@ Args:
   1. value — verified in game
 
 ### `op 341` — SetVar0(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind0`
 *verified:* yes, in game
 
 Store a value in script-variable bank 0 at [index] (16 slots). Read it back with GetVar0. ＠キャラn＠ prints slot n as a character's name (0 = the player; else that row of the character-name file).
@@ -8252,7 +7917,6 @@ Args:
   1. value — verified in game
 
 ### `op 343` — SetVar1(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind1`
 *verified:* yes, in game
 
 Stores a value in script-variable bank 1 at the given slot. Scenes use slot 0 to hand a value (often an item or NPC id) to text substitution and to later scenes. ＠アイテムn＠ prints slot n as an item name.
@@ -8262,7 +7926,6 @@ Args:
   1. value — verified in game
 
 ### `op 345` — SetVar11(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind11`
 *verified:* yes, in game
 
 Store a value in slot [index] of engine variable bank 11 (16 slots). Read it back with GetVar11. ＠セーブアイテムn＠ prints slot n as an item name.
@@ -8272,7 +7935,6 @@ Args:
   1. value — verified in game
 
 ### `op 347` — SetVar2(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind2`
 *verified:* yes, in game
 
 Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
@@ -8282,7 +7944,6 @@ Args:
   1. value — verified in game
 
 ### `op 348` — SetVar2(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind2`
 *verified:* yes, in game
 
 Store a value in script-variable bank 2 at [index] (24 slots). Read it back with GetVar2. ＠マップn＠ prints slot n as a place name.
@@ -8292,7 +7953,6 @@ Args:
   1. value — verified in game
 
 ### `op 349` — SetVar3(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind3WithSaturation`
 *verified:* yes, in game
 
 Store a value in script-variable bank 3 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar3. ＠n＠ / ＠数字n＠ print slot n as a number.
@@ -8302,7 +7962,6 @@ Args:
   1. value (clamped (unsigned) to 999,999,999) — verified in game
 
 ### `op 351` — SetVar4(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind4`
 *verified:* yes, in game
 
 Stores a value in script-variable bank 4 (52 slots). Shops and the smithy/pharmacy scenes use banks 4/5/6 slot by slot as parallel lists (e.g. price in bank 4) that a later menu reads back. ＠金n＠ prints slot n as a gold amount (red when the player has less).
@@ -8312,7 +7971,6 @@ Args:
   1. value (unsigned clamp to 999999999 (negative values become 999999999)) — verified in game
 
 ### `op 353` — SetVar5(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind5`
 *verified:* yes, in game
 
 Store a value in script-variable bank 5 at [index] (52 slots), capped at 999,999,999. Read it back with GetVar5. ＠木n＠ prints slot n as a lumber amount (red when the player has less).
@@ -8322,7 +7980,6 @@ Args:
   1. value (clamped (unsigned) to 999,999,999) — verified in game
 
 ### `op 355` — SetVar6(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind6`
 *verified:* yes, in game
 
 Store a number in slot [index] of engine variable bank 6 (52 slots). Read back with GetVar6. ＠石n＠ prints slot n as a material-stone amount (red when the player has less).
@@ -8332,7 +7989,6 @@ Args:
   1. value (0-999999999 (unsigned clamp: larger or negative values become 999999999)) — verified in game
 
 ### `op 357` — SetVar7(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind7`
 *verified:* yes, in game
 
 Store a number in script variable bank 7 [index]. Read back with GetVar7 (op 358). ＠王n＠ prints slot n as a Prince Points amount (red when the player has fewer).
@@ -8342,7 +7998,6 @@ Args:
   1. value (clamped (unsigned) to 999,999,999) — verified in game
 
 ### `op 359` — SetVar8(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind8`
 *verified:* yes, in game
 
 Store a value in slot [index] of engine variable bank 8 (16 slots). -1 / -2 store the monster-barn record index of companion 1 / 2 instead. Used to remember which farm monster a menu refers to. ＠モンn＠ prints slot n as that barn monster's given name. The value is a monster-barn record index; ＠モンn＠ prints that monster's own (player-given) name (in game).
@@ -8352,7 +8007,6 @@ Args:
   1. value (any; -1 = companion 1's farm-table record index, -2 = companion 2's) — verified in game
 
 ### `op 361` — SetVar9(index, value)
-*handler:* `Script_VMOp_SetVar9`
 *verified:* yes, in game
 
 Store a value in slot [index] of engine variable bank 9 (16 slots). -1 stores the calendar date code of the festival currently running. There is no GetVar9 op; villager AI also reads the bank. ＠カレンダーn＠ prints the calendar event on the date in slot n (season x 100 + day).
@@ -8362,7 +8016,6 @@ Args:
   1. value (any; -1 = date code of the festival in progress (GF_REG_FESTA), if any) — verified in game
 
 ### `op 364` — SetVar10(index, value)
-*handler:* `Script_VMOp_WriteVarArrayKind10`
 
 Stores a value in script-variable bank 10. There is no GetVar10. ＠子供ちゃん＠ prints the name of the child it picks.
 
@@ -8371,7 +8024,6 @@ Args:
   1. value
 
 ### `op 373` — DispatchCondScriptEntry(em_entry)
-*handler:* `Script_VMOp_DispatchCondScriptEntry`
 
 Run the main action stream of an Event Manager (em.bin) entry - usually a batch of game-flag writes.
 
@@ -8379,7 +8031,6 @@ Args:
   0. em_entry (e.g. EV_SUBEV_INIT)
 
 ### `op 374` — RunEmEntryAltAction(entry)
-*handler:* `Script_VMOp_CondScriptDispatchAltActionByEntryId`
 
 Run the ALT action stream of an em.bin (event manager) entry, e.g. entry 80 to finish a date.
 
@@ -8387,7 +8038,6 @@ Args:
   0. entry (80 = EV_DATE_FINISH (clears FLG_DATE_FES_NOW / FLG_KOKUHAKU_NOW / REG_DATE_MAP); 265-267 also used)
 
 ### `op 443` — SetFlagBit(flag, value, unused, unused)
-*handler:* `Script_VMOp_SetGameFlagBitDirect`
 
 Set or clear a zone-2 game flag bit. Only the first two arguments matter; shipped scripts always pass four.
 
@@ -8398,7 +8048,6 @@ Args:
   3. unused (ignored (corpus 0))
 
 ### `op 444` — SetFlagBitIfCond(flag, condition)
-*handler:* `Script_VMOp_SetGameFlagBitGatedByCondScript`
 
 Sets or clears a game-flag bit from an em.bin condition, inverted: condition true clears the bit, false sets it. Unused by the shipped scripts.
 
@@ -8407,7 +8056,6 @@ Args:
   1. condition (its condition A is evaluated)
 
 ### `op 553` — SetNpcSubEventFlag(set, npcs)
-*handler:* `Script_VMOp_SetNpcRecordBit23ByList`
 
 Sets or clears a per-NPC sub-event flag (bit 23 of the NPC's record flags) for the listed NPCs. FinishCurrentSubEvent clears it for everyone.
 
@@ -8416,7 +8064,6 @@ Args:
   1. npcs (a 0 in the list applies the bit to all villagers 1-23 and ends the list)
 
 ### `op 554` — SetNpcSubEventFlag(set, npcs)
-*handler:* `Script_VMOp_SetNpcRecordBit23ByList`
 
 Sets or clears a per-NPC sub-event flag (bit 23 of the NPC's record flags) for the listed NPCs. FinishCurrentSubEvent clears it for everyone.
 
@@ -8425,7 +8072,6 @@ Args:
   1. npcs (a 0 in the list applies the bit to all villagers 1-23 and ends the list)
 
 ### `op 557` — SetNpcRecognitionFlags(value, npcs)
-*handler:* `Script_VMOp_UnlockPerNpcAchievementByList`
 
 Writes packed game flag 1451 + npc = value for each listed villager (23 per-villager flags 1452-1474 for ids 1-23). Sub-event scenes call it right after starting, with every participant.
 
@@ -8434,7 +8080,6 @@ Args:
   1. npcs (ids 1-23; >= 24 skipped; 0 = the spouse (GF_REG_WIFE_ID))
 
 ### `op 558` — SetNpcRecognitionFlags(value, npcs)
-*handler:* `Script_VMOp_UnlockPerNpcAchievementByList`
 
 Writes packed game flag 1451 + npc = value for each listed villager (23 per-villager flags 1452-1474 for ids 1-23). Sub-event scenes call it right after starting, with every participant.
 
@@ -8443,7 +8088,6 @@ Args:
   1. npcs (ids 1-23; >= 24 skipped; 0 = the spouse (GF_REG_WIFE_ID))
 
 ### `op 566` — RecordFestivalPlacement(placement, festival)
-*handler:* `Script_VMOp_OnStoryMilestoneProgressAndUnlock`
 
 Record the player's placing in a festival contest: tells the villagers about a top-3 finish and saves it as the best placing if it beats the old one (which also awards the matching Steam achievement).
 
@@ -8452,7 +8096,6 @@ Args:
   1. festival (6, 8-17 (7 and others: undefined packed id))
 
 ### `op 571` — SetSceneScratch(byte_value, word_value)
-*handler:* `Script_VMOp_SetSceneFlagByteAndWord`
 
 Stores a byte and a word in the current scene's scratch fields for later ops of the same scene to read.
 
@@ -8461,7 +8104,6 @@ Args:
   1. word_value (scene +544)
 
 ### `op 621` — SetDifficulty(mode)
-*handler:* `Script_VMOp_SetDifficultyMode`
 
 Set the game difficulty.
 
@@ -8469,7 +8111,6 @@ Args:
   0. mode (0 = Easy, 1 = Normal, 2 = Hard (Hell is Hard plus FLG_DIFFICULTY_HELL set by the script))
 
 ### `op 628` — SetRegisters(values...)
-*handler:* `Script_VMOp_ExportArgsAsCtxOutArray10`
 *verified:* yes, in game
 
 Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.
@@ -8478,7 +8119,6 @@ Args:
   0. values... (reg0, reg1, ... reg9 in order (args past 10 ignored)) — verified in game
 
 ### `op 629` — SetRegisters(values...)
-*handler:* `Script_VMOp_ExportArgsAsCtxOutArray10`
 *verified:* yes, in game
 
 Load the VM registers reg0.. from the arguments (reg0 = arg0, reg1 = arg1, ...). Scripts use it to read a variable into reg0 for a following branch.
@@ -8487,7 +8127,6 @@ Args:
   0. values... (reg0, reg1, ... reg9 in order (args past 10 ignored)) — verified in game
 
 ### `op 651` — AdvanceStoryProgress(progress)
-*handler:* `Script_VMOp_AdvanceStoryProgressMax`
 
 Moves the main story progress forward to the given value; it never goes backwards. Plot scenes call it at their end.
 
@@ -8495,24 +8134,20 @@ Args:
   0. progress (0-511 (9-bit GF_REG_MAIN_SCENARIO))
 
 ### `op 667` — SetGameClearedSysFlag()
-*handler:* `Script_VMOp_SetSaveConfigBit0`
 
 Mark the game as cleared in the system save (rf4_sys.sav): unlocks the post-game Extra Orders in every save slot. Set-only.
 
 ### `op 669` — SetSaveConfigBit4()
-*handler:* `Script_VMOp_SetSaveConfigBit4`
 
 Set bit 4 (0x10) of g_saveConfigFlags. Set-only.
 
 ### `op 671` — SetSaveConfigBit5()
-*handler:* `Script_VMOp_SetSaveConfigBit5`
 
 Sets bit 5 of the system save-config flags (shared by all save slots). The only shipped use enables the data-transfer extra order ('Data transfer is now enabled by making an extra order!').
 
 ## Audio
 
 ### `op 379` — PlayMusic(bgm)
-*handler:* `Script_VMOp_PlayBGMOrRestore`
 *verified:* yes, in game
 
 Switch the background music (crossfade) to a track, or with -1 go back to the area's normal music. When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot).
@@ -8521,7 +8156,6 @@ Args:
   0. bgm (sound id (0x1000000+); -1 = return to the map's normal music) — verified in game
 
 ### `op 380` — StopMusic(fade)
-*handler:* `Script_VMOp_StopBGMWithCrossfade`
 *verified:* yes, in game
 
 Stop the current background music at once (the fade argument is never read: StopMusic(30000) still cut the music at once in game). When the scene ends, the game brings the area's music back (NpcAi_FinalizeEventAndPostTick RF4S.exe+0x1F61F0 -> BGM_RestoreFromBossOrTransient, which ignores SetMusicLock) unless FLG_BGM_NOT_RETURN is 1: EVAL (FLG_BGM_NOT_RETURN = 1) before the scene ends keeps the new state (the game clears that flag again at the scene end, so it is one-shot). The next map change, and the 06:00 / 21:00 switch, pick the area music again unless SetMusicLock(1).
@@ -8530,7 +8164,6 @@ Args:
   0. fade (corpus passes 0..30000 but the stop path never reads it) — verified in game
 
 ### `op 382` — FadeMusicVolume(volume, time)
-*handler:* `Script_VMOp_SetSfxCaptureVolumeOverride`
 
 Fade the music volume to a percentage, and later back with -1. Handy to duck the music under a sound effect or a quiet moment.
 
@@ -8539,7 +8172,6 @@ Args:
   1. time (ramp length in the sound system's units (corpus 0/60/120/18000))
 
 ### `op 383` — SetMusicLock(lock)
-*handler:* `Script_VMOp_SetSfxCaptureBypassFlag`
 
 Lock or unlock the background music. While locked, map changes and the 06:00/21:00 switch do not replace the current track. It stays locked across maps until SetMusicLock(0). It does not stop the scene-end restore after PlayMusic / StopMusic (that one ignores the lock; use FLG_BGM_NOT_RETURN).
 
@@ -8547,12 +8179,10 @@ Args:
   0. lock (1 = keep the current BGM, 0 = allow area music again)
 
 ### `op 384` — ResetMusicResumePositions()
-*handler:* `Script_VMOp_ClearSfxCaptureWorkVars`
 
 Forget where each music class (village, dungeon, story, ...) was paused, so the next PlayMusic starts its track from the beginning.
 
 ### `op 385` — PlaySound(sfx)
-*handler:* `Script_VMOp_PlaySfxById`
 *verified:* yes, in game
 
 Play a sound effect.
@@ -8562,12 +8192,10 @@ Args:
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 386` — StopVoices()
-*handler:* `Script_VMOp_VoiceStopAllActive`
 
 Stops every voice line that is currently playing. Unused by the shipped scripts.
 
 ### `op 387` — PlaySfxWithNpcRemap(sound)
-*handler:* `Script_VMOp_PlayVoiceOrSfxWithNpcVariantRemap`
 *verified:* yes, in game
 
 Plays a sound effect or voice line by id, with the per-character remap the engine applies to shared ids (the variant of the current character's voice). Most uses are voice clips placed before DIALOG lines. Tested with Lest only (0x10001C0 played V_PLAM); whether it switches player clips to the female set for Frey, as SetSpeaker's voice trigger does (V_PLAW), is untested.
@@ -8577,7 +8205,6 @@ Args:
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 389` — SetPooledVoiceVolume(volume)
-*handler:* `Script_VMOp_FindOrPreemptVoiceSlot`
 
 Sets the volume of one slot of the 12-slot sound pool to a percentage. Which slot is affected is decided by the pool allocator (a free slot, else the lowest-priority/oldest one), so the audible effect is unreliable; shipped scenes call it right after a PlaySfxWithNpcRemap.
 
@@ -8585,7 +8212,6 @@ Args:
   0. volume (arg/100, clamped to 0..1 after the capture-mix factor; corpus -1, 30, 50, 70, 127)
 
 ### `op 390` — StopVoiceId(sound)
-*handler:* `Script_VMOp_VoiceStopMatchingId`
 
 Stops the playing voice line or looping sound with the given id.
 
@@ -8594,7 +8220,6 @@ Args:
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 392` — PlaySoundOnFreeVoice(sound)
-*handler:* `Script_VMOp_PlaySfxByIdViaVoiceSlot`
 
 Play a sound on a free (or pre-empted) pooled voice instead of the script host's own sound slot, so it does not cut off the host's current sound.
 
@@ -8603,14 +8228,12 @@ Args:
      - *(enum: 8923 values — use the in-editor picker or the id database)*
 
 ### `op 461` — SuppressRewardJingle()
-*handler:* `Script_VMOp_SuppressNextRewardPopupSfx`
 
 Silence the jingle of every later reward popup started by this script (ops 457, 458, 459, 462).
 
 ## Time & calendar
 
 ### `op 204` — SleepInBed(cinematic)
-*handler:* `Bed_TickSleepSequence`
 
 Put the player to bed and advance to the next day. With 0 the day rollover happens at once (cutscenes fade out themselves first); with 1 the full bed cinematic plays (spouse/child walk over, fade out, sleep, fade in, morning music).
 
@@ -8618,42 +8241,35 @@ Args:
   0. cinematic (0 = advance the day immediately (no animation); non-zero = full go-to-bed sequence)
 
 ### `op 300` — ResetAllNpcSchedules()
-*handler:* `ScriptVMOp300_AdvanceDayResetSchedules`
 
 Resets every villager and every current event participant to today's schedule with a full schedule and AI reset. It does not change the date.
 
 ### `op 304` — GetYear()
-*handler:* `Script_VMOp_GetCalendarYear`
 *verified:* yes, in game
 
 Get the current calendar year. reg0 = year.
 
 ### `op 305` — GetSeason()
-*handler:* `Script_VMOp_GetCalendarSeason`
 *verified:* yes, in game
 
 Put the current season (0 Spring, 1 Summer, 2 Autumn, 3 Winter) into reg0.
 
 ### `op 306` — GetDay()
-*handler:* `Script_VMOp_GetCalendarDay`
 *verified:* yes, in game
 
 Get the current day of the season (1-30). reg0 = day.
 
 ### `op 307` — GetHourMinute()
-*handler:* `Script_VMOp_GetCalendarHourMinute`
 *verified:* yes, in game
 
 Read the current clock time: reg0 = hour (0-23), reg1 = minute (0-59).
 
 ### `op 308` — GetDateSnapshot()
-*handler:* `Script_VMOp_GetCalendarFullSnapshot`
 *verified:* yes, in game
 
 Get the whole current date and time at once: reg0 = year, reg1 = season, reg2 = day, reg3 = hour, reg4 = minute.
 
 ### `op 362` — GetFestivalDate(slot, festival)
-*handler:* `Script_VMOp_GetFestivalDate`
 *verified:* yes, in game
 
 Looks up the date of a festival: reg0 = season (0-3), reg1 = day, and script-variable bank 9 [slot] = season*100 + day for text substitution.
@@ -8663,23 +8279,19 @@ Args:
   1. festival (1-25 (0 would match the first birthday record)) — verified in game
 
 ### `op 449` — GetWeatherTransition()
-*handler:* `Script_Query_WeatherTransitionFlag`
 
 Read the weather state byte the toolkit calls the transition flag (BYTE2 of g_weather[8].name). reg0 = value (0 without a weather task).
 
 ### `op 450` — GetWeatherStreak()
-*handler:* `Script_Query_WeatherStreakCounter`
 
 Put the weather system's streak counter into reg0 (30 when there is no weather task). Retail tests for values 1-3.
 
 ### `op 451` — GetDayOfWeek()
-*handler:* `Script_VMOp_GetCalendarDayOfWeek`
 *verified:* yes, in game
 
 Read the weekday into reg0 (0-5), computed from the day of the season like the rest of the game does. 0 = the weekday the calendar shows as 'HOL' (Autumn 7 read 0, Autumn 8 read 1): the week has 6 days.
 
 ### `op 465` — SetCalendarPauseFlag(pause)
-*handler:* `Script_VMOp_SetCalendarPauseFlagFromBit0`
 
 Take control of the in-game clock for the rest of the scene (1): clears the calendar's run byte now and stops the scene end from setting it back. 0 clears the flag so the scene end restores the clock as usual.
 
@@ -8687,7 +8299,6 @@ Args:
   0. pause (bit 0 used: 1 = set, 0 = clear)
 
 ### `op 466` — SkipToTime(hour, minute, mode)
-*handler:* `Script_VMOp_FastForwardCalendarToHourMinute`
 
 Advance the clock to a given time (or by an amount) and run the fast-forward that sleeping uses, so NPC schedules and day changes catch up.
 
@@ -8697,7 +8308,6 @@ Args:
   2. mode (1 = go to hour:minute, 0 = add hours/minutes)
 
 ### `op 467` — SetTime(hour, minute, absolute)
-*handler:* `Script_VMOp_SetOrAddCalendarHourMinute`
 
 Set the clock to a time (or move it forward by hours/minutes). The date only changes if the time rolls past midnight.
 
@@ -8707,7 +8317,6 @@ Args:
   2. absolute (non-zero = set the clock; 0 = add hour/minute as a delta)
 
 ### `op 468` — FastForwardCalendar(year, season, day, mode)
-*handler:* `Script_VMOp_FastForwardCalendarFineGrained`
 
 Advance the date by years/seasons/days (or toward a target year/day) and run the overnight update. Unused by the shipped scripts.
 
@@ -8718,7 +8327,6 @@ Args:
   3. mode (non-zero = add deltas; 0 = move to the target)
 
 ### `op 469` — SetOrAddCalendarDate(year, season, day, absolute)
-*handler:* `Script_VMOp_SetOrAddCalendarYMDS`
 
 Sets the calendar date (year, season, day) or adds to it, then fast-forwards the world as after sleeping and refreshes the clock/weather display. Hour and minute are kept.
 
@@ -8729,19 +8337,16 @@ Args:
   3. absolute (non-zero = set the date, 0 = add to it)
 
 ### `op 627` — JumpToRandomDate()
-*handler:* `Script_VMOp_SleepWithRandomizedMinuteAndUnpause`
 
 Move the calendar to a random day and season of the current year (time of day kept) and run the sleep fast-forward to it. Looks like a debug op.
 
 ### `op 637` — SaveCalendarSnapshot()
-*handler:* `Calendar_SaveSnapshot`
 
 Copy the current date and time (calendar +0..+23) into the calendar's snapshot block (+24..+47), the 'from' time the sleep fast-forward uses.
 
 ## Items, rewards, economy
 
 ### `op 146` — EquipItemToPlayer(item)
-*handler:* `ScriptVMOp146_ScriptedEquipItemToPlayer`
 
 Put an item into the player's weapon/tool slot for a scripted scene (e.g. hand the player a hammer), stashing what was equipped so RestorePlayerEquip (op 147) can give it back. The player is put into the scripted-talk idle.
 
@@ -8750,7 +8355,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 208` — HandOrDropItem(holder, item)
-*handler:* `Script_Action_HandOrDropItem`
 *verified:* yes, in game
 
 Put an item in a character's hands: an NPC holds it (e.g. before handing it over), or the player receives it held over their head - dropped at their feet if they are already holding something. reg0 tells whether it is held.
@@ -8761,7 +8365,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 209` — HandOrDropItem(holder, item)
-*handler:* `Script_Action_HandOrDropItem`
 *verified:* yes, in game
 
 Put an item in a character's hands: an NPC holds it (e.g. before handing it over), or the player receives it held over their head - dropped at their feet if they are already holding something. reg0 tells whether it is held.
@@ -8799,7 +8402,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 210` — HandOrDropItemWithLevel(holder, item, level, amount)
-*handler:* `Script_VMOp_AttachItemVisualToNpcOrPlayerOrDrop`
 
 Like HandOrDropItem, but with an explicit item level and stack amount - used when a cooked or crafted item with a level is handed over. reg0 tells whether it is held.
 
@@ -8838,13 +8440,11 @@ Args:
   3. amount (stack amount, capped at 9 (5-bit field))
 
 ### `op 325` — GetLumber()
-*handler:* `Script_VMOp_GetPlayerLumber`
 *verified:* yes, in game
 
 Get the player's lumber count. reg0 = lumber (seen in game). GetPlayerVariable has no lumber code; this is the only way to read it.
 
 ### `op 326` — ModifyLumber(mode, amount)
-*handler:* `Script_VMOp_ModifyPlayerLumber`
 *verified:* yes, in game
 
 Add to, subtract from or set the player's lumber. The mode is add / sub / set (a plain number does nothing). Add caps at 50,000, subtract stops at 0, but set caps at 9,999 (all seen in game). Lumber has its own ops; GetPlayerVariable / ModifyPlayerResource have no lumber code.
@@ -8854,7 +8454,6 @@ Args:
   1. amount — verified in game
 
 ### `op 417` — ModifyPlayerResource(resource, mode, amount)
-*handler:* `Script_VMOp_ModifyPlayerResourceByCharCodeOp`
 *verified:* yes, in game
 
 Give, take or set gold, stone, compost, fodder or the player's level, e.g. pay 1000 gold = ModifyPlayerResource(gold, sub, 1000). Stone and compost stay within 0..50,000 and gold within 0..2,000,000,000; 'set' on the level takes the 0-based value (set 49 = level 50). All five seen in game.
@@ -8870,7 +8469,6 @@ Args:
   2. amount — verified in game
 
 ### `op 421` — SetNextItemAttributes(level, crafted, ingredients...)
-*handler:* `Script_VMOp_SetupPendingInteractionRecord`
 
 Prepare level, crafted bits and ingredient list for the NEXT item a script creates (GivePlayerItem, SpawnItemAtPos, ForcePlayerHoldItem, HandOrDropItem ...). The first such op uses and clears it.
 
@@ -8880,7 +8478,6 @@ Args:
   2. ingredients... (up to 6 u16 ingredient / material ids (e.g. a dish's ingredients))
 
 ### `op 422` — SetNextItemAttributesPacked(byte4, byte6, field0, packed)
-*handler:* `Script_VMOp_SetupPendingInteractionRecord_Variant2`
 
 Stages an alternative item-attribute record (marker 2) for the next item op. No item op in this build applies a marker-2 record, so the only lasting effect is that attributes staged by the marker-1 op are discarded. Unused by the shipped scripts.
 
@@ -8891,7 +8488,6 @@ Args:
   3. packed (packed into the high dword of record +8)
 
 ### `op 423` — GivePlayerItem(item, count, level)
-*handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
 *verified:* yes, in game
 
 Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.
@@ -8903,7 +8499,6 @@ Args:
   2. level (stored as level-1 in each level byte) — verified in game
 
 ### `op 424` — GivePlayerItem(item, count, level)
-*handler:* `Script_VMOp_GivePlayerItemWithStackAndQuality`
 *verified:* yes, in game
 
 Give the player an item stack. It goes into the backpack, else the rune-ability page; if both are full it is dropped at the player's feet (when they already carry something) or the player holds it up. reg0 = 1 if it went into a page.
@@ -8915,7 +8510,6 @@ Args:
   2. level (stored as level-1 in each level byte) — verified in game
 
 ### `op 425` — ForcePlayerHoldItem(item, count, level)
-*handler:* `Script_VMOp_ForcePlayerHoldItemOrConsume`
 
 Put an item straight into the player's hands with the pick-up jingle (bypassing the bag). With item 0 it instead uses up the stack the player is holding.
 
@@ -8926,7 +8520,6 @@ Args:
   2. level (> 10 treated as 1)
 
 ### `op 428` — TakeItem(item, count, level_filter)
-*handler:* `Script_VMOp_TakeItemFromAnyContainer`
 
 Remove items from the player, searching the backpack, held item, equipment, storage, racks, closet, tool box, shipping box, fridge, bookshelf and rune page in that order.
 
@@ -8937,7 +8530,6 @@ Args:
   2. level_filter (-1 = any copy; >= 0 = only copies whose level/quality byte is 0)
 
 ### `op 429` — TakeItemFromBackpack(item, count, level filter)
-*handler:* `Script_VMOp_TakeItemFromBackpackOrEquipExtras`
 *verified:* yes, in game
 
 Remove a number of an item from the backpack (first 60 slots), then from the carried item; a partial take drops the lowest-level copies of the stack. Over-removes when the demand spans slots. Writes no result.
@@ -8949,7 +8541,6 @@ Args:
   2. level filter (-1 = any stack; >= 0 (any value) = only stacks whose highest level byte is 0, i.e. every copy is level 1) — verified in game
 
 ### `op 430` — ConsumeHeldItem(count)
-*handler:* `Script_VMOp_ConsumeFromHeldItemNTimes`
 
 Uses up items from the stack the player is holding out (e.g. the item just handed to an NPC).
 
@@ -8957,7 +8548,6 @@ Args:
   0. count (-1 = the whole held stack)
 
 ### `op 452` — SpawnItemAtPos(item, level, count, x, y, pickup)
-*handler:* `Script_VMOp_SpawnItemAtTileAsDropOrVisual`
 
 Places an item in the world at a position, either as a collectable drop or as a visual-only prop.
 
@@ -8971,12 +8561,10 @@ Args:
   5. pickup (0 = visual prop only, non-zero = collectable drop)
 
 ### `op 453` — DropStagedItem()
-*handler:* `Script_VMOp_DropStagedItemAtPlayerTile`
 
 Drop the item staged in the script host's item record onto the ground at the player's tile.
 
 ### `op 454` — SpawnItemVisual(item, x, y)
-*handler:* `Script_VMOp_SpawnItemVisualAt3SlotTracker`
 
 Place an item model at a tile for display (up to 3 at a time), e.g. to show gift choices laid out in a scene. Remove them with DespawnItemVisuals (op 455).
 
@@ -8987,12 +8575,10 @@ Args:
   2. y (script units, 8 per tile)
 
 ### `op 455` — DespawnItemVisuals()
-*handler:* `Script_VMOp_DespawnAllScriptedItemVisuals`
 
 Remove all item models placed with SpawnItemVisual (op 454).
 
 ### `op 457` — ShowRewardPopup(item1, item2, item3, item4)
-*handler:* `Script_VMOp_SpawnRewardPopupWithUpTo4Items`
 
 Show the 'you got' reward popup for up to four items (count 1 each) with the reward jingle, and mark them as discovered.
 
@@ -9007,12 +8593,10 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 458` — ShowQuestReward()
-*handler:* `Script_VMOp_SpawnNpcQuestRewardPopup`
 
 Shows the reward popup for the active NPC request (its four reward items) with the reward jingle, marking the items as discovered.
 
 ### `op 459` — ShowRewardPopupAtPos(item, x, y)
-*handler:* `Script_VMOp_SpawnRewardPopupSingleAtTile`
 
 Shows a one-item reward popup ('You got ...!') anchored at a position, with the reward jingle, and marks the item as discovered.
 
@@ -9023,7 +8607,6 @@ Args:
   2. y
 
 ### `op 460` — AddRewardItem(slot, item, level, count)
-*handler:* `Script_VMOp_AddItemToRewardSlotPopup`
 
 Put an item into a reward-popup slot (adds it and queues the popup), marking it discovered.
 
@@ -9035,7 +8618,6 @@ Args:
   3. count (out of range -> 1)
 
 ### `op 462` — GiveRewardItems(item1, count1, item2, count2, item3, count3, item4, count4)
-*handler:* `Festival_RollAndDistributeRewardsFromTemplate`
 
 Open the reward popup and give up to four items as (item, count) pairs. Special item values roll a random prize: 9997 stat drink, 9998 shop item, 9999 generic loot, 10000 request reward.
 
@@ -9050,7 +8632,6 @@ Args:
   7. count4 (as count1)
 
 ### `op 463` — DropItem(item)
-*handler:* `Script_VMOp_DropSingleItemAtPlayer`
 
 Drop one of an item on the ground at the player's position, with the drop jingle.
 
@@ -9059,7 +8640,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 464` — DropItemStack(item, level, count)
-*handler:* `Script_VMOp_DropItemStackAtPlayer`
 
 Drops a stack of an item on the ground at the player's feet, with the item jingle.
 
@@ -9070,7 +8650,6 @@ Args:
   2. count (packed << 11)
 
 ### `op 563` — EquipScriptedWeapon(item)
-*handler:* `Script_VMOp_ForceEquipWeaponSlot1AsScripted`
 
 Give the player a specific weapon for a scripted scene (the real weapon is backed up); restore it later with op 564.
 
@@ -9079,12 +8658,10 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 564` — RemoveScriptedWeapon()
-*handler:* `Script_VMOp_RemoveScriptedWeaponAndRefreshHud`
 
 Gives the player back the main-hand weapon that was swapped out by the scripted-weapon equip op.
 
 ### `op 587` — PlaceFurniture(furniture, room, x, y)
-*handler:* `Script_VMOp_TryGiveTileObjectAndPlayDrop`
 
 Put a piece of furniture into a room (max 16 per room). reg0 = 1 if it was placed. Used when the player buys furniture.
 
@@ -9095,13 +8672,11 @@ Args:
   3. y (8 per tile; -1 = default / player position)
 
 ### `op 590` — BreakFurniture()
-*handler:* `Script_VMOp_DropQuestBoxItems1022And1023AndDestroy`
 *verified:* yes (no test logged)
 
 Break the furniture object running this script: a dust puff, it drops one Lumber (1022) and one Material Stone (1023) and disappears.
 
 ### `op 597` — RollShopCategoryItemReturnId(category)
-*handler:* `Script_VMOp_RollShopCategoryItemReturnId`
 
 Roll a random unlocked item from a shop category and put its id into reg0 (e.g. the gift an NPC hands over).
 
@@ -9109,7 +8684,6 @@ Args:
   0. category (0-52 in the corpus (e.g. 2 = items 63-110, 51 = 813-984))
 
 ### `op 598` — RollRandomItemMatchingDisplayName(name id)
-*handler:* `Script_VMOp_RollRandomItemMatchingDisplayName`
 
 Put into reg0 a random item among those that share a display name (e.g. the colour/level variants of one item), choosing only unlocked ones.
 
@@ -9117,52 +8691,42 @@ Args:
   0. name id (items whose metadata base_item_id (+0) equals this (corpus 1083-1099))
 
 ### `op 599` — RollRandomDishItem()
-*handler:* `Script_VMOp_LootRollGenericFromTable`
 
 Put a random unlocked cooked dish into reg0 (uniform over shop categories 5-11, item ids 134-299).
 
 ### `op 600` — RollRandomEquipmentItem()
-*handler:* `Script_VMOp_RollRandomShopItemFromRandomCategory`
 
 Put a random unlocked item from one of 16 fixed shop categories (mostly weapons and equipment, plus skill/spell items and breads) into reg0 - used for NPC birthday/return gifts.
 
 ### `op 601` — RollRandomFurItem()
-*handler:* `Script_VMOp_RollRandomFurItem`
 
 Sets reg0 to a random fur item the player has unlocked: Fur (S)/(M)/(L), Wooly Furball or Quality Puffy Fur. Used to pick the target of a random request.
 
 ### `op 602` — RollRandomMedicineOrFailedDish()
-*handler:* `Script_VMOp_RollRandomTurnipFamilyItemIdInTier`
 
 Roll a random unlocked item from the medicine/failed-dish set (ids 115-119, 123, 131-133) into reg0.
 
 ### `op 603` — RollRandomGrassItem()
-*handler:* `Script_VMOp_ShopRollByCategoryRange`
 
 Sets reg0 to a random unlocked herb/grass item (ids 71-81: Medicinal Herb, Antidote Grass and the coloured grasses). Used to pick the target of a random request.
 
 ### `op 604` — RollRandomIngredientItem()
-*handler:* `Script_VMOp_RollRandomMineralOrIngredientItemIdInTier`
 
 Pick a random available item from a fixed ingredient set (Pink Melon, Leek, Hot-Hot Fruit, Giant Hot-Hot Fruit, Heavy Spice, Relax Tea Leaves, Chocolate, Milk S/M/L, Honey). reg0 = item id.
 
 ### `op 605` — RollRandomSeasoningItem()
-*handler:* `Script_VMOp_RollRandomItemByLookupBytemask195`
 
 Put a random unlocked seasoning / cooking base (Flour, Oil, Curry Powder, Ketchup, ...) into reg0; Flour if none is unlocked.
 
 ### `op 606` — RollThreeFlowerItemsAvoidDup()
-*handler:* `Script_VMOp_RollThreeFlowerItemsAvoidDup`
 
 Offers three plant items: reg0 = 63 (Toyherb) and reg1/reg2 = two different random unlocked flowers (ids 63-70 and 84-109), neither of them Toyherb.
 
 ### `op 607` — RollRandomFlowerSeedItem()
-*handler:* `Script_VMOp_RollRandomItemByLookupBytemask28`
 
 Roll a random unlocked flower seed (ids 758, 759, 765, 771, 773-785) into reg0.
 
 ### `op 616` — TestAndSetCraftedFlag(item)
-*handler:* `Script_VMOp_QueryAndSetCraftedItemFlagBit`
 
 Marks a recipe as known/crafted and returns whether it already was (reg0 = old value). Used when an NPC teaches recipes. With 100000 it sets a special flag and always returns 1.
 
@@ -9171,7 +8735,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 640` — AddPrincePoints(amount)
-*handler:* `Script_AddPrincePoints`
 
 Add (or with a negative amount, remove) Prince Points.
 
@@ -9179,7 +8742,6 @@ Args:
   0. amount (added (negative subtracts); result clamped to 0..99999)
 
 ### `op 643` — ApplyPrinceOrder(order, variant)
-*handler:* `Script_DispatchEffectById`
 
 Buy and carry out a Prince Point order: pays its cost and applies the effect. reg0 = 1 if it was paid and applied, 0 if unaffordable.
 
@@ -9216,17 +8778,14 @@ Args:
   1. variant (order sub-index (festival id, license / NPC variant ...))
 
 ### `op 645` — PromotePrinceRank()
-*handler:* `PrinceRank_PromoteIfReached`
 
 Raise the Prince rank for every tourist threshold reached (up to rank 5) and pay out the rank-up gold. reg0 = promoted?, reg1 = new rank, reg2 = gold reward.
 
 ### `op 675` — ConvertMedalsToGold()
-*handler:* `Currency_ConvertMedalsToGold`
 
 Exchanges all of the player's Rune Medals for gold at 20 gold each; reg0 = the gold gained.
 
 ### `op 681` — RollBreadRecipe(bread_item)
-*handler:* `Script_VMOp_LootRollByCategoryForPlayer`
 
 Roll which recipe the player learns from eating a recipe bread; the result goes into reg0 (0 when the bread has nothing left to teach).
 
@@ -9234,7 +8793,6 @@ Args:
   0. bread_item (318/319 Medicine Bread(+), 320/321 Cooking Bread(+), 322/323 Weapon Bread(+), 324/325 Accessory Bread(+), 326/327 Farming Bread(+))
 
 ### `op 696` — RemoveItemFromBackpack(item, count, level_filter)
-*handler:* `Script_VMOp_RemoveItemFromBackpackByIdAndCount`
 
 Take a number of an item from the player's backpack -- but only stacks whose flag bit 0 is set (plain items are left alone, seen in game); for ordinary items use TakeItemFromBackpack or TakeItem. A request spanning several stacks can over-remove (see details).
 
@@ -9247,7 +8805,6 @@ Args:
 ## Effects & world
 
 ### `op 139` — ApplyEffectToActor(actor, effect_kind)
-*handler:* `ScriptVM_Op_ApplyEffectKindToEntity`
 
 Applies an effect kind (magic, heal, status or visual) to an actor as if that actor used it, e.g. a healing spell in a cutscene.
 
@@ -9283,7 +8840,6 @@ Args:
   1. effect_kind (corpus 48/49 (healing-magic kinds))
 
 ### `op 140` — ApplyEffectToActor(actor, effect_kind)
-*handler:* `ScriptVM_Op_ApplyEffectKindToEntity`
 
 Applies an effect kind (magic, heal, status or visual) to an actor as if that actor used it, e.g. a healing spell in a cutscene.
 
@@ -9319,7 +8875,6 @@ Args:
   1. effect_kind (corpus 48/49 (healing-magic kinds))
 
 ### `op 150` — TriggerActionAtPos(action_id, x, y)
-*handler:* `Script_VMOp_TriggerActorAction`
 
 Spawns a scripted action (visual effect, projectile, explosion, prop task...) by action id at a position. Scenes use it for sparkles, smoke, impacts and similar effects.
 
@@ -9334,7 +8889,6 @@ Args:
   2. y (script units, 8 per tile)
 
 ### `op 151` — TriggerActionOnActor(action, actor)
-*handler:* `Script_VMOp_TriggerActorAttack`
 
 Spawn an action/effect (by action-constructor id) attached to an actor, at the actor's position.
 
@@ -9370,7 +8924,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 157` — SpawnMapEntity(type, x, y, facing, param, extra1, extra2, extra3, extra4, extra5, extra6)
-*handler:* `ScriptVMOp_SpawnMapEntityByTypeIdDispatchTable`
 
 Spawns a map entity (object, interactive object, decoration or special trigger) by type id, the same kind of placement a room file does.
 
@@ -9389,7 +8942,6 @@ Args:
   10. extra6
 
 ### `op 165` — TriggerActionAtEventActor(key, action)
-*handler:* `Script_VMOp_TriggerActionAtEventActor`
 
 Spawn an action/effect (by action-constructor id) attached to an event actor, at its position.
 
@@ -9398,7 +8950,6 @@ Args:
   1. action (g_actionConstructorTable id (same id space as ops 150/151))
 
 ### `op 166` — ApplyEffectToEventActor(key, effect)
-*handler:* `Script_VMOp_ApplyEffectToEventActor`
 
 Apply an effect kind (damage / status / visual) to an event actor; the event-actor twin of ApplyEffectToActor (op 139).
 
@@ -9407,12 +8958,10 @@ Args:
   1. effect (Effect_ApplyByKindAndSpawn kind)
 
 ### `op 205` — RefreshMapTiles()
-*handler:* `Script_VMOp_RefreshAllMapTiles`
 
 Forces every tile of the current map to be redrawn/re-evaluated. Scenes call it during a fade-out before the sleep/next-day transition.
 
 ### `op 401` — SendMonsterToFarmArea(area)
-*handler:* `Script_VMOp_MonsterFarmSpawnFromInteraction`
 
 Sends the barn monster being talked to out to work on a farm field (1-3), a random free field (-1), or calls it back (0).
 
@@ -9420,12 +8969,10 @@ Args:
   0. area (1-3 = that field, -1 (0xFF) = a random free field, 0 = recall; only the low byte is used, 4 & 3 = 0)
 
 ### `op 439` — ReleaseFarmMonster()
-*handler:* `Script_VMOp_ReleaseFarmMonsterFromInteraction`
 
 Releases the barn monster being talked to: it disappears with an effect and its barn slot is freed.
 
 ### `op 446` — SetWeather(weather, seasonal)
-*handler:* `Script_Action_SetWeather`
 *verified:* yes, in game
 
 Change the weather for a scene (rain, snow, typhoon, Rooneys ...) or put it back with -1. If a dialogue box is open it is closed first and the op waits a frame. With the second argument non-zero the first is a daily-weather roll, not a weather code (1 then means cloudy, not rain).
@@ -9444,7 +8991,6 @@ Args:
   1. seasonal (0 = arg 0 is the weather code. Non-zero = arg 0 is a daily-weather roll that Weather_PromoteRollToWeatherCode (RF4S.exe+0x19D4F0) turns into a code, with a 50 % chance value: 0 sunny, 1 cloudy, 2 rain (1/64 light rain), 3 typhoon, 4 Rooney (rolls 0-4 seen in game), 5-7 chance between sunny / cloudy / rain; then winter turns rain into snow and a typhoon into a blizzard, and late autumn (day > 20) gives rain a 25 % chance of snow) — verified in game
 
 ### `op 448` — SetWeatherTransition(on)
-*handler:* `Script_Action_SetWeatherTransitionFlag`
 
 Set the weather task's transition flag (the byte SetWeather(0) clears). Used right after SetWeather in two scenes.
 
@@ -9452,17 +8998,14 @@ Args:
   0. on (0 / non-zero)
 
 ### `op 578` — SpawnEventMonsters()
-*handler:* `Script_VMOp_SpawnSceneEventMonsterRosterParticipants`
 
 Spawn the farm monsters taking part in the current festival scene event (e.g. the monster contest). Use while the screen is faded out.
 
 ### `op 591` — ClearAllTileObjects()
-*handler:* `Script_VMOp_ClearAll61TileObjectsActiveBit`
 
 Removes every placed furniture/tile object record (all rooms) by clearing its active bit. Unused by the shipped scripts.
 
 ### `op 625` — EnterSharanceMazeStage(stage)
-*handler:* `Script_VMOp_EnterSharanceMazeStage`
 
 Starts a Sharance Maze challenge stage: records the stage and the current room/tile for the return trip. The script warps into the maze with the next op.
 
@@ -9470,7 +9013,6 @@ Args:
   0. stage (0 Garden of Light, 1 Smoldering Prominence, 2 Deepwater Shrine, 3 Dragon Ruins, 4 Challenge to Fantasy, 5 Banquet of Nightmares (menu order))
 
 ### `op 677` — SpawnEffectObjectAtPos(x, y)
-*handler:* `Script_VMOp_SpawnTileObjectClass2050AtTile`
 
 Spawn the class-2050 floating object (the harvest-notification style effect actor) at a position.
 
@@ -9479,7 +9021,6 @@ Args:
   1. y (script units, 8 per tile)
 
 ### `op 678` — WallOffTileRect(x, y, width, height)
-*handler:* `Script_VMOp_ResetTileAttribFlagsInRectTo2`
 
 Turn a rectangle of the current map into solid wall that blocks the player, monsters and NPCs (used to fence in a boss arena). Lasts until the map is reloaded.
 
@@ -9490,14 +9031,12 @@ Args:
   3. height (rounded up to whole tiles)
 
 ### `op 689` — RespawnRoomFurnitureVisuals()
-*handler:* `Script_VMOp_ResetMonsterSpawnTrackerForPlayer`
 
 Re-creates the visuals of all placed furniture in the player's current room (e.g. after a Prince order changed them).
 
 ## Quests
 
 ### `op 238` — IsQuestNpcGroupAvailable(max_distance, primary, others)
-*handler:* `Quest_AreAllNpcsAvailableAndWithinDistance`
 
 Sets reg0 = 1 if the primary NPC and all listed NPCs are free (not asleep, not busy, not already in an event) and every listed NPC is within the given distance of the primary; else 0. Used to decide whether a group scene can start.
 
@@ -9507,7 +9046,6 @@ Args:
   2. others (count = argc - 2)
 
 ### `op 239` — IsQuestNpcGroupAvailable(max_distance, primary, others)
-*handler:* `Quest_AreAllNpcsAvailableAndWithinDistance`
 
 Sets reg0 = 1 if the primary NPC and all listed NPCs are free (not asleep, not busy, not already in an event) and every listed NPC is within the given distance of the primary; else 0. Used to decide whether a group scene can start.
 
@@ -9517,7 +9055,6 @@ Args:
   2. others (count = argc - 2)
 
 ### `op 507` — PopulateSlayRequest(monster, count, reward_categories)
-*handler:* `Quest_PopulateNpcSlot`
 
 Post a 'slay monsters' request (kind 1) into the talking NPC's request record, with rewards rolled from the given categories. reg0 = 1 if a target existed.
 
@@ -9527,7 +9064,6 @@ Args:
   2. reward_categories (variable count (up to 4 used); each is rolled once with Item_RollRandomIdInCategory into rewards[0..3]; -1 = skip)
 
 ### `op 508` — PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Post a 'bring me this item' request (kind 2) for the NPC whose script is running, with randomly rolled reward items. Read it back with the quest-preview op (532).
 
@@ -9538,7 +9074,6 @@ Args:
   3. reward categories... (up to 4; each rolls one reward item (corpus 51, 49, 46, 10, 3))
 
 ### `op 509` — PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Post a 'bring me this item' request (kind 2) for the NPC whose script is running, with randomly rolled reward items. Read it back with the quest-preview op (532).
 
@@ -9549,7 +9084,6 @@ Args:
   3. reward categories... (up to 4; each rolls one reward item (corpus 51, 49, 46, 10, 3))
 
 ### `op 510` — PopulateQuestKind2LiteralRewards(target_item, param, count, reward1, reward2, reward3, reward4)
-*handler:* `Script_VMOp_PopulateQuestRequestKind2WithLiteralAlternates`
 
 Post a kind-2 (bring an item) request on the script's NPC with fixed reward items instead of random ones. Does nothing if that NPC already has a posted request (except the board record 0).
 
@@ -9563,7 +9097,6 @@ Args:
   6. reward4 (as reward1)
 
 ### `op 511` — PopulateQuestKind3RandomRewards(item A, item B, count, param, reward categories...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
 
 Post a kind-3 request (two item slots) for the NPC whose script is running, with randomly rolled rewards. Unused by the shipped scripts.
 
@@ -9575,7 +9108,6 @@ Args:
   4. reward categories... (rolled into reward u16s 1-3 (record +16..+21))
 
 ### `op 512` — PopulateQuestKind3RandomRewards(item A, item B, count, param, reward categories...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
 
 Post a kind-3 request (two item slots) for the NPC whose script is running, with randomly rolled rewards. Unused by the shipped scripts.
 
@@ -9587,7 +9119,6 @@ Args:
   4. reward categories... (rolled into reward u16s 1-3 (record +16..+21))
 
 ### `op 513` — PopulateQuestKind4RandomRewards(target, param, count, reward_categories)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Post a kind-4 request into the talking NPC's request record, with rewards rolled from the given categories.
 
@@ -9598,7 +9129,6 @@ Args:
   3. reward_categories (each rolled once into rewards[0..3])
 
 ### `op 514` — PopulateQuestKind4RandomRewards(target, param, count, reward_categories)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Post a kind-4 request into the talking NPC's request record, with rewards rolled from the given categories.
 
@@ -9609,7 +9139,6 @@ Args:
   3. reward_categories (each rolled once into rewards[0..3])
 
 ### `op 515` — PopulateQuestKind4LiteralRewards(target_item, param, unused, reward1, reward2, reward3, reward4)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4Byte4_1LiteralAlts`
 
 Post a kind-4 request on the script's NPC with a count of 1 and fixed reward items. Skipped if that NPC already has a posted request (except the board record 0).
 
@@ -9623,7 +9152,6 @@ Args:
   6. reward4 (as reward1)
 
 ### `op 516` — PostBoardQuestKind5(param)
-*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
 Overwrite request record 0 (the board record) with a kind-5 entry. Unused by the shipped scripts.
 
@@ -9631,7 +9159,6 @@ Args:
   0. param (record +5)
 
 ### `op 517` — PostBoardQuestKind5(param)
-*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
 Overwrite request record 0 (the board record) with a kind-5 entry. Unused by the shipped scripts.
 
@@ -9639,7 +9166,6 @@ Args:
   0. param (record +5)
 
 ### `op 518` — PostBoardQuestKind6(param, count)
-*handler:* `Script_VMOp_PopulateQuestRequestKind6TwoArgsNoItem`
 
 Overwrite request record 0 (the board record) with a kind-6 request that has no target item and no rewards.
 
@@ -9648,7 +9174,6 @@ Args:
   1. count (record +4)
 
 ### `op 519` — PostBoardCraftQuest(category, item, param, count)
-*handler:* `Script_VMOp_PopulateQuestRequestKind7CraftRecipeExpose`
 
 Posts a 'craft this item' request (kind 7) as request record 0 and returns the item's recipe ingredients: reg0 = ingredient count, reg1..reg6 = ingredient item ids. Unused by the shipped scripts.
 
@@ -9660,7 +9185,6 @@ Args:
   3. count (stored at record +4)
 
 ### `op 520` — PostQuestGoalNumber(goal, rewards)
-*handler:* `Script_VMOp_PopulateQuestRequestKind8_GoalNumberLiteralRewards`
 
 Posts a request whose objective is reaching a number (a skill level, a tame count ...), with literal reward items. The request scene itself checks completion.
 
@@ -9669,7 +9193,6 @@ Args:
   1. rewards (written verbatim; 0 ends the list)
 
 ### `op 521` — PopulateQuestKind9LiteralRewards(target, rewards)
-*handler:* `Script_VMOp_PopulateQuestRequestKind9BackrefLiteralAlts`
 
 Post a kind-9 request (the daily visitor's wanted item) into the talking NPC's request record with literal reward items, and bind it to this script for the following accept/complete ops.
 
@@ -9678,7 +9201,6 @@ Args:
   1. rewards (literal reward item ids into rewards[0..3]; 0 ends the list)
 
 ### `op 522` — PopulateQuestKind10RandomRewards(reward categories...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefRandomCats`
 
 Post a kind-10 request (no item target) for the NPC whose script is running, with rolled rewards, and remember it for the script. Used before quest completion scenes.
 
@@ -9686,7 +9208,6 @@ Args:
   0. reward categories... (each rolls one reward item; 0 ends the list)
 
 ### `op 523` — PostQuestLiteralRewards(rewards)
-*handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefLiteralAlts`
 
 Posts a request with no target item (kind 10) and fixed reward items; the request scene checks completion itself.
 
@@ -9694,12 +9215,10 @@ Args:
   0. rewards (written verbatim; 0 ends the list (a lone 0 = no reward))
 
 ### `op 525` — CompleteQuest()
-*handler:* `Quest_OnComplete`
 
 Complete the request bound to this script: count the clear, tell the client NPC (friendship reaction), add prince points and mark the record done. It gives no items; the reward popup op does that.
 
 ### `op 528` — GetRequestRewardItem(record, index)
-*handler:* `Script_VMOp_QueryQuestRewardItemAt`
 
 Get one reward item id of a request record. reg0 = item id (0 = none).
 
@@ -9708,27 +9227,22 @@ Args:
   1. index (reward slot; >= 4 returns 1)
 
 ### `op 529` — ClearAllRequestRecords()
-*handler:* `Script_VMOp_ClearAllNpcQuestRewardTemplates`
 
 Erase all 24 request records (the board record and every villager's request, including their status bits).
 
 ### `op 530` — CommitQuestAcceptance()
-*handler:* `Quest_CommitAcceptance`
 
 Accept the request the current NPC offered: marks it accepted and active and binds it to this script (so CompleteQuest can finish it later).
 
 ### `op 531` — ClearBoardRequest()
-*handler:* `Script_VMOp_QuestSceneTeardownAndClearRewards`
 
 Clear the board request (record 0) and run the em.bin sub-event common cleanup. Unused by the shipped scripts.
 
 ### `op 532` — GetNpcQuestPreview()
-*handler:* `Script_VMOp_QueryCurrentInteractionNpcQuestPreview`
 
 Reads the request posted by the NPC being talked to: reg0 = target item, reg1 = count, reg2-reg4 = reward items, reg5 = extra byte, reg6 = 1 if accepted. Scripts copy these into text variables to phrase the request.
 
 ### `op 535` — GetQuestRemainingByItem(item)
-*handler:* `Script_VMOp_QueryQuestRequestRemainingByItemId`
 
 Intended to put how many more of an item a request still needs into reg0. Broken: the number of request records it searches is garbage, so the result is unreliable (retail never uses it).
 
@@ -9737,12 +9251,10 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 536` — StartReservedSubEvent()
-*handler:* `Script_VMOp_StartReservedSubEvent`
 
 Start the reserved town sub-event (if none is running): move REG_SUBEV_RSV into REG_SUBEV_NOW and run its setup. Placed at the start of sub-event scripts.
 
 ### `op 537` — QueueSubEventGoalKind2(item, npc, count, ignored...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). Does nothing if no sub-event is running.
 
@@ -9753,7 +9265,6 @@ Args:
   3. ignored... (reward categories are ignored in this mode)
 
 ### `op 538` — QueueSubEventGoalKind2(item, npc, count, ignored...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind2WithRandomCats`
 
 Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). Does nothing if no sub-event is running.
 
@@ -9764,7 +9275,6 @@ Args:
   3. ignored... (reward categories are ignored in this mode)
 
 ### `op 539` — QueueSubEventGoalKind3(item A, item B, count, param, ignored...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
 
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
@@ -9776,7 +9286,6 @@ Args:
   4. ignored... (reward categories ignored)
 
 ### `op 540` — QueueSubEventGoalKind3(item A, item B, count, param, ignored...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats`
 
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
@@ -9788,7 +9297,6 @@ Args:
   4. ignored... (reward categories ignored)
 
 ### `op 541` — QueueSubEventGoalKind4(target, param, count)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
@@ -9798,7 +9306,6 @@ Args:
   2. count (entry +4)
 
 ### `op 542` — QueueSubEventGoalKind4(target, param, count)
-*handler:* `Script_VMOp_PopulateQuestRequestKind4ChainedRandom`
 
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
@@ -9808,7 +9315,6 @@ Args:
   2. count (entry +4)
 
 ### `op 543` — QueueSubEventGoalKind5(npc)
-*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
 Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to this villager'. Does nothing if no sub-event is running.
 
@@ -9816,7 +9322,6 @@ Args:
   0. npc (+5; corpus passes an NPC char id (actor(Name)))
 
 ### `op 544` — QueueSubEventGoalKind5(npc)
-*handler:* `Script_VMOp_PopulateQuestRequestKind5SimpleNoAlts`
 
 Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to this villager'. Does nothing if no sub-event is running.
 
@@ -9824,7 +9329,6 @@ Args:
   0. npc (+5; corpus passes an NPC char id (actor(Name)))
 
 ### `op 545` — QueueSubEventGoalKind6(param, count)
-*handler:* `Script_VMOp_PopulateQuestRequestKind6TwoArgsNoItem`
 
 Append a kind-6 goal to the current sub-event's goal queue (only while a sub-event is running).
 
@@ -9833,7 +9337,6 @@ Args:
   1. count (entry +4)
 
 ### `op 546` — QueueSubEventCraftGoal(category, item, param, count)
-*handler:* `Script_VMOp_PopulateQuestRequestKind7CraftRecipeExpose`
 
 Queue form of PostBoardCraftQuest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.
 
@@ -9845,7 +9348,6 @@ Args:
   3. count (record +4)
 
 ### `op 547` — QueueSubEventGoalKind10(ignored...)
-*handler:* `Script_VMOp_PopulateQuestRequestKind10BackrefRandomCats`
 
 Add an empty kind-10 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
@@ -9853,22 +9355,18 @@ Args:
   0. ignored... (category args are ignored in this mode)
 
 ### `op 548` — CompleteAllSubEventGoals()
-*handler:* `Script_VMOp_PromoteAllPendingThrowEntriesToActive`
 
 Mark every active goal in the sub-event goal list as complete. Unused by the shipped scripts.
 
 ### `op 549` — FinishCurrentSubEvent()
-*handler:* `Script_VMOp_FinishCurrentSubEvent`
 
 End the running town sub-event: mark it done, clear the sub-event state and goal queue, reset per-villager sub-event bits, refresh schedules and add prince points. Does nothing if no sub-event is running.
 
 ### `op 551` — ResetSubEventGoals()
-*handler:* `Script_VMOp_ResetGeneralThrowQueue`
 
 Empty the sub-event goal list.
 
 ### `op 552` — GetSubEventGoalRemaining(item)
-*handler:* `Script_VMOp_QueryGeneralThrowQueueRemainingByItemId`
 
 Sets reg0 to how many more of an item the current sub-event goal still needs (0 if done or not found).
 
@@ -9879,7 +9377,6 @@ Args:
 ## Scene flow / control
 
 ### `op 2` — Wait(duration)
-*handler:* `Script_VMOp_WaitUnitsAndAdvanceReaction`
 *verified:* yes, in game
 
 Pauses the script for a time. 12000 units = 1 second (200 per frame), so 6000 = half a second and Wait(1) yields exactly one frame.
@@ -9888,7 +9385,6 @@ Args:
   0. duration (200 = 1 frame, 12000 = 1 s; 1..200 = one frame) — verified in game
 
 ### `op 3` — WaitReset(duration)
-*handler:* `Script_VMOp_EndReactionResetAndWait`
 
 Like Wait, but first marks the scene controller as out of dialogue (the same idle write EndDialogue does, without closing the portraits), then waits the given time. Authors use it right before fades/warps after a talk.
 
@@ -9896,7 +9392,6 @@ Args:
   0. duration (200 = 1 frame, 12000 = 1 s; 1 = yield one frame)
 
 ### `op 4` — WaitPlain(duration)
-*handler:* `Script_VMOp_WaitPlain`
 
 Pause the script for the given time, like Wait but without advancing the quest-reaction state. Authors use WaitPlain(1) to yield a single frame right after spawning actors.
 
@@ -9904,7 +9399,6 @@ Args:
   0. duration (200 = 1 frame, 12000 = 1 s; 0 = no wait)
 
 ### `op 91` — SetSceneBit(bit, on)
-*handler:* `Script_VMOp_SetSceneBit404`
 
 Set or clear one bit of the running script host's local bit field (host+404).
 
@@ -9913,13 +9407,11 @@ Args:
   1. on (non-zero sets, 0 clears)
 
 ### `op 198` — WaitForPlayerEffect()
-*handler:* `Script_VMOp_QueryPlayerEffectActive`
 *verified:* yes, in game
 
 Wait until the running screen-shake / player effect task ends. In the shipped scripts it always follows ShakeCamera.
 
 ### `op 230` — SetSceneCast(mode, cast)
-*handler:* `Cutscene_ReleaseNpcLocksAndRefreshFromSchedule`
 
 Set up the cast of a scene: with mode 1 every villager not listed (and every current event participant) is hidden and taken off its routine; mode 0 shows them again. NPCs the scene moved are put back per their schedule.
 
@@ -9928,7 +9420,6 @@ Args:
   1. cast (villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here. With nobody to keep, list the player: SetSceneCast(0, tag3(0)) is the shipped form)
 
 ### `op 231` — SetSceneCast(mode, cast)
-*handler:* `Cutscene_ReleaseNpcLocksAndRefreshFromSchedule`
 
 Set up the cast of a scene: with mode 1 every villager not listed (and every current event participant) is hidden and taken off its routine; mode 0 shows them again. NPCs the scene moved are put back per their schedule.
 
@@ -9937,12 +9428,10 @@ Args:
   1. cast (villager ids 1..23 that stay visible (variable count); ids >= 24 have no effect here. With nobody to keep, list the player: SetSceneCast(0, tag3(0)) is the shipped form)
 
 ### `op 242` — ContinueNormalTalk()
-*handler:* `Script_VMOp_SetSceneFlag0x200`
 
 Pass the conversation on to the NPC's next kind of talk: when this scene ends, the game moves the talk on by one step and runs the NPC's talk again, so the next talk entry plays (in the end their usual chat). Talk scenes use it on branches that have nothing to say, often as the whole scene (ContinueNormalTalk(); RET). Only acts in a scene started by talking to someone.
 
 ### `op 285` — SetSceneReadyFlag(mode, unused)
-*handler:* `ScriptVMOp_SetScriptStateBit72_1_OnArgZero`
 
 Sets bit 0 of the scene context's +72 flags when the first argument is 0. Retail brackets one player move with (0, 1) and (0, 0), which looks like a set/clear pair, but on PC both calls just set the bit.
 
@@ -9951,7 +9440,6 @@ Args:
   1. unused (retail passes 1 before a move and 0 after it)
 
 ### `op 332` — WarpToMap(map, x, y, event)
-*handler:* `ScriptAction_BeginConfiguredAction_PruneUiEvents`
 
 Move the player to another map at the given tile (usually after fading to black), optionally starting an event on arrival. The script normally ends right after it.
 
@@ -9962,7 +9450,6 @@ Args:
   3. event (event/scene started on arrival; 0 = none)
 
 ### `op 333` — WarpToMapInSubEvent(map, x, y, event)
-*handler:* `ScriptAction_BeginConfiguredAction_Variant1`
 
 Like WarpToMap, but marks the arrival as part of the current sub-event (remembers GF_REG_SUBEV_NOW). Unused by the shipped scripts.
 
@@ -9973,18 +9460,15 @@ Args:
   3. event (0 = none)
 
 ### `op 337` — WaitForFade()
-*handler:* `Script_VMOp_WaitForFadeComplete`
 *verified:* yes, in game
 
 Wait until the current screen fade (FadeScreen / FadeScreenToClear) has finished on both screens.
 
 ### `op 370` — SetSceneStateBit1()
-*handler:* `Script_VMOp_SetSceneFlagBit1At120`
 
 Set bit 1 of the scene context's state word (+120). Retail sets it before spawning a temporary rideable event actor.
 
 ### `op 375` — OpenMenu(menu)
-*handler:* `Script_VMOp_TriggerWorldInteractionAction`
 
 Open one of the game's menu screens by id (save, name entry, calendar, storage, cooking, crafting, shipping bin, ...) and wait until it has closed.
 
@@ -10076,7 +9560,6 @@ Args:
      - `200` = InheritSave
 
 ### `op 376` — OpenShop(shopkeeper, shop_action, unused)
-*handler:* `Script_VMOp_BeginCalendarContextualInteraction`
 
 Open a shopkeeper's shop menu and wait until the player leaves it. The shopkeeper and today's weekday decide which stock variant is used. Follow with ConsumeInteractionResult.
 
@@ -10118,7 +9601,6 @@ Args:
   2. unused (retail passes 0)
 
 ### `op 559` — StartFestivalContest(contest)
-*handler:* `Script_VMOp_SpawnFestivalSceneEvent`
 
 Start a festival contest mini-game (eating contest, quiz, monster contest ...). The contest runs as its own task; the script continues and should wait/fade as needed.
 
@@ -10126,12 +9608,10 @@ Args:
   0. contest (1 ONI, 2 EAT (eating contest), 3 MOKO, 4 MATO (target shooting), 5 YUKI, 6 QUIZ, 7 PET)
 
 ### `op 560` — StageSceneNpcs()
-*handler:* `Script_VMOp_StageSceneNpcsAndExpose4Ids`
 
 At the start of a festival/group scene, pick and stage the participating NPCs and companions, and return the four participant ids in reg0-reg3 for placement.
 
 ### `op 574` — ShuffleSceneBuffer(count)
-*handler:* `Script_VMOp_SeedFisherYatesShuffleInSceneBuf`
 
 Fill the scene's shuffle buffer with the numbers 0..count-1 in random order; read them with GetShuffleValue (op 575).
 
@@ -10139,12 +9619,10 @@ Args:
   0. count (values 0..count-1 (capped at 64))
 
 ### `op 633` — ResetActionEventId()
-*handler:* `Script_VMOp_ResetLastDispatchedActionEventId`
 
 Reset the last-dispatched action-event id to 0. Unused by the shipped scripts.
 
 ### `op 634` — SetActionTriggerByte(index, value)
-*handler:* `Script_VMOp_SetActionTriggerByteByIdx`
 
 Set one of the scene's three action-trigger bytes; read back with GetActionTriggerByte (op 635).
 
@@ -10153,7 +9631,6 @@ Args:
   1. value (0-255)
 
 ### `op 682` — SetSceneField400(value)
-*handler:* `Script_VMOp_SetSceneFlagAt400FromMode3`
 
 Set a scene state field to 0, 1 or 2 (purpose not established; one use).
 
@@ -10161,14 +9638,12 @@ Args:
   0. value (other values are ignored)
 
 ### `op 697` — ReturnToTitle()
-*handler:* `Script_VMOp_BeginReturnToTitleViaAppRelaunch`
 
 Leave the game and go back to the title screen (used after endings and in the dev menu, after a fade: FadeScreen(16, 1500), which fades to white).
 
 ## Queries
 
 ### `op 105` — GetEventActorIndexStub(event actor id)
-*handler:* `Script_VMOp_GetEventActorIndexStub`
 
 Leftover lookup that always returns 0 in reg0. It searches the event-actor table for the id but throws the result away, so scripts should not rely on it.
 
@@ -10176,7 +9651,6 @@ Args:
   0. event actor id (event-actor id (corpus 0, 2, 100); ignored for the result)
 
 ### `op 135` — GetActorPosition(actor)
-*handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
 *verified:* yes, in game
 
 Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
@@ -10212,7 +9686,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 136` — GetActorPosition(actor)
-*handler:* `ScriptVMOp_QueryActorWorldPositionAsTile`
 *verified:* yes, in game
 
 Read an actor's current position into reg0 (X) and reg1 (Y). If an NPC's actor is not spawned, its stored position is used.
@@ -10248,12 +9721,10 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 148` — HasPlayerAccessoryEffect40000()
-*handler:* `ScriptVMOp148_QueryPlayerFlag40000`
 
 Check whether the player wears the Rosary (accessory special bit 0x40000): reg0 = 1 if so, else 0.
 
 ### `op 182` — GetEventActorPosition(event key)
-*handler:* `Script_VMOp_GetEventActorTilePosition`
 
 Read a spawned event actor's position into reg0 (X) and reg1 (Y). The event-actor counterpart of GetActorPosition (op 135). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
@@ -10261,13 +9732,11 @@ Args:
   0. event key
 
 ### `op 213` — GetPlayerPosition()
-*handler:* `Script_VMOp_GetPlayerPosition`
 *verified:* yes, in game
 
 Stores the player's position in reg0 (x) and reg1 (y), and 1 in reg2. Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
 
 ### `op 216` — HasNpcStoryFlag(character)
-*handler:* `Script_VMOp_QueryNpcInCurrentArea`
 *verified:* yes, in game
 
 Check whether the player has met a villager (the flag SetNpcStoryFlag sets; it is what keeps the first-meeting introduction from replaying). For child slots 24-47 it checks the child record instead.
@@ -10303,7 +9772,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 218` — GetNpcFriendshipLevel(npc)
-*handler:* `Script_VMOp_QueryNpcFriendshipLevel`
 *verified:* yes, in game
 
 Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.
@@ -10338,7 +9806,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 219` — GetNpcFriendshipLevel(npc)
-*handler:* `Script_VMOp_QueryNpcFriendshipLevel`
 *verified:* yes, in game
 
 Read an NPC's friendship level (not raw points) into reg0. Id 0 means the NPC the player is talking to.
@@ -10373,7 +9840,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 220` — IsAllNpcFriendshipAtLeast(mode, level)
-*handler:* `ScriptVMOp_QueryAllAvailableNpcsFriendshipMeetsTarget`
 
 Check whether every villager currently in town has at least the given friendship level. Pass 0 as the first argument.
 
@@ -10382,7 +9848,6 @@ Args:
   1. level (1-10 in the corpus)
 
 ### `op 226` — GetActorMapId(actor)
-*handler:* `Script_VMOp_QueryNpcScheduleId`
 *verified:* yes, in game
 
 Get the map (room) id a character is currently in; 0 gives the player's current map. Scripts compare two results to test whether characters are in the same place.
@@ -10417,7 +9882,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 227` — IsActorInMap(actor, maps)
-*handler:* `ScriptVM_Op_QueryNpcCurrentScheduleIsOneOf`
 
 Sets reg0 = 1 if the actor is currently on one of the listed maps, else 0. There is no count argument: every argument after the first is a map id.
 
@@ -10453,7 +9917,6 @@ Args:
   1. maps (compared against the actor's current map; shipped scripts pass map ids (map(MAP_X) constants))
 
 ### `op 228` — IsActorInMap(actor, maps)
-*handler:* `ScriptVM_Op_QueryNpcCurrentScheduleIsOneOf`
 
 Sets reg0 = 1 if the actor is currently on one of the listed maps, else 0. There is no count argument: every argument after the first is a map id.
 
@@ -10489,7 +9952,6 @@ Args:
   1. maps (compared against the actor's current map; shipped scripts pass map ids (map(MAP_X) constants))
 
 ### `op 229` — IsNpcOffScheduleRoute(npc)
-*handler:* `Script_VMOp_QueryNpcSlotFlag40Clear`
 
 Returns 1 in reg0 when the NPC is NOT currently travelling along its daily schedule route between maps, 0 while it is. Unused by the shipped scripts.
 
@@ -10524,7 +9986,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 232` — HasNpcGreetedToday(npc)
-*handler:* `Script_VMOp_HasNpcGreetedToday`
 
 Check whether a villager's daily greeting counts as played (reg0 = 1/0): set by SkipNpcDailyGreeting (ops 233 / 234) or by the game after the greeting scene ran. Reads both flags: the daily GameFlags bit (cleared each morning) and the record bit (cleared by the next talk). In game: 1 right after op 233 / 234, 0 for untouched villagers; the talk-start code reads the same value.
 
@@ -10559,7 +10020,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 235` — IsNpcNearbyToChimeIn(npc)
-*handler:* `Script_VMOp_QueryNpcSeenToggle`
 
 Check whether an NPC is within 48 units of the character running this script and both are free to talk. Each successful check flips a bit, so repeated checks alternate 1, 0, 1 ... (used to alternate between two lines).
 
@@ -10594,7 +10054,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 236` — IsNpcInRangeToChimeIn(npc, range)
-*handler:* `Script_VMOp_QueryNpcInteractEligible`
 
 Check whether another villager is around to chime in on the current conversation: reg0 = 1 if the NPC has been met, is awake and within range of the talking actor. The check alternates: it succeeds only on every other passing call.
 
@@ -10630,7 +10089,6 @@ Args:
   1. range (max distance from the script's own actor; 0 = no range check)
 
 ### `op 237` — GetNpcPairChimeInState(npc_a, npc_b, range)
-*handler:* `ScriptVM_Op_QueryNpcInteractionEligibilityWithSubject`
 
 Pick which of two nearby villagers chimes in on a conversation: reg0 = 0..3 from a small state machine (1 = both, 2 = A, 3 = B, 0 = nobody), stepping on each call.
 
@@ -10694,7 +10152,6 @@ Args:
   2. range (max distance of each NPC from the script's own actor; 0 = both count as close)
 
 ### `op 240` — IsNpcGroupPresentNearby(max_distance, primary, others)
-*handler:* `Script_QueryNpcGroupPresentNearby`
 
 Check that a group of villagers are all present, awake and free, each within range of the first one. reg0 = 1 if so. With only (distance, npc) it just checks that one NPC is present and free.
 
@@ -10704,7 +10161,6 @@ Args:
   2. others (variable count, taken from argc; may be empty)
 
 ### `op 241` — IsNpcGroupPresentNearby(max_distance, primary, others)
-*handler:* `Script_QueryNpcGroupPresentNearby`
 
 Check that a group of villagers are all present, awake and free, each within range of the first one. reg0 = 1 if so. With only (distance, npc) it just checks that one NPC is present and free.
 
@@ -10741,7 +10197,6 @@ Args:
   2. others (variable count, taken from argc; may be empty)
 
 ### `op 245` — GetGiftAffinity(npc, item)
-*handler:* `Script_VMOp_QueryNpcGiftAffinity`
 
 Sets reg0 to the NPC's gift-reaction value for an item (how much they like it). Unused by the shipped scripts.
 
@@ -10778,7 +10233,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 247` — GetApproachPos(mover, target)
-*handler:* `ScriptVMOp_QueryTileOneStepBehindActorTowardTarget`
 
 Get the position right next to the target on the mover's side (one step back from the target toward the mover), i.e. where the mover should walk to stand in front of the target. reg0 = x, reg1 = y (tiles).
 
@@ -10841,7 +10295,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 255` — GetActorStatusEffect(target)
-*handler:* `Script_VMOp_GetActorStatusEffect`
 *verified:* yes, in game
 
 Read the status effect state of the player (0) or of the companion being talked to. reg0: 0 fine, 1 asleep, 4 fatigue only, 2 any other status effect (or fatigue plus another), 3 no status effect but HP at half or below. reg1 names one status effect: 115 poison, 116 paralysis, 117 seal, 118 cold (sleep / fatigue / faint have none). Other statuses (e.g. the 'ate a dish' apple) are not part of it. Only the player (0) or a party companion: any non-zero argument means 'the companion I am talking to' (the value itself is ignored). Not talking to a companion, it reads companion slot 2 instead, and with that slot empty it dereferences a missing actor (crash).
@@ -10850,7 +10303,6 @@ Args:
   0. target (0 = the player; any non-zero value = the party companion currently being talked to (the number is ignored)) — verified in game
 
 ### `op 257` — IsNpcGroupFreeToComment(npcs)
-*handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
 Check that every listed villager is free to make an ambient comment (met, present, awake, not busy, not blocked by a story gate). reg0 = 1 if all are.
 
@@ -10858,7 +10310,6 @@ Args:
   0. npcs (variable count (from argc); 0 = the player's spouse (REG_WIFE_ID); ids >= 48 are skipped)
 
 ### `op 258` — IsNpcGroupFreeToComment(npcs)
-*handler:* `NpcAi_AllNpcsEligibleForFlavorComment`
 
 Check that every listed villager is free to make an ambient comment (met, present, awake, not busy, not blocked by a story gate). reg0 = 1 if all are.
 
@@ -10866,7 +10317,6 @@ Args:
   0. npcs (variable count (from argc); 0 = the player's spouse (REG_WIFE_ID); ids >= 48 are skipped)
 
 ### `op 259` — PickRandomVillagers(count, excluded...)
-*handler:* `ScriptVM_Op_QueryNpcRosterPresenceByList`
 
 Pick a number of different random villagers and put their character ids in reg0, reg1, ... - excluding the listed ones and anyone unavailable today. Used for festival crowd lines.
 
@@ -10875,18 +10325,15 @@ Args:
   1. excluded... (villagers to exclude (0 is ignored))
 
 ### `op 260` — GetHostActorHpState()
-*handler:* `ScriptVMOp_QueryActorHpLowOrUnknownForDialogueBranch`
 
 Read the HP state of the actor this script runs for into reg0: 2 = HP is 0, 1 = at or below half HP, 0 = above half.
 
 ### `op 262` — GetCurrentInteractionNpc()
-*handler:* `ScriptVMOp_QueryCurrentInteractionNpcCharId`
 *verified:* yes, in game
 
 Sets reg0 to the char id of the NPC the player is currently talking to or interacting with (0xFFFF if none).
 
 ### `op 265` — IsPlayerOrCompanionDowned(who)
-*handler:* `Script_VMOp_QueryPlayerOrCompanionDowned`
 *verified:* yes, in game
 
 Check whether the player (arg != 0) or either of the two companions (arg 0) is knocked out; result in reg0. Unused by the shipped scripts.
@@ -10895,7 +10342,6 @@ Args:
   0. who (non-zero = the player; 0 = either companion) — verified in game
 
 ### `op 268` — IsNpcAtScheduledSpot(npc...)
-*handler:* `Script_VMOp_QueryNpcArrivedAtSchedule`
 
 reg0 = 1 when every listed NPC has reached the spot set by SetOrClearNpcSchedule and is available. Special: with 0 as the first argument, reg0 = 1 only when NONE of the villagers with a scripted spot has arrived yet.
 
@@ -10929,7 +10375,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 269` — IsNpcAtScheduledSpot(npc...)
-*handler:* `Script_VMOp_QueryNpcArrivedAtSchedule`
 
 reg0 = 1 when every listed NPC has reached the spot set by SetOrClearNpcSchedule and is available. Special: with 0 as the first argument, reg0 = 1 only when NONE of the villagers with a scripted spot has arrived yet.
 
@@ -10963,7 +10408,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 273` — IsDatingNpc(npc)
-*handler:* `Script_VMOp_IsDatingNpc`
 *verified:* yes, in game
 
 Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
@@ -10998,7 +10442,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 274` — IsDatingNpc(npc)
-*handler:* `Script_VMOp_IsDatingNpc`
 *verified:* yes, in game
 
 Check whether the player is dating a villager (record +52 bit 22, set by op 275 when a confession succeeds). With 0 it returns how many villagers the player is dating -- the confession scenes use that count to lower the success odds.
@@ -11033,7 +10476,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 276` — GetNpcHeldItem(npc)
-*handler:* `Script_VMOp_GetNpcHeldItem`
 *verified:* yes, in game
 
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
@@ -11069,7 +10511,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 277` — GetNpcHeldItem(npc)
-*handler:* `Script_VMOp_GetNpcHeldItem`
 *verified:* yes, in game
 
 Get the item an NPC is currently holding in its hand (e.g. a gift it is about to hand over). reg0 = item id, or 0 if none.
@@ -11105,7 +10546,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 278` — GetNpcFavoriteItem(npc)
-*handler:* `Script_VMOp_QueryNpcFavoriteItem`
 
 Put a random item this NPC likes into reg0 - used to pick the gift an NPC hands the player.
 
@@ -11140,7 +10580,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 279` — GetNpcFavoriteItem(npc)
-*handler:* `Script_VMOp_QueryNpcFavoriteItem`
 
 Put a random item this NPC likes into reg0 - used to pick the gift an NPC hands the player.
 
@@ -11175,7 +10614,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 280` — GetNpcDateState(npc)
-*handler:* `Script_VMOp_QueryNpcDateState`
 
 Read an NPC's date state into reg0: 0 none, 1 date promised for tomorrow, 2 date is today, 3 on the date, 4 the date went well, 5 declined today.
 
@@ -11210,7 +10648,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 282` — IsNpcActorPresent(npc)
-*handler:* `ScriptVMOp282_QueryNpcActorPresent`
 *verified:* yes, in game
 
 Check whether an NPC's actor is loaded in the current map and not flagged away (actor+568 bit 0x20000000 clear). reg0 = 1/0.
@@ -11246,12 +10683,10 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 283` — GetDateCompanionId()
-*handler:* `Script_VMOp_QueryCompanionNpcId`
 
 Sets reg0 to the char id of the party companion who is on a date with the player (a companion whose date state is set), or 0 if none.
 
 ### `op 288` — GetNpcOutfit(npc)
-*handler:* `Script_VMOp_GetNpcOutfit`
 *verified:* yes, in game
 
 Sets reg0 to the NPC's current outfit variant (0 = normal; 2 = swimsuit is what the corpus tests for). 1 = pajamas (Forte at night, in game 2026-10-02).
@@ -11287,19 +10722,16 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 309` — IsPlayerMale()
-*handler:* `Script_VMOp_GetPlayerIsFreyVariant`
 *verified:* yes, in game
 
 Sets reg0 = 1 when the player character is Lest (male), 0 when Frey (female). Scripts branch on it for gendered lines, nicknames and animations.
 
 ### `op 310` — IsPlayerModelLest()
-*handler:* `Script_VMOp_IsPlayerModelLest`
 *verified:* yes, in game
 
 Check the player's current MODEL, not the gender: reg0 = 1 when the player actor's model is Lest's (model 1217), 0 for Frey's (1233) or any other model. For a normal Lest or Frey this matches IsPlayerMale (309), which reads the saved character flag; while the player's model is swapped (Player_TransformToCharacterById) this one says 0 even for Lest. It does not check for a missing player actor (crashes in the no-player state). Unused by the shipped scripts; use IsPlayerMale for the gender.
 
 ### `op 321` — GetNpcNicknameForPlayer(npc)
-*handler:* `Script_VMOp_GetNpcEmoteByte`
 *verified:* yes, in game
 
 Sets reg0 to the nickname id the NPC currently uses for the player (0 = the player's own name). Scripts branch on it to pick the matching voice clip.
@@ -11335,7 +10767,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 324` — GetMood(npc)
-*handler:* `Script_VMOp_GetNpcMoodByte`
 
 Get a byte from an NPC's record (+56) that the toolkit calls its mood id. reg0 = the value (0 if no record).
 
@@ -11370,7 +10801,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 329` — IsPosing(actor)
-*handler:* `Script_VMOp_GetActorScriptedPoseActive`
 
 Check the actor's status bit 0x400 (per the IDB, 'scripted pose active'). reg0 = 1/0.
 
@@ -11378,7 +10808,6 @@ Args:
   0. actor (0 = player, 1..47 NPC) — verified in game
 
 ### `op 338` — IsNpcOnPlayerMap(npc)
-*handler:* `Script_VMOp_GetNpcScheduleMatchAndId`
 *verified:* yes, in game
 
 reg0 = 1 if the NPC is on the same map as the player, else 0; reg1 = the NPC's current map id (season-adjusted for outdoor maps). Used to check who is around before a scene.
@@ -11387,7 +10816,6 @@ Args:
   0. npc (1-47; 0 = the spouse (GF_REG_WIFE_ID)) — verified in game
 
 ### `op 339` — GetNpcCurrentMap(npc)
-*handler:* `Script_VMOp_GetNpcCurrentScheduleId`
 *verified:* yes, in game
 
 Put the map the NPC is currently on into reg0 (outdoor maps below 0x40 get the season added, giving the seasonal map variant).
@@ -11423,7 +10851,6 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 342` — GetVar0(index)
-*handler:* `Script_VMOp_ReadVarArrayKind0`
 *verified:* yes, in game
 
 Read script variable bank 0 at [index] into reg0 - the reader for SetVar0.
@@ -11432,7 +10859,6 @@ Args:
   0. index (0-15 (not bounds-checked)) — verified in game
 
 ### `op 344` — GetVar1(index)
-*handler:* `Script_VMOp_ReadVarArrayKind1`
 *verified:* yes, in game
 
 Read script variable bank 1 at [index] into reg0 - the reader for SetVar1.
@@ -11441,7 +10867,6 @@ Args:
   0. index (not bounds-checked) — verified in game
 
 ### `op 346` — GetVar11(index)
-*handler:* `Script_VMOp_ReadVarArrayKind11`
 *verified:* yes, in game
 
 Reads slot [index] of script-variable bank 11 into reg0. Unused by the shipped scripts.
@@ -11450,7 +10875,6 @@ Args:
   0. index (no bounds check (bank has 16 slots)) — verified in game
 
 ### `op 350` — GetVar3(index)
-*handler:* `Script_VMOp_ReadVarArrayKind3`
 *verified:* yes, in game
 
 Read slot [index] of engine variable bank 3 into reg0 (the shop scripts read slots 0/1 before MyShopAction).
@@ -11459,7 +10883,6 @@ Args:
   0. index (0-51 (corpus 0-14)) — verified in game
 
 ### `op 352` — GetVar4(index)
-*handler:* `Script_VMOp_ReadVarArrayKind4`
 *verified:* yes, in game
 
 Reads slot [index] of script-variable bank 4 into reg0.
@@ -11468,7 +10891,6 @@ Args:
   0. index (no bounds check (bank has 52 slots)) — verified in game
 
 ### `op 354` — GetVar5(index)
-*handler:* `Script_VMOp_ReadVarArrayKind5`
 *verified:* yes, in game
 
 Read script variable bank 5 at [index] into reg0 - the reader for SetVar5.
@@ -11477,7 +10899,6 @@ Args:
   0. index (not bounds-checked (array has 52 slots)) — verified in game
 
 ### `op 356` — GetVar6(index)
-*handler:* `Script_VMOp_ReadVarArrayKind6`
 *verified:* yes, in game
 
 Reads slot [index] of script-variable bank 6 into reg0.
@@ -11486,7 +10907,6 @@ Args:
   0. index (no bounds check (bank has 52 slots)) — verified in game
 
 ### `op 358` — GetVar7(index)
-*handler:* `Script_VMOp_ReadVarArrayKind7`
 *verified:* yes, in game
 
 Read slot [index] of engine variable bank 7 into reg0.
@@ -11495,7 +10915,6 @@ Args:
   0. index (0-51 (corpus 0-29)) — verified in game
 
 ### `op 360` — GetVar8(index)
-*handler:* `Script_VMOp_ReadVarArrayKind8`
 *verified:* yes, in game
 
 Read script-variable bank 8 at [index] into reg0 (16 slots). The pair of SetVar8.
@@ -11504,7 +10923,6 @@ Args:
   0. index (NOT bounds-checked) — verified in game
 
 ### `op 363` — GetNpcBirthday(slot, character)
-*handler:* `Script_VMOp_GetNpcBirthday`
 *verified:* yes, in game
 
 Look up a character's birthday: season into reg0, day into reg1, and also bank 0 [slot] = the season's name line and bank 3 [slot] = the day, so ＠キャラn＠ ＠n＠ in the next DIALOG line print '<season> <day>'.
@@ -11514,7 +10932,6 @@ Args:
   1. character (0 = player (REG_PLAYER_BIRTH_SEASON/DAY); else looked up in the calendar table archive 16340) — verified in game
 
 ### `op 367` — GetVar14(index)
-*handler:* `Script_VMOp_ReadVarArrayKind14`
 
 Read text-slot entry bank 14 [index] (set by SetTextSlotEntries, op 366) into reg0.
 
@@ -11522,7 +10939,6 @@ Args:
   0. index (0-15 (not bounds-checked))
 
 ### `op 371` — EvalCondScriptA(em_entry)
-*handler:* `Script_VMOp_EvalCondScriptA`
 *verified:* yes, in game
 
 Evaluate condition A of an Event Manager (em.bin) entry and put the result (1/0) into reg0.
@@ -11531,7 +10947,6 @@ Args:
   0. em_entry (e.g. 87, 79, 78, 73 (EV_DATE_APPO, boss rematch checks ...)) — verified in game
 
 ### `op 372` — EvalCondScriptB(em entry)
-*handler:* `Script_VMOp_EvalCondScriptB`
 
 Evaluate condition list B of an em.bin entry (typically the negated/alternate test, e.g. 'not daytime') into reg0. Unused by the shipped scripts.
 
@@ -11539,17 +10954,14 @@ Args:
   0. em entry
 
 ### `op 377` — ConsumeInteractionResult()
-*handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
 Read (and clear) the pending result of the last world interaction (e.g. a shop or OpenMenu menu) into reg0. If nothing is pending, reg0 is left unchanged.
 
 ### `op 378` — ConsumeInteractionResult()
-*handler:* `Script_VMOp_ConsumeChoiceCommitResult`
 
 Read (and clear) the pending result of the last world interaction (e.g. a shop or OpenMenu menu) into reg0. If nothing is pending, reg0 is left unchanged.
 
 ### `op 398` — BuildOutfitChoiceMask(invert)
-*handler:* `Script_VMOp_QueryUnlockedAlternatePoseMask`
 
 Prepare the choice list for a change-outfit menu: only outfits the player has unlocked and is not wearing are shown (plus 'normal clothes' when not wearing them). Follow with PROMPT_CHOICE.
 
@@ -11557,17 +10969,14 @@ Args:
   0. invert (0 = normal; non-zero = invert the mask)
 
 ### `op 399` — GetPlayerActionState()
-*handler:* `Script_VMOp_GetPlayerSubstateId`
 
 Read the player's current action state number into reg0. Unused by the shipped scripts.
 
 ### `op 403` — GetFreeFarmAreas()
-*handler:* `Script_VMOp_QueryMonsterRosterAbsentMask`
 
 For farm areas 1-3 of the field the player is on, reg0/reg1/reg2 = 1 if no monster is assigned to work that area, else 0.
 
 ### `op 404` — GetOccupiedFarmAreas(field)
-*handler:* `Script_VMOp_QueryMonsterRosterPresentMaskByCtx`
 
 For one farm field, report in reg0-reg2 whether each of its three work areas has a monster assigned.
 
@@ -11575,28 +10984,23 @@ Args:
   0. field (4-23 = field id; barn rooms 77-126 -> field 4 + 4*((room-77)/10); negative = current room; other -> 4)
 
 ### `op 406` — GetFarmMonsterPlantOrder()
-*handler:* `Script_VMOp_GetMonsterFarmLovedTodayBit`
 
 Read whether this script's barn monster has the 'also plant seeds' order into reg0 (1/0).
 
 ### `op 407` — GetAliveKillTargetCount()
-*handler:* `Script_VMOp_QueryActiveKillCount`
 
 Put the number of monsters still alive on the current map into reg0: the map's tracked monster list (every spawned monster, minion, summon and gate spawn), counting those not flagged defeated. It is the count a sealed room waits on before it opens. CountLivingEnemies (op 408) is the same count without monster ids 141 / 142.
 
 ### `op 408` — CountLivingEnemies()
-*handler:* `Script_VMOp_QueryKillAggregateActiveCountExclBoss`
 
 Sets reg0 to the number of living monsters on the map, not counting the two boss ids 141 and 142. Unused by the shipped scripts. Same list as GetAliveKillTargetCount (op 407), which also counts 141 / 142.
 
 ### `op 409` — GetTamedMonsterCount()
-*handler:* `Script_VMOp_CountTamedMonstersWithFlag1000`
 *verified:* yes, in game
 
 Get how many monsters the player owns (occupied slots of the 200-entry monster table). reg0 = count.
 
 ### `op 411` — GetCompanionMonsterData(target, kind)
-*handler:* `Script_QueryCompanionMonsterData`
 
 Multi-purpose monster query: stats of a companion monster, or barn/farm information (which monster works each farm area, a monster's friendship level, work state, plant-seed order). The second argument selects what is returned in reg0-reg7.
 
@@ -11605,12 +11009,10 @@ Args:
   1. kind (0 base stats, 1/2 s16 stat blocks, 3 dword block, 4 monster fields + friendship, 5 area workers, 6 plant-order bit, 7 barn workload, 8 this monster's work state, 9 this monster's friendship, 10 record's friendship)
 
 ### `op 414` — GetChoiceIndexAndItem()
-*handler:* `Script_VMOp_GetScriptChoiceIndexAndItemId`
 
 Get the result of the last item-pick menu: reg0 = chosen slot index (0-7), reg1 = the item id.
 
 ### `op 416` — GetPlayerVariable(code, skill)
-*handler:* `Script_VMOp_QueryPlayerStatByCharCode`
 *verified:* yes, in game
 
 Get a player value chosen by a letter code (gold, level, fodder, a skill level, stone, compost, best skill level). reg0 = the value.
@@ -11665,18 +11067,15 @@ Args:
      - `37` = Bartering
 
 ### `op 418` — HasBackpackRoom()
-*handler:* `Script_VMOp_QueryBackpackHasOccupiedSlot`
 *verified:* yes, in game
 
 Check whether the player's backpack has at least one free slot (within the currently unlocked size) before handing over an item.
 
 ### `op 419` — HasRoomForItem()
-*handler:* `Script_VMOp_QueryBackpackOrEquipFirstFreeSlot`
 
 reg0 = 1 if the player has room for an item: a free slot among the first 60 backpack slots, or empty hands. Unused by the shipped scripts.
 
 ### `op 420` — HasBackpackFreeSlots(count)
-*handler:* `Script_VMOp_QueryBackpackFreeSlotCountGTE`
 *verified:* yes, in game
 
 Check whether the backpack has at least the given number of empty slots.
@@ -11685,13 +11084,11 @@ Args:
   0. count (number of empty slots needed (0 behaves like 1)) — verified in game
 
 ### `op 426` — IsPlayerHoldingItem()
-*handler:* `Script_VMOp_QueryEquipExtrasSlot24Occupied`
 *verified:* yes, in game
 
 reg0 = 1 if the player is carrying an item in their hands (over the head), else 0. Unused by the shipped scripts.
 
 ### `op 431` — HasItem(item, min_count, min_level)
-*handler:* `Script_VMOp_QueryItemAvailableInBackpackOrEquipExtras`
 *verified:* yes, in game
 
 Sets reg0 = 1 if one backpack slot (or the held/equipped extra slots) has the item with at least the given count, and that stack's highest level is at least min_level, else 0. reg2 = a flag bit of the matching stack.
@@ -11703,7 +11100,6 @@ Args:
   2. min_level (the stack's highest level >= this (a stack keeps up to 9 per-item levels sorted highest first; only the first is read); 0 or -1 = any level) — verified in game
 
 ### `op 432` — GetSeedCropInfo(seed_item)
-*handler:* `Script_VMOp_QueryCropPlantableAndTileInfo`
 
 Look up a seed's crop data: whether it grows in the current season, how many days it takes, plus two item-type values. No field tile is inspected.
 
@@ -11712,7 +11108,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 433` — GetFishSizeRecords(fish)
-*handler:* `Script_VMOp_QueryFishSizeRecords`
 
 Reads the player's size records for a fish: reg0 = the biggest one caught, reg1 = the smallest.
 
@@ -11720,7 +11115,6 @@ Args:
   0. fish
 
 ### `op 434` — GetItemSellPrice(item)
-*handler:* `Script_VMOp_QueryItemSellPrice`
 *verified:* yes, in game
 
 Get an item's sell price for one unit at level 1 (the 'Sell:' on the item screen) into reg0, e.g. to show prices in a scripted menu. Seen in game.
@@ -11730,7 +11124,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 435` — GetItemBuyPrice(item)
-*handler:* `Script_VMOp_QueryItemBuyPrice`
 *verified:* yes, in game
 
 Get an item's shop buy price (the 'Buy:' on the item screen) into reg0. Seen in game.
@@ -11740,7 +11133,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 436` — IsItemStackable(item)
-*handler:* `Script_VMOp_QueryItemIsStackable`
 *verified:* yes, in game
 
 Check whether an item stacks. reg0 = 1 if its metadata stack nibble (+5 & 0xF) is > 1, else 0.
@@ -11750,7 +11142,6 @@ Args:
      - *(enum: 1108 values — use the in-editor picker or the id database)*
 
 ### `op 437` — IsItemInCategoryList(item, list)
-*handler:* `Script_VMOp_QueryItemInNpcOfferListArchive14850`
 
 Check whether an item belongs to one of the present item-category lists (e.g. 'cakes', 'sweets') used for gift reactions. reg0 = 1 if found.
 
@@ -11760,7 +11151,6 @@ Args:
   1. list (list index = (u16)(arg + 0x7F00), so 33025 = list 1 ... (rf3PresentCategory.bin, 21 lists))
 
 ### `op 438` — HasItemOfCategory(category)
-*handler:* `Script_VMOp_QueryBackpackOrEquipHasItemOfCategory`
 
 reg0 = 1 if the player has any item of the given category in the backpack (first 60 slots), in their hands, or in equipment record 1.
 
@@ -11768,7 +11158,6 @@ Args:
   0. category (item-metadata byte +4 (corpus 32))
 
 ### `op 440` — GetNpcMapID(char)
-*handler:* `Script_VMOp_GetNpcMapID`
 *verified:* yes, in game
 
 Get a monster's home map from its rf3NpcParam record (offset 292) into reg0: the map hunting requests send the player to ('Go to ＠マップ０＠ and get rid of ...', via SetVar2). 0 for villagers.
@@ -11804,17 +11193,14 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 441` — IsConfirmButtonDown()
-*handler:* `Script_VMOp_QueryConfirmButtonBit41`
 
 Check whether the player is holding the confirm (advance dialogue) button right now. Retail uses it to let the player skip the staff credits.
 
 ### `op 442` — IsStickInputActive()
-*handler:* `Script_VMOp_QueryStickByte5Pressed`
 
 Check whether the analog stick / d-pad is currently being pushed.
 
 ### `op 445` — GetFlagBit(flag)
-*handler:* `Script_VMOp_QueryGameFlagBitDirect`
 
 Read a zone-2 game flag bit into reg0 (1 set / 0 clear) - the reader for SetFlagBit.
 
@@ -11822,13 +11208,11 @@ Args:
   0. flag (bit zone2_base + id)
 
 ### `op 447` — GetWeather()
-*handler:* `Script_Query_CurrentWeather`
 *verified:* yes, in game
 
 Read the current weather code into reg0 (codes as in SetWeather).
 
 ### `op 456` — GetEquippedItemAttr(slot, attr)
-*handler:* `Script_VMOp_QueryEquippedItemAttrByEquipSlot`
 *verified:* yes, in game
 
 Get the item equipped in one of the player's equipment slots and one attribute of it: reg0 = item id, reg1 = the chosen attribute (an upgrade, a base material, or one of two hidden sell-price ratings).
@@ -11859,7 +11243,6 @@ Args:
      - `14` = stats_from_item
 
 ### `op 470` — GetGuestNpcVariant(npc)
-*handler:* `Script_VMOp_GetGuestNpcVariant`
 
 Put a guest character's appearance/dialogue variant (rolled daily) into reg0.
 
@@ -11867,7 +11250,6 @@ Args:
   0. npc (24-47 (temporary/guest characters))
 
 ### `op 471` — GetChildFriendPoints(npc)
-*handler:* `Script_VMOp_QueryChildFriendshipWordAt4`
 
 Get the raw friendship word of a character with id 24-47 (the second friendship table: children and other non-villager residents). reg0 = level*4 + a 2-bit progress count.
 
@@ -11875,7 +11257,6 @@ Args:
   0. npc (ids outside 24..47 -> 0)
 
 ### `op 473` — RollChildDailyPref(child, range)
-*handler:* `Script_VMOp_RollOrGetChildPersistedRandom`
 
 Returns a random number in [0, range) for a child character that stays the same on later calls: the first call rolls and stores it, later calls return the stored value.
 
@@ -11884,7 +11265,6 @@ Args:
   1. range (corpus 104, 114)
 
 ### `op 481` — GetPartyMemberId(slot)
-*handler:* `Script_VMOp_QueryPartyMemberDwordAt8`
 *verified:* yes, in game
 
 Read the character id of a party member into reg0 (0 if the slot is empty).
@@ -11893,7 +11273,6 @@ Args:
   0. slot (0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player)) — verified in game
 
 ### `op 482` — GetPartyMemberId(slot)
-*handler:* `Script_VMOp_QueryPartyMemberDwordAt8`
 *verified:* yes, in game
 
 Read the character id of a party member into reg0 (0 if the slot is empty).
@@ -11902,22 +11281,18 @@ Args:
   0. slot (0 = companion 1, 1 = companion 2 (not range-checked; -1 reads the player)) — verified in game
 
 ### `op 487` — IsCurrentNpcInParty()
-*handler:* `Script_VMOp_QueryCurrentInteractionNpcInActiveParty`
 
 Check whether the NPC the player is talking to is one of the two companions. reg0 = 1/0.
 
 ### `op 490` — IsDatePartnerAtDateSpot()
-*handler:* `Script_VMOp_QueryMarriagePartnerInPartyAndUnlockAch771`
 
 Check whether your date has arrived at the date spot: reg0 = 1 if a companion (or the scene's own actor) is a villager on a date (date state 3) standing on the date map (REG_DATE_MAP). Also sets packed flag 771 when found through a companion slot.
 
 ### `op 493` — GetNpcFacingMode()
-*handler:* `Script_VMOp_QueryNpcScriptedFacingModeBits`
 
 Sets reg0 to the talking NPC's facing mode (0-2), as set by SetNpcFacingMode; 0 if there is no host NPC.
 
 ### `op 504` — GetPartyMemberPosY(slot)
-*handler:* `Script_VMOp_QueryPartyMemberWorldYTile`
 *verified:* yes, in game
 
 Read a party member's Y position into reg0 (0 if the slot is empty). Positions are in script units (world >> 12); one map-editor tile is 8 units (tile = value / 8).
@@ -11926,7 +11301,6 @@ Args:
   0. slot (0 = companion 1, 1 = companion 2, -1 = player) — verified in game
 
 ### `op 534` — GetDailyVisitor(mode)
-*handler:* `Script_VMOp_QueryDailyVisitorByMode`
 
 Read the day's travelling-visitor (Sakura merchant) data selected by mode into reg0..reg3.
 
@@ -11934,17 +11308,14 @@ Args:
   0. mode (0 = offer category A, 1 = offer category B, 2 = visitor npc id / wanted item / price tier (reg0..reg2), 3 = alt wanted item / quantity (reg0..reg1), 9 = the four discount bits (reg0..reg3), 10 = quest id of the posted board record (0 if none))
 
 ### `op 561` — GetSceneStateBytes()
-*handler:* `Script_VMOp_QuerySceneEntityBytesArray4`
 
 Read the current scene's four state bytes (scene +540..+543) into reg0..reg3.
 
 ### `op 567` — GetTomorrowsCalendarEvent()
-*handler:* `Script_VMOp_QueryTomorrowBirthdayNpcIfNotMet`
 
 Get the calendar event (festival / birthday row id) scheduled for tomorrow, if that event is enabled; reg0 = event id or 0. Before 6:00 'tomorrow' means today's date.
 
 ### `op 568` — GetSceneNpc(index)
-*handler:* `Script_VMOp_QuerySceneNpcByIndexAndDirtyBit`
 
 Get a festival scene's NPC: index 0 or below = the main NPC, 1-7 = the participant list. reg1 receives a scene status bit.
 
@@ -11952,7 +11323,6 @@ Args:
   0. index (<= 0 = the scene's primary NPC; 1-7 = participant list entry)
 
 ### `op 569` — RankFestivalContestants(player_a, player_b)
-*handler:* `Script_VMOp_QueryTopRankedNpcsFromRoster`
 
 Rank three roster NPCs and the player for the current festival contest; the top three (char id, score A, score B) go to reg0..reg8.
 
@@ -11961,22 +11331,18 @@ Args:
   1. player_b
 
 ### `op 570` — GetTodaysRequestNpc()
-*handler:* `Script_VMOp_QueryTodayDailyRequestActiveNpcId`
 
 Read into reg0 the character id of the NPC whose daily request is active today (0 if none).
 
 ### `op 572` — GetSceneScratchByte()
-*handler:* `Script_VMOp_QuerySceneFlagByteAt541`
 
 Read the festival scene's scratch byte (set by op 571) into reg0.
 
 ### `op 573` — GetFestivalPlacements()
-*handler:* `Script_VMOp_QueryFourSceneEventTwoFields`
 
 Compute the festival contest placements and read the top four entries (two values each) into reg0..reg7.
 
 ### `op 575` — GetShuffleValue(index)
-*handler:* `Script_VMOp_QueryShuffleBufferByteAt`
 
 Read entry [index] of the shuffle buffer (op 574) into reg0.
 
@@ -11984,7 +11350,6 @@ Args:
   0. index (not bounds-checked)
 
 ### `op 576` — GetSceneEventNpc(index)
-*handler:* `Script_VMOp_QuerySceneEventNpcByEventIdx`
 
 Read the character id stored in scene event-actor slot [index] into reg0 (e.g. the festival placings after GetFestivalPlacements).
 
@@ -11992,22 +11357,18 @@ Args:
   0. index (0-3 in the corpus (not bounds-checked))
 
 ### `op 577` — GetFestivalResults()
-*handler:* `Script_VMOp_QueryCalendarEventParticipantsAndScoreFromArchive16340`
 
 Reads the current festival's top four places into registers (reg1/reg3/reg5/reg7 = char id, reg2/reg4/reg6/reg8 = value) and reg0 = the festival's date (season*100 + day). If the player (id 0) placed, the placement is announced to the NPCs.
 
 ### `op 579` — GetSceneEventFlags()
-*handler:* `Script_VMOp_QuerySceneEventFlagsTriplet`
 
 Read three scene event fields into reg0..reg2: u16 scene+546, u8 scene+543, u16 scene+548.
 
 ### `op 580` — GetGivenItemStats()
-*handler:* `Script_VMOp_QueryHeldItemEffectiveStatsOrCraftRecord`
 
 Reads stats of the item the player last threw or handed to an NPC (used when judging contest entries). Equipment gives adjusted stat percentages; other items give their level/craft data. reg5 = the item id.
 
 ### `op 581` — CompareFishRecord(size)
-*handler:* `Script_VMOp_QueryAndUpdateFishCaughtMaxRank`
 
 Compare a catch with the saved biggest-fish record and store it if bigger. reg0 = 0 new record, 1 tie, 2 smaller; reg1 = the previous record.
 
@@ -12015,12 +11376,10 @@ Args:
   0. size (the catch's size value (corpus: reg1 from the catch message))
 
 ### `op 582` — GetFishRecord()
-*handler:* `Script_VMOp_QueryFishCaughtMaxRank`
 
 Read the saved largest-fish size rank into reg0 (the fishing contest score).
 
 ### `op 588` — HasMapEntityOfKind(kind)
-*handler:* `Script_VMOp_QueryTileObjectActiveByItemId`
 
 Check whether a piece of furniture of the given kind is placed (active in the furniture registry): reg0 = 1/0. Scenes use it for 'you don't have a wardrobe yet' and similar lines.
 
@@ -12028,7 +11387,6 @@ Args:
   0. kind (furniture object id -- its sprite is rom:/chr/OBJ_*.bntx at archive id + 933: 325 OBJ_ARSENAL00, 327 / 328 bed / double bed, 335 bookshelf, 341 wardrobe (OBJ_CLOAK00), 343..352 OBJ_COMPO_00..09, 365 OBJ_FARMING00, 366 / 367 fridge, 370 fodder box (OBJ_KAIBA_A), 372 lumber / stone box (OBJ_MATERIAL), 375 OBJ_PASTURE, 380 / 381 shelf, 382 shipping bin (OBJ_SHIPMENT), 387 well)
 
 ### `op 592` — CanPlaceFurnitureInRoom(room)
-*handler:* `Script_VMOp_QueryTileObjectFreeOrFew`
 
 Sets reg0 = 1 if the room has fewer than 16 placed furniture objects (room for one more), else 0.
 
@@ -12036,7 +11394,6 @@ Args:
   0. room (0 = the current room)
 
 ### `op 593` — PickRandomPlacedFurniture(candidates)
-*handler:* `Script_VMOp_PickRandomActiveTileObjectByCandidates`
 
 Rarely (1 roll in 8) picks one of the listed furniture ids that is placed in the current room and returns it in reg0; otherwise, or when none is placed, reg0 = 0. NPC visit scenes use it to comment on a piece of furniture.
 
@@ -12044,18 +11401,15 @@ Args:
   0. candidates (repeating an id raises its odds)
 
 ### `op 619` — IsPartyInviteAccepted()
-*handler:* `Script_VMOp_QueryAndCacheNpcAdmireResponse`
 
 Decide whether the NPC being talked to agrees to join the player's party: reg0 = 1 yes, 0 no. The answer is cached for the day.
 
 ### `op 622` — GetDifficulty()
-*handler:* `Script_VMOp_QueryDifficultyMode`
 *verified:* yes, in game
 
 Sets reg0 to the difficulty: 0 = Easy, 1 = Normal, 2 = Hard (or Hell; the two are not distinguished here).
 
 ### `op 626` — IsMazeStageCleared(stage)
-*handler:* `Script_VMOp_QueryPlayerInventoryFlagBit`
 
 reg0 = 1 if the given Sharance Maze stage has been cleared.
 
@@ -12063,7 +11417,6 @@ Args:
   0. stage (0 Garden of Light ... 5 Banquet of Nightmares) — verified in game
 
 ### `op 635` — GetActionTriggerByte(index)
-*handler:* `Script_VMOp_QueryActionTriggerByteByIdx`
 
 Sets reg0 to one of the three scene action-trigger bytes (the ones SetActionTriggerByte writes). Unused by the shipped scripts.
 
@@ -12071,24 +11424,20 @@ Args:
   0. index (values > 2 read index 2)
 
 ### `op 638` — GetHarvestReport()
-*handler:* `Script_Query_DailyForecasts`
 
 Fill reg0-reg3 with the crop items of the weekly harvest report (bumper and poor crop for this week and next), for Arthur's harvest-report text.
 
 ### `op 639` — GetPrincePoints()
-*handler:* `Script_QueryPrincePoints`
 *verified:* yes, in game
 
 Get the current Prince Points. reg0 = points.
 
 ### `op 641` — GetTourists()
-*handler:* `Script_QueryTourists`
 *verified:* yes, in game
 
 Get the current tourist count. reg0 = tourists.
 
 ### `op 644` — GetPrinceOrderState(order, sub)
-*handler:* `Script_QueryEffectStateById`
 
 Sets reg0 to the state of a Prince Point order: whether it is unlocked/applied (0/1), or an upgrade level for the storage orders.
 
@@ -12125,13 +11474,11 @@ Args:
   1. sub (usually 0)
 
 ### `op 646` — GetPrinceRank()
-*handler:* `Script_QueryPrinceRank`
 *verified:* yes, in game
 
 Read the current Prince rank into reg1 (not reg0). Ranks 0-5 = Apprentice, Struggling, Respected, Reliable, Honorable Prince/Princess, Crown of Crowns (verified in game: 1 before an order-sign promotion, 5 = Crown of Crowns after).
 
 ### `op 647` — GetPrinceOrderCost(order, currency)
-*handler:* `Script_QueryEffectCostForCurrency`
 
 Get the cost of a Prince Point order in the chosen currency (or of an order variant). reg0 = cost.
 
@@ -12168,73 +11515,60 @@ Args:
   1. currency (0 PP, 1 lumber, 2 material stone, 3 gold for multi-currency orders (storage 31-38, expansions 39/40, barns 41-50); order 0: festival id; order 29: airship sub 0/1)
 
 ### `op 648` — GetShippingCompletionPercent()
-*handler:* `Script_VMOp_GetShippingCompletionPercent`
 
 Get the shipping-list completion percent (distinct items ever shipped / distinct shippable items * 100, max 100). reg0 = percent.
 
 ### `op 649` — GetShippingBoxGold()
-*handler:* `Script_VMOp_QueryShippingBoxTotalGold`
 *verified:* yes, in game
 
 Sets reg0 to the total sale value of everything in the shipping box (capped at 999,999,999). It is the SELL value (an onigiri read 57; 180 is its shop price).
 
 ### `op 650` — GetLifetimeShippedGold()
-*handler:* `Script_VMOp_QueryLifetimeShippedGoldCategory0`
 
 Sets reg0 to the total gold earned from shipping over the whole save (all categories), capped at 2,000,000,000.
 
 ### `op 652` — GetPreviousMapId()
-*handler:* `Script_VMOp_QuerySceneA1Word348`
 *verified:* yes, in game
 
 Put the id of the map the player came from into reg0 (compared against map globalvars to see where the player entered from). For outdoor maps it is the season-independent base id (coming from the farm read 4, not the seasonal 4-7 variant); from a room, that room's id (Your Room = 64).
 
 ### `op 658` — GetDefeatPosition()
-*handler:* `Script_VMOp_QuerySceneA1WordPair112`
 *verified:* yes, in game
 
 Sets reg0/reg1 to the tile where the most recently defeated monster fell, e.g. to put the girl where Ambrosia fell. Shipped scenes use it only in monster-defeated scenes (type 17, and the type-68 scene after the Ambrosia fight), followed by a spawn or teleport at (reg0, reg1).
 
 ### `op 666` — IsGameClearedSysFlagSet()
-*handler:* `Script_VMOp_QuerySaveConfigBit0`
 *verified:* yes, in game
 
 Check bit 0 of the system-save flags (rf4_sys.sav, shared by all save slots). The bit unlocks the post-game Extra Orders category; scripts set it with op 667.
 
 ### `op 668` — IsSaveConfigBit4Set()
-*handler:* `Script_VMOp_QuerySaveConfigBit4`
 
 Sets reg0 to bit 4 of the system save-config flags (shared by all save slots).
 
 ### `op 670` — IsSaveConfigBit5Set()
-*handler:* `Script_VMOp_QuerySaveConfigBit5`
 
 reg0 = bit 5 of the system-save config flags (meaning not established; the order menu uses it before offering order 96).
 
 ### `op 672` — IsSaveConfigBit2Set()
-*handler:* `Script_VMOp_QuerySaveConfigBit2`
 
 Check bit 2 of the system-save flags (shared by all save slots). The marriage commit sets it (bit 3 instead for one spouse case), so it records a past wedding on this system save.
 
 ### `op 673` — IsSaveConfigBit3Set()
-*handler:* `Script_VMOp_QuerySaveConfigBit3`
 
 Check bit 3 (0x8) of g_saveConfigFlags. reg0 = 1/0. RegisterChildBirth (op 292) sets this bit when the child is id 23 (and bit 2 otherwise).
 
 ### `op 674` — GetRuneMedals()
-*handler:* `Script_VMOp_QueryPlayerRuneMedalsDword`
 *verified:* yes, in game
 
 Read the player's medal count into reg0 (used by the medal exchange).
 
 ### `op 676` — GetMedalGoldRate()
-*handler:* `Script_VMOp_GetMedalGoldRate`
 *verified:* yes, in game
 
 Put the Rune Medal to gold exchange rate (always 20) into reg0, for the exchange dialogue text.
 
 ### `op 684` — IsProjectorSceneUnlocked(scene)
-*handler:* `Script_VMOp_QuerySaveConfigFlagBitByIdx`
 
 Check whether a memory scene can be replayed in the Projector. reg0 = 1/0.
 
@@ -12242,12 +11576,10 @@ Args:
   0. scene (Projector scene index (0 = 'Opening', ...))
 
 ### `op 686` — GetFreeLookCameraMode()
-*handler:* `Script_VMOp_QueryGlobalDword302E4`
 
 Read the free-look camera mode word into reg0; it drops back to 0 when the player leaves free-look, so scripts poll it.
 
 ### `op 690` — GetNpcGivenHat(npc)
-*handler:* `Script_VMOp_QueryNpcRecordDword252AndItemId676`
 *verified:* yes, in game
 
 For a villager: reg0 = the headgear they have been GIVEN, as a bitmask (record +252): bit n = item 677 + n (bit 0 Silver Hairpin ... bit 10 Cute Knitting = 1024 ... bit 22 Spring Headdress); gifts add bits, nothing clears them. reg1 = 676 + record byte +256 = the hat picked for them to wear today (each day's spawn rolls 25% to pick one of the given hats), or 0 when none was picked. Used by the 'whose hats am I taking back?' menu. The script language has no bitwise operators: test bit n as (reg0 / 2^n) % 2, e.g. (reg0 / 1024) % 2 for Cute Knitting (in game).
@@ -12283,12 +11615,10 @@ Args:
      - `26` = Mistress Trupin
 
 ### `op 694` — HasClearedAnyMarriage()
-*handler:* `Script_VMOp_QuerySaveConfigBit1`
 
 reg0 = 1 if a marriage has ever been completed on this system save (the flag MarkSpouseCleared sets).
 
 ### `op 695` — IsSpouseCleared(character)
-*handler:* `Script_VMOp_QueryMonsterDexBitByMonsterId`
 
 Meant to check whether the game has been cleared with this character as spouse (system save, set by op 620). Because of a bug it always reads bit 0, whatever character is passed. Unused in retail.
 
@@ -12296,7 +11626,6 @@ Args:
   0. character (intended: the spouse char id; actually ignored except for (1 << id) != 0)
 
 ### `op 700` — HasItemWithFlagBit0(item, min_count, min_level)
-*handler:* `Script_VMOp_QueryBackpackHasItemAtLeastQtyQuality`
 
 Sets reg0 = 1 if the player has the item with at least the given count and level AND the stack's flag bit 0 is set, else 0. Like HasItem but the flag bit must be set.
 
@@ -12309,7 +11638,6 @@ Args:
 ## Other
 
 ### `op 527` — AdvanceRng(categories)
-*handler:* `Script_VMOp_AdvanceMmixRngByCategoryRolls`
 
 Advances the shared random-number generator by performing up to four shop-category rolls and throwing the results away. Unused by the shipped scripts.
 
@@ -12317,7 +11645,6 @@ Args:
   0. categories (each is rolled once and the result discarded; extra args ignored)
 
 ### `op 596` — RollUniformIntegerLessThanN(n)
-*handler:* `Script_VMOp_RollUniformIntegerLessThanN`
 *verified:* yes, in game
 
 Roll a random integer from 0 to n-1 into reg0.
@@ -12326,7 +11653,6 @@ Args:
   0. n (exclusive upper bound; 0 gives 0) — verified in game
 
 ### `op 609` — RollRandomPointInRadiusAroundCenter(x, y, radius)
-*handler:* `Script_VMOp_RollRandomPointInRadiusAroundCenter`
 
 Picks a random tile within a radius of a centre tile: reg0 = x, reg1 = y (absolute). Points cluster toward the centre (the distance is uniform, not the area).
 
@@ -12336,7 +11662,6 @@ Args:
   2. radius (corpus 4-32)
 
 ### `op 631` — GetNameHashRoll(name, modulus)
-*handler:* `Script_VMOp_RollSeededHashByMode16`
 
 Turn a name into a fixed number 0..modulus-1 (same name, same result) and put it in reg0 - used for name-dependent comments ('What a lovely name!').
 
@@ -12345,7 +11670,6 @@ Args:
   1. modulus (result range 0..modulus-1)
 
 ### `op 632` — RollSeededDailyRandom(mode, max)
-*handler:* `Script_VMOp_RollSeededDailyRandom`
 
 Put a random number into reg0 that is fixed for the current day (reloading does not change it).
 
@@ -12354,7 +11678,6 @@ Args:
   1. max (range (mode 0) or seed offset (mode 1))
 
 ### `op 642` — AddTourists(amount)
-*handler:* `Script_AddTourists`
 *verified:* yes, in game
 
 Add to the town's tourist count (Prince Point system; it shows on the Order Symbol). A negative amount subtracts; the count stays within 0..99,999,999 (both limits seen in game).
@@ -12363,7 +11686,6 @@ Args:
   0. amount (any signed number (the shipped scripts use 10-250); GetTourists reads the count back) — verified in game
 
 ### `op 659` — MyShopAction(subcase, args...)
-*handler:* `SakuraEvent_DispatchAction`
 
 Run one step of the player's own shop (My Shop, the Sakura/tourist stall): check stock, pick what a visitor wants, price it, commit the sale, or start/stop the visitor spawner.
 
@@ -12374,7 +11696,6 @@ Args:
   1. args... (subcase-specific: 1 visitor char id; 2 (roll arg, price %); 7 (count, gold); 8 (base price, tier))
 
 ### `op 691` — MultiplyValues(factor1)
-*handler:* `Script_VMOp_ComputeProductSeries`
 
 Multiply all arguments together and put the result (max 999,999,999) into reg0.
 
@@ -12384,20 +11705,18 @@ Args:
 ## No-op (PC-port stub)
 
 ### `op 388` — nop()
-*handler:* `BusInstance_SoLoud__vslot_002`
 *verified:* yes, from the exe
 
 No-op: the do-nothing stub; the VM decodes and discards any args and moves on. This is THE nop: `nop` assembles to it, it takes no arguments (4 bytes, as in its 4 shipped uses), and the editor lists only it. The other no-op slots (0, 76, 272, 381, 693, ...) run the same stub and show as nop_N.
 
 ### `op 524` — NopCompleteSubEventGoals()
-*handler:* `Script_VMOp_PromoteAllPendingThrowEntriesToActive`
 *verified:* yes, from the exe
 
 Does nothing: the handler it shares with op 548 only works for opcodes >= 537. Use op 548 to complete sub-event goals.
 
 ## Control opcodes (flow backbone)
 
-These are the VM's control-flow tokens (opcode >= `0xFFF0`), handled inline by `Script_VMStep` rather than via the action-dispatch table. They structure every scene: dialogue, branches, choices, calls, and the scene end.
+These are the VM's control-flow tokens (opcode >= `0xFFF0`), built into the script engine. They structure every scene: dialogue, branches, choices, calls, and the scene end.
 
 ### `0xFFFF` — RET
 
@@ -12461,32 +11780,32 @@ Frame setup (it does NOT return): sets the frame base to the stack top, reserves
 
 ## Expression operands (argument encoding)
 
-Action-op arguments and control-op guard/value expressions are not raw integers -- each is a little postfix (RPN) expression evaluated by `Script_EvalExpressionBytecode`. Most resolve to a single literal, but they can be variables, VM registers, or arithmetic. Leaf operands:
+Action-op arguments and control-op guard/value expressions are not raw integers -- each is a little postfix (RPN) expression evaluated by the game. Most resolve to a single literal, but they can be variables, VM registers, or arithmetic. Leaf operands:
 
 - **int literal** — a constant (u8 / s8 / u16 / s16 / int32).
 - **`FLG_`/`REG_` name** (e.g. `REG_WIFE_ID`) — a packed game-flag / register reference (an emdeb.bin variable); shown as `var:0xNN` when the name table is unavailable.
 - **`reg0`..`reg9`** — the VM's scratch registers. A query op writes its result to `reg0` (the ctx result slot); a following op / branch reads it.
 - **`arr[0xNN]`** — a scene var-array load; **`self`**, **`null`**, **`0`** — fixed leaves.
-- **`tag3(N)`** / **`tag4(N)`** (tag bytes 0x03 / 0x04) — typed u32 CONSTANTS, not variables: the handler receives the number N (`Script_PrepActionArgs` never dereferences them). The listing always writes this raw form; where the argument slot is known (a character id in actor slots, a map id in the schedule ops) the comment shows it as **`actor(Name)`** / **`map(MAP_NAME)`**, which the assembler also accepts.
+- **`tag3(N)`** / **`tag4(N)`** (tag bytes 0x03 / 0x04) — typed u32 CONSTANTS, not variables: the instruction receives the number N. The listing always writes this raw form; where the argument slot is known (a character id in actor slots, a map id in the schedule ops) the comment shows it as **`actor(Name)`** / **`map(MAP_NAME)`**, which the assembler also accepts.
 
 Operators build parenthesised infix — binary `*` `/` `%` `+` `-` `<` `>` `<=` `>=` `==` `!=` `&&` `||`; unary negate and logical-not; and the compound-assign forms `=` `*=` `/=` `%=` `+=` `-=` `&&=` `||=` (which write the result back into the target variable, e.g. `REG_X += 1`).
 
 ## Event Manager (em.bin) opcodes
 
-Scenes bridge to **em.bin** Event-Manager entries via the bridge action opcodes `EvalCondScriptA` (371), `EvalCondScriptB` (372), `DispatchCondScriptEntry` (373), `RunEmEntryAltAction` (374), `SetFlagBitIfCond` (444) (each listed in the opcode index) — the `EvalCondScript*` pair test an entry's conditions, the `*DispatchCondScript*` / `*DispatchAltAction` pair run its main / alt action stream, and `SetFlagBitIfCond` sets a flag when an entry's condition holds — for their *plays-when* conditions and their flag / variable effects. Each entry is its own little bytecode — a system SEPARATE from the rf3.mc VM above — decoded by `rf4s_modkit/emscript.py` and shown/edited in the toolkit's Event Manager. Names come from the debug `emdeb.bin` (shipped alongside em.bin).
+Scenes bridge to **em.bin** Event-Manager entries via the bridge action opcodes `EvalCondScriptA` (371), `EvalCondScriptB` (372), `DispatchCondScriptEntry` (373), `RunEmEntryAltAction` (374), `SetFlagBitIfCond` (444) — `EvalCondScriptA` / `EvalCondScriptB` test an entry's conditions, `DispatchCondScriptEntry` / `RunEmEntryAltAction` run its main / alt actions, and `SetFlagBitIfCond` sets a flag when an entry's condition holds — for their *plays-when* conditions and their flag / variable effects. Each entry is its own little bytecode — a system SEPARATE from the rf3.mc VM above — decoded by `rf4s_modkit/emscript.py` and shown/edited in the toolkit's Event Manager. Names come from the debug `emdeb.bin` (shipped alongside em.bin).
 
-**Condition expression opcodes** — `op = byte & 0x7F`; the high bit means "OR with the next expr", so consecutive high-bit exprs form an OR-group and the groups AND together (`CondScript_EvalEntry`, RF4S.exe+0x23BDB0):
+**Condition expression opcodes** — `op = byte & 0x7F`; the high bit means "OR with the next expr", so consecutive high-bit exprs form an OR-group and the groups AND together:
 
 - `0` **TRUE**, `1` **FALSE** — constant guards.
 - `2`/`3` **CondA**(id) and `4`/`5` **NOT CondA** — test named condition A (entry id as u16 / u32).
 - `6`/`7` **CondB** and `8`/`9` **NOT CondB** — test named condition B.
 - comparison of two operands: `0x10` == (equal), `0x20` != (not-equal), `0x30` > (greater), `0x40` >= (greater-or-equal) — signed when either operand is a signed literal or signed flag ref.
 
-**Comparison operand types** — `type1 = (op>>2)&3`, `type2 = op&3` (`CondScript_ReadComparisonOperands`, RF4S.exe+0x23C1A0):
+**Comparison operand types** — `type1 = (op>>2)&3`, `type2 = op&3` :
 
-- `0` u32 literal · `1` signed u32 literal · `2` **query id** (a `Script_QueryGameState` id — a live game-state read, shown by its `emdeb.bin` query name) · `3` **flag ref** (an `emdeb.bin` `FLG_`/`REG_` variable: packed sign / size / width + bit-offset). Query ids and flag refs both resolve to their debug names in the editor.
+- `0` u32 literal · `1` signed u32 literal · `2` **query id** (a game-state query id — a live game-state read, shown by its `emdeb.bin` query name) · `3` **flag ref** (an `emdeb.bin` `FLG_`/`REG_` variable: packed sign / size / width + bit-offset). Query ids and flag refs both resolve to their debug names in the editor.
 
-**Action opcodes** — high nibble selects the op; the byte's low bits describe the operand (target mode `(b>>2)&3`, value type `b&3` = same encoding as a comparison operand; result is `target OP value`, target-first — no reverse-sub, unlike the rf3.mc expression VM) (`EMF_DispatchActionOpcode`, RF4S.exe+0x23C390):
+**Action opcodes** — high nibble selects the op; the byte's low bits describe the operand (target mode `(b>>2)&3`, value type `b&3` = same encoding as a comparison operand; result is `target OP value`, target-first — no reverse-sub, unlike the rf3.mc expression VM):
 
 - `0x00`/`0x10` **CALL** — invoke another em entry (main stream → its MAIN block, alt stream → its ALT; `0x00` = u16 entry id, `0x10` = u32).
 - `0x20` **SET** — target = value.

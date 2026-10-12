@@ -854,10 +854,18 @@ def _as_images(png) -> list:
             out.extend(_as_images(p))
         return out
     if hasattr(png, "size") and hasattr(png, "mode"):   # a PIL Image
-        return [png]
+        return [_to_8bit(png)]
     img = Image.open(png)
     img.load()
-    return [img]
+    return [_to_8bit(img)]
+
+
+def _to_8bit(img):
+    """A 16-bit / 32-bit grey image as 8-bit grey: Pillow's convert('RGBA') clips those values
+    to 255 (a 10 % grey 16-bit PNG came out white)."""
+    if img.mode in ("I;16", "I;16B", "I;16L", "I"):
+        return img.point(lambda v: v / 257).convert("L")
+    return img
 
 
 def _assign_images(info: dict, images: list, *, rotate: bool, frame, strip: bool) -> dict:

@@ -2,17 +2,16 @@
 r"""
 rf4mod -- the Rune Factory 4 Special modding command-line toolkit.
 
-One dispatcher over the rf4s_modkit library. Covers every asset format that ships
-in the .mbundle archives: identify, unpack/repack bundles, edit UI plists, edit
-text catalogs, decode/encode textures, inspect/rebuild maps, disassemble/assemble
-AI scripts, edit .strings, and inspect NN containers.
+Command-line side of the RF4S modkit: every file format the game ships (text, scripts,
+em.bin, param tables, maps, models, textures, sounds, monster AI ...), plus game-folder
+setup and loose-file installs.
 
 Run `rf4mod <group> -h` for per-group help. Start with:
 
-    rf4mod selftest                       # verify the toolkit against your bundles
+    rf4mod game                           # which game folder the tools use
     rf4mod ident <file>                   # what is this file?
-    rf4mod bundle list bundlePatch1.mbundle
-    rf4mod text show bundleMain.mbundle/rf3mc.eng --range 0:20
+    rf4mod text show rf3mc.eng --range 0:20
+    rf4mod selftest --quick               # check the toolkit against your game
 
 Install methods:
   * loose file  -> `rf4mod install` (recommended; no repack)
@@ -63,14 +62,43 @@ def _resolve(path_arg: str) -> pathlib.Path:
         cand = base / path_arg
         if cand.is_file():
             return cand
-    # Bare name (no path separators): recursive search in the extracted tree. Try the
-    # name as given and with a .bin suffix (most param/asset files are *.bin).
-    if "/" not in path_arg and "\\" not in path_arg and EXTRACTED.is_dir():
-        for pat in (path_arg, path_arg + ".bin") if not path_arg.endswith(".bin") else (path_arg,):
-            matches = list(EXTRACTED.rglob(pat))
-            if matches:
-                return matches[0]
-    return p  # let the caller raise a clear error
+    # Bare name (no path separators): the copy the game loads (exact case, the earliest in the
+    # game's own order), then any copy in the extracted tree. Try the name as given and with a
+    # .bin suffix (most param/asset files are *.bin).
+    if "/" not in path_arg and "\\" not in path_arg:
+        pats = (path_arg, path_arg + ".bin") if not path_arg.endswith(".bin") else (path_arg,)
+        idx = _loose_index()
+        for pat in pats:
+            if idx.get(pat):
+                return BUNDLE_DIR / idx[pat][0]
+        if EXTRACTED.is_dir():
+            for pat in pats:
+                matches = sorted(EXTRACTED.rglob(pat), key=lambda q: str(q).encode())
+                if matches:
+                    return matches[0]
+    return p  # main() turns the FileNotFoundError into a one-line message
+
+
+_LOOSE = []
+
+
+def _loose_index() -> dict:
+    """The game's Bundle/** index (mbundle.loose_index), read once; {} without a game folder."""
+    if not _LOOSE:
+        try:
+            from rf4s_modkit import mbundle
+            _LOOSE.append(mbundle.loose_index(BUNDLE_DIR) if BUNDLE_DIR and BUNDLE_DIR.is_dir() else {})
+        except Exception:  # noqa: BLE001 -- the plain search below still works
+            _LOOSE.append({})
+    return _LOOSE[0]
+
+
+def _out_or_game(out, src) -> pathlib.Path:
+    """-o/--out, else `src` itself -- backed up first (Options: Backups), like a GUI save."""
+    if out:
+        return pathlib.Path(out)
+    gamepaths.backup_before_write(src)
+    return pathlib.Path(src)
 
 
 def _resolve_bundle(path_arg: str) -> pathlib.Path:
@@ -255,12 +283,12 @@ def cmd_shader_list(a):
                 for s in v.source_stages:
                     print(f"             v{v.index} {s.stage:<7} GLSL " + " + ".join(
                         f"{p.size}@0x{p.offset:X}" for p in s.pieces))
-        print("note: the PC build never compiles this GLSL (its nn::gfx shader init is a stub);"
-              " edit the loose bundleMuteki *.glsl files instead -- see `shader list`")
+        print("note: the PC game never compiles this GLSL; edit the loose bundleMuteki *.glsl "
+              "files instead -- see `shader list`")
         return
     idx = _shader_index([a.target] if a.target else [])
     progs = idx.programs()
-    print("GLSL programs the PC build compiles (MCShader_ctor_base, from loose files):")
+    print("GLSL programs the game compiles (from the loose bundleMuteki files):")
     for name, files in progs.items():
         use, mask = sa.MUTEKI_PROGRAMS.get(name, ("not named in the exe (maybe unused)", None))
         have = "/".join(k[0] if k != "discard_fragment" else "d"
@@ -309,9 +337,8 @@ def cmd_shader_replace(a):
     """`shader replace` -- validate an edited loose shader and write it for `rf4mod install`."""
     from rf4s_modkit import shaderarchive as sa
     if a.name.lower().endswith(".bfsha"):
-        raise SystemExit("the PC build never compiles .bfsha GLSL (nn::gfx shader init "
-                         "RF4S.exe+0x3D52A0 is a stub): edit the loose bundleMuteki *.glsl "
-                         "program instead (`rf4mod shader list`)")
+        raise SystemExit("the PC game never compiles .bfsha shaders: edit the loose "
+                         "bundleMuteki *.glsl program instead (`rf4mod shader list`)")
     idx = _shader_index()
     dest, probs = sa.replace_loose(a.name, _resolve(a.edited) if not pathlib.Path(a.edited).is_file()
                                    else pathlib.Path(a.edited), a.out, idx)
@@ -764,7 +791,7 @@ def cmd_map_resize_attr(a):
     if a.dry_run:
         print("\n  nothing written (--dry-run)")
         return
-    out = pathlib.Path(a.out) if a.out else path
+    out = _out_or_game(a.out, path)
     m.save(out)
     print(f"\n  wrote {out}")
     if any(line.startswith("ERROR") for line in rep["findings"]):
@@ -814,7 +841,7 @@ def cmd_map_set(a):
             sys.exit(f"field index out of range: {fi}")
         rec[fi] = int(val, 0)
     m.set_mobj_record(a.index, rec)
-    out = pathlib.Path(a.out) if a.out else _resolve(a.file)
+    out = _out_or_game(a.out, _resolve(a.file))
     out.write_bytes(m.build())
     print(f"set MOBJ #{a.index} -> {rec}")
     print(f"wrote {out}")
@@ -895,7 +922,7 @@ def cmd_ai_ops(a):
                 sys.exit(f"ai ops: {ex}")
         print(aibn_meta.describe(opid))
         return
-    print("AIBN opcodes (verified 2026-09-17 from the RF4S.exe handlers; 'var<=N' = reads up to N operands)\n")
+    print("AIBN opcodes ('var<=N' = reads up to N operands)\n")
     for opid in sorted(aibn_meta.OPCODES):
         r = aibn_meta.OPCODES[opid]
         ar = r["arity"]
@@ -903,6 +930,13 @@ def cmd_ai_ops(a):
         uses = r.get("uses", "")
         print(f"  0x{opid:02X} {aibn.opname(opid):<30} arity {str(ar):<7} {ops}")
         print(f"       {aibn_meta.first_sentence(r['effect'])}" + (f"  (uses: {uses})" if uses != "" else ""))
+
+
+def _action_words(name: str) -> str:
+    """'Npc_TickTeleportWarpAnim' -> 'tick teleport warp anim'."""
+    import re
+    tail = name.split("_", 1)[-1] if "_" in name else name
+    return " ".join(w.lower() for w in re.findall(r"[A-Z]+(?![a-z])|[A-Z]?[a-z0-9]+", tail)) or name
 
 
 def cmd_ai_actions(a):
@@ -914,7 +948,8 @@ def cmd_ai_actions(a):
         return
     for slot in sorted(aibn_meta.SCRIPTED_ACTIONS):
         sa = aibn_meta.SCRIPTED_ACTIONS[slot]
-        print(f"  sa{slot:<3d} {sa['ida_name']:<58s} [{sa['status']}]  {aibn_meta.first_sentence(sa['effect'], 110)}")
+        n = sa.get("user_count")
+        print(f"  sa{slot:<3d} {_action_words(sa['ida_name'])}" + (f"  (used by {n} script(s))" if n else ""))
 
 
 def cmd_ai_asm(a):
@@ -974,7 +1009,7 @@ def cmd_asatk_dump(a):
 
 def _asatk_write(events, a, src):
     blob = asatk.build(events)
-    out = pathlib.Path(a.out) if a.out else src
+    out = _out_or_game(a.out, src)
     out.write_bytes(blob)
     for w in asatk.validate(events):
         print(f"  warning: {w}")
@@ -1037,7 +1072,7 @@ def cmd_asatk_summary(a):
 
 
 def cmd_asatk_ops(a):
-    print("as_atk timeline opcodes  (V=IDA-verified, D=data-inferred)\n")
+    print("as_atk timeline opcodes  (V = checked against the game, D = inferred from the files)\n")
     for op in sorted(asatk.OPCODES):
         mn, kind, conf, desc = asatk.OPCODES[op]
         print(f"  op{op:<3d} [{conf}] {mn:<10s} arg:{kind:<6s} {desc}")
@@ -1139,7 +1174,7 @@ def cmd_str_set(a):
             t.set(rid, key, int(val, 0))
     except nlcl.NlclError as e:
         sys.exit(f"str set: {e}")
-    out = pathlib.Path(a.out) if a.out else p
+    out = _out_or_game(a.out, p)
     t.save(out)
     print(f"#{rid} {t.label(rid, names)}: " + ", ".join(a.set) + f" -> {out}")
 
@@ -1195,8 +1230,8 @@ def _npc_id(token: str) -> int:
 
 
 def _write_out(a, p: pathlib.Path, data: bytes) -> pathlib.Path:
-    """-o/--out or overwrite the resolved file (the convention of `param set` / `str set`)."""
-    out = pathlib.Path(a.out) if getattr(a, "out", None) else p
+    """-o/--out or overwrite the resolved file, backed up first (`param set` / `str set` too)."""
+    out = _out_or_game(getattr(a, "out", None), p)
     out.write_bytes(data)
     return out
 
@@ -1336,7 +1371,7 @@ def cmd_gift_show(a):
     if not p.is_file():
         sys.exit(f"error: no gift table for '{a.target}'")
     who = _char_names().get(num, "?")
-    print(f"# {p.name}  = char {num} {who}  (archive {14850 + num})")
+    print(f"# {p.name}  = char {num} {who}")
     print(gifts.render(p.read_bytes(), name_fn=_item_name_fn(), categories=_gift_categories()))
 
 
@@ -1347,7 +1382,7 @@ def cmd_gift_categories(a):
     if not cats:
         sys.exit("error: rf3PresentCategory.bin not found")
     nf = _item_name_fn() or (lambda i: str(i))
-    print(f"# rf3PresentCategory (archive 14850): {len(cats)} shared gift categories")
+    print(f"# rf3PresentCategory: {len(cats)} shared gift categories")
     for idx, grp in enumerate(cats):
         ids = gifts.category_items(idx, cats)
         print(f"cat {idx:>2} ({len(ids)}): " + ", ".join(nf(i) or str(i) for i in ids))
@@ -1363,7 +1398,7 @@ def cmd_gift_monster(a):
     data = p.read_bytes()
     sp_fn = None
     if a.species is not None:
-        sid = int(a.species, 0)
+        sid = _species_id(a.species)
         pr = montame.prefs(data, sid)
         who = _char_names().get(sid, "")
         print(f"species {sid} {who}: " +
@@ -1634,7 +1669,7 @@ def cmd_route_rebuild_result(a):
     from rf4s_modkit import route
     p, g = _route_graph(a)
     rr = route.RouteResult.compute(g)
-    out = pathlib.Path(a.out) if a.out else _resolve("rf3RouteResult.bin")
+    out = _out_or_game(a.out, _resolve("rf3RouteResult.bin"))
     out.write_bytes(rr.build())
     print(f"next-hop matrix for {len(g.nodes)} nodes -> {out} ({rr.rows} x {rr.stride} B; "
           f"shortest total cost, lowest edge index on ties)")
@@ -1704,9 +1739,9 @@ def cmd_monster_set(a):
         for assign in a.set:
             key, val = assign.split("=", 1)
             monster.set_field(t, cid, key.strip(), int(val, 0))
-    except nlcl.NlclError as e:
+    except (nlcl.NlclError, ValueError) as e:
         sys.exit(f"monster set: {e}")
-    out = pathlib.Path(a.out) if a.out else p
+    out = _out_or_game(a.out, p)
     monster.save(t, out)
     print(monster.render(t, cid, sp, monster.load_item_names()))
     print(f"wrote {out}")
@@ -1718,7 +1753,7 @@ def cmd_monster_clone(a):
     p = _monster_file(a.file)
     t = nlcl.NlclTable.load(p)
     monster.clone_record(t, a.src, a.dst)
-    out = pathlib.Path(a.out) if a.out else p
+    out = _out_or_game(a.out, p)
     monster.save(t, out)
     print(f"cloned monster template {a.src} -> slot {a.dst}")
     print(monster.render(t, a.dst, monster.load_species(), monster.load_item_names()))
@@ -1733,7 +1768,6 @@ def cmd_monster_new(a):
     from rf4s_modkit import gen as genmod
     _utf8_stdout()
     outdir = pathlib.Path(a.out_dir)
-    outdir.mkdir(parents=True, exist_ok=True)
     sp, inm = monster.load_species(), monster.load_item_names()
 
     # 1) template: clone base -> free (or chosen) cut slot, apply overrides
@@ -1754,9 +1788,13 @@ def cmd_monster_new(a):
     if not (0 <= slot < t.entry_count):   # validate before writing anything (no partial mod)
         sys.exit(f"error: --slot {slot} out of range for rf3NpcParam (0..{t.entry_count - 1})")
     monster.clone_record(t, src, slot)
-    for assign in (a.set or []):
-        k, v = assign.split("=", 1)
-        monster.set_field(t, slot, k.strip(), int(v, 0))
+    try:
+        for assign in (a.set or []):
+            k, v = assign.split("=", 1)
+            monster.set_field(t, slot, k.strip(), int(v, 0))
+    except (nlcl.NlclError, ValueError) as e:
+        sys.exit(f"monster new: {e}")
+    outdir.mkdir(parents=True, exist_ok=True)
     monster.save(t, outdir / "rf3NpcParam.bin")
     written = ["rf3NpcParam.bin"]
 
@@ -1817,8 +1855,8 @@ def cmd_monster_new(a):
     print(f"\nwrote {len(written)} loose-override file(s) to {outdir}:")
     for fn in written:
         print("   ", fn)
-    print("\ninstall: drop these into your loose-file override folder (loose files win over "
-          "the bundle).")
+    print("\ninstall: copy these into <game>\\Bundle\\00_mods\\ (or `rf4mod install <NAME> <FILE>` "
+          "for each), then restart the game")
 
 
 def cmd_skill_family(a):
@@ -1828,14 +1866,13 @@ def cmd_skill_family(a):
         arc = skillcurve.archive_for_skill(sid)
         print(f"skill {sid} -> XP-curve archive {arc} -> {skillcurve.file_for_skill(sid)}.bin")
         return
-    print("skill-id -> XP-curve archive -> file (Skill_GetLevelTable, +0x83E60):")
+    print("skill id -> XP-curve file:")
     fams = {skillcurve.DEFAULT_ARCHIVE: ["default (weapons/magic/Defense/Walking/...)"]}
     for sk, arc in sorted(skillcurve.FAMILY_ARCHIVE.items()):
         fams.setdefault(arc, []).append(str(sk))
     for arc in sorted(fams):
         f = skillcurve.ARCHIVE_FILE.get(arc, "?")
         print(f"  {arc}  {f + '.bin':<28s} skills {', '.join(fams[arc])}")
-    print("\n(archive<->file pairing byte-confirmed: NLCL count 100 @+24, 444 bytes each)")
 
 
 def cmd_skill_set(a):
@@ -2034,7 +2071,7 @@ def cmd_script_live(a):
 def cmd_script_set_dialog(a):
     c = script.Container(_resolve(a.file).read_bytes())
     c.banks[a.bank].set_dialog_id(int(a.pc, 0), a.line)
-    pathlib.Path(a.out).write_bytes(c.build())
+    _script_write(c, a.out)
     print(f"bank {a.bank} pc {a.pc} -> dialogue line {a.line}; wrote {a.out}")
 
 
@@ -2062,8 +2099,8 @@ def cmd_script_set_val(a):
         # is the new rf3mc string id it displays (the choice analog of set-dialog). These items are
         # direct u32 string ids, not guard/value-expr literals, so they need their own edit path.
         bank.set_choice_item(pc, a.index, a.value)
+        _script_write(c, a.out)
         print(f"bank {a.bank} pc {a.pc} {st.mnem} option[{a.index}] -> line id {a.value}; wrote {a.out}")
-        pathlib.Path(a.out).write_bytes(c.build())
         return
     if st is not None and st.op >= 0xFFF0:
         # control-op guard/value literal (BR_Z threshold, EVAL value, JMP_WEIGHTED weight, ...):
@@ -2107,8 +2144,8 @@ def cmd_script_set_target(a):
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
     st = script.decode_statement(bank.data, pc)
+    _script_write(c, a.out)
     print(f"bank {a.bank} pc {a.pc} {st.mnem} target[{a.index}] -> 0x{target:04x}; wrote {a.out}")
-    pathlib.Path(a.out).write_bytes(c.build())
 
 
 def cmd_script_set_speaker(a):
@@ -2130,7 +2167,7 @@ def cmd_script_set_speaker(a):
         sys.exit(f"error: speaker slot {slot} out of range (0-{len(script.PORTRAIT_SPEAKERS) - 1})")
     side = 1 if a.side == "right" else 0
     bank.set_action_opcode(pc, script.portrait_opcode(slot, side))
-    pathlib.Path(a.out).write_bytes(c.build())
+    _script_write(c, a.out)
     print(f"bank {a.bank} pc {a.pc} -> speaker {script.PORTRAIT_SPEAKERS[slot]} "
           f"({a.side}); wrote {a.out}")
 
@@ -2562,10 +2599,7 @@ def cmd_em_list(a):
 
 def cmd_em_show(a):
     em = _em_load(a)
-    try:
-        e = em.get(int(a.entry))
-    except ValueError:
-        e = em.get(a.entry)
+    e = _em_entry(em, a.entry)
     sys.stdout.buffer.write(em.format_entry(e).encode("utf-8", "replace"))
     sys.stdout.buffer.write(b"\n")
 
@@ -2573,10 +2607,7 @@ def cmd_em_show(a):
 def cmd_em_set(a):
     """Edit a condition or action in place (byte-safe, no relocation) and write em.bin."""
     em = _em_load(a)
-    try:
-        e = em.get(int(a.entry))
-    except ValueError:
-        e = em.get(a.entry)
+    e = _em_entry(em, a.entry)
     changed = []
     if a.cond:
         slots = e.cond_a if a.cond == "a" else e.cond_b
@@ -2624,7 +2655,7 @@ def cmd_em_set(a):
         sys.exit("specify --cond {a,b} (with --slot/--expr) or --action {main,alt} (with --index)")
     if not changed:
         sys.exit("nothing to change -- pass --value / --op / --entry-ref / --target")
-    out = a.out or (_resolve(a.em) if getattr(a, "em", None) else emscript.find_em())
+    out = _out_or_game(a.out, _resolve(a.em) if getattr(a, "em", None) else emscript.find_em())
     pathlib.Path(out).write_bytes(em.build())
     sys.stdout.buffer.write(("em set %s [%d]: %s -> %s\n" %
                              (e.name, e.idx, ", ".join(changed), out)).encode("utf-8", "replace"))
@@ -2638,13 +2669,17 @@ def cmd_em_queries(a):
 
 
 def cmd_em_xref(a):
-    """Scan rf3.mc for the 5 CondScript bridge ops and resolve entry names.
+    """Every scene statement that tests or runs an em.bin entry, with the entry's name.
     Reports DISTINCT (bank, pc) sites -- discovered scenes overlap, so raw
-    occurrences would double-count."""
+    occurrences would double-count. Banks are container positions (what --bank takes)."""
+    from rf4s_modkit import opcode_meta
     em = _em_load(a)
-    c = script.Container(_resolve(a.mc).read_bytes())
-    opn = {371: "EvalCondA", 372: "EvalCondB", 373: "DispatchEntry",
-           374: "DispatchAltAction", 444: "SetFlagGatedByCond"}
+    path = _resolve(a.mc) if a.mc else _game_mc_path()
+    if path is None:
+        sys.exit("em xref: no rf3.mc -- pass its path, or set the game folder (rf4mod.py game)")
+    c = script.Container(path.read_bytes())
+    opn = {o: opcode_meta.mnemonic(o) for o in script.EMF_ENTRY_OPS}
+    pos_of = {id(bk): i for i, bk in enumerate(c.banks)}
     sites = {}
     for bk, sc in script.iter_scenes(c):
         for pc, st in sc.stmts.items():
@@ -2653,7 +2688,7 @@ def cmd_em_xref(a):
             ai = script.EMF_ENTRY_OPS[st.op]
             if ai >= len(st.args):
                 continue
-            sites.setdefault((bk.index, pc), (sc.entry_pc, st.op,
+            sites.setdefault((pos_of[id(bk)], pc), (sc.entry_pc, st.op,
                                               script.arg_repr(bk.data, st.args[ai])))
     for (bank, pc), (entry_pc, op, rep) in sorted(sites.items()):
         try:
@@ -2661,9 +2696,9 @@ def cmd_em_xref(a):
         except ValueError:
             nm = "<dynamic>"
         sys.stdout.buffer.write(
-            ("bank %3d scene@%04x %04x  %-18s %-6s %s\n"
+            ("bank %3d scene@%04x %04x  %-24s %-6s %s\n"
              % (bank, entry_pc, pc, opn[op], rep, nm)).encode("utf-8", "replace"))
-    print("\n%d distinct bridge-op site(s)" % len(sites))
+    print("\n%d statement(s)" % len(sites))
 
 
 # ---- em structural edits: add / remove entries, condition terms, actions --------------
@@ -2678,7 +2713,7 @@ def _em_entry(em, key):
 
 
 def _em_write(a, em, msg):
-    out = a.out or (_resolve(a.em) if getattr(a, "em", None) else emscript.find_em())
+    out = _out_or_game(a.out, _resolve(a.em) if getattr(a, "em", None) else emscript.find_em())
     pathlib.Path(out).write_bytes(em.build())
     sys.stdout.buffer.write(("%s -> %s\n" % (msg, out)).encode("utf-8", "replace"))
 
@@ -3479,7 +3514,7 @@ def cmd_param_set(a):
             _param_assign(t, a.record, assign, stem)
     except nlcl.NlclError as e:
         sys.exit(f"param set: {e}")
-    out = pathlib.Path(a.out) if a.out else p
+    out = _out_or_game(a.out, p)
     out.write_bytes(t.build())
     print(f"rec {a.record}: {t.record_dwords(a.record)}")
     print(f"wrote {out}")
@@ -3609,7 +3644,7 @@ def cmd_crop_season(a):
     old = t.row(a.record, p.stem)["season"]
     new = nlcl.crop_season_encode(old, seasons, single=not a.all_year)
     t.set_field(a.record, "season", new, p.stem)
-    out = pathlib.Path(a.out) if a.out else p
+    out = _out_or_game(a.out, p)
     out.write_bytes(t.build())
     print(f"rec {a.record}: season 0x{old:X} -> 0x{new:X}")
     print(f"  now: {nlcl.crop_season_decode(new)}")
@@ -3617,10 +3652,23 @@ def cmd_crop_season(a):
 
 
 def cmd_gen_formap(a):
-    """Map a map name to its Gen encounter file: MAP_DUNG_X## -> GenX##, MAP_FIELD_## -> GenField##.
-    Confirmed by g_encounterArchiveTable (base_selector = the area's first-map room id)."""
+    """The Gen encounter file the game loads for a map: picked by the map's MGRP zone, so it
+    can be another room's table (MAP_DUNG_I14 -> GenJ02.bin)."""
     import re
+    from map_editor import data as medata
+    from rf4s_modkit import areagroup
     nm = _names(a.names)
+    mname = a.map if a.map.upper().startswith("MAP_") else "MAP_" + a.map
+    if areagroup.base_map_id(mname) is not None:
+        gen_name = medata.gen_name_for_map(mname)
+        if gen_name is None:
+            print(f"{a.map}: this map spawns no monster gates")
+            return
+        path = _resolve(gen_name)
+        print(f"{a.map} -> {gen_name}")
+        if path.is_file():
+            print(gen.GenTable.load(path).summary(nm))
+        return
     m = re.search(r"DUNG_([A-Z]+)(\d+)", a.map, re.I) or re.search(r"(FIELD)_?(\d+)", a.map, re.I)
     if not m:
         sys.exit(f"could not parse an area+number from {a.map!r} "
@@ -3637,7 +3685,7 @@ def cmd_gen_formap(a):
 
 
 def _gen_write(g, a):
-    out = pathlib.Path(a.out) if a.out else _resolve(a.file)
+    out = _out_or_game(a.out, _resolve(a.file))
     out.write_bytes(g.build())
     print(g.summary(_names(a.names)))
     print(f"wrote {out}")
@@ -3813,19 +3861,19 @@ def build_parser():
     # plist
     pp = sub.add_parser("plist", help="bplist (.minterface/.plist) <-> JSON")
     psub = pp.add_subparsers(dest="op", required=True)
-    pp1 = psub.add_parser("decode"); pp1.add_argument("file"); pp1.add_argument("-o", "--out")
+    pp1 = psub.add_parser("decode", help=".minterface / .plist -> JSON"); pp1.add_argument("file"); pp1.add_argument("-o", "--out")
     pp1.set_defaults(func=cmd_plist_decode)
-    pp2 = psub.add_parser("encode"); pp2.add_argument("json"); pp2.add_argument("-o", "--out", required=True)
+    pp2 = psub.add_parser("encode", help="JSON -> bplist"); pp2.add_argument("json"); pp2.add_argument("-o", "--out", required=True)
     pp2.set_defaults(func=cmd_plist_encode)
 
     # text
     pt = sub.add_parser("text", help="TEXT string archives (item names / dialogue / catalogs)")
     tsub = pt.add_subparsers(dest="op", required=True)
-    t0 = tsub.add_parser("show"); t0.add_argument("file"); t0.add_argument("--range")
+    t0 = tsub.add_parser("show", help="print lines (--range A:B)"); t0.add_argument("file"); t0.add_argument("--range")
     t0.add_argument("--enc", default="utf-8"); t0.set_defaults(func=cmd_text_show)
-    t1 = tsub.add_parser("decode"); t1.add_argument("file"); t1.add_argument("-o", "--out")
+    t1 = tsub.add_parser("decode", help="TEXT archive -> JSON"); t1.add_argument("file"); t1.add_argument("-o", "--out")
     t1.add_argument("--enc", default="utf-8"); t1.set_defaults(func=cmd_text_decode)
-    t2 = tsub.add_parser("encode"); t2.add_argument("json"); t2.add_argument("-o", "--out", required=True)
+    t2 = tsub.add_parser("encode", help="JSON -> TEXT archive"); t2.add_argument("json"); t2.add_argument("-o", "--out", required=True)
     t2.add_argument("--enc", default="utf-8")
     t2.add_argument("--force", action="store_true", help="write even lines the game would crash on")
     t2.set_defaults(func=cmd_text_encode)
@@ -3895,9 +3943,9 @@ def build_parser():
     ps3.set_defaults(func=cmd_psb_replace_texture)
 
     # map
-    pm = sub.add_parser("map", help=".rf4m map inspect")
+    pm = sub.add_parser("map", help="maps (.rf4m): inspect, edit, validate, resize, ground art")
     msub = pm.add_subparsers(dest="op", required=True)
-    m0 = msub.add_parser("info"); m0.add_argument("file"); m0.set_defaults(func=cmd_map_info)
+    m0 = msub.add_parser("info", help="chunks, entities, warps of a map"); m0.add_argument("file"); m0.set_defaults(func=cmd_map_info)
     mg0 = msub.add_parser("ground-export", help="stitch a map's ground-atlas layer into one PNG "
                           "(in-game orientation; the texture set is resolved from the map)")
     mg0.add_argument("map", help="map name, e.g. MAP_FIELD_01 (tiles are found next to its .rf4m)")
@@ -3916,7 +3964,7 @@ def build_parser():
                      help="tile storage format: keep (default) = each tile's own format (BC7 stays "
                           "BC7 at the same size), or BC7 / BC3 / BC1 / RGBA8 / a raw format")
     mg1.set_defaults(func=cmd_map_ground_import)
-    m1 = msub.add_parser("attr"); m1.add_argument("file"); m1.add_argument("-o", "--out")
+    m1 = msub.add_parser("attr", help="ATTR grid as counts, CSV or PNG (-o)"); m1.add_argument("file"); m1.add_argument("-o", "--out")
     m1.set_defaults(func=cmd_map_attr)
     m2 = msub.add_parser("set", help="edit MOBJ record fields and write a new .rf4m")
     m2.add_argument("file"); m2.add_argument("index", type=int, help="MOBJ record index")
@@ -3965,7 +4013,7 @@ def build_parser():
     a0.add_argument("-a", "--annotate", action="store_true",
                     help="append verified operand meanings/units (and scripted-action names) as comments")
     a0.add_argument("--flat", action="store_true",
-                    help="one opcode per line with every structural token explicit (pre-2026-09-18 form) "
+                    help="one opcode per line with every structural token explicit "
                          "instead of the language-style listing; both forms assemble back byte-exactly")
     a0.set_defaults(func=cmd_ai_disasm)
     a1 = asub.add_parser("asm", help="assemble a listing (from disasm) back into an AI_*.bin"); a1.add_argument("file"); a1.add_argument("-o", "--out", required=True)
@@ -3993,7 +4041,7 @@ def build_parser():
     at4 = atsub.add_parser("asm", help="assemble a `dump` listing (edited) into as_atk_*.bin")
     at4.add_argument("text", help="listing file"); at4.add_argument("-o", "--out")
     at4.set_defaults(func=cmd_asatk_asm)
-    at5 = atsub.add_parser("set", help="change one event: asatk set as_atk_sword_00 7 --arg 1.5q")
+    at5 = atsub.add_parser("set", help="change one event: asatk set as_atk_sword_00 7 --arg 1.5q -o out.bin")
     at5.add_argument("target"); at5.add_argument("index", type=int)
     at5.add_argument("--op", help="new opcode (mnemonic, opN or number)")
     at5.add_argument("--arg", help="new operand (int, 0x hex, 1.5q, 90deg)")
@@ -4052,7 +4100,7 @@ def build_parser():
     st5.set_defaults(func=cmd_str_dump)
     st6 = stsub.add_parser("set", help="edit fields of one row: str set 887 atk=500 reach_scale=2048 -o new.bin")
     st6.add_argument("item"); st6.add_argument("set", nargs="+", help="name=value (see `str fields`)")
-    st6.add_argument("-o", "--out", help="write here (default: overwrite the resolved file)")
+    st6.add_argument("-o", "--out", help="output file (default: overwrite the game's copy; Backups in Options keep the original)")
     st6.add_argument("--file")
     st6.set_defaults(func=cmd_str_set)
 
@@ -4077,7 +4125,7 @@ def build_parser():
     sh3.add_argument("--time", help="HH:MM in 15-minute steps (06:00 = day start, 24:00.. allowed)")
     sh3.add_argument("--spot", help="spot kind 0..370 (see `schedule spots K`)")
     sh3.add_argument("--flags", help="bit0 = random departure time")
-    sh3.add_argument("--file"); sh3.add_argument("-o", "--out", help="write here (default: overwrite the resolved file)")
+    sh3.add_argument("--file"); sh3.add_argument("-o", "--out", help="output file (default: overwrite the game's copy; Backups in Options keep the original)")
     sh3.set_defaults(func=cmd_schedule_set)
     sh4 = shsub.add_parser("add", help="insert a stop (kept in time order; creates the (npc,state) schedule if absent)")
     sh4.add_argument("npc"); sh4.add_argument("state")
@@ -4112,13 +4160,8 @@ def build_parser():
     gf4.add_argument("--fp", type=int, help="friendship points for loved/liked (default 15 / 9)")
     gf4.add_argument("--signature", action="store_true", help="disliked: make it the -10 signature/hated entry")
     gf4.add_argument("--group", type=int, default=0)
-    gf4.add_argument("-o", "--out", help="write here (default: overwrite the resolved file)")
+    gf4.add_argument("-o", "--out", help="output file (default: overwrite the game's copy; Backups in Options keep the original)")
     gf4.set_defaults(func=cmd_gift_set)
-    gf5 = gfsub.add_parser("add", help="same as `gift set` (item -> tier); kept for symmetry with `remove`")
-    gf5.add_argument("npc"); gf5.add_argument("item"); gf5.add_argument("tier")
-    gf5.add_argument("--fp", type=int); gf5.add_argument("--signature", action="store_true")
-    gf5.add_argument("--group", type=int, default=0); gf5.add_argument("-o", "--out")
-    gf5.set_defaults(func=cmd_gift_set)
     gf6 = gfsub.add_parser("remove", help="drop an item/target from every tier (-> neutral, +5 FP)")
     gf6.add_argument("npc"); gf6.add_argument("item")
     gf6.add_argument("--group", type=int, default=0); gf6.add_argument("-o", "--out")
@@ -4177,7 +4220,7 @@ def build_parser():
                                        "model/anim/dropN_id/dropN_pm/elem_*/res_*)")
     mo3.add_argument("record", help="char_id number or exact monster name")
     mo3.add_argument("--set", nargs="+", required=True, metavar="FIELD=VALUE",
-                     help="e.g. --set hp=1200 atk=90 drop0_id=95 drop0_pm=200 elem_fire=4096")
+                     help="e.g. --set hp=1200 flat_atk=90 drop0_id=95 drop0_pm=200 elem_fire=4096")
     mo3.add_argument("--file"); mo3.add_argument("-o", "--out")
     mo3.set_defaults(func=cmd_monster_set)
     mo4 = mosub.add_parser("clone", help="copy a monster's whole 308-byte template into another slot")
@@ -4191,7 +4234,7 @@ def build_parser():
     mo5.add_argument("--from", dest="src", required=True, help="base monster to clone (id or name)")
     mo5.add_argument("--slot", type=int, help="target cut char_id (default: first free, e.g. 179)")
     mo5.add_argument("--set", nargs="+", metavar="FIELD=VALUE",
-                     help="field overrides applied after the clone (e.g. hp=1500 atk=120)")
+                     help="field overrides applied after the clone (e.g. hp=1500 flat_atk=120)")
     mo5.add_argument("--encounter", metavar="GENFILE[:GATE]",
                      help="add to an encounter table by repointing a spawn (e.g. GenA01.bin)")
     mo5.add_argument("--locales", help="comma list for the name table (default: eng)")
@@ -4249,15 +4292,15 @@ def build_parser():
     sc3.add_argument("--pc", required=True, help="statement PC (hex ok, e.g. 0x3478)")
     sc3.add_argument("--line", type=int, required=True)
     sc3.add_argument("-o", "--out", required=True); sc3.set_defaults(func=cmd_script_set_dialog)
-    sc4 = scsub.add_parser("set-arg", help="give an action arg a copy of the expression at another "
-                           "offset (--value) in the bank")
+    sc4 = scsub.add_parser("set-arg", help="set an action argument to a copy of the expression "
+                           "at another offset of the bank")
     sc4.add_argument("file"); sc4.add_argument("--bank", type=int, required=True)
     sc4.add_argument("--pc", required=True); sc4.add_argument("--index", type=int, required=True)
-    sc4.add_argument("--value", type=int, required=True)
+    sc4.add_argument("--expr-at", dest="value", type=lambda s: int(s, 0), required=True,
+                     help="bank offset of the expression to copy (hex ok)")
     sc4.add_argument("-o", "--out", required=True); sc4.set_defaults(func=cmd_script_set_arg)
-    sc6 = scsub.add_parser("set-val", help="set an immediate VALUE in place: an action arg, OR (for "
-                           "a control op) the --index-th literal of its guard/value expr "
-                           "(EVAL value, BR_Z threshold, JMP_WEIGHTED weight)")
+    sc6 = scsub.add_parser("set-val", help="set a number: an action argument, a choice option's "
+                           "line id, or (control ops) the --index-th number in its condition")
     sc6.add_argument("file"); sc6.add_argument("--bank", type=int, required=True)
     sc6.add_argument("--pc", required=True); sc6.add_argument("--index", type=int, required=True)
     sc6.add_argument("--value", type=int, required=True)
@@ -4370,8 +4413,8 @@ def build_parser():
     e1 = emsub.add_parser("show", help="decode one entry (conditions + actions, by id or name)")
     e1.add_argument("entry")
     e2 = emsub.add_parser("queries", help="list the 218 named game-state queries")
-    e3 = emsub.add_parser("xref", help="scan rf3.mc for CondScript bridge ops -> entry names")
-    e3.add_argument("mc", nargs="?", default=str(BUNDLE_DIR / "bundlePatch1" / "rf3.mc"))
+    e3 = emsub.add_parser("xref", help="list every scene statement that tests or runs an em.bin entry")
+    e3.add_argument("mc", nargs="?", help="rf3.mc (default: the one the game loads)")
     e4 = emsub.add_parser("set", help="edit a condition/action in place (byte-safe)")
     e4.add_argument("entry", help="entry id or name (e.g. EV_BOSS_SP_DEAD)")
     e4.add_argument("--cond", choices=("a", "b"), help="target a condition (use --slot/--expr)")
@@ -4472,17 +4515,16 @@ def build_parser():
     # strings
     ps = sub.add_parser("strings", help="Apple .strings <-> JSON")
     ssub = ps.add_subparsers(dest="op", required=True)
-    s1 = ssub.add_parser("decode"); s1.add_argument("file"); s1.add_argument("-o", "--out")
+    s1 = ssub.add_parser("decode", help=".strings -> JSON"); s1.add_argument("file"); s1.add_argument("-o", "--out")
     s1.set_defaults(func=cmd_strings_decode)
-    s2 = ssub.add_parser("encode"); s2.add_argument("json"); s2.add_argument("-o", "--out", required=True)
+    s2 = ssub.add_parser("encode", help="JSON -> .strings"); s2.add_argument("json"); s2.add_argument("-o", "--out", required=True)
     s2.set_defaults(func=cmd_strings_encode)
 
     # res
-    pr = sub.add_parser("res", help="inspect NN containers (.model/.bfskl/.bfmat/.bfsha/.psbData); "
-                                    "list / decode / replace the textures embedded in a .model; "
-                                    "read, export and render its meshes")
+    pr = sub.add_parser("res", help="models, motions, materials and their textures "
+                                    "(.model / .bfskl / .bfmat / .bfsha / .psbData)")
     rsub = pr.add_subparsers(dest="op", required=True)
-    r0 = rsub.add_parser("info"); r0.add_argument("file"); r0.set_defaults(func=cmd_res_info)
+    r0 = rsub.add_parser("info", help="container summary"); r0.add_argument("file"); r0.set_defaults(func=cmd_res_info)
     r1 = rsub.add_parser("texture-list", help="list the textures of the BNTX embedded in a .model "
                          "(index, name, format, size)")
     r1.add_argument("file"); r1.set_defaults(func=cmd_res_texture_list)
@@ -4693,7 +4735,7 @@ def build_parser():
                     help="comma list of spring/summer/fall/winter (which season(s) it grows in)")
     c2.add_argument("--all-year", action="store_true",
                     help="don't penalize off-seasons (crop grows in the set seasons AND stays OK elsewhere)")
-    c2.add_argument("-o", "--out", help="write here (default: overwrite the resolved file; use a Bundle/ path for a loose override)")
+    c2.add_argument("-o", "--out", help="output file (default: overwrite the game's copy; Backups in Options keep the original)")
     c2.set_defaults(func=cmd_crop_season)
 
     # gen (Gen*.bin monster encounter tables)
@@ -4968,7 +5010,11 @@ def cmd_sound_find(a):
 def main(argv=None):
     _utf8_stdout()
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except FileNotFoundError as e:
+        sys.exit(f"error: file not found: {e.filename or e} "
+                 "(pass a path, or check the game folder with: rf4mod.py game)")
 
 
 if __name__ == "__main__":

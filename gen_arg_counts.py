@@ -25,14 +25,13 @@ OUT = refdata_path("script_arg_counts.json")
 
 
 def default_source() -> pathlib.Path | None:
-    b = gamepaths.find_bundle_dir()
-    if b is None:
+    """The original rf3.mc kept by Backups (wherever the backup folder is), else None: the
+    game's own copy may hold the user's edits, which must not end up in the shipped refdata."""
+    t = gamepaths.game_targets(["rf3.mc"])
+    if not t:
         return None
-    backup = b.parent / "ModdingBackup" / "Bundle" / "bundlePatch1" / "rf3.mc"
-    if backup.is_file():                          # the original, before the editor saved over it
-        return backup
-    p = b / "bundlePatch1" / "rf3.mc"
-    return p if p.is_file() else None
+    orig = gamepaths.backup_path(t["rf3.mc"])
+    return orig if orig is not None and orig.is_file() else None
 
 
 def counts(container) -> dict[int, tuple[int, int]]:
@@ -49,7 +48,7 @@ def counts(container) -> dict[int, tuple[int, int]]:
 def main(argv) -> int:
     src = pathlib.Path(argv[1]) if len(argv) > 1 else default_source()
     if src is None or not src.is_file():
-        print("no rf3.mc found -- pass the path of an unmodified one")
+        print("no unmodified rf3.mc found -- pass its path (the game's own, before any edit)")
         return 1
     c = script.Container.load(src)
     ranges = counts(c)

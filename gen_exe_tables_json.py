@@ -14,7 +14,10 @@ the exe at run time:
                archive id] (24 rows; [0, 0] = no monster gates in that zone). The gate spawner
                loads archive = map id - first map id + first archive (see rf4s_modkit.areagroup)
 
-A second file, refdata/rf4s_exe_collision.json (build_collision), holds the collision
+refdata/rf4s_exe_map_resources.json (build_map_resources) holds the per-map resource rows and
+the warps / walls the game adds to maps at run time.
+
+refdata/rf4s_exe_collision.json (build_collision), holds the collision
 templates of the interactive objects (MOBJ types 196..335): g_mapEntityTemplates
 RF4S.exe+0x4D5030, one pointer per type - 197 (type 196 uses 197's). Each template: +32 i16
 depth bias, +64 u16 width, +66 u16 height (tiles), +68 / +70 i16 x / y offset (sub-units),
@@ -52,7 +55,7 @@ from rf4s_modkit.refdata import refdata_path               # noqa: E402
 
 CHEST_RVA, CHEST_ROWS, CHEST_SLOTS = 0x9EFA60, 190, 4
 # (zone or "default", label, RVA, entries, share of the rolls) -- MapEntity_SpawnTreasure
-# RF4S.exe+0x14B680 switches on the zone and indexes these with an MMIX roll
+# RF4S.exe+0x14B680 switches on the zone and indexes these with a random roll
 CRATE_POOLS = [
     (5, "DUNG_B", 0x4CF2A0, 35, 1.0),
     (6, "DUNG_C", 0x4CF410, 44, 1.0),
@@ -492,10 +495,14 @@ def dumps_map_resources(obj):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--exe", help="RF4S.exe to read (default: the selected game folder's)")
-    ap.add_argument("--out", default=str(refdata_path("rf4s_exe_tables.json")))
-    ap.add_argument("--maps-out", default=str(refdata_path("rf4s_exe_map_resources.json")))
-    ap.add_argument("--collision-out", default=str(refdata_path("rf4s_exe_collision.json")))
-    ap.add_argument("--sidecars-out", default=str(refdata_path("rf4s_exe_sidecars.json")))
+    ap.add_argument("--out", default=str(refdata_path("rf4s_exe_tables.json")),
+                    help="chest loot, crate pools, area BGM, encounter zones")
+    ap.add_argument("--maps-out", default=str(refdata_path("rf4s_exe_map_resources.json")),
+                    help="per-map resources and run-time warps / walls")
+    ap.add_argument("--collision-out", default=str(refdata_path("rf4s_exe_collision.json")),
+                    help="collision templates of the interactive objects")
+    ap.add_argument("--sidecars-out", default=str(refdata_path("rf4s_exe_sidecars.json")),
+                    help="search-item and Gen archives per map")
     a = ap.parse_args(argv)
     obj = build(a.exe)
     text = dumps(obj)

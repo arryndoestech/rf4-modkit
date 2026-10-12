@@ -390,20 +390,32 @@ class ShaderIndex:
     EXTS = (".glsl", ".inc", ".hlsl")
 
     def __init__(self, *roots):
+        # the game indexes Bundle\** by EXACT-case bare name, the earliest path in byte
+        # order winning (mbundle.loose_index): the same here
         self.files = {}
         for root in roots:
             root = pathlib.Path(root)
             if root.is_file():
-                self.files.setdefault(root.name.lower(), root)
+                self.files.setdefault(root.name, root)
                 continue
             if not root.is_dir():
                 continue
-            for p in sorted(root.rglob("*"), key=lambda q: str(q).lower()):
+            for p in sorted(root.rglob("*"), key=lambda q: str(q).encode("utf-8")):
                 if p.suffix.lower() in self.EXTS and p.is_file():
-                    self.files.setdefault(p.name.lower(), p)
+                    self.files.setdefault(p.name, p)
 
     def get(self, name):
-        return self.files.get(name.lower())
+        """The file the game loads for `name`; a name typed in another case finds it too
+        (exact_name() says what it is really called)."""
+        hit = self.files.get(name)
+        if hit is None:
+            low = name.lower()
+            hit = next((p for n, p in self.files.items() if n.lower() == low), None)
+        return hit
+
+    def exact_name(self, name):
+        hit = self.get(name)
+        return hit.name if hit is not None else name
 
     def read(self, name) -> bytes | None:
         p = self.get(name)
@@ -476,8 +488,7 @@ def preprocess(text: bytes, index: ShaderIndex, defines=None, missing=None, _dep
             line = s[i:j]
             m = re.match(rb"#version\s+(\d+)", line)
             if m and int(m.group(1)) > 330:
-                sp = line.find(b" ")
-                out += line[:sp + 1] + _FP64
+                out += line[:m.start(1)] + _FP64
             else:
                 out += line
             i = j
@@ -540,7 +551,8 @@ def replace_loose(name: str, edited, out_dir, index: ShaderIndex) -> tuple:
     # validate with the edited text shadowing the original (includes resolve against it too)
     tmp_index = ShaderIndex()
     tmp_index.files = dict(index.files)
+    name = index.exact_name(name)      # the game loads mtk_body_f.glsl, not MTK_Body_F.glsl
     dest = out / pathlib.Path(name).name
     dest.write_bytes(text)
-    tmp_index.files[dest.name.lower()] = dest
+    tmp_index.files[dest.name] = dest
     return dest, validate_source(name, text, tmp_index)

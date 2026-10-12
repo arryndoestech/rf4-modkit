@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate CUTSCENE_OPCODES.md -- a complete, greppable reference for the reverse-engineered
-rf3.mc cutscene Script VM opcodes, built entirely from rf4s_modkit/opcode_meta.py.
+"""Generate CUTSCENE_OPCODES.md -- a complete, greppable reference for the rf3.mc cutscene
+instructions, built entirely from rf4s_modkit/opcode_meta.py.
 
 This is the GUI-free companion to the editor's hover tooltips: run it to (re)produce a browsable
-markdown reference grouped by category, with each op's mnemonic, argument signature, technical
-(IDA) handler name, and full description. Re-run after any opcode_meta change to refresh it.
+markdown reference grouped by category, with each op's name, argument signature and full
+description. Re-run after any opcode_meta change to refresh it.
 
     python gen_opcode_reference.py            # writes CUTSCENE_OPCODES.md + opcodes_list.csv
 
@@ -41,8 +41,7 @@ def build():
     lines = [
         "# RF4S Cutscene Opcode Reference",
         "",
-        "Reverse-engineered `rf3.mc` cutscene Script VM opcodes "
-        "(`g_sceneActionHandlerTable`, RF4S.exe+0x4DB790, 702 slots).",
+        "Every `rf3.mc` cutscene instruction (702 slots).",
         "",
         f"Auto-generated from `rf4s_modkit/opcode_meta.py` by `gen_opcode_reference.py` — "
         f"**{named}** named opcodes across {sum(1 for v in by_cat.values() if v)} categories "
@@ -63,6 +62,8 @@ def build():
     lines.append("- [Expression operands (argument encoding)]"
                  "(#expression-operands-argument-encoding)")
     lines.append("- [Event Manager (em.bin) opcodes](#event-manager-embin-opcodes)")
+    if placeholder_ops:
+        lines.append("- [Reserved / unused slots](#reserved--unused-slots)")
     lines.append("- [Opcode index (by number)](#opcode-index-by-number)")
     lines.append("")
 
@@ -74,15 +75,12 @@ def build():
         lines.append("")
         for op in ops:
             proto = om.prototype(op)                       # concise signature
-            tech = om.technical(op) or ""
             desc = (om.describe(op) or "").strip()
             args = om.arg_names(op)
             lines.append(f"### `op {op}` — {proto}")
             if om.OPCODE_ARGS.get(op):                     # SetSpeaker: arguments in the opcode
                 lines.append("*opcode arguments:* " + ", ".join(
                     "%s = %s (%s)" % (a["name"], a["value"], a["encoding"]) for a in om.OPCODE_ARGS[op]))
-            if tech:
-                lines.append(f"*handler:* `{tech}`")
             if om.human_verified(op) and all(om.arg_verified(op, i) for i in range(len(args))):
                 row = om.table_row(op) or {}
                 ev = row.get("evidence") or ""
@@ -126,8 +124,8 @@ def build():
     if ctrl_map:
         lines.append("## Control opcodes (flow backbone)")
         lines.append("")
-        lines.append("These are the VM's control-flow tokens (opcode >= `0xFFF0`), handled inline by "
-                     "`Script_VMStep` rather than via the action-dispatch table. They structure every "
+        lines.append("These are the VM's control-flow tokens (opcode >= `0xFFF0`), built into the "
+                     "script engine. They structure every "
                      "scene: dialogue, branches, choices, calls, and the scene end.")
         lines.append("")
         for opv in sorted(ctrl_map, reverse=True):        # 0xFFFF down to 0xFFF1
@@ -153,7 +151,7 @@ def build():
         lines.append("")
         lines.append("Action-op arguments and control-op guard/value expressions are not raw "
                      "integers -- each is a little postfix (RPN) expression evaluated by "
-                     "`Script_EvalExpressionBytecode`. Most resolve to a single literal, but they can "
+                     "the game. Most resolve to a single literal, but they can "
                      "be variables, VM registers, or arithmetic. Leaf operands:")
         lines.append("")
         lines.append("- **int literal** — a constant (u8 / s8 / u16 / s16 / int32).")
@@ -165,8 +163,7 @@ def build():
         lines.append("- **`arr[0xNN]`** — a scene var-array load; **`self`**, **`null`**, **`0`** — "
                      "fixed leaves.")
         lines.append("- **`tag3(N)`** / **`tag4(N)`** (tag bytes 0x03 / 0x04) — typed u32 CONSTANTS, "
-                     "not variables: the handler receives the number N (`Script_PrepActionArgs` never "
-                     "dereferences them). The listing always writes this raw form; where the argument "
+                     "not variables: the instruction receives the number N. The listing always writes this raw form; where the argument "
                      "slot is known (a character id in actor slots, a map id in the schedule ops) the "
                      "comment shows it as **`actor(Name)`** / **`map(MAP_NAME)`**, which the assembler "
                      "also accepts.")
@@ -196,19 +193,19 @@ def build():
             _bridge_ops = [371, 372, 373, 374, 444]
         _bridge_txt = ", ".join("`%s` (%d)" % (om.mnemonic(o) or ("op%d" % o), o)
                                 for o in _bridge_ops)
+        _n = {o: "`%s`" % (om.mnemonic(o) or ("op%d" % o)) for o in (371, 372, 373, 374, 444)}
         lines.append("Scenes bridge to **em.bin** Event-Manager entries via the bridge action "
-                     "opcodes " + _bridge_txt + " (each listed in the opcode index) — the "
-                     "`EvalCondScript*` pair test an entry's conditions, the `*DispatchCondScript*` "
-                     "/ `*DispatchAltAction` pair run its main / alt action stream, and "
-                     "`SetFlagBitIfCond` sets a flag when an entry's condition holds — for their "
-                     "*plays-when* conditions and their flag / variable effects. Each entry is its "
+                     "opcodes " + _bridge_txt + " — %s / %s test an entry's conditions, %s / %s "
+                     "run its main / alt actions, and %s sets a flag when an entry's condition "
+                     "holds — for their *plays-when* conditions and their flag / variable effects."
+                     % (_n[371], _n[372], _n[373], _n[374], _n[444]) + " Each entry is its "
                      "own little bytecode — a system SEPARATE from the rf3.mc VM above — decoded by "
                      "`rf4s_modkit/emscript.py` and shown/edited in the toolkit's Event Manager. "
                      "Names come from the debug `emdeb.bin` (shipped alongside em.bin).")
         lines.append("")
         lines.append("**Condition expression opcodes** — `op = byte & 0x7F`; the high bit means "
                      "\"OR with the next expr\", so consecutive high-bit exprs form an OR-group and "
-                     "the groups AND together (`CondScript_EvalEntry`, RF4S.exe+0x23BDB0):")
+                     "the groups AND together:")
         lines.append("")
         lines.append("- `0` **TRUE**, `1` **FALSE** — constant guards.")
         lines.append("- `2`/`3` **CondA**(id) and `4`/`5` **NOT CondA** — test named condition A "
@@ -221,10 +218,10 @@ def build():
                      + " — signed when either operand is a signed literal or signed flag ref.")
         lines.append("")
         lines.append("**Comparison operand types** — `type1 = (op>>2)&3`, `type2 = op&3` "
-                     "(`CondScript_ReadComparisonOperands`, RF4S.exe+0x23C1A0):")
+                     ":")
         lines.append("")
         lines.append("- `0` u32 literal · `1` signed u32 literal · `2` **query id** (a "
-                     "`Script_QueryGameState` id — a live game-state read, shown by its `emdeb.bin` "
+                     "game-state query id — a live game-state read, shown by its `emdeb.bin` "
                      "query name) · `3` **flag ref** (an `emdeb.bin` `FLG_`/`REG_` variable: packed "
                      "sign / size / width + bit-offset). Query ids and flag refs both resolve to "
                      "their debug names in the editor.")
@@ -232,7 +229,7 @@ def build():
         lines.append("**Action opcodes** — high nibble selects the op; the byte's low bits describe "
                      "the operand (target mode `(b>>2)&3`, value type `b&3` = same encoding as a "
                      "comparison operand; result is `target OP value`, target-first — no reverse-sub, "
-                     "unlike the rf3.mc expression VM) (`EMF_DispatchActionOpcode`, RF4S.exe+0x23C390):")
+                     "unlike the rf3.mc expression VM):")
         lines.append("")
         _actdesc = {
             "CALL": "invoke another em entry (main stream → its MAIN block, alt stream → its ALT; "
@@ -302,10 +299,9 @@ def _anchor(cat):
 
 
 def build_csv():
-    """Return the flat opcode list as CSV text: op_dec, op_hex, mnemonic, handler, category,
-    prototype, description -- every action opcode 0..762 plus the control opcodes. `handler` is
-    the IDA/RE ground-truth symbol (the dispatch handler for an action op; `Script_VMStep` for the
-    inline control ops), so the list is a complete cross-reference back to the binary. A machine-
+    """Return the flat opcode list as CSV text: op_dec, op_hex, mnemonic, category, prototype,
+    description -- every action opcode 0..701 plus the control opcodes (the do-nothing alias slots
+    as `nop_N`, the name listings show them by). A machine-
     readable (spreadsheet / grep) companion to CUTSCENE_OPCODES.md, built from the same opcode_meta
     source so the two never drift. `lineterminator='\\n'` keeps it deterministic for the sync guard."""
     import csv
@@ -313,18 +309,18 @@ def build_csv():
     from rf4s_modkit import script as _script
     buf = io.StringIO()
     w = csv.writer(buf, lineterminator="\n")
-    w.writerow(["op_dec", "op_hex", "mnemonic", "handler", "category", "prototype", "description"])
+    w.writerow(["op_dec", "op_hex", "mnemonic", "category", "prototype", "description"])
     for op in range(N_OPS):
         desc = (om.describe(op) or "").replace("\n", " ").strip()
-        w.writerow([op, "0x%03X" % op, om.mnemonic(op) or "", om.technical(op) or "",
-                    om.category(op) or "", om.prototype(op) or "", desc])
+        mn = ("nop_%d" % op) if op in om.NO_OP_ALIASES else (om.mnemonic(op) or "")
+        w.writerow([op, "0x%03X" % op, mn, om.category(op) or "", om.prototype(op) or "", desc])
     for opv in sorted(_script.CONTROL, reverse=True):        # control opcodes 0xFFFF..0xFFF1
         mn = _script.CONTROL[opv]
         meta = om.CONTROL.get(mn)
         if not meta:
             continue
         cat, desc = meta
-        w.writerow([opv, "0x%04X" % opv, mn, "Script_VMStep", cat, mn + "()",
+        w.writerow([opv, "0x%04X" % opv, mn, cat, mn + "()",
                     desc.replace("\n", " ").strip()])
     return buf.getvalue()
 

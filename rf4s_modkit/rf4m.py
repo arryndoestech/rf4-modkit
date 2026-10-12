@@ -686,6 +686,13 @@ class Rf4mMap:
         if (new_w, new_h) != (w, h):
             todo.append(f"map extent changes from {w * PX}x{h * PX} to "
                         f"{new_w * PX}x{new_h * PX} px (ATTR x 24)")
+        if (new_w, new_h) != (w, h):
+            for i, rec in enumerate(self.mobj_records()):
+                if rec[0] & 0xFFFF == 10 and w and h:     # parallax: ratio = f8 / (8 W), f9 / (8 H)
+                    todo.append(f"parallax record #{i}: its scroll ratio changes "
+                                f"({rec[8] / (8 * w):.3f} -> {rec[8] / (8 * new_w):.3f} across, "
+                                f"{rec[9] / (8 * h):.3f} -> {rec[9] / (8 * new_h):.3f} down); to keep "
+                                f"it set f8 = {round(rec[8] * new_w / w)}, f9 = {round(rec[9] * new_h / h)}")
         cam_old, cam_new = camera_note(w, h), camera_note(new_w, new_h)
         if (cam_old is None) != (cam_new is None):
             todo.append("camera: " + (f"the grid drops under {SMALL_MAP_TILES[0]} x "
@@ -699,10 +706,9 @@ class Rf4mMap:
                 f"{old_grid[1]} -> {new_grid[0]}x{new_grid[1]}, and because tiles are indexed "
                 f"row-major (tile i at column i % cols) a change of COLUMN count moves every "
                 f"existing tile to a different screen cell -- the atlas cannot just be extended. "
-                f"Export the stitched layer BEFORE the resize (the exporter takes its aspect "
-                f"from the .rf4m's ATTR), then re-import it against the resized map: "
-                f"`map ground-export <MAP> -o old.png --layer L` -> resize -> "
-                f"`map ground-import <MAP> old.png -o tiles/ --layer L`")
+                f"This has to be done by hand: export the layer before the resize (`map "
+                f"ground-export`), then author the new {new_grid[0]}x{new_grid[1]} tiles yourself "
+                f"(ground-import only re-encodes the tiles the map already has, at their sizes)")
         elif old_grid != new_grid:
             todo.append(f"ground tile grid goes {old_grid[0]}x{old_grid[1]} -> "
                         f"{new_grid[0]}x{new_grid[1]} ({old_grid[0] * old_grid[1]} -> "
@@ -718,7 +724,7 @@ class Rf4mMap:
             if a["short_x"] or a["short_y"]:
                 todo.append(f"layer {a['layer']}: the last column/row tiles are sized for the old "
                             f"extent and fall {a['short_x']} px short on X, {a['short_y']} px on Y; "
-                            f"re-encode them at the new size (ground-import does this for you)")
+                            f"author them again at the new size (ground-import keeps tile sizes)")
         if out_mobj:
             todo.append(f"{len(out_mobj)} MOBJ record(s) now sit outside the grid: "
                         + ", ".join(f"#{d['index']} {d['name']} at {d['tile']}"
@@ -1230,6 +1236,8 @@ class Rf4mMap:
         for fl, idx in owners.items():
             if len(idx) < 2:
                 continue
+            if all(recs[j][0] & 0xFFFF == 47 for j in idx):
+                continue                        # a room's seal doors share its "cleared" flag
             for i in idx:
                 others = ", ".join(f"#{j} ({mp.ONE_SHOT_FLAG_TYPES[recs[j][0] & 0xFFFF]})"
                                    for j in idx if j != i)

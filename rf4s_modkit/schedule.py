@@ -373,6 +373,10 @@ class Schedule:
         cells = {}
         for sc in d.get("schedules", []):
             npc, state = int(sc["npc"]), state_code(sc["state"])
+            if not 0 <= npc < rows:
+                raise ScheduleError(f"npc {npc} out of range (0..{rows - 1})")
+            if not 0 <= state < cols:
+                raise ScheduleError(f"state {state} out of range (0..{cols - 1})")
             if (npc, state) in cells:
                 raise ScheduleError(f"npc {npc} state {state} listed twice")
             lst = []
@@ -381,6 +385,7 @@ class Schedule:
                 s = Slice(slot, int(sl.get("flags", 0)), int(sl["spot"]))
                 _check_slice(s)
                 lst.append(s)
+            lst.sort(key=lambda s: s.slot)            # the game walks the stops in time order
             cells[(npc, state)] = lst
         return cls(cells, npc_table, rows, cols)
 

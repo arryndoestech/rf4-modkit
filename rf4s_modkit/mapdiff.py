@@ -74,6 +74,29 @@ def _stream(m, tag):
     return [c.payload for c in m.chunks if c.tag == tag]
 
 
+def _pair(kind, old, new):
+    """[(i, j)]: which removed record became which new one inside a replaced block -- the
+    closest match (fewest differing fields; objects only of the same type, warps only when
+    most fields still match). Pairing by position turned 'delete A, edit the B after it' into
+    'edit A, delete B', which then deleted B in another season that has no A."""
+    cand = []
+    for i, o in enumerate(old):
+        for j, n in enumerate(new):
+            if kind == "objects" and (o[0] & 0xFFFF) != (n[0] & 0xFFFF):
+                continue
+            d = sum(1 for x, y in zip(o, n) if x != y)
+            if kind != "objects" and d > len(o) // 2:
+                continue
+            cand.append((d, i, j))
+    used_o, used_n, out = set(), set(), []
+    for _d, i, j in sorted(cand):
+        if i not in used_o and j not in used_n:
+            used_o.add(i)
+            used_n.add(j)
+            out.append((i, j))
+    return sorted(out)
+
+
 def diff(base, cur) -> Changes:
     ch = Changes()
     for kind, tag, stride in KINDS:
@@ -82,10 +105,11 @@ def diff(base, cur) -> Changes:
             if op == "equal":
                 continue
             old, new = a[i1:i2], b[j1:j2]
-            pairs = min(len(old), len(new)) if op == "replace" else 0
-            ch.edited[kind] += list(zip(old[:pairs], new[:pairs]))
-            ch.removed[kind] += old[pairs:]
-            ch.added[kind] += new[pairs:]
+            pairs = _pair(kind, old, new) if op == "replace" else []
+            po, pn = {i for i, _j in pairs}, {j for _i, j in pairs}
+            ch.edited[kind] += [(old[i], new[j]) for i, j in pairs]
+            ch.removed[kind] += [r for i, r in enumerate(old) if i not in po]
+            ch.added[kind] += [r for j, r in enumerate(new) if j not in pn]
     ga, gb = base.attr_grid(), cur.attr_grid()
     if ga and gb:
         if (ga[0], ga[1]) != (gb[0], gb[1]):
@@ -93,7 +117,7 @@ def diff(base, cur) -> Changes:
         else:
             w = ga[0]
             ch.grid = (ga[0], ga[1])
-            ch.cells = {(i % w, i // w): v for i, (u, v) in enumerate(zip(ga[2], gb[2])) if u != v}
+            ch.cells = {(i % w, i // w): (u, v) for i, (u, v) in enumerate(zip(ga[2], gb[2])) if u != v}
     tags = {c.tag for c in base.chunks} | {c.tag for c in cur.chunks}
     ch.other = sorted(t.decode("latin1") for t in tags - REPLAYED if _stream(base, t) != _stream(cur, t))
     return ch
@@ -142,10 +166,15 @@ def apply(ch: Changes, target) -> Report:
         g = target.attr_grid()
         if g and ch.grid and (g[0], g[1]) == ch.grid:
             w, h, cells = g
-            for (x, y), v in ch.cells.items():
-                cells[y * w + x] = v
+            differ = 0
+            for (x, y), (u, v) in ch.cells.items():
+                cur = cells[y * w + x]
+                differ += cur != u
+                # the bits you cleared go, the bits you set come; the season's own bits stay
+                cells[y * w + x] = (cur & ~(u & ~v)) | (v & ~u)
             target.set_attr_grid(w, h, cells)
-            rep.done.append(f"{len(ch.cells)} ATTR cell(s)")
+            rep.done.append(f"{len(ch.cells)} ATTR cell(s)" + (
+                f" ({differ} differed here: only the changed bits were applied)" if differ else ""))
         else:
             rep.skipped.append(f"{len(ch.cells)} ATTR cell(s): the grid is a different size here")
     if ch.grid_resized:

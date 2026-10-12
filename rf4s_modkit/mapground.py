@@ -110,21 +110,22 @@ _TILE_LOCK = threading.Lock()
 def _decode_tile_cached(reader, fname):
     """Decode one tile by filename via the shared LRU. Returns an RGBA PIL.Image, or
     None if the file doesn't exist (used as the stitch loop's stop condition)."""
-    with _TILE_LOCK:
-        im = _TILE_CACHE.get(fname)
-        if im is not None:
-            _TILE_CACHE.move_to_end(fname)
-            return im
     b = reader(fname)
     if b is None:
         return None
+    key = _tile_key(fname, b)
+    with _TILE_LOCK:
+        im = _TILE_CACHE.get(key)
+        if im is not None:
+            _TILE_CACHE.move_to_end(key)
+            return im
     im = _tex.decode_to_image(b)
     if im.mode != "RGBA":
         im = im.convert("RGBA")
 
     with _TILE_LOCK:
-        _TILE_CACHE[fname] = im
-        _TILE_CACHE.move_to_end(fname)
+        _TILE_CACHE[key] = im
+        _TILE_CACHE.move_to_end(key)
         while len(_TILE_CACHE) > _TILE_CACHE_MAX:
             _TILE_CACHE.popitem(last=False)
     return im
@@ -139,28 +140,37 @@ def _decode_many(blobs):
     return out
 
 
+def _tile_key(fname, b):
+    """Cache key of a tile's bytes: its name and a hash of the bytes (reading is cheap next
+    to a BC7 decode; a name alone kept showing a tile's old art after an edit)."""
+    import hashlib
+    return (fname, len(b), hashlib.blake2b(b, digest_size=16).digest())
+
+
 def _decode_tiles(reader, names):
     """Decoded RGBA images for `names` (a layer's consecutive tiles), via the shared LRU;
     cache misses are read first, then decoded."""
     out = [None] * len(names)
     miss_i, miss_b = [], []
+    keys = {}
     for i, fn in enumerate(names):
-        with _TILE_LOCK:
-            im = _TILE_CACHE.get(fn)
-            if im is not None:
-                _TILE_CACHE.move_to_end(fn)
-        if im is not None:
-            out[i] = im
-            continue
         b = reader(fn)
         if b is None:
+            continue
+        keys[i] = _tile_key(fn, b)
+        with _TILE_LOCK:
+            im = _TILE_CACHE.get(keys[i])
+            if im is not None:
+                _TILE_CACHE.move_to_end(keys[i])
+        if im is not None:
+            out[i] = im
             continue
         miss_i.append(i); miss_b.append(b)
     for i, im in zip(miss_i, _decode_many(miss_b)):
         out[i] = im
         with _TILE_LOCK:
-            _TILE_CACHE[names[i]] = im
-            _TILE_CACHE.move_to_end(names[i])
+            _TILE_CACHE[keys[i]] = im
+            _TILE_CACHE.move_to_end(keys[i])
             while len(_TILE_CACHE) > _TILE_CACHE_MAX:
                 _TILE_CACHE.popitem(last=False)
     return out
@@ -562,9 +572,7 @@ def stitch(reader, map_name: str, layer: int = 0, aspect=None):
     idx = 0
     while True:
         fn = tile_name(st, layer, idx)
-        with _TILE_LOCK:
-            cached = fn in _TILE_CACHE
-        if not cached and reader(fn) is None:
+        if reader(fn) is None:              # this reader's tiles, not what a cache remembers
             break
         names.append(fn)
         idx += 1

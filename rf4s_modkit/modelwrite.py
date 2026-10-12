@@ -564,7 +564,11 @@ def transform_matrix(scale=None, offset=None, rotate=None, pivot=(0.0, 0.0, 0.0)
 
 
 def resolve_shape(m, shape):
-    """Shape index from an index or a name."""
+    """Shape index from an index or a name (a name made of digits is a name first)."""
+    if isinstance(shape, str) and shape.isdigit():
+        named = [sh.index for sh in m.shapes if sh.name == shape]
+        if named:
+            return named[0]
     if isinstance(shape, int) or (isinstance(shape, str) and shape.lstrip("-").isdigit()):
         i = int(shape)
         if not 0 <= i < len(m.shapes):

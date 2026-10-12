@@ -611,9 +611,11 @@ class GenTable:
         """Add a monster spawn point; every roster record using this gate's monster
         positions gets one more weight (K stays equal to the point count)."""
         e.mon_pos.points.append((int(x) & 0xFFFF, int(y) & 0xFFFF, int(extra) & 0xFFFFFFFF))
+        n = len(e.mon_pos.points)
         for r in self._rosters_using(e.mon_pos):
             for s in r.spawns:
-                s.weights.append(int(weight))
+                if len(s.weights) < n:               # (a 0-point gate's roster already holds the
+                    s.weights.append(int(weight))    # one placeholder weight add_spawn gave it)
         self._sync()
 
     def remove_monster_position(self, e: Entry, index: int):
