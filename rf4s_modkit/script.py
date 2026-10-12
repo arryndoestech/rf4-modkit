@@ -405,7 +405,7 @@ def install_emflags_var_resolver(container, emf_table, with_offset=False):
     def resolve(enc):
         bit_off, width, signed = container.unpack_var(enc)
         v = emf_table.by_offset(bit_off)
-        if v is None:
+        if v is None or v.bit_offset != bit_off:        # inside another variable: keep var:0x..
             return None
         # The name stands for (offset, emdeb width, unsigned) -- that is what the assembler
         # re-encodes it as (scriptasm.make_resolver). A ref with another width or the sign
@@ -1359,6 +1359,10 @@ class Bank:
             elif self.data[off] == 0x19 and value < 0:
                 self.data[off] = 0x1A               # u16 -> s16 (needs negatives)
             struct.pack_into("<h" if self.data[off] == 0x1A else "<H", self.data, off + 1, value)
+        elif t == 0x01:                             # 5-byte int32 literal (sound ids ...)
+            if not (-0x80000000 <= value <= 0xFFFFFFFF):
+                raise ScriptError("value %d out of 32-bit range" % value)
+            struct.pack_into("<I", self.data, off + 1, value & 0xFFFFFFFF)
         elif t in (0x03, 0x04):                     # typed constant (actor(..) / map(..))
             if not (0 <= value <= 0xFFFFFFFF):
                 raise ScriptError("value %d out of range for a typed constant (0..2^32-1)" % value)
@@ -1849,8 +1853,8 @@ class Container:
     def _literal_expr_bytes(v):
         """Bytes of an RPN expression that evaluates to the integer `v` (+terminator),
         encoded like the game's compiler (scriptasm.int_literal_bytes)."""
-        if not -32768 <= v <= 0xFFFF:
-            raise ScriptError("literal %d out of range for a script expression" % v)
+        if not -0x80000000 <= v <= 0xFFFFFFFF:
+            raise ScriptError("literal %d out of range for a script expression (32 bits)" % v)
         from . import scriptasm
         return scriptasm.int_literal_bytes(v) + b"\x00"
 
@@ -2207,6 +2211,28 @@ def disassemble_scene(bank, action_type, entry_pc):
             stack.append(pc + st.size)
     sc.stmts = OrderedDict(sorted(sc.stmts.items()))
     return sc
+
+
+def scene_own_pcs(bank, scene):
+    """The pcs of `scene` no other scene of the bank reaches (without going through this
+    scene's entry): its own code, as opposed to the subroutines and tails it shares. The
+    Source tab lists and rewrites only these, so an edit never copies shared code."""
+    shared = set()
+    for sc in disassemble_bank(bank):
+        if sc.entry_pc == scene.entry_pc:
+            continue
+        stmts, seen, stack = sc.stmts, set(), [sc.entry_pc]
+        while stack:
+            pc = stack.pop()
+            if pc in seen or pc == scene.entry_pc or pc not in stmts:
+                continue
+            seen.add(pc)
+            st = stmts[pc]
+            stack += [t for t in st.code_targets if t is not None]
+            if st.falls_through and not st.terminator:
+                stack.append(pc + st.size)
+        shared |= seen
+    return (set(scene.stmts) - shared) | {scene.entry_pc}
 
 
 def disassemble_bank(bank, discover=True):

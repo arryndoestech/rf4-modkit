@@ -802,7 +802,8 @@ def reload_text(data, pid=None):
             g.free(new)
             raise
         g.resume()
-        if g.own_allocation(old):                     # an earlier reload's buffer of ours
+        if g.own_allocation(old):                     # an earlier reload's buffer of ours: a
+            time.sleep(0.25)                          # thread paused mid-read finishes first
             g.free(old)
         return {"pid": g.pid, "bytes": len(data), "lines": struct.unpack_from("<I", data, 4)[0],
                 "lines_before": old_count}
@@ -853,7 +854,8 @@ def reload_em(data, pid=None):
             g.free(new)
             raise
         g.resume()
-        if g.own_allocation(old):                     # an earlier reload's buffer of ours
+        if g.own_allocation(old):                     # an earlier reload's buffer of ours: a
+            time.sleep(0.25)                          # thread paused mid-read finishes first
             g.free(old)
         return {"pid": g.pid, "bytes": len(data), "bytes_before": size}
     finally:

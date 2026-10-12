@@ -478,7 +478,12 @@ class BankModel:
                                   "but the statement before it falls into it, so a FRAME cannot "
                                   "be put there -- write FRAME %d at the start of the scene or "
                                   "subroutine it belongs to" % (root, need, need))
-            self.insert_before(root, "FRAME %d" % need)
+            fk = self.insert_before(root, "FRAME %d" % need)
+            # entries and CALLs start the routine at the FRAME; jumps (a menu shown again, a
+            # loop) keep going to its first statement -- a FRAME run again moves the frame base
+            for st in self.code:
+                if isinstance(st, Stmt) and st.op != 0xFFFE and fk in st.targets:
+                    st.targets = [root if t == fk else t for t in st.targets]
             out.append((root, None, need))
             pos = self.positions()
         return out
@@ -699,6 +704,10 @@ class BankModel:
         predecessor, every branch / call / entry to it). Returns the first new key."""
         i, s = self._stmt_at(key)
         key = s.old_pc
+        if s.op == 0xFFF1 and key in self.routine_roots():
+            # a scene's / subroutine's opening FRAME: new code goes after it, inside the frame
+            # (code run ahead of it would run outside, and a FRAME it needs would be a second one)
+            return self.insert_after(key, text, resolver, strict=strict)
         items = self.listing_items(text, resolver, tail=key, strict=strict)
         if not items:
             return None
@@ -733,7 +742,7 @@ class BankModel:
                                    strict=strict)
         if not items:
             raise RelinkError("nothing to replace 0x%04x with (empty listing)" % key)
-        if not s.falls and items[-1].falls:
+        if not s.falls and (items[-1].falls if isinstance(items[-1], Stmt) else True):
             raise RelinkError("the statement at 0x%04x never continues to the next one, so its "
                               "replacement must not either (end it with a jump, a menu or END)" % key)
         self.code[i:i + 1] = items

@@ -153,6 +153,8 @@ def from_edit(s):
                                   % (BS, inner, BS), i)
             if not 0 <= v <= 0x10FFFF or 0xD800 <= v <= 0xDFFF:
                 raise EscapeError("%su(%s) is not a character code" % (BS, inner), i)
+            if v == 0:
+                raise EscapeError("%su(0) would end the line there" % BS, i)
             out.append(chr(v))
         i = j2
     return "".join(out)

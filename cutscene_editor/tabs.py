@@ -290,7 +290,8 @@ class SourceTab(ttk.Frame):
     def _listing_lines(self):
         """([line], [pc | None]) of the listing (the pcs feed the address column)."""
         app = self.app
-        txt = scriptasm.scene_listing(app.scene, app.bank, dialog=app.doc.text, bank_no=app.bank_pos)
+        txt = scriptasm.scene_listing(app.scene, app.bank, dialog=app.doc.text, bank_no=app.bank_pos,
+                                      own=script.scene_own_pcs(app.bank, app.scene))
         lines, pcs = strip_addresses(txt.split("\n"))
         for i, ln in enumerate(lines):
             s = ln.strip()

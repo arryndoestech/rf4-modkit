@@ -112,10 +112,12 @@ def script_uses(container, map_file_for=None):
             name = map_file_for(mid)
             owner = f"{name}'s event script" if name else None
         owner = owner or f"event bank {bi}"
+        seen = set()                              # shared code: once, under its first scene
         for sc in scenes:
             for pc, st in sc.stmts.items():
-                if st.op not in script.ZONE2_FLAG_OPS or not st.args:
+                if st.op not in script.ZONE2_FLAG_OPS or not st.args or pc in seen:
                     continue
+                seen.add(pc)
                 v = _const(bank.data, st.args[0])
                 if v is None:
                     continue

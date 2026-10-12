@@ -490,6 +490,9 @@ class EmFlagTable:
         """Write a variable's value into a mutable packed GameFlags buffer (bytearray),
         MSB-first (inverse of read_value)."""
         v = self._resolve(name_or_var)
+        if not 0 <= int(value) < (1 << v.bit_width):
+            raise ValueError("%s holds 0..%d (%d bits); %d doesn't fit"
+                             % (v.name, (1 << v.bit_width) - 1, v.bit_width, value))
         for i in range(v.bit_width):
             b = v.bit_offset + i
             byte = b >> 3

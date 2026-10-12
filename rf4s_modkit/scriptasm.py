@@ -360,8 +360,9 @@ def make_resolver(container, emf_table=None, extra=None):
         base, _, bit = name.partition("@")
         if bit.isdigit() and emf_table is not None:
             v = emf_table.by_offset(int(bit))
-            if v is not None:
+            if v is not None and v.bit_offset == int(bit):
                 return container.pack_var(v.bit_offset, v.bit_width)
+            return None
         if emf_table is not None:
             try:
                 v = emf_table.get(base)
@@ -527,7 +528,7 @@ class Assembler:
         m = re.fullmatch(r"raw\(\s*([0-9A-Fa-f]+)\s*\)", s)
         if m and len(m.group(1)) % 2 == 0:       # verbatim operand bytes (terminator included)
             return ("expr", bytes.fromhex(m.group(1)))
-        if s.lstrip("-").isdigit() or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
+        if re.fullmatch(r"-?\d+", s) or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
             return ("expr", int_literal_bytes(_int_in(s, -0x80000000, 0xFFFFFFFF, None, "literal"))
                     + b"\x00")
         if op is not None and index is not None and self.enum_names and re.fullmatch(r"[A-Za-z_][\w()]*", s):
@@ -749,7 +750,7 @@ class Assembler:
         lines = text.splitlines()
         # names referenced as targets: a lone 4-hex-digit prefix that is never referenced
         # is a pasted disassembly ADDRESS, otherwise it is a label.
-        refs = set(re.findall(r"(?:->|\bCALL\b|\bJMP\b)\s*([A-Za-z_]\w*)", text))
+        refs = set(re.findall(r"(?:->|\bCALL\b|\bJMP\b|\bJMP_RAND\b|,)\s*([A-Za-z_0-9]\w*)", text))
         for ln, raw in enumerate(lines, 1):
             line = _strip_comment(raw).strip()
             if not line:
@@ -906,7 +907,7 @@ def literal_value(text, op=None, index=None, enum_names=True):
     of that argument, else None (expressions, registers, flags)."""
     s = (text or "").strip()
     try:
-        if s.lstrip("-").isdigit() or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
+        if re.fullmatch(r"-?\d+", s) or re.fullmatch(r"-?0[xX][0-9A-Fa-f]+", s):
             return int(s, 0)
     except ValueError:
         return None
@@ -995,7 +996,7 @@ def _single_literal(buf, off):
 
 
 def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comments=True,
-                  bank_no=None):
+                  bank_no=None, own=None):
     """Render a Scene as a re-assemblable listing (see the module docstring).
 
     Labels are emitted for every intra-scene branch/call target; targets outside the
@@ -1006,6 +1007,8 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
     byte IS the scene start. `bank_no` = the container bank index for the header."""
     buf = bank.data
     labels = dict(script.scene_labels(scene))
+    if own is not None:                     # only the scene's own code; shared code by address
+        labels = {pc: lab for pc, lab in labels.items() if pc in own}
     lines = []
     typ = "discovered" if scene.action_type < 0 else "type %d" % scene.action_type
     where = "bank %d (%s)" % (scene.bank_index, scene.kind)
@@ -1020,7 +1023,7 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
             return "0x0000"
         return labels.get(t, "0x%04x" % t)
 
-    first_pc = next(iter(scene.stmts), None)
+    first_pc = next((pc for pc in scene.stmts if own is None or pc in own), None)
     if first_pc is not None and first_pc != scene.entry_pc and scene.entry_pc in scene.stmts:
         if scene.entry_pc not in labels:
             labels[scene.entry_pc] = "ENTRY"
@@ -1032,6 +1035,8 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
     except Exception:  # noqa: BLE001 - a comment aid; never break the listing
         speakers = {}
     for pc, st in scene.stmts.items():
+        if own is not None and pc not in own:
+            continue
         if pc in labels:
             lines.append("%s:" % labels[pc])
         addr = ("%04x: " % pc) if show_addr else ""
@@ -1088,6 +1093,9 @@ def scene_listing(scene, bank, dialog=None, friendly=True, show_addr=True, comme
         if note:
             line = "%-52s ; %s" % (line, note)
         lines.append(line)
+        nxt = pc + st.size
+        if own is not None and st.falls_through and not st.terminator and nxt not in own:
+            lines.append("    JMP 0x%04x" % nxt)    # it runs on into shared code: say so
     return "\n".join(lines)
 
 
