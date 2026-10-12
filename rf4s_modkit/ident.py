@@ -53,13 +53,14 @@ _MAGICS = [
     (b"NLCL",     FileType("param", "NLCL parameter table (item/crop/price/recipe/skill/...)",
                            "nlcl", "nlcl", True, "flat fixed-record game-data table")),
     (b"FRES\x20\x20\x20\x20", FileType("bfres", "Nintendo BFRES resource (skeleton/material/model)",
-                           "bfres", "res_container", False,
-                           ".bfskl/.bfmat/.bfmts -- NN BFRES, pointer-fixup only")),
+                           "bfres", "res_container", True,
+                           ".bfskl motions (play, import), .bfmat / .bfmts material "
+                           "animations (play, edit)")),
     (b"FSHA\x20\x20\x20\x20", FileType("bfsha", "Nintendo BFRES shader archive",
                            "bfres", "res_container", False)),
     (b"RES\x00",  FileType("res", "Nintendo NN resource container (.model or .texture)",
                            "res", "res_container", True,
-                           ".texture decodes/encodes; .model is pointer-fixup BFRES")),
+                           ".texture decodes/encodes; .model meshes, materials, textures")),
     (b"BNTX",     FileType("bntx", "Nintendo BNTX texture", "bntx", "texture", True)),
     (b"PSB\x00",  FileType("psb", "M2 Emote / PSB scripted data (.psbData / .emtbytes)",
                            "psb", "res_container", False, "M2 Emote SDK portrait/animation")),
@@ -123,8 +124,8 @@ def identify(data: bytes, *, filename: str | None = None) -> FileType:
                                     "decode to PNG / encode from PNG (any template; "
                                     "re-encoded in its own format at the same size)")
                 return FileType("model", "NN BFRES model (RES\\0 wrapper)",
-                                "res", "res_container", False,
-                                "mesh edit out of scope; pointer-fixup BFRES")
+                                "res", "res_container", True,
+                                "meshes, materials, embedded textures; `rf4mod res`")
             # RIFF is shared by WAVE audio and WebP images -- split on the sub-chunk tag.
             if ft.fmt == "wav" and data[8:12] == b"WEBP":
                 return FileType("webp", "WebP image", "image", None, True, "standard WebP")
@@ -133,6 +134,13 @@ def identify(data: bytes, *, filename: str | None = None) -> FileType:
     # No magic matched -- fall back to heuristics / extension.
     ext = (filename or "").lower().rsplit(".", 1)[-1] if filename and "." in filename else ""
     base = (filename or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if base.startswith("as_atk_") and base.endswith(".bin"):
+        return FileType("asatk", "Attack move timeline (as_atk_*.bin)", "binary", "asatk", True,
+                        "per-frame events: hitboxes, effects, sounds; `rf4mod asatk`")
+    if base.startswith("rf3monsterpresent"):
+        return FileType("montame", "Monster taming foods (rf3MonsterPresent.bin)", "binary",
+                        "montame", True, "4 (item, tame bonus) slots per species; "
+                        "`rf4mod gift monster-set`")
     if base.startswith("rf3routeresult"):      # headerless 318 x 159 B nibble matrix
         return FileType("route_result", "NPC path next-hop matrix (rf3RouteResult.bin)",
                         "binary", "route", True,
@@ -144,10 +152,10 @@ def identify(data: bytes, *, filename: str | None = None) -> FileType:
     if ext == "sav":
         return FileType("sav", "Bundled scenario preset save (AS_*/JM_*/E3_DEMO)",
                         "save", None, False,
-                        "raw RF4 save image (CRC32 first); use rf4mod save")
+                        "raw RF4 save image (CRC32 first); not editable")
     if ext == "bdat":
-        return FileType("bdat", "Audio metadata table (pairs with voice bundles)",
-                        "binary", None, False, "format not REd")
+        return FileType("bdat", "Sound-id table (sound id -> file, volume, priority)",
+                        "binary", "soundtable", True, "`rf4mod sound`")
     if ext in ("glsl", "hlsl", "inc"):
         return FileType("shader", "GLSL/HLSL shader source", "text", None, True,
                         "plain text -- edit directly")

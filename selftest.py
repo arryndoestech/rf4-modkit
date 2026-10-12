@@ -5198,6 +5198,28 @@ def test_model_texture_resize():
            and struct.unpack_from("<I", nb, 0x1C)[0] == len(nb))
 
 
+def test_ident_names_and_cli_errors():
+    """ident names the files only their file name tells apart (as_atk_*.bin, rf3MonsterPresent);
+    the CLI prints the toolkit's own errors as one line (exit 1), not a traceback."""
+    print("ident by name + CLI error lines:")
+    import subprocess
+    from rf4s_modkit import ident as _id
+    _check("as_atk_*.bin -> asatk, rf3MonsterPresent.bin -> montame (were 'unknown')",
+           _id.identify(b"\x03\x00\x00\x00" * 4, filename="as_atk_sword_00.bin").fmt == "asatk"
+           and _id.identify(b"?\x03\x00\x00" * 4, filename="rf3MonsterPresent.bin").fmt == "montame")
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        bad = tmp / "short.sav"
+        bad.write_bytes(b"\0" * 64)
+        r = subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name("rf4mod.py")),
+                            "save", "show", str(bad)], capture_output=True, text=True)
+        _check("a SaveError is one 'error:' line with exit 1, no traceback",
+               r.returncode == 1 and r.stderr.strip().startswith("error:")
+               and "Traceback" not in r.stderr, r.stderr[-300:])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_manifest_filter_gui():
     """Manifest.plist tab: Size / Offset columns, a name filter across every bundle, Copy puts
     bundle / file / size / offset on the clipboard (tab-separated)."""
@@ -17450,7 +17472,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

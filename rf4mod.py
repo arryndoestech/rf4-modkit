@@ -5015,6 +5015,14 @@ def main(argv=None):
     except FileNotFoundError as e:
         sys.exit(f"error: file not found: {e.filename or e} "
                  "(pass a path, or check the game folder with: rf4mod.py game)")
+    except OSError as e:                         # permission, file in use, disk full ...
+        sys.exit(f"error: {e.strerror or e}" + (f": {e.filename}" if e.filename else ""))
+    except Exception as e:
+        # the toolkit's own errors (SaveError, NlclError, ScriptError ...) say what is wrong
+        # with the input: one line. Anything else is a bug: keep the traceback for the report.
+        if (type(e).__module__ or "").startswith("rf4s_modkit"):
+            sys.exit(f"error: {e}")
+        raise
 
 
 if __name__ == "__main__":
