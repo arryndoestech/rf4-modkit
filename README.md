@@ -296,7 +296,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `.texture` | decoded image with ½×/1×/2×/4× zoom; **Export View → PNG**; **Replace from PNG…** (own format; a PNG of another size asks first, showing old → new and what it does in game) |
 | `.model` | **Textures** tab: every embedded BNTX card with preview / Export / Export all; **Replace texture…** swaps the selected card from a PNG (in place at the same size; another size asks first, then rebuilds the `.model`) · Structure tab |
 | `rf3mc.*` / TEXT | searchable string table; **Export → JSON** |
-| `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON** |
+| `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON**. `Manifest.plist`: every bundle's files with their size and offset, a **Filter** on the file name, and **Copy** (selected rows, or all shown: bundle / file / size / offset, tab-separated) |
 | `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*; its sidebar gains an **Events** tab: the map's cutscene scenes, opened in the Cutscene editor) · Chunks · read-only Hex |
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
 | `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Gates** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |

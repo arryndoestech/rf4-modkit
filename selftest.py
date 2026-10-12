@@ -5198,6 +5198,63 @@ def test_model_texture_resize():
            and struct.unpack_from("<I", nb, 0x1C)[0] == len(nb))
 
 
+def test_manifest_filter_gui():
+    """Manifest.plist tab: Size / Offset columns, a name filter across every bundle, Copy puts
+    bundle / file / size / offset on the clipboard (tab-separated)."""
+    print("GUI Manifest.plist filter:")
+    import importlib.util
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("manifest filter GUI", "no tkinter: %s" % e); return
+    mani = pathlib.Path(BUNDLE_DIR) / "Manifest.plist"
+    if not mani.is_file():
+        _skip("manifest filter GUI", "Manifest.plist not present"); return
+    man = mbundle.Manifest(mani)
+    want = sorted((b["bundleName"], f, int(m["size"]), int(m["offset"])) for b in man.bundles
+                  for f, m in b.get("files", {}).items() if "rf3mc" in f.lower())
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_mani", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    errs = []
+    root.report_callback_exception = lambda *a: errs.append(a)
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        app = gui.App(root, initial=str(BUNDLE_DIR))
+        f = tmp / "Manifest.plist"
+        shutil.copyfile(mani, f)
+        doc = app.open_file_tab(f); root.update_idletasks()
+        var = doc._manifest_filter
+        import time as _time
+
+        def settle():                                   # the filter applies 250 ms after typing
+            t0 = _time.time()
+            while _time.time() - t0 < 0.5:
+                root.update(); _time.sleep(0.02)
+        var.set("RF3MC"); settle()
+        bar = doc.content.winfo_children()[0]
+        tv = next(w for w in doc.content.winfo_children() if w.winfo_class() == "Treeview")
+        got = sorted((tv.item(b, "text"), tv.item(c, "text"), int(tv.set(c, "size")),
+                      int(tv.set(c, "offset"))) for b in tv.get_children() for c in tv.get_children(b))
+        btn = next(w for w in bar.winfo_children() if w.winfo_class() == "TButton")
+        btn.invoke()
+        clip = root.clipboard_get().splitlines()
+        _check("filter (any case) lists every matching file of every bundle with its size / offset",
+               got == want and len(want) > 0, (len(got), len(want)))
+        _check("Copy with nothing selected copies every file shown (header + tab-separated rows)",
+               clip[0] == "bundle	file	size	offset" and len(clip) == len(want) + 1
+               and sorted(tuple(r.split("	")[:2]) for r in clip[1:]) == [w[:2] for w in want], clip[:3])
+        var.set(""); settle()
+        _check("an empty filter shows the bundles collapsed again", all(
+            tv.item(b, "open") in (0, False, "0") for b in tv.get_children())
+               and len(tv.get_children()) == len(man.bundles), len(tv.get_children()))
+        _check("no Tk errors", not errs, errs[:1])
+    finally:
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_texture_resize_gui():
     """GUI Replace texture… (texture viewer and a .model's Textures tab) with a PNG of another
     size: a confirm shows old -> new (+ warnings); No keeps the working copy, Yes stores it."""
@@ -17393,7 +17450,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

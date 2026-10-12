@@ -723,7 +723,7 @@ class _Doc:
             "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
             "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
             "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
-            "_events_new_scene", "_text_tab")
+            "_events_new_scene", "_text_tab", "_manifest_after", "_manifest_filter")
 
     def __init__(self, frame, on_data=None):
         for name in self.VIEW:
@@ -2810,31 +2810,19 @@ class App:
     def _view_bplist(self, name, data):
         doc = self._doc
         root_obj = bplist.loads(data, lazy_data=True)
+        doc._export_kind = "plistjson"; doc._export_data = data
+        self.export_btn.config(state="normal")
+        # Manifest.plist: each bundle by name with its files under it, and a filter
+        bundles = root_obj.get("bundles") if isinstance(root_obj, dict) else None
+        if isinstance(bundles, list) and bundles and all(
+                isinstance(b, dict) and "bundleName" in b for b in bundles):
+            return self._view_manifest(doc, bundles)
         tv = ttk.Treeview(doc.content, columns=("val",), show="tree headings")
         tv.heading("#0", text="Key / Index"); tv.heading("val", text="Value")
         tv.column("val", width=700)
         vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        doc._export_kind = "plistjson"; doc._export_data = data
-        self.export_btn.config(state="normal")
-
-        # Manifest.plist: render each bundle directly by name with its files listed
-        # under it (lazily on expand), instead of the raw bundles[i].{bundleName,files}.
-        bundles = root_obj.get("bundles") if isinstance(root_obj, dict) else None
-        if isinstance(bundles, list) and bundles and all(
-                isinstance(b, dict) and "bundleName" in b for b in bundles):
-            doc._bplist_files = {}
-            for b in bundles:
-                files = b.get("files", {})
-                nfiles = len(files) if isinstance(files, dict) else 0
-                node = tv.insert("", "end", text=str(b.get("bundleName")),
-                                 values=(f"{nfiles} files",), open=False)
-                if nfiles:
-                    doc._bplist_files[node] = files
-                    tv.insert(node, "end", text="…")     # placeholder -> expand arrow
-            tv.bind("<<TreeviewOpen>>", lambda _e: self._bplist_expand_bundle(tv))
-            return
 
         def add(parent, key, val):
             if isinstance(val, dict):
@@ -2854,19 +2842,106 @@ class App:
         for c in tv.get_children():
             tv.item(c, open=True)
 
-    def _bplist_expand_bundle(self, tv):
-        doc = self._doc
-        nid = tv.focus()
-        files = doc._bplist_files.pop(nid, None)
-        if files is None:
-            return
-        tv.delete(*tv.get_children(nid))     # drop placeholder
-        for fk, fv in files.items():
-            if isinstance(fv, dict):
-                tv.insert(nid, "end", text=str(fk),
-                          values=(f"size {fv.get('size')}  offset {fv.get('offset')}",))
-            else:
-                tv.insert(nid, "end", text=str(fk), values=(repr(fv)[:200],))
+    def _view_manifest(self, doc, bundles):
+        """Manifest.plist: one row per bundle, its files under it (filled on expand), Size /
+        Offset columns, a filter on the file name and Copy (tab-separated rows)."""
+        bar = ttk.Frame(doc.content)
+        bar.pack(side="top", fill="x", padx=4, pady=(4, 2))
+        ttk.Label(bar, text="Filter:").pack(side="left")
+        var = tk.StringVar()
+        fe = ttk.Entry(bar, textvariable=var, width=32)
+        fe.pack(side="left", padx=4)
+        count = ttk.Label(bar, text="")
+        count.pack(side="left", padx=6)
+        copy_btn = ttk.Button(bar, text="Copy")
+        copy_btn.pack(side="right")
+        Tip(fe, "Show only files whose name contains this text (any case); Enter applies at once.")
+        Tip(copy_btn, "Copy the selected files, or every file shown when none is selected: "
+                      "bundle, file, size, offset (tab-separated, pastes into a spreadsheet).")
+        tv = ttk.Treeview(doc.content, columns=("size", "offset"), show="tree headings")
+        tv.heading("#0", text="Bundle / file")
+        tv.heading("size", text="Size"); tv.heading("offset", text="Offset")
+        tv.column("#0", width=420)
+        tv.column("size", width=110, anchor="e"); tv.column("offset", width=130, anchor="e")
+        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
+        tv.configure(yscrollcommand=vs.set)
+        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
+        doc._bplist_files = {}
+        rows = {}                                   # tree item -> (bundle, file, size, offset)
+
+        def file_rows(node, bname, files, keep=None):
+            for fk, fv in files.items():
+                if keep is not None and keep not in str(fk).lower():
+                    continue
+                size, off = (fv.get("size"), fv.get("offset")) if isinstance(fv, dict) else ("", "")
+                iid = tv.insert(node, "end", text=str(fk), values=(size, off))
+                rows[iid] = (bname, str(fk), size, off)
+
+        def refill():
+            doc._manifest_after = None
+            if not tv.winfo_exists():                   # the tab was closed meanwhile
+                return
+            tv.delete(*tv.get_children())
+            rows.clear(); doc._bplist_files = {}
+            text = var.get().strip().lower()
+            shown = total = 0
+            for b in bundles:
+                bname = str(b.get("bundleName"))
+                files = b.get("files", {})
+                files = files if isinstance(files, dict) else {}
+                total += len(files)
+                if not text:
+                    node = tv.insert("", "end", text=bname, values=(f"{len(files)} files", ""))
+                    if files:
+                        doc._bplist_files[node] = (bname, files)
+                        tv.insert(node, "end", text="…")      # placeholder -> expand arrow
+                    shown += len(files)
+                    continue
+                n = sum(text in str(k).lower() for k in files)
+                if n:
+                    node = tv.insert("", "end", text=bname, values=(f"{n} of {len(files)}", ""),
+                                     open=True)
+                    file_rows(node, bname, files, text)
+                    shown += n
+            count.config(text=f"{total:,} files" if not text else f"{shown:,} of {total:,} files")
+
+        def expand(_e=None):
+            nid = tv.focus()
+            got = doc._bplist_files.pop(nid, None)
+            if got is not None:
+                tv.delete(*tv.get_children(nid))            # drop the placeholder
+                file_rows(nid, *got)
+
+        def schedule(*_):
+            if getattr(doc, "_manifest_after", None):
+                self.root.after_cancel(doc._manifest_after)
+            doc._manifest_after = self.root.after(250, refill)
+
+        def copy():
+            sel = [i for i in tv.selection() if i in rows]
+            if not sel:                      # bundle rows selected: their files; else all shown
+                picked = tv.selection() or tv.get_children()
+                for p in picked:
+                    got = doc._bplist_files.pop(p, None)
+                    if got is not None:                 # not expanded yet: fill it now
+                        tv.delete(*tv.get_children(p))
+                        file_rows(p, *got)
+                sel = [c for p in picked for c in tv.get_children(p) if c in rows]
+            if not sel:
+                count.config(text="nothing to copy (expand a bundle or filter first)")
+                return
+            lines = ["bundle\tfile\tsize\toffset"] + ["\t".join(map(str, rows[i])) for i in sel]
+            self.root.clipboard_clear()
+            self.root.clipboard_append("\n".join(lines) + "\n")
+            count.config(text=f"copied {len(sel):,} row(s)")
+
+        var.trace_add("write", schedule)
+        fe.bind("<Return>", lambda _e: refill())
+        copy_btn.config(command=copy)
+        tv.bind("<<TreeviewOpen>>", expand)
+        tv.bind("<Control-c>", lambda _e: copy())
+        doc._manifest_filter = var                  # (tests)
+        refill()
 
     def _save_blob_as(self, doc, blob, what):
         """Ask for a file name and write `blob` (the working copy) there; the tab is then saved."""
