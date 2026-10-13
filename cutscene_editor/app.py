@@ -316,11 +316,6 @@ class CutsceneExplorer:
                 "hold Alt over the row to see which is which). Xref counts: after each label, how many "
                 "statements of the bank lead to it (X lists them). The columns show in both views.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
-        xb = ttk.Button(bar, text="Xrefs…", command=self.show_callers)
-        xb.pack(side="left", padx=(0, 4))
-        Tip(xb, "Who leads here (X): every CALL, jump, branch, choice option and trigger in this "
-                "bank that goes to the selected line or label -- or to the open scene when nothing "
-                "is selected.")
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
         Tip(nb, "Create a new scene in the open bank: when it plays, its keys and its body.")

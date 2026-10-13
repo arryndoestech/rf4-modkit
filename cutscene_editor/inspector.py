@@ -49,7 +49,7 @@ class Inspector(ScrollFrame):
         Tip(self.del_btn, "Skip this statement (the scene jumps over it; byte-safe). Del key.")
         self.callers_btn = ttk.Button(self.actions, text="Xrefs…", width=9, command=app.show_callers)
         Tip(self.callers_btn, "Every CALL / jump / branch / choice in this bank that leads to the "
-                              "selected statement or label (X; also in the toolbar).")
+                              "selected statement or label (X; also in the right-click menu).")
         self._pack_actions(label=False)
         self.explain_box = section(b, "Description")
         self.explain = tk.Text(self.explain_box, height=12, wrap="word", font=("Consolas", 8),

@@ -5321,8 +5321,8 @@ def test_delete_menu():
 
 
 def test_xrefs_button():
-    """Xrefs (who leads here) is in the toolbar, the right-click menu, on the X key and in the
-    Inspector; with nothing selected it lists what leads to the open scene."""
+    """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
+    (not in the toolbar); with nothing selected it lists what leads to the open scene."""
     print("cutscene editor: Xrefs everywhere:")
     try:
         import tkinter as tk
@@ -5358,9 +5358,9 @@ def test_xrefs_button():
         ex.view.text.focus_set()
         ex.view.text.event_generate("<X>")
         root.update()
-        _check("toolbar has Xrefs…; X with nothing selected lists the scene's callers, with a "
+        _check("no Xrefs… in the toolbar; X with nothing selected lists the scene's callers, with a "
                "statement selected that statement's",
-               "Xrefs…" in bar and scene_x and scene_x[0][0] == 0x515A
+               "Xrefs…" not in bar and scene_x and scene_x[0][0] == 0x515A
                and len(opened) == 2 and opened[1][0] == 0x5186 and opened[1][1] >= 1,
                (bar, opened))
         _check("the Inspector button is named Xrefs…", ex.inspector.callers_btn.cget("text") == "Xrefs…")
