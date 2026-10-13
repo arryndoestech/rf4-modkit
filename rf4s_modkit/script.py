@@ -1901,8 +1901,8 @@ class Container:
         """Remove the statement at `pc`. One that falls through, or a JMP: whatever pointed at
         it now points at the statement after it. One that never falls through (a random pick,
         SWITCH_CLAMP; a JMP given `continue_at`): the scene continues at `continue_at`, one of
-        its targets (one with a single target needs none), and code only its other targets led to
-        is dropped. A menu: the scene goes on as if the player picked `option` (0-based; -1 =
+        its targets (one with a single target needs none); code only its other targets led to
+        stays in the bank, unreached. A menu: the scene goes on as if the player picked `option` (0-based; -1 =
         cancelled, PROMPT_CHOICE only) -- see menu_delete_plan. RET cannot be deleted (there
         is nothing to continue with). Returns the new pc of what stands in for it."""
         if isinstance(bank, int):

@@ -1545,7 +1545,7 @@ class CutsceneExplorer:
             falls = (st.falls_through and not st.terminator) or st.op == 0xFFFA
             self.status("Deleted %s @0x%04x (%s%s; Ctrl+Z undoes it)" % (
                 name, pc, "whatever jumped to it now goes to the next statement" if falls
-                else "code only it led to was removed", note))
+                else "the code only it led to stays, under unreached code", note))
         return ok
 
     def delete_statements(self, pcs):

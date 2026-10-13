@@ -537,8 +537,8 @@ Every instruction has a name, argument labels and a description;
   *Delete* removes the statement: what jumped to it goes to the next statement (a JMP too: the
   goto goes away). A **menu** asks which option the scene goes on with, as if the player had picked
   it (a masked menu also sets reg0 to that option, as the pick would; its visibility-mask lines
-  stay, for a menu you put in its place); a random pick or SWITCH_CLAMP asks which path; code only
-  the other options led to is removed. A RET can't be deleted (nothing comes after it).
+  stay, for a menu you put in its place); a random pick or SWITCH_CLAMP asks which path; the code
+  only the other options led to stays in the bank as unreached code, to jump to or call again. A RET can't be deleted (nothing comes after it).
   *Callers…* lists every CALL / jump / branch / choice that lands on it, and *Description*
   repeats the explanation.
 

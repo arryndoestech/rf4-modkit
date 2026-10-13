@@ -5227,15 +5227,29 @@ def test_delete_menu():
     a, b2 = script.decode_statement(b.data, new), None
     if a is not None:
         b2 = script.decode_statement(b.data, new + a.size)
+        if b2 is not None and b2.mnem == "JMP":         # over the dead statement kept after it
+            b2 = script.decode_statement(b.data, b2.code_targets[0])
     mask_kept = script.decode_statement(b.data, mv[0x4FF4]).op == 610
     _check("a masked menu without an option is refused; with option 2 it becomes "
-           "EVAL (reg0 = 1) straight into its SWITCH, the mask line stays",
+           "EVAL (reg0 = 1) on into its SWITCH, the mask line stays",
            refused and a is not None and a.mnem == "EVAL"
            and script.disasm_expr(b.data, a.expr_refs[0])[0] == "reg0 = 1"
            and b2 is not None and b2.mnem == "SWITCH" and mask_kept,
            (a and a.mnem, b2 and b2.mnem, mask_kept))
     _check("no other scene of the bank changes its flow",
            all(_br.flow_signature(b, mv[e]) == sig for e, sig in before.items()), len(before))
+    # the options not taken stay in the bank as unreached code (bank 19 @1e9a: 2 options)
+    c19 = script.Container(raw)
+    b19 = c19.banks[19]
+    m19 = script.decode_statement(b19.data, 0x1E9A)
+    if m19 is not None and m19.mnem == "PROMPT_CHOICE_FORCED" and len(m19.code_targets) == 2:
+        c19.delete_statement(b19, 0x1E9A, option=0)
+        gone = c19.last_moves[19].get(m19.code_targets[1])
+        unr = {sc.entry_pc: len(sc.stmts) for sc, _o in script.unreached(script.disassemble_bank(b19))}
+        _check("deleting a menu keeps the other option's code, listed as unreached",
+               gone is not None and unr.get(gone, 0) > 1, (gone, unr))
+    else:
+        _skip("menu keeps other options", "bank 19 @1e9a is not the shipped 2-option menu")
     # every kind, in a few banks: builds, re-parses, other scenes unchanged
     n = bad = 0
     for bi in (19, 40, 300, 1120):

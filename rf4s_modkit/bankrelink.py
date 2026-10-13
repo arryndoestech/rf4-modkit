@@ -767,17 +767,14 @@ class BankModel:
         pick ...), and continue at `target`, one of its own targets: what pointed at it now
         goes to `target` (through the statements of listing `prefix` first, when given),
         and a statement that ran into it gets a JMP there (none when `target` is the very
-        next statement). Code only the removed statement led to (the other options) is
-        dropped. Returns the key that stands in for it."""
+        next statement). Code only the removed statement led to (the other options) stays
+        in the bank, unreached, so it can be jumped to or called again. Returns the key
+        that stands in for it."""
         i, s = self._stmt_at(key)
         target = self.resolve(target)
         if target not in s.targets:
             raise RelinkError("0x%04x is not one of the targets of the statement at 0x%04x"
                               % (target, s.old_pc))
-        candidates = self.reach(list(s.targets))
-        pos = self.positions()
-        if pos.get(target, -1) > i:                    # dead code between it and the target
-            candidates |= {c.old_pc for c in self.code[i + 1:pos[target]] if isinstance(c, Stmt)}
         items = self.listing_items(prefix, resolver) if prefix else []
         prev = items[-1] if items else (self.code[i - 1] if i > 0 else None)
         nxt = self.code[i + 1].old_pc if i + 1 < len(self.code) and isinstance(self.code[i + 1], Stmt) else None
@@ -787,15 +784,6 @@ class BankModel:
         self.code[i:i + 1] = items
         new = items[0].old_pc if items else target
         self.redirect(s.old_pc, new)
-        self.prune(candidates)
-        j = items[-1] if items else None
-        if j is not None and j.op == 0xFFFA and j.targets == [target]:
-            k = self.positions().get(j.old_pc)       # pruning left the target right after it
-            if k is not None and k + 1 < len(self.code) and self.code[k + 1].old_pc == target:
-                del self.code[k]
-                self.redirect(j.old_pc, target)
-                if new == j.old_pc:
-                    new = target
         return new
 
     def replace_scene(self, entry, text, resolver=None, strict=True):
