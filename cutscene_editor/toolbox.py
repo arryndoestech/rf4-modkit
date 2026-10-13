@@ -1839,8 +1839,16 @@ class InstructionPicker:
             self.more_btn.grid_remove()
         self._changed()
 
+    def _stmt_words(self, st):
+        if st.mnem == "DIALOG":
+            return 'DIALOG "%s"' % (self.app.doc.text(st.dialog_id) or "").replace("\n", " ")[:50]
+        return meta.mnemonic(st.op) if st.op < 0xFFF0 else st.mnem
+
     def _targets(self):
-        """[(display, token)] for jump targets: the open scene's statements (0xPC)."""
+        """[(display, token)] for jump targets (0xPC): the open scene's statements first, then
+        every other statement of the bank -- a target may be any statement start in it
+        (another scene's code, a subroutine, code nothing reaches) -- marked with where it
+        is."""
         app = self.app
         out = []
         sc = getattr(app, "scene", None)
@@ -1848,15 +1856,40 @@ class InstructionPicker:
             return out
         labels = script.scene_labels(sc)
         for pc, st in sc.stmts.items():
-            if st.mnem == "DIALOG":
-                t = (app.doc.text(st.dialog_id) or "").replace("\n", " ")[:50]
-                what = 'DIALOG "%s"' % t
-            elif st.op < 0xFFF0:
-                what = meta.mnemonic(st.op)
-            else:
-                what = st.mnem
             lab = labels.get(pc)
-            out.append(("0x%04x  %s%s" % (pc, (lab + ": ") if lab else "", what), "0x%04x" % pc))
+            out.append(("0x%04x  %s%s" % (pc, (lab + ": ") if lab else "", self._stmt_words(st)),
+                        "0x%04x" % pc))
+        return out + [o for o in self._bank_targets() if int(o[1], 16) not in sc.stmts]
+
+    def _bank_targets(self):
+        """Every statement start of the open bank, (display, token), cached per bank state."""
+        bank = getattr(self.app, "bank", None)
+        if bank is None:
+            return []
+        key = (id(bank), len(bank.data), hash(bytes(bank.data)))
+        if getattr(self, "_bank_targets_key", None) == key:
+            return self._bank_targets_val
+        from rf4s_modkit import bankrelink
+        owner = {}
+        try:
+            scenes = script.disassemble_bank(bank)
+            for s in scenes:                        # scenes a trigger starts first, then the rest
+                where = ("scene @%04x" % s.entry_pc if s.action_type >= 0
+                         else "code @%04x" % s.entry_pc)
+                for pc in s.stmts:
+                    if pc not in owner or (s.action_type >= 0 and owner[pc].startswith("code")):
+                        owner[pc] = where
+            pcs = sorted(x.old_pc for x in bankrelink.BankModel.parse_any(bank).code
+                         if isinstance(x, bankrelink.Stmt) and x.old_pc < 0x10000)
+        except Exception:  # noqa: BLE001 -- a picker convenience: the scene's own targets stay
+            pcs = []
+        out = []
+        for pc in pcs:
+            st = script.decode_statement(bank.data, pc)
+            if st is not None:
+                out.append(("0x%04x  [%s] %s" % (pc, owner.get(pc, "unreached"), self._stmt_words(st)),
+                            "0x%04x" % pc))
+        self._bank_targets_key, self._bank_targets_val = key, out
         return out
 
     def _subroutines(self):

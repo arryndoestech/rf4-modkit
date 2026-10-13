@@ -7329,6 +7329,21 @@ def test_choice_form():
                 row[2][0].set(tgt)
             p._rebuild()
             return p.text(), p.check()
+        # a target may be any statement of the bank, not only this scene's (another scene,
+        # a subroutine, code nothing reaches)
+        tg_all = p._targets()
+        own = {"0x%04x" % q for q in sc.stmts}
+        other = [(d, t) for d, t in tg_all if t not in own]
+        bank_pcs = {s2.pc for s3 in script.disassemble_bank(bk) for s2 in s3.stmts.values()}
+        far = next(((d, t) for d, t in other if "[scene @" in d), None)
+        ft, fok = fill("jump", "PROMPT_CHOICE", [(100, "always", far[0] if far else ent),
+                                                 (101, "always", nxt)])
+        _check("menu targets offer every statement of the bank (this scene first); an option can "
+               "go to another scene's code",
+               far is not None and len(other) > 100 and tg_all[0][1] in own
+               and {int(t, 16) for _d, t in other} >= (bank_pcs - sc.stmts.keys()) and fok
+               and ("-> %s," % far[1]) in ft,
+               (len(other), far, ft))
         jt, jok = fill("jump", "PROMPT_CHOICE", [(100, "always", ent), (101, "always", nxt)])
         _check("jump mode: the menu alone, 'continue' lands after it",
                jok and jt.splitlines() == ["PROMPT_CHOICE #100 -> 0x%04x, #101 -> L_after_menu" % sc.entry_pc,
