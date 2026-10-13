@@ -524,8 +524,8 @@ Every instruction has a name, argument labels and a description;
   `1a860200` = 646; a control op's targets, line ids, counts and conditions; the column is padded
   so the statements line up; Alt-hover names each operand). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Several lines:** Ctrl+A selects all, Shift+click / Shift+arrows a range, Ctrl+click adds or
-  removes one; Ctrl+C copies them and Delete deletes them as one undo step (statements that end
-  a path -- RET, JMP, a menu's jump table -- are kept). **Hold Alt over a line** for the full explanation (prototype, every argument
+  removes one; Ctrl+C copies them and Delete deletes them as one undo step (a RET, a menu and a
+  random pick are kept: delete those on their own). **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
@@ -534,8 +534,13 @@ Every instruction has a name, argument labels and a description;
   `FLG_X + 1`, `@0xNNNN` for an existing expression; `actor(Forte)` / `map(MAP_CITY_00)` can be
   typed too) with a character / map / named-value picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
   every other offset are untouched); each **choice option**'s text, line id and destination.
-  *Delete* removes the statement, *Callers…* lists every CALL / jump / branch / choice that lands
-  on it, and *Description* repeats the explanation.
+  *Delete* removes the statement: what jumped to it goes to the next statement (a JMP too: the
+  goto goes away). A **menu** asks which option the scene goes on with, as if the player had picked
+  it (a masked menu also sets reg0 to that option, as the pick would; its visibility-mask lines
+  stay, for a menu you put in its place); a random pick or SWITCH_CLAMP asks which path; code only
+  the other options led to is removed. A RET can't be deleted (nothing comes after it).
+  *Callers…* lists every CALL / jump / branch / choice that lands on it, and *Description*
+  repeats the explanation.
 
 Every structural edit — insert, delete, *Apply to scene*, a new scene, a wider argument, a
 changed trigger list — **rebuilds the whole bank** (`rf4s_modkit/bankrelink.py`): the new code
@@ -1085,6 +1090,7 @@ python rf4mod.py script set-target rf3.mc --bank 1 --pc 0x400e --index 1 --targe
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --dialogue 66494 -o new.mc         # add a dialogue beat
 python rf4mod.py script insert rf3.mc --bank 1 --pc 0x3478 --stmt "BR_Z (FLG_X) -> L1 / DIALOG #5 / L1:" -o new.mc  # a conditional beat
 python rf4mod.py script delete rf3.mc --bank 1 --pc 0x3478 -o new.mc          # remove a statement (the bank is rebuilt)
+python rf4mod.py script delete rf3.mc --bank 1 --pc 0x5006 --option 2 -o new.mc  # remove a menu: go on as if option 2 was picked
 python rf4mod.py script listing rf3.mc --bank 1 --pc 0x3478 --text rf3mc.eng -o scene.txt   # scene as re-assemblable source…
 python rf4mod.py script asm rf3.mc --bank 1 --pc 0x3478 --listing scene.txt -o new.mc         # …edit, and put it back
 python rf4mod.py script triggers rf3.mc --bank 248                                             # a map bank's triggers + keys

@@ -749,16 +749,54 @@ class BankModel:
         self.redirect(s.old_pc, items[0].old_pc)
         return items[0].old_pc
 
-    def delete(self, key):
-        """Remove the statement `key` (which must fall through); what pointed at it now
-        points at the statement after it."""
+    def delete(self, key, jump_ok=False):
+        """Remove the statement `key` (which must fall through, or with `jump_ok` be a JMP:
+        the goto goes away); what pointed at it now points at the statement after it."""
         i, s = self._stmt_at(key)
-        if not s.falls or i + 1 >= len(self.code) or not isinstance(self.code[i + 1], Stmt):
+        if jump_ok and s.op == 0xFFFA and i + 1 < len(self.code) and isinstance(self.code[i + 1], Stmt):
+            pass
+        elif not s.falls or i + 1 >= len(self.code) or not isinstance(self.code[i + 1], Stmt):
             raise RelinkError("the statement at 0x%04x never falls through; deleting it would run "
                               "whatever follows it -- retarget it (set_branch_target) instead" % key)
         nxt = self.code[i + 1].old_pc
         del self.code[i]
         self.redirect(s.old_pc, nxt)
+
+    def delete_branch(self, key, target, prefix=None, resolver=None):
+        """Remove `key`, a statement that never falls through (a jump, a menu, a random
+        pick ...), and continue at `target`, one of its own targets: what pointed at it now
+        goes to `target` (through the statements of listing `prefix` first, when given),
+        and a statement that ran into it gets a JMP there (none when `target` is the very
+        next statement). Code only the removed statement led to (the other options) is
+        dropped. Returns the key that stands in for it."""
+        i, s = self._stmt_at(key)
+        target = self.resolve(target)
+        if target not in s.targets:
+            raise RelinkError("0x%04x is not one of the targets of the statement at 0x%04x"
+                              % (target, s.old_pc))
+        candidates = self.reach(list(s.targets))
+        pos = self.positions()
+        if pos.get(target, -1) > i:                    # dead code between it and the target
+            candidates |= {c.old_pc for c in self.code[i + 1:pos[target]] if isinstance(c, Stmt)}
+        items = self.listing_items(prefix, resolver) if prefix else []
+        prev = items[-1] if items else (self.code[i - 1] if i > 0 else None)
+        nxt = self.code[i + 1].old_pc if i + 1 < len(self.code) and isinstance(self.code[i + 1], Stmt) else None
+        if isinstance(prev, Stmt) and prev.falls and nxt != target:
+            items = items + [Stmt(self.new_key(), b"\xfa\xff\x00\x00", 0xFFFA, [(2, "pc")],
+                                  [target], [], False)]
+        self.code[i:i + 1] = items
+        new = items[0].old_pc if items else target
+        self.redirect(s.old_pc, new)
+        self.prune(candidates)
+        j = items[-1] if items else None
+        if j is not None and j.op == 0xFFFA and j.targets == [target]:
+            k = self.positions().get(j.old_pc)       # pruning left the target right after it
+            if k is not None and k + 1 < len(self.code) and self.code[k + 1].old_pc == target:
+                del self.code[k]
+                self.redirect(j.old_pc, target)
+                if new == j.old_pc:
+                    new = target
+        return new
 
     def replace_scene(self, entry, text, resolver=None, strict=True):
         """The scene at `entry` plays `text` instead: the new body goes where the old entry

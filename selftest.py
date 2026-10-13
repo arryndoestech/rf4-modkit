@@ -5198,6 +5198,114 @@ def test_model_texture_resize():
            and struct.unpack_from("<I", nb, 0x1C)[0] == len(nb))
 
 
+def test_delete_menu():
+    """Deleting a statement that never falls through: a menu goes on as if the player picked
+    an option (a masked menu: reg0 = the option's original index, the mask lines kept), a random
+    pick / SWITCH_CLAMP at the target asked for, a JMP like any statement (the goto goes); code
+    only the removed statement led to is dropped and no other scene's flow changes. The editor
+    asks which option (dialogs.ask_continue_at)."""
+    print("delete a menu / jump / random pick:")
+    from rf4s_modkit import bankrelink as _br, script
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("delete menu", "no rf3.mc"); return
+    raw = mc.read_bytes()
+    c = script.Container(raw)
+    b = c.banks[1]
+    st = script.decode_statement(b.data, 0x5006)
+    if st is None or st.mnem != "PROMPT_CHOICE":
+        _skip("delete menu", "bank 1 @0x5006 is not the shipped masked menu"); return
+    scenes = list(script.disassemble_bank(b))
+    before = {sc.entry_pc: _br.flow_signature(b, sc.entry_pc) for sc in scenes if 0x5006 not in sc.stmts}
+    try:
+        c.delete_statement(b, 0x5006)
+        refused = False
+    except script.ScriptError:
+        refused = True
+    new = c.delete_statement(b, 0x5006, option=1)
+    mv = c.last_relink[1]
+    a, b2 = script.decode_statement(b.data, new), None
+    if a is not None:
+        b2 = script.decode_statement(b.data, new + a.size)
+    mask_kept = script.decode_statement(b.data, mv[0x4FF4]).op == 610
+    _check("a masked menu without an option is refused; with option 2 it becomes "
+           "EVAL (reg0 = 1) straight into its SWITCH, the mask line stays",
+           refused and a is not None and a.mnem == "EVAL"
+           and script.disasm_expr(b.data, a.expr_refs[0])[0] == "reg0 = 1"
+           and b2 is not None and b2.mnem == "SWITCH" and mask_kept,
+           (a and a.mnem, b2 and b2.mnem, mask_kept))
+    _check("no other scene of the bank changes its flow",
+           all(_br.flow_signature(b, mv[e]) == sig for e, sig in before.items()), len(before))
+    # every kind, in a few banks: builds, re-parses, other scenes unchanged
+    n = bad = 0
+    for bi in (19, 40, 300, 1120):
+        b0 = script.Container(raw).banks[bi]
+        sc0 = list(script.disassemble_bank(b0))
+        cand = sorted({pc: s for sc in sc0 for pc, s in sc.stmts.items()
+                       if s.op in (0xFFF4, 0xFFF5, 0xFFF3, 0xFFF2, 0xFFF6, 0xFFFA)}.items())[:5]
+        for pc, s in cand:
+            if s.op in (0xFFF4, 0xFFF5):
+                ways = [{"option": 0}] + ([{"option": -1}] if s.op == 0xFFF4 else [])
+            elif s.op == 0xFFFA:
+                ways = [{}]
+            else:
+                ways = [{"continue_at": t} for t in sorted(set(s.code_targets))[:2]]
+            for w in ways:
+                cc = script.Container(raw)
+                bb = cc.banks[bi]
+                sig = {sc.entry_pc: _br.flow_signature(bb, sc.entry_pc) for sc in sc0 if pc not in sc.stmts}
+                try:
+                    cc.delete_statement(bb, pc, **w)
+                    script.Container(cc.build())
+                    m2 = cc.last_relink[bi]
+                    bad += any(_br.flow_signature(bb, m2[e]) != v for e, v in sig.items())
+                except Exception:  # noqa: BLE001 -- counted
+                    bad += 1
+                n += 1
+    _check("menus (each option, cancel), random picks, SWITCH_CLAMP and JMPs delete cleanly",
+           n > 10 and bad == 0, (n, bad))
+    try:
+        script.Container(raw).delete_statement(c.banks.index(b),
+                                               next(pc for sc in scenes for pc, s in sc.stmts.items()
+                                                    if s.mnem == "RET"))
+        ret_refused = False
+    except script.ScriptError as e:
+        ret_refused = "nothing to continue" in str(e)
+    _check("a RET is refused with a reason", ret_refused)
+    # the editor: Del on the menu asks which option, then the same edit
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("delete menu GUI", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from cutscene_editor import dialogs as ce_dialogs
+    _headless_dialogs()
+    asked = []
+    old = ce_dialogs.ask_continue_at
+    ce_dialogs.ask_continue_at = lambda parent, title, prompt, labels, _auto=None: (asked.append(labels), 2)[1]
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    root = tk.Tk(); root.withdraw()
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ex.open_scene(1, next(sc.entry_pc for sc in scenes if 0x5006 in sc.stmts))
+        ex.select((0x5006, None))
+        ok = ex.delete_selected()
+        bank1 = ex.doc.container.banks[1]
+        mv = ex.doc.container.last_relink[1]
+        s1 = script.decode_statement(bank1.data, mv[0x5006])
+        _check("Del on a menu asks (Cancelled + one row per option) and deletes as that option",
+               ok and asked and asked[0][0].startswith("Cancelled") and len(asked[0]) == 8
+               and s1 is not None and s1.mnem == "EVAL"
+               and script.disasm_expr(bank1.data, s1.expr_refs[0])[0] == "reg0 = 1",
+               (ok, asked[:1], s1 and s1.mnem))
+    finally:
+        ce_dialogs.ask_continue_at = old
+        root.destroy()
+
+
 def test_ident_names_and_cli_errors():
     """ident names the files only their file name tells apart (as_atk_*.bin, rf3MonsterPresent);
     the CLI prints the toolkit's own errors as one line (exit 1), not a traceback."""
@@ -6482,12 +6590,13 @@ def test_script_authoring():
     c7.set_entry(_odd, 6, len(_recs7) - 1, event_pc=_pc7)
     _check("a new scene in an odd-sized bank starts on an even pc (add_entry/set_entry accept it)",
            _pc7 % 2 == 0 and script.decode_statement(_odd.data, _pc7).mnem == "DIALOG")
-    # delete / insert_after refuse statements that never fall through (JMP, choices, ...).
+    # delete without saying which way the scene goes on, and insert_after, refuse a menu or a
+    # pick with several targets (a JMP or a menu with --option deletes: test_delete_menu).
     _nf = None
     for _b8 in c7.banks[:20]:
         for _sc8 in script.disassemble_bank(_b8, discover=False):
             _nf = next((s for s in _sc8.stmts.values()
-                        if s.mnem in ("JMP", "PROMPT_CHOICE", "SWITCH_CLAMP") and s.size >= 4), None)
+                        if s.mnem in ("PROMPT_CHOICE", "SWITCH_CLAMP") and s.size >= 4), None)
             if _nf:
                 break
         if _nf:
@@ -6501,7 +6610,7 @@ def test_script_authoring():
                 _fn()
             except script.ScriptError:
                 _nfr += 1
-    _check("delete_statement / insert_after refuse a statement that never falls through",
+    _check("delete_statement (no option / target given) and insert_after refuse a menu",
            _nf is not None and _nfr == 2, _nf.mnem if _nf else "none found")
     # assembler: malformed / out-of-range fields raise AsmError (never a raw ValueError or a
     # silent mask); zero-target SWITCH_CLAMP / JMP_RAND / JMP_WEIGHTED (which read past their table in
@@ -17472,7 +17581,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

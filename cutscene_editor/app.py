@@ -1475,6 +1475,55 @@ class CutsceneExplorer:
                 out.append((nm, acc))
         return out
 
+    def _option_text(self, line_id, width=60):
+        t = self.doc.text(line_id) if line_id is not None else None
+        t = " ".join((t or "").split())
+        return (t[:width - 1] + "…") if len(t) > width else (t or "line %s" % line_id)
+
+    def _target_text(self, target):
+        """A short hint of what runs at `target`: its first dialogue line, else its first op."""
+        sts = sorted(self.scene.stmts.values(), key=lambda s: s.pc) if self.scene else []
+        for s0 in sts:
+            if s0.pc >= target and s0.mnem == "DIALOG":
+                return '"%s"' % self._option_text(s0.dialog_id, 40)
+            if s0.pc >= target and s0.op < 0xFFF0:
+                return script.opcode_mnemonic(s0.op)
+        return ""
+
+    def _delete_plan(self, pc, st):
+        """How to delete `st`: {} (falls through / one way on), {'option': k} for a menu,
+        {'continue_at': pc} for a random pick or SWITCH_CLAMP -- asked here -- or None
+        (cancelled). Also a note for the status line."""
+        if st.op not in (0xFFF4, 0xFFF5) and (
+                (st.falls_through and not st.terminator) or st.op == 0xFFFA
+                or len(set(st.code_targets or [])) <= 1):
+            return {}, ""
+        if st.op in (0xFFF4, 0xFFF5):
+            labels = ["Option %d: %s" % (k + 1, self._option_text(lid)) for k, lid in enumerate(st.items)]
+            if st.op == 0xFFF4:
+                labels = ["Cancelled (the player backs out)"] + labels
+            i = dialogs.ask_continue_at(
+                self.frame, "Delete menu",
+                "The menu goes away and the scene carries on as if the player had picked:", labels)
+            if i is None:
+                return None, ""
+            k = i - 1 if st.op == 0xFFF4 else i
+            stl = sorted(self.scene.stmts.values(), key=lambda s: s.pc)
+            masked = script.choice_results(self.bank.data, stl,
+                                           next(j for j, s0 in enumerate(stl) if s0.pc == pc)) is not None
+            note = "; the scene now goes on with %s" % ("the cancel branch" if k < 0 else labels[i])
+            if masked:
+                note += (". The visibility-mask lines before it stay: they now apply to the next "
+                         "menu the game shows, so put a new menu here or delete them")
+            return {"option": k}, note
+        tg = list(dict.fromkeys(st.code_targets))
+        labels = ["Path %d → 0x%04x  %s" % (k + 1, t, self._target_text(t)) for k, t in enumerate(tg)]
+        i = dialogs.ask_continue_at(self.frame, "Delete %s" % st.mnem,
+                                    "%s goes away; the scene always takes this path:" % st.mnem, labels)
+        if i is None:
+            return None, ""
+        return {"continue_at": tg[i]}, "; the scene now always takes path %d" % (i + 1)
+
     def delete_selected(self):
         if self.sel is None:
             return False
@@ -1487,24 +1536,30 @@ class CutsceneExplorer:
         pc = self.sel[0]
         st = self.stmt(pc)
         name = script.opcode_mnemonic(st.op) if st.op < 0xFFF0 else st.mnem
+        how, note = self._delete_plan(pc, st)
+        if how is None:
+            return False
         ok = self.apply("Delete %s @0x%04x" % (name, pc),
-                        lambda: self.doc.container.delete_statement(self.bank, pc))
+                        lambda: self.doc.container.delete_statement(self.bank, pc, **how))
         if ok:
-            self.status("Deleted %s @0x%04x (whatever jumped to it now goes to the next statement; "
-                        "Ctrl+Z undoes it)" % (name, pc))
+            falls = (st.falls_through and not st.terminator) or st.op == 0xFFFA
+            self.status("Deleted %s @0x%04x (%s%s; Ctrl+Z undoes it)" % (
+                name, pc, "whatever jumped to it now goes to the next statement" if falls
+                else "code only it led to was removed", note))
         return ok
 
     def delete_statements(self, pcs):
         """Delete several statements as ONE undoable edit (a multi-row selection + Del).
-        Statements that never fall through (RET, JMP, a choice's jump table ...) cannot be
-        deleted on their own -- they are kept, so 'select all + Del' leaves the scene's
-        skeleton instead of refusing everything."""
+        A RET (nothing to continue with) is kept, and so is a statement with several ways on
+        (a menu, a random pick): delete that one on its own to say which way the scene goes.
+        So 'select all + Del' leaves the scene's skeleton instead of refusing everything."""
         sts = [(pc, self.stmt(pc)) for pc in pcs]
-        doomed = [pc for pc, st in sts if st is not None and st.falls_through and not st.terminator]
+        doomed = [pc for pc, st in sts if st is not None and st.op not in (0xFFF4, 0xFFF5) and (
+            (st.falls_through and not st.terminator) or len(set(st.code_targets or [])) == 1)]
         kept = len(pcs) - len(doomed)
         if not doomed:
-            self.status("nothing to delete: the selected statements all end a path (RET, JMP ...) "
-                        "-- retarget them instead")
+            self.status("nothing to delete: a RET ends the scene, and a menu or random pick needs "
+                        "to be deleted on its own (it asks which way the scene goes on)")
             return False
         bank, pos = self.bank, self.bank_pos
 
@@ -1513,7 +1568,7 @@ class CutsceneExplorer:
             for pc in doomed:
                 moves = (c.last_moves or {}).get(pos)   # original pc -> where it is now
                 cur = pc if moves is None else moves.get(pc)
-                if cur is not None:
+                if cur is not None and script.decode_statement(bank.data, cur) is not None:
                     c.delete_statement(bank, cur)
         n = len(doomed)
         ok = self.apply("Delete %d statements" % n, do)
@@ -1521,7 +1576,8 @@ class CutsceneExplorer:
             self.status("Deleted %d statement%s%s (whatever jumped to them now goes to the next "
                         "statement; Ctrl+Z undoes it)" % (
                             n, "" if n == 1 else "s",
-                            "; kept %d that end a path (RET, JMP ...)" % kept if kept else ""))
+                            "; kept %d: a RET, or a menu / random pick (delete it on its own)" % kept
+                            if kept else ""))
         return ok
 
     def show_callers(self):

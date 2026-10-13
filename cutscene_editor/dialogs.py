@@ -63,6 +63,38 @@ def ask_line(parent, title, prompt, validate, initial=""):
     return out["text"]
 
 
+def ask_continue_at(parent, title, prompt, labels, _auto=None):
+    """Pick one of `labels` (a list box, the first selected): its index, or None (Cancel /
+    Esc). `_auto` (tests): the index to answer with."""
+    if _auto is not None:
+        return _auto
+    win = _modal(parent, title)
+    ttk.Label(win, text=prompt, justify="left", wraplength=520).pack(anchor="w", padx=8, pady=(8, 4))
+    lb = tk.Listbox(win, height=min(12, max(3, len(labels))), width=64, exportselection=False,
+                    activestyle="dotbox")
+    for t in labels:
+        lb.insert("end", t)
+    lb.pack(fill="both", expand=True, padx=8)
+    lb.selection_set(0)
+    lb.activate(0)
+    out = {"i": None}
+
+    def ok(_e=None):
+        sel = lb.curselection()
+        if sel:
+            out["i"] = sel[0]
+            win.destroy()
+        return "break"
+    bb = ttk.Frame(win)
+    bb.pack(fill="x", padx=8, pady=6)
+    ttk.Button(bb, text="Delete", command=ok).pack(side="right", padx=2)
+    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
+    lb.bind("<Return>", ok)
+    lb.bind("<Double-Button-1>", ok)
+    _run(win, lb)
+    return out["i"]
+
+
 def ask_new_variable(parent, tbl, _auto=None):
     """New variable: a name, on/off flag or a number (2-16 bits; a script can address 16 at
     most), where (the next free bits, or a bit you choose) and an optional description.

@@ -2197,11 +2197,14 @@ def cmd_script_insert(a):
 def cmd_script_delete(a):
     c = script.Container(_resolve(a.file).read_bytes())
     try:
-        nxt = c.delete_statement(a.bank, int(a.pc, 0))
+        nxt = c.delete_statement(a.bank, int(a.pc, 0),
+                                 continue_at=int(a.continue_at, 0) if a.continue_at else None,
+                                 option=None if a.option is None else
+                                 (-1 if a.option.lower() == "cancel" else int(a.option) - 1))
     except script.ScriptError as e:
         sys.exit(f"error: {e}")
     _script_write(c, a.out)
-    print(f"deleted bank {a.bank} pc {a.pc} (bank rebuilt; the next statement is now at 0x{nxt:04x}); "
+    print(f"deleted bank {a.bank} pc {a.pc} (bank rebuilt; what stands in for it is at 0x{nxt:04x}); "
           f"wrote {a.out}")
 
 
@@ -4322,9 +4325,13 @@ def build_parser():
     sc7.add_argument("--before", action="store_true", help="insert before (default: after)")
     sc7.add_argument("-o", "--out", required=True); sc7.set_defaults(func=cmd_script_insert)
     sc8 = scsub.add_parser("delete", help="delete a statement (the bank is rebuilt; what jumped to it "
-                           "goes to the next statement)")
+                           "goes to the next statement; a menu or random pick needs --option / "
+                           "--continue-at)")
     sc8.add_argument("file"); sc8.add_argument("--bank", type=int, required=True)
     sc8.add_argument("--pc", required=True)
+    sc8.add_argument("--option", help="menu: go on as if the player picked option N (1 = first), "
+                                      "or 'cancel'")
+    sc8.add_argument("--continue-at", help="random pick / SWITCH_CLAMP: the target (pc) to keep")
     sc8.add_argument("-o", "--out", required=True); sc8.set_defaults(func=cmd_script_delete)
     sc9 = scsub.add_parser("rewrite", help="replace a scene's body (author a cutscene on an existing trigger)")
     sc9.add_argument("file"); sc9.add_argument("--bank", type=int, required=True)

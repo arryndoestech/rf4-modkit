@@ -1897,21 +1897,45 @@ class Container:
         m, key = self._relink(bank, lambda m: m.replace_scene(entry_pc, _listing_of(specs), self.asm_resolver, strict=strict))
         return self._pc(m, key)
 
-    def delete_statement(self, bank, pc):
-        """Remove the statement at `pc` (it must fall through); whatever pointed at it now
-        points at the statement after it. Returns that statement's new pc."""
+    def delete_statement(self, bank, pc, continue_at=None, option=None):
+        """Remove the statement at `pc`. One that falls through, or a JMP: whatever pointed at
+        it now points at the statement after it. One that never falls through (a random pick,
+        SWITCH_CLAMP; a JMP given `continue_at`): the scene continues at `continue_at`, one of
+        its targets (one with a single target needs none), and code only its other targets led to
+        is dropped. A menu: the scene goes on as if the player picked `option` (0-based; -1 =
+        cancelled, PROMPT_CHOICE only) -- see menu_delete_plan. RET cannot be deleted (there
+        is nothing to continue with). Returns the new pc of what stands in for it."""
         if isinstance(bank, int):
             bank = self.banks[bank]
         st = decode_statement(bank.data, pc)
         if st is None:
             raise ScriptError("no statement at 0x%04x" % pc)
-        if not st.falls_through or st.terminator:
-            # Removing a statement that never falls through would send the VM into whatever
-            # statement follows it (another branch's code, the next scene).
-            raise ScriptError("%s at 0x%04x never falls through; deleting it would run the "
-                              "statement after it -- retarget it (set_branch_target) instead" % (st.mnem, pc))
-        m, _r = self._relink(bank, lambda m: m.delete(pc))
-        return m.pc_of(pc)
+        if (st.falls_through and not st.terminator) or (st.op == 0xFFFA and continue_at is None):
+            # a JMP like any statement: the goto goes away, the code runs on into the next one
+            m, _r = self._relink(bank, lambda m: m.delete(pc, jump_ok=True))
+            return m.pc_of(pc)
+        targets = list(st.code_targets or [])
+        if not targets:
+            raise ScriptError("%s at 0x%04x ends the scene or routine: there is nothing to continue "
+                              "with. Delete or replace the statements before it instead" % (st.mnem, pc))
+        reg0 = None
+        if st.op in (0xFFF4, 0xFFF5) and option is None and continue_at is None:
+            raise ScriptError("say which option the scene goes on with once the menu is gone")
+        if st.op in (0xFFF4, 0xFFF5) and option is not None:
+            continue_at, reg0 = menu_delete_plan(bank, pc, option)
+        if continue_at is None:
+            if len(set(targets)) > 1:
+                raise ScriptError("%s at 0x%04x has %d ways to continue: say which one the scene "
+                                  "takes once it is gone" % (st.mnem, pc, len(targets)))
+            continue_at = targets[0]
+        if continue_at not in targets:
+            raise ScriptError("0x%04x is not a target of %s at 0x%04x" % (continue_at, st.mnem, pc))
+
+        # a masked menu's pick writes the option's original index to reg0: keep that
+        prefix = None if reg0 is None else "EVAL (reg0 = %d)" % reg0
+        m, key = self._relink(bank, lambda m: m.delete_branch(pc, continue_at, prefix,
+                                                              self.asm_resolver))
+        return m.pc_of(key)
 
     def set_action_arg_expr(self, bank, pc, index, expr):
         """Action arg `index` at `pc` evaluates the expression bytes `expr` (terminator
@@ -2779,6 +2803,43 @@ def _mask_set_on_a_path(stmts, idx):
             return True
         stack.extend(preds.get(pc, ()))
     return False
+
+
+def menu_delete_plan(bank, pc, option):
+    """Deleting the menu at `pc` as if the player picked `option` (0-based; -1 = cancelled):
+    (the target the game would jump to, the reg0 value the pick writes or None). A menu with
+    a visibility mask writes the option's ORIGINAL index to reg0 and jumps by VISIBLE row, so
+    the target is the row the option has among the shown ones; when that depends on the game
+    state and the rows lead to different places, ScriptError. The mask ops themselves stay
+    (a new menu put in its place uses them; menu_mask_ops lists them)."""
+    stmts = None
+    for sc in disassemble_bank(bank):
+        if pc in sc.stmts:
+            stmts = sorted(sc.stmts.values(), key=lambda s: s.pc)
+            break
+    if stmts is None:
+        raise ScriptError("no scene holds the menu at 0x%04x" % pc)
+    idx = next(i for i, s in enumerate(stmts) if s.pc == pc)
+    st = stmts[idx]
+    opts = st.code_targets[1:] if st.op == 0xFFF4 else st.code_targets
+    if option == -1:
+        if st.op != 0xFFF4:
+            raise ScriptError("this menu has no cancel branch (PROMPT_CHOICE_FORCED)")
+        return st.code_targets[0], None
+    if not 0 <= option < len(opts):
+        raise ScriptError("the menu has %d options; there is no option %d" % (len(opts), option + 1))
+    res = choice_results(bank.data, stmts, idx)
+    if res is None:
+        return opts[option], None
+    shown = [v for _k, v in res]
+    if all(v is not None for v in shown[:option]):
+        row = sum(1 for v in shown[:option] if v)
+        if row < len(opts):
+            return opts[row], option
+    if len(set(opts)) == 1:
+        return opts[0], option
+    raise ScriptError("which way this menu jumps for option %d depends on the game state (its "
+                      "visibility mask is set at run time) -- retarget the code instead" % (option + 1))
 
 
 def choice_results(buf, stmts, idx):
