@@ -5320,6 +5320,43 @@ def test_delete_menu():
         root.destroy()
 
 
+def test_story_path_endings():
+    """Story view: every statement is shown once, so a path that runs on into a statement
+    shown elsewhere ends with what it runs into -- 'return' for a shared RET, 'go to L2' for
+    shared code. Tail bank 159 (container 407) @515a: the Iron path ends in the RET at L2,
+    which the main path showed first."""
+    print("story view: paths end visibly:")
+    from rf4s_modkit import script
+    from cutscene_editor import render as _cer
+    c = _shipped_container()
+    if c is None:
+        _skip("story path endings", "rf3.mc not found"); return
+    b = c.banks[407]
+    sc = next((s0 for s0 in script.disassemble_bank(b) if s0.entry_pc == 0x515A), None)
+    if sc is None or 0x5180 not in sc.stmts or sc.stmts[0x5180].op != 463:
+        _skip("story path endings", "bank 407 @515a is not the shipped barrel scene"); return
+
+    class _Doc:
+        em = None
+
+        def text(self, i):
+            return "x"
+    rows = ["".join(t for t, _ in r.segs).strip() for r in _cer.SceneText(_Doc(), b, sc).story_rows()]
+    i = next(k for k, t in enumerate(rows) if t.startswith("▸ DropItem"))
+    _check("the DropItem path ends with 'return' (the shared RET), not straight into L3",
+           rows[i + 1] == "return" and rows.count("return") == 5, rows[i - 3:i + 3])
+    from cutscene_editor import view as _cev
+
+    class _V:
+        show_ops = show_file_off = show_operands = False
+        show_addr = True
+    code = ["".join(t for t, _ in r.segs).strip()
+            for r in _cev.ScriptView._code_rows(_V(), _cer.SceneText(_Doc(), b, sc))]
+    j = next(k for k, t in enumerate(code) if "DropItem" in t)
+    _check("code view: the same path ends with the shared RET at its own address",
+           code[j + 1] == "5186:  RET" and code[j + 2].startswith("L3:"), code[j - 1:j + 3])
+
+
 def test_ident_names_and_cli_errors():
     """ident names the files only their file name tells apart (as_atk_*.bin, rf3MonsterPresent);
     the CLI prints the toolkit's own errors as one line (exit 1), not a traceback."""
@@ -17610,7 +17647,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

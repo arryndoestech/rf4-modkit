@@ -206,7 +206,7 @@ class ScriptView(ttk.Frame):
         for part, seq in (("main", lin), ("rest", rest)):
             if part == "rest" and seq:
                 rows.append(Row([("; --- other branches / paths ---", "hdr")]))
-            for pc, st in seq:
+            for k, (pc, st) in enumerate(seq):
                 lbl = st_text.labels.get(pc, "")
                 ops = [(st_text.raw_op(st), "opc")] if self.show_ops else []
                 foff = [st_text.file_offset_seg(pc)] if self.show_file_off else []
@@ -215,6 +215,15 @@ class ScriptView(ttk.Frame):
                 rows.append(Row(foff + [("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops + addr +
                                 [(line, "dlg" if st.mnem == "DIALOG" else "act")],
                                 (pc, None), st))
+                # a path that runs on into a statement shown elsewhere: a shared RET is shown
+                # (dimmed, at its own address), other shared code as '; -> L2'
+                to = st_text.path_end(sc, pc, st, seq[k + 1][0] if k + 1 < len(seq) else None)
+                if to is not None:
+                    tst = sc.stmts.get(to)
+                    end = "RET" if tst is not None and tst.mnem == "RET" else "; → %s" % st_text.target(to)
+                    pad = [(" " * len(st_text.raw_op(st)), "opc")] if self.show_ops else []
+                    addr = [("%04x:  " % to, "addr")] if self.show_addr else []
+                    rows.append(Row([("%-7s" % "", "lbl")] + pad + addr + [(end, "dim")]))
         if self.show_operands:
             st_text.add_operands(rows, st_text.operand_segs)
         return rows

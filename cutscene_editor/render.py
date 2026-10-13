@@ -288,13 +288,37 @@ class SceneText:
             if part == "rest" and seq:
                 rows.append(Row([("", None)]))
                 rows.append(Row([("── other branches / paths ──", "hdr")]))
-            for pc, st in seq:
+            for k, (pc, st) in enumerate(seq):
                 if pc in self.labels:                   # selectable: add beats at the label
                     rows.append(Row([("%s:" % self.labels[pc], "lbl")], (pc, "label"), st))
                 speaker = self._story_stmt(rows, pc, st, addr, speaker)
+                # each statement is shown once, so a path that runs on into one shown
+                # elsewhere ends the way a path reads: a shared RET as 'return', other
+                # shared code as 'go to L2' (what a JMP there would say)
+                to = self.path_end(sc, pc, st, seq[k + 1][0] if k + 1 < len(seq) else None)
+                if to is not None:
+                    tst = sc.stmts.get(to)
+                    end = ("return" if tst is not None and tst.mnem == "RET"
+                           else "go to %s" % self.target(to))
+                    rows.append(Row(addr(to, tst) + [("    ", None), (end, "flow")]))
         if show_operands:
             self.add_operands(rows, self.operand_segs)
         return rows
+
+    @staticmethod
+    def path_end(sc, pc, st, nxt):
+        """The views show the main path, then the other branches, each statement once. When
+        `st` runs on (falls through) to a statement that is not `nxt`, the row shown after it,
+        return where it goes (past any JMPs, which the main path reads inline) -- the view then
+        ends the path there; else None (it runs into `nxt`, branches, or ends the path)."""
+        if st.terminator or not st.falls_through or st.mnem == "JMP":
+            return None
+        raw = to = pc + st.size
+        seen = set()
+        while to in sc.stmts and sc.stmts[to].mnem == "JMP" and to not in seen:
+            seen.add(to)
+            to = (sc.stmts[to].code_targets or [None])[0]
+        return None if nxt in (raw, to) else to
 
     def _story_stmt(self, rows, pc, st, addr, speaker):
         key = (pc, None)
