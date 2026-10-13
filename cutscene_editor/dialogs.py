@@ -827,7 +827,7 @@ def callers_window(parent, app, rows, dispatch, target):
     """List the statements that lead to `target`; double-click jumps there."""
     pos = app.bank_pos                     # the bank these rows are in (another may be opened later)
     win = tk.Toplevel(parent)
-    win.title("Callers of 0x%04x — %s" % (target, catalog.bank_title(app.bank)))
+    win.title("Xrefs to 0x%04x — %s" % (target, catalog.bank_title(app.bank)))
     win.geometry("680x360")
     hdr = "%d statement(s) lead here" % len(rows)
     if dispatch:
@@ -852,5 +852,12 @@ def callers_window(parent, app, rows, dispatch, target):
             entry, _t, from_pc, _m = rows[s[0]]
             app.open_scene(pos, entry, focus_pc=from_pc)
     lb.bind("<Double-Button-1>", jump)
-    ttk.Label(win, text="double-click to open the calling statement", foreground="#888").pack(anchor="w", padx=6, pady=4)
+    lb.bind("<Return>", jump)
+    win.bind("<Escape>", lambda _e: win.destroy())
+    ttk.Label(win, text="double-click or Enter opens the calling statement · Esc closes",
+              foreground="#888").pack(anchor="w", padx=6, pady=4)
+    if rows:
+        lb.selection_set(0)
+        lb.activate(0)
+    lb.focus_set()
     return win

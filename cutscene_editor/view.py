@@ -92,6 +92,8 @@ class ScriptView(ttk.Frame):
         t.bind("<Insert>", lambda _e: (app.ask_insert_instruction(), "break")[1])
         t.bind("<F2>", lambda _e: (app.ask_edit_instruction(), "break")[1])
         t.bind("<F9>", lambda _e: (app.toggle_breakpoint(), "break")[1])
+        for seq in ("<x>", "<X>"):                    # who leads here (IDA's key for it)
+            t.bind(seq, lambda _e: (app.show_callers(), "break")[1])
         t.bind("<Button-3>", self._context_menu)
         t.bind("<Motion>", self._motion)
         t.bind("<Leave>", lambda _e: self.hide_tip())
@@ -265,6 +267,7 @@ class ScriptView(ttk.Frame):
                       command=self.copy_row)
         m.add_command(label=("Delete %d lines  (Del)" % n) if n else "Delete  (Del)", state=st,
                       command=app.delete_selected)
+        m.add_command(label="Xrefs: who leads here…  (X)", command=app.show_callers)
         m.add_separator()
         m.add_command(label="Toggle breakpoint  (F9)", state=st, command=app.toggle_breakpoint)
         vars_ = app.statement_vars(app.sel[0]) if (has and not n) else []
@@ -405,7 +408,7 @@ class ScriptView(ttk.Frame):
         return "break"
 
     def focus_pc(self, pc):
-        """Scroll to a statement and mark it (a jump from the map editor / Callers)."""
+        """Scroll to a statement and mark it (a jump from the map editor / Xrefs)."""
         key = (pc, None)
         ln = self._key_line.get(key)
         t = self.text

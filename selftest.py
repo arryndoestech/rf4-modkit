@@ -5320,6 +5320,62 @@ def test_delete_menu():
         root.destroy()
 
 
+def test_xrefs_button():
+    """Xrefs (who leads here) is in the toolbar, the right-click menu, on the X key and in the
+    Inspector; with nothing selected it lists what leads to the open scene."""
+    print("cutscene editor: Xrefs everywhere:")
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("xrefs button", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from cutscene_editor import dialogs as ce_dialogs
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("xrefs button", "rf3.mc not found"); return
+    _headless_dialogs()
+    opened = []
+    old = ce_dialogs.callers_window
+    ce_dialogs.callers_window = lambda parent, app, rows, dispatch, target: opened.append((target, len(rows)))
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    root = tk.Tk(); root.withdraw()
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ex.open_scene(407, 0x515A)
+        root.update()
+        bar = [w.cget("text") for w in ex.toolbar.winfo_children() if w.winfo_class() == "TButton"]
+        ex.select(None)
+        ex.view.text.focus_force()
+        root.update()
+        ex.view.text.event_generate("<x>")
+        root.update()
+        scene_x = list(opened)
+        ex.select((0x5186, None))                       # the shared RET: JMP L2 and DropItem's fall-through
+        ex.view.text.focus_set()
+        ex.view.text.event_generate("<X>")
+        root.update()
+        _check("toolbar has Xrefs…; X with nothing selected lists the scene's callers, with a "
+               "statement selected that statement's",
+               "Xrefs…" in bar and scene_x and scene_x[0][0] == 0x515A
+               and len(opened) == 2 and opened[1][0] == 0x5186 and opened[1][1] >= 1,
+               (bar, opened))
+        _check("the Inspector button is named Xrefs…", ex.inspector.callers_btn.cget("text") == "Xrefs…")
+        ce_dialogs.callers_window = old
+        w = ex.show_callers()                            # the real window: Esc closes it
+        root.update()
+        w.focus_force()
+        root.update()
+        w.event_generate("<Escape>")
+        root.update()
+        _check("Esc closes the Xrefs window", not w.winfo_exists())
+    finally:
+        ce_dialogs.callers_window = old
+        root.destroy()
+
+
 def test_story_path_endings():
     """Story view: every statement is shown once, so a path that runs on into a statement
     shown elsewhere ends with what it runs into -- 'return' for a shared RET, 'go to L2' for
@@ -17647,7 +17703,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

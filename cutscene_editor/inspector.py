@@ -47,9 +47,9 @@ class Inspector(ScrollFrame):
         # (adding instructions, dialogue lines and statements: right-click in the script)
         self.del_btn = ttk.Button(self.actions, text="Delete", width=7, command=app.delete_selected)
         Tip(self.del_btn, "Skip this statement (the scene jumps over it; byte-safe). Del key.")
-        self.callers_btn = ttk.Button(self.actions, text="Callers…", width=9, command=app.show_callers)
+        self.callers_btn = ttk.Button(self.actions, text="Xrefs…", width=9, command=app.show_callers)
         Tip(self.callers_btn, "Every CALL / jump / branch / choice in this bank that leads to the "
-                              "selected statement or label (or to the scene when nothing is selected).")
+                              "selected statement or label (X; also in the toolbar).")
         self._pack_actions(label=False)
         self.explain_box = section(b, "Description")
         self.explain = tk.Text(self.explain_box, height=12, wrap="word", font=("Consolas", 8),
@@ -60,7 +60,7 @@ class Inspector(ScrollFrame):
         self.show(None)
 
     def _pack_actions(self, label):
-        """Delete / Callers…; a label gets Callers… only (labels can't be deleted)."""
+        """Delete / Xrefs…; a label gets Xrefs… only (labels can't be deleted)."""
         for w in (self.del_btn, self.callers_btn):
             w.pack_forget()
         shown = (self.callers_btn,) if label else (self.del_btn, self.callers_btn)

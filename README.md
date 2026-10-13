@@ -539,7 +539,8 @@ Every instruction has a name, argument labels and a description;
   it (a masked menu also sets reg0 to that option, as the pick would; its visibility-mask lines
   stay, for a menu you put in its place); a random pick or SWITCH_CLAMP asks which path; the code
   only the other options led to stays in the bank as unreached code, to jump to or call again. A RET can't be deleted (nothing comes after it).
-  *Callers…* lists every CALL / jump / branch / choice that lands on it, and *Description*
+  *Xrefs…* (also in the toolbar and the right-click menu; key X) lists every CALL / jump / branch /
+  choice that lands on it, or on the scene when nothing is selected, and *Description*
   repeats the explanation.
 
 Every structural edit — insert, delete, *Apply to scene*, a new scene, a wider argument, a
