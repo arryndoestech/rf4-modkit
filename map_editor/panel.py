@@ -1313,7 +1313,7 @@ class MapEditorPanel:
         ui.later(self.frame, lambda: self.on_open_scene(bi, epc, pc))
 
     def _load_regions(self):
-        """The map's PlayerRegionTrigger areas (data.script_regions), for the script areas layer."""
+        """The map's trigger boxes (data.script_regions), for the script areas layer."""
         if self.doc is None or self._regions_for is self.doc:
             return
         bank, regions = data.script_regions(self.doc.base)
@@ -1327,17 +1327,28 @@ class MapEditorPanel:
         rg = (self.view.st.regions or [])[i] if i < len(self.view.st.regions or []) else None
         if rg is None:
             return
-        what = rg["cond_name"] or "always"
-        if self.on_open_scene is None or getattr(self, "_region_bank", None) is None:
+        what = rg.get("label") or rg["cond_name"] or "always"
+        bi = rg.get("bank", getattr(self, "_region_bank", None))
+        if self.on_open_scene is None or bi is None:
             self.status(f"script area ({what}): no cutscene editor available here")
             return
-        bi, pc = self._region_bank, rg["event_id"]
-        self.status(f"script area ({what}) → event bank {bi}, scene @0x{pc:04x}")
+        pc = rg["event_id"]
+        self.status(f"script area ({what}) → bank {bi}, scene @0x{pc:04x}")
         ui.later(self.frame, lambda: self.on_open_scene(bi, pc, pc))
 
     # ------------------------------------------------------------------ #
     # view settings
     # ------------------------------------------------------------------ #
+    def show_script_layers(self):
+        """Turn on the script spawns and script areas layers (a map opened from the
+        Cutscene Editor), ticking their boxes in the View tab."""
+        for key in ("spawns", "regions"):
+            v = getattr(self.viewtab, "vars", {}).get(key)
+            if v is not None and not v.get():
+                v.set(True)
+            if not self.view.st.layers.get(key):
+                self.set_layer(key, True)
+
     def set_layer(self, key, on):
         self.view.st.layers[key] = on
         self.viewtab.remember()

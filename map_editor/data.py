@@ -906,40 +906,79 @@ def script_spawns(name, container=None):
     return bi, unique
 
 
+# trigger types whose keys hold a box the player has to stand in (entry_types: x1, y1, x2, y2):
+# 3 PlayerRegionTrigger (the map's own event bank), and the sub-event / story region scenes
+# 65 / 66 / 67 / 71, which name their map in a key and mostly live in primary banks
+REGION_TYPES = (3, 65, 66, 67, 71)
+_REGION_KIND = {3: "script area", 65: "sub-event", 66: "sub-event", 67: "sub-event", 71: "story"}
+
+
+def _key_names(t):
+    from rf4s_modkit import entry_types
+    keys = (entry_types.ENTRY_TYPES.get(t) or {}).get("keys") or []
+    return [k.get("name") if isinstance(k, dict) else str(k) for k in keys]
+
+
 def script_regions(name, container=None):
-    """(bank index | None, [area dict]) for the map's PlayerRegionTrigger scenes (type-3 entries
-    of its event bank): the scene runs while the player stands inside the box and the em.bin
-    condition holds (Trigger_PollPlayerProximityAndQueueEvent, RF4S.exe+0x1F0920; the box
-    corners are min/max-normalised, in sub-units). Area keys: x0, y0, x1, y1 (sub-units,
-    inclusive), cond (em entry id, -1 = always), cond_name, event_id (the scene pc), index."""
+    """(the map's event bank index | None, [area dict]): every trigger box for this map -- the
+    PlayerRegionTrigger scenes (type 3) of its event bank, which run while the player stands
+    inside the box and the em.bin condition holds (Trigger_PollPlayerProximityAndQueueEvent,
+    RF4S.exe+0x1F0920), and the sub-event / story region scenes (types 65 / 66 / 67 / 71) of
+    any bank whose map key is this map. Corners are min/max-normalised, in sub-units. Area
+    keys: x0, y0, x1, y1 (inclusive), cond (em entry id, -1 = always), cond_name, event_id
+    (the scene pc), index, bank (its container bank), type, label (what the map shows)."""
     mid = map_id(name)
     cont = (container or rf3mc_container()) if mid is not None else None
     if cont is None:
         return None, []
-    bi = cont.n_primary + mid
-    if not 0 <= bi < len(cont.banks):
-        return None, []
-    try:
-        recs = cont.banks[bi].entry_records(3)
-    except Exception:
-        return bi, []
+    tail = cont.n_primary + mid
+    if not 0 <= tail < len(cont.banks):
+        tail = None
     out = []
-    for r in recs:
-        v = [val for _tag, val in r.subs]
-        if len(v) < 4:
+    for bi, bank in enumerate(cont.banks):
+        try:
+            tt = bank.type_table_full()
+        except Exception:  # noqa: BLE001 -- an unreadable bank holds no areas
             continue
-        cond = v[4] if len(v) > 4 else -1
-        cname = None
-        if cond >= 0:
+        for t in REGION_TYPES:
+            if t not in tt or not tt[t][0]:
+                continue
+            names = _key_names(t)
+            if not all(n in names for n in ("x1", "y1", "x2", "y2")):
+                continue
+            if "map" not in names and bi != tail:
+                continue                       # no map key: the box is on its bank's map
             try:
-                cname = script.emf_entry_name(cond)
-            except Exception:
+                recs = bank.entry_records(t)
+            except Exception:  # noqa: BLE001
+                continue
+            ix = {n: names.index(n) for n in ("x1", "y1", "x2", "y2", "map", "condition", "step",
+                                              "chapter") if n in names}
+            for r in recs:
+                v = [val for _tag, val in r.subs]
+                if len(v) <= max(ix[n] for n in ("x1", "y1", "x2", "y2")):
+                    continue
+                if "map" in ix and (len(v) <= ix["map"] or v[ix["map"]] != mid):
+                    continue
+                cond = v[ix["condition"]] if "condition" in ix and len(v) > ix["condition"] else -1
                 cname = None
-        out.append({"x0": min(v[0], v[2]), "y0": min(v[1], v[3]),
-                    "x1": max(v[0], v[2]), "y1": max(v[1], v[3]),
-                    "cond": cond, "cond_name": cname or (f"condition {cond}" if cond >= 0 else None),
-                    "event_id": r.event_id, "index": r.index})
-    return bi, out
+                if cond >= 0:
+                    try:
+                        cname = script.emf_entry_name(cond)
+                    except Exception:  # noqa: BLE001
+                        cname = None
+                cname = cname or (f"condition {cond}" if cond >= 0 else None)
+                gate = ""
+                for n in ("step", "chapter"):
+                    if n in ix and len(v) > ix[n] and v[ix[n]] != -1:
+                        gate = f" {n} {v[ix[n]]}"
+                kind = _REGION_KIND.get(t, "script area")
+                label = (cname or kind) if t == 3 else f"{kind}{gate}" + (f" · {cname}" if cname else "")
+                x1, y1, x2, y2 = (v[ix[n]] for n in ("x1", "y1", "x2", "y2"))
+                out.append({"x0": min(x1, x2), "y0": min(y1, y2), "x1": max(x1, x2), "y1": max(y1, y2),
+                            "cond": cond, "cond_name": cname, "event_id": r.event_id,
+                            "index": r.index, "bank": bi, "type": t, "label": label})
+    return tail, out
 
 
 # op 157 SpawnMapEntity(type, x, y, facing, param, e1..e6) builds the same 16-word record a

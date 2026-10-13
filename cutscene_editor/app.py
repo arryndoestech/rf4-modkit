@@ -33,9 +33,11 @@ TABS = ("Script", "Graph", "Source", "Triggers", "Overview")
 
 class CutsceneExplorer:
     def __init__(self, parent, reader=None, status_fn=None, focus_bank=None, focus_entry=None,
-                 focus_pc=None):
+                 focus_pc=None, on_open_map=None):
         self.parent = parent
         self.status_fn = status_fn
+        self.on_open_map = on_open_map       # host's map opener (map file name); else a window here
+        self._map_win = None
         self.doc = ScriptDocument(reader)
         self.doc.subscribe(self._doc_changed)
         self.bank_pos = None
@@ -316,6 +318,11 @@ class CutsceneExplorer:
                 "hold Alt over the row to see which is which). Xref counts: after each label, how many "
                 "statements of the bank lead to it (X lists them). The columns show in both views.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
+        self.map_btn = ttk.Button(bar, text="Open map", command=self.open_map_menu)
+        self.map_btn.pack(side="left", padx=(0, 4))
+        Tip(self.map_btn, "Open the map this scene belongs to in the map editor: its bank's map, "
+                          "or a map its triggers or its instructions name (a menu when there are "
+                          "several).")
         nb = ttk.Button(bar, text="New scene…", command=self.ask_new_scene)
         nb.pack(side="left")
         Tip(nb, "Create a new scene in the open bank: when it plays, its keys and its body.")
@@ -1313,9 +1320,8 @@ class CutsceneExplorer:
         return True
 
     def ask_edit_instruction(self, pc=None):
-        """The instruction window for the selected action or dialogue line, its fields filled
-        in from the statement; Apply replaces it. Branches and menus are edited in the
-        Inspector."""
+        """The instruction window for the selected statement (any kind), its fields filled
+        in from it; Apply replaces it."""
         if pc is None:
             pc = self.sel[0] if self.sel else None
         st = self.stmt(pc)
@@ -1585,6 +1591,67 @@ class CutsceneExplorer:
                             "; kept %d: a RET, or a menu / random pick (delete it on its own)" % kept
                             if kept else ""))
         return ok
+
+    def scene_maps(self):
+        """[(map file, why)] the open scene belongs to or names (catalog.scene_maps)."""
+        return catalog.scene_maps(self.bank, self.scene)
+
+    def open_map_menu(self):
+        """Open map: straight away for one map, a menu for several."""
+        maps = self.scene_maps()
+        if not maps:
+            self.status("this scene names no map (and its bank is not a map's)")
+            return None
+        if len(maps) == 1:
+            return self.open_map(maps[0][0])
+        from rf4s_modkit import map_names
+        m = tk.Menu(self.frame, tearoff=False)
+        for f, why in maps[:30]:
+            mid = map_names.map_id_for_file(f)
+            nm = map_names.map_name(mid) if mid is not None else ""
+            m.add_command(label="%s%s   · %s" % (f, ("  " + nm) if nm else "", why),
+                          command=lambda f=f: self.open_map(f))
+        b = self.map_btn
+        try:
+            m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            m.grab_release()
+        return m
+
+    def open_map(self, map_file):
+        """Show `map_file` (MAP_CITY_00) in the map editor: the host's (the asset explorer's
+        map tab) when there is one, else a map editor window of its own; its script spawns
+        and areas then show this editor's rf3.mc, unsaved edits included."""
+        if self.on_open_map is not None:
+            self.on_open_map(map_file)
+            return True
+        from map_editor.app import MapExplorer
+        w = self._map_win
+        try:
+            alive = w is not None and bool(w.root.winfo_exists())
+        except tk.TclError:
+            alive = False
+        if not alive:
+            w = self._map_win = MapExplorer(tk.Toplevel(self.frame.winfo_toplevel()), initial=None)
+            w.panel.on_open_scene = self._scene_from_map
+        else:
+            w.root.deiconify()
+            w.root.lift()
+        ok = w.open(map_file)
+        if ok:
+            w.panel.show_script_layers()           # the script's spawns and trigger boxes
+        self.status("Opened %s in the map editor" % map_file if ok else "%s: map file not found" % map_file)
+        return ok
+
+    def _scene_from_map(self, bank_index, entry_pc, pc=None):
+        """A script spawn / area clicked in that map editor: back here, on its line."""
+        self.show_bank(bank_index, entry_pc)
+        if pc is not None:
+            later(self.frame, lambda: self.view.focus_pc(pc))
+        try:
+            self.frame.winfo_toplevel().lift()
+        except tk.TclError:
+            pass
 
     def show_callers(self):
         """The Xrefs window: what leads to the selected statement / label, else to the scene."""

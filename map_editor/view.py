@@ -768,9 +768,13 @@ class MapView(ttk.Frame):
             rg = regions[i]
             when = (f"while {rg['cond_name']} holds" if rg["cond"] >= 0
                     else "every time (no condition)")
+            if rg.get("type", 3) == 3:
+                what = f"a script scene runs while the player stands inside, {when}"
+            else:
+                what = (f"a {rg.get('label') or 'region'} scene (trigger type {rg['type']}, bank "
+                        f"{rg.get('bank')}): it starts when the player enters this box, {when}")
             return (f"script area: tiles ({rg['x0'] >> 3}, {rg['y0'] >> 3})-({rg['x1'] >> 3}, "
-                    f"{rg['y1'] >> 3})\na script scene runs while the player stands inside, "
-                    f"{when} -- click to open it")
+                    f"{rg['y1'] >> 3})\n{what} -- click to open it")
         if kind == "spawn" and self.st.spawns and i < len(self.st.spawns):
             sp = self.st.spawns[i]
             more = (f"\nspawned by {sp['copies']} lines of the script (alternatives); click opens "

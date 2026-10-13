@@ -266,6 +266,53 @@ def xref_counts(bank):
     return out
 
 
+def scene_maps(bank, sc):
+    """[(map file, why)] a scene belongs to or names, the most direct first: the bank's own
+    map (a tail bank is one map's scripts), the map keys of the triggers that start the
+    scene, then the map arguments of its statements. Maps without a .rf4m file are left out."""
+    from rf4s_modkit import map_names
+    out = {}
+
+    def add(mid, why):
+        try:
+            f = map_names.map_file(int(mid)) if 0 <= int(mid) <= 0xFFFF else None
+        except (TypeError, ValueError):
+            f = None
+        if f and f not in out:
+            out[f] = why
+    if bank is None:
+        return []
+    if bank.kind == "tail":
+        add(bank.index, "this bank's map")
+    if sc is None:
+        return list(out.items())
+    for t in bank.type_table_full():
+        try:
+            recs = bank.entry_records(t)
+        except Exception:  # noqa: BLE001 -- a convenience
+            continue
+        for r in recs:
+            if r.event_id == sc.entry_pc:
+                for tag, val in r.subs:
+                    if tag == 0x04:
+                        add(val, "trigger key (type %d)" % t)
+    buf = bank.data
+    for pc, st in sorted(sc.stmts.items()):
+        if st.op >= 0xFFF0:
+            continue
+        for i, off in enumerate(st.args or ()):
+            if script.leaf_slot_kind(st.op, i) != "map":
+                continue
+            if off < len(buf) and buf[off] in (0x03, 0x04):      # a typed constant
+                val = int.from_bytes(bytes(buf[off + 1:off + 5]), "little")
+            else:
+                val, ok = script.eval_expr(buf, off)
+                if not ok:
+                    continue
+            add(val, "%s @0x%04x" % (script.opcode_mnemonic(st.op), pc))
+    return list(out.items())
+
+
 # --------------------------------------------------------------------------- #
 # bank naming
 # --------------------------------------------------------------------------- #

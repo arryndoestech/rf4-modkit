@@ -2513,9 +2513,34 @@ class App:
         ex = cutscene_editor.CutsceneExplorer(
             win, reader=(self.source.read_named if self.source else None),
             status_fn=lambda s: self.status.config(text=s),
-            focus_bank=focus_bank, focus_entry=focus_entry, focus_pc=focus_pc)
+            focus_bank=focus_bank, focus_entry=focus_entry, focus_pc=focus_pc,
+            on_open_map=self._open_map_from_script)
         self._cutscene_ed = (win, ex)
         return ex
+
+    def _open_map_from_script(self, map_file):
+        """The Cutscene Editor's Open map: the map in its tab here (selected in the file list),
+        this window brought to the front. `map_file` is the game's exact name (MAP_CITY_00)."""
+        want = map_file if map_file.lower().endswith(".rf4m") else map_file + ".rf4m"
+        ents = self.source.entries if self.source else []
+        i = next((k for k, e in enumerate(ents) if pathlib.PurePath(e[0]).name == want), None)
+        if i is None:
+            self.status.config(text=f"{want} is not in the file list (Back to the game?)")
+            return False
+        name, _g, loader = ents[i]
+        self._reveal_entry(i)
+        doc = self._open_in_tab(self._entry_key(name), name, loader())
+        panel = getattr(doc, "_map_panel", None) if doc is not None else None
+        if panel is not None:
+            panel.show_script_layers()          # the script's spawns and trigger boxes
+        try:
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+        except tk.TclError:
+            pass
+        self.status.config(text=f"{map_file}: opened from the Cutscene Editor")
+        return True
 
     def _open_scene_editor(self, bank_index, entry_pc, pc=None):
         """Map-editor NPC-spawn marker click -> the Cutscene Editor focused on the exact

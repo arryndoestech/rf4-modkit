@@ -108,7 +108,8 @@ class ObjectsTab(ttk.Frame):
             rows["spawn"].append((("spawn", i), f"{sp['name']}  ({what})",
                                   f"({sp['x'] >> 3}, {sp['y'] >> 3})"))
         for i, rg in enumerate(getattr(self.ed.view.st, "regions", None) or ()):
-            rows["region"].append((("region", i), f"{rg['cond_name'] or 'always'}  (scene @0x{rg['event_id']:04x})",
+            rows["region"].append((("region", i), f"{rg.get('label') or rg['cond_name'] or 'always'}  "
+                                                  f"(bank {rg.get('bank')}, scene @0x{rg['event_id']:04x})",
                                    f"({rg['x0'] >> 3}, {rg['y0'] >> 3})-({rg['x1'] >> 3}, {rg['y1'] >> 3})"))
         for g, lab in self.GROUPS:
             items = [r for r in rows[g] if ok(r[1] + " " + lab)] if words else rows[g]
@@ -1360,7 +1361,7 @@ class EncountersTab(ui.ScrollFrame):
 LAYER_DEFAULTS = {"attr": True, "edges": True, "grid": False, "trigger": True, "actor": True,
                   "object": True, "decoration": True, "sprites": True, "labels": False,
                   "sprite_borders": True, "gate_art": True, "mapj": True, "dest": True, "si": True,
-                  "gates": True, "spawns": False, "regions": False, "stamps": True}
+                  "gates": True, "spawns": True, "regions": True, "stamps": True}
 LAYER_GROUPS = {"attr": "bg", "edges": "bg", "grid": "grid", "trigger": "ent", "actor": "ent",
                 "object": "ent", "decoration": "ent", "sprites": "ent", "labels": "ent",
                 "sprite_borders": "ent", "gate_art": "gate", "mapj": "warp", "dest": "dest", "si": "si", "gates": "gate", "spawns": "spawn", "regions": "region",

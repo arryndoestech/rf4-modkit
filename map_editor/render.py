@@ -975,7 +975,7 @@ def overlay(group, st):
                 out.append(Prim("rect", (x0, y0, x1, y1), key=("region", i), outline=REGION_COLOR,
                                 width=2, dash=(8, 4)))
                 out.append(label((x0 + x1) // 2, y0 - 2, ((x0 + x1) // 2, y1 + 2),
-                                 rg["cond_name"] or "script area", REGION_COLOR, lsize,
+                                 rg.get("label") or rg["cond_name"] or "script area", REGION_COLOR, lsize,
                                  key=("region", i)))
     elif group == "spawn":
         if L.get("spawns"):

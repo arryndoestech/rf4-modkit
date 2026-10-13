@@ -1246,7 +1246,8 @@ class MapBoxPicker(MapPointPicker):
     USE_TEXT = "Use this box"
     HELP = ("Drag = draw the box · wheel = zoom (or scroll: Options → Map editor) · middle-drag = "
             "pan. Values are in 1/8 tiles "
-            "(8 per tile), the units trigger boxes compare the player's position in.")
+            "(8 per tile), the units trigger boxes compare the player's position in. Dashed: "
+            "the map's other trigger boxes.")
 
     def __init__(self, parent, map_id, box, on_pick, lock=None, note=None):
         self.box = self._norm(box) if box else None
@@ -1265,6 +1266,14 @@ class MapBoxPicker(MapPointPicker):
 
     def load(self, mid):
         ok = super().load(mid)
+        self.others = []
+        if ok:
+            try:
+                from map_editor import data
+                self.others = [(r["x0"], r["y0"], r["x1"], r["y1"], r.get("label") or "script area")
+                               for r in data.script_regions(self.view.doc.base)[1]]
+            except Exception:  # noqa: BLE001 -- the other boxes are only context
+                self.others = []
         if ok and self.box:
             x1, y1, x2, y2 = self.box
             v = self.view
@@ -1274,6 +1283,16 @@ class MapBoxPicker(MapPointPicker):
     def _draw(self):
         c = self.view.canvas
         c.delete("pickpt")
+        if self.view.doc is not None:
+            cp = self.view.cp
+            for ox1, oy1, ox2, oy2, lab in getattr(self, "others", ()):
+                if self.box and (ox1, oy1, ox2, oy2) == tuple(self.box):
+                    continue                    # the box being edited
+                a, b, cc, d = (v * cp / 8.0 for v in (ox1, oy1, ox2, oy2))
+                c.create_rectangle(a, b, cc, d, outline="#e0a020", width=1, dash=(6, 4),
+                                   tags=self.MARK_TAGS)
+                c.create_text(a + 3, b + 2, text=lab, anchor="nw", fill="#e0a020",
+                              font=("Segoe UI", 8), tags=self.MARK_TAGS)
         if self.box and self.view.doc is not None:
             cp = self.view.cp
             x1, y1, x2, y2 = (v * cp / 8.0 for v in self.box)
@@ -2116,6 +2135,12 @@ class InstructionPicker:
         f.pack(fill="x", pady=1)
         num = ttk.Label(f, width=3, anchor="e")
         num.pack(side="left")
+        up = ttk.Button(f, text="▲", width=2)
+        dn = ttk.Button(f, text="▼", width=2)
+        up.pack(side="left")
+        dn.pack(side="left")
+        Tip(up, "Move this option up (the menu lists them in this order).")
+        Tip(dn, "Move this option down.")
         line = tk.StringVar(value="0")
         le = ttk.Entry(f, textvariable=line, width=8)
         le.pack(side="left", padx=(4, 0))
@@ -2151,6 +2176,8 @@ class InstructionPicker:
         entry = (f, row)
         entry_meta = {"num": num, "txt": txt, "cond": cond_parts}
         rm.config(command=lambda: self._choice_del_row(entry))
+        up.config(command=lambda: self._choice_move(entry, -1))
+        dn.config(command=lambda: self._choice_move(entry, 1))
         Tip(rm, "Remove this option.")
         self.rows.append(entry)
         self._choice_meta[id(entry)] = entry_meta
@@ -2161,6 +2188,24 @@ class InstructionPicker:
         self._choice_refresh()
         if render:
             self._changed()
+
+    def _choice_move(self, entry, d):
+        """Move an option one place up (d = -1) or down (d = 1): the rows are the menu's order."""
+        if entry not in self.rows:
+            return False
+        i = self.rows.index(entry)
+        j = i + d
+        if not 0 <= j < len(self.rows):
+            return False
+        self.rows[i], self.rows[j] = self.rows[j], self.rows[i]
+        for f, _row in self.rows:
+            f.pack_forget()
+        for f, _row in self.rows:
+            f.pack(fill="x", pady=1)
+        self._moved_options = True
+        self._choice_refresh()
+        self._changed()
+        return True
 
     def _choice_del_row(self, entry):
         if entry in self.rows and len(self.rows) > 1:
@@ -2409,6 +2454,12 @@ class InstructionPicker:
             return False
         err = self.app.assemble_check(text)[2] if self.app.doc.container is not None else "no rf3.mc loaded"
         warn = None if err else self._lint(text)
+        if (not err and self.edit_pc is not None and getattr(self, "_moved_options", False)
+                and getattr(self, "_edit_reg0_menu", False)):
+            moved = ("options moved: each now writes its new number to reg0, but the "
+                     "SetChoiceVisibleBit lines and the SWITCH (reg0) after the menu still use the "
+                     "old order -- reorder their indices / targets to match")
+            warn = moved + ("; " + warn if warn else "")
         if err:
             self.check_lbl.config(text="✗ " + err, foreground="#b00")
         elif warn:
@@ -2623,6 +2674,7 @@ class InstructionPicker:
         for f, _row in list(self.rows):
             f.destroy()
         self.rows.clear()
+        self._moved_options = False
         disp = {t: d for d, t in self._choice_opts}
         for k, item in enumerate(st.items):
             self._choice_add_row(render=False)
@@ -2633,6 +2685,7 @@ class InstructionPicker:
         self._choice_refresh()
         reg0 = script.choice_results(self.app.bank.data, sorted(self.app.scene.stmts.values(), key=lambda x: x.pc),
                                      [x.pc for x in sorted(self.app.scene.stmts.values(), key=lambda x: x.pc)].index(st.pc))
+        self._edit_reg0_menu = reg0 is not None
         note = ("This menu stores the answer in reg0: the SetChoiceVisibleBit lines before it and "
                 "the SWITCH after it are statements of their own (edit them separately). "
                 if reg0 is not None else "")

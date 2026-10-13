@@ -409,9 +409,11 @@ search spots (empty pools, one-byte weight wrap, spots off the grid).
 the `.rf4m`). The *script spawns* layer marks them; a click opens the script line in the
 Cutscene editor. Spawns whose position the script computes can't be shown.
 
-**Script areas:** the boxes a map's scenes watch (a scene runs while the player stands inside
-and its em.bin condition holds). The *script areas* layer draws them dashed; hover says when
-one fires, a click opens its scene.
+**Script areas:** every trigger box on the map: the map's own PlayerRegionTrigger scenes (they run
+while the player stands inside and their em.bin condition holds) and the sub-event and story
+scenes of other banks that start when the player enters a box on this map. The *script areas*
+layer (on by default, like *script spawns*) draws them dashed, labelled with the condition or the
+sub-event step / story chapter; hover says when one fires, a click opens its scene in its bank.
 
 Code: `map_editor/` -- `document` (files, undo, dirty tracking), `render` (ground loader,
 background, overlay primitives shared by canvas and PNG), `view` (canvas), `tools`,
@@ -534,7 +536,11 @@ Every instruction has a name, argument labels and a description;
   the portrait side; each **action argument** in listing syntax (`tag3(4)`, `tag4(24)`,
   `FLG_X + 1`, `@0xNNNN` for an existing expression; `actor(Forte)` / `map(MAP_CITY_00)` can be
   typed too) with a character / map / named-value picker where the argument has one; the **numbers in a condition or EVAL** (branch targets and
-  every other offset are untouched); each **choice option**'s text, line id and destination.
+  every other offset are untouched); each **choice option**'s text, line id and destination. In the
+  Add / Edit instruction window a menu's options move with ▲ / ▼ (editing a menu that stores the
+  answer in reg0 warns that its separate visibility lines and SWITCH keep the old order).
+  **Open map** (toolbar) shows the scene's map in the map editor, script spawns and areas on: its
+  bank's map, or one its triggers or instructions name (a menu when there are several).
   *Delete* removes the statement: what jumped to it goes to the next statement (a JMP too: the
   goto goes away). A **menu** asks which option the scene goes on with, as if the player had picked
   it (a masked menu also sets reg0 to that option, as the pick would; its visibility-mask lines
@@ -570,7 +576,9 @@ scene* re-assembles it in place: the new body takes the old body's place and sta
 the old body used are dropped. The
 **Triggers** tab lists the bank's triggers by trigger type (each with its decoded keys) and mints
 **new scenes**: pick when it plays (a trigger type; the catalogue supplies a recipe per type: which bank,
-which keys, the ordering caveat), its keys and a body; a note warns when a new trigger would
+which keys, the ordering caveat), its keys and a body (for a trigger with a box -- a player region,
+a sub-event or story region scene -- *📍 Draw the box…* drags it on the map, the map's other boxes
+dashed); a note warns when a new trigger would
 **shadow** the bank's existing scene of that type. *Change keys…* and *Remove* edit existing
 triggers. Keys are checked as you type: a trigger that could never run is refused (exactly
 the keys of a trigger checked before it; a type-2 event key outside 1..65535 or -1 -- spawned

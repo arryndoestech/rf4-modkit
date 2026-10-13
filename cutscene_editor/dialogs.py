@@ -730,6 +730,67 @@ def ask_new_scene(parent, app, bank, default_type=None):
     Tip(keys, "What the trigger matches, comma-separated: `5, -1` (-1 = any) or `(tag, value)`.")
     khint = ttk.Label(frm, text="", foreground="#556", font=("Segoe UI", 8), wraplength=560, justify="left")
     khint.grid(row=3, column=1, sticky="w", padx=2)
+    boxbtn = ttk.Button(frm, text="📍 Draw the box…", command=lambda: draw_box())
+    Tip(boxbtn, "Drag the trigger area on the map: fills the x1, y1, x2, y2 keys (1/8-tile units). "
+                "The map's other trigger boxes show dashed.")
+    picker = {}
+
+    def key_names(t):
+        return [k.get("name") if isinstance(k, dict) else str(k) for k in (catalog.type_key_names(t) or [])]
+
+    def draw_box():
+        """Open the box picker on the trigger's map (this bank's, or its map key) and write
+        the box back into the keys."""
+        from . import toolbox
+        t = cur_type()
+        names = key_names(t) if t is not None else []
+        if not all(n in names for n in ("x1", "y1", "x2", "y2")):
+            return None
+        try:
+            vals = [k[1] if isinstance(k, tuple) else k for k in catalog.parse_entry_keys(kv.get())]
+        except ValueError:
+            vals = []
+        vals += [-1] * (len(names) - len(vals))
+        bi = [names.index(n) for n in ("x1", "y1", "x2", "y2")]
+        cur = tuple(vals[i] for i in bi)
+        cur = cur if all(v != -1 for v in cur) and any(cur) else None
+        mid, lock, note = None, None, None
+        if "map" in names and vals[names.index("map")] not in (-1, None):
+            mid, lock = vals[names.index("map")], "the trigger's map key says which map the box is on"
+        elif "map" in names:
+            note = "choose the map the trigger is for (it goes into the map key)"
+        elif bank.kind == "tail":
+            mid, lock = bank.index, "the trigger is in this map's event bank"
+        else:
+            note = "this bank is not tied to one map: choose the map the box is on"
+
+        def done(x1, y1, x2, y2, _mid):
+            new = list(vals)
+            for i, v in zip(bi, (x1, y1, x2, y2)):
+                new[i] = v
+            if "map" in names and lock is None and _mid is not None:
+                new[names.index("map")] = _mid
+            kv.set(", ".join(str(v) for v in new))
+        try:
+            win.grab_release()                   # the picker window takes the clicks meanwhile
+        except tk.TclError:
+            pass
+        pk = picker["p"] = toolbox.MapBoxPicker(win, mid, cur, done, lock=lock, note=note)
+
+        def back(_e=None):
+            if _e is not None and _e.widget is not pk.win:
+                return
+            try:
+                if win.winfo_exists():
+                    win.grab_set()
+            except tk.TclError:
+                pass
+        pk.win.bind("<Destroy>", back, add="+")
+        try:
+            pk.win.grab_set()
+        except tk.TclError:
+            pass
+        return pk
     ttk.Label(frm, text="Position").grid(row=4, column=0, sticky="e", padx=2, pady=2)
     pv = tk.StringVar(value="append")
     pos = ttk.Combobox(frm, textvariable=pv, values=["append", "first"], state="readonly", width=10)
@@ -764,6 +825,10 @@ def ask_new_scene(parent, app, bank, default_type=None):
         names = catalog.type_key_names(t)
         khint.config(text=("keys: " + ", ".join(str(k.get("name") if isinstance(k, dict) else k) for k in names))
                      if names else "key count mirrors this bank's existing triggers of the type")
+        if all(n in key_names(t) for n in ("x1", "y1", "x2", "y2")):
+            boxbtn.grid(row=2, column=2, sticky="w", padx=(4, 0))
+        else:
+            boxbtn.grid_remove()
         refresh_note()
 
     def refresh_note(*_a):

@@ -5320,6 +5320,138 @@ def test_delete_menu():
         root.destroy()
 
 
+def test_open_map_and_regions():
+    """Cutscene editor -> map editor: Open map finds the scene's maps (its bank's, trigger map
+    keys, map arguments) and opens one with the script layers on; the map editor's script
+    areas include the sub-event / story region scenes of other banks (types 65 / 66 / 67 /
+    71), each opening its own bank; New scene draws a box-keyed trigger's box on the map."""
+    print("open map / script areas / box picker:")
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("open map", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from cutscene_editor import catalog, toolbox, dialogs as ce_dialogs
+    from map_editor import data as med
+    from rf4s_modkit import script, map_names
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("open map", "rf3.mc not found"); return
+    c = script.Container(mc.read_bytes())
+    b407 = c.banks[407]
+    sc = next((s0 for s0 in script.disassemble_bank(b407) if s0.entry_pc == 0x515A), None)
+    if sc is None:
+        _skip("open map", "bank 407 @515a is not the shipped barrel scene"); return
+    _check("a map bank's scene names its map",
+           catalog.scene_maps(b407, sc) == [("MAP_ROOM_25", "this bank's map")], catalog.scene_maps(b407, sc))
+    sc2 = next((s0 for s0 in script.disassemble_bank(c.banks[2]) if s0.entry_pc == 0x2FFE), None)
+    m2 = catalog.scene_maps(c.banks[2], sc2) if sc2 is not None else []
+    _check("a primary-bank scene lists the maps its instructions name",
+           ("MAP_CITY_04", "IsActorInMap @0x2100") in m2 and any(f == "MAP_ROOM_04A" for f, _w in m2), m2)
+    _tail, farm = med.script_regions("MAP_FARM_00", container=c)
+    _tail, city = med.script_regions("MAP_CITY_00", container=c)
+    _check("script areas: the farm's story boxes (type 71, bank 211) and Selphia's sub-event boxes "
+           "(types 65-67, primary banks) show, each with its own bank and a label",
+           any(r["type"] == 71 and r["bank"] == 211 for r in farm)
+           and any(r["type"] in (65, 66, 67) and r["bank"] < c.n_primary for r in city)
+           and all(r.get("label") for r in farm + city), (len(farm), len(city)))
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    old_picker = toolbox.MapBoxPicker
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ex.open_scene(407, 0x515A)
+        ok = ex.open_map_menu()
+        root.update()
+        w = ex._map_win
+        lay = w.panel.view.st.layers if w is not None else {}
+        _check("Open map on a map bank's scene opens that map with script spawns + areas on",
+               ok and w is not None and "MAP_ROOM_25" in w.root.title()
+               and lay.get("regions") and lay.get("spawns"), (ok, w and w.root.title(), lay))
+        # the real picker shows the map's other trigger boxes (the farm has story boxes)
+        pk = old_picker(root, map_names.map_id_for_file("MAP_FARM_00"), None, lambda *a: None)
+        root.update()
+        _check("the box picker lists the map's other trigger boxes (drawn dashed)",
+               len(getattr(pk, "others", [])) == len(farm) and len(farm) > 0, len(getattr(pk, "others", [])))
+        pk.win.destroy()
+        # New scene, type 3 (PlayerRegionTrigger): the box button opens the picker on the bank's
+        # map (locked), and what it picks lands in the keys; the dialog takes input again after
+        calls = []
+
+        class _Fake:
+            def __init__(self, parent, mid, cur, done, lock=None, note=None):
+                self.win = tk.Toplevel(parent)
+                calls.append((mid, cur, lock, done))
+        toolbox.MapBoxPicker = _Fake
+        got = {}
+
+        def drive():
+            dlg = next(t for t in _all_toplevels(root) if t.title().startswith("New scene"))
+            btn = next(x for x in _all_widgets(dlg) if x.winfo_class() == "TButton"
+                       and x.cget("text").startswith("📍"))
+            got["shown"] = btn.winfo_manager() == "grid"
+            btn.invoke()
+            mid, _cur, lock, done = calls[-1]
+            done(8, 16, 40, 48, None)
+            ent = next(x for x in _all_widgets(dlg) if x.winfo_class() == "TEntry")
+            got["keys"] = ent.get()
+            got["mid"], got["lock"] = mid, bool(lock)
+            for t in _all_toplevels(root):
+                if t is not dlg and t.winfo_exists() and t.master is dlg:
+                    t.destroy()                       # the picker closes: the dialog grabs again
+            root.update()
+            got["grab"] = str(dlg.grab_current() or "") == str(dlg)
+            dlg.destroy()
+        root.after(300, drive)
+        ce_dialogs.ask_new_scene(ex.frame, ex, ex.doc.container.banks[407], default_type=3)
+        _check("New scene, PlayerRegionTrigger: '📍 Draw the box…' opens the picker on the bank's "
+               "map (fixed) and the box lands in the keys",
+               got.get("shown") and got.get("mid") == 159 and got.get("lock")
+               and got.get("keys", "").startswith("8, 16, 40, 48"), got)
+        _check("the dialog takes input again once the picker closes", got.get("grab"), got)
+        # Edit a menu that writes reg0 (bank 1 @5006): moving an option warns that the
+        # SetChoiceVisibleBit lines and the SWITCH after it keep the old order
+        ex.open_scene(1, next(s0.entry_pc for s0 in script.disassemble_bank(ex.doc.container.banks[1])
+                              if 0x5006 in s0.stmts))
+        ex.select((0x5006, None))
+        pkr = ex.ask_edit_instruction()
+        before = pkr.check_lbl.cget("text")
+        pkr._choice_move(pkr.rows[1], -1)
+        pkr.check()
+        after = pkr.check_lbl.cget("text")
+        pkr.win.destroy()
+        _check("Edit a reg0 menu: moving an option warns about the separate visibility lines / SWITCH",
+               "options moved" not in before and "options moved" in after, after)
+    finally:
+        toolbox.MapBoxPicker = old_picker
+        root.destroy()
+
+
+def _all_toplevels(root):
+    out, todo = [], [root]
+    while todo:
+        w = todo.pop()
+        for ch in w.winfo_children():
+            if isinstance(ch, __import__("tkinter").Toplevel):
+                out.append(ch)
+            todo.append(ch)
+    return out
+
+
+def _all_widgets(w):
+    out, todo = [], [w]
+    while todo:
+        x = todo.pop()
+        for ch in x.winfo_children():
+            out.append(ch)
+            todo.append(ch)
+    return out
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -7465,6 +7597,15 @@ def test_choice_form():
                and {int(t, 16) for _d, t in other} >= (bank_pcs - sc.stmts.keys()) and fok
                and ("-> %s," % far[1]) in ft,
                (len(other), far, ft))
+        fill("jump", "PROMPT_CHOICE", [(100, "always", ent), (101, "always", nxt), (102, "always", ent)])
+        p._choice_move(p.rows[2], -1)                    # 102 up, then 102 up again: first
+        p._choice_move(p.rows[1], -1)
+        p._rebuild()
+        mv = p.text().splitlines()[0]
+        _check("▲ / ▼ reorder the options: the menu lists them in the new order",
+               mv.startswith("PROMPT_CHOICE #102 -> 0x%04x, #100 -> 0x%04x, #101 -> " % (sc.entry_pc, sc.entry_pc))
+               and p._choice_move(p.rows[0], -1) is False, mv)
+        p._choice_del_row(p.rows[-1])                  # back to two rows for the checks below
         jt, jok = fill("jump", "PROMPT_CHOICE", [(100, "always", ent), (101, "always", nxt)])
         _check("jump mode: the menu alone, 'continue' lands after it",
                jok and jt.splitlines() == ["PROMPT_CHOICE #100 -> 0x%04x, #101 -> L_after_menu" % sc.entry_pc,
@@ -17717,7 +17858,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
