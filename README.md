@@ -516,13 +516,14 @@ Every instruction has a name, argument labels and a description;
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
   flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
   **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly. Both are in the
-  toolbar's **View** menu, with four columns: *Addresses* (each statement's address in its bank),
+  toolbar's **View** menu, with four columns *Addresses* (each statement's address in its bank),
   *Opcodes* (the raw opcode), *File offsets* (its byte offset in `rf3.mc`, hex; with unsaved
   edits, where it will be in the saved file) and *Operands* (its operands as stored, in hex right
   after the opcode -- `0x063  030e000000 1a860200 1aab0100` -- one group and one colour per
   operand: an action's arguments are their expression bytes, e.g. `030e000000` = actor 14,
   `1a860200` = 646; a control op's targets, line ids, counts and conditions; the column is padded
-  so the statements line up; Alt-hover names each operand). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
+  so the statements line up; Alt-hover names each operand); *Xref counts* puts after each label how
+  many statements of the bank lead to it (`L2:  · 3 xrefs`; X lists them). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Several lines:** Ctrl+A selects all, Shift+click / Shift+arrows a range, Ctrl+click adds or
   removes one; Ctrl+C copies them and Delete deletes them as one undo step (a RET, a menu and a
   random pick are kept: delete those on their own). **Hold Alt over a line** for the full explanation (prototype, every argument

@@ -5330,6 +5330,7 @@ def test_xrefs_button():
         _skip("xrefs button", "no tkinter: %s" % e); return
     import cutscene_editor as ce
     from cutscene_editor import dialogs as ce_dialogs
+    from rf4s_modkit import script
     mc = _shipped("rf3.mc")
     if mc is None:
         _skip("xrefs button", "rf3.mc not found"); return
@@ -5363,6 +5364,19 @@ def test_xrefs_button():
                and len(opened) == 2 and opened[1][0] == 0x5186 and opened[1][1] >= 1,
                (bar, opened))
         _check("the Inspector button is named Xrefs…", ex.inspector.callers_btn.cget("text") == "Xrefs…")
+        # View > Xref counts: every label shows how many statements lead to it (= the Xrefs list)
+        ex.show_xrefs.set(True)
+        ex._view_mode()
+        root.update()
+        body = ex.view.text.get("1.0", "end")
+        from cutscene_editor import catalog as _cat
+        want = ["%s:  · %d xref%s" % (lab, len(_cat.collect_xrefs(ex.bank, pc)),
+                                      "" if len(_cat.collect_xrefs(ex.bank, pc)) == 1 else "s")
+                for pc, lab in script.scene_labels(ex.scene).items()]
+        ex.show_xrefs.set(False)
+        ex._view_mode()
+        _check("View > Xref counts puts each label's xref count next to it",
+               want and all(w in body for w in want), (want, body[:300]))
         ce_dialogs.callers_window = old
         w = ex.show_callers()                            # the real window: Esc closes it
         root.update()

@@ -242,6 +242,30 @@ def collect_xrefs(bank, target_pc):
 
 
 
+_XREF_COUNTS = {}
+
+
+def xref_counts(bank):
+    """{pc: how many statements of `bank` lead there} -- CALLs, jumps, branches, switch /
+    random targets and choice options, each site once (what the Xrefs window lists for that
+    pc). Cached per bank state."""
+    key = (id(bank), len(bank.data), hash(bytes(bank.data)))
+    hit = _XREF_COUNTS.get(id(bank))
+    if hit is not None and hit[0] == key:
+        return hit[1]
+    sites = {}
+    for sc in script.disassemble_bank(bank, discover=True):
+        for pc, st in sc.stmts.items():
+            if pc not in sites:
+                sites[pc] = {t for t in st.code_targets if t is not None}
+    out = {}
+    for targets in sites.values():
+        for t in targets:
+            out[t] = out.get(t, 0) + 1
+    _XREF_COUNTS[id(bank)] = (key, out)
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # bank naming
 # --------------------------------------------------------------------------- #

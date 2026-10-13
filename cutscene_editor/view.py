@@ -39,6 +39,7 @@ class ScriptView(ttk.Frame):
         self.show_ops = False
         self.show_file_off = False          # each statement's offset in rf3.mc, both views
         self.show_operands = False          # each statement's operands in hex, one colour each
+        self.show_xrefs = False             # each label: how many statements lead to it
         sb = ttk.Scrollbar(self)
         sb.pack(side="right", fill="y")
         self.text = tk.Text(self, wrap="word", font=("Segoe UI", 10), bg=BG, fg=FG,
@@ -122,7 +123,8 @@ class ScriptView(ttk.Frame):
             t.config(state="disabled")
             return
         st_text = SceneText(app.doc, bank, sc)
-        rows = (st_text.story_rows(self.show_addr, self.show_ops, self.show_file_off, self.show_operands) if self.mode == "story"
+        rows = (st_text.story_rows(self.show_addr, self.show_ops, self.show_file_off, self.show_operands,
+                                   self.show_xrefs) if self.mode == "story"
                 else self._code_rows(st_text))
         for n, row in enumerate(rows, 1):
             for s, tag in row.segs:
@@ -215,7 +217,9 @@ class ScriptView(ttk.Frame):
                 line = st_text.code_line(st)[7:]           # without its "xxxx:  " address
                 addr = [("%04x:  " % pc, "addr")] if self.show_addr else []
                 rows.append(Row(foff + [("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops + addr +
-                                [(line, "dlg" if st.mnem == "DIALOG" else "act")],
+                                [(line, "dlg" if st.mnem == "DIALOG" else "act")]
+                                + ([("   ;" + st_text.xref_note(pc).replace("  ·", "", 1), "dim")]
+                                   if (lbl and getattr(self, "show_xrefs", False)) else []),
                                 (pc, None), st))
                 # a path that runs on into a statement shown elsewhere: a shared RET is shown
                 # (dimmed, at its own address), other shared code as '; -> L2'

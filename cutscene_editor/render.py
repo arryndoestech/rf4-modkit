@@ -257,7 +257,14 @@ class SceneText:
             r.segs = list(r.segs[:at]) + segs + list(r.segs[at:])
         return rows
 
-    def story_rows(self, show_addr=False, show_ops=False, show_file_off=False, show_operands=False):
+    def xref_note(self, pc):
+        """'  · 3 xrefs' for a label: how many statements of the bank lead to `pc`."""
+        from .catalog import xref_counts
+        n = xref_counts(self.bank).get(pc, 0) if self.bank is not None else 0
+        return "  · %d xref%s" % (n, "" if n == 1 else "s")
+
+    def story_rows(self, show_addr=False, show_ops=False, show_file_off=False, show_operands=False,
+                   show_xrefs=False):
         sc = self.scene
         rows = []
 
@@ -290,7 +297,9 @@ class SceneText:
                 rows.append(Row([("── other branches / paths ──", "hdr")]))
             for k, (pc, st) in enumerate(seq):
                 if pc in self.labels:                   # selectable: add beats at the label
-                    rows.append(Row([("%s:" % self.labels[pc], "lbl")], (pc, "label"), st))
+                    rows.append(Row([("%s:" % self.labels[pc], "lbl")]
+                                    + ([(self.xref_note(pc), "dim")] if show_xrefs else []),
+                                    (pc, "label"), st))
                 speaker = self._story_stmt(rows, pc, st, addr, speaker)
                 # each statement is shown once, so a path that runs on into one shown
                 # elsewhere ends the way a path reads: a shared RET as 'return', other
