@@ -5542,6 +5542,19 @@ def test_xrefs_button():
                and len(opened) == 2 and opened[1][0] == 0x5186 and opened[1][1] >= 1,
                (bar, opened))
         _check("the Inspector button is named Xrefs…", ex.inspector.callers_btn.cget("text") == "Xrefs…")
+        # an unsaved edit: the '● unsaved' note sits in the status bar, the toolbar keeps every button
+        ex.parent.geometry("1200x800")
+        ex.parent.deiconify()
+        ex.select((0x5164, None))
+        ex.delete_selected()
+        root.update()
+        btns = [w for w in ex.toolbar.winfo_children() if w.winfo_class() in ("TButton", "TMenubutton")
+                and w.winfo_manager()]                   # (Variables… shows with its option only)
+        _check("unsaved note in the status bar; at 1200 px every toolbar button still shows",
+               ex.dirty_lbl.master is not ex.toolbar and ex.dirty_lbl.cget("text").startswith("● unsaved")
+               and all(w.winfo_ismapped() and w.winfo_width() >= w.winfo_reqwidth() - 2 for w in btns),
+               [(w.cget("text"), w.winfo_width(), w.winfo_reqwidth()) for w in btns])
+        ex.undo()
         # View > Xref counts: every label shows how many statements lead to it (= the Xrefs list)
         ex.show_xrefs.set(True)
         ex._view_mode()

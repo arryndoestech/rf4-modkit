@@ -159,6 +159,9 @@ class CutsceneExplorer:
         # room left in the open bank (64 KiB of bytecode per bank), refreshed with every status
         self.space_lbl = ttk.Label(sbar, anchor="e", padding=(6, 2), font=("Segoe UI", 8))
         self.space_lbl.pack(side="right")
+        # '● unsaved: …' lives here: in the toolbar its text squeezed the buttons out of view
+        self.dirty_lbl = ttk.Label(sbar, foreground="#c60", font=("Segoe UI", 8))
+        self.dirty_lbl.pack(side="right", padx=6)
         self.status_lbl = ttk.Label(sbar, anchor="w", padding=(6, 2), font=("Segoe UI", 8))
         self.status_lbl.pack(side="left", fill="x", expand=True)
         self._bindtag = "CutEd%d" % id(self)
@@ -362,8 +365,6 @@ class CutsceneExplorer:
         Tip(self._side_btn, "Hide the Inspector (the selected statement's arguments) on the "
                             "right to give the scene -- the Graph above all -- the full width "
                             "(click again to bring it back).")
-        self.dirty_lbl = ttk.Label(bar, foreground="#c60", font=("Segoe UI", 8))
-        self.dirty_lbl.pack(side="right", padx=6, before=ob)
 
     # ------------------------------------------------------------------ #
     # loading
