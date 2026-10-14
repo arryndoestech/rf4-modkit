@@ -6581,8 +6581,6 @@ class App:
             b.pack(side="left")
             Tip(b, "Opens a copy of the file in the program Windows uses for %s files (the game's "
                    "file is not touched). To replace it, edit your own copy and install that." % what)
-            ttk.Label(bar, text="A %s file: the toolkit has no viewer for it." % what,
-                      foreground="#666").pack(side="left", padx=8)
         txt = self._make_text_tab(None, None, mono=True, doc=doc)
         if error:
             txt.insert("end", f"[viewer note] {error}\n\n")
