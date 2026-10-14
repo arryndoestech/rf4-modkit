@@ -1148,10 +1148,10 @@ def statement_text(buf, st):
     return _control_body(buf, st, lambda t: "0x0000" if t is None else "0x%04x" % t)
 
 
-def listing_of(buf, stmts):
+def listing_of(buf, stmts, outside=None):
     """Statements as a listing that pastes back (the editor's copy / cut): in address order,
-    a jump to one of `stmts` becomes a label (copy0, copy1 ...), any other target stays an
-    absolute 0xPC (valid in the same bank)."""
+    a jump to one of `stmts` becomes a label (copy0, copy1 ...), any other target is written
+    by `outside(pc)` -- default an absolute 0xPC (valid in the same bank)."""
     stmts = sorted(stmts, key=lambda s: s.pc)
     inside = {s.pc for s in stmts}
     targets = sorted({t for s in stmts for t in s.code_targets if t in inside})
@@ -1163,7 +1163,8 @@ def listing_of(buf, stmts):
         if s.op < 0xFFF0:
             out.append(action_line(s.op, [operand_text(buf, a, s.op, i) for i, a in enumerate(s.args)]))
         else:
-            out.append(_control_body(buf, s, lambda t: "0x0000" if t is None else lab.get(t, "0x%04x" % t)))
+            out.append(_control_body(buf, s, lambda t: "0x0000" if t is None else lab.get(
+                t, outside(t) if outside is not None else "0x%04x" % t)))
     return "\n".join(out)
 
 

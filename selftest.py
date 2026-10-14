@@ -5564,6 +5564,46 @@ def test_cut_paste():
         text = ex.copy_selection()
         _check("a copied block's jumps into it become labels; the listing assembles",
                "copy0:" in text and "-> copy" in text and ex.assemble_check(text)[2] is None, text)
+        # a copied CALL pasted twice (and again after an undo): its target follows the edits
+        ex.select((0x5160, None))                          # CALL L4 (the MC's barrel line)
+        ex.copy_selection()
+        sub = ex.stmt(0x5160).code_targets[0]
+        sub_first = ex.stmt(sub).op
+        oks = []
+        for _ in range(2):
+            drop = next(pc for pc, s0 in ex.scene.stmts.items() if s0.op == 463)
+            ex.select((drop, None))
+            oks.append(ex.paste())
+            root.update()
+        calls = [s0 for s0 in ex.scene.stmts.values() if s0.mnem == "CALL"]
+        tgt_ops = {ex.stmt(s0.code_targets[0]).op if ex.stmt(s0.code_targets[0]) else None
+                   for s0 in calls if s0.code_targets}
+        ex.undo()
+        root.update()
+        drop = next(pc for pc, s0 in ex.scene.stmts.items() if s0.op == 463)
+        ex.select((drop, None))
+        oks.append(ex.paste())
+        root.update()
+        _check("a copied CALL pastes twice, and again after an undo: its target follows the bank's "
+               "edits (was: '0x461c is not a statement start')",
+               all(oks) and sub_first in tgt_ops and len(calls) >= 5, (oks, len(calls)))
+        for _ in range(2):
+            ex.undo()
+        root.update()
+        # pasting it into another bank says why it can't
+        shown = []
+        from tkinter import messagebox as _mb
+        old_info = _mb.showinfo
+        _mb.showinfo = lambda *a, **k: shown.append(a[1] if len(a) > 1 else k.get("message"))
+        try:
+            ex.open_scene(19, next(s0.entry_pc for s0 in script.disassemble_bank(ex.doc.container.banks[19])))
+            ex.select((ex.scene.entry_pc, None))
+            refused = ex.paste() is False
+        finally:
+            _mb.showinfo = old_info
+        _check("pasting it into another bank is refused with a reason",
+               refused and shown and "another bank" in shown[0], shown)
+        ex.open_scene(407, 0x515A)
         # cutting only a RET does nothing
         ret = next(pc for pc, s0 in ex.scene.stmts.items() if s0.mnem == "RET")
         ex.select((ret, None))

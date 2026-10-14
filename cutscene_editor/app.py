@@ -980,6 +980,7 @@ class CutsceneExplorer:
             _moved, gone = self._follow_breakpoints(moves)
             if gone:
                 self.status("%d breakpoint%s removed: the statement went away" % (gone, "" if gone == 1 else "s"))
+        self._clip_follow_edit(relink)
         pm = (relink or {}).get(self.bank_pos)
         if pm is None:
             return
@@ -1005,6 +1006,7 @@ class CutsceneExplorer:
                 pass
         if self.breakpoints:
             self._check_breakpoints()
+        self._clip_seen_change()
         self.refresh_scene()
         self._chrome()
         self._maps_pending = self._maps_pending or later(self.frame, self._tell_maps, 150)
@@ -1581,11 +1583,78 @@ class CutsceneExplorer:
         if not pcs or self.bank is None:
             self.status("nothing selected to copy")
             return None
-        text = scriptasm.listing_of(self.bank.data, [self.stmt(pc) for pc in pcs])
+        ext = []
+
+        def outside(t):                          # a jump out of the copied lines: a slot that
+            ext.append(t)                        # follows the bank's later edits
+            return "\x00%d\x00" % (len(ext) - 1)
+        tpl = scriptasm.listing_of(self.bank.data, [self.stmt(pc) for pc in pcs], outside)
+        text = self._clip_fill(tpl, ext)
+        self._clip = {"tpl": tpl, "pos": self.bank_pos, "text": text,
+                      "states": {self._bank_key(self.bank_pos): list(ext)},
+                      "last": self._bank_key(self.bank_pos)}
         self.view.text.clipboard_clear()
         self.view.text.clipboard_append(text)
         self.status("copied %d line%s (Ctrl+V pastes them)" % (len(pcs), "" if len(pcs) == 1 else "s"))
         return text
+
+    _clip = None
+
+    @staticmethod
+    def _clip_fill(tpl, pcs):
+        """The copied listing with its outside jump targets written as today's 0xPC."""
+        out = tpl
+        for i, pc in enumerate(pcs):
+            out = out.replace("\x00%d\x00" % i, "0x%04x" % pc if pc is not None else "0xdead")
+        return out
+
+    def _bank_key(self, pos):
+        c = self.doc.container
+        if c is None or pos is None or not 0 <= pos < len(c.banks):
+            return None
+        return hash(bytes(c.banks[pos].data))
+
+    def _clip_follow_edit(self, relink):
+        """A structural edit rebuilt the clipboard's bank: its outside jump targets move with
+        their code (as the bank's own jumps did: Container.last_relink)."""
+        clip = self._clip
+        if not clip:
+            return
+        pm = (relink or {}).get(clip["pos"])
+        prev = clip["states"].get(clip["last"])
+        key = self._bank_key(clip["pos"])
+        if pm is None or prev is None or key is None:
+            return
+        clip["states"][key] = [pm.get(pc) if pc is not None else None for pc in prev]
+        clip["last"] = key
+
+    def _clip_seen_change(self):
+        """After any change (undo / redo / an in-place edit): the clipboard's targets for the
+        bank as it is now -- known when the bank returned to a state seen before, else the
+        last ones (an edit that kept every address)."""
+        clip = self._clip
+        if not clip:
+            return
+        key = self._bank_key(clip["pos"])
+        if key is None:
+            return
+        if key not in clip["states"] and clip["last"] in clip["states"]:
+            clip["states"][key] = list(clip["states"][clip["last"]])
+        clip["last"] = key
+
+    def _clip_text(self, text):
+        """What Ctrl+V pastes: this editor's own copy with its outside targets at their
+        current addresses (or an error), else the clipboard text as it is."""
+        clip = self._clip
+        if not clip or text != clip["text"] or clip["last"] not in clip["states"]:
+            return text, None
+        pcs = clip["states"][clip["last"]]
+        if self.bank_pos != clip["pos"]:
+            return text, ("the copied lines jump to code outside them, which is in another bank; "
+                          "paste them in the bank they came from") if pcs else None
+        if any(pc is None for pc in pcs):
+            return text, "code the copied lines jump to was deleted since: copy them again"
+        return self._clip_fill(clip["tpl"], pcs), None
 
     def cut_selection(self):
         """Ctrl+X: copy the selected statements and delete them (one undo step). A RET, a menu
@@ -1618,6 +1687,10 @@ class CutsceneExplorer:
             text = ""
         if not text.strip():
             self.status("the clipboard is empty: copy (Ctrl+C) or cut (Ctrl+X) lines first")
+            return False
+        text, why = self._clip_text(text)
+        if why:
+            messagebox.showinfo("Paste", why, parent=self.parent)
             return False
         pc = self.sel[0]
         st = self.stmt(pc)
