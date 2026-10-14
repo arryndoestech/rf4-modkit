@@ -5498,6 +5498,81 @@ def test_open_external():
         root.destroy()
 
 
+def test_cut_paste():
+    """Cutscene editor: Ctrl+X cuts statements (copied as a listing, deleted as one undo step),
+    Ctrl+V pastes the listing after the selected statement (before one nothing runs after);
+    a copied block's internal jumps become labels, so it assembles anywhere in the bank."""
+    print("cutscene editor: cut / copy / paste:")
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("cut paste", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from rf4s_modkit import script
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("cut paste", "rf3.mc not found"); return
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ex.open_scene(407, 0x515A)
+        if ex.stmt(0x5164) is None or ex.stmt(0x5180) is None:
+            _skip("cut paste", "bank 407 @515a is not the shipped barrel scene"); return
+        b = ex.doc.container.banks[407]
+        orig = bytes(b.data)
+        v = ex.view
+        v.text.focus_force()
+        root.update()
+        # cut IsNpcGroupFreeToComment, paste it after DropItem
+        ex.select((0x5164, None))
+        v.text.event_generate("<Control-x>")
+        root.update()
+        clip = root.clipboard_get()
+        gone = not any(s0.op == 257 for s0 in ex.scene.stmts.values())
+        drop = next(pc for pc, s0 in ex.scene.stmts.items() if s0.op == 463)
+        ex.select((drop, None))
+        v.text.event_generate("<Control-v>")
+        root.update()
+        sts = sorted(ex.scene.stmts.values(), key=lambda s0: s0.pc)
+        k = next(i for i, s0 in enumerate(sts) if s0.op == 463)
+        _check("Ctrl+X removes the line and copies it; Ctrl+V puts it after the selected one",
+               clip.strip() == "IsNpcGroupFreeToComment(tag3(9))" and gone
+               and sts[k + 1].op == 257, (clip, gone, [s0.mnem for s0 in sts[k:k + 2]]))
+        # paste on a RET goes before it
+        ret = sts[k + 2].pc if sts[k + 2].mnem == "RET" else None
+        if ret is not None:
+            ex.select((ret, None))
+            v.text.event_generate("<Control-v>")
+            root.update()
+            sts = sorted(ex.scene.stmts.values(), key=lambda s0: s0.pc)
+            k2 = next(i for i, s0 in enumerate(sts) if s0.mnem == "RET" and i > k)
+            _check("pasting on a RET puts the lines before it", sts[k2 - 1].op == 257
+                   and sts[k2 - 2].op == 257, [s0.mnem for s0 in sts[k2 - 3:k2 + 1]])
+        for _ in range(3):
+            ex.undo()
+        _check("three undos restore the bank byte for byte",
+               bytes(ex.doc.container.banks[407].data) == orig)
+        # a block with internal jumps copies with labels and assembles back
+        ex.open_scene(407, 0x515A)
+        keys = [(pc, None) for pc in (0x515A, 0x5160, 0x5164, 0x516A, 0x5170, 0x5174, 0x5178)]
+        v.select_keys(keys, keys[0])
+        text = ex.copy_selection()
+        _check("a copied block's jumps into it become labels; the listing assembles",
+               "copy0:" in text and "-> copy" in text and ex.assemble_check(text)[2] is None, text)
+        # cutting only a RET does nothing
+        ret = next(pc for pc, s0 in ex.scene.stmts.items() if s0.mnem == "RET")
+        ex.select((ret, None))
+        _check("a RET alone is not cut", ex.cut_selection() is False
+               and bytes(ex.doc.container.banks[407].data) == orig)
+    finally:
+        root.destroy()
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -16096,11 +16171,14 @@ def test_cutscene_multi_select():
         keys = v._keys()
         v.select_all()
         _check("Ctrl+A selects every row of the scene", v.multi == keys and len(keys) > 3, "%d/%d" % (len(v.multi), len(keys)))
-        v.copy_row()
-        clip = root.clipboard_get().split("\n")
-        _check("Ctrl+C copies every selected row, one line each, in display order",
-               len(clip) == len(keys) and clip[0].strip() == v.text.get(
-                   "%d.0" % v.line_of(keys[0]), "%d.end" % v.line_of(keys[0])).replace(" ", " ").strip())
+        v.text.focus_force()
+        root.update()
+        v.text.event_generate("<Control-c>")
+        clip = root.clipboard_get()
+        from cutscene_editor.tabs import count_statements as _cs
+        _check("Ctrl+C copies every selected statement as a listing that assembles back",
+               _cs(clip) == len(cx.scene.stmts) and cx.assemble_check(clip)[2] is None,
+               (_cs(clip), len(cx.scene.stmts), cx.assemble_check(clip)[2]))
         stmts = dict(cx.scene.stmts)
         ends = sum(1 for st in stmts.values() if not st.falls_through or st.terminator)
         cx.delete_selected()
@@ -17917,7 +17995,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_open_external, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_open_external, test_cut_paste, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

@@ -1561,6 +1561,75 @@ class CutsceneExplorer:
                 else "the code only it led to stays, under unreached code", note))
         return ok
 
+    # ---- copy / cut / paste --------------------------------------------------------- #
+    def _selected_pcs(self):
+        """The statements of the selection (a label or a menu option row counts as its
+        statement), in address order."""
+        pcs = {k[0] for k in self.view.selected_keys() if k is not None}
+        return sorted(pc for pc in pcs if self.stmt(pc) is not None)
+
+    @staticmethod
+    def _deletable(st):
+        """What Delete removes on its own in a multi-line selection (see delete_statements)."""
+        return st is not None and st.op not in (0xFFF4, 0xFFF5) and (
+            (st.falls_through and not st.terminator) or len(set(st.code_targets or [])) == 1)
+
+    def copy_selection(self, pcs=None):
+        """Ctrl+C: the selected statements as listing text on the clipboard -- it pastes back
+        with Ctrl+V (here or in another scene of the bank) and in the Source tab."""
+        pcs = self._selected_pcs() if pcs is None else pcs
+        if not pcs or self.bank is None:
+            self.status("nothing selected to copy")
+            return None
+        text = scriptasm.listing_of(self.bank.data, [self.stmt(pc) for pc in pcs])
+        self.view.text.clipboard_clear()
+        self.view.text.clipboard_append(text)
+        self.status("copied %d line%s (Ctrl+V pastes them)" % (len(pcs), "" if len(pcs) == 1 else "s"))
+        return text
+
+    def cut_selection(self):
+        """Ctrl+X: copy the selected statements and delete them (one undo step). A RET, a menu
+        or a random pick stays -- delete it on its own -- and is not copied."""
+        pcs = self._selected_pcs()
+        doomed = [pc for pc in pcs if self._deletable(self.stmt(pc))]
+        kept = len(pcs) - len(doomed)
+        if not doomed:
+            self.status("nothing to cut: a RET ends the scene, and a menu or random pick needs "
+                        "Delete on its own (it asks which way the scene goes on)")
+            return False
+        text = self.copy_selection(doomed)
+        ok = self.delete_statements(doomed)
+        if ok:
+            self.status("cut %d line%s (Ctrl+V pastes them; Ctrl+Z undoes it)%s" % (
+                len(doomed), "" if len(doomed) == 1 else "s",
+                "; kept %d: a RET, or a menu / random pick" % kept if kept else ""))
+        return ok and text
+
+    def paste(self):
+        """Ctrl+V: the clipboard's listing after the selected statement -- at a selected label
+        (it runs first on every path there), or before a statement nothing runs after (a RET,
+        a jump, a menu)."""
+        if self.sel is None or self.stmt(self.sel[0]) is None:
+            self.status("select where to paste: the new lines go after the selected one")
+            return False
+        try:
+            text = self.view.text.clipboard_get()
+        except tk.TclError:
+            text = ""
+        if not text.strip():
+            self.status("the clipboard is empty: copy (Ctrl+C) or cut (Ctrl+X) lines first")
+            return False
+        pc = self.sel[0]
+        st = self.stmt(pc)
+        if self.selected_label():
+            return self.insert_before(pc, text)
+        if st.falls_through and not st.terminator:
+            return self.insert_after(pc, text)
+        ok = self.insert_before(pc, text)
+        if ok:
+            self.status("pasted before the %s (nothing runs after it)" % st.mnem)
+        return ok
+
     def delete_statements(self, pcs):
         """Delete several statements as ONE undoable edit (a multi-row selection + Del).
         A RET (nothing to continue with) is kept, and so is a statement with several ways on

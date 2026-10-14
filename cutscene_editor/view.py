@@ -81,7 +81,9 @@ class ScriptView(ttk.Frame):
         t.bind("<Control-Button-1>", self._ctrl_click)
         t.bind("<Shift-Up>", lambda _e: self.extend(-1))
         t.bind("<Shift-Down>", lambda _e: self.extend(1))
-        t.bind("<Control-c>", lambda _e: (self.copy_row(), "break")[1])
+        t.bind("<Control-c>", lambda _e: (app.copy_selection(), "break")[1])
+        t.bind("<Control-x>", lambda _e: (app.cut_selection(), "break")[1])
+        t.bind("<Control-v>", lambda _e: (app.paste(), "break")[1])
         t.bind("<Up>", lambda _e: self.move(-1))
         t.bind("<Down>", lambda _e: self.move(1))
         t.bind("<Prior>", lambda _e: self.move(-15))
@@ -267,8 +269,11 @@ class ScriptView(ttk.Frame):
                       command=lambda: app.ask_edit_instruction())
         m.add_separator()
         n = len(self.multi)
+        m.add_command(label=("Cut %d lines  (Ctrl+X)" % n) if n else "Cut line  (Ctrl+X)", state=st,
+                      command=app.cut_selection)
         m.add_command(label=("Copy %d lines  (Ctrl+C)" % n) if n else "Copy line  (Ctrl+C)", state=st,
-                      command=self.copy_row)
+                      command=lambda: app.copy_selection())
+        m.add_command(label="Paste after  (Ctrl+V)", state=st, command=app.paste)
         m.add_command(label=("Delete %d lines  (Del)" % n) if n else "Delete  (Del)", state=st,
                       command=app.delete_selected)
         m.add_command(label="Xrefs: who leads here…  (X)", command=app.show_callers)
@@ -425,23 +430,6 @@ class ScriptView(ttk.Frame):
 
     def line_of(self, key):
         return self._key_line.get(key)
-
-    def copy_row(self):
-        """Ctrl+C: the selected rows' text to the clipboard (one line each, display order)."""
-        lines = [self._key_line.get(k) for k in self.selected_keys()]
-        lines = [ln for ln in lines if ln is not None]
-        if not lines:
-            return
-        if len(lines) == 1:
-            s = self.text.get(f"{lines[0]}.0", f"{lines[0]}.end").strip()
-            msg = "copied: " + (s if len(s) < 80 else s[:77] + "…")
-        else:                                       # keep the indentation: it shows the nesting
-            s = "\n".join(self.text.get(f"{ln}.0", f"{ln}.end").rstrip() for ln in lines)
-            msg = "copied %d rows" % len(lines)
-        s = s.replace(" ", " ")                # the columns' digit-wide padding -> plain spaces
-        self.text.clipboard_clear()
-        self.text.clipboard_append(s)
-        self.app.status(msg)
 
     # ---- Alt-hover explanation ----------------------------------------------------- #
     # Tk's Alt bit: 0x20000 on Windows (Mod1 = 0x0008 is Num Lock there), Mod1 elsewhere

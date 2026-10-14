@@ -528,8 +528,11 @@ Every instruction has a name, argument labels and a description;
   so the statements line up; Alt-hover names each operand); *Xref counts* puts after each label how
   many statements of the bank lead to it (`L2:  · 3 xrefs`; X lists them). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Several lines:** Ctrl+A selects all, Shift+click / Shift+arrows a range, Ctrl+click adds or
-  removes one; Ctrl+C copies them and Delete deletes them as one undo step (a RET, a menu and a
-  random pick are kept: delete those on their own). **Hold Alt over a line** for the full explanation (prototype, every argument
+  removes one; Delete deletes them as one undo step (a RET, a menu and a random pick are kept:
+  delete those on their own). **Cut / copy / paste:** Ctrl+C copies the selected lines as code (a
+  jump into the copied lines becomes a label, so they paste anywhere in the bank; the Source tab
+  takes them too), Ctrl+X cuts them (copy + delete, one undo step), Ctrl+V pastes after the selected
+  line -- at a selected label, or before a RET / jump / menu, since nothing runs after those. **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,
