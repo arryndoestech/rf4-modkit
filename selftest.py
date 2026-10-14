@@ -5452,6 +5452,52 @@ def _all_widgets(w):
     return out
 
 
+def test_open_external():
+    """Sound, video and font files (no viewer in the toolkit) get 'Open in the default app': a
+    copy goes to the temp folder, with the extension its content needs, and opens there."""
+    print("asset explorer: open sounds / videos / fonts in the default app:")
+    import importlib.util, os
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("open external", "no tkinter: %s" % e); return
+    files = [f for f in (_first("*.ogg"), _first("*.webm"), _first("PetMe64.ttf")) if f is not None]
+    if len(files) < 3:
+        _skip("open external", "no extracted .ogg / .webm / .ttf"); return
+    spec = importlib.util.spec_from_file_location("rf4mod_gui_ext", pathlib.Path(__file__).with_name("rf4mod_gui.py"))
+    gui = importlib.util.module_from_spec(spec); spec.loader.exec_module(gui)
+    _headless_dialogs()
+    opened = []
+    old = getattr(os, "startfile", None)
+    os.startfile = lambda path: opened.append(path)
+    root = tk.Tk(); root.withdraw()
+    try:
+        app = gui.App(root, initial=str(files[0].parent))
+        found = []
+        for f in files:
+            app.open_path(f); root.update_idletasks()
+            btn = next((w for w in _all_widgets(app._doc.content) if w.winfo_class() == "TButton"
+                        and w.cget("text") == "▶ Open in the default app"), None)
+            found.append(btn is not None)
+            if btn is not None:
+                btn.invoke()
+        _check("sound, video and font tabs offer 'Open in the default app'", all(found), found)
+        ok = (len(opened) == 3 and all(pathlib.Path(o).read_bytes() == f.read_bytes()
+                                        for o, f in zip(opened, files))
+              and [pathlib.Path(o).suffix for o in opened] == [".ogg", ".webm", ".ttf"])
+        _check("the button opens a temp copy of the file (the game's own file untouched)", ok,
+               [str(o) for o in opened])
+        txt = next(f for f in (_first("*.h"), _first("list.txt")) if f is not None)
+        app.open_path(txt); root.update_idletasks()
+        _check("files the toolkit shows itself (text) get no such button",
+               not any(w.winfo_class() == "TButton" and w.cget("text") == "▶ Open in the default app"
+                       for w in _all_widgets(app._doc.content)))
+    finally:
+        if old is not None:
+            os.startfile = old
+        root.destroy()
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -17858,7 +17904,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_open_external, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

@@ -49,6 +49,13 @@ except ImportError:
 # or fmt="image"; the extension set is the fallback for formats without a reliable
 # magic (e.g. TGA) or that `ident` doesn't sniff.
 IMAGE_FMTS = {"png", "jpg", "gif", "bmp", "tiff", "dds", "ico", "webp", "image"}
+# files the toolkit has no viewer for but every Windows install opens (Media Player, the Font
+# viewer): the tab offers "Open in the default app". ident fmt -> (what, extension it needs)
+EXTERNAL_FMTS = {"ogg": ("sound", ".ogg"), "wav": ("sound", ".wav"), "aiff": ("sound", ".aif"),
+                 "webm": ("video", ".webm"), "ttf": ("font", ".ttf"), "ttc": ("font", ".ttc")}
+EXTERNAL_EXTS = {".ogg": "sound", ".wav": "sound", ".flac": "sound", ".mp3": "sound", ".aif": "sound",
+                 ".aiff": "sound", ".webm": "video", ".mp4": "video", ".ttf": "font", ".ttc": "font",
+                 ".otf": "font"}
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".jfif", ".gif", ".bmp", ".tif", ".tiff",
               ".webp", ".tga", ".dds", ".ico"}
 
@@ -6565,11 +6572,62 @@ class App:
 
     def _view_hex(self, name, data, error: str | None = None):
         doc = self._doc
+        what = self._external_kind(name, data)
+        if what is not None and error is None:
+            bar = ttk.Frame(doc.content)
+            bar.pack(fill="x", padx=6, pady=(6, 2))
+            b = ttk.Button(bar, text="▶ Open in the default app",
+                           command=lambda: self.open_external(name, data))
+            b.pack(side="left")
+            Tip(b, "Opens a copy of the file in the program Windows uses for %s files (the game's "
+                   "file is not touched). To replace it, edit your own copy and install that." % what)
+            ttk.Label(bar, text="A %s file: the toolkit has no viewer for it." % what,
+                      foreground="#666").pack(side="left", padx=8)
         txt = self._make_text_tab(None, None, mono=True, doc=doc)
         if error:
             txt.insert("end", f"[viewer note] {error}\n\n")
         txt.insert("end", hexdump(data))
         txt.config(state="disabled")
+
+    @staticmethod
+    def _external_kind(name, data):
+        """'sound' / 'video' / 'font' for a file Windows has a standard app for, else None."""
+        try:
+            ft = ident.identify(data[:0x4000], filename=name)
+            if ft.fmt in EXTERNAL_FMTS:
+                return EXTERNAL_FMTS[ft.fmt][0]
+        except Exception:  # noqa: BLE001 -- the extension decides then
+            pass
+        return EXTERNAL_EXTS.get(pathlib.PurePath(name).suffix.lower())
+
+    def open_external(self, name, data):
+        """Write a copy of the file to the temp folder (with the extension its content needs)
+        and open it with the default app for that type. Returns the copy's path, or None."""
+        import os
+        import subprocess
+        import tempfile
+        base = pathlib.PurePath(name).name
+        try:
+            fmt = ident.identify(data[:0x4000], filename=name).fmt
+        except Exception:  # noqa: BLE001
+            fmt = None
+        want = EXTERNAL_FMTS.get(fmt, (None, None))[1]
+        if want and not base.lower().endswith(want) and not (want == ".aif" and base.lower().endswith(".aiff")):
+            base += want                              # e.g. a sound stored without its extension
+        d = pathlib.Path(tempfile.gettempdir()) / "rf4s-modkit-open"
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            out = d / base
+            out.write_bytes(bytes(data))
+            if hasattr(os, "startfile"):
+                os.startfile(str(out))                # noqa: S606 -- the user's own file, their default app
+            else:
+                subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(out)])
+        except OSError as e:
+            self.status.config(text=f"Could not open {base}: {err_text(e)}")
+            return None
+        self.status.config(text=f"Opened a copy of {base} in the default app ({out})")
+        return out
 
     # ---- view helpers ---------------------------------------------------- #
     def _make_text_tab(self, nb, title, mono=False, doc=None):

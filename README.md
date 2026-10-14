@@ -311,6 +311,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `rf3route.bin` / `rf3RouteResult.bin` | navigation graph tree (rooms → nodes → edges), **path query**, JSON export/import, next-hop matrix rebuild |
 | `.psbData` / `.emtbytes` | E-mote portrait atlas (zoomable, Export PNG) + PSB summary |
 | `.model` / `.bfskl` | NN container structure |
+| `.ogg` `.wav` `.aif` `.webm` `.ttf` `.ttc` (sounds, videos, fonts) | **▶ Open in the default app** (a copy goes to the temp folder and opens in Windows' player / font viewer) + hex preview |
 | anything else | identification + hex preview |
 
 `Extract…` saves the selected asset's raw bytes to disk. Image/JSON viewers degrade to
