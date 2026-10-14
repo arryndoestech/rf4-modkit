@@ -50,7 +50,7 @@ except ImportError:
 # magic (e.g. TGA) or that `ident` doesn't sniff.
 IMAGE_FMTS = {"png", "jpg", "gif", "bmp", "tiff", "dds", "ico", "webp", "image"}
 # files the toolkit has no viewer for but every Windows install opens (Media Player, the Font
-# viewer): the tab offers "Open in the default app". ident fmt -> (what, extension it needs)
+# viewer): the tab offers "Open in default app". ident fmt -> (what, extension it needs)
 EXTERNAL_FMTS = {"ogg": ("sound", ".ogg"), "wav": ("sound", ".wav"), "aiff": ("sound", ".aif"),
                  "webm": ("video", ".webm"), "ttf": ("font", ".ttf"), "ttc": ("font", ".ttc")}
 EXTERNAL_EXTS = {".ogg": "sound", ".wav": "sound", ".flac": "sound", ".mp3": "sound", ".aif": "sound",
@@ -6576,7 +6576,7 @@ class App:
         if what is not None and error is None:
             bar = ttk.Frame(doc.content)
             bar.pack(fill="x", padx=6, pady=(6, 2))
-            b = ttk.Button(bar, text="▶ Open in the default app",
+            b = ttk.Button(bar, text="Open in default app",
                            command=lambda: self.open_external(name, data))
             b.pack(side="left")
             Tip(b, "Opens a copy of the file in the program Windows uses for %s files (the game's "

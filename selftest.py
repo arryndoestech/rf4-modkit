@@ -5453,7 +5453,7 @@ def _all_widgets(w):
 
 
 def test_open_external():
-    """Sound, video and font files (no viewer in the toolkit) get 'Open in the default app': a
+    """Sound, video and font files (no viewer in the toolkit) get 'Open in default app': a
     copy goes to the temp folder, with the extension its content needs, and opens there."""
     print("asset explorer: open sounds / videos / fonts in the default app:")
     import importlib.util, os
@@ -5477,11 +5477,11 @@ def test_open_external():
         for f in files:
             app.open_path(f); root.update_idletasks()
             btn = next((w for w in _all_widgets(app._doc.content) if w.winfo_class() == "TButton"
-                        and w.cget("text") == "▶ Open in the default app"), None)
+                        and w.cget("text") == "Open in default app"), None)
             found.append(btn is not None)
             if btn is not None:
                 btn.invoke()
-        _check("sound, video and font tabs offer 'Open in the default app'", all(found), found)
+        _check("sound, video and font tabs offer 'Open in default app'", all(found), found)
         ok = (len(opened) == 3 and all(pathlib.Path(o).read_bytes() == f.read_bytes()
                                         for o, f in zip(opened, files))
               and [pathlib.Path(o).suffix for o in opened] == [".ogg", ".webm", ".ttf"])
@@ -5490,7 +5490,7 @@ def test_open_external():
         txt = next(f for f in (_first("*.h"), _first("list.txt")) if f is not None)
         app.open_path(txt); root.update_idletasks()
         _check("files the toolkit shows itself (text) get no such button",
-               not any(w.winfo_class() == "TButton" and w.cget("text") == "▶ Open in the default app"
+               not any(w.winfo_class() == "TButton" and w.cget("text") == "Open in default app"
                        for w in _all_widgets(app._doc.content)))
     finally:
         if old is not None:
