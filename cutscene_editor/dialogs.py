@@ -893,14 +893,17 @@ def callers_window(parent, app, rows, dispatch, target):
     pos = app.bank_pos                     # the bank these rows are in (another may be opened later)
     win = tk.Toplevel(parent)
     win.title("Xrefs to 0x%04x — %s" % (target, catalog.bank_title(app.bank)))
-    win.geometry("680x360")
+    # sized by its contents (whole rows at any text size), not in pixels: a fixed 680x360
+    # cut the last visible row and the hint line at larger text sizes
     hdr = "%d statement(s) lead here" % len(rows)
     if dispatch:
         hdr += "  ·  also started by the engine: " + ", ".join(catalog.type_label(t) for t in dispatch)
     ttk.Label(win, text=hdr, anchor="w").pack(fill="x", padx=6, pady=4)
+    ttk.Label(win, text="double-click or Enter opens the calling statement · Esc closes",
+              foreground="#888").pack(side="bottom", anchor="w", padx=6, pady=(4, 8))
     f = ttk.Frame(win)
     f.pack(fill="both", expand=True, padx=6)
-    lb = tk.Listbox(f, font=("Consolas", 10))
+    lb = tk.Listbox(f, font=("Consolas", 10), width=78, height=min(max(len(rows), 4), 16))
     sb = ttk.Scrollbar(f, command=lb.yview)
     lb.config(yscrollcommand=sb.set)
     lb.pack(side="left", fill="both", expand=True)
@@ -919,8 +922,6 @@ def callers_window(parent, app, rows, dispatch, target):
     lb.bind("<Double-Button-1>", jump)
     lb.bind("<Return>", jump)
     win.bind("<Escape>", lambda _e: win.destroy())
-    ttk.Label(win, text="double-click or Enter opens the calling statement · Esc closes",
-              foreground="#888").pack(anchor="w", padx=6, pady=4)
     if rows:
         lb.selection_set(0)
         lb.activate(0)
