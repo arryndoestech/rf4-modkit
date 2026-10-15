@@ -8739,6 +8739,19 @@ def test_choice_results():
     line = next(ln for ln in scriptasm.scene_listing(sc, b1).split("\n") if "5006:" in ln)
     _check("the listing's comment names each masked option's reg0", "(reg0=6)" in line, line[-80:])
 
+    # a menu at the start of a CALLed subroutine gets its mask from before each CALL to it
+    # (bank 210's 99-row request menu); a helper whose own menu uses up the mask it set does
+    # not hand one on (bank 132's menu loop around the equipment pick)
+    big = res(210, 0x6CFC)
+    _check("a menu in a CALLed subroutine: the mask set before the CALL counts (bank 210 @0x6cfc)",
+           big is not None and len(big) == 99, None if big is None else len(big))
+    _check("a helper whose own menu uses up its mask hands none on (bank 132 @0x836)",
+           res(132, 0x836) is None)
+    sc210 = next(x for x in script.disassemble_bank(c.banks[210]) if x.entry_pc == 0x2D4)
+    txt = script.format_scene(sc210, buf=c.banks[210].data)
+    _check("the disassembly says so on the menu line",
+           any("6cfc" in ln and "goes to reg0" in ln for ln in txt.splitlines())
+           and not any("012c" in ln and "reg0" in ln for ln in txt.splitlines()))
 
 def test_visibility_audit():
     """Nothing that can run is hidden (every bank of the game's rf3.mc, ~1 minute):

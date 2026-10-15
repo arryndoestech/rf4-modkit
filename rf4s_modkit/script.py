@@ -2678,6 +2678,47 @@ def _code_touches_mask(by_pc, start, _depth=0):
     return False
 
 
+def _helper_mask_effects(by_pc, start, _depth=0, _memo=None):
+    """What a CALLed helper does to the visibility mask, on each of its paths to a RET:
+    {(leaves_mask, showed_menu)} -- leaves_mask: it sets a mask that no menu of its own uses
+    up before it returns; showed_menu: a menu ran (it uses up any mask set before the CALL).
+    Nested CALLs are followed (8 deep); loops are cut at a state already seen."""
+    memo = {} if _memo is None else _memo
+    if start in memo:
+        return memo[start]
+    memo[start] = {(False, False)}            # a recursive CALL back here: assume neutral
+    out, seen, stack = set(), set(), [(start, False, False)]
+    while stack:
+        pc, m, n = stack.pop()
+        if (pc, m, n) in seen:
+            continue
+        seen.add((pc, m, n))
+        st = by_pc.get(pc)
+        if st is None or st.mnem in ("RET", "END"):
+            out.add((m, n))
+            continue
+        nxt = [pc + st.size] if st.falls_through and not st.terminator else []
+        if st.op in (610, 611, 612):
+            m = True
+        if st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
+            m, n = False, True
+            nxt += [t for t in st.code_targets if t is not None]
+        elif st.mnem == "CALL":
+            effs = (_helper_mask_effects(by_pc, st.code_targets[0], _depth + 1, memo)
+                    if _depth < 8 and st.code_targets else {(False, False)})
+            for cm, cn in effs:
+                m2 = cm if (cm or cn) else m
+                for t in nxt:
+                    stack.append((t, m2, n or cn))
+            continue
+        else:
+            nxt += [t for t in st.code_targets if t is not None]
+        for t in nxt:
+            stack.append((t, m, n))
+    memo[start] = out or {(False, False)}
+    return memo[start]
+
+
 def _static_choice_mask(buf, stmts, idx, joins, detail=None):
     """Visibility-mask bits the ops right before stmts[idx] leave KNOWN: {bit: 0/1}.
 
@@ -2778,17 +2819,26 @@ def _mask_set_on_a_path(stmts, idx):
     """True when some path back from the choice at stmts[idx] -- through jumps, branches and
     their rejoin points, up to the scene start or an earlier choice (a choice clears the mask)
     -- runs a visibility-mask op, directly or in a CALLed helper. The shipped shop menus set
-    the mask, branch to one of three helpers, rejoin, then prompt."""
+    the mask, branch to one of three helpers, rejoin, then prompt. A menu at the start of a
+    CALLed subroutine is followed back into its callers: bank 210's 99-row request menu
+    (@0x6cfc) gets its mask from the code before each CALL to it."""
     by_pc = {x.pc: x for x in stmts}
-    preds = {}
+    preds, call_sites = {}, {}
     for x in stmts:
         if x.falls_through and not x.terminator and x.pc + x.size in by_pc:
             preds.setdefault(x.pc + x.size, []).append(x.pc)
-        if x.mnem != "CALL":
-            for t in x.code_targets:
-                if t is not None:
-                    preds.setdefault(t, []).append(x.pc)
-    seen, stack = set(), list(preds.get(stmts[idx].pc, ()))
+        for t in x.code_targets:
+            if t is not None:
+                (call_sites if x.mnem == "CALL" else preds).setdefault(t, []).append(x.pc)
+
+    def back(pc):
+        """Where control was just before `pc`: its predecessors, and for a CALL target the
+        statements before each CALL to it."""
+        out = list(preds.get(pc, ()))
+        for c in call_sites.get(pc, ()):
+            out.extend(preds.get(c, ()))
+        return out
+    seen, stack = set(), back(stmts[idx].pc)
     while stack:
         pc = stack.pop()
         if pc in seen:
@@ -2799,9 +2849,13 @@ def _mask_set_on_a_path(stmts, idx):
             return True
         if st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED"):
             continue                      # that menu consumed (cleared) any earlier mask
-        if st.mnem == "CALL" and st.code_targets and _code_touches_mask(by_pc, st.code_targets[0]):
-            return True
-        stack.extend(preds.get(pc, ()))
+        if st.mnem == "CALL" and st.code_targets:
+            effs = _helper_mask_effects(by_pc, st.code_targets[0])
+            if any(m for m, _n in effs):
+                return True               # the helper leaves a mask set (the shop helpers)
+            if all(n for _m, n in effs):
+                continue                  # every path through it shows a menu: mask used up
+        stack.extend(back(pc))
     return False
 
 
@@ -3195,6 +3249,7 @@ def format_scene(scene, dialog=None, show_addr=True, buf=None, friendly=True):
     def tgt(t):
         return labels.get(t, "0x%04x" % t) if t is not None else "?"
 
+    order = None                                 # the statements, for the menus' reg0 note
     for pc, st in scene.stmts.items():
         # label column is 7 wide: "L1234:" (up to 4-digit labels) + 1 separator space,
         # so the label can never run into the address.
@@ -3239,5 +3294,15 @@ def format_scene(scene, dialog=None, show_addr=True, buf=None, friendly=True):
                 parts.append("(%s)" % ", ".join(arg_repr(buf, r) for r in st.expr_refs if r is not None))
             if st.code_targets:
                 parts.append("-> " + ", ".join(tgt(t) for t in st.code_targets))
-            lines.append("%s   %s %s" % (addr, st.mnem, " ".join(parts)))
+            note = ""
+            if st.mnem in ("PROMPT_CHOICE", "PROMPT_CHOICE_FORCED") and buf is not None:
+                if order is None:
+                    order = list(scene.stmts.values())
+                try:
+                    masked = choice_results(buf, order, order.index(st)) is not None
+                except Exception:  # noqa: BLE001 -- a comment aid only
+                    masked = False
+                if masked:
+                    note = "   ; visibility mask set: the pick (option 1 = 0, 2 = 1, ...) goes to reg0"
+            lines.append("%s   %s %s%s" % (addr, st.mnem, " ".join(parts), note))
     return "\n".join(lines)
