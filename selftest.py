@@ -6052,10 +6052,38 @@ def test_xrefs_button():
         want = ["%s:  · %d xref%s" % (lab, len(_cat.collect_xrefs(ex.bank, pc)),
                                       "" if len(_cat.collect_xrefs(ex.bank, pc)) == 1 else "s")
                 for pc, lab in script.scene_labels(ex.scene).items()]
+        # the count is a link: one caller -> open it, several -> the Xrefs window
+        t = ex.view.text
+        links = t.tag_ranges("xreflink")
+        counts = {pc: len(_cat.collect_xrefs(ex.bank, pc)) for pc in script.scene_labels(ex.scene)}
+        clicked = None
+        if links:
+            ex.view.see_index = links[0]
+            t.see(links[0])
+            root.update()
+            bb = t.bbox(links[0])
+            n_before = len(opened)
+            if bb:
+                t.event_generate("<Button-1>", x=bb[0] + 2, y=bb[1] + 2)
+                root.update()
+                clicked = (len(opened) - n_before, ex.scene.entry_pc, ex.sel)
         ex.show_xrefs.set(False)
         ex._view_mode()
         _check("View > Xref counts puts each label's xref count next to it",
                want and all(w in body for w in want), (want, body[:300]))
+        _check("the counts are links on labels that something leads to (%d labels, %d links)"
+               % (len(counts), len(links) // 2),
+               len(links) // 2 == sum(1 for n in counts.values() if n) and clicked is not None, clicked)
+        bank = ex.bank
+        one = next((pc for pc, n in sorted(_cat.xref_counts(bank).items()) if n == 1), None)
+        many = next((pc for pc, n in sorted(_cat.xref_counts(bank).items()) if n >= 2), None)
+        n_before = len(opened)
+        r1 = ex.follow_xrefs(one)
+        at1 = (ex.scene.entry_pc, ex.sel)
+        ex.follow_xrefs(many)
+        _check("following a link: one caller opens that statement, several open the Xrefs window",
+               r1 is not None and at1 == (r1[0], (r1[2], None)) and len(opened) == n_before + 1
+               and opened[-1][0] == many, (r1, at1, opened[-1:]))
         ce_dialogs.callers_window = old
         w = ex.show_callers()                            # the real window: Esc closes it
         root.update()

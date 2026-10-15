@@ -58,6 +58,7 @@ class ScriptView(ttk.Frame):
         self.text.tag_configure("bprow", background="#4a1616")     # a breakpoint
         self.text.tag_configure("bpwait", background="#3a2e2e")    # one that cannot fire yet
         self.text.tag_configure("pcrow", background="#1e5a2a")     # where a script stopped
+        self.text.tag_configure("xreflink", foreground="#7fb4ff", underline=True)   # View → Xref counts
         self.text.tag_raise("sel")
         self.rows = []                 # display line (1-based) -> Row, as a list index line-1
         self._key_line = {}            # (pc, option) -> line
@@ -69,7 +70,7 @@ class ScriptView(ttk.Frame):
         self._hover_row = None
         t = self.text
         t.bind("<Button-1>", self._click)
-        t.bind("<Double-Button-1>", lambda e: (self._click(e), app.focus_editor(), "break")[2])
+        t.bind("<Double-Button-1>", self._double_click)
         # rows are selected whole: Tk's own drag / shift / triple-click text selection would
         # extend from a stale anchor (the click handler never moves it) to the bottom
         for seq in ("<B1-Motion>", "<B1-Leave>", "<Triple-Button-1>", "<Control-slash>"):
@@ -220,7 +221,8 @@ class ScriptView(ttk.Frame):
                 addr = [("%04x:  " % pc, "addr")] if self.show_addr else []
                 rows.append(Row(foff + [("%-7s" % (lbl + ":" if lbl else ""), "lbl")] + ops + addr +
                                 [(line, "dlg" if st.mnem == "DIALOG" else "act")]
-                                + ([("   ;" + st_text.xref_note(pc).replace("  ·", "", 1), "dim")]
+                                + ([("   ; ", "dim"), (st_text.xref_note(pc).replace("  · ", "", 1),
+                                                         st_text.xref_tag(pc))]
                                    if (lbl and getattr(self, "show_xrefs", False)) else []),
                                 (pc, None), st))
                 # a path that runs on into a statement shown elsewhere: a shared RET is shown
@@ -298,7 +300,30 @@ class ScriptView(ttk.Frame):
         if row is None or row.key is None:
             return "break"
         self.app.select(row.key)
+        if self._on_xref_link(e):
+            self._link_time = e.time
+            self.after_idle(lambda k=row.key: self.app.follow_xrefs(k[0]))
         return "break"
+
+    _link_time = None
+
+    def _double_click(self, e):
+        """Double-click: select and edit the row -- unless its first click followed an xref
+        link (the scene under the mouse has changed since)."""
+        if self._link_time is not None and 0 <= e.time - self._link_time < 1000:
+            return "break"
+        self._click(e)
+        if self._link_time is not None and e.time == self._link_time:
+            return "break"
+        self.app.focus_editor()
+        return "break"
+
+    def _on_xref_link(self, e):
+        """Whether the mouse is on a label's '· N xrefs' link."""
+        try:
+            return "xreflink" in self.text.tag_names("@%d,%d" % (e.x, e.y))
+        except tk.TclError:
+            return False
 
     def _highlight(self, key, see=True):
         t = self.text
@@ -436,6 +461,9 @@ class ScriptView(ttk.Frame):
     ALT_MASK = 0x20000 if sys.platform == "win32" else 0x0008
 
     def _motion(self, e):
+        cur = "hand2" if self._on_xref_link(e) else "arrow"
+        if self.text.cget("cursor") != cur:
+            self.text.config(cursor=cur)
         ln = self._line_at(e)
         row = self.rows[ln - 1] if 0 < ln <= len(self.rows) else None
         self._hover_row = (row, e.x_root + 16, e.y_root + 18) if (row and row.st is not None) else None

@@ -259,9 +259,16 @@ class SceneText:
 
     def xref_note(self, pc):
         """'  · 3 xrefs' for a label: how many statements of the bank lead to `pc`."""
+        return "  · %d xref%s" % (self.xref_count(pc), "" if self.xref_count(pc) == 1 else "s")
+
+    def xref_count(self, pc):
         from .catalog import xref_counts
-        n = xref_counts(self.bank).get(pc, 0) if self.bank is not None else 0
-        return "  · %d xref%s" % (n, "" if n == 1 else "s")
+        return xref_counts(self.bank).get(pc, 0) if self.bank is not None else 0
+
+    def xref_tag(self, pc):
+        """The note's tag: a link (click: the one caller, or the Xrefs window) when anything
+        leads there, else dimmed text."""
+        return "xreflink" if self.xref_count(pc) else "dim"
 
     def story_rows(self, show_addr=False, show_ops=False, show_file_off=False, show_operands=False,
                    show_xrefs=False):
@@ -298,7 +305,7 @@ class SceneText:
             for k, (pc, st) in enumerate(seq):
                 if pc in self.labels:                   # selectable: add beats at the label
                     rows.append(Row([("%s:" % self.labels[pc], "lbl")]
-                                    + ([(self.xref_note(pc), "dim")] if show_xrefs else []),
+                                    + ([(self.xref_note(pc), self.xref_tag(pc))] if show_xrefs else []),
                                     (pc, "label"), st))
                 speaker = self._story_stmt(rows, pc, st, addr, speaker)
                 # each statement is shown once, so a path that runs on into one shown

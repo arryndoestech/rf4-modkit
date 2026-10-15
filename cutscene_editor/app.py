@@ -1918,16 +1918,31 @@ class CutsceneExplorer:
         except tk.TclError:
             pass
 
-    def show_callers(self):
-        """The Xrefs window: what leads to the selected statement / label, else to the scene."""
+    def show_callers(self, target=None):
+        """The Xrefs window: what leads to `target`, else the selected statement / label, else
+        the scene."""
         if self.scene is None:
             self.status("open a scene first")
             return None
-        target = self.sel[0] if self.sel else self.scene.entry_pc
+        if target is None:
+            target = self.sel[0] if self.sel else self.scene.entry_pc
         rows = catalog.collect_xrefs(self.bank, target)
         dispatch = sorted({sc.action_type for sc in script.disassemble_bank(self.bank)
                            if sc.entry_pc == target and sc.action_type >= 0})
         return dialogs.callers_window(self.frame, self, rows, dispatch, target)
+
+    def follow_xrefs(self, target):
+        """A label's '· N xrefs' link: one statement leads there -> open it; several -> the
+        Xrefs window for the label."""
+        if self.bank is None:
+            return None
+        rows = catalog.collect_xrefs(self.bank, target)
+        if len(rows) == 1:
+            entry, _t, from_pc, mnem = rows[0]
+            self.open_scene(self.bank_pos, entry, focus_pc=from_pc)
+            self.status("The only statement that leads to 0x%04x: %s @0x%04x" % (target, mnem, from_pc))
+            return rows[0]
+        return self.show_callers(target)
 
     # ---- triggers (the type table) --------------------------------------------------- #
     def default_keys_text(self, bank, type_id):
