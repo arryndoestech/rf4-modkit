@@ -350,7 +350,8 @@ class CutsceneExplorer:
         self.debug_menu = dm
         Tip(db, "Launch game: save, then start the game.\n"
                 "Reload in game (Ctrl+R): save, then load your scenes, text and em.bin into the "
-                "game the Debugger is attached to (not while a scene plays).\n"
+                "game the Debugger is attached to (while a scene plays, it waits until the scene "
+                "has ended).\n"
                 "Reload from disk (F5): read the game files again (drops unsaved edits; asks first).\n"
                 "Debugger: attach to the game, set breakpoints (F9), step through scripts.")
         rb = ttk.Button(bar, text="📖 Reference", command=lambda: self.open_reference())
@@ -2441,8 +2442,10 @@ class CutsceneExplorer:
 
     def reload_in_game(self):
         """Save, then swap the saved rf3.mc, the dialogue of the game's language and em.bin
-        into the game the script debugger is attached to (rf4s_modkit.hotreload)."""
-        from rf4s_modkit import hotreload
+        into the game the script debugger is attached to (rf4s_modkit.hotreload). While a
+        scene plays the reload is queued: it runs as soon as the scene has ended. Returns
+        True (reloaded), "queued" or False."""
+        self._queued_reload = None                # a new request replaces a queued one
         pid = self.attached_pid()
         if pid is None:
             self.status("Reload in game: attach to the game first (Debug → Debugger… → Attach); "
@@ -2455,7 +2458,15 @@ class CutsceneExplorer:
         if path is None or not pathlib.Path(path).is_file():
             self.status("Reload: no saved rf3.mc to load (set the game folder or save first)")
             return False
-        em = targets.get("em.bin")
+        return self._reload_now(pid, path, targets.get("em.bin"))
+
+    _queued_reload = None
+    QUEUE_EVERY_MS = 500
+    QUEUE_GIVE_UP_MS = 30 * 60 * 1000
+
+    def _reload_now(self, pid, path, em, after_wait=False):
+        """The reload itself; a scene playing queues it (_queue_reload)."""
+        from rf4s_modkit import hotreload
         try:
             self.frame.config(cursor="watch")
             self.frame.update_idletasks()
@@ -2468,7 +2479,12 @@ class CutsceneExplorer:
                 except hotreload.HotReloadError as e:
                     em_note = "; em.bin not reloaded: %s (restart the game for em.bin changes)" % err_text(e)
         except hotreload.HotReloadError as e:
+            if "a scene is running" in str(e):
+                return self._queue_reload(pid, path, em)
             self.status("Reload refused: %s" % err_text(e))
+            return False
+        except OSError as e:
+            self.status("Reload: %s" % err_text(e))
             return False
         finally:
             try:
@@ -2478,10 +2494,43 @@ class CutsceneExplorer:
         if loc and self.doc.live_lines:         # the game now holds the file's text only
             self.doc.live_lines = {}
             self.refresh_scene()
-        self.status(hotreload.describe(r) + "; " + (hotreload.describe_text(t, loc) if loc else
+        self.status(("The scene has ended -- reloaded: " if after_wait else "")
+                    + hotreload.describe(r) + "; " + (hotreload.describe_text(t, loc) if loc else
                     "dialogue text not reloaded: %s (restart the game for text changes)" % t)
                     + em_note)
         return True
+
+    def _queue_reload(self, pid, path, em):
+        """A scene is playing (its code must not change under it): check the game every half
+        second and reload as soon as no scene runs. A newer Reload replaces this one."""
+        from rf4s_modkit import hotreload
+        token = object()
+        self._queued_reload = token
+        waited = [0]
+        self.status("A scene is playing: the reload is queued and runs as soon as it ends")
+
+        def tick():
+            if self._queued_reload is not token:
+                return                            # replaced by a newer reload, or cancelled
+            try:
+                busy = hotreload.status(pid).get("busy")
+            except Exception:  # noqa: BLE001 -- the game was closed
+                self._queued_reload = None
+                self.status("Queued reload dropped: the game is no longer running")
+                return
+            if busy:
+                waited[0] += self.QUEUE_EVERY_MS
+                if waited[0] >= self.QUEUE_GIVE_UP_MS:
+                    self._queued_reload = None
+                    self.status("Queued reload dropped: the scene is still playing after 30 "
+                                "minutes -- reload again (Ctrl+R) once it has ended")
+                    return
+                later(self.frame, tick, self.QUEUE_EVERY_MS)
+                return
+            self._queued_reload = None
+            self._reload_now(pid, path, em, after_wait=True)
+        later(self.frame, tick, self.QUEUE_EVERY_MS)
+        return "queued"
 
     def _choose_game(self, procs, question="Which one should get the scenes?"):
         """Several RF4S.exe run: ask which one (remembered while it runs) -- for Reload in

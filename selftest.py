@@ -5613,6 +5613,76 @@ def test_cut_paste():
         root.destroy()
 
 
+def test_queued_reload():
+    """Reload in game while a scene plays: queued, not refused -- the editor checks the game
+    and reloads (normally) as soon as the scene has ended; a newer reload replaces it."""
+    print("cutscene editor: reload queued while a scene plays:")
+    import time
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("queued reload", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from rf4s_modkit import hotreload
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("queued reload", "rf3.mc not found"); return
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    _headless_dialogs()
+    game = {"busy": True}
+    calls = []
+    report = {"pid": 1, "bytes": 1, "slots": [], "fixed_after": [], "forced": False}
+
+    def fake_reload_all(data, pid=None, force=False, text_files=None):
+        calls.append(force)
+        if game["busy"]:
+            raise hotreload.HotReloadError("a scene is running (Script VM state 3 at pc 0x0100) -- "
+                                           "let it finish, then reload")
+        return report, (None, "test")
+    old = hotreload.reload_all, hotreload.reload_em, hotreload.status
+    hotreload.reload_all = fake_reload_all
+    hotreload.reload_em = lambda *a, **k: None
+    hotreload.status = lambda pid=None: {"busy": game["busy"]}
+    root = tk.Tk(); root.withdraw()
+
+    def pump(sec):
+        t0 = time.time()
+        while time.time() - t0 < sec:
+            root.update(); time.sleep(0.02)
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ex.QUEUE_EVERY_MS = 50
+        ex.attached_pid = lambda: 1
+        ex.unsaved = lambda: []
+        ex.save_targets = lambda: {"rf3.mc": mc}
+        got = ex.reload_in_game()
+        st_wait = ex.status_lbl.cget("text")
+        pump(0.4)                                   # still playing: nothing happens
+        waiting = calls == [False] and ex._queued_reload is not None
+        game["busy"] = False                        # the scene ends
+        pump(0.4)
+        st_done = ex.status_lbl.cget("text")
+        _check("a scene plays: the reload is queued (never forced) and runs once the scene has ended",
+               got == "queued" and "queued" in st_wait and waiting and calls == [False, False]
+               and ex._queued_reload is None and st_done.startswith("The scene has ended"),
+               (got, calls, st_wait, st_done))
+        # a newer reload replaces a queued one: only the newest runs
+        game["busy"] = True
+        del calls[:]
+        ex.reload_in_game()
+        ex.reload_in_game()
+        game["busy"] = False
+        pump(0.4)
+        _check("a newer Reload replaces the queued one (one reload when the scene ends)",
+               calls == [False, False, False] and all(c is False for c in calls), calls)
+    finally:
+        hotreload.reload_all, hotreload.reload_em, hotreload.status = old
+        root.destroy()
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18035,7 +18105,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_open_external, test_cut_paste, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

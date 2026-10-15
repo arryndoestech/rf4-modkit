@@ -763,7 +763,9 @@ the script debugger is attached to, whatever the new size. It works only while t
 attached, so the reload and the debugger always act on the same game (attach first: *🐞 Debug →
 Debugger… → Attach*). The game keeps `rf3.mc` in memory for the whole session, so the
 reload swaps that copy and the three bank buffers in place while the game is paused for a moment.
-It is refused while a scene is playing, so let the scene finish first. Changed scenes run from the
+While a scene is playing the reload is queued (its code must not change under it): the editor
+checks the game twice a second and reloads as soon as the scene has ended; another *Reload* replaces
+the queued one. Changed scenes run from the
 next trigger or talk. The dialogue text is swapped in too: scripts show lines from one archive slot
 that the game fills with your language's `rf3mc.<locale>` at start and keeps in memory, and a line id
 past its line count shows line 0 ("Are you turning in for the night?"). So new or changed lines need
