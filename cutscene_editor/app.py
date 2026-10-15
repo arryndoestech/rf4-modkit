@@ -2725,7 +2725,7 @@ class CutsceneExplorer:
             self.status("Play: this scene belongs to %s (map %d) and plays only there; the player "
                         "is in %s (map %d)%s." % (mp, tail, here, st["tail"], same))
             return False
-        if self.unsaved() or dbg.game_bank(self.bank_pos) != bytes(self.bank.data):
+        if self.unsaved() or self._play_game_bank(dbg) != bytes(self.bank.data):
             if not messagebox.askyesno(
                     "Play this scene now", "The game runs another version of this bank. Save and "
                     "reload it in the game first (Ctrl+R)?", parent=self.frame.winfo_toplevel()):
@@ -2734,7 +2734,7 @@ class CutsceneExplorer:
                 self.status("Play: the bank could not be reloaded in the game now (a scene is "
                             "playing?) -- try again once it is in")
                 return False
-            if dbg.game_bank(self.bank_pos) != bytes(self.bank.data):
+            if self._play_game_bank(dbg) != bytes(self.bank.data):
                 self.status("Play: the game still has another version of this bank")
                 return False
         restore = self._ask_play(mp, warn)
@@ -2746,6 +2746,15 @@ class CutsceneExplorer:
                           bits=bits, before=before, restore=restore and before is not None,
                           waited=0, token=object(), title=self.scene_title())
         return self._play_try()
+
+    def _play_game_bank(self, dbg):
+        """The open bank as the game holds it. The debugger is polled first: a Reload in game
+        a moment ago gave the game a new copy of rf3.mc that the debugger only picks up then."""
+        try:
+            dbg.poll()
+            return dbg.game_bank(self.bank_pos)
+        except Exception:  # noqa: BLE001 -- unreadable: treat as "another version"
+            return None
 
     def scene_title(self):
         return "bank %d @%04x" % (self.bank_pos, self.scene.entry_pc) if self.scene else ""
@@ -2780,13 +2789,15 @@ class CutsceneExplorer:
             win.destroy()
         btns = ttk.Frame(body)
         btns.pack(anchor="e", pady=(12, 0))
-        ttk.Button(btns, text="Play", command=ok).pack(side="left")
+        play_btn = ttk.Button(btns, text="Play", command=ok)
+        play_btn.pack(side="left")
         ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="left", padx=(6, 0))
         win.bind("<Escape>", lambda e: win.destroy())
         win.bind("<Return>", lambda e: ok())
         self._play_dialog = win
         try:
             win.grab_set()
+            play_btn.focus_set()                  # Enter plays, Esc cancels at once
         except tk.TclError:
             pass
         win.wait_window()
