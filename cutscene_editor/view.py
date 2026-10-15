@@ -30,6 +30,53 @@ def _ypixels(t, a, b):
         n = n[0]
     return int(n or 0)
 
+class _JumpLinks:
+    """Finds the jump targets in a row's text: the scene's labels (L1, L2 ...) and, for a
+    statement's own targets outside the scene, their 0x1234 address. Dialogue, the label
+    column, addresses and opcodes are never links."""
+
+    PLAIN = ("dlg", "lbl", "addr", "opc", "hdr", "hdrv", "xreflink")
+
+    def __init__(self, st_text):
+        import re
+        self.by_name = {name: pc for pc, name in st_text.labels.items()}
+        names = sorted(self.by_name, key=len, reverse=True)
+        self.re = re.compile(r"(?<![\w:])(%s|0x[0-9a-fA-F]{4})(?!\w)" % "|".join(map(re.escape, names))
+                             if names else r"(?<![\w:])(0x[0-9a-fA-F]{4})(?!\w)")
+
+    def split(self, text, tag, st):
+        """[(piece, target pc or None)] covering `text`."""
+        if tag in self.PLAIN or not text:
+            return [(text, None)]
+        targets = set(t for t in (getattr(st, "code_targets", None) or ()) if t is not None)
+        quoted = []                               # a choice's option texts: "...", never links
+        q = text.find('"')
+        while q >= 0:
+            e = text.find('"', q + 1)
+            if e < 0:
+                break
+            quoted.append((q, e))
+            q = text.find('"', e + 1)
+        out, at = [], 0
+        for m in self.re.finditer(text):
+            if any(a <= m.start() <= b for a, b in quoted):
+                continue
+            tok = m.group(1)
+            if tok.lower().startswith("0x"):
+                pc = int(tok, 16)
+                if pc not in targets:             # an operand or an address, not a jump
+                    continue
+            else:
+                pc = self.by_name[tok]
+            if m.start() > at:
+                out.append((text[at:m.start()], None))
+            out.append((tok, pc))
+            at = m.end()
+        if at < len(text):
+            out.append((text[at:], None))
+        return out or [(text, None)]
+
+
 class ScriptView(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent)
@@ -59,6 +106,7 @@ class ScriptView(ttk.Frame):
         self.text.tag_configure("bpwait", background="#3a2e2e")    # one that cannot fire yet
         self.text.tag_configure("pcrow", background="#1e5a2a")     # where a script stopped
         self.text.tag_configure("xreflink", foreground="#7fb4ff", underline=True)   # View → Xref counts
+        self.text.tag_configure("jumplink", underline=True)       # a jump target: click goes there
         self.text.tag_raise("sel")
         self.rows = []                 # display line (1-based) -> Row, as a list index line-1
         self._key_line = {}            # (pc, option) -> line
@@ -129,11 +177,19 @@ class ScriptView(ttk.Frame):
         rows = (st_text.story_rows(self.show_addr, self.show_ops, self.show_file_off, self.show_operands,
                                    self.show_xrefs) if self.mode == "story"
                 else self._code_rows(st_text))
+        links = _JumpLinks(st_text)
         for n, row in enumerate(rows, 1):
             for s, tag in row.segs:
                 if isinstance(tag, tuple):                # ("spk" | "cue", colour)
                     tag = self._spk_tag(tag[1], bold=(tag[0] == "spk"))
-                t.insert("end", s, (tag, "code") if (self.mode == "code" and tag) else tag or ())
+                    parts = [(s, None)]
+                else:
+                    parts = links.split(s, tag, row.st)
+                for piece, pc in parts:
+                    tags = (tag, "code") if (self.mode == "code" and tag) else ((tag,) if tag else ())
+                    if pc is not None:
+                        tags += ("jumplink", "jl:%x" % pc)
+                    t.insert("end", piece, tags)
             t.insert("end", "\n")
             self.rows.append(row)
             if row.key is not None and row.key not in self._key_line:
@@ -297,6 +353,13 @@ class ScriptView(ttk.Frame):
         self.text.tag_remove("sel", "1.0", "end")
         ln = self._line_at(e)
         row = self.rows[ln - 1] if 0 < ln <= len(self.rows) else None
+        target = self._jump_link_at(e)
+        if target is not None:                    # a jump target: go there
+            self._link_time = e.time
+            if row is not None and row.key is not None:
+                self.app.select(row.key)
+            self.after_idle(lambda: self.app.follow_jump(target))
+            return "break"
         if row is None or row.key is None:
             return "break"
         self.app.select(row.key)
@@ -317,6 +380,15 @@ class ScriptView(ttk.Frame):
             return "break"
         self.app.focus_editor()
         return "break"
+
+    def _jump_link_at(self, e):
+        """The pc of the jump target under the mouse ('→ L1', 'go to L2', '-> L3' ...), else None."""
+        try:
+            names = self.text.tag_names("@%d,%d" % (e.x, e.y))
+        except tk.TclError:
+            return None
+        hit = next((n for n in names if n.startswith("jl:")), None)
+        return int(hit[3:], 16) if hit else None
 
     def _on_xref_link(self, e):
         """Whether the mouse is on a label's '· N xrefs' link."""
@@ -461,7 +533,7 @@ class ScriptView(ttk.Frame):
     ALT_MASK = 0x20000 if sys.platform == "win32" else 0x0008
 
     def _motion(self, e):
-        cur = "hand2" if self._on_xref_link(e) else "arrow"
+        cur = "hand2" if (self._on_xref_link(e) or self._jump_link_at(e) is not None) else "arrow"
         if self.text.cget("cursor") != cur:
             self.text.config(cursor=cur)
         ln = self._line_at(e)

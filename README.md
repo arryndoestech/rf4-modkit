@@ -526,7 +526,7 @@ Every instruction has a name, argument labels and a description;
   operand: an action's arguments are their expression bytes, e.g. `030e000000` = actor 14,
   `1a860200` = 646; a control op's targets, line ids, counts and conditions; the column is padded
   so the statements line up; Alt-hover names each operand); *Xref counts* puts after each label how
-  many statements of the bank lead to it (`L2:  · 3 xrefs`; X lists them). The count is a link: with one statement leading there a click opens it, with several it opens the Xrefs window. Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
+  many statements of the bank lead to it (`L2:  · 3 xrefs`; X lists them). The count is a link: with one statement leading there a click opens it, with several it opens the Xrefs window. Jump targets are links too -- a choice option's `→ L1`, `go to L2`, `call L4`, a branch's or switch's targets, `-> L3` in the code view: a click selects that statement (a target outside the scene opens the scene that holds it). Arrow keys / PgUp / PgDn move the selection, Enter jumps to the editor,
   Delete deletes. **Several lines:** Ctrl+A selects all, Shift+click / Shift+arrows a range, Ctrl+click adds or
   removes one; Delete deletes them as one undo step (a RET, a menu and a random pick are kept:
   delete those on their own). **Cut / copy / paste:** Ctrl+C copies the selected lines as code (a

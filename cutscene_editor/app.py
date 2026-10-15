@@ -1949,6 +1949,22 @@ class CutsceneExplorer:
                            if sc.entry_pc == target and sc.action_type >= 0})
         return dialogs.callers_window(self.frame, self, rows, dispatch, target)
 
+    def follow_jump(self, pc):
+        """A jump target clicked in the script view: its statement in this scene, else the
+        scene of the bank that holds it."""
+        if self.bank is None or self.scene is None:
+            return False
+        if pc in self.scene.stmts and self.view.focus_pc(pc):
+            self.view.text.see("%d.0" % self.view.line_of((pc, None)))
+            self.status("0x%04x" % pc + (" (%s)" % script.scene_labels(self.scene).get(pc)
+                                         if pc in script.scene_labels(self.scene) else ""))
+            return True
+        scenes = script.disassemble_bank(self.bank)
+        hit = next((sc for sc in scenes if sc.action_type >= 0 and pc in sc.stmts), None) or \
+            next((sc for sc in scenes if pc in sc.stmts), None)
+        self.open_scene(self.bank_pos, hit.entry_pc if hit is not None else pc, focus_pc=pc)
+        return True
+
     def follow_xrefs(self, target):
         """A label's '· N xrefs' link: one statement leads there -> open it; several -> the
         Xrefs window for the label."""

@@ -6020,6 +6020,58 @@ def test_scan_pool():
            box.get("n") == len(c.banks) and "started" not in box, box)
 
 
+def test_jump_links():
+    """Jump targets in the script view are links (choices '→ L1', go to, call, branches,
+    '-> L2' in the code view): a click selects the target's statement, a target outside the
+    scene opens the scene that holds it; dialogue / quoted option text and operands such as
+    var:0x114 are never links."""
+    print("cutscene editor: jump targets are links:")
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("jump links", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from cutscene_editor import view as V
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("jump links", "rf3.mc not found"); return
+    jl = V._JumpLinks(type("S", (), {"labels": {0x140: "L1", 0x166: "L2"}})())
+    parts = jl.split('PROMPT_CHOICE  "Go to L2 now"->L1 | "x"->L2', "act", None)
+    _check("only the targets are links, not the quoted option text",
+           [p for p in parts if p[1] is not None] == [("L1", 0x140), ("L2", 0x166)], parts)
+    st = type("St", (), {"code_targets": [0x9E2]})()
+    parts = jl.split("BR_NZ (var:0x114) -> 0x09e2", "act", st)
+    _check("an address is a link only when the statement jumps there (not var:0x114)",
+           [p for p in parts if p[1] is not None] == [("0x09e2", 0x9E2)], parts)
+    _check("dialogue is never a link", jl.split("Meet me at L1.", "dlg", None) == [("Meet me at L1.", None)])
+    root = tk.Tk(); root.withdraw()
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda n: mc.read_bytes() if n == "rf3.mc" else None)
+        mode0 = ex.mode.get()
+        ex.open_scene(210, 0x2D4)
+        ex.mode.set("story"); ex._view_mode(); root.update()
+        t = ex.view.text
+        lines = t.get("1.0", "end").splitlines()
+        ln = next(i for i, l in enumerate(lines, 1) if "▹" in l and "→ L" in l)
+        col = lines[ln - 1].index("→ L") + 2
+        t.see("%d.%d" % (ln, col)); root.update()
+        x, y, _w, _h = t.bbox("%d.%d" % (ln, col))
+        name = lines[ln - 1][col:].split()[0]
+        want = {v: k for k, v in __import__("rf4s_modkit.script", fromlist=["x"]).scene_labels(ex.scene).items()}[name]
+        t.event_generate("<Button-1>", x=x + 2, y=y + 2); root.update()
+        _check("clicking a choice option's '→ %s' selects that statement" % name, ex.sel == (want, None), ex.sel)
+        S_ = __import__("rf4s_modkit.script", fromlist=["x"])
+        other = next(pc for sc in S_.disassemble_bank(ex.bank) if sc.action_type >= 0
+                     for pc in sorted(sc.stmts) if pc not in ex.scene.stmts)
+        ex.follow_jump(other); root.update()
+        _check("a target outside the scene opens the scene that holds it (0x%04x)" % other,
+               other in ex.scene.stmts and ex.scene.entry_pc != 0x2D4 and ex.sel == (other, None),
+               (hex(ex.scene.entry_pc), ex.sel))
+        ex.mode.set(mode0); ex._view_mode()
+    finally:
+        root.destroy()
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18485,7 +18537,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_jump_links, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
