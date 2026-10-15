@@ -61,6 +61,7 @@ class CutsceneExplorer:
         self._var_uses = None                # varuses index, rebuilt after edits
         self._var_gen = 0                    # bumped by every edit (a background scan checks it)
         self._var_thread = None
+        self._var_job = None                 # rf4s_modkit.scanpool.ScanJob of the first full scan
         self._var_waiters = []
         self._em_bank_uses = {}              # bank pos -> (bank bytes, em-op list, variable list)
         self._build()
@@ -415,6 +416,12 @@ class CutsceneExplorer:
         self._em_uses = self._var_uses = None
         self._var_gen += 1
         self._em_bank_uses.clear()
+        job, self._var_job = self._var_job, None
+        if job is not None:                       # a first scan of the old file: stop it, and
+            job.cancel()                          # give its waiters a scan of the new one
+            waiters, self._var_waiters = self._var_waiters, []
+            for w in waiters:
+                later(self.frame, lambda w=w: self.var_index_async(w))
         self.sel = None
         self.breakpoints.clear()
         self._bp_ops.clear()
@@ -2203,28 +2210,9 @@ class CutsceneExplorer:
 
     @staticmethod
     def _bank_scan(pos, bk):
-        """One pass over a bank for both cross-bank indexes: ([(em entry id or None, scene
-        entry, pc, stmt)] for the em bridge ops (371-374, 444; None = an entry id computed at
-        run time), [(variable enc, access, scene entry, pc, stmt)] for every named variable
-        read or written (varuses))."""
-        from rf4s_modkit import varuses
-        em, var, seen = [], [], set()
-        for sc in script.disassemble_bank(bk):
-            for pc, st in sc.stmts.items():
-                if pc in seen:
-                    continue
-                seen.add(pc)
-                for enc, acc in varuses.statement_var_access(bk.data, st):
-                    var.append((enc, acc, sc.entry_pc, pc, st))
-                ai = script.EMF_ENTRY_OPS.get(st.op)
-                if ai is None or ai >= len(st.args):
-                    continue
-                try:
-                    eid = int(script.arg_repr(bk.data, st.args[ai]))
-                except (ValueError, TypeError):
-                    eid = None
-                em.append((eid, sc.entry_pc, pc, st))
-        return em, var
+        """One pass over a bank for both cross-bank indexes (rf4s_modkit.scanpool.bank_scan)."""
+        from rf4s_modkit import scanpool
+        return scanpool.bank_scan(bk)
 
     def _scans(self):
         """[(bank pos, em list, variable list)] for every bank. A bank is re-scanned only when
@@ -2233,15 +2221,29 @@ class CutsceneExplorer:
 
     @classmethod
     def _scans_of(cls, container, cache):
-        """_scans on plain data (no editor, no Tk objects: the worker thread runs it)."""
-        out = []
-        for pos, bk in enumerate(container.banks):
-            data = bytes(bk.data)
-            hit = cache.get(pos)
-            if hit is None or hit[0] != data:
-                hit = cache[pos] = (data,) + cls._bank_scan(pos, bk)
-            out.append((pos, hit[1], hit[2]))
-        return out
+        """_scans on plain data (no editor, no Tk objects: the worker thread runs it). The
+        banks not scanned yet (all of them the first time) are shared out over worker
+        processes (rf4s_modkit.scanpool): the scan then does not hold this process's GIL,
+        which stalled every Tk call of the editor meanwhile."""
+        import threading
+        from rf4s_modkit import scanpool
+        datas = [bytes(bk.data) for bk in container.banks]
+        todo = cls._unscanned(container, cache, datas)
+        if todo:
+            # worker processes only from the main thread: their results are read where they
+            # are asked for, and a background thread must not allocate that much (a garbage
+            # collection there would free Tk objects on the wrong thread)
+            workers = None if threading.current_thread() is threading.main_thread() else 1
+            for pos, (em, var) in scanpool.scan_banks(container, todo, workers).items():
+                cache[pos] = (datas[pos], em, var)
+        return [(pos, cache[pos][1], cache[pos][2]) for pos in range(len(datas))]
+
+    @staticmethod
+    def _unscanned(container, cache, datas=None):
+        """The bank positions whose scan is missing or older than the bank's bytes."""
+        datas = [bytes(bk.data) for bk in container.banks] if datas is None else datas
+        return [pos for pos, data in enumerate(datas)
+                if cache.get(pos) is None or cache[pos][0] != data]
 
     def _em_index(self):
         """{entry id or None: [(bank pos, scene entry, pc, stmt)]}. Rebuilt after every edit
@@ -2288,7 +2290,12 @@ class CutsceneExplorer:
             done(self._var_uses, None)
             return
         self._var_waiters.append(done)
-        if self._var_thread is not None:
+        if self._var_thread is not None or self._var_job is not None:
+            return
+        from rf4s_modkit import scanpool
+        todo = self._unscanned(self.doc.container, self._em_bank_uses)
+        if len(todo) >= scanpool.MIN_BANKS_FOR_POOL and scanpool.worker_count() > 1:
+            self._var_index_by_processes(todo)
             return
         import threading
         gen, box = self._var_gen, {}
@@ -2320,6 +2327,48 @@ class CutsceneExplorer:
                 self._var_uses = box["idx"]
             for w in waiters:
                 w(self._var_uses if "idx" in box else None, box.get("err"))
+        later(self.frame, poll, 100)
+
+    def _var_index_by_processes(self, todo):
+        """The first full scan: worker processes (rf4s_modkit.scanpool), checked from the
+        event loop; their results are read and the index built here, on the main thread (a
+        tenth of a second). The editor stays fully responsive meanwhile."""
+        from rf4s_modkit import scanpool
+        c = self.doc.container
+        gen = self._var_gen
+        datas = {pos: bytes(c.banks[pos].data) for pos in todo}
+        job = self._var_job = scanpool.ScanJob(c, todo)
+
+        def poll():
+            if self._var_job is not job:
+                return                             # the editor reloaded meanwhile
+            try:
+                alive = self.frame.winfo_exists()
+            except tk.TclError:
+                alive = False
+            if not alive:
+                job.cancel()
+                return
+            if not job.done():
+                later(self.frame, poll, 100)
+                return
+            self._var_job = None
+            err = None
+            try:
+                for pos, (em, var) in job.result().items():
+                    self._em_bank_uses[pos] = (datas[pos], em, var)   # as scanned (bytes then)
+                idx = None if gen != self._var_gen else self._build_var_index()
+            except Exception as e:  # noqa: BLE001 -- handed to the waiters
+                idx, err = None, e
+            waiters, self._var_waiters = self._var_waiters, []
+            if err is None and idx is None:        # edited meanwhile: rescan what changed
+                for w in waiters:
+                    self.var_index_async(w)
+                return
+            if idx is not None and self._var_uses is None:
+                self._var_uses = idx
+            for w in waiters:
+                w(self._var_uses if err is None else None, err)
         later(self.frame, poll, 100)
 
     def var_uses(self, bit_offset, width):

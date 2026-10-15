@@ -5986,6 +5986,40 @@ def test_play_scene():
         root.destroy()
 
 
+def test_scan_pool():
+    """The editor's cross-bank index scan in worker processes (rf4s_modkit.scanpool) gives
+    exactly the one-process scan (statements included); a background thread never starts
+    workers (their results would be read and garbage-collected there)."""
+    print("bank scan in worker processes (rf4s_modkit.scanpool):")
+    import threading
+    from rf4s_modkit import scanpool
+    c = _shipped_container()
+    if c is None:
+        _skip("scan pool", "rf3.mc not found"); return
+
+    def key(r):
+        em, var = r
+        k = lambda st: (st.pc, st.op, st.size, tuple(st.code_targets), repr(st.args))
+        return ([(e, en, pc, k(st)) for e, en, pc, st in em], [(a, b, en, pc, k(st)) for a, b, en, pc, st in var])
+    pos = list(range(0, len(c.banks), 7))[:128]
+    job = scanpool.ScanJob(c, pos)
+    got = job.result()
+    _check("worker processes scan %d banks exactly like one process" % len(pos),
+           not job.failed and len(job.procs) >= 1
+           and all(key(got[p]) == key(scanpool.bank_scan(c.banks[p])) for p in pos), job.failed)
+    box = {}
+    orig = scanpool.ScanJob
+    scanpool.ScanJob = lambda *a, **k: box.setdefault("started", True) and orig(*a, **k)
+    try:
+        import cutscene_editor.app as A
+        th = threading.Thread(target=lambda: box.setdefault("n", len(A.CutsceneExplorer._scans_of(c, {}))))
+        th.start(); th.join()
+    finally:
+        scanpool.ScanJob = orig
+    _check("a scan on a background thread stays in-process (no workers)",
+           box.get("n") == len(c.banks) and "started" not in box, box)
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18451,7 +18485,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
