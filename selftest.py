@@ -2030,6 +2030,33 @@ def test_opcode_arg_verification():
              evidence=False)
     grp = [x["args"][1]["value_names"].get("9", {}).get("name") for x in O.alias_group(t, t["actions"]["211"])]
     _check("optest.record writes to every row of an alias group", len(grp) >= 2 and set(grp) == {"question"}, grp)
+    # the in-game test plan (optest.py plan): every test names a real instruction and map, says
+    # which arguments it checks, and its scene assembles
+    from map_editor import data as _mapdata
+    from rf4s_modkit.emflags import EmFlagTable
+    plan = O.plan_load()
+    bad = []
+    mc = _shipped("rf3.mc")
+    try:
+        resolver = S.Container(mc.read_bytes()).install_asm_resolver(EmFlagTable.load()) if mc else None
+    except Exception:  # noqa: BLE001
+        resolver = None
+    for x in plan:
+        try:
+            r = O.find_op(t, x["ops"][0])
+            nargs = len(r["args"])
+            assert all(0 <= i < nargs for i in (x.get("verifies") or {}).get("args", ())), "arg index"
+            assert x.get("expect") and x.get("steps") and x.get("map"), "fields"
+            _mapdata.map_id(x["map"])
+            A.assemble(O.plan_listing(x, [O.NUMBER_LINE] * len(x["steps"])), 0x1000, resolver=resolver)
+        except Exception as e:  # noqa: BLE001
+            bad.append((x.get("id"), repr(e)[:100]))
+    ids = [x["id"] for x in plan]
+    if resolver is None:   # flag names (FLG_ / REG_) need emdeb.bin
+        bad = [b_ for b_ in bad if "unknown variable" not in b_[1]]
+    _check("optest plan: %d tests, ids unique, each assembles with a real instruction, arguments and map%s"
+           % (len(plan), "" if resolver else " (flag names not checked: no rf3.mc / emdeb.bin)"),
+           len(plan) > 400 and not bad and len(set(ids)) == len(ids), bad[:5])
     # the friendly editors refuse what the game is known to break on; the Source tab
     # (strict=False) allows anything the bytecode can express
     risky = "SetButtonIconSlot(0, 192)\nSetSceneCast(0)\nRET\n"

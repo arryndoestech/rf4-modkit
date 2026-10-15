@@ -14,6 +14,16 @@ each of its arguments are.
   python optest.py record 417 --call "ModifyPlayerResource(gold, add, 1234)" \\
         --observed "gold went up by 1234" --arg 0 --arg 2 --value 0:100=gold
 
+The test plan (refdata/optest_plan.json): ready-made tests for the instructions not verified
+yet -- the behaviour and each argument -- with on-screen notes for every step.
+
+  python optest.py plan                       what is left, by category (verified ones drop out)
+  python optest.py plan list query            the tests of one category (or a mnemonic)
+  python optest.py plan show <id>             setup, steps, what to look for
+  python optest.py plan run <id> [--map M]    install it: notes + steps in the map's entry scene
+  python optest.py plan done <id> --observed "what you saw" [--failed]
+                                              log it: marks the instruction / arguments verified
+
 Test scenes go into a map's entry scene (it runs each time you walk into the map). That scene
 starts while the warp's black screen is still up, so every sweep begins with a short Wait.
 """
@@ -178,6 +188,12 @@ def _write(S, path, c):
     gamepaths.write_game_file(path, blob)
 
 
+def has_entry_scene(map_name):
+    """True if the map has a scene that runs when you walk in (what install_sweep needs)."""
+    S, data, path, c = _container()
+    return bool(c.banks[c.n_primary + data.map_id(map_name)].entry_records(6))
+
+
 def install_sweep(map_name, listing):
     """Put `listing` in front of `map_name`'s entry scene (the map's own scene still runs
     after it). Returns the scene's pc."""
@@ -319,6 +335,117 @@ def restore(map_name):
 
 
 # ---- command line ------------------------------------------------------------------
+PLAN = _HERE / "refdata" / "optest_plan.json"
+
+
+def plan_load():
+    if not PLAN.is_file():
+        raise SystemExit("no test plan (%s)" % PLAN)
+    return json.loads(PLAN.read_text(encoding="utf-8"))
+
+
+def plan_find(tests, tid):
+    hit = [x for x in tests if x["id"].lower() == tid.lower()]
+    if not hit:
+        near = [x["id"] for x in tests if tid.lower() in x["id"].lower()][:8]
+        raise SystemExit("no test %r%s" % (tid, (" -- did you mean: " + ", ".join(near)) if near else ""))
+    return hit[0]
+
+
+def plan_open(t, test):
+    """Whether the test still checks something not verified (the op, or one of its arguments)."""
+    r = find_op(t, test["ops"][0])
+    v = test.get("verifies") or {}
+    if v.get("op") and not r.get("human_verified"):
+        return True
+    return any(i < len(r["args"]) and not r["args"][i].get("human_verified") for i in v.get("args", ()))
+
+
+def plan_listing(test, note_ids):
+    """The test scene: a short wait, then each step's note in a box and its statements."""
+    lines = ["Wait(6000)"]
+    for k, step in enumerate(test["steps"]):
+        if step.get("say"):
+            lines += ["SetSpeaker(MC, Left, 0, 0)", "DIALOG #%d" % note_ids[k], "EndDialogue()"]
+        lines += [x for x in (step.get("do") or "").splitlines() if x.strip()]
+    return "\n".join(lines + ["RET"]) + "\n"
+
+
+def plan_describe(test):
+    v = test.get("verifies") or {}
+    out = ["%s   (%s, op %s)%s" % (test["id"], test["mnemonic"], "/".join(map(str, test["ops"])),
+                                   "   [needs special context]" if test.get("hard") else ""),
+           "  checks: %s" % ", ".join((["what it does"] if v.get("op") else [])
+                                     + ["argument %d" % i for i in v.get("args", ())]),
+           "  map:    %s" % test["map"], "  setup:  %s" % test["setup"], "  steps:"]
+    for k, step in enumerate(test["steps"], 1):
+        if step.get("say"):
+            out.append("    %d. note: %s" % (k, step["say"]))
+        for x in (step.get("do") or "").splitlines():
+            if x.strip():
+                out.append("         %s" % x.strip())
+    out.append("  expect: %s" % test["expect"])
+    return "\n".join(out)
+
+
+def plan_cmd(a):
+    tests = plan_load()
+    t = load()
+    if a.action in (None, "summary"):
+        left = [x for x in tests if plan_open(t, x)]
+        by = {}
+        for x in left:
+            by.setdefault(find_op(t, x["ops"][0]).get("category") or "?", []).append(x)
+        print("%d of %d tests still check something not verified:" % (len(left), len(tests)))
+        for cat, xs in sorted(by.items(), key=lambda kv: -len(kv[1])):
+            print("  %-10s %3d tests, %d instructions" % (cat, len(xs), len({x["mnemonic"] for x in xs})))
+        print("python optest.py plan list <category> -- then plan show / run / done <id>")
+    elif a.action == "list":
+        want = (a.id or "").lower()
+        for x in tests:
+            cat = (find_op(t, x["ops"][0]).get("category") or "").lower()
+            if want and want not in (cat, x["mnemonic"].lower()):
+                continue
+            print("%s %-48s %s" % ("open" if plan_open(t, x) else "done", x["id"], x["expect"][:70]))
+    elif a.action == "show":
+        print(plan_describe(plan_find(tests, a.id)))
+    elif a.action == "run":
+        test = plan_find(tests, a.id)
+        notes = [st.get("say") or "" for st in test["steps"]]
+        if a.dry:                                  # the notes are not written anywhere
+            print(plan_listing(test, [NUMBER_LINE] * len(notes)))
+            return
+        ids = test_lines([n for n in notes if n])
+        it = iter(ids)
+        note_ids = [next(it) if n else None for n in notes]
+        listing = plan_listing(test, note_ids)
+        if not has_entry_scene(a.map or test["map"]):
+            print(plan_describe(test))
+            print("\n%s has no entry scene, so this one is placed by hand: copy the scene below, "
+                  "select where the setup says in the cutscene editor and press Ctrl+V, then reload.\n\n%s"
+                  % (a.map or test["map"], listing))
+            return
+        pc, path = install_sweep(a.map or test["map"], listing)
+        print(plan_describe(test))
+        print("\ninstalled in %s's entry scene (@%04x); walk into the map. Afterwards: "
+              "python optest.py plan done %s --observed \"...\"  and  python optest.py restore %s"
+              % (a.map or test["map"], pc, test["id"], a.map or test["map"]))
+    elif a.action == "done":
+        test = plan_find(tests, a.id)
+        if not a.observed:
+            raise SystemExit("--observed \"what you saw\" is needed")
+        v = test.get("verifies") or {}
+        values = {}
+        if not a.failed:
+            for k, names in (test.get("values") or {}).items():
+                values[int(k)] = {int(val, 0): (nm, "") for val, nm in names.items()}
+        r = record(t, test["ops"][0], test["call"], ("FAILED: " if a.failed else "") + a.observed,
+                   [] if a.failed else list(v.get("args", ())), values,
+                   None if a.failed or not v.get("op") else True)
+        save(t)
+        print(describe(r))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -329,6 +456,13 @@ def main(argv=None):
     p.add_argument("--hold", type=int, default=24000, help="time per value (200 = 1 frame)")
     p.add_argument("--dry", action="store_true", help="print the listing only")
     p = sub.add_parser("restore"); p.add_argument("map")
+    p = sub.add_parser("plan")
+    p.add_argument("action", nargs="?", choices=("summary", "list", "show", "run", "done"))
+    p.add_argument("id", nargs="?", help="a test id (list: a category or mnemonic)")
+    p.add_argument("--map", help="run: another map than the test's")
+    p.add_argument("--dry", action="store_true", help="run: print the scene only (notes as line %d)" % NUMBER_LINE)
+    p.add_argument("--observed", help="done: what you saw")
+    p.add_argument("--failed", action="store_true", help="done: it did not do what the test expects")
     p = sub.add_parser("record")
     p.add_argument("op"); p.add_argument("--call", required=True); p.add_argument("--observed", required=True)
     p.add_argument("--arg", type=int, action="append", default=[])
@@ -347,6 +481,8 @@ def main(argv=None):
         pc, path = install_sweep(a.map, listing)
         print("installed in %s's entry scene (@%04x) of %s" % (a.map, pc, path))
         print("walk into the map; each box names the value the next step uses")
+    elif a.cmd == "plan":
+        plan_cmd(a)
     elif a.cmd == "restore":
         print("restored %s from %s" % (a.map, restore(a.map)))
     elif a.cmd == "record":

@@ -778,6 +778,27 @@ default), which runs every time you walk in. That scene starts while the warp's 
 still up, so the sweep waits half a second first. Otherwise a fade or anything else on screen
 would be hidden.
 
+**The test plan** (`refdata/optest_plan.json`) is a list of prepared in-game tests, at least one
+for every instruction that is not verified yet. Each test says which thing it checks: what the
+instruction does, one or more of its arguments, or both. It also gives the map, the setup (what to
+have in your bag, the time of day, a throwaway save, ...), the steps and what you should see. Every
+step shows a note in a box first ("Next: the camera turns to the left"), so you know what to look
+for. A test marked *needs special context* has to run in a talk scene, at a festival or with some
+save state; its setup says how.
+
+```bash
+python optest.py plan                      # how many tests are still open, per category
+python optest.py plan list screen          # the tests of a category or an instruction
+python optest.py plan show WarpPlayer-xy   # the setup, steps and what to expect
+python optest.py plan run WarpPlayer-xy    # put it into the map's entry scene (--dry: print it only)
+python optest.py plan done WarpPlayer-xy --observed "moved 3 tiles right"   # (--failed if it did not)
+python optest.py restore MAP_F_ROOM_01     # afterwards
+```
+
+*plan done* records what you saw in the test log and marks the instruction and the arguments the
+test checks as verified (with `--failed` it only logs). A test whose map has no entry scene prints
+its scene instead; paste it with Ctrl+V where the setup says.
+
 **Reload from disk:** *🐞 Debug → ⟲ Reload rf3.mc + dialogue from disk* (F5) reads `rf3.mc`, the dialogue of every language, `em.bin` / `emdeb.bin` and the game's
 character, item and map names again from disk, for when another tool (`optest.py`, `rf4mod script …`) changed the file while the
 editor was open. It stays on the same scene; unsaved edits and the undo history are dropped (it
