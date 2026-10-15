@@ -934,7 +934,9 @@ def lint_listing(text, base=0x1000, resolver=None, text_count=None):
             if off is not None and base <= off < pool:
                 pool = off
         pc += st.size
-    return script.choice_problems(buf, stmts, text_count) + script.dialogue_suppress_problems(buf, stmts)
+    from . import scenelint
+    return (script.choice_problems(buf, stmts, text_count) + script.dialogue_suppress_problems(buf, stmts)
+            + scenelint.loop_problems(buf, stmts) + scenelint.warp_problems(buf, stmts))
 
 
 def operand_text(buf, off, op=None, ai=None):

@@ -2436,6 +2436,37 @@ def cmd_script_check(a):
     print(f"ok: {len(region)} bytes, labels {', '.join(f'{k}=0x{v:04x}' for k, v in labels.items()) or '(none)'}")
 
 
+def cmd_script_lint(a):
+    """Every engine-behaviour check (rf4s_modkit.scenelint) over the scenes of rf3.mc (or one
+    bank): loops that hold the player or hang the game, menus that freeze, dialogue
+    suppression left on, warps to no map, lines missing in a language or too long for the box."""
+    from rf4s_modkit import scenelint
+    _utf8_stdout()
+    c = script.Container(_resolve(a.file).read_bytes())
+    texts = {}
+    for loc in ("eng", "jpn", "deu", "fra", "kor", "twn", "chn"):
+        t = gamepaths.game_targets(["rf3mc.%s" % loc]) or {}
+        f = t.get("rf3mc.%s" % loc)
+        if f is not None and f.is_file():
+            arc = textdb.TextArchive.load(f)
+            texts[loc] = scenelint.TextSource(arc.text, len(arc))
+    banks = [a.bank] if a.bank is not None else range(len(c.banks))
+    n = found = 0
+    for bi in banks:
+        b = c.banks[bi]
+        seen = set()
+        for sc in script.disassemble_bank(b):
+            n += 1
+            for pc, level, msg in scenelint.scene_problems(b.data, list(sc.stmts.values()), texts):
+                if (pc, msg) in seen:                   # shared code: once per bank
+                    continue
+                seen.add((pc, msg))
+                found += 1
+                print("%s: bank %d scene @0x%04x, statement @0x%04x: %s" % (level, bi, sc.entry_pc, pc, msg))
+    print("%d scene(s) checked, %d problem(s)%s" % (n, found, "" if texts else
+          " (no rf3mc.<locale> found: the line checks were skipped)"))
+
+
 def cmd_script_expr(a):
     """Compile an expression to bytes (and decode them back), or decode --hex."""
     from rf4s_modkit import scriptasm
@@ -4372,6 +4403,12 @@ def build_parser():
     scc.add_argument("--listing"); scc.add_argument("--stmt")
     scc.add_argument("--text", help="rf3mc.<locale>: also check choice option ids against it")
     scc.set_defaults(func=cmd_script_check)
+    scl = scsub.add_parser("lint", help="check every scene (or one --bank) for loops that hold the "
+                           "player or hang the game, freezing menus, warps to no map, missing or too "
+                           "long lines")
+    scl.add_argument("file", nargs="?", default="rf3.mc")
+    scl.add_argument("--bank", type=int, help="only this container bank")
+    scl.set_defaults(func=cmd_script_lint)
     sce = scsub.add_parser("expr", help="compile an expression ('REG_WIFE_ID == 11') to bytes, or decode --hex")
     sce.add_argument("expr", nargs="?", default="")
     sce.add_argument("--hex", help="decode these expression bytes instead")

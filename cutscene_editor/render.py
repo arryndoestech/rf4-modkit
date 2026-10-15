@@ -632,9 +632,26 @@ class SceneText:
         return out
 
     # ---- the Overview tab -------------------------------------------------------------- #
+    def problems(self):
+        """[(pc, level, message)]: every engine-behaviour check on the scene
+        (rf4s_modkit.scenelint), its lines checked in every language the source has."""
+        from rf4s_modkit import scenelint
+        from .catalog import LOCALES
+        texts = {}
+        for loc in LOCALES:
+            arc = self.doc.archive(loc) if hasattr(self.doc, "archive") else None
+            if arc is not None:
+                texts[loc] = scenelint.TextSource(lambda i, a=arc: a.text(i), len(arc))
+        stmts = self.scene.stmts
+        stmts = list(stmts.values()) if isinstance(stmts, dict) else list(stmts)
+        try:
+            return scenelint.scene_problems(self.bank.data, stmts, texts)
+        except Exception:  # noqa: BLE001 -- the checks never block viewing a scene
+            return []
+
     def overview(self):
-        """[(text, tag)] segments: speakers, transcript, Event Manager triggers, flags written,
-        control-flow shape."""
+        """[(text, tag)] segments: checks, speakers, transcript, Event Manager triggers, flags
+        written, control-flow shape."""
         sc = self.scene
         out = []
 
@@ -643,6 +660,12 @@ class SceneText:
         typ = "discovered" if sc.action_type < 0 else catalog.type_label(sc.action_type)
         put("%s · scene @0x%04x · %s\n" % (catalog.bank_title(self.bank), sc.entry_pc, typ), "h1")
         put("%d statements%s\n\n" % (len(sc.stmts), "" if sc.ok else "   [PARTIAL: %s]" % sc.error), "k")
+        probs = self.problems()
+        if probs:
+            put("Checks (%d)\n" % len(probs), "h")
+            for pc, lvl, msg in probs:
+                put("  @0x%04x  %s: %s\n" % (pc, lvl, msg), "warn")
+            put("\n")
         stmts = list(sc.stmts.items())
         spk = OrderedDict()
         for _pc, st in stmts:

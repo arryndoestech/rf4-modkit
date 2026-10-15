@@ -933,6 +933,7 @@ class CutsceneExplorer:
         if view is None:
             view = (self.bank_pos, self.scene.entry_pc if self.scene else None)
         steps = list(self.doc.undo_stack)
+        before = self._problem_texts()
 
         def run():
             if self.doc.container is not None:
@@ -949,25 +950,31 @@ class CutsceneExplorer:
         if self.doc.undo_stack and (not steps or self.doc.undo_stack[-1] is not steps[-1]):
             self.doc.undo_stack[-1]["view_after"] = (self.bank_pos, self.scene.entry_pc if self.scene else None)
         self.status(label)
-        self._warn_freezes(label)
+        self._warn_freezes(label, before)
         return True
 
-    def _warn_freezes(self, what):
-        """After an edit: warn about scene patterns that freeze or break the game: a menu
-        followed by its last option's line (script.choice_line_freezes) and SetDialogueSuppressed
-        misuse (script.dialogue_suppress_problems), and a masked menu whose options can all be
-        hidden (script.choice_empty_mask_problems)."""
+    def _problem_texts(self):
+        """The open scene's check messages (rf4s_modkit.scenelint via SceneText.problems), as a
+        set of texts -- pcs move with every edit, the messages do not."""
+        if self.scene is None or self.bank is None:
+            return set()
+        return {m for _pc, _lvl, m in SceneText(self.doc, self.bank, self.scene).problems()}
+
+    def _warn_freezes(self, what, before=None):
+        """After an edit: warn about the problems the edit brought into the scene (menus that
+        freeze, dialogue suppression left on, loops that hold the player or hang the game,
+        warps to no map, lines missing in a language or too long for the box -- see
+        rf4s_modkit.scenelint). Problems the scene had before are listed in the Overview tab
+        and not repeated here."""
         if self.scene is None:
             return
-        stmts = self.scene.stmts
-        stmts = sorted(stmts.values() if isinstance(stmts, dict) else stmts, key=lambda x: x.pc)
-        msgs = ["Menu at 0x%04x: %s" % (pc, script.freeze_text(line, dp))
-                for pc, dp, line in script.choice_line_freezes(stmts)]
-        msgs += ["0x%04x: %s" % (pc, m) for pc, _lvl, m in script.dialogue_suppress_problems(self.bank.data, stmts)]
-        msgs += ["Menu at 0x%04x: %s" % (pc, m) for pc, _lvl, m in script.choice_empty_mask_problems(self.bank.data, stmts)]
-        if msgs:
+        new = [(pc, lvl, m) for pc, lvl, m in SceneText(self.doc, self.bank, self.scene).problems()
+               if before is None or m not in before]
+        if new:
             messagebox.showwarning("Check this scene", "%s was applied, but:\n\n%s" % (
-                what, "\n\n".join(msgs)), parent=self.frame)
+                what, "\n\n".join("0x%04x: %s" % (pc, m) for pc, _lvl, m in new[:8])
+                + ("\n\n(+%d more in the Overview tab)" % (len(new) - 8) if len(new) > 8 else "")),
+                parent=self.frame)
 
     def _follow_relink(self):
         """A structural edit rebuilt the open bank (Container.last_relink): move the open

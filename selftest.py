@@ -5683,6 +5683,68 @@ def test_queued_reload():
         root.destroy()
 
 
+def test_scenelint():
+    """rf4s_modkit.scenelint: a loop waiting for the player (it never ends: no input during a
+    scene), a loop that never waits and has no exit (hang), a warp to no map, a line missing in
+    one language, a row too long / too many rows -- each caught; the shipped scenes stay quiet
+    (only a few real 4-row translations); the editor warns only about NEW problems."""
+    print("scene checks (scenelint):")
+    from rf4s_modkit import scenelint, scriptasm, script
+
+    def stmts_of(text):
+        reg, _l = scriptasm.assemble(text, 0x1000)
+        buf = bytes(0x1000) + reg
+        out, pc = [], 0x1000
+        while pc < len(buf):
+            st = script.decode_statement(buf, pc)
+            if st is None:
+                break
+            out.append(st)
+            pc += st.size
+            if st.mnem == "RET" and pc >= len(buf) - 64:
+                break
+        return buf, out
+
+    def probs(text, texts=None):
+        buf, sts = stmts_of(text)
+        return [m for _pc, _lvl, m in scenelint.scene_problems(buf, sts, texts)]
+    fade = ("loop:\n FadeScreen(-16, 12000)\n WaitForFade()\n FadeScreenToClear(12000)\n WaitForFade()\n"
+            " GetPlayerPosition()\n BR_Z ((reg0 >= 58) && (reg0 <= 452)) -> done\n JMP loop\ndone:\n RET")
+    _check("a loop waiting for the player's position is flagged (the 2026-10-14 trap)",
+           any("waits for the player" in m for m in probs(fade)), probs(fade))
+    walked = fade.replace(" GetPlayerPosition()", " WalkPlayerTo(100, 100, 30, 0)\n WaitPlayerMoveDone()\n GetPlayerPosition()")
+    _check("... but not when the scene moves the player itself", not any("waits for the player" in m for m in probs(walked)))
+    _check("a loop that never waits and has no exit is an error",
+           any("never waits" in m for m in probs("top:\n EVAL (reg1 = 1)\n JMP top")))
+    _check("a counting loop with an exit is fine",
+           not probs("EVAL (reg1 = 0)\ntop:\n EVAL (reg1 += 1)\n BR_Z (reg1 < 5) -> out\n JMP top\nout:\n RET"))
+    _check("a warp to a map id that has no map is flagged",
+           any("no map with that id" in m for m in probs("WarpToMap(60000, 10, 10, 0)\nRET")))
+
+    class T:
+        def __init__(self, lines):
+            self.lines, self.count = lines, len(lines)
+
+        def __call__(self, i):
+            return self.lines[i]
+    long = "x" * 90
+    texts = {"eng": T(["a", "b", long, "1\n2\n3\n4", "ok\n"]), "deu": T(["a", "b"])}
+    m = probs("DIALOG #1\nDIALOG #2\nDIALOG #3\nDIALOG #4\nRET", texts)
+    _check("lines: missing in one language, a row too long, too many rows (a trailing break is no row)",
+           any("does not exist in rf3mc.deu" in x for x in m) and any("90 characters" in x for x in m)
+           and any("4 rows" in x for x in m)
+           and not probs("DIALOG #4\nRET", {"eng": T(["a", "b", "c", "d", "ok\n"])}), m)
+    mc = _shipped("rf3.mc")
+    if mc is not None:
+        c = script.Container(mc.read_bytes())
+        n = bad = 0
+        for bi in range(0, len(c.banks), 7):                # a seventh of the banks, every check but text
+            for sc in script.disassemble_bank(c.banks[bi]):
+                n += 1
+                bad += len(scenelint.scene_problems(c.banks[bi].data, list(sc.stmts.values())))
+        _check("shipped scenes: none trips a structural check", n > 1000 and bad == 0, (n, bad))
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18105,7 +18167,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

@@ -590,9 +590,24 @@ event actors carry a 16-bit key, and 0 marks a removed one; anything outside sig
 and odd keys warn (type-2 keys 1..47, which ops that take an actor read as villagers -- use
 48..65535; the same type-2 key in another level of the tail → primary → global lookup; an item,
 gossip topic, festival, em.bin condition, map or character that does not exist). `script
-add-trigger` / `set-trigger` refuse the same way (`--force` overrides). The **Overview** tab summarises the scene: speakers, every dialogue line,
+add-trigger` / `set-trigger` refuse the same way (`--force` overrides). The **Overview** tab summarises the scene: its **checks**, speakers, every dialogue line,
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
-control flow. The **Graph** tab draws that control flow: the scene's basic blocks with their
+control flow.
+
+**Scene checks** (`rf4s_modkit/scenelint.py`; after every edit the editor warns about the
+problems that edit brought in, and the Overview tab lists all of them):
+- a loop that waits for the player (their position, the stick) with no dialogue, menu or
+  scripted move in it: the player can't move while a scene runs, so it never ends;
+- a loop that never waits and has no way out (the game hangs);
+- a menu followed by its last option's line, dialogue suppression left on, a masked menu
+  whose options can all be hidden (they freeze or misbehave);
+- a warp to a map id that has no map;
+- a line missing in one of the languages (it shows line 0 there), or with more rows than the
+  box shows (3) or rows longer than the game's own text ever uses (80 characters, 30
+  full-width), per language.
+Effects the shipped scenes hand on to the next scene on purpose (the black overlay, a music
+lock, a frozen player) are not warned about. `rf4mod.py script lint` runs every check over the
+whole `rf3.mc` (or `--bank N`). The **Graph** tab draws that control flow: the scene's basic blocks with their
 statements, green / red arrows for the branch taken when a guard is true / false, orange for
 switch, choice and random slots, and loops up the right-hand side. The scene body sits on top;
 every subroutine it CALLs is its own titled group below it, and a CALL block's
