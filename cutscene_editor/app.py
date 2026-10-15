@@ -72,7 +72,10 @@ class CutsceneExplorer:
         self.view.show_xrefs = self.show_xrefs.get()
         if isinstance(parent, (tk.Tk, tk.Toplevel)):
             parent.protocol("WM_DELETE_WINDOW", self._on_close)
-        self._share_with_maps()
+        if "map_editor" in sys.modules:
+            self._share_with_maps()
+        else:                                   # the map editor's module loads numpy and the
+            later(self.frame, self._share_with_maps, self.SHARE_MAPS_MS)   # texture code: after
         if reader is not None:
             self._load()
         if focus_bank is not None:
@@ -1087,9 +1090,16 @@ class CutsceneExplorer:
 
     _maps_pending = None
 
+    SHARE_MAPS_MS = 400
+
     def _share_with_maps(self):
         """Map views in this program (the map editor's spawn markers, the position picker)
         show this editor's rf3.mc -- edits included, saved or not -- while it is open."""
+        try:
+            if not self.frame.winfo_exists():
+                return
+        except tk.TclError:
+            return
         try:
             from map_editor import data as map_data
         except ImportError:
@@ -1894,6 +1904,7 @@ class CutsceneExplorer:
         """Show `map_file` (MAP_CITY_00) in the map editor: the host's (the asset explorer's
         map tab) when there is one, else a map editor window of its own; its script spawns
         and areas then show this editor's rf3.mc, unsaved edits included."""
+        self._share_with_maps()                 # (deferred at start-up: the map views need it now)
         if self.on_open_map is not None:
             self.on_open_map(map_file)
             return True

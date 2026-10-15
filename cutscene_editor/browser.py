@@ -162,7 +162,12 @@ class Browser(ttk.Frame):
         doc = self.app.doc
         if doc.container is None:
             return
-        catalog.refresh_subevent_names(doc)       # town-event bank titles follow the language
+        if self._names_ready:
+            catalog.refresh_subevent_names(doc)   # town-event bank titles follow the language
+        elif self._names_job is None:
+            # the first time naming them parses the dialogue file and the global bank (a third
+            # of a second): the list shows first, the town-event titles follow
+            self._names_job = later(self, self._late_names, self.LATE_NAMES_MS)
         want = self._refresh_type_filter(doc)
         groups = {g: [] for g, _t in catalog.GROUP_TITLES}
         empty = self.show_empty.get()
@@ -178,6 +183,30 @@ class Browser(ttk.Frame):
             gid = t.insert("", "end", iid=f"g:{g}", text=f"{title}  ({len(groups[g])})", open=(g == "global"))
             for pos in groups[g]:
                 self._add_bank(gid, pos)
+
+    LATE_NAMES_MS = 250
+    _names_ready = False
+    _names_job = None
+
+    def _late_names(self):
+        """The town-event banks' titles, once the editor shows: named, then relabelled."""
+        self._names_job = None
+        try:
+            if not self.tree.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        doc = self.app.doc
+        self._names_ready = True
+        if doc.container is None:
+            return
+        catalog.refresh_subevent_names(doc)
+        for pos, bank in enumerate(doc.container.banks):
+            iid = "b:%d" % pos
+            if self.tree.exists(iid):
+                title = catalog.bank_title(bank)
+                if self.tree.item(iid, "text") != title:
+                    self.tree.item(iid, text=title)
 
     def _refresh_type_filter(self, doc):
         """Fill the Trigger type dropdown with the trigger types the open file uses (trigger counts
