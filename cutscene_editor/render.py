@@ -305,7 +305,8 @@ class SceneText:
             for k, (pc, st) in enumerate(seq):
                 if pc in self.labels:                   # selectable: add beats at the label
                     rows.append(Row([("%s:" % self.labels[pc], "lbl")]
-                                    + ([(self.xref_note(pc), self.xref_tag(pc))] if show_xrefs else []),
+                                    + ([("  · ", "dim"), (self.xref_note(pc)[len("  · "):], self.xref_tag(pc))]
+                                       if show_xrefs else []),
                                     (pc, "label"), st))
                 speaker = self._story_stmt(rows, pc, st, addr, speaker)
                 # each statement is shown once, so a path that runs on into one shown

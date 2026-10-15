@@ -6055,6 +6055,7 @@ def test_xrefs_button():
         # the count is a link: one caller -> open it, several -> the Xrefs window
         t = ex.view.text
         links = t.tag_ranges("xreflink")
+        link_texts = [t.get(links[i], links[i + 1]) for i in range(0, len(links), 2)]
         counts = {pc: len(_cat.collect_xrefs(ex.bank, pc)) for pc in script.scene_labels(ex.scene)}
         clicked = None
         if links:
@@ -6073,7 +6074,8 @@ def test_xrefs_button():
                want and all(w in body for w in want), (want, body[:300]))
         _check("the counts are links on labels that something leads to (%d labels, %d links)"
                % (len(counts), len(links) // 2),
-               len(links) // 2 == sum(1 for n in counts.values() if n) and clicked is not None, clicked)
+               len(links) // 2 == sum(1 for n in counts.values() if n) and clicked is not None
+               and all(re.fullmatch(r"\d+ xrefs?", x) for x in link_texts), (clicked, link_texts))
         bank = ex.bank
         one = next((pc for pc, n in sorted(_cat.xref_counts(bank).items()) if n == 1), None)
         many = next((pc for pc, n in sorted(_cat.xref_counts(bank).items()) if n >= 2), None)
