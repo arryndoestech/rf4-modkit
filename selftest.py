@@ -5745,6 +5745,100 @@ def test_scenelint():
         _check("shipped scenes: none trips a structural check", n > 1000 and bad == 0, (n, bad))
 
 
+def test_translations():
+    """Translations: line states (missing, placeholder, untranslated only for new / changed lines,
+    value codes, too long), the Translations window (a new English line padded into German shows
+    as untranslated; Apply writes German, one undo step), and CSV export / import (changed lines
+    only, a line the game would mishandle refused)."""
+    print("translations (rf4s_modkit.translate + the Translations window):")
+    from rf4s_modkit import translate
+    st = translate.line_state
+    _check("states: missing, placeholder, value codes dropped, too long",
+           [k for k, _m in st("Hi", None)] == ["missing"]
+           and [k for k, _m in st("Hi", "[deu TBD]")] == ["filler"]
+           and "codes" in [k for k, _m in st("You got ＠数字０＠ gold", "Du hast Gold")]
+           and "long" in [k for k, _m in st("x", "y" * 90)])
+    _check("untranslated only for new or changed lines when the originals are known",
+           [k for k, _m in st("Forte says hi", "Forte says hi", "Forte says hi", "Forte says hi", True)] == []
+           and [k for k, _m in st("Forte says hi", "Forte says hi", None, None, True)] == ["untranslated"])
+    rows = translate.rows([0, 1], lambda i: ["Hello there", "New ＠数字０＠"][i],
+                          lambda i: ["Hallo du\nzweite Zeile", None][i])
+    csvt = translate.export_csv(rows, "eng", "deu")
+    back = translate.read_csv(csvt, "deu")
+    _check("CSV round trip keeps line breaks; empty targets are skipped",
+           back == {0: "Hallo du\nzweite Zeile"}, back)
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("translations window", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from cutscene_editor import translate_window as tw
+    mc = _shipped("rf3.mc")
+    if mc is None or _first("rf3mc.deu") is None:
+        _skip("translations window", "rf3.mc / rf3mc.deu not found"); return
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        o = _gamepaths.backup_path(f) if f is not None else None
+        f = o if o is not None and o.is_file() else f
+        return f.read_bytes() if f else None
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        ex.doc.locale = "eng"
+        ex.open_scene(407, 0x515A)
+        nid, touched = ex.doc.add_line("A brand new line for the test.", pad_locales=True)
+        ex.select((0x5180, None))
+        ok_ins = ex.insert_after(0x5180, "DIALOG #%d" % nid)
+        root.update()
+        w = ex.open_translations()
+        w.src.set("eng"); w.tgt.set("deu"); w.scope.set("This scene"); w.show.set("Needs work")
+        w.refresh()
+        listed = [int(k) for k in w.tree.get_children()]
+        state = w.tree.set(str(nid), "state") if w.tree.exists(str(nid)) else ""
+        w.tree.selection_set(str(nid)); w._pick()
+        w.tgt_txt.delete("1.0", "end"); w.tgt_txt.insert("1.0", "Eine ganz neue Zeile.")
+        applied = w.apply()
+        de = ex.doc.archive("deu").text(nid)
+        _check("a new English line padded into German is listed as untranslated; Apply writes German",
+               ok_ins and "deu" in touched and listed == [nid] and "same as source" in state
+               and applied and de == "Eine ganz neue Zeile." and not w.tree.get_children(), (listed, state, de))
+        ex.undo()
+        _check("... one undo step", ex.doc.archive("deu").text(nid) == "A brand new line for the test.")
+        w.show.set("Everything"); w.refresh()
+        out = tmp / "x.csv"
+        w.export(str(out))
+        import csv as _csv
+        import io as _io
+
+        def with_target(text):
+            rows_ = list(_csv.reader(_io.StringIO(out.read_text(encoding="utf-8-sig"))))
+            for r_ in rows_[1:]:
+                if r_ and r_[0] == str(nid):
+                    r_[3] = text
+            buf_ = _io.StringIO()
+            _csv.writer(buf_, lineterminator="\r\n").writerows(rows_)
+            return buf_.getvalue()
+        good = with_target("Per CSV übersetzt.")
+        bad = with_target("Kaputt ＠‡ hier")             # an unclosed gender switch: the game reads past the line
+        out.write_text(good, encoding="utf-8")
+        n, refused = w.import_(str(out))
+        _check("CSV import: only the changed line goes in, as one undo step",
+               n == 1 and not refused and ex.doc.archive("deu").text(nid) == "Per CSV übersetzt.", (n, refused))
+        ex.undo()
+        out.write_text(bad, encoding="utf-8")
+        n2, refused2 = w.import_(str(out))
+        _check("a line the game would mishandle is refused and listed",
+               n2 == 0 and refused2 and ex.doc.archive("deu").text(nid) == "A brand new line for the test.",
+               (n2, refused2))
+        w.win.destroy()
+    finally:
+        root.destroy()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18167,7 +18261,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

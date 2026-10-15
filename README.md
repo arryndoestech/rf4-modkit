@@ -594,6 +594,18 @@ add-trigger` / `set-trigger` refuse the same way (`--force` overrides). The **Ov
 the Event Manager entries it gates on or runs, the flags and variables it writes, and its
 control flow.
 
+**Translations…** (toolbar) shows the lines of this scene, this bank or every scene in two
+languages (from / to) with what needs work in the target: *missing* (that language shows line 0),
+*placeholder* (the `[deu TBD]` a new line is padded with), *same as source* (only lines that are
+new or changed since the original game -- the shipped German and French keep about 2,100 lines
+identical to English on purpose), *value codes differ* (a `＠数字０＠` / `＠キャラ０＠` slot dropped
+or added) and *too long* for the box. Pick a line, type the translation and *Apply*
+(Ctrl+Enter; one undo step, the usual text checks); *Next to do* (Ctrl+Down) jumps to the next
+one. *Export CSV…* / *Import CSV…* hand the lines to a translator and read them back (changed
+lines only, one undo step; lines the game would mishandle are listed and left out). On the
+command line: `rf4mod.py text tr-export rf3mc.eng rf3mc.deu --mc rf3.mc [--bank N] -o lines.csv`
+and `rf4mod.py text tr-import lines.csv rf3mc.deu`.
+
 **Scene checks** (`rf4s_modkit/scenelint.py`; after every edit the editor warns about the
 problems that edit brought in, and the Overview tab lists all of them):
 - a loop that waits for the player (their position, the stick) with no dialogue, menu or

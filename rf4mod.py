@@ -468,6 +468,83 @@ def _refuse_broken(pairs, force):
     print(f"--force: writing anyway ({len(pairs)} line(s) would break the game)", file=sys.stderr)
 
 
+def _tr_ids(a):
+    """Line ids for tr-export: the scenes of rf3.mc (--bank: one bank), {id: where}; or every
+    line of the source file when no rf3.mc is given."""
+    from rf4s_modkit import translate
+    if not a.mc:
+        return None, {}
+    c = script.Container(_resolve(a.mc).read_bytes())
+    ids, where = [], {}
+    for bi in ([a.bank] if a.bank is not None else range(len(c.banks))):
+        b = c.banks[bi]
+        if len(b.data) <= 296:
+            continue
+        for sc in script.disassemble_bank(b):
+            for i in translate.scene_line_ids(sc.stmts.values()):
+                if i not in where:
+                    where[i] = "bank %d @%04x" % (bi, sc.entry_pc)
+                    ids.append(i)
+    return ids, where
+
+
+def cmd_text_tr_export(a):
+    """Lines of a source and a target rf3mc.<locale> as CSV for a translator, with what needs
+    work (rf4s_modkit.translate)."""
+    from rf4s_modkit import translate
+    src, tgt = textdb.TextArchive.load(_resolve(a.source)), textdb.TextArchive.load(_resolve(a.target))
+    sl, tl = pathlib.Path(a.source).suffix.lstrip("."), pathlib.Path(a.target).suffix.lstrip(".")
+
+    def get(arc):
+        return lambda i: arc.text(i) if 0 <= i < len(arc) else None
+    ids, where = _tr_ids(a)
+    if ids is None:
+        ids = list(range(len(src)))
+    orig = {}
+    for name, loc in ((a.source, sl), (a.target, tl)):
+        o = gamepaths.backup_path(_resolve(name))
+        orig[loc] = textdb.TextArchive.load(o) if o is not None and o.is_file() else None
+    have = orig[sl] is not None and orig[tl] is not None
+    rows = translate.rows(ids, get(src), get(tgt), where, get(orig[sl]) if have else None,
+                          get(orig[tl]) if have else None)
+    if not a.all:
+        rows = [r for r in rows if r[4]]
+    pathlib.Path(a.out).write_text(translate.export_csv(rows, sl, tl), encoding="utf-8", newline="")
+    print("wrote %d line(s) to %s%s" % (len(rows), a.out, "" if a.all else " (only the ones that need work; --all for every line)"))
+
+
+def cmd_text_tr_import(a):
+    """A translated CSV back into rf3mc.<locale>: changed lines only, each checked; a missing id
+    is padded with placeholders."""
+    from rf4s_modkit import textlint, translate
+    _utf8_stdout()
+    p = _resolve(a.target)
+    arc = textdb.TextArchive.load(p)
+    loc = p.suffix.lstrip(".")
+    got = translate.read_csv(pathlib.Path(a.csv).read_text(encoding="utf-8-sig"), loc)
+    n, refused = 0, []
+    for lid, text in sorted(got.items()):
+        cur = arc.text(lid) if lid < len(arc) else None
+        if cur == text:
+            continue
+        errs = textlint.errors(text)
+        if errs:
+            refused.append((lid, textlint.format_issues(errs, 2)))
+            continue
+        while len(arc) < lid:
+            arc.append_text("[%s TBD]" % loc)
+        if lid < len(arc):
+            arc.set_text(lid, text)
+        else:
+            arc.append_text(text)
+        n += 1
+    out = _out_or_game(a.out, p)
+    out.write_bytes(arc.build())
+    for lid, why in refused:
+        print("left out #%d: %s" % (lid, why))
+    print("%d line(s) changed; wrote %s" % (n, out))
+
+
 def cmd_text_encode(a):
     data = json.loads(pathlib.Path(a.json).read_text(encoding="utf-8"))
     if isinstance(data, list):
@@ -3911,6 +3988,22 @@ def build_parser():
     t2.add_argument("--enc", default="utf-8")
     t2.add_argument("--force", action="store_true", help="write even lines the game would crash on")
     t2.set_defaults(func=cmd_text_encode)
+    t8 = tsub.add_parser("tr-export", help="lines of two languages as CSV for a translator, with what "
+                         "needs work (missing, placeholder, untranslated, value codes, too long)")
+    t8.add_argument("source", help="rf3mc.<locale> to translate from (e.g. rf3mc.eng)")
+    t8.add_argument("target", help="rf3mc.<locale> to translate into (e.g. rf3mc.deu)")
+    t8.add_argument("--mc", help="rf3.mc: only lines its scenes use (with where they are)")
+    t8.add_argument("--bank", type=int, help="with --mc: only this container bank's scenes")
+    t8.add_argument("--all", action="store_true", help="every line, not only the ones that need work")
+    t8.add_argument("-o", "--out", required=True)
+    t8.set_defaults(func=cmd_text_tr_export)
+    t9 = tsub.add_parser("tr-import", help="a translated CSV back into rf3mc.<locale> (changed lines, "
+                         "each checked)")
+    t9.add_argument("csv")
+    t9.add_argument("target", help="rf3mc.<locale> the CSV translates into")
+    t9.add_argument("-o", "--out", help="output file (default: overwrite the game's copy; Backups in "
+                                        "Options keep the original)")
+    t9.set_defaults(func=cmd_text_tr_import)
     tc = tsub.add_parser("check", help="list the lines the game would show wrongly or crash on "
                          "(bad ＠ tokens, a broken ＠‡A,B＠, odd ＋/／ colour marks...)")
     tc.add_argument("file"); tc.add_argument("--enc", default="utf-8")

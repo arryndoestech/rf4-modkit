@@ -331,6 +331,11 @@ class CutsceneExplorer:
         Tip(nb, "Create a new scene in the open bank: when it plays, its keys and its body.")
         eb = ttk.Button(bar, text="Event Manager…", command=self.open_event_manager)
         eb.pack(side="left", padx=4)
+        tb = ttk.Button(bar, text="Translations…", command=self.open_translations)
+        tb.pack(side="left")
+        Tip(tb, "This scene's (or bank's, or every scene's) lines in two languages: what is missing, "
+                "still a placeholder, untranslated, has different value codes or is too long; edit "
+                "them in place, or export / import CSV for a translator.")
         Tip(eb, "em.bin: the conditions ('plays when') and flag effects scenes bridge to.")
         vb = ttk.Button(bar, text="Variables…", command=lambda: self.open_reference("Flags & variables"))
         Tip(vb, "The game's flags and numbers by name, with where each is used: rename them, "
@@ -1148,6 +1153,61 @@ class CutsceneExplorer:
             return False
         self._edited_lines.add((self.doc.locale, line_id))
         return self.apply("Edit line #%d (%s)" % (line_id, self.doc.locale), lambda: arc.set_text(line_id, text))
+
+    @staticmethod
+    def _put_line(arc, loc, line_id, text):
+        """Set line `line_id` of `arc`; an id past its end is padded with placeholders first."""
+        if line_id < len(arc):
+            arc.set_text(line_id, text)
+            return
+        while len(arc) < line_id:
+            arc.append_text("[%s TBD]" % loc)
+        arc.append_text(text)
+
+    def set_text_in(self, locale, line_id, text):
+        """Set a line in any language (the Translations window): checked like any line edit;
+        a line id that language does not have yet is padded in. One undo step."""
+        arc = self.doc.archive(locale)
+        if arc is None:
+            self.status("rf3mc.%s is not loaded" % locale)
+            return False
+        if not self.check_text(text, "Line #%d (%s)" % (line_id, locale)):
+            return False
+        self._edited_lines.add((locale, line_id))
+        return self.apply("Edit line #%d (%s)" % (line_id, locale),
+                          lambda: self._put_line(arc, locale, line_id, text))
+
+    def set_texts_in(self, locale, changes, label):
+        """Several lines of one language as one undo step ({id: text}; already checked).
+        Returns how many were set."""
+        arc = self.doc.archive(locale)
+        if arc is None or not changes:
+            return 0
+
+        def do():
+            for lid, text in sorted(changes.items()):
+                self._put_line(arc, locale, lid, text)
+        for lid in changes:
+            self._edited_lines.add((locale, lid))
+        return len(changes) if self.apply(label, do) else 0
+
+    _translations = None
+
+    def open_translations(self):
+        """The Translations window (one per editor)."""
+        from .translate_window import TranslateWindow
+        w = self._translations
+        try:
+            alive = w is not None and bool(w.win.winfo_exists())
+        except tk.TclError:
+            alive = False
+        if not alive:
+            w = self._translations = TranslateWindow(self)
+        else:
+            w.win.deiconify()
+            w.win.lift()
+            w.refresh()
+        return w
 
     def retarget(self, pc, line_id):
         return self.apply("Point DIALOG @0x%04x at line #%d" % (pc, line_id),
