@@ -460,17 +460,24 @@ def loose_index(game_root) -> dict:
     out = {}
 
     def walk(d, rel):
+        # scandir: whether an entry is a folder comes with the listing on Windows (one
+        # isdir() per file was most of the ~0.4 s for the ~38,000 files)
         try:
-            names = sorted(os.listdir(d), key=lambda n: n.encode("utf-8", "surrogateescape"))
+            with os.scandir(d) as it:
+                ents = sorted(it, key=lambda e: e.name.encode("utf-8", "surrogateescape"))
         except OSError:
             return
-        for n in names:
+        for e in ents:
+            n = e.name
             if n.startswith("."):
                 continue
-            p = os.path.join(d, n)
             r = n if not rel else rel + "/" + n
-            if os.path.isdir(p):
-                walk(p, r)
+            try:
+                is_dir = e.is_dir()               # follows links, like os.path.isdir
+            except OSError:
+                is_dir = False
+            if is_dir:
+                walk(e.path, r)
             else:
                 out.setdefault(n, []).append(r)
     walk(str(root), "")

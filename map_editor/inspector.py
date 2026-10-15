@@ -1008,6 +1008,24 @@ class AddOptions(ttk.Frame):
 
 
 # --------------------------------------------------------------------------- #
+class _LazyForms(dict):
+    """{selection kind: form}, each form built on first access (and its widgets given the
+    column's wheel scrolling then). 'mpos' shares the 'gpos' form."""
+
+    def __init__(self, classes, make, bind_wheel):
+        super().__init__()
+        self._classes, self._make, self._bind_wheel = classes, make, bind_wheel
+
+    def __missing__(self, key):
+        if key == "mpos":
+            form = self["gpos"]
+        else:
+            form = self._make(self._classes[key])
+            self._bind_wheel(form)
+        self[key] = form
+        return form
+
+
 class Inspector(ui.ScrollFrame):
     def __init__(self, parent, ed):
         super().__init__(parent)
@@ -1021,10 +1039,11 @@ class Inspector(ui.ScrollFrame):
         self.paint = PaintOptions(tool_box, ed)
         self.add = AddOptions(tool_box, ed)
         self.sel_box = section(b, "Selection")
-        self.forms = {"mobj": EntityForm(self.sel_box, ed), "warp": WarpForm(self.sel_box, ed),
-                      "si": SpotForm(self.sel_box, ed), "gpos": PointForm(self.sel_box, ed),
-                      "none": TileForm(self.sel_box, ed)}
-        self.forms["mpos"] = self.forms["gpos"]
+        # each selection form is built the first time it is needed: opening a map shows only
+        # the tile form, and the object / warp / spot forms are most of this tab's widgets
+        self.forms = _LazyForms({"mobj": EntityForm, "warp": WarpForm, "si": SpotForm,
+                                 "gpos": PointForm, "none": TileForm},
+                                lambda cls: cls(self.sel_box, ed), self.bind_wheel_tree)
         self._form = None
         self._tool = None
         self.show_selection(None)
