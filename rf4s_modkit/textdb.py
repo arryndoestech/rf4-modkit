@@ -68,18 +68,16 @@ class TextArchive:
         count = struct.unpack_from("<I", data, 4)[0]
         if count > (len(data) // 8):
             raise TextDbError(f"implausible entry_count {count} for {len(data)}-byte file")
-        entries = []
-        spans = []
-        for i in range(count):
-            length, offset = struct.unpack_from("<II", data, 8 + i * 8)
-            if offset == 0 and length == 0:
-                entries.append(b"")
-                continue
-            if offset + length > len(data):
+        # the whole offset table in one unpack, the entries in one pass (113,000 lines per
+        # language: the per-line struct calls were most of the time)
+        table = struct.unpack_from("<%dI" % (2 * count), data, 8)
+        lens, offs = table[0::2], table[1::2]
+        n = len(data)
+        for i, (length, offset) in enumerate(zip(lens, offs)):
+            if offset + length > n and (offset or length):
                 raise TextDbError(f"entry {i} runs past EOF (off={offset}, len={length})")
-            entries.append(data[offset:offset + length])
-            if length:
-                spans.append((offset, length))
+        entries = [data[o:o + ln] if (o or ln) else b"" for ln, o in zip(lens, offs)]
+        spans = [(o, ln) for ln, o in zip(lens, offs) if ln]
         return cls(entries, terminator=cls._detect_terminator(data, spans))
 
     @staticmethod
@@ -87,10 +85,12 @@ class TextArchive:
         """2 when every stored string is followed by exactly two NULs, else 1."""
         if not spans:
             return 1
-        spans = sorted(set(spans))
-        for k, (off, ln) in enumerate(spans):
-            nxt = spans[k + 1][0] if k + 1 < len(spans) else len(data)
-            if nxt - (off + ln) != 2 or data[off + ln:off + ln + 2] != b"\x00\x00":
+        if any(a >= b for a, b in zip(spans, spans[1:])):    # the game's files: already in order
+            spans = sorted(set(spans))
+        nexts = [o for o, _ln in spans[1:]] + [len(data)]
+        for (off, ln), nxt in zip(spans, nexts):
+            end = off + ln
+            if nxt - end != 2 or data[end:end + 2] != b"\x00\x00":
                 return 1
         return 2
 

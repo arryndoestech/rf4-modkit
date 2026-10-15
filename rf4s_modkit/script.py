@@ -2259,8 +2259,31 @@ def scene_own_pcs(bank, scene):
     return (set(scene.stmts) - shared) | {scene.entry_pc}
 
 
+_BANK_SCENES = OrderedDict()       # (index, kind, discover, bank bytes) -> [Scene], newest last
+BANK_SCENES_KEEP = 48              # banks kept (all 1,121 would hold millions of statements)
+
+
 def disassemble_bank(bank, discover=True):
-    """Return list[Scene] for every scene in the bank.
+    """Return list[Scene] for every scene in the bank (a new list; the Scenes are shared).
+
+    Cached by the bank's bytes: opening one scene asked for the same bank up to four times
+    (browser, Source tab, checks, the scene itself), 0.7 s each for a big bank. An edit
+    changes the bytes, so an edited bank is disassembled afresh. Nothing may change a Scene
+    or Statement it gets from here (none does: the editor copies a Scene before moving it)."""
+    key = (bank.index, bank.kind, bool(discover), bytes(bank.data))
+    hit = _BANK_SCENES.get(key)
+    if hit is not None:
+        _BANK_SCENES.move_to_end(key)
+        return list(hit)
+    scenes = _disassemble_bank(bank, discover)
+    _BANK_SCENES[key] = scenes
+    while len(_BANK_SCENES) > BANK_SCENES_KEEP:
+        _BANK_SCENES.popitem(last=False)
+    return list(scenes)
+
+
+def _disassemble_bank(bank, discover=True):
+    """disassemble_bank without the cache.
 
     Scenes come from two sources: (1) the bank's type-table entry lists (the
     per-bank registry), and (2) when ``discover`` is set, a gap-fill pass that
