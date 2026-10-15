@@ -1331,6 +1331,23 @@ class App:
         ttk.Label(adv, text="Every list in the Reference window gets an Export CSV… button that saves "
                             "the rows the filter lets through, in the list's order.",
                   foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
+        self._play_scene = tk.BooleanVar(value=CutsceneExplorer.play_scene_setting())
+
+        def play_changed():
+            CutsceneExplorer.set_play_scene_setting(bool(self._play_scene.get()))
+            cur = getattr(self, "_cutscene_ed", None)      # an open editor follows at once
+            try:
+                if cur is not None and cur[0].winfo_exists():
+                    cur[1].apply_play_scene()
+            except tk.TclError:
+                pass
+        ttk.Checkbutton(adv, text="Play this scene now (Debug menu)", variable=self._play_scene,
+                        command=play_changed).pack(anchor="w", pady=(6, 0))
+        ttk.Label(adv, text="Starts the open scene in the game the Debugger is attached to, without "
+                            "walking to its trigger (Ctrl+Shift+P): scenes of the map you stand "
+                            "on only. It runs for real -- flags can be put back afterwards, items, "
+                            "money and the party cannot. Use a throwaway save.",
+                  foreground="#666", wraplength=380, justify="left").pack(anchor="w", padx=(20, 0))
         # bottom row: the toolkit's version (commit + date, selectable for bug reports) on the
         # left, its text sitting on the same line as the bottom of Close on the right
         foot = ttk.Frame(body)

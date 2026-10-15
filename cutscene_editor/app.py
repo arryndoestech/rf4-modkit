@@ -175,6 +175,8 @@ class CutsceneExplorer:
             ("f", lambda e: self.focus_search())],
             home=lambda: getattr(getattr(self, "view", None), "text", None))   # the Script rows
         self.frame.bind_class(self._bindtag, "<F5>", lambda e: (self.reload_from_disk(), "break")[1])
+        # Ctrl+Shift+P: Play this scene now (does nothing while the Advanced option is off)
+        self.frame.bind_class(self._bindtag, "<Control-P>", lambda e: (self.play_scene_now(), "break")[1])
         self._names_job = self.frame.after(self.NAMES_EVERY_MS, self._watch_names)
         self.frame.bind("<Destroy>", self._cancel_names_watch, add="+")
 
@@ -353,6 +355,7 @@ class CutsceneExplorer:
         db["menu"] = dm
         db.pack(side="left", padx=4)
         self.debug_menu = dm
+        self.apply_play_scene()
         Tip(db, "Launch game: save, then start the game.\n"
                 "Reload in game (Ctrl+R): save, then load your scenes, text and em.bin into the "
                 "game the Debugger is attached to (while a scene plays, it waits until the scene "
@@ -783,6 +786,57 @@ class CutsceneExplorer:
         d = dict(cls._load_prefs())
         d["variable_editor"] = bool(on)
         gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    PLAY_LABEL = "▶ Play this scene now"
+
+    @classmethod
+    def play_scene_setting(cls):
+        """'Play this scene now' (Options -> Advanced -> Cutscene Editor): a Debug menu entry
+        that starts the open scene in the running game without its trigger. Off by default:
+        the scene runs for real (flags, items, money) outside the situation it was made for."""
+        return bool(cls._load_prefs().get("play_scene", False))
+
+    @classmethod
+    def set_play_scene_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["play_scene"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    @classmethod
+    def play_restore_setting(cls):
+        """Put the game flags back when a played scene ends (the Play dialog's tick box)."""
+        return bool(cls._load_prefs().get("play_restore_flags", True))
+
+    @classmethod
+    def set_play_restore_setting(cls, on):
+        from rf4s_modkit import gamepaths
+        d = dict(cls._load_prefs())
+        d["play_restore_flags"] = bool(on)
+        gamepaths.set_setting(cls.PREFS_KEY, d)
+
+    def _play_menu_index(self):
+        m = self.debug_menu
+        for i in range((m.index("end") or 0) + 1):
+            try:
+                if m.type(i) == "command" and m.entrycget(i, "label") == self.PLAY_LABEL:
+                    return i
+            except tk.TclError:
+                pass
+        return None
+
+    def apply_play_scene(self):
+        """Show / hide Debug -> Play this scene now (and its Ctrl+Shift+P) with the option."""
+        m = getattr(self, "debug_menu", None)
+        if m is None:
+            return
+        at = self._play_menu_index()
+        if self.play_scene_setting():
+            if at is None:
+                m.insert_command(3, label=self.PLAY_LABEL, accelerator="Ctrl+Shift+P",
+                                 command=self.play_scene_now)
+        elif at is not None:
+            m.delete(at)
 
     def apply_variable_editor(self):
         """Show / hide the Variables… button and the open Reference's editor buttons."""
@@ -2598,6 +2652,252 @@ class CutsceneExplorer:
             self._reload_now(pid, path, em, after_wait=True)
         later(self.frame, tick, self.QUEUE_EVERY_MS)
         return "queued"
+
+    # ---- Play this scene now (Options -> Advanced) ------------------------------------- #
+    PLAY_EVERY_MS = 250
+    PLAY_WAIT_START_MS = 20 * 1000            # the game has not taken the scene after this: drop it
+    PLAY_QUEUE_GIVE_UP_MS = 5 * 60 * 1000     # waiting for another scene to end
+    PLAY_OK_TYPES = (3, 6, 7, 68)             # map scenes that need nothing from their trigger
+    _play = None
+
+    def _play_checks(self):
+        """(debugger, map bank index, error text or None, warnings) for the open scene."""
+        from rf4s_modkit import map_names, entry_types
+        d = self._debugger
+        dbg = getattr(d, "dbg", None) if d is not None else None
+        if self.scene is None or self.bank_pos is None:
+            return dbg, None, "open a scene first", []
+        if dbg is None:
+            return dbg, None, ("attach to the game first (Debug → Debugger… → Attach): the scene "
+                               "plays in the game the debugger is attached to"), []
+        c = self.doc.container
+        pos = self.bank_pos
+        if not c.n_primary <= pos < c.n_primary + c.n_tail:
+            kind = "the global bank" if self.bank.kind == "global" else "an NPC / story bank (%d)" % pos
+            return dbg, None, ("this scene is in %s: only scenes of a map's bank can be played "
+                               "now -- the game starts the others from a talk, an item or a "
+                               "story step, which sets up who and what they act on" % kind), []
+        tail = pos - c.n_primary
+        warn = []
+        types = sorted({t for t in range(80) for r in self.bank.entry_records(t)
+                        if r.event_id == self.scene.entry_pc})
+        odd = [t for t in types if t not in self.PLAY_OK_TYPES]
+        if odd:
+            names = ", ".join("%s (type %d)" % (entry_types.ENTRY_TYPES.get(t, {}).get("name", "?"), t)
+                              for t in odd)
+            warn.append("It normally starts as %s. Started now, nothing of that is set up: "
+                        "instructions on 'the actor you talk to' or the item you gave may act on "
+                        "nobody or on someone else." % names)
+        probs = sorted(self._problem_texts())
+        if probs:
+            warn.append("The scene checks found: " + "; ".join(probs[:4])
+                        + (" (+%d more)" % (len(probs) - 4) if len(probs) > 4 else ""))
+        mp = map_names.map_name(tail) or "map %d" % tail
+        return dbg, (tail, mp), None, warn
+
+    def play_scene_now(self):
+        """Debug -> Play this scene now: start the open scene in the running game the way a
+        walk-in box starts one (rf4s_modkit.playscene; only scenes of a map's bank, while the
+        player is on that map). Asks first, snapshots the game flags and puts them back when
+        the scene ends (when ticked). Returns True (started or queued) or False."""
+        from rf4s_modkit import playscene
+        if not self.play_scene_setting():
+            return False
+        if self._play is not None:
+            self.status("Play: the scene started from here is still %s in the game"
+                        % self._play["phase"])
+            return False
+        dbg, where, err, warn = self._play_checks()
+        if err:
+            self.status("Play: " + err)
+            return False
+        tail, mp = where
+        try:
+            st = playscene.game_state(dbg.g)
+        except Exception as e:  # noqa: BLE001 -- the game was closed
+            self.status("Play: %s" % err_text(e))
+            return False
+        if st["tail"] is not None and st["tail"] != tail:
+            from rf4s_modkit import map_names
+            here = map_names.map_name(st["tail"]) or "map %d" % st["tail"]
+            same = (" -- the same place in another season or story state, whose bank the game "
+                    "loads only then" if here == mp else ". Walk there first (Open map shows it)")
+            self.status("Play: this scene belongs to %s (map %d) and plays only there; the player "
+                        "is in %s (map %d)%s." % (mp, tail, here, st["tail"], same))
+            return False
+        if self.unsaved() or dbg.game_bank(self.bank_pos) != bytes(self.bank.data):
+            if not messagebox.askyesno(
+                    "Play this scene now", "The game runs another version of this bank. Save and "
+                    "reload it in the game first (Ctrl+R)?", parent=self.frame.winfo_toplevel()):
+                return False
+            if self.reload_in_game() is not True:
+                self.status("Play: the bank could not be reloaded in the game now (a scene is "
+                            "playing?) -- try again once it is in")
+                return False
+            if dbg.game_bank(self.bank_pos) != bytes(self.bank.data):
+                self.status("Play: the game still has another version of this bank")
+                return False
+        restore = self._ask_play(mp, warn)
+        if restore is None:
+            return False
+        bits = dbg._flags_bits()
+        before = bytes(dbg.g.read(bits, len(dbg.flags_blob() or b""))) if bits else None
+        self._play = dict(phase="waiting", pc=self.scene.entry_pc, tail=tail, map=mp, dbg=dbg,
+                          bits=bits, before=before, restore=restore and before is not None,
+                          waited=0, token=object(), title=self.scene_title())
+        return self._play_try()
+
+    def scene_title(self):
+        return "bank %d @%04x" % (self.bank_pos, self.scene.entry_pc) if self.scene else ""
+
+    def _ask_play(self, mp, warn):
+        """The confirmation: what happens, what is real, the warnings. Returns the restore
+        choice (True / False) or None (cancelled)."""
+        top = self.frame.winfo_toplevel()
+        win = tk.Toplevel(top)
+        win.title("Play this scene now")
+        win.transient(top)
+        body = ttk.Frame(win, padding=12)
+        body.pack(fill="both", expand=True)
+        text = ("Starts %s in the running game now, the way a walk-in box starts a scene on %s. "
+                "It runs for real: flags, items, money, the party and where you stand change "
+                "as the scene says. Test on a throwaway save." % (self.scene_title(), mp))
+        ttk.Label(body, text=text, wraplength=460, justify="left").pack(anchor="w")
+        for w in warn:
+            ttk.Label(body, text="⚠ " + w, wraplength=460, justify="left",
+                      foreground="#a05000").pack(anchor="w", pady=(8, 0))
+        rv = tk.BooleanVar(value=self.play_restore_setting())
+        ttk.Checkbutton(body, text="Put the game flags back when the scene ends", variable=rv
+                        ).pack(anchor="w", pady=(10, 0))
+        ttk.Label(body, text="Flags and variables (FLG_ / REG_) only -- items, money, the party "
+                             "and spawned actors are not put back.", foreground="#666",
+                  wraplength=440, justify="left").pack(anchor="w", padx=(20, 0))
+        res = {"v": None}
+
+        def ok():
+            res["v"] = bool(rv.get())
+            self.set_play_restore_setting(res["v"])
+            win.destroy()
+        btns = ttk.Frame(body)
+        btns.pack(anchor="e", pady=(12, 0))
+        ttk.Button(btns, text="Play", command=ok).pack(side="left")
+        ttk.Button(btns, text="Cancel", command=win.destroy).pack(side="left", padx=(6, 0))
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.bind("<Return>", lambda e: ok())
+        self._play_dialog = win
+        try:
+            win.grab_set()
+        except tk.TclError:
+            pass
+        win.wait_window()
+        self._play_dialog = None
+        return res["v"]
+
+    def _play_try(self):
+        """Start the scene, or wait while another scene plays / events wait (checked every
+        quarter second, up to 5 minutes)."""
+        from rf4s_modkit import playscene
+        p = self._play
+        g = p["dbg"].g
+        try:
+            st = playscene.game_state(g)
+            why = playscene.why_not(st, p["tail"], p["pc"])
+            if why is None:
+                p["start_state"] = playscene.start(g, p["tail"], p["pc"])
+        except playscene.PlayError as e:
+            why = str(e)
+        except Exception as e:  # noqa: BLE001 -- the game was closed
+            self._play = None
+            self.status("Play: %s" % err_text(e))
+            return False
+        if why == "wrong map":
+            self._play = None
+            self.status("Play: the player left %s -- not started" % p["map"])
+            return False
+        if why in ("a scene is playing", "the game has events waiting to start",
+                   "the game is busy (a talk or a party change is being handled)",
+                   "the game has no map bank loaded (title screen or loading)"):
+            if p["waited"] == 0:
+                self.status("Play: %s -- %s starts as soon as it can" % (why, p["title"]))
+            p["waited"] += self.PLAY_EVERY_MS
+            if p["waited"] >= self.PLAY_QUEUE_GIVE_UP_MS:
+                self._play = None
+                self.status("Play dropped: the game was still busy after 5 minutes")
+                return False
+            later(self.frame, self._play_try, self.PLAY_EVERY_MS)
+            return "queued"
+        if why is not None:
+            self._play = None
+            self.status("Play: %s" % why)
+            return False
+        p["phase"], p["waited"] = "starting", 0
+        self.status("Play: %s handed to the game (it starts on its next frame)" % p["title"])
+        later(self.frame, self._play_watch, self.PLAY_EVERY_MS)
+        return True
+
+    def _play_watch(self):
+        """Follow the started scene: taken by the game -> running -> ended; then the flags."""
+        from rf4s_modkit import playscene
+        p = self._play
+        if p is None:
+            return
+        g = p["dbg"].g
+        try:
+            st = playscene.game_state(g)
+        except Exception as e:  # noqa: BLE001 -- the game was closed
+            self._play = None
+            self.status("Play: the game is gone (%s)" % err_text(e))
+            return
+        queued = playscene.KIND_BOX_SCENE in st["queue"][:1]
+        if p["phase"] == "starting":
+            if queued:
+                p["waited"] += self.PLAY_EVERY_MS
+                if p["waited"] >= self.PLAY_WAIT_START_MS:
+                    playscene.cancel(g)
+                    self._play = None
+                    self.status("Play: the game did not take the scene within 20 seconds (a menu "
+                                "open? the player busy?) -- taken back, nothing ran")
+                    return
+            elif not playscene.ran(st):
+                self._play = None
+                self.status("Play: the game did not run the scene (it refused the start)")
+                return
+            else:
+                p["phase"] = "playing"          # (it may have ended already: one frame is enough)
+                if st["vm_state"] != 1:
+                    self.status("Play: %s is playing in the game" % p["title"])
+        if p["phase"] == "playing" and st["vm_state"] == 1 and not queued:
+            self._play_done()
+            return
+        later(self.frame, self._play_watch, self.PLAY_EVERY_MS)
+
+    def _play_done(self):
+        """The scene has ended: report (and put back) the flags it changed."""
+        from rf4s_modkit import playscene
+        p, self._play = self._play, None
+        if p["before"] is None:
+            self.status("Play: %s has ended" % p["title"])
+            return
+        g = p["dbg"].g
+        try:
+            after = bytes(g.read(p["bits"], len(p["before"])))
+            names, loose = playscene.changed_variables(self.doc.emf_vars, p["before"], after)
+            n = playscene.restore_flags(g, p["bits"], p["before"]) if p["restore"] else 0
+        except Exception as e:  # noqa: BLE001
+            self.status("Play: %s has ended; flags not checked: %s" % (p["title"], err_text(e)))
+            return
+        p["dbg"]._flags = None
+        what = ", ".join("%s %d→%d" % x for x in names[:8]) + (
+            " (+%d more)" % (len(names) - 8) if len(names) > 8 else "")
+        if loose:
+            what += ("; " if what else "") + "%d unnamed bit%s" % (loose, "" if loose == 1 else "s")
+        if not what:
+            self.status("Play: %s has ended; it changed no flags" % p["title"])
+        elif p["restore"] and n:
+            self.status("Play: %s has ended; flags put back: %s" % (p["title"], what))
+        else:
+            self.status("Play: %s has ended; it changed %s (kept)" % (p["title"], what))
+        self.last_play = dict(changed=names, loose=loose, restored=bool(p["restore"] and n))
 
     def _choose_game(self, procs, question="Which one should get the scenes?"):
         """Several RF4S.exe run: ask which one (remembered while it runs) -- for Reload in

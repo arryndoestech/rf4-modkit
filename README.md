@@ -823,6 +823,29 @@ file that is new to `Bundle\00_mods` still needs a restart. On the CLI: `rf4mod 
 `rf4mod script live` (what the game currently holds). `rf4mod script log` watches the running game (read only) and lists every scene start and every piece of script code it saw run, flagging any the editor does not show or shows only as *unreached*. *Add new lines to every language* (*Options…* → Cutscene Editor, on by default) gives a new dialogue line the same id in every `rf3mc.<locale>`
 (untranslated), so it shows in every language.
 
+**Play this scene now** (*Options…* → Advanced → *Play this scene now*, off by default; then
+*🐞 Debug → ▶ Play this scene now*, Ctrl+Shift+P) starts the open scene in the game the Debugger
+is attached to, without walking to its trigger. It starts it the way a walk-in box does (the box
+poll at `RF4S.exe+0x1F0920` writes the scene's pc, a "box fired" bit and game event 14 into the
+event queue; the game starts the scene on its next frame), so the game does everything around
+the scene itself: holding the player, the end-of-scene clean-up. Nothing of the toolkit runs in
+the game. The safeguards:
+
+- only scenes of a **map's bank**, and only while the player is on that map (the game has that bank
+  loaded); NPC, story and global banks are refused, because a talk, an item or a story step sets up
+  who and what those scenes act on;
+- the game must hold the editor's version of the bank: with unsaved edits or an older bank in the
+  game it offers to save and *Reload in game* first;
+- while a scene plays or the game has events waiting, the start waits for them (up to 5 minutes);
+  if the game does not take the scene within 20 seconds (a menu open), it is taken back;
+- before it starts, a dialog says what the scene really changes. It warns when the scene normally
+  starts some other way (talking to an event actor, ...: instructions on "the actor you talk to"
+  then act on nobody), and it lists the scene checks' findings;
+- the game flags are saved before the start. When the scene ends the status bar names the flags
+  and variables it changed, and with *Put the game flags back when the scene ends* (ticked by
+  default) they get their old values back. Items, money, the party and spawned actors are not put
+  back: test on a throwaway save.
+
 **Script debugger** (*🐞 Debug → 🐞 Debugger…* on the toolbar; docks below the tabs, *Undock* puts it in its own
 window). *Attach* connects to the running game (its memory; no native debugger, the exe is not
 changed). **F9** (or the right-click menu) sets a breakpoint on the selected Script-tab statement:

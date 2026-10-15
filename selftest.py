@@ -5866,6 +5866,126 @@ def test_translations():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_play_scene():
+    """Play this scene now (rf4s_modkit.playscene + the editor's Debug menu entry): the three
+    writes a walk-in box makes (pending pc, the box-fired bit, event kind 14), the refusals
+    (wrong map, a scene playing, events waiting, past the bank), taking a queued scene back,
+    the flag diff by name and putting the flags back; the menu entry follows the Advanced
+    option (off by default)."""
+    print("play scene now (rf4s_modkit.playscene + Debug menu):")
+    import struct as _st
+    from rf4s_modkit import playscene as P
+
+    class FakeGame:
+        """Just enough of hotreload._Game: a flat memory of the scene block, the VM, a slot."""
+        def __init__(self):
+            self.mem = bytearray(0x4000)
+            self.g_scene, self.vm, self.sc, self.slot = 0x100, 0x800, 0x1000, 0x1800
+            self.paused = 0
+            self.put(self.g_scene, "<Q", self.sc)
+            self.put(self.g_scene + P.OFF_VM, "<Q", self.vm)
+            self.put(self.vm + P.VM_STATE, "<I", 1)
+            self.put(self.vm + P.VM_PC, "<I", 0x7402)
+            self.mem[self.vm + P.VM_TAIL_ENABLED] = 1
+            self.tail = (60, 43387)
+
+        def put(self, a, f, v):
+            _st.pack_into(f, self.mem, a, v)
+
+        def read(self, a, n): return bytes(self.mem[a:a + n])
+        def write(self, a, d): self.mem[a:a + len(d)] = d
+        def u8(self, a): return self.mem[a]
+        def u32(self, a): return _st.unpack_from("<I", self.mem, a)[0]
+        def ptr(self, a): return _st.unpack_from("<Q", self.mem, a)[0]
+        def scene(self): return self.ptr(self.g_scene)
+        def suspend(self): self.paused += 1
+        def resume(self): self.paused -= 1
+
+        def slots(self, sc):
+            return [("global", 1, 0, 0, 0, 0, 1), ("primary", 2, 1, 5, 0, 0, 1),
+                    ("tail", self.slot, 2, self.tail[0], 0, self.tail[1], 1)]
+
+    g = FakeGame()
+    st = P.game_state(g)
+    _check("game state: idle VM, empty queue, the tail slot's map bank",
+           st["vm_state"] == 1 and st["queue"] == [] and st["tail"] == 60 and st["tail_enabled"], st)
+    _check("refused: another map, past the bank",
+           P.why_not(st, 61, 0x73E6) == "wrong map" and "past the bank" in (P.why_not(st, 60, 0xB000) or ""))
+    P.start(g, 60, 0x73E6)
+    st2 = P.game_state(g)
+    _check("start = pending pc + the box-fired bit + event kind 14 first in the queue (paused meanwhile)",
+           g.u32(g.g_scene + P.OFF_PC) == 0x73E6 and st2["aux"] & P.AUX_BOX_FIRED
+           and st2["queue"] == [P.KIND_BOX_SCENE] and g.paused == 0 and not P.ran(st2), st2)
+    refused = None
+    try:
+        P.start(g, 60, 0x73E6)
+    except P.PlayError as e:
+        refused = str(e)
+    _check("a second start while one waits is refused", refused == "the game has events waiting to start", refused)
+    _check("cancel takes the waiting scene back", P.cancel(g) and P.game_state(g)["queue"] == []
+           and not P.game_state(g)["aux"] & P.AUX_BOX_FIRED)
+    g.put(g.vm + P.VM_STATE, "<I", 4)
+    _check("refused while a scene plays", P.why_not(P.game_state(g), 60, 0x73E6) == "a scene is playing")
+    g.put(g.vm + P.VM_STATE, "<I", 1)
+    g.put(g.vm + P.VM_PC, "<I", 0x7402)
+    _check("ran(): an idle VM whose pc moved off 0 has run the scene", P.ran(P.game_state(g)))
+    # flags: diff by name, put back
+    try:
+        from rf4s_modkit.emflags import EmFlagTable
+        emf = EmFlagTable.load()
+    except Exception:  # noqa: BLE001
+        emf = None
+    before = bytearray(832)
+    after = bytearray(before)
+    if emf is not None:
+        v = next(x for x in emf.variables if x.bit_width >= 4)
+        emf.write_value(after, v, 5)
+        after[831] ^= 0x80                       # a bit no variable may cover
+        names, loose = P.changed_variables(emf, bytes(before), bytes(after))
+        _check("changed variables by name (%s 0->5)" % v.name, (v.name, 0, 5) in names, (names, loose))
+    bits = 0x2000
+    g.write(bits, bytes(after))
+    n = P.restore_flags(g, bits, bytes(before))
+    _check("restore_flags writes back only the bytes that differ", g.read(bits, 832) == bytes(before)
+           and n == len(P.changed_bits(bytes(before), bytes(after))), n)
+    # the editor: the Debug menu entry follows the Advanced option
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("play scene menu", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("play scene menu", "rf3.mc not found"); return
+    CE = ce.CutsceneExplorer
+    was = CE.play_scene_setting()
+    root = tk.Tk(); root.withdraw()
+    try:
+        CE.set_play_scene_setting(False)
+        ex = CE(tk.Toplevel(root), reader=lambda n: mc.read_bytes() if n == "rf3.mc" else None)
+        off = ex._play_menu_index()
+        CE.set_play_scene_setting(True)
+        ex.apply_play_scene()
+        on = ex._play_menu_index()
+        msgs = []
+        ex.status = msgs.append
+        c = ex.doc.container
+        ex.open_scene(c.n_primary + 60, c.banks[c.n_primary + 60].entry_records(6)[0].event_id)
+        r = ex.play_scene_now()
+        ex.open_scene(5, _script_mod.disassemble_bank(c.banks[5])[0].entry_pc)
+        ex._debugger = type("D", (), {"dbg": object()})()
+        r2 = ex.play_scene_now()
+        _check("the menu entry is there only with the Advanced option (off by default)",
+               off is None and on is not None and ex.debug_menu.entrycget(on, "label") == CE.PLAY_LABEL,
+               (off, on))
+        _check("Play needs the debugger attached; an NPC bank's scene is refused",
+               r is False and any(m.startswith("Play: attach") for m in msgs)
+               and r2 is False and "NPC / story bank" in msgs[-1], msgs[-3:])
+    finally:
+        CE.set_play_scene_setting(was)
+        root.destroy()
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18288,7 +18408,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
