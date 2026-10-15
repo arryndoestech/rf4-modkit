@@ -860,7 +860,7 @@ the script stands at with the live value of every argument and condition; the *V
 every FLG_/REG_ the scene uses with its value in the game, and the *Text slots* tab the slots its
 dialogue's ＠ codes print (＠アイテム０＠, ＠キャラ１＠, ＠金２＠ …) or its SetVar statements fill, with the
 live value in words (the item, character, map, date) and whether the scene sets it -- a slot it only
-shows prints what an earlier scene left there. A RET can't take a breakpoint (it is too
+shows prints what an earlier scene left there. The *Watch* tab keeps the variables you pick (*Add…*, or *Watch* on the Variables tab) with their live value whatever script runs, or none: a value that just changed is marked for a few seconds with what it was, a double-click on the value flips a flag or edits a number in place, and the list is kept between sessions. A RET can't take a breakpoint (it is too
 short), and a breakpoint on code the game doesn't run yet waits until you save and *Reload in game*.
 Breakpoints move with your edits and a MapEnterScene can be stopped too (the game's copy of the
 script file carries them). *Detach*, closing the debugger or closing the toolkit puts everything

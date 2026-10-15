@@ -231,6 +231,39 @@ def ask_spec(parent, title, prompt, validate, initial=""):
     return out["text"]
 
 
+def ask_variable_name(parent, names, title="Pick a variable", _auto=None):
+    """Pick one FLG_ / REG_ variable by name (type to filter). The name or None.
+    `_auto` (tests): a name to pick without showing the dialog."""
+    if _auto is not None:
+        return _auto if _auto in names else None
+    win = _modal(parent, title)
+    body = ttk.Frame(win, padding=8)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, text="Variable").grid(row=0, column=0, sticky="w")
+    pick = FilterCombo(body, list(names), width=40)
+    pick.grid(row=0, column=1, sticky="we", padx=(6, 0))
+    Tip(pick, "Type part of a name to narrow the list (FLG_ = a flag, REG_ = a number).")
+    err = ttk.Label(body, text="", foreground="#b02020")
+    err.grid(row=1, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    body.columnconfigure(1, weight=1)
+    out = {"name": None}
+
+    def ok(_e=None):
+        t = pick.var.get().strip()
+        if t not in names:
+            err.config(text="no variable named %r" % t if t else "pick a variable")
+            return "break"
+        out["name"] = t
+        win.destroy()
+    bb = ttk.Frame(body)
+    bb.grid(row=2, column=0, columnspan=2, sticky="e", pady=(6, 0))
+    ttk.Button(bb, text="OK", command=ok).pack(side="right", padx=2)
+    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
+    win.bind("<Return>", ok)
+    _run(win, pick)
+    return out["name"]
+
+
 def ask_variable_value(parent, panel, choices, name=None, enc=None):
     """Set a game variable in the running game (the script debugger's Variables tab).
     `choices` = {name: packed ref}; `enc` given: that variable, otherwise the user picks one by

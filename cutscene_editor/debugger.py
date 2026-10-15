@@ -250,7 +250,10 @@ class DebuggerPanel:
                                 "flips on / off)."),
                                ("Set any variable…", lambda: self.set_var(any_var=True),
                                 "Change any FLG_ / REG_ variable in the running game, not only the "
-                                "ones this scene uses (type to filter the names).")):
+                                "ones this scene uses (type to filter the names)."),
+                               ("Watch", self.watch_selected,
+                                "Add the selected variable to the Watch tab: shown live whatever "
+                                "script runs, kept between sessions.")):
             b = ttk.Button(vb, text=text, command=cmd)
             b.pack(side="left", padx=2)
             Tip(b, tip + " A plain memory write: it takes effect at once, and the game's own "
@@ -266,6 +269,8 @@ class DebuggerPanel:
             self.slot_tree.column(col, width=wd, anchor="w", stretch=col == "shows")
         self.slot_tree.pack(fill="both", expand=True)
         self.slot_tree.bind("<Double-Button-1>", lambda _e: self._goto_slot())
+        # variables you pin, live whatever script runs (tab 4)
+        self._build_watch(nb, docked)
         Tip(self.slot_tree, "The text slots the ＠…＠ codes in the selected script's dialogue print "
                             "(＠アイテム０＠ = item slot 0, ＠キャラ１＠ = character slot 1, ＠金２＠ = gold "
                             "slot 2 ...) and the ones its SetVar statements fill, with the value in the game "
@@ -283,6 +288,126 @@ class DebuggerPanel:
         dsb.config(command=self.detail.yview)
         self._detail_text = None
         self.detail.pack(fill="both", expand=True)
+
+    # ---- the Watch tab: variables you pin, live ------------------------------------------ #
+    WATCH_TAB = 4
+    WATCH_CHANGED_S = 3.0               # a changed value stays marked this long
+    WATCH_PREF = "watch_vars"
+
+    def _build_watch(self, nb, docked):
+        wf = ttk.Frame(nb, padding=2)
+        nb.add(wf, text="Watch")
+        self.watch_tree = t = ttk.Treeview(wf, columns=("name", "value", "was", "where"),
+                                           show="headings", height=5 if docked else 12)
+        for col, lab, wd in (("name", "variable", 240), ("value", "value", 80), ("was", "was", 80),
+                             ("where", "bits", 130)):
+            t.heading(col, text=lab)
+            t.column(col, width=wd, anchor="w", stretch=col == "name")
+        t.tag_configure("changed", background="#5a4a00", foreground="#ffffff")
+        wb = ttk.Frame(wf)
+        wb.pack(fill="x", pady=(2, 0), side="bottom")
+        t.pack(fill="both", expand=True)
+        t.bind("<Button-1>", self._var_click, add="+")
+        t.bind("<Return>", lambda _e: self.set_var(tree=self.watch_tree))
+        t.bind("<F2>", lambda _e: self.set_var(tree=self.watch_tree))
+        t.bind("<Delete>", lambda _e: self.unwatch())
+        Tip(t, "Variables you watch, with their value in the game right now -- whatever script "
+               "runs, or none. A value that just changed is marked for a few seconds, with what it "
+               "was. Double-click the value (or Enter / F2): a 1-bit flag flips on / off, a number "
+               "is edited in place. Kept between sessions.")
+        for text, cmd, tip in (("Add…", self.add_watch, "Watch any FLG_ / REG_ variable (type to "
+                                                         "filter the names)."),
+                               ("Remove", self.unwatch, "Stop watching the selected variable(s) (Delete)."),
+                               ("Set value…", lambda: self.set_var(tree=self.watch_tree),
+                                "Change the selected variable in the running game (a 1-bit flag "
+                                "flips on / off).")):
+            b = ttk.Button(wb, text=text, command=cmd)
+            b.pack(side="left", padx=2)
+            Tip(b, tip)
+        self._watch_seen = {}           # enc -> (value, changed at, previous value)
+        self._fill_watch()
+
+    def watch_names(self):
+        """The watched variables' names, in order (Options file, kept between sessions)."""
+        names = self.app._load_prefs().get(self.WATCH_PREF) or []
+        return [n for n in names if isinstance(n, str)]
+
+    def _set_watch_names(self, names):
+        from rf4s_modkit import gamepaths
+        d = dict(self.app._load_prefs())
+        d[self.WATCH_PREF] = list(dict.fromkeys(names))
+        gamepaths.set_setting(self.app.PREFS_KEY, d)
+
+    def watch(self, name):
+        if name not in self._var_choices():
+            self.status.config(text="%s: no such variable" % name, foreground="#b00")
+            return False
+        names = self.watch_names()
+        if name not in names:
+            self._set_watch_names(names + [name])
+        self._fill_watch()
+        self.lists.select(self.WATCH_TAB)
+        if self.watch_tree.exists(str(self._var_choices()[name])):
+            self.watch_tree.selection_set(str(self._var_choices()[name]))
+        self.status.config(text="watching %s" % name, foreground="#080")
+        return True
+
+    def watch_selected(self):
+        s = self.var_tree.selection()
+        if not s:
+            self.status.config(text="select a variable first", foreground="#b00")
+            return False
+        return self.watch(self._var_name(int(s[0])))
+
+    def add_watch(self):
+        from . import dialogs
+        name = dialogs.ask_variable_name(self.body, sorted(self._var_choices()), "Watch a variable")
+        return self.watch(name) if name else False
+
+    def unwatch(self):
+        sel = set(self.watch_tree.selection())
+        if not sel:
+            return False
+        names = [n for n in self.watch_names() if str(self._var_choices().get(n)) not in sel]
+        self._set_watch_names(names)
+        self._fill_watch()
+        return True
+
+    def _fill_watch(self):
+        """The watched variables with their live value; a value that changed since the last
+        poll is marked (and its old value shown) for WATCH_CHANGED_S seconds."""
+        import time as _time
+        t = getattr(self, "watch_tree", None)
+        if t is None:
+            return
+        choices = self._var_choices()
+        c = self.app.doc.container
+        now = _time.monotonic()
+        rows, changed = {}, set()
+        for name in self.watch_names():
+            enc = choices.get(name)
+            if enc is None:
+                continue
+            off, width, _s = c.unpack_var(enc)
+            val = self.dbg.read_var(enc) if self.dbg is not None else None
+            seen = self._watch_seen.get(enc)
+            if seen is not None and val is not None and seen[0] is not None and val != seen[0]:
+                seen = (val, now, seen[0])
+            elif seen is None or seen[0] != val:
+                seen = (val, seen[1] if seen else None, seen[2] if seen else None)
+            self._watch_seen[enc] = seen
+            if seen[1] is not None and now - seen[1] <= self.WATCH_CHANGED_S:
+                changed.add(str(enc))
+            was = self.var_text(seen[2], width) if seen[2] is not None else ""
+            rows[str(enc)] = (name, self.var_text(val, width) if self.dbg is not None else "—", was,
+                              "bit %d, %d wide" % (off, width))
+        _sync_rows(t, rows)
+        for iid in rows:
+            want = ("changed",) if iid in changed else ()
+            if tuple(t.item(iid, "tags")) != want:
+                t.item(iid, tags=want)
+        self._place_var_edit()
+        self.lists.tab(self.WATCH_TAB, text="Watch (%d)" % len(rows) if rows else "Watch")
 
     # ---- attach / poll ---------------------------------------------------------------- #
     def toggle_attach(self):
@@ -398,6 +523,10 @@ class DebuggerPanel:
             self.detach()
             return
         self._fill_vms()
+        try:
+            self._fill_watch()
+        except Exception as e:  # noqa: BLE001 -- a read racing the game; the next poll retries
+            self.app.status("watch: %s" % err_text(e))
         self._announce()
         self.clock.config(text="⏸ game time stopped" if self.dbg.clock_frozen else "")
         if self.dbg.mismatch:
@@ -646,8 +775,10 @@ class DebuggerPanel:
 
     def _var_click(self, e):
         """Count the clicks of a quick series on one row; every second one is a double-click
-        (the value column: edit / flip it; elsewhere: the first statement using it)."""
-        row = self.var_tree.identify_row(e.y)
+        (the value column: edit / flip it; elsewhere: the first statement using it -- on the
+        Variables tab)."""
+        tree = getattr(e, "widget", None) or self.var_tree
+        row = tree.identify_row(e.y)
         n, t, x, y, last = self._clicks
         quick = (row and row == last and 0 <= e.time - t <= self._double_click_ms()
                  and abs(e.x - x) <= 4 and abs(e.y - y) <= 4)
@@ -655,11 +786,16 @@ class DebuggerPanel:
         self._clicks = (n, e.time, e.x, e.y, row)
         if n % 2:
             return
-        self.var_tree.selection_set(row)          # the press may not have selected it yet
-        act = self.set_var if self.var_tree.identify_column(e.x) == "#2" else self._goto_var
+        tree.selection_set(row)                   # the press may not have selected it yet
+        if tree.identify_column(e.x) == "#2":
+            act = lambda: self.set_var(tree=tree)
+        elif tree is self.var_tree:
+            act = self._goto_var
+        else:
+            return
         # after the Treeview's own press handling, which takes the focus (it would close an
         # entry opened here at once)
-        self.var_tree.after_idle(act)
+        tree.after_idle(act)
 
     def _var_choices(self):
         """{name: packed ref} of every named FLG_ / REG_ variable."""
@@ -673,7 +809,7 @@ class DebuggerPanel:
                 pass
         return out
 
-    def set_var(self, any_var=False):
+    def set_var(self, any_var=False, tree=None):
         """Change a game variable in the running game: the selected Variables row in place
         (its value cell becomes an entry), or (any_var) any named FLG_ / REG_ variable through
         a dialog with a name picker."""
@@ -682,12 +818,13 @@ class DebuggerPanel:
             self.status.config(text="attach to the game first", foreground="#b00")
             return
         if not any_var:
-            s = self.var_tree.selection()
+            tree = self.var_tree if tree is None else tree
+            s = tree.selection()
             if not s:
                 self.status.config(text="select a variable first (or use Set any variable…)",
                                    foreground="#b00")
                 return
-            self.edit_var_inline(s[0])
+            self.edit_var_inline(s[0], tree)
             return
         got = dialogs.ask_variable_value(self.body, self, self._var_choices())
         if got is not None:
@@ -716,8 +853,9 @@ class DebuggerPanel:
             return
         self.status.config(text="%s is %s in the game" % (name, self.var_text(back, 1)), foreground="#080")
         self._show_vm()
+        self._fill_watch()
 
-    def edit_var_inline(self, iid):
+    def edit_var_inline(self, iid, tree=None):
         """Turn the row's value cell into an entry (blue, the value selected): Enter writes
         it to the game, Esc or clicking elsewhere cancels. A 1-bit flag just flips."""
         self.cancel_var_edit()
@@ -726,7 +864,7 @@ class DebuggerPanel:
         if width == 1:
             self.toggle_var(enc)
             return
-        t = self.var_tree
+        t = self.var_tree if tree is None else tree
         t.see(iid)
         t.update_idletasks()
         box = t.bbox(iid, "#2")
@@ -745,7 +883,7 @@ class DebuggerPanel:
         e.bind("<KP_Enter>", lambda _e: self._commit_var_edit() or "break")
         e.bind("<Escape>", lambda _e: self.cancel_var_edit() or "break")
         e.bind("<FocusOut>", lambda _e: self.cancel_var_edit())
-        self._var_edit = (iid, e)
+        self._var_edit = (iid, e, t)
         self.status.config(text="%s: type a value %d..%d, Enter sets it in the game, Esc cancels"
                                 % (self._var_name(enc), lo, hi), foreground="#2f6fd6")
 
@@ -763,7 +901,7 @@ class DebuggerPanel:
         if ed is None or self.dbg is None:
             self.cancel_var_edit()
             return
-        iid, e = ed
+        iid, e, tree = ed
         enc, name = int(iid), self._var_name(int(iid))
         v = to_int(e.get())
         if v is None:
@@ -775,8 +913,9 @@ class DebuggerPanel:
             self.status.config(text="%s: %s" % (name, err_text(ex)), foreground="#b00")
             return
         self.cancel_var_edit()
-        self.var_tree.focus_set()
+        tree.focus_set()
         self.status.config(text="%s = %s in the game" % (name, v if back is None else back), foreground="#080")
+        self._fill_watch()
         self._show_vm()
 
     def _place_var_edit(self):
@@ -785,8 +924,8 @@ class DebuggerPanel:
         ed = getattr(self, "_var_edit", None)
         if ed is None:
             return
-        iid, e = ed
-        box = self.var_tree.bbox(iid, "#2") if self.var_tree.exists(iid) else ""
+        iid, e, tree = ed
+        box = tree.bbox(iid, "#2") if tree.exists(iid) else ""
         if not box:
             self.cancel_var_edit()
         else:

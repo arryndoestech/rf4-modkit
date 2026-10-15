@@ -6072,6 +6072,82 @@ def test_jump_links():
         root.destroy()
 
 
+def test_debugger_watch():
+    """The script debugger's Watch tab: pinned FLG_ / REG_ variables shown live whatever
+    script runs, a change marked with the old value for a few seconds, edited in place on
+    the Watch list, removed with Delete, kept in the settings between sessions."""
+    print("script debugger: Watch tab:")
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("watch", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    from rf4s_modkit import scriptdbg
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("watch", "rf3.mc not found"); return
+
+    class FakeDbg:
+        """read_var / write_var on a dict (no game)."""
+        var_range = staticmethod(scriptdbg.ScriptDebugger.var_range)
+
+        def __init__(self, c):
+            self.c, self.vals = c, {}
+
+        def read_var(self, enc):
+            return self.vals.get(enc, 0)
+
+        def write_var(self, enc, v):
+            self.vals[enc] = v
+            return v
+    root = tk.Tk(); root.withdraw()
+    panel = None
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda n: mc.read_bytes() if n == "rf3.mc" else None)
+        panel = ex.open_debugger()
+        before = panel.watch_names()
+        choices = panel._var_choices()
+        flag = next(n for n in sorted(choices) if ex.doc.container.unpack_var(choices[n])[1] == 1)
+        num = next(n for n in sorted(choices) if ex.doc.container.unpack_var(choices[n])[1] >= 8)
+        panel._set_watch_names([])
+        panel.watch(flag); panel.watch(num)
+        t = panel.watch_tree
+        shown = [t.item(i, "values")[0] for i in t.get_children()]
+        _check("watched variables are listed (not attached: no value)",
+               shown == [flag, num] and t.item(str(choices[flag]), "values")[1] == "—", shown)
+        _check("... and kept in the settings", panel.watch_names() == [flag, num], panel.watch_names())
+        panel.dbg = FakeDbg(ex.doc.container)
+        panel._fill_watch()
+        panel.dbg.vals[choices[num]] = 42                  # the game changed it
+        panel._fill_watch()
+        row = t.item(str(choices[num]))
+        _check("a change shows the new value, the old one and a mark",
+               [str(x) for x in row["values"][1:3]] == ["42", "0"] and "changed" in row["tags"], row)
+        panel._watch_seen[choices[num]] = (42, -1e9, 0)     # long ago
+        panel._fill_watch()
+        _check("... the mark goes after a few seconds", "changed" not in t.item(str(choices[num]), "tags"))
+        t.selection_set(str(choices[flag]))
+        panel.set_var(tree=t)                              # a 1-bit flag flips
+        _check("a flag flips from the Watch tab", panel.dbg.vals.get(choices[flag]) == 1, panel.dbg.vals)
+        t.selection_set(str(choices[num]))
+        panel.set_var(tree=t); root.update()
+        ed = panel._var_edit
+        ok = ed is not None and ed[2] is t
+        if ok:
+            ed[1].delete(0, "end"); ed[1].insert(0, "7")
+            panel._commit_var_edit()
+        _check("a number is edited in place on the Watch tab", ok and panel.dbg.vals[choices[num]] == 7,
+               panel.dbg.vals)
+        t.selection_set(str(choices[flag]))
+        panel.unwatch()
+        _check("Remove stops watching", panel.watch_names() == [num], panel.watch_names())
+    finally:
+        if panel is not None:
+            panel.dbg = None
+            panel._set_watch_names(before)
+        root.destroy()
+
+
 def test_xrefs_button():
     """Xrefs (who leads here) is in the right-click menu, on the X key and in the Inspector
     (not in the toolbar); with nothing selected it lists what leads to the open scene."""
@@ -18537,7 +18613,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_jump_links, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_jump_links, test_debugger_watch, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,
