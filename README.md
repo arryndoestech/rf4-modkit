@@ -532,7 +532,12 @@ Every instruction has a name, argument labels and a description;
   delete those on their own). **Cut / copy / paste:** Ctrl+C copies the selected lines as code (a
   jump into the copied lines becomes a label, so they paste anywhere in the bank; the Source tab
   takes them too), Ctrl+X cuts them (copy + delete, one undo step), Ctrl+V pastes after the selected
-  line -- at a selected label, or before a RET / jump / menu, since nothing runs after those. **Hold Alt over a line** for the full explanation (prototype, every argument
+  line -- at a selected label, or before a RET / jump / menu, since nothing runs after those. Lines
+  pasted into **another bank** that jump to or CALL code outside them bring that code along (asked
+  first): it goes at the end of the bank and the pasted lines use it, one undo step. **Copy a whole
+  scene to another bank** with the right-click menu's *Copy this scene to another bank…*: the scene
+  and every subroutine it calls become a new scene there, with the same trigger or none (one undo
+  step; it plays the same, statement for statement). **Hold Alt over a line** for the full explanation (prototype, every argument
   decoded, speaker, Event Manager entry).
 - **Inspector** (right) — a form for the selected statement, applied as you go (Enter or
   leaving the field): a **dialogue line**'s text (Ctrl+Enter), its line id, *Find a line…*,

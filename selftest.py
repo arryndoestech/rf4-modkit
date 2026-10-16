@@ -5617,19 +5617,20 @@ def test_cut_paste():
         for _ in range(2):
             ex.undo()
         root.update()
-        # pasting it into another bank says why it can't
-        shown = []
+        # pasting it into another bank asks first: the code it CALLs would come along
+        asked = []
         from tkinter import messagebox as _mb
-        old_info = _mb.showinfo
-        _mb.showinfo = lambda *a, **k: shown.append(a[1] if len(a) > 1 else k.get("message"))
+        old_ask = _mb.askyesno
+        _mb.askyesno = lambda *a, **k: (asked.append(a[1] if len(a) > 1 else k.get("message")), False)[1]
         try:
             ex.open_scene(19, next(s0.entry_pc for s0 in script.disassemble_bank(ex.doc.container.banks[19])))
             ex.select((ex.scene.entry_pc, None))
-            refused = ex.paste() is False
+            declined = ex.paste() is False
         finally:
-            _mb.showinfo = old_info
-        _check("pasting it into another bank is refused with a reason",
-               refused and shown and "another bank" in shown[0], shown)
+            _mb.askyesno = old_ask
+        _check("pasting it into another bank asks first (the code it CALLs comes along); No pastes nothing",
+               declined and asked and "comes along" not in asked[0] and "brings that code along" in asked[0],
+               asked)
         ex.open_scene(407, 0x515A)
         # cutting only a RET does nothing
         ret = next(pc for pc, s0 in ex.scene.stmts.items() if s0.mnem == "RET")
@@ -6145,6 +6146,119 @@ def test_debugger_watch():
         if panel is not None:
             panel.dbg = None
             panel._set_watch_names(before)
+        root.destroy()
+
+
+def test_copy_scene_between_banks():
+    """Copy a scene into another bank (rf4s_modkit.script.Container.copy_scene, the editor's
+    'Copy this scene to another bank…'): the copy plays the same statement for statement from
+    its entry (subroutines before the entry included), with or without its trigger, one undo
+    step; pasting lines from another bank that jump outside themselves brings that code along."""
+    print("cutscene editor: copy a scene to another bank:")
+    from rf4s_modkit import script, scriptasm
+    mc0 = _shipped("rf3.mc")
+    if mc0 is None:
+        _skip("copy scene", "rf3.mc not found"); return
+    try:
+        from rf4s_modkit.emflags import EmFlagTable
+        _emf = EmFlagTable.load()
+    except Exception:  # noqa: BLE001
+        _emf = None
+
+    def container(data):
+        """A fresh container that reads FLG_ / REG_ names back (listings may use them)."""
+        cc = script.Container(data)
+        cc.install_asm_resolver(_emf)
+        return cc
+    c0 = container(mc0.read_bytes())            # its own copy: other tests edit the shared one
+
+    def flow(bank, entry):
+        buf = bytes(bank.data)
+        sc = script.disassemble_scene(bank, -1, entry)
+        order, seen, stack = [], {}, [entry]
+        while stack:
+            pc = stack.pop()
+            if pc in seen or pc not in sc.stmts:
+                continue
+            seen[pc] = len(order); order.append(pc)
+            st = sc.stmts[pc]
+            nxt = list(reversed([t for t in st.code_targets if t is not None]))
+            if st.falls_through and not st.terminator:
+                nxt.append(pc + st.size)
+            stack.extend(nxt)
+        return [(sc.stmts[pc].op,
+                 tuple(scriptasm.operand_text(buf, a, sc.stmts[pc].op, i) for i, a in enumerate(sc.stmts[pc].args))
+                 if sc.stmts[pc].op < 0xFFF0 else (),
+                 tuple(script.disasm_expr(buf, e)[0] for e in (sc.stmts[pc].expr_refs or ()) if e is not None),
+                 tuple(sc.stmts[pc].items or ()), tuple(seen.get(t) for t in sc.stmts[pc].code_targets))
+                for pc in order]
+    # bank 19 @0x4880: CALLs a subroutine that lies BEFORE its entry
+    raw = c0.build()
+    c = container(raw)
+    new = c.copy_scene(19, 0x4880, 137)
+    _check("a scene whose subroutine lies before its entry copies statement for statement",
+           flow(c0.banks[19], 0x4880) == flow(c.banks[137], new))
+    ok = bad = 0
+    for bi in (5, 23, 60 + c0.n_primary, 210, 407):
+        for sc in [x for x in script.disassemble_bank(c0.banks[bi]) if x.action_type >= 0][:6]:
+            cc = container(raw)
+            dst = next(p for p in range(len(cc.banks)) if p != bi and cc.banks[p].kind == cc.banks[bi].kind
+                       and len(cc.banks[p].data) > 296) if cc.banks[bi].kind != "global" else 4
+            try:
+                pc = cc.copy_scene(bi, sc.entry_pc, dst)
+            except script.ScriptError:
+                continue
+            if flow(c0.banks[bi], sc.entry_pc) == flow(cc.banks[dst], pc):
+                ok += 1
+            else:
+                bad += 1
+    _check("copies of %d scenes play the same as their originals" % ok, ok > 10 and not bad, (ok, bad))
+    try:
+        import tkinter as tk
+    except Exception as e:
+        _skip("copy scene (editor)", "no tkinter: %s" % e); return
+    import cutscene_editor as ce
+    mc = _shipped("rf3.mc")
+    _headless_dialogs()
+    root = tk.Tk(); root.withdraw()
+    try:
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=lambda n: mc.read_bytes() if n == "rf3.mc" else None)
+        cont = ex.doc.container
+        dst = 408
+        before = bytes(ex.doc.container.banks[dst].data)
+        ex.open_scene(407, 0x515A)
+        trig = ex.scene_trigger()
+        pc = ex.copy_scene_to_bank(dst, keep_trigger=False)
+        same = pc is not None and flow(ex.doc.container.banks[407], 0x515A) == flow(ex.doc.container.banks[dst], pc)
+        _check("editor: copied without a trigger, opened in the target bank, plays the same",
+               same and ex.bank_pos == dst and ex.scene.entry_pc == pc, (pc, ex.bank_pos))
+        ex.undo()
+        _check("... one undo step puts the target bank back", bytes(ex.doc.container.banks[dst].data) == before)
+        ex.open_scene(407, 0x515A)
+        pc2 = ex.copy_scene_to_bank(dst, keep_trigger=True)
+        regs = [r for r in ex.doc.container.banks[dst].entry_records(trig[0]) if r.event_id == pc2] if trig else []
+        _check("editor: copied with its trigger (type %s)" % (trig[0] if trig else "?"),
+               pc2 is not None and len(regs) == 1 and list(regs[0].subs) == list(trig[1]), (pc2, trig))
+        ex.undo()
+        # paste a line that jumps outside the copied lines into another bank
+        ex.open_scene(407, 0x515A)
+        jmp = next(p for p, st in sorted(ex.scene.stmts.items()) if st.mnem == "JMP")
+        ex.select((jmp, None))
+        ex.copy_selection([jmp])
+        tgt = ex.scene.stmts[jmp].code_targets[0]
+        want = flow(ex.doc.container.banks[407], tgt)
+        ex.open_scene(dst, script.disassemble_bank(ex.doc.container.banks[dst])[0].entry_pc)
+        first = next(p for p, st in sorted(ex.scene.stmts.items()) if st.falls_through and not st.terminator)
+        ex.select((first, None))
+        ok = ex._paste_with_code(confirm=False)
+        sel = ex.sel[0] if ex.sel else None
+        st = script.decode_statement(bytes(ex.doc.container.banks[dst].data), sel) if sel is not None else None
+        _check("pasting a JMP from another bank brings the code it jumps to along",
+               ok and st is not None and st.mnem == "JMP" and flow(ex.doc.container.banks[dst], st.code_targets[0]) == want,
+               (ok, st and st.mnem))
+        ex.undo()
+        _check("... one undo step", bytes(ex.doc.container.banks[dst].data) == before)
+    finally:
         root.destroy()
 
 
@@ -16844,7 +16958,7 @@ def test_cutscene_multi_select():
             tk.Menu.tk_popup = _popup
         _check("right-click inside a multi-selection keeps it and offers 'Copy / Delete 4 lines'; "
                "outside it selects just that row",
-               inside == (4, ["Copy 4 lines  (Ctrl+C)", "Delete 4 lines  (Del)"])
+               inside[0] == 4 and inside[1][:2] == ["Copy 4 lines  (Ctrl+C)", "Delete 4 lines  (Del)"]
                and outside == (0, True, "Copy line  (Ctrl+C)"), str((inside, outside)))
         cx.select(keys[2])
         _check("a plain click goes back to one row", v.multi == [] and v.selected_keys() == [keys[2]])
@@ -18613,7 +18727,7 @@ def run() -> int:
     print(f"rf4s_modkit selftest  (bundles: {BUNDLE_DIR})  [{mode}]\n")
     slow = []
     for t in (test_bplist, test_mbundle, test_text, test_texture, test_texture_encode,
-              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_jump_links, test_debugger_watch, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
+              test_texture_resize, test_model_texture_resize, test_texture_resize_gui, test_manifest_filter_gui, test_ident_names_and_cli_errors, test_delete_menu, test_story_path_endings, test_xrefs_button, test_open_map_and_regions, test_scenelint, test_translations, test_play_scene, test_scan_pool, test_jump_links, test_debugger_watch, test_copy_scene_between_banks, test_open_external, test_cut_paste, test_queued_reload, test_rf4m,
               test_aibn, test_strings, test_gen, test_param, test_fixed_point_fields, test_flag_fields, test_bin_editors, test_mapground,
               test_search_items, test_search_item_chances, test_entry_key_warnings, test_frame_sizing, test_opcode_arg_verification, test_game_names, test_error_logging, test_hotreload_image, test_mobj_types, test_minimap, test_res_and_ident, test_script,
               test_emflags, test_subevents, test_emscript, test_save, test_asatk, test_skillcurve, test_strengthening,

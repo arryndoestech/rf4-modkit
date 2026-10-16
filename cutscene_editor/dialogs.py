@@ -231,6 +231,53 @@ def ask_spec(parent, title, prompt, validate, initial=""):
     return out["text"]
 
 
+def ask_copy_scene(parent, app, trigger, _auto=None):
+    """Where to copy the open scene: (target bank pos, keep the trigger) or None.
+    `trigger` = (type id, keys text) of the scene's own trigger, or None (it has none).
+    `_auto` (tests): that answer without showing the dialog."""
+    if _auto is not None:
+        return _auto
+    c = app.doc.container
+    titles = ["%d · %s" % (p, catalog.bank_title(b)) for p, b in enumerate(c.banks)]
+    win = _modal(parent, "Copy scene to another bank")
+    body = ttk.Frame(win, padding=8)
+    body.pack(fill="both", expand=True)
+    ttk.Label(body, text="Copies the scene with every subroutine it calls (and any code it jumps "
+                         "to) into the bank you pick: a new scene there, the original stays.",
+              wraplength=460, justify="left").grid(row=0, column=0, columnspan=2, sticky="w")
+    ttk.Label(body, text="Bank").grid(row=1, column=0, sticky="w", pady=(8, 0))
+    pick = FilterCombo(body, titles, width=52)
+    pick.grid(row=1, column=1, sticky="we", padx=(6, 0), pady=(8, 0))
+    Tip(pick, "Type part of a name or the bank number to narrow the list.")
+    keep = tk.BooleanVar(value=trigger is not None)
+    if trigger is not None:
+        ttk.Radiobutton(body, text="With the same trigger: %s%s" % (
+            catalog.type_label(trigger[0]), ("  (%s)" % trigger[1]) if trigger[1] else ""),
+            variable=keep, value=True).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+    ttk.Radiobutton(body, text="No trigger: nothing starts it until you add one (Triggers tab) or "
+                               "CALL it", variable=keep, value=False).grid(
+        row=3, column=0, columnspan=2, sticky="w", pady=(2, 0))
+    err = ttk.Label(body, text="", foreground="#b02020", wraplength=460, justify="left")
+    err.grid(row=4, column=0, columnspan=2, sticky="w", pady=(4, 0))
+    body.columnconfigure(1, weight=1)
+    out = {"v": None}
+
+    def ok(_e=None):
+        t = pick.var.get().strip()
+        if t not in titles:
+            err.config(text="pick a bank from the list")
+            return "break"
+        out["v"] = (titles.index(t), bool(keep.get()))
+        win.destroy()
+    bb = ttk.Frame(body)
+    bb.grid(row=5, column=0, columnspan=2, sticky="e", pady=(8, 0))
+    ttk.Button(bb, text="Copy", command=ok).pack(side="right", padx=2)
+    ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=2)
+    win.bind("<Return>", ok)
+    _run(win, pick)
+    return out["v"]
+
+
 def ask_variable_name(parent, names, title="Pick a variable", _auto=None):
     """Pick one FLG_ / REG_ variable by name (type to filter). The name or None.
     `_auto` (tests): a name to pick without showing the dialog."""

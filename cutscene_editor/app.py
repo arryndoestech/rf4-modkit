@@ -1795,6 +1795,63 @@ class CutsceneExplorer:
             return text, "code the copied lines jump to was deleted since: copy them again"
         return self._clip_fill(clip["tpl"], pcs), None
 
+    def _clip_needs_code(self, text):
+        """The clipboard is this editor's copy from ANOTHER bank and jumps outside itself."""
+        clip = self._clip
+        return bool(clip and text == clip["text"] and clip["last"] in clip["states"]
+                    and self.bank_pos != clip["pos"] and clip["states"][clip["last"]])
+
+    def _paste_with_code(self, confirm=True):
+        """Paste lines copied in another bank whose jumps / CALLs go outside them: the code they
+        reach comes along (appended at the end of this bank) and their jumps point at it, in
+        one edit. Asks first."""
+        clip = self._clip
+        c = self.doc.container
+        src = c.banks[clip["pos"]]
+        pcs = clip["states"][clip["last"]]
+        if any(pc is None for pc in pcs):
+            messagebox.showinfo("Paste", "code the copied lines jump to was deleted since: copy them "
+                                         "again", parent=self.parent)
+            return False
+        deps = {}
+        for t in pcs:
+            sc = script.disassemble_scene(src, -1, t)
+            if not sc.ok:
+                messagebox.showinfo("Paste", "the code at 0x%04x in bank %d does not disassemble "
+                                             "cleanly: %s" % (t, clip["pos"], sc.error), parent=self.parent)
+                return False
+            deps.update(sc.stmts)
+        order = sorted(deps)
+        code = scriptasm.listing_of(bytes(src.data), [deps[p] for p in order], lambda t: "\x01")
+        if "\x01" in code or "@0x" in code or "@0x" in clip["tpl"]:
+            messagebox.showinfo("Paste", "the copied lines refer to code or operands by their place "
+                                         "in bank %d; paste them there" % clip["pos"], parent=self.parent)
+            return False
+        slots = [order.index(p) for p in pcs]
+        n = count_statements(clip["tpl"])
+        if confirm and not messagebox.askyesno(
+                "Paste from another bank",
+                "%s code outside %s in bank %d. Paste brings that code along -- %d statement%s, "
+                "the subroutines and whatever they reach -- at the end of this bank, and the "
+                "pasted %s it.\n\nPaste?" % (
+                    "The copied line jumps to or CALLs" if n == 1 else
+                    "The %d copied lines jump to or CALL" % n, "it" if n == 1 else "them",
+                    clip["pos"], len(order), "" if len(order) == 1 else "s",
+                    "line uses" if n == 1 else "lines use"),
+                parent=self.parent):
+            return False
+        pc = self.sel[0]
+        st = self.stmt(pc)
+        where = "before" if (self.selected_label() or not (st.falls_through and not st.terminator)) else "after"
+        box = {}
+        ok = self.apply("Paste %d statement%s from bank %d (with %d statement%s of code they use)" % (
+            n, "" if n == 1 else "s", clip["pos"], len(order), "" if len(order) == 1 else "s"),
+            lambda: box.update(pc=c.insert_with_code(self.bank, pc, where, clip["tpl"], slots, code,
+                                                     len(order))))
+        if ok:
+            self._select_new(box.get("pc"))
+        return ok
+
     def cut_selection(self):
         """Ctrl+X: copy the selected statements and delete them (one undo step). A RET, a menu
         or a random pick stays -- delete it on its own -- and is not copied."""
@@ -1827,6 +1884,8 @@ class CutsceneExplorer:
         if not text.strip():
             self.status("the clipboard is empty: copy (Ctrl+C) or cut (Ctrl+X) lines first")
             return False
+        if self._clip_needs_code(text):
+            return self._paste_with_code()
         text, why = self._clip_text(text)
         if why:
             messagebox.showinfo("Paste", why, parent=self.parent)
@@ -1948,6 +2007,59 @@ class CutsceneExplorer:
         dispatch = sorted({sc.action_type for sc in script.disassemble_bank(self.bank)
                            if sc.entry_pc == target and sc.action_type >= 0})
         return dialogs.callers_window(self.frame, self, rows, dispatch, target)
+
+    def scene_trigger(self, bank=None, entry_pc=None):
+        """(type id, keys) of a trigger that starts the scene at `entry_pc`, else None."""
+        bank = self.bank if bank is None else bank
+        entry_pc = self.scene.entry_pc if entry_pc is None else entry_pc
+        for t in sorted(bank.type_table_full()):
+            for r in bank.entry_records(t):
+                if r.event_id == entry_pc:
+                    return t, list(r.subs)
+        return None
+
+    def copy_scene_to_bank(self, dst_pos=None, keep_trigger=None):
+        """Copy the open scene -- with the subroutines it calls -- into another bank: a new scene
+        there (same trigger, or none), one undo step, then open it. The copy plays the same:
+        statement for statement, from its entry."""
+        from . import dialogs
+        if self.scene is None or self.bank is None:
+            self.status("open a scene first")
+            return None
+        c = self.doc.container
+        trig = self.scene_trigger()
+        if dst_pos is None:
+            got = dialogs.ask_copy_scene(self.frame, self, (trig[0], catalog.entry_keys_text(trig[1]))
+                                         if trig else None)
+            if got is None:
+                return None
+            dst_pos, keep_trigger = got
+        keep_trigger = bool(keep_trigger) and trig is not None
+        try:
+            body = c.scene_listing(self.bank, self.scene.entry_pc)
+        except Exception as e:  # noqa: BLE001 -- shown
+            messagebox.showinfo("Copy scene", err_text(e), parent=self.frame)
+            return None
+        dst = c.banks[dst_pos]
+        what = "Copy scene @0x%04x of bank %d to bank %d" % (self.scene.entry_pc, self.bank_pos, dst_pos)
+        if keep_trigger:
+            if trig[0] >= dst.table_slots:
+                messagebox.showinfo("Copy scene", "Bank %d (%s) has no %s triggers (its table has "
+                                    "types 0..%d): copy it without a trigger." % (
+                                        dst_pos, dst.kind, catalog.type_label(trig[0]), dst.table_slots - 1),
+                                    parent=self.frame)
+                return None
+            r = self.add_entry(dst_pos, trig[0], trig[1], body)
+            if r is not None:
+                self.status("%s: new scene @0x%04x with its trigger" % (what, r[0]))
+            return r[0] if r else None
+        box = {}
+        if not self.apply(what, lambda: box.update(pc=c.assemble(dst, body)), view=(dst_pos, None)):
+            return None
+        self.browser.refresh_bank(dst_pos)
+        self.open_scene(dst_pos, box["pc"])
+        self.status("%s: new scene @0x%04x, no trigger yet (Triggers tab, or CALL it)" % (what, box["pc"]))
+        return box["pc"]
 
     def follow_jump(self, pc):
         """A jump target clicked in the script view: its statement in this scene, else the

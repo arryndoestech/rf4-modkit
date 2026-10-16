@@ -335,6 +335,7 @@ class ScriptView(ttk.Frame):
         m.add_command(label=("Delete %d lines  (Del)" % n) if n else "Delete  (Del)", state=st,
                       command=app.delete_selected)
         m.add_command(label="Xrefs: who leads here…  (X)", command=app.show_callers)
+        m.add_command(label="Copy this scene to another bank…", command=app.copy_scene_to_bank)
         m.add_separator()
         m.add_command(label="Toggle breakpoint  (F9)", state=st, command=app.toggle_breakpoint)
         vars_ = app.statement_vars(app.sel[0]) if (has and not n) else []

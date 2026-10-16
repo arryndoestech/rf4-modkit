@@ -1887,6 +1887,61 @@ class Container:
         m, key = self._relink(bank, lambda m: m.replace(pc, _listing_of(specs), self.asm_resolver, strict=strict))
         return self._pc(m, key)
 
+    def scene_listing(self, bank, entry_pc):
+        """The scene at `entry_pc` as a self-contained listing: its statements and everything
+        they CALL or jump to (the disassembly follows them all), with labels for the targets.
+        It assembles into any bank. ScriptError when it cannot be written as text (an operand
+        the listing can only refer to by its offset in this bank)."""
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+        from . import scriptasm
+        sc = disassemble_scene(bank, -1, entry_pc)
+        if not sc.ok:
+            raise ScriptError("the scene at 0x%04x does not disassemble cleanly: %s" % (entry_pc, sc.error))
+        # (listing_of asks outside() for every target, also those that become labels: a
+        # marker that ends up in the text is the real test)
+        text = scriptasm.listing_of(bytes(bank.data), list(sc.stmts.values()), lambda t: "\x01",
+                                    first=entry_pc)
+        if "\x01" in text or "@0x" in text:
+            raise ScriptError("the scene at 0x%04x refers to code or operands by their place in "
+                              "this bank; it cannot be copied as text" % entry_pc)
+        return text
+
+    def copy_scene(self, src_bank, entry_pc, dst_bank, type_id=None, subs=(), position=None):
+        """Copy the scene at `entry_pc` of `src_bank` -- with the subroutines it calls -- into
+        `dst_bank` (another bank or the same one): registered as a `type_id` trigger with
+        `subs`, or, with type_id None, just appended (nothing starts it until a trigger or a
+        CALL does). One rebuild of `dst_bank`. Returns the copy's entry pc."""
+        if isinstance(dst_bank, int):
+            dst_bank = self.banks[dst_bank]
+        text = self.scene_listing(src_bank, entry_pc)
+        if type_id is None:
+            return self.assemble(dst_bank, text)
+        return self.add_entry(dst_bank, type_id, subs, listing=text, position=position)[0]
+
+    def insert_with_code(self, bank, pc, where, template, slots, code, code_count, strict=True):
+        """Insert listing `template` before / after (`where`) the statement at `pc`, with
+        `code` (a listing of `code_count` statements, in order) appended at the end of the
+        bank in the same rebuild; `\x00j\x00` in the template becomes the address of the
+        code's statement number slots[j] -- pasted lines whose jumps go to code that came
+        along with them from another bank. Returns the inserted lines' first pc."""
+        if isinstance(bank, int):
+            bank = self.banks[bank]
+
+        def edit(m):
+            first = m.append_code(code, self.asm_resolver, strict=strict)
+            i0 = m.positions()[first]
+            keys = [st.old_pc for st in m.code[i0:i0 + code_count]]
+            if len(keys) != code_count:
+                raise ScriptError("the code that comes along did not assemble statement for statement")
+            text = template
+            for j, k in enumerate(slots):
+                text = text.replace("\x00%d\x00" % j, "0x%x" % keys[k])
+            fn = m.insert_before if where == "before" else m.insert_after
+            return fn(pc, text, self.asm_resolver, strict=strict)
+        m, key = self._relink(bank, edit)
+        return self._pc(m, key)
+
     def rewrite_scene(self, bank, entry_pc, specs, strict=True):
         """Replace the scene at `entry_pc` with `specs` (listing text; END is added when it
         can fall off its end). The trigger is unchanged: the new body sits where the old

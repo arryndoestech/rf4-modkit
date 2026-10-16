@@ -1150,13 +1150,36 @@ def statement_text(buf, st):
     return _control_body(buf, st, lambda t: "0x0000" if t is None else "0x%04x" % t)
 
 
-def listing_of(buf, stmts, outside=None):
+def listing_of(buf, stmts, outside=None, first=None):
     """Statements as a listing that pastes back (the editor's copy / cut): in address order,
     a jump to one of `stmts` becomes a label (copy0, copy1 ...), any other target is written
-    by `outside(pc)` -- default an absolute 0xPC (valid in the same bank)."""
+    by `outside(pc)` -- default an absolute 0xPC (valid in the same bank).
+
+    `first` (a pc of `stmts`): the listing starts there, so its first statement is that one
+    (a scene whose subroutines lie before its entry). The run of code from `first` comes
+    first, the other runs follow in address order; code that fell through into `first`
+    ends with a JMP to it instead."""
     stmts = sorted(stmts, key=lambda s: s.pc)
     inside = {s.pc for s in stmts}
-    targets = sorted({t for s in stmts for t in s.code_targets if t in inside})
+    tail_jump = None
+    if first is not None and stmts and stmts[0].pc != first and first in inside:
+        runs, cur = [], []
+        for s in stmts:
+            if cur and not (cur[-1].falls_through and not cur[-1].terminator
+                            and cur[-1].pc + cur[-1].size == s.pc):
+                runs.append(cur)
+                cur = []
+            cur.append(s)
+        runs.append(cur)
+        ri = next(i for i, r in enumerate(runs) if any(s.pc == first for s in r))
+        run = runs[ri]
+        k = next(i for i, s in enumerate(run) if s.pc == first)
+        before, rest = run[:k], run[k:]
+        stmts = rest + [s for i, r in enumerate(runs) if i != ri for s in r] + before
+        if before:                               # it fell into `first`: now it jumps there
+            tail_jump = first
+    targets = sorted({t for s in stmts for t in s.code_targets if t in inside}
+                     | ({tail_jump} if tail_jump is not None else set()))
     lab = {t: "copy%d" % i for i, t in enumerate(targets)}
     out = []
     for s in stmts:
@@ -1167,6 +1190,8 @@ def listing_of(buf, stmts, outside=None):
         else:
             out.append(_control_body(buf, s, lambda t: "0x0000" if t is None else lab.get(
                 t, outside(t) if outside is not None else "0x%04x" % t)))
+    if tail_jump is not None:
+        out.append("JMP %s" % lab[tail_jump])
     return "\n".join(out)
 
 
