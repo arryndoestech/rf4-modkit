@@ -4961,7 +4961,10 @@ def arg_limit(op):
 # in RF4S.exe): these widen arg_range. SetRegisters (ops 628 / 629, both
 # Script_VMOp_ExportArgsAsCtxOutArray10 RF4S.exe+0x21D390) copies arg i into reg i for
 # i < min(count, 10): 1-10 arguments set reg0.. in order; the game itself passes 1-4.
-ARG_RANGE_EXE = {628: (1, 10), 629: (1, 10)}
+# PopulateQuestKind2LiteralRewards / Kind4LiteralRewards (ops 510 RF4S.exe+0x216570, 515
+# +0x216DF0) copy args 3 .. count-1 into the record's 4 reward words (`(i - 3) < 4`): 4-7
+# arguments; the game passes 4 or 6 (510) and 4 (515).
+ARG_RANGE_EXE = {628: (1, 10), 629: (1, 10), 510: (4, 7), 515: (4, 7)}
 
 # The fewest / most arguments each op passes in the shipped rf3.mc (refdata/
 # script_arg_counts.json, gen_arg_counts.py). Handlers take the count the statement carries

@@ -9274,44 +9274,44 @@ Args:
   2. count (+4)
   3. ignored... (reward categories are ignored in this mode)
 
-### `op 539` — QueueSubEventGoalKind3(item A, item B, count, param, ignored...)
+### `op 539` — QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)
 
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
 Args:
-  0. item A (+6)
-  1. item B (+8)
+  0. taste_of (+6: whose gift taste the item is judged by)
+  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike)
   2. count (+4)
-  3. param (+5)
+  3. npc (+5: the NPC who must receive the item)
   4. ignored... (reward categories ignored)
 
-### `op 540` — QueueSubEventGoalKind3(item A, item B, count, param, ignored...)
+### `op 540` — QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)
 
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
 Args:
-  0. item A (+6)
-  1. item B (+8)
+  0. taste_of (+6: whose gift taste the item is judged by)
+  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike)
   2. count (+4)
-  3. param (+5)
+  3. npc (+5: the NPC who must receive the item)
   4. ignored... (reward categories ignored)
 
-### `op 541` — QueueSubEventGoalKind4(target, param, count)
+### `op 541` — QueueSubEventGoalKind4(item_category, npc, count)
 
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
 Args:
-  0. target (entry +2)
-  1. param (entry +5)
+  0. item_category (+2: rf3ItemList category byte of the item (0 = crops))
+  1. npc (+5: the NPC who must receive the item)
   2. count (entry +4)
 
-### `op 542` — QueueSubEventGoalKind4(target, param, count)
+### `op 542` — QueueSubEventGoalKind4(item_category, npc, count)
 
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
 Args:
-  0. target (entry +2)
-  1. param (entry +5)
+  0. item_category (+2: rf3ItemList category byte of the item (0 = crops))
+  1. npc (+5: the NPC who must receive the item)
   2. count (entry +4)
 
 ### `op 543` — QueueSubEventGoalKind5(npc)
@@ -9328,15 +9328,15 @@ Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to t
 Args:
   0. npc (+5; corpus passes an NPC char id (actor(Name)))
 
-### `op 545` — QueueSubEventGoalKind6(param, count)
+### `op 545` — QueueSubEventGoalKind6(npc, count)
 
 Append a kind-6 goal to the current sub-event's goal queue (only while a sub-event is running).
 
 Args:
-  0. param (entry +5)
+  0. npc (+5: the NPC who must receive the item)
   1. count (entry +4)
 
-### `op 546` — QueueSubEventCraftGoal(category, item, param, count)
+### `op 546` — QueueSubEventCraftGoal(category, item, npc, count)
 
 Queue form of PostBoardCraftQuest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.
 
@@ -9344,7 +9344,7 @@ Args:
   0. category
   1. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  2. param (record +5)
+  2. npc (+5: the NPC who must receive the item)
   3. count (record +4)
 
 ### `op 547` — QueueSubEventGoalKind10(ignored...)

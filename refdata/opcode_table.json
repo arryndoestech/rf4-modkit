@@ -49442,7 +49442,7 @@
    "blocking": "no",
    "description": "Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). Does nothing if no sub-event is running.",
    "summary": "Add a 'bring item' goal to the town event",
-   "details": "Opcode >= 537 path of the op-508 handler: if not state 0x401000 and REG_SUBEV_NOW != 0 and fewer than 20 entries: appends the 24-byte entry {kind 2, +2 item, +4 count, +5 npc, +10 host id, state byte +1 = 1 (active)} at request-array word 350 + 12*n and increments the count (request-array byte 3). The NPC record is not touched; no rewards are rolled.",
+   "details": "Opcode >= 537 path of the op-508 handler: if not state 0x401000 and REG_SUBEV_NOW != 0 and fewer than 20 entries: appends the 24-byte entry {kind 2, +2 item, +4 count, +5 npc, +10 host id, state byte +1 = 1 (active)} at request-array word 350 + 12*n and increments the count (request-array byte 3). The NPC record is not touched; no rewards are rolled. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x216250 (shared by 508/509/537/538); the dispatcher SceneAction_DispatchTableWithCleanup (+0x1F4AC0) stores the opcode in g_lastScriptOpcode (host+260) right before the call, and the handler branches on host+260 >= 0x219 (537); corpus: op 537 1 use (19, tag3(7), 3) right after StartReservedSubEvent, op 538 unused.",
    "alias_of": null,
@@ -49526,7 +49526,7 @@
    "blocking": "no",
    "description": "Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). Does nothing if no sub-event is running.",
    "summary": "Add a 'bring item' goal to the town event",
-   "details": "Opcode >= 537 path of the op-508 handler: if not state 0x401000 and REG_SUBEV_NOW != 0 and fewer than 20 entries: appends the 24-byte entry {kind 2, +2 item, +4 count, +5 npc, +10 host id, state byte +1 = 1 (active)} at request-array word 350 + 12*n and increments the count (request-array byte 3). The NPC record is not touched; no rewards are rolled.",
+   "details": "Opcode >= 537 path of the op-508 handler: if not state 0x401000 and REG_SUBEV_NOW != 0 and fewer than 20 entries: appends the 24-byte entry {kind 2, +2 item, +4 count, +5 npc, +10 host id, state byte +1 = 1 (active)} at request-array word 350 + 12*n and increments the count (request-array byte 3). The NPC record is not touched; no rewards are rolled. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x216250 (shared by 508/509/537/538); the dispatcher SceneAction_DispatchTableWithCleanup (+0x1F4AC0) stores the opcode in g_lastScriptOpcode (host+260) right before the call, and the handler branches on host+260 >= 0x219 (537); corpus: op 537 1 use (19, tag3(7), 3) right after StartReservedSubEvent, op 538 unused.",
    "alias_of": 537,
@@ -49556,20 +49556,20 @@
    "mnemonic": "QueueSubEventGoalKind3",
    "previous_mnemonic": null,
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind3(item A, item B, count, param, ignored...)",
+   "prototype": "QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)",
    "args": [
     {
-     "name": "item A",
-     "type": "u16",
-     "values": "+6",
+     "name": "taste_of",
+     "type": "char id",
+     "values": "+6: whose gift taste the item is judged by",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "item B",
-     "type": "u16",
-     "values": "+8",
+     "name": "gift_tier",
+     "type": "number",
+     "values": "+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49583,9 +49583,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
-     "type": "byte",
-     "values": "+5",
+     "name": "npc",
+     "type": "char id",
+     "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49604,7 +49604,7 @@
    "blocking": "no",
    "description": "Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.",
    "summary": "Add a kind-3 goal to the town event",
-   "details": "Opcode >= 537 path of the op-511 handler: with REG_SUBEV_NOW != 0 and < 20 entries, appends {kind 3, +4 count, +5 param, +6 item A, +8 item B, +10 host id, state byte +1 = 1}.",
+   "details": "Opcode >= 537 path of the op-511 handler: with REG_SUBEV_NOW != 0 and < 20 entries, appends {kind 3, +4 count, +5 param, +6 item A, +8 item B, +10 host id, state byte +1 = 1}. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x216820 queue branch (host+260 >= 0x219); corpus: unused.",
    "alias_of": null,
@@ -49634,20 +49634,20 @@
    "mnemonic": "QueueSubEventGoalKind3",
    "previous_mnemonic": null,
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind3(item A, item B, count, param, ignored...)",
+   "prototype": "QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)",
    "args": [
     {
-     "name": "item A",
-     "type": "u16",
-     "values": "+6",
+     "name": "taste_of",
+     "type": "char id",
+     "values": "+6: whose gift taste the item is judged by",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "item B",
-     "type": "u16",
-     "values": "+8",
+     "name": "gift_tier",
+     "type": "number",
+     "values": "+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49661,9 +49661,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
-     "type": "byte",
-     "values": "+5",
+     "name": "npc",
+     "type": "char id",
+     "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49682,7 +49682,7 @@
    "blocking": "no",
    "description": "Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.",
    "summary": "Add a kind-3 goal to the town event",
-   "details": "Opcode >= 537 path of the op-511 handler: with REG_SUBEV_NOW != 0 and < 20 entries, appends {kind 3, +4 count, +5 param, +6 item A, +8 item B, +10 host id, state byte +1 = 1}.",
+   "details": "Opcode >= 537 path of the op-511 handler: with REG_SUBEV_NOW != 0 and < 20 entries, appends {kind 3, +4 count, +5 param, +6 item A, +8 item B, +10 host id, state byte +1 = 1}. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x216820 queue branch (host+260 >= 0x219); corpus: unused.",
    "alias_of": 539,
@@ -49712,20 +49712,20 @@
    "mnemonic": "QueueSubEventGoalKind4",
    "previous_mnemonic": null,
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind4(target, param, count)",
+   "prototype": "QueueSubEventGoalKind4(item_category, npc, count)",
    "args": [
     {
-     "name": "target",
-     "type": "id",
-     "values": "entry +2",
+     "name": "item_category",
+     "type": "number",
+     "values": "+2: rf3ItemList category byte of the item (0 = crops)",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "param",
-     "type": "byte",
-     "values": "entry +5",
+     "name": "npc",
+     "type": "char id",
+     "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49744,7 +49744,7 @@
    "blocking": "no",
    "description": "Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).",
    "summary": "Add a kind-4 goal to the town event",
-   "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 4, +2 arg0, +5 arg1, +4 arg2, +10 host npc}. Further args are ignored.",
+   "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 4, +2 arg0, +5 arg1, +4 arg2, +10 host npc}. Further args are ignored. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x216B20 queue branch (host+260 >= 0x219); unused in rf3.mc.",
    "alias_of": null,
@@ -49774,20 +49774,20 @@
    "mnemonic": "QueueSubEventGoalKind4",
    "previous_mnemonic": null,
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind4(target, param, count)",
+   "prototype": "QueueSubEventGoalKind4(item_category, npc, count)",
    "args": [
     {
-     "name": "target",
-     "type": "id",
-     "values": "entry +2",
+     "name": "item_category",
+     "type": "number",
+     "values": "+2: rf3ItemList category byte of the item (0 = crops)",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "param",
-     "type": "byte",
-     "values": "entry +5",
+     "name": "npc",
+     "type": "char id",
+     "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49806,7 +49806,7 @@
    "blocking": "no",
    "description": "Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).",
    "summary": "Add a kind-4 goal to the town event",
-   "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 4, +2 arg0, +5 arg1, +4 arg2, +10 host npc}. Further args are ignored.",
+   "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 4, +2 arg0, +5 arg1, +4 arg2, +10 host npc}. Further args are ignored. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x216B20 queue branch (host+260 >= 0x219); unused in rf3.mc.",
    "alias_of": 541,
@@ -49852,7 +49852,7 @@
    "blocking": "no",
    "description": "Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to this villager'. Does nothing if no sub-event is running.",
    "summary": "Add a kind-5 goal to the town event",
-   "details": "Opcode >= 537 path of the op-516 handler: if not state 0x401000, REG_SUBEV_NOW != 0 and fewer than 20 entries, appends {kind 5, +5 arg0, +10 host id, state byte +1 = 1} to g_npcGeneralThrowTemplates_24B[n] and increments the count. Board record 0 is not touched.",
+   "details": "Opcode >= 537 path of the op-516 handler: if not state 0x401000, REG_SUBEV_NOW != 0 and fewer than 20 entries, appends {kind 5, +5 arg0, +10 host id, state byte +1 = 1} to g_npcGeneralThrowTemplates_24B[n] and increments the count. Board record 0 is not touched. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x2170A0 queue branch (host+260 >= 0x219); corpus: op 543 5 uses (tag3(1)/[2]/[7]/[8]) in serious-talk sub-events, op 544 unused.",
    "alias_of": null,
@@ -49912,7 +49912,7 @@
    "blocking": "no",
    "description": "Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to this villager'. Does nothing if no sub-event is running.",
    "summary": "Add a kind-5 goal to the town event",
-   "details": "Opcode >= 537 path of the op-516 handler: if not state 0x401000, REG_SUBEV_NOW != 0 and fewer than 20 entries, appends {kind 5, +5 arg0, +10 host id, state byte +1 = 1} to g_npcGeneralThrowTemplates_24B[n] and increments the count. Board record 0 is not touched.",
+   "details": "Opcode >= 537 path of the op-516 handler: if not state 0x401000, REG_SUBEV_NOW != 0 and fewer than 20 entries, appends {kind 5, +5 arg0, +10 host id, state byte +1 = 1} to g_npcGeneralThrowTemplates_24B[n] and increments the count. Board record 0 is not touched. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x2170A0 queue branch (host+260 >= 0x219); corpus: op 543 5 uses (tag3(1)/[2]/[7]/[8]) in serious-talk sub-events, op 544 unused.",
    "alias_of": 543,
@@ -49942,12 +49942,12 @@
    "mnemonic": "QueueSubEventGoalKind6",
    "previous_mnemonic": null,
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind6(param, count)",
+   "prototype": "QueueSubEventGoalKind6(npc, count)",
    "args": [
     {
-     "name": "param",
-     "type": "byte",
-     "values": "entry +5",
+     "name": "npc",
+     "type": "char id",
+     "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -49966,7 +49966,7 @@
    "blocking": "no",
    "description": "Append a kind-6 goal to the current sub-event's goal queue (only while a sub-event is running).",
    "summary": "Add a kind-6 goal to the town event",
-   "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 6, +5 arg0, +4 arg1, +10 host npc}.",
+   "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 6, +5 arg0, +4 arg1, +10 host npc}. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x2171D0 queue branch; unused in rf3.mc.",
    "alias_of": null,
@@ -49994,7 +49994,7 @@
    "mnemonic": "QueueSubEventCraftGoal",
    "previous_mnemonic": null,
    "category": "quest",
-   "prototype": "QueueSubEventCraftGoal(category, item, param, count)",
+   "prototype": "QueueSubEventCraftGoal(category, item, npc, count)",
    "args": [
     {
      "name": "category",
@@ -50013,9 +50013,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
-     "type": "u8",
-     "values": "record +5",
+     "name": "npc",
+     "type": "char id",
+     "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -50034,7 +50034,7 @@
    "blocking": "no",
    "description": "Queue form of PostBoardCraftQuest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.",
    "summary": "Add a 'craft this item' goal to the town event",
-   "details": "Same record as op 519 {kind 7, +2 item, +4 count, +5 param, +8 category, +10 host NPC}. Because the opcode is >= 537, it is appended to the 20-entry sub-event goal queue (g_npcGeneralThrowTemplates_24B, byte1 = 1, count g_npcGeneralThrowEntryCount) only when GF_REG_SUBEV_NOW != 0 and the queue has room; request record 0 is not touched. Then the recipe lookup runs in both modes: CraftData_ResolveArchiveIdFromCategory(category) (RF4S.exe+0x1F5D20), load that archive, find the record whose first word == item; its non-zero ingredient words 1..6 go to reg1..reg6 and their count to reg0 (registers untouched if the item has no recipe). Releases the archive.",
+   "details": "Same record as op 519 {kind 7, +2 item, +4 count, +5 param, +8 category, +10 host NPC}. Because the opcode is >= 537, it is appended to the 20-entry sub-event goal queue (g_npcGeneralThrowTemplates_24B, byte1 = 1, count g_npcGeneralThrowEntryCount) only when GF_REG_SUBEV_NOW != 0 and the queue has room; request record 0 is not touched. Then the recipe lookup runs in both modes: CraftData_ResolveArchiveIdFromCategory(category) (RF4S.exe+0x1F5D20), load that archive, find the record whose first word == item; its non-zero ingredient words 1..6 go to reg1..reg6 and their count to reg0 (registers untouched if the item has no recipe). Releases the archive. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
    "evidence": "RF4S.exe+0x217340 (shared with op 519, opcode branch `*(u16*)(a1+260) >= 0x219`): `GameFlags_ReadField(&out, 0, GF_REG_SUBEV_NOW, 9); if (out && count + 1 <= 0x14) { g_npcGeneralThrowTemplates_24B[count] = v34; ++g_npcGeneralThrowEntryCount; }`; corpus: 0 uses.",
    "alias_of": null,
