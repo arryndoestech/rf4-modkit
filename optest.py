@@ -11,6 +11,7 @@ each of its arguments are.
         install a value sweep into a map's entry scene: for each value the box says
         "The result: <value> points", then the call runs with that value
   python optest.py restore MAP_F_ROOM_00  put a map's scenes back as they were before the tests
+  python optest.py restore --bank 1120    undo a test put into a talk scene of a global bank
   python optest.py record 417 --call "ModifyPlayerResource(gold, add, 1234)" \\
         --observed "gold went up by 1234" --arg 0 --arg 2 --value 0:100=gold
 
@@ -208,6 +209,72 @@ def install_sweep(map_name, listing):
     return bank.entry_records(6)[0].event_id, path
 
 
+BANK_STATE = _HERE / "out" / "optest_banks.json"  # banks a test went into: {bank: {before, after}}
+
+
+def scene_pc(c, scene):
+    """The pc a test's `scene` ({"bank", "type", optional "key", optional "call"}) points at in
+    the container `c`: the first entry of that action type (with that key value, if given);
+    with "call", the target of the CALL that entry starts with (where scenes that share code
+    meet). Found by entry, not by a fixed pc, so the user's own edits of the bank can move it."""
+    from rf4s_modkit import script as S2
+    bank = c.banks[scene["bank"]]
+    recs = [r for r in bank.entry_records(scene["type"])
+            if "key" not in scene or any(v == scene["key"] for _t, v in r.subs)]
+    if not recs:
+        raise SystemExit("bank %d has no type-%d entry%s" % (scene["bank"], scene["type"],
+                         " with key %d" % scene["key"] if "key" in scene else ""))
+    pc = recs[0].event_id
+    if scene.get("call"):
+        for sc in S2.disassemble_bank(bank):
+            st = sc.stmts.get(pc)
+            if st is not None:
+                if st.mnem != "CALL" or not st.code_targets:
+                    raise SystemExit("the scene at %04x does not start with a CALL" % pc)
+                return st.code_targets[0]
+        raise SystemExit("no statement at %04x" % pc)
+    return pc
+
+
+def install_in_scene(scene, listing):
+    """Put `listing` in front of the statement a test's `scene` names (see scene_pc), keeping
+    the bank as it was in BANK_STATE so `restore --bank` can put back exactly that -- not the
+    shipped bank, which would also undo the user's own edits there. Returns the pc."""
+    import hashlib
+    S, data, path, c = _container()
+    i = scene["bank"]
+    st = json.loads(BANK_STATE.read_text(encoding="utf-8")) if BANK_STATE.is_file() else {}
+    if str(i) in st:
+        raise SystemExit("bank %d still holds an earlier test: python optest.py restore --bank %d first" % (i, i))
+    pc = scene_pc(c, scene)
+    before = bytes(c.banks[i].data)
+    body = listing[:-len("RET\n")] if listing.endswith("RET\n") else listing
+    c.insert_before(c.banks[i], pc, body)
+    _write(S, path, c)
+    st[str(i)] = {"before": before.hex(), "after": hashlib.sha256(bytes(c.banks[i].data)).hexdigest()}
+    BANK_STATE.parent.mkdir(parents=True, exist_ok=True)
+    BANK_STATE.write_text(json.dumps(st), encoding="utf-8")
+    return pc
+
+
+def restore_bank(i):
+    """Undo install_in_scene for bank `i`, only if the bank is still exactly as the test left it."""
+    import hashlib
+    st = json.loads(BANK_STATE.read_text(encoding="utf-8")) if BANK_STATE.is_file() else {}
+    e = st.get(str(i))
+    if e is None:
+        raise SystemExit("no test was put into bank %d" % i)
+    S, data, path, c = _container()
+    if hashlib.sha256(bytes(c.banks[i].data)).hexdigest() != e["after"]:
+        raise SystemExit("bank %d changed after the test went in (an edit?): left as it is; "
+                         "take the test lines out in the cutscene editor" % i)
+    c.set_bank_bytes(c.banks[i], bytes.fromhex(e["before"]))
+    _write(S, path, c)
+    del st[str(i)]
+    BANK_STATE.write_text(json.dumps(st), encoding="utf-8")
+    remove_test_text()
+
+
 TEXT_STATE = _HERE / "out" / "optest_text.json"   # the test lines now in the rf3mc.<locale> files
 
 
@@ -377,7 +444,12 @@ def plan_describe(test):
                                    "   [needs special context]" if test.get("hard") else ""),
            "  checks: %s" % ", ".join((["what it does"] if v.get("op") else [])
                                      + ["argument %d" % i for i in v.get("args", ())]),
-           "  map:    %s" % test["map"], "  setup:  %s" % test["setup"], "  steps:"]
+           ("  scene:  bank %d, before the type-%d entry%s%s" % (
+               test["scene"]["bank"], test["scene"]["type"],
+               " with key %d" % test["scene"]["key"] if "key" in test["scene"] else "",
+               " (the code it CALLs)" if test["scene"].get("call") else "")
+            if test.get("scene") else "  map:    %s" % test["map"]),
+           "  setup:  %s" % test["setup"], "  steps:"]
     for k, step in enumerate(test["steps"], 1):
         if step.get("say"):
             out.append("    %d. note: %s" % (k, step["say"]))
@@ -419,6 +491,15 @@ def plan_cmd(a):
         it = iter(ids)
         note_ids = [next(it) if n else None for n in notes]
         listing = plan_listing(test, note_ids)
+        if test.get("scene"):                      # a talk scene of another bank, not a map's entry
+            sc = test["scene"]
+            pc = install_in_scene(sc, listing)
+            print(plan_describe(test))
+            print("\ninstalled in bank %d before @%04x; reload rf3.mc in the game (F5 in the cutscene "
+                  "editor), then do what the setup says. Afterwards: python optest.py plan done %s "
+                  "--observed \"...\"  and  python optest.py restore --bank %d"
+                  % (sc["bank"], pc, test["id"], sc["bank"]))
+            return
         if not has_entry_scene(a.map or test["map"]):
             print(plan_describe(test))
             print("\n%s has no entry scene, so this one is placed by hand: copy the scene below, "
@@ -455,7 +536,8 @@ def main(argv=None):
     p.add_argument("--then"); p.add_argument("--map", default="MAP_F_ROOM_00")
     p.add_argument("--hold", type=int, default=24000, help="time per value (200 = 1 frame)")
     p.add_argument("--dry", action="store_true", help="print the listing only")
-    p = sub.add_parser("restore"); p.add_argument("map")
+    p = sub.add_parser("restore"); p.add_argument("map", nargs="?")
+    p.add_argument("--bank", type=int, help="undo a test put into a talk scene of this bank")
     p = sub.add_parser("plan")
     p.add_argument("action", nargs="?", choices=("summary", "list", "show", "run", "done"))
     p.add_argument("id", nargs="?", help="a test id (list: a category or mnemonic)")
@@ -484,7 +566,13 @@ def main(argv=None):
     elif a.cmd == "plan":
         plan_cmd(a)
     elif a.cmd == "restore":
-        print("restored %s from %s" % (a.map, restore(a.map)))
+        if a.bank is not None:
+            restore_bank(a.bank)
+            print("bank %d is back as it was before the test" % a.bank)
+        elif a.map:
+            print("restored %s from %s" % (a.map, restore(a.map)))
+        else:
+            raise SystemExit("restore MAP, or restore --bank N")
     elif a.cmd == "record":
         values = {}
         for spec in a.value:

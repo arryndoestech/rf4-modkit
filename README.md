@@ -802,7 +802,10 @@ python optest.py restore MAP_F_ROOM_01     # afterwards
 
 *plan done* records what you saw in the test log and marks the instruction and the arguments the
 test checks as verified (with `--failed` it only logs). A test whose map has no entry scene prints
-its scene instead; paste it with Ctrl+V where the setup says.
+its scene instead; paste it with Ctrl+V where the setup says. A few tests go into a talk scene of
+the global bank instead (the menu of a monster you own, the furniture menu), because the
+instruction works on the thing you talk to: *plan run* keeps that bank as it was, and
+`python optest.py restore --bank 1120` puts back exactly that (your own edits in the bank stay).
 
 **Reload from disk:** *🐞 Debug → ⟲ Reload rf3.mc + dialogue from disk* (F5) reads `rf3.mc`, the dialogue of every language, `em.bin` / `emdeb.bin` and the game's
 character, item and map names again from disk, for when another tool (`optest.py`, `rf4mod script …`) changed the file while the

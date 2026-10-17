@@ -18126,5 +18126,269 @@
   ],
   "expect": "Time H then H + 2; villagers move to their 2-hours-later spots. Compare with a plain SkipToTime run (SkipToTime-add-and-target): if villagers there jumped further (caught up from an older time), the snapshot changed it; otherwise write 'no visible effect'.",
   "call": "SaveCalendarSnapshot()"
+ },
+ {
+  "id": "PopulateQuestKind2LiteralRewards-reward4",
+  "ops": [
+   510
+  ],
+  "mnemonic": "PopulateQuestKind2LiteralRewards",
+  "verifies": {
+   "op": false,
+   "args": [
+    6
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Runs in the map entry scene, so no NPC is talking: the request lands in request record 0 (the Request Box record). Changes your save: use a throwaway save.",
+  "steps": [
+   {
+    "say": "7 arguments: rewards Broadsword 328, Iron Hammer 575, Turtle Shield 600, Talisman 649. Boxes: reward 1-4.",
+    "do": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+   },
+   {
+    "say": "Again with reward 4 = Rice 300. Boxes: reward 1-4.",
+    "do": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600, 300)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+   }
+  ],
+  "expect": "Step 1: 328, 575, 600, 649. Step 2: 328, 575, 600, 300 (the 4th reward follows argument 7).",
+  "call": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600, 649)"
+ },
+ {
+  "id": "PopulateQuestKind4LiteralRewards-rewards2-4",
+  "ops": [
+   515
+  ],
+  "mnemonic": "PopulateQuestKind4LiteralRewards",
+  "verifies": {
+   "op": false,
+   "args": [
+    4,
+    5,
+    6
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Runs in the map entry scene, so no NPC is talking: the request lands in request record 0 (the Request Box record). Changes your save: use a throwaway save.",
+  "steps": [
+   {
+    "say": "7 arguments: rewards Broadsword 328, Iron Hammer 575, Turtle Shield 600, Talisman 649. Boxes: reward 1-4.",
+    "do": "PopulateQuestKind4LiteralRewards(52, 3, 1, 328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+   },
+   {
+    "say": "5 arguments: rewards Rice 300 and Toyherb 63 only. Boxes: reward 1-4.",
+    "do": "PopulateQuestKind4LiteralRewards(52, 3, 1, 300, 63)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+   }
+  ],
+  "expect": "Step 1: 328, 575, 600, 649. Step 2: 300, 63, then 0 and 0 (the record was rewritten; fewer arguments leave the later rewards empty).",
+  "call": "PopulateQuestKind4LiteralRewards(52, 3, 1, 328, 575, 600, 649)"
+ },
+ {
+  "id": "QueueSubEventGoalKind2-npc-handover",
+  "ops": [
+   537,
+   538
+  ],
+  "mnemonic": "QueueSubEventGoalKind2",
+  "verifies": {
+   "op": false,
+   "args": [
+    1
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "hard": true,
+  "steps": [
+   {
+    "say": "Visit 1 sets up, visit 2 checks. Goal: 3 Turnips for Margaret. Give one Turnip to Forte, then two to Margaret.",
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind2(29, actor(Margaret), 3)\nGivePlayerItem(29, 3, 1)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+   },
+   {
+    "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
+    "do": "GetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+   }
+  ],
+  "expect": "Visit 1: 3. Visit 2: 1 (only Margaret's two Turnips counted: argument 2 names who must receive it). Also note how Margaret and Forte reacted to the gift.",
+  "call": "QueueSubEventGoalKind2(29, actor(Margaret), 3)"
+ },
+ {
+  "id": "QueueSubEventGoalKind3-taste-handover",
+  "ops": [
+   539,
+   540
+  ],
+  "mnemonic": "QueueSubEventGoalKind3",
+  "verifies": {
+   "op": false,
+   "args": [
+    0,
+    1,
+    3
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "hard": true,
+  "steps": [
+   {
+    "say": "Visit 1 sets up, visit 2 checks. Goal: 3 gifts Margaret LOVES (tier 4), for Margaret. Give her the Turnip first, then the two Pink Melons.",
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind3(actor(Margaret), 4, 3, actor(Margaret))\nGivePlayerItem(5, 2, 1)\nGivePlayerItem(29, 1, 1)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+   },
+   {
+    "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
+    "do": "GetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+   }
+  ],
+  "expect": "Visit 1: 3. Visit 2: 1 (the two Pink Melons, which she loves, counted; the Turnip, neutral, did not: 0 would mean it counted too). Shows argument 1 is whose taste, 2 the gift tier, 4 who receives it.",
+  "call": "QueueSubEventGoalKind3(actor(Margaret), 4, 3, actor(Margaret))"
+ },
+ {
+  "id": "QueueSubEventGoalKind4-category-handover",
+  "ops": [
+   541,
+   542
+  ],
+  "mnemonic": "QueueSubEventGoalKind4",
+  "verifies": {
+   "op": false,
+   "args": [
+    0,
+    1
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "hard": true,
+  "steps": [
+   {
+    "say": "Visit 1 sets up, visit 2 checks. Goal: 3 items of category 0 (crops) for Margaret. Give her the Toyherb first, then the two Turnips.",
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind4(0, actor(Margaret), 3)\nGivePlayerItem(63, 1, 1)\nGivePlayerItem(29, 2, 1)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+   },
+   {
+    "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
+    "do": "GetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+   }
+  ],
+  "expect": "Visit 1: 3. Visit 2: 1 (the Turnips, category 0, counted; the Toyherb, category 2, did not).",
+  "call": "QueueSubEventGoalKind4(0, actor(Margaret), 3)"
+ },
+ {
+  "id": "QueueSubEventCraftGoal-npc-handover",
+  "ops": [
+   546
+  ],
+  "mnemonic": "QueueSubEventCraftGoal",
+  "verifies": {
+   "op": false,
+   "args": [
+    2
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "hard": true,
+  "steps": [
+   {
+    "say": "Visit 1 sets up, visit 2 checks. Goal: ingredients of Boiled Spinach (frying pan) for Margaret. Give Forte one Spinach, then Margaret the Turnip and one Spinach.",
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventCraftGoal(7, 215, actor(Margaret), 3)\nGivePlayerItem(27, 2, 1)\nGivePlayerItem(29, 1, 1)\nGetSubEventGoalRemaining(215)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+   },
+   {
+    "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
+    "do": "GetSubEventGoalRemaining(215)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+   }
+  ],
+  "expect": "Visit 1: 3. Visit 2: 2 (only the Spinach Margaret got counted: Forte is not the goal's NPC, a Turnip is no ingredient).",
+  "call": "QueueSubEventCraftGoal(7, 215, actor(Margaret), 3)"
+ },
+ {
+  "id": "QueueSubEventGoalKind5-npc-handover",
+  "ops": [
+   543,
+   544
+  ],
+  "mnemonic": "QueueSubEventGoalKind5",
+  "verifies": {
+   "op": false,
+   "args": [
+    0
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "hard": true,
+  "steps": [
+   {
+    "say": "Visit 1 sets up, visit 2 checks. Goal: talk to / visit Margaret (no item, no count). Give one Turnip to Forte, then one to Margaret.",
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind5(actor(Margaret))\nGivePlayerItem(29, 2, 1)\n\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+   },
+   {
+    "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
+    "do": "\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+   }
+  ],
+  "expect": "Margaret's reaction differs from her usual gift reaction (the goal takes the gift; the stand-in event has no scene for it), while Forte reacts as usual. Record what each did and whether each Turnip left your bag.",
+  "call": "QueueSubEventGoalKind5(actor(Margaret))"
+ },
+ {
+  "id": "TryMountPlayerOnHostActor-ride",
+  "ops": [
+   369
+  ],
+  "mnemonic": "TryMountPlayerOnHostActor",
+  "verifies": {
+   "op": true,
+   "args": [
+    0
+   ]
+  },
+  "map": "MAP_F_ROOM_00",
+  "scene": {
+   "bank": 1120,
+   "type": 13
+  },
+  "hard": true,
+  "setup": "Goes in front of the menu you get when you talk to one of your monsters (global bank 1120): the menu does not open while the test is in. Have a monster you can ride (its menu has 'Ride') and one you cannot, both out with you or in the barn. Talk to the rideable one, then (after getting off) to the other one.",
+  "steps": [
+   {
+    "say": "Next: you get on this monster. Boxes: result (1 = on it, 0 = failed, 2 = already riding), then 1 = you were free to.",
+    "do": "TryMountPlayerOnHostActor(7)\nEVAL (reg8 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg8)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET"
+   }
+  ],
+  "expect": "Rideable monster: you are riding it, boxes 1, 1. The other monster: record what happens and the boxes (0 if the game refuses). The argument (7 here, 1 in the game) changes nothing.",
+  "call": "TryMountPlayerOnHostActor(7)",
+  "values": {
+   "0": {
+    "7": "ignored"
+   }
+  }
+ },
+ {
+  "id": "PickUpHostObject-furniture",
+  "ops": [
+   589
+  ],
+  "mnemonic": "PickUpHostObject",
+  "verifies": {
+   "op": true,
+   "args": []
+  },
+  "map": "MAP_F_ROOM_00",
+  "scene": {
+   "bank": 1120,
+   "type": 2,
+   "key": 2248,
+   "call": true
+  },
+  "hard": true,
+  "setup": "Goes in front of the furniture menu (Pick up / Break) that every piece of furniture shares (global bank 1120): the menu does not open while the test is in. Stand at a piece of furniture in your house and press the action button at it.",
+  "steps": [
+   {
+    "say": "Next: you pick this furniture up, without the menu.",
+    "do": "PickUpHostObject()\nRET"
+   }
+  ],
+  "expect": "After the box you hold the furniture over your head (as after 'Pick up'), and can put it down elsewhere.",
+  "call": "PickUpHostObject()"
  }
 ]

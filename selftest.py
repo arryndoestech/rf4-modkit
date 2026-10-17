@@ -2038,9 +2038,10 @@ def test_opcode_arg_verification():
     bad = []
     mc = _shipped("rf3.mc")
     try:
-        resolver = S.Container(mc.read_bytes()).install_asm_resolver(EmFlagTable.load()) if mc else None
+        mc_c = S.Container(mc.read_bytes()) if mc else None
+        resolver = mc_c.install_asm_resolver(EmFlagTable.load()) if mc_c else None
     except Exception:  # noqa: BLE001
-        resolver = None
+        mc_c = resolver = None
     for x in plan:
         try:
             r = O.find_op(t, x["ops"][0])
@@ -2048,6 +2049,8 @@ def test_opcode_arg_verification():
             assert all(0 <= i < nargs for i in (x.get("verifies") or {}).get("args", ())), "arg index"
             assert x.get("expect") and x.get("steps") and x.get("map"), "fields"
             _mapdata.map_id(x["map"])
+            if x.get("scene") and mc_c is not None:   # a talk scene of another bank: its entry exists
+                O.scene_pc(mc_c, x["scene"])
             A.assemble(O.plan_listing(x, [O.NUMBER_LINE] * len(x["steps"])), 0x1000, resolver=resolver)
         except Exception as e:  # noqa: BLE001
             bad.append((x.get("id"), repr(e)[:100]))
