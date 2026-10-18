@@ -22,6 +22,8 @@ yet -- the behaviour and each argument -- with on-screen notes for every step.
   python optest.py plan list query            the tests of one category (or a mnemonic)
   python optest.py plan show <id>             setup, steps, what to look for
   python optest.py plan run <id> [--map M]    install it: notes + steps in the map's entry scene
+                                              (a test's "also" parts go into the scenes they name,
+                                              e.g. the arrival scene of a warp; restore --bank each)
   python optest.py plan done <id> --observed "what you saw" [--failed]
                                               log it: marks the instruction / arguments verified
 
@@ -512,6 +514,16 @@ def plan_describe(test):
         for x in (step.get("do") or "").splitlines():
             if x.strip():
                 out.append("         %s" % x.strip())
+    for p in test.get("also") or ():
+        out.append("  also:   bank %d, before the type-%d entry%s" % (
+            p["scene"]["bank"], p["scene"]["type"],
+            " with key %d" % p["scene"]["key"] if "key" in p["scene"] else ""))
+        for step in p["steps"]:
+            if step.get("say"):
+                out.append("         note: %s" % step["say"])
+            for x in (step.get("do") or "").splitlines():
+                if x.strip():
+                    out.append("         %s" % x.strip())
     out.append("  expect: %s" % test["expect"])
     return "\n".join(out)
 
@@ -539,6 +551,7 @@ def plan_cmd(a):
         print(plan_describe(plan_find(tests, a.id)))
     elif a.action == "run":
         test = plan_find(tests, a.id)
+        parts = test.get("also") or []             # more scenes the test needs (e.g. a warp's arrival)
         notes = [st.get("say") or "" for st in test["steps"]]
         labels = box_labels(test)
         title = plan_title(test, find_op(t, test["ops"][0]))
@@ -548,14 +561,29 @@ def plan_cmd(a):
                 for lab in labs:
                     print("  step %d box: %s" % (k + 1, lab))
             print(plan_listing(test, [NUMBER_LINE] * len(notes)))
+            for p in parts:
+                print("-- also in bank %d, before the type-%d entry%s:" % (
+                    p["scene"]["bank"], p["scene"]["type"],
+                    " with key %d" % p["scene"]["key"] if "key" in p["scene"] else ""))
+                print(plan_listing(p, [NUMBER_LINE] * len(p["steps"])))
             return
+        part_notes = [[st.get("say") or "" for st in p["steps"]] for p in parts]
+        part_labels = [box_labels(p) for p in parts]
         texts = [title] + [n for n in notes if n]
-        for labs in labels:
+        for ns in part_notes:
+            texts += [n for n in ns if n and n not in texts]
+        for labs in labels + [lab for pl in part_labels for lab in pl]:
             texts += [lab for lab in labs if lab not in texts]
         ids = dict(zip(texts, test_lines(texts)))
         note_ids = [ids[n] if n else None for n in notes]
         box_ids = [[ids[lab] for lab in labs] for labs in labels]
         listing = plan_listing(test, note_ids, box_ids, ids[title])
+        for p, ns, pl in zip(parts, part_notes, part_labels):
+            install_in_scene(p["scene"], plan_listing(p, [ids[n] if n else None for n in ns],
+                                                      [[ids[lab] for lab in labs] for labs in pl]))
+        if parts:
+            print("also installed in bank%s %s: afterwards also python optest.py restore --bank N for each"
+                  % ("s" if len(parts) > 1 else "", ", ".join(str(p["scene"]["bank"]) for p in parts)))
         if test.get("scene"):                      # a talk scene of another bank, not a map's entry
             sc = test["scene"]
             pc = install_in_scene(sc, listing)

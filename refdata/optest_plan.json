@@ -13411,23 +13411,27 @@
   "steps": [
    {
     "say": "Next menu: slots 0-2 = nicknames 94, 95, 99. Expect Darling. / Honey. / Princess.",
-    "do": "SetTextSlotEntries(0, 0, 94, 95, 99)\nPROMPT_CHOICE_FORCED #59809 -> L_tse1, #59810 -> L_tse1, #59811 -> L_tse1\nL_tse1:"
+    "do": "SetTextSlotEntries(0, 0, 0)\nSetTextSlotEntries(0, 1, 0)\nSetTextSlotEntries(0, 2, 0)\nSetTextSlotEntries(0, 0, 94, 95, 99)\nPROMPT_CHOICE_FORCED #59809 -> L_tse1, #59810 -> L_tse1, #59811 -> L_tse1\nL_tse1:"
    },
    {
     "say": "Next menu: only slot 1 set to 178. Expect Darling. / Your Highness. / Princess.",
     "do": "SetTextSlotEntries(0, 1, 178)\nPROMPT_CHOICE_FORCED #59809 -> L_tse2, #59810 -> L_tse2, #59811 -> L_tse2\nL_tse2:"
    },
    {
-    "say": "Next menu: slot 0 from another archive (15206, entry 154: a shop line).",
+    "say": "Next menu: slot 0 from archive 15206 (newlywed hints), entry 154.",
     "do": "SetTextSlotEntries(15206, 0, 154)\nPROMPT_CHOICE_FORCED #59809 -> L_tse3, #59810 -> L_tse3, #59811 -> L_tse3\nL_tse3:"
    },
    {
+    "say": "Next menu: archive 15206 from slot 1 on, entries 0 and 154 into slots 1 and 2.",
+    "do": "SetTextSlotEntries(15206, 1, 0, 154)\nPROMPT_CHOICE_FORCED #59809 -> L_tse4, #59810 -> L_tse4, #59811 -> L_tse4\nL_tse4:"
+   },
+   {
     "say": "Done: slots reset to the nickname list, entry 0.",
-    "do": "SetTextSlotEntries(0, 0, 0, 0, 0)\nWait(6000)"
+    "do": "SetTextSlotEntries(0, 0, 0)\nSetTextSlotEntries(0, 1, 0)\nSetTextSlotEntries(0, 2, 0)\nWait(6000)"
    }
   ],
-  "expect": "Menu 1: 'Darling.', 'Honey.', 'Princess.'. Menu 2: only the middle option changed to 'Your Highness.'. Menu 3: the first option shows a shopkeeper sentence instead of a nickname (the archive argument picks the text archive), the others unchanged.",
-  "call": "SetTextSlotEntries(0, 0, 94, 95, 99)",
+  "expect": "Menu 1: 'Darling.' / 'Honey.' / 'Princess.'. Menu 2: only the middle option changes, to 'Your Highness.'. Menu 3: the first option reads 'Go to the Bell Hotel..' (archive 15206 entry 154, the menu line adds its own period), the others unchanged. Menu 4: first option still 'Go to the Bell Hotel..', middle 'Call it a day..' (15206 entry 0), last 'Little Amber.' (entry 154 of the NICKNAME list: the archive argument only reached slot 1). If the last option reads 'Go to the Bell Hotel..' instead, the archive goes to every slot.",
+  "call": "SetTextSlotEntries(15206, 1, 0, 154)",
   "values": {
    "0": {
     "0": "nickname_list"
@@ -14050,7 +14054,7 @@
     "do": "ResetCameraToPlayer(1)\nWait(12000)"
    }
   ],
-  "expect": "The camera glides (not cuts) sideways about 8 tiles slowly (a couple of seconds), back quickly (well under a second), then glides along the other axis at medium speed. Camera follows you at the end.",
+  "expect": "Each pan is a glide, not a cut, of 8 tiles (64 script units). Predicted at 60 fps, if the speed is arg/100 script units per frame: speed 50 about 2 s (128 frames), speed 400 about 0.3 s (16 frames), speed 150 about 0.7 s (43 frames) along the other axis. What counts: 50 takes roughly 3x as long as 150 and 8x as long as 400. Camera follows you at the end.",
   "call": "SetCameraTarget((reg5 + 64), reg6, 50)"
  },
  {
@@ -14190,7 +14194,7 @@
     "do": "SetCameraTarget((reg5 + 64), reg6, 30)\nWaitCameraAtMark()\nSetVar3(0, 2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetCameraToPlayer(1)"
    }
   ],
-  "expect": "Box 1 opens immediately while the camera is still gliding. Box 2 opens only once the camera has finished its glide (several seconds later). Camera on you at the end.",
+  "expect": "Box 1 opens at once while the camera is still gliding. Box 2 opens only when the glide has stopped: 64 script units at speed 30 is about 3.5 s (213 frames at 60 fps). Camera on you at the end.",
   "call": "WaitCameraAtMark()"
  },
  {
@@ -16759,16 +16763,36 @@
    "args": []
   },
   "map": "MAP_CITY_00",
-  "setup": "Only in a scene started by talking to someone. The runner must put this as the FIRST lines of a villager's talk scene (e.g. Forte's), then talk to her.",
+  "setup": "Between 10:00 and 17:00, before you have talked to Forte or Kiel today. Talk to Forte, then to Kiel. The test replaces both NPCs' daytime greeting (bank 228 / 229, type-22 entry key 1) with a note box: Forte's then runs ContinueNormalTalk, Kiel's does not.",
   "steps": [
    {
-    "say": "Next: ContinueNormalTalk, then this scene ends.",
-    "do": "ContinueNormalTalk()"
+    "say": "Forte: greeting skipped, ContinueNormalTalk runs next.",
+    "do": "ContinueNormalTalk()\nRET"
    }
   ],
-  "expect": "After this note closes, the villager's NEXT kind of talk plays at once (e.g. her normal daily chat line) without you pressing talk again. Without the op, the conversation would just end.",
+  "expect": "Forte: after her note closes, she says one of her ordinary lines at once (not a greeting) without you pressing talk again. Kiel: after his note closes the conversation just ends.",
   "call": "ContinueNormalTalk()",
-  "hard": true
+  "hard": true,
+  "scene": {
+   "bank": 228,
+   "type": 22,
+   "key": 1
+  },
+  "also": [
+   {
+    "scene": {
+     "bank": 229,
+     "type": 22,
+     "key": 1
+    },
+    "steps": [
+     {
+      "say": "Kiel: greeting skipped, no ContinueNormalTalk (control).",
+      "do": "RET"
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "SetSceneReadyFlag-around-walk",
@@ -16821,15 +16845,33 @@
    ]
   },
   "map": "MAP_CITY_00",
-  "setup": "Selphia plaza. You are warped to your room (MAP_F_ROOM_01). Compare with WarpToMap-room-spot-b.",
+  "setup": "Walk into Selphia plaza (MAP_CITY_00). You are warped to the Dragon Room. The test also puts a box in front of the Dragon Room's arrival scene for event 2000 (bank 308), which ends that scene before the story part runs.",
   "steps": [
    {
-    "say": "Next: warp to your room at (270, 200), no event.",
-    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_01), 270, 200, 0)"
+    "say": "Next: warp to the Dragon Room at (164, 516) with event 2000.",
+    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_00), 164, 516, 2000)"
    }
   ],
-  "expect": "The screen fades and you arrive in your room standing at spot A (note where: near the door/bed?).",
-  "call": "WarpToMap(map(MAP_F_ROOM_01), 270, 200, 0)"
+  "also": [
+   {
+    "scene": {
+     "bank": 308,
+     "type": 15,
+     "key": 2000
+    },
+    "steps": [
+     {
+      "do": "FadeScreenToClear(12000)\nWaitForFade()\nGetPlayerPosition()\nEVAL (reg6 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET",
+      "labels": [
+       "Your x ＠数字０＠",
+       "Your y ＠数字０＠"
+      ]
+     }
+    ]
+   }
+  ],
+  "expect": "The screen fades and you arrive in the Dragon Room, where the other Dragon Room tests put you (PlaceActorAndFace(0, 164, 516, ...)). Then the boxes: x 164, y 516 (a unit or two off is fine). If x/y were tiles you would land far outside the room.",
+  "call": "WarpToMap(map(MAP_F_ROOM_00), 164, 516, 2000)"
  },
  {
   "id": "WarpToMap-room-spot-b",
@@ -16845,18 +16887,36 @@
    ]
   },
   "map": "MAP_CITY_00",
-  "setup": "Selphia plaza. Same as spot-a but different x/y.",
+  "setup": "Walk into Selphia plaza (MAP_CITY_00). You are warped to the Dragon Room. The test also puts a box in front of the Dragon Room's arrival scene for event 2000 (bank 308), which ends that scene before the story part runs.",
   "steps": [
    {
-    "say": "Next: warp to your room at (225, 371), no event.",
-    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_01), 225, 371, 0)"
+    "say": "Next: warp to the Dragon Room at (212, 468) with event 2000.",
+    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_00), 212, 468, 2000)"
    }
   ],
-  "expect": "You arrive in your room at a different spot: about 6 tiles left of / 21 tiles below spot A in map terms (record where).",
-  "call": "WarpToMap(map(MAP_F_ROOM_01), 225, 371, 0)"
+  "also": [
+   {
+    "scene": {
+     "bank": 308,
+     "type": 15,
+     "key": 2000
+    },
+    "steps": [
+     {
+      "do": "FadeScreenToClear(12000)\nWaitForFade()\nGetPlayerPosition()\nEVAL (reg6 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET",
+      "labels": [
+       "Your x ＠数字０＠",
+       "Your y ＠数字０＠"
+      ]
+     }
+    ]
+   }
+  ],
+  "expect": "You arrive 6 tiles right of and 6 tiles above test spot A; boxes x 212, y 468.",
+  "call": "WarpToMap(map(MAP_F_ROOM_00), 212, 468, 2000)"
  },
  {
-  "id": "WarpToMap-event-110",
+  "id": "WarpToMap-event-0",
   "ops": [
    332
   ],
@@ -16868,24 +16928,36 @@
    ]
   },
   "map": "MAP_CITY_00",
-  "setup": "Selphia plaza. Same warp as spot-a but with event 110 (used 210 times in retail). Compare the arrival with spot-a (event 0).",
+  "setup": "Walk into Selphia plaza (MAP_CITY_00). You are warped to the Dragon Room. The test also puts a box in front of the Dragon Room's arrival scene for event 2000 (bank 308), which ends that scene before the story part runs.",
   "steps": [
    {
-    "say": "Next: warp to your room at (270, 200) with event 110.",
-    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_01), 270, 200, 110)"
+    "say": "Next: the same warp, event 0. The arrival box should NOT appear.",
+    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_00), 164, 516, 0)"
    }
   ],
-  "expect": "Record what is different from event 0: facing direction, a fade style, a short scene, or nothing. If a scene starts, note what it is.",
-  "call": "WarpToMap(map(MAP_F_ROOM_01), 270, 200, 110)",
-  "values": {
-   "3": {
-    "0": "none",
-    "110": "ev_110"
+  "also": [
+   {
+    "scene": {
+     "bank": 308,
+     "type": 15,
+     "key": 2000
+    },
+    "steps": [
+     {
+      "do": "FadeScreenToClear(12000)\nWaitForFade()\nGetPlayerPosition()\nEVAL (reg6 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET",
+      "labels": [
+       "Your x ＠数字０＠",
+       "Your y ＠数字０＠"
+      ]
+     }
+    ]
    }
-  }
+  ],
+  "expect": "You arrive at spot A as in WarpToMap-room-spot-a, but no x/y boxes open: event 0 starts no arrival scene. (The test's arrival box is still installed, so a box here means the event argument is ignored.)",
+  "call": "WarpToMap(map(MAP_F_ROOM_00), 164, 516, 0)"
  },
  {
-  "id": "WarpToMap-event-350",
+  "id": "WarpToMap-event-2001",
   "ops": [
    332
   ],
@@ -16897,20 +16969,33 @@
    ]
   },
   "map": "MAP_CITY_00",
-  "setup": "Selphia plaza. Same warp as spot-a but with event 350 (used 102 times in retail).",
+  "setup": "Walk into Selphia plaza (MAP_CITY_00). You are warped to the Dragon Room. The test also puts a box in front of the Dragon Room's arrival scene for event 2000 (bank 308), which ends that scene before the story part runs.",
   "steps": [
    {
-    "say": "Next: warp to your room at (270, 200) with event 350.",
-    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_01), 270, 200, 350)"
+    "say": "Next: the same warp, event 2001 (no arrival entry has that key here). No box expected.",
+    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMap(map(MAP_F_ROOM_00), 164, 516, 2001)"
    }
   ],
-  "expect": "Record what is different from event 0 and from event 110 (facing, scene, fade).",
-  "call": "WarpToMap(map(MAP_F_ROOM_01), 270, 200, 350)",
-  "values": {
-   "3": {
-    "350": "ev_350"
+  "also": [
+   {
+    "scene": {
+     "bank": 308,
+     "type": 15,
+     "key": 2000
+    },
+    "steps": [
+     {
+      "do": "FadeScreenToClear(12000)\nWaitForFade()\nGetPlayerPosition()\nEVAL (reg6 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET",
+      "labels": [
+       "Your x ＠数字０＠",
+       "Your y ＠数字０＠"
+      ]
+     }
+    ]
    }
-  }
+  ],
+  "expect": "You arrive at spot A and no x/y boxes open: the Dragon Room has an arrival entry for 2000 only, so the event number picks the entry by its key.",
+  "call": "WarpToMap(map(MAP_F_ROOM_00), 164, 516, 2001)"
  },
  {
   "id": "WarpToMapInSubEvent-warp",
@@ -16927,15 +17012,15 @@
    ]
   },
   "map": "MAP_CITY_00",
-  "setup": "Selphia plaza. Warps you to your room like WarpToMap.",
+  "setup": "Walk into Selphia plaza (MAP_CITY_00). You are warped to the Dragon Room, like WarpToMap-room-spot-a.",
   "steps": [
    {
-    "say": "Next: sub-event warp to your room at (270, 200), no event.",
-    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMapInSubEvent(map(MAP_F_ROOM_01), 270, 200, 0)"
+    "say": "Next: sub-event warp to the Dragon Room at (164, 516), no event.",
+    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMapInSubEvent(map(MAP_F_ROOM_00), 164, 516, 0)"
    }
   ],
-  "expect": "You arrive in your room at the same spot as WarpToMap-room-spot-a. Note anything different from a normal warp.",
-  "call": "WarpToMapInSubEvent(map(MAP_F_ROOM_01), 270, 200, 0)"
+  "expect": "The screen fades and you arrive in the Dragon Room at test spot A (where PlaceActorAndFace(0, 164, 516, ...) puts you), as with WarpToMap.",
+  "call": "WarpToMapInSubEvent(map(MAP_F_ROOM_00), 164, 516, 0)"
  },
  {
   "id": "WarpToMapInSubEvent-event",
@@ -16950,15 +17035,33 @@
    ]
   },
   "map": "MAP_CITY_00",
-  "setup": "Selphia plaza. Same as WarpToMapInSubEvent-warp but event 110 and another spot.",
+  "setup": "Walk into Selphia plaza (MAP_CITY_00), with no sub-event running. The test puts the same box as WarpToMap-room-spot-a in front of the Dragon Room's arrival scene for event 2000 (bank 308).",
   "steps": [
    {
-    "say": "Next: sub-event warp to your room at (225, 371) with event 110.",
-    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMapInSubEvent(map(MAP_F_ROOM_01), 225, 371, 110)"
+    "say": "Next: sub-event warp to the Dragon Room at (164, 516) with event 2000. No box expected.",
+    "do": "FadeScreen(-16, 6000)\nWaitForFade()\nWarpToMapInSubEvent(map(MAP_F_ROOM_00), 164, 516, 2000)"
    }
   ],
-  "expect": "You arrive at spot B of WarpToMap-room-spot-b; record what event 110 changes (compare with WarpToMap-event-110).",
-  "call": "WarpToMapInSubEvent(map(MAP_F_ROOM_01), 225, 371, 110)"
+  "expect": "You arrive at spot A and NO x/y boxes open, although WarpToMap with the same event 2000 opened them: this op makes the game look the event up in the sub-event bank, not the map's own bank.",
+  "call": "WarpToMapInSubEvent(map(MAP_F_ROOM_00), 164, 516, 2000)",
+  "also": [
+   {
+    "scene": {
+     "bank": 308,
+     "type": 15,
+     "key": 2000
+    },
+    "steps": [
+     {
+      "do": "FadeScreenToClear(12000)\nWaitForFade()\nGetPlayerPosition()\nEVAL (reg6 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET",
+      "labels": [
+       "Your x ＠数字０＠",
+       "Your y ＠数字０＠"
+      ]
+     }
+    ]
+   }
+  ]
  },
  {
   "id": "SetSceneStateBit1-before-spawn",

@@ -2052,6 +2052,11 @@ def test_opcode_arg_verification():
             if x.get("scene") and mc_c is not None:   # a talk scene of another bank: its entry exists
                 O.scene_pc(mc_c, x["scene"])
             A.assemble(O.plan_listing(x, [O.NUMBER_LINE] * len(x["steps"])), 0x1000, resolver=resolver)
+            for p_ in x.get("also") or ():           # the extra scenes (a warp's arrival ...) too
+                assert p_.get("steps") and p_.get("scene"), "also fields"
+                if mc_c is not None:
+                    O.scene_pc(mc_c, p_["scene"])
+                A.assemble(O.plan_listing(p_, [O.NUMBER_LINE] * len(p_["steps"])), 0x1000, resolver=resolver)
         except Exception as e:  # noqa: BLE001
             bad.append((x.get("id"), repr(e)[:100]))
     ids = [x["id"] for x in plan]
