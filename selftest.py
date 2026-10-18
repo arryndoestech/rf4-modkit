@@ -8756,6 +8756,19 @@ def test_switch_case_moves():
             _skip("switch case moves", "no SWITCH with 3 distinct targets"); return
         pos, entry, q = hit
         ex.show_bank(pos, entry)
+        mode0 = ex.mode.get()
+        ex.mode.set("story"); ex._view_mode(); root.update()
+        lines = ex.view.text.get("1.0", "end").splitlines()
+        head = next((i for i, l in enumerate(lines) if "switch (" in l), None)
+        n = 0                                       # the cases under the first switch shown
+        while head is not None and head + 1 + n < len(lines) and ("= %d " % n) in lines[head + 1 + n]:
+            n += 1
+        cases = lines[head + 1:head + 1 + n] if head is not None else []
+        _check("the Script view shows a switch with one case per line (= 0 → …, then 'other values')",
+               head is not None and lines[head].rstrip().endswith(":")
+               and n >= 2 and all("→" in l for l in cases)
+               and "other values" in lines[head + 1 + n], (lines[head:head + n + 2] if head is not None else None))
+        ex.mode.set(mode0); ex._view_mode()
         ex.select((q, None))
         root.update()
         before = list(ex.stmt(q).code_targets)
@@ -8772,7 +8785,7 @@ def test_switch_case_moves():
         t0 = p.text()
         nums0 = [f._num.cget("text") for f, _r in p.rows]
         p._move_row(p.rows[2][0], -1)                                # case 2 up
-        root.update()
+        p._rebuild()                                # the preview refreshes 120 ms later by itself
         t1 = p.text()
         nums1 = [f._num.cget("text") for f, _r in p.rows]
         tg0 = t0.split("->", 1)[1].split(",")

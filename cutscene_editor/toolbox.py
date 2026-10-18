@@ -2766,6 +2766,9 @@ class InstructionPicker:
 
     # ---- actions ----------------------------------------------------------------- #
     def insert(self):
+        if self._pending is not None:           # a change from the last 120 ms: preview it first
+            self.win.after_cancel(self._pending)
+            self._rebuild_if_auto()
         if not self.check():
             return False
         if self.edit_pc is not None:

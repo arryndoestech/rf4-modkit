@@ -409,9 +409,18 @@ class SceneText:
                                                    ("  → %s%s" % (self.target(tgt), self.reg0_text(res, k)), "flow")],
                                 (pc, k), st))
             return speaker
-        elif m in ("SWITCH", "SWITCH_CLAMP"):
-            segs = [("switch ", "flow"), ("(%s)" % cond, "cond"),
-                    (": " + ", ".join("%d → %s" % (k, t) for k, t in enumerate(tg)), "flow")]
+        elif m in ("SWITCH", "SWITCH_CLAMP"):         # one line per case, like a menu's options
+            rows.append(Row(addr(pc, st) + ind + [("switch ", "flow"), ("(%s)" % cond, "cond"),
+                                                   (":", "flow")], key, st))
+            n = len(tg)
+            for k, t in enumerate(tg):
+                val = ("≥ %d" if m == "SWITCH_CLAMP" and k == n - 1 else "= %d") % k
+                rows.append(Row(addr(pc, st, cont=True) + ind + [("      %-5s → %s" % (val, t), "flow")],
+                                (pc, k), st))
+            if m == "SWITCH":
+                rows.append(Row(addr(pc, st, cont=True) + ind + [("      other values: carry on below", "dim")],
+                                (pc, n), st))
+            return speaker
         elif m == "JMP_WEIGHTED":
             w = st.items or []
             segs = [("random: " + ", ".join("%s → %s" % (w[k] if k < len(w) else "?", t)

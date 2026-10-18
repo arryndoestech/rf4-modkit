@@ -517,7 +517,8 @@ Every instruction has a name, argument labels and a description;
   at its right end does the same for the Inspector.
 - **Script** (middle) — the open scene. The **Story** view reads like a script:
   `Nancy: “…”` in the speaker's colour, actions by name (`▸ GivePlayerItem(reg1, 1, reg3)`),
-  flow as `if not (FLG_X) → go to L2`, choice options on their own rows, and a header saying
+  flow as `if not (FLG_X) → go to L2`, choice options on their own rows, a switch with one row
+  per case (`= 0 → L3`, `= 1 → L5` …, then *other values: carry on below*), and a header saying
   **when it plays** (its triggers and the em.bin gates). **Code** shows the disassembly. Both are in the
   toolbar's **View** menu, with four columns *Addresses* (each statement's address in its bank),
   *Opcodes* (the raw opcode), *File offsets* (its byte offset in `rf3.mc`, hex; with unsaved
