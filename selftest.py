@@ -8715,6 +8715,77 @@ def test_edit_instruction():
             root.destroy()
 
 
+def test_switch_case_moves():
+    """SWITCH cases move up and down: the Inspector's ▲/▼ swap two rows' targets in place (one
+    undoable edit), and the Edit form's rows (row k = value k) reorder and renumber."""
+    print("cutscene editor: moving SWITCH cases:")
+    try:
+        import tkinter as tk
+        import cutscene_editor as ce
+        from rf4s_modkit import script
+    except Exception as e:
+        _skip("switch case moves", f"cutscene_editor not importable ({e})"); return
+    mc = _shipped("rf3.mc")
+    if mc is None:
+        _skip("switch case moves", "rf3.mc not found"); return
+
+    def reader(n):
+        f = mc if n == "rf3.mc" else _first(n)
+        return f.read_bytes() if f else None
+    root = None
+    try:
+        try:
+            root = tk.Tk()
+            root.withdraw()
+        except Exception as e:
+            _skip("switch case moves", f"no display for Tk ({e})"); return
+        ex = ce.CutsceneExplorer(tk.Toplevel(root), reader=reader)
+        c = ex.doc.container
+        hit = None                                  # a SWITCH whose first two values differ
+        for pos in range(len(c.banks)):
+            for sc in script.disassemble_bank(c.banks[pos]):
+                for q, t in sc.stmts.items():
+                    if t.mnem == "SWITCH" and len(set(t.code_targets)) == len(t.code_targets) >= 3:
+                        hit = (pos, sc.entry_pc, q)
+                        break
+                if hit:
+                    break
+            if hit:
+                break
+        if hit is None:
+            _skip("switch case moves", "no SWITCH with 3 distinct targets"); return
+        pos, entry, q = hit
+        ex.show_bank(pos, entry)
+        ex.select((q, None))
+        root.update()
+        before = list(ex.stmt(q).code_targets)
+        st = ex.stmt(q)
+        vals = {t: [k] for k, t in enumerate(before)}
+        ex.inspector._move_case(st, list(before), vals, 1, -1)       # case 1 up
+        after = list(ex.stmt(q).code_targets)
+        ex.undo()
+        undone = list(ex.stmt(q).code_targets)
+        _check("Inspector ▲ swaps the targets of values 0 and 1, the rest stay, undo restores",
+               after == [before[1], before[0]] + before[2:] and undone == before, (before, after, undone))
+        p = ex.ask_edit_instruction()
+        root.update()
+        t0 = p.text()
+        nums0 = [f._num.cget("text") for f, _r in p.rows]
+        p._move_row(p.rows[2][0], -1)                                # case 2 up
+        root.update()
+        t1 = p.text()
+        nums1 = [f._num.cget("text") for f, _r in p.rows]
+        tg0 = t0.split("->", 1)[1].split(",")
+        tg1 = t1.split("->", 1)[1].split(",")
+        _check("Edit form: ▲ on value 2 makes it value 1 (rows renumbered =0, =1, =2 …)",
+               [x.strip() for x in tg1] == [x.strip() for x in [tg0[0], tg0[2], tg0[1]] + tg0[3:]]
+               and nums0 == nums1 == ["=%d" % k for k in range(len(before))], (t0, t1, nums0, nums1))
+        p.win.withdraw()
+    finally:
+        if root is not None:
+            root.destroy()
+
+
 def test_edit_every_kind():
     """Edit instruction opens every kind of statement (actions and all 15 control kinds the
     shipped scenes use): filled into its form when the form can hold it exactly, else as its
@@ -18737,7 +18808,7 @@ def run() -> int:
               test_sound_table, test_gifts, test_montame, test_schedule, test_monster, test_bugfixes,
               test_gen_structural, test_behaviour_edits, test_asatk_edit,
               test_rows_em_structural_skill, test_bcenc_and_model_textures,
-              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_edit_every_kind, test_variable_editor, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
+              test_script_authoring, test_bank_relink, test_script_relink_edits, test_emflags_extras, test_textlint, test_portrait_faces, test_cutscene_editor_authoring, test_cutscene_bank_listing, test_cutscene_graph, test_choice_results, test_choice_form, test_argspec, test_edit_instruction, test_edit_every_kind, test_switch_case_moves, test_variable_editor, test_visibility_audit, test_scene_log, test_script_debugger, test_script_debugger_var_writes, test_script_debugger_edits,
               test_models, test_material_anims, test_skeletal_anims,test_model_import, test_attr_tooltips, test_ground_texture_replacement,
               test_map_editor_undo, test_map_editor_workflows, test_sprite_quads_and_flags,
               test_map_editor_clipboard, test_map_editor_placed_objects, test_map_editor_palette, test_map_editor_limits_bar, test_map_editor_place_and_delete, test_scene_flag_reference, test_map_editor_hardcoded_warps, test_collision_stamp_modes, test_app_icon, test_map_editor_blank_overmodel, test_cutscene_install_leaves_no_temp, test_settings_stay_in_toolkit, test_map_editor_attr_tip, test_map_editor_multi_select, test_chest_loot, test_crate_loot_and_mgrp, test_map_editor_mtxn_cap, test_mgrp_panel_and_conflicts, test_map_editor_extra_warnings, test_map_editor_sidecar_files, test_map_editor_minimap_tab, test_map_editor_resize_dialog, test_map_editor_script_spawns, test_map_editor_gate_ground, test_map_editor_gate_motion, test_map_editor_pool_spawn_sprites, test_map_editor_save_to_game, test_map_editor_labels, test_map_explorer_list, test_map_editor_copy_to_seasons,

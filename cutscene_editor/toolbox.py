@@ -2010,7 +2010,7 @@ class InstructionPicker:
         elif m in ("SWITCH", "SWITCH_CLAMP"):
             vars_ = variable_choices(self.app.doc)
             self.sel_f = self._add("selector", "the value that picks the target", vars_, "reg0")
-            self._rows_ui("targets (0, 1, 2, …)", [("target", tg, tdef)], 2)
+            self._rows_ui("targets (0, 1, 2, …)", [("target", tg, tdef)], 2, movable=True)
         elif m == "JMP_RAND":
             self._rows_ui("targets", [("target", tg, tdef)], 2)
         elif m == "JMP_WEIGHTED":
@@ -2020,18 +2020,29 @@ class InstructionPicker:
         else:
             ttk.Label(self.form, text="(no operands)", foreground="#777").grid(row=10, column=1, sticky="w")
 
-    def _rows_ui(self, title, cols, n):
+    def _rows_ui(self, title, cols, n, movable=False):
         box = ttk.LabelFrame(self.form, text=title, padding=4)
         box.grid(row=200, column=0, columnspan=2, sticky="we", pady=4)
         self._rows_box, self._rows_cols = box, cols
-        ttk.Button(box, text="＋ add", command=self._add_row).pack(anchor="w")
+        self._rows_movable = movable            # a SWITCH: row k is the target of value k
+        self._rows_add = ttk.Button(box, text="＋ add", command=self._add_row)
+        self._rows_add.pack(anchor="w")
         for _ in range(n):
             self._add_row(render=False)
 
     def _add_row(self, render=True):
         f = ttk.Frame(self._rows_box)
-        f.pack(fill="x", pady=1, before=self._rows_box.winfo_children()[0])
+        f.pack(fill="x", pady=1, before=self._rows_add)
         row = []
+        if self._rows_movable:
+            num = ttk.Label(f, width=4, anchor="e", font=("Consolas", 9))
+            num.pack(side="left")
+            for d, sym, tip in ((-1, "▲", "Move this case up: the value above now jumps to this target."),
+                                (1, "▼", "Move this case down.")):
+                b = ttk.Button(f, text=sym, width=2, command=lambda d=d: self._move_row(f, d))
+                b.pack(side="left")
+                Tip(b, tip)
+            f._num = num
         for label, opts, default in self._rows_cols:
             ttk.Label(f, text=label).pack(side="left", padx=(4, 2))
             var = tk.StringVar()
@@ -2050,6 +2061,7 @@ class InstructionPicker:
         entry = (f, row)
         rm.config(command=lambda: self._del_row(entry))
         self.rows.append(entry)
+        self._number_rows()
         if render:
             self._changed()
 
@@ -2057,7 +2069,33 @@ class InstructionPicker:
         if entry in self.rows and len(self.rows) > 1:
             self.rows.remove(entry)
             entry[0].destroy()
+            self._number_rows()
             self._changed()
+
+    def _number_rows(self):
+        """A SWITCH's rows show the value that reaches them ('= 2'; SWITCH_CLAMP's last row
+        '≥ n', it also takes larger and negative values)."""
+        if not getattr(self, "_rows_movable", False):
+            return
+        clamp = self.key == ("ctl", "SWITCH_CLAMP")
+        n = len(self.rows)
+        for k, (f, _row) in enumerate(self.rows):
+            f._num.config(text=("≥%d" if clamp and k == n - 1 else "=%d") % k)
+
+    def _move_row(self, frame, d):
+        """Move a SWITCH row one place up (d = -1) or down (d = 1): the row order is the value
+        order (row k = value k)."""
+        i = next((k for k, (f, _r) in enumerate(self.rows) if f is frame), None)
+        if i is None or not 0 <= i + d < len(self.rows):
+            return False
+        self.rows[i], self.rows[i + d] = self.rows[i + d], self.rows[i]
+        for f, _row in self.rows:
+            f.pack_forget()
+        for f, _row in self.rows:
+            f.pack(fill="x", pady=1, before=self._rows_add)
+        self._number_rows()
+        self._changed()
+        return True
 
     def _row_tokens(self):
         return [[opts.get(v.get().strip(), v.get().strip()) for v, opts in row] for _f, row in self.rows]

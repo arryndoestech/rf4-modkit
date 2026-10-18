@@ -669,9 +669,22 @@ class Inspector(ScrollFrame):
                 rows.append(("", "a weight reads game state: the chances change in play", None))
         box = section(self.form, title)
         box.columnconfigure(2, weight=1)
+        cases = order if m in ("SWITCH", "SWITCH_CLAMP") else []    # the movable rows, in order
         for r, (left, note, t) in enumerate(rows):
             if left:
                 ttk.Label(box, text=left, font=("Consolas", 9)).grid(row=2 * r, column=0, sticky="w", padx=(0, 6))
+            if r < len(cases):
+                mv = ttk.Frame(box)
+                mv.grid(row=2 * r, column=3, sticky="e")
+                for d, sym, tip in ((-1, "▲", "Move this case up: the values of the row above run "
+                                              "this code, this row's values run theirs."),
+                                    (1, "▼", "Move this case down: swap its code with the row below.")):
+                    b = ttk.Button(mv, text=sym, width=2,
+                                   command=lambda r=r, d=d: self._move_case(st, cases, vals, r, d))
+                    b.pack(side="left")
+                    if not 0 <= r + d < len(cases):
+                        b.state(["disabled"])
+                    Tip(b, tip)
             if t is not None:
                 b = ttk.Button(box, text="→ " + self._target_text(txt, t),
                                command=lambda t=t: app.goto(t))
@@ -680,6 +693,23 @@ class Inspector(ScrollFrame):
             if note:
                 ttk.Label(box, text=note, foreground="#777", wraplength=300, justify="left").grid(
                     row=2 * r + 1, column=1, columnspan=2, sticky="w", pady=(0, 3))
+
+    def _move_case(self, st, cases, vals, r, d):
+        """Swap the code of case row `r` and row `r + d` of a SWITCH: each row's values now
+        jump to the other row's target (in place, one undoable edit)."""
+        j = r + d
+        if not 0 <= j < len(cases):
+            return False
+        ta, tb = cases[r], cases[j]
+        bank = self.app.bank
+
+        def do():
+            for k in vals[ta]:
+                bank.set_branch_target(st.pc, k, tb)
+            for k in vals[tb]:
+                bank.set_branch_target(st.pc, k, ta)
+        return self.app.apply("%s @0x%04x: move case %s %s" % (
+            st.mnem, st.pc, ", ".join(map(str, vals[ta])), "up" if d < 0 else "down"), do)
 
     # ---- choice ------------------------------------------------------------------------- #
     def _choice_form(self, st, txt, option):

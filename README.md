@@ -548,6 +548,10 @@ Every instruction has a name, argument labels and a description;
   every other offset are untouched); each **choice option**'s text, line id and destination. In the
   Add / Edit instruction window a menu's options move with ▲ / ▼ (editing a menu that stores the
   answer in reg0 warns that its separate visibility lines and SWITCH keep the old order).
+  A **SWITCH**'s cases move the same way: ▲ / ▼ on each row of the Inspector's *Goes to — by
+  value* table swap that row's code with the row above / below (the values stay where they are,
+  the code they run moves; one undoable edit), and in the Edit window the target rows (row k =
+  value k, shown as =0, =1 …) reorder before you apply.
   **Open map** (toolbar) shows the scene's map in the map editor, script spawns and areas on: its
   bank's map, or one its triggers or instructions name (a menu when there are several).
   *Delete* removes the statement: what jumped to it goes to the next statement (a JMP too: the
