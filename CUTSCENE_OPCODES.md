@@ -9054,7 +9054,7 @@ Args:
   1. primary (>= 48 = no-op (reg0 not written))
   2. others (count = argc - 2)
 
-### `op 507` — PopulateSlayRequest(monster, count, reward_categories)
+### `op 507` — PostSlayRequest(monster, count, reward_categories)
 
 Post a 'slay monsters' request (kind 1) into the talking NPC's request record, with rewards rolled from the given categories. reg0 = 1 if a target existed.
 
@@ -9063,7 +9063,7 @@ Args:
   1. count (0 = random 1-4; forced to 1 for ids 200..253)
   2. reward_categories (variable count (up to 4 used); each is rolled once with Item_RollRandomIdInCategory into rewards[0..3]; -1 = skip)
 
-### `op 508` — PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)
+### `op 508` — PostItemRequestRandomRewards(item, npc, count, reward categories...)
 
 Post a 'bring me this item' request (kind 2) for the NPC whose script is running, with randomly rolled reward items. Read it back with the quest-preview op (532).
 
@@ -9073,7 +9073,7 @@ Args:
   2. count (record byte +4 (corpus 1))
   3. reward categories... (up to 4; each rolls one reward item (corpus 51, 49, 46, 10, 3))
 
-### `op 509` — PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)
+### `op 509` — PostItemRequestRandomRewards(item, npc, count, reward categories...)
 
 Post a 'bring me this item' request (kind 2) for the NPC whose script is running, with randomly rolled reward items. Read it back with the quest-preview op (532).
 
@@ -9083,97 +9083,97 @@ Args:
   2. count (record byte +4 (corpus 1))
   3. reward categories... (up to 4; each rolls one reward item (corpus 51, 49, 46, 10, 3))
 
-### `op 510` — PopulateQuestKind2LiteralRewards(target_item, param, count, reward1, reward2, reward3, reward4)
+### `op 510` — PostItemRequest(item, npc, count, reward1, reward2, reward3, reward4)
 
 Post a kind-2 (bring an item) request on the script's NPC with fixed reward items instead of random ones. Does nothing if that NPC already has a posted request (except the board record 0).
 
 Args:
-  0. target_item (the requested item (record +2))
-  1. param (record +5 (corpus 0-17))
+  0. item (the requested item (record +2))
+  1. npc (+5: the NPC who must receive the items)
   2. count (record +4 (corpus 1))
   3. reward1 (literal reward item (0 allowed))
   4. reward2 (as reward1)
   5. reward3 (as reward1)
-  6. reward4 (as reward1)
+  6. reward4 (as reward1) — verified in game
 
-### `op 511` — PopulateQuestKind3RandomRewards(item A, item B, count, param, reward categories...)
-
-Post a kind-3 request (two item slots) for the NPC whose script is running, with randomly rolled rewards. Unused by the shipped scripts.
-
-Args:
-  0. item A (record +6)
-  1. item B (record +8)
-  2. count (record +4)
-  3. param (record +5)
-  4. reward categories... (rolled into reward u16s 1-3 (record +16..+21))
-
-### `op 512` — PopulateQuestKind3RandomRewards(item A, item B, count, param, reward categories...)
+### `op 511` — PostGiftTierRequestRandomRewards(taste_of, gift_tier, count, npc, reward categories...)
 
 Post a kind-3 request (two item slots) for the NPC whose script is running, with randomly rolled rewards. Unused by the shipped scripts.
 
 Args:
-  0. item A (record +6)
-  1. item B (record +8)
+  0. taste_of (+6: whose gift taste the item is judged by)
+  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike)
   2. count (record +4)
-  3. param (record +5)
+  3. npc (+5: the NPC who must receive the items)
   4. reward categories... (rolled into reward u16s 1-3 (record +16..+21))
 
-### `op 513` — PopulateQuestKind4RandomRewards(target, param, count, reward_categories)
+### `op 512` — PostGiftTierRequestRandomRewards(taste_of, gift_tier, count, npc, reward categories...)
+
+Post a kind-3 request (two item slots) for the NPC whose script is running, with randomly rolled rewards. Unused by the shipped scripts.
+
+Args:
+  0. taste_of (+6: whose gift taste the item is judged by)
+  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike)
+  2. count (record +4)
+  3. npc (+5: the NPC who must receive the items)
+  4. reward categories... (rolled into reward u16s 1-3 (record +16..+21))
+
+### `op 513` — PostCategoryRequestRandomRewards(item_category, npc, count, reward_categories)
 
 Post a kind-4 request into the talking NPC's request record, with rewards rolled from the given categories.
 
 Args:
-  0. target (record +2 (corpus 13 / 52 / 46))
-  1. param (record +5 (corpus: a villager char id, actor(Name)))
+  0. item_category (+2: rf3ItemList category byte of the item)
+  1. npc (+5: the NPC who must receive the items)
   2. count (record +4)
   3. reward_categories (each rolled once into rewards[0..3])
 
-### `op 514` — PopulateQuestKind4RandomRewards(target, param, count, reward_categories)
+### `op 514` — PostCategoryRequestRandomRewards(item_category, npc, count, reward_categories)
 
 Post a kind-4 request into the talking NPC's request record, with rewards rolled from the given categories.
 
 Args:
-  0. target (record +2 (corpus 13 / 52 / 46))
-  1. param (record +5 (corpus: a villager char id, actor(Name)))
+  0. item_category (+2: rf3ItemList category byte of the item)
+  1. npc (+5: the NPC who must receive the items)
   2. count (record +4)
   3. reward_categories (each rolled once into rewards[0..3])
 
-### `op 515` — PopulateQuestKind4LiteralRewards(target_item, param, unused, reward1, reward2, reward3, reward4)
+### `op 515` — PostCategoryRequest(item_category, npc, unused, reward1, reward2, reward3, reward4)
 
 Post a kind-4 request on the script's NPC with a count of 1 and fixed reward items. Skipped if that NPC already has a posted request (except the board record 0).
 
 Args:
-  0. target_item (record +2)
-  1. param (record +5)
+  0. item_category (+2: rf3ItemList category byte of the item)
+  1. npc (+5: the NPC who must receive the items)
   2. unused (never read (count is forced to 1))
   3. reward1 (literal reward item)
-  4. reward2 (as reward1)
-  5. reward3 (as reward1)
-  6. reward4 (as reward1)
+  4. reward2 (as reward1) — verified in game
+  5. reward3 (as reward1) — verified in game
+  6. reward4 (as reward1) — verified in game
 
-### `op 516` — PostBoardQuestKind5(param)
-
-Overwrite request record 0 (the board record) with a kind-5 entry. Unused by the shipped scripts.
-
-Args:
-  0. param (record +5)
-
-### `op 517` — PostBoardQuestKind5(param)
+### `op 516` — PostVisitRequest(npc)
 
 Overwrite request record 0 (the board record) with a kind-5 entry. Unused by the shipped scripts.
 
 Args:
-  0. param (record +5)
+  0. npc (+5: the NPC who must receive the items)
 
-### `op 518` — PostBoardQuestKind6(param, count)
+### `op 517` — PostVisitRequest(npc)
+
+Overwrite request record 0 (the board record) with a kind-5 entry. Unused by the shipped scripts.
+
+Args:
+  0. npc (+5: the NPC who must receive the items)
+
+### `op 518` — PostKind6Request(npc, count)
 
 Overwrite request record 0 (the board record) with a kind-6 request that has no target item and no rewards.
 
 Args:
-  0. param (record +5)
+  0. npc (+5: the NPC who must receive the items)
   1. count (record +4)
 
-### `op 519` — PostBoardCraftQuest(category, item, param, count)
+### `op 519` — PostIngredientRequest(category, item, npc, count)
 
 Posts a 'craft this item' request (kind 7) as request record 0 and returns the item's recipe ingredients: reg0 = ingredient count, reg1..reg6 = ingredient item ids. Unused by the shipped scripts.
 
@@ -9181,10 +9181,10 @@ Args:
   0. category (selects the craft archive (CraftData_ResolveArchiveIdFromCategory))
   1. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  2. param (stored at record +5)
+  2. npc (+5: the NPC who must receive the items)
   3. count (stored at record +4)
 
-### `op 520` — PostQuestGoalNumber(goal, rewards)
+### `op 520` — PostGoalNumberRequest(goal, rewards)
 
 Posts a request whose objective is reaching a number (a skill level, a tame count ...), with literal reward items. The request scene itself checks completion.
 
@@ -9192,7 +9192,7 @@ Args:
   0. goal (shown to the player (skill level, count ...); not checked by the engine)
   1. rewards (written verbatim; 0 ends the list)
 
-### `op 521` — PopulateQuestKind9LiteralRewards(target, rewards)
+### `op 521` — PostVisitorWantRequest(target, rewards)
 
 Post a kind-9 request (the daily visitor's wanted item) into the talking NPC's request record with literal reward items, and bind it to this script for the following accept/complete ops.
 
@@ -9200,14 +9200,14 @@ Args:
   0. target (record +2 (corpus: the daily visitor's wanted item from GetDailyVisitor))
   1. rewards (literal reward item ids into rewards[0..3]; 0 ends the list)
 
-### `op 522` — PopulateQuestKind10RandomRewards(reward categories...)
+### `op 522` — PostRewardOnlyRequestRandomRewards(reward categories...)
 
 Post a kind-10 request (no item target) for the NPC whose script is running, with rolled rewards, and remember it for the script. Used before quest completion scenes.
 
 Args:
   0. reward categories... (each rolls one reward item; 0 ends the list)
 
-### `op 523` — PostQuestLiteralRewards(rewards)
+### `op 523` — PostRewardOnlyRequest(rewards)
 
 Posts a request with no target item (kind 10) and fixed reward items; the request scene checks completion itself.
 
@@ -9254,7 +9254,7 @@ Args:
 
 Start the reserved town sub-event (if none is running): move REG_SUBEV_RSV into REG_SUBEV_NOW and run its setup. Placed at the start of sub-event scripts.
 
-### `op 537` — QueueSubEventGoalKind2(item, npc, count, ignored...)
+### `op 537` — AddTownEventItemGoal(item, npc, count, ignored...)
 
 Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). Does nothing if no sub-event is running.
 
@@ -9264,7 +9264,7 @@ Args:
   2. count (+4)
   3. ignored... (reward categories are ignored in this mode)
 
-### `op 538` — QueueSubEventGoalKind2(item, npc, count, ignored...)
+### `op 538` — AddTownEventItemGoal(item, npc, count, ignored...)
 
 Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). Does nothing if no sub-event is running.
 
@@ -9274,7 +9274,7 @@ Args:
   2. count (+4)
   3. ignored... (reward categories are ignored in this mode)
 
-### `op 539` — QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)
+### `op 539` — AddTownEventGiftTierGoal(taste_of, gift_tier, count, npc, ignored...)
 
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
@@ -9285,7 +9285,7 @@ Args:
   3. npc (+5: the NPC who must receive the item)
   4. ignored... (reward categories ignored)
 
-### `op 540` — QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)
+### `op 540` — AddTownEventGiftTierGoal(taste_of, gift_tier, count, npc, ignored...)
 
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
@@ -9296,7 +9296,7 @@ Args:
   3. npc (+5: the NPC who must receive the item)
   4. ignored... (reward categories ignored)
 
-### `op 541` — QueueSubEventGoalKind4(item_category, npc, count)
+### `op 541` — AddTownEventCategoryGoal(item_category, npc, count)
 
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
@@ -9305,7 +9305,7 @@ Args:
   1. npc (+5: the NPC who must receive the item)
   2. count (entry +4)
 
-### `op 542` — QueueSubEventGoalKind4(item_category, npc, count)
+### `op 542` — AddTownEventCategoryGoal(item_category, npc, count)
 
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
@@ -9314,21 +9314,21 @@ Args:
   1. npc (+5: the NPC who must receive the item)
   2. count (entry +4)
 
-### `op 543` — QueueSubEventGoalKind5(npc)
+### `op 543` — AddTownEventVisitGoal(npc)
 
 Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to this villager'. Does nothing if no sub-event is running.
 
 Args:
   0. npc (+5; corpus passes an NPC char id (actor(Name)))
 
-### `op 544` — QueueSubEventGoalKind5(npc)
+### `op 544` — AddTownEventVisitGoal(npc)
 
 Add a kind-5 goal to the running sub-event's goal list (max 20), e.g. 'talk to this villager'. Does nothing if no sub-event is running.
 
 Args:
   0. npc (+5; corpus passes an NPC char id (actor(Name)))
 
-### `op 545` — QueueSubEventGoalKind6(npc, count)
+### `op 545` — AddTownEventKind6Goal(npc, count)
 
 Append a kind-6 goal to the current sub-event's goal queue (only while a sub-event is running).
 
@@ -9336,9 +9336,9 @@ Args:
   0. npc (+5: the NPC who must receive the item)
   1. count (entry +4)
 
-### `op 546` — QueueSubEventCraftGoal(category, item, npc, count)
+### `op 546` — AddTownEventIngredientGoal(category, item, npc, count)
 
-Queue form of PostBoardCraftQuest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.
+Queue form of PostIngredientRequest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.
 
 Args:
   0. category
@@ -9347,7 +9347,7 @@ Args:
   2. npc (+5: the NPC who must receive the item)
   3. count (record +4)
 
-### `op 547` — QueueSubEventGoalKind10(ignored...)
+### `op 547` — AddTownEventEmptyGoal(ignored...)
 
 Add an empty kind-10 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
@@ -12003,20 +12003,20 @@ Every named action opcode by number (reserved slots omitted; see above).
 | 496 | `WalkCompanionToAndFace` | 497 | `WalkCompanionTo` | 498 | `MoveCompanionByOffset` |
 | 499 | `MoveCompanionByOffsetFaceTravel` | 500 | `TurnCompanionToAngle` | 501 | `TurnCompanionToFaceTarget` |
 | 502 | `WaitCompanionSettled` | 503 | `ShowCompanionEmote` | 504 | `GetPartyMemberPosY` |
-| 506 | `WarpMonstersToPlayer` | 507 | `PopulateSlayRequest` | 508 | `PopulateQuestKind2RandomRewards` |
-| 509 | `PopulateQuestKind2RandomRewards` | 510 | `PopulateQuestKind2LiteralRewards` | 511 | `PopulateQuestKind3RandomRewards` |
-| 512 | `PopulateQuestKind3RandomRewards` | 513 | `PopulateQuestKind4RandomRewards` | 514 | `PopulateQuestKind4RandomRewards` |
-| 515 | `PopulateQuestKind4LiteralRewards` | 516 | `PostBoardQuestKind5` | 517 | `PostBoardQuestKind5` |
-| 518 | `PostBoardQuestKind6` | 519 | `PostBoardCraftQuest` | 520 | `PostQuestGoalNumber` |
-| 521 | `PopulateQuestKind9LiteralRewards` | 522 | `PopulateQuestKind10RandomRewards` | 523 | `PostQuestLiteralRewards` |
+| 506 | `WarpMonstersToPlayer` | 507 | `PostSlayRequest` | 508 | `PostItemRequestRandomRewards` |
+| 509 | `PostItemRequestRandomRewards` | 510 | `PostItemRequest` | 511 | `PostGiftTierRequestRandomRewards` |
+| 512 | `PostGiftTierRequestRandomRewards` | 513 | `PostCategoryRequestRandomRewards` | 514 | `PostCategoryRequestRandomRewards` |
+| 515 | `PostCategoryRequest` | 516 | `PostVisitRequest` | 517 | `PostVisitRequest` |
+| 518 | `PostKind6Request` | 519 | `PostIngredientRequest` | 520 | `PostGoalNumberRequest` |
+| 521 | `PostVisitorWantRequest` | 522 | `PostRewardOnlyRequestRandomRewards` | 523 | `PostRewardOnlyRequest` |
 | 524 | `NopCompleteSubEventGoals` | 525 | `CompleteQuest` | 527 | `AdvanceRng` |
 | 528 | `GetRequestRewardItem` | 529 | `ClearAllRequestRecords` | 530 | `CommitQuestAcceptance` |
 | 531 | `ClearBoardRequest` | 532 | `GetNpcQuestPreview` | 534 | `GetDailyVisitor` |
-| 535 | `GetQuestRemainingByItem` | 536 | `StartReservedSubEvent` | 537 | `QueueSubEventGoalKind2` |
-| 538 | `QueueSubEventGoalKind2` | 539 | `QueueSubEventGoalKind3` | 540 | `QueueSubEventGoalKind3` |
-| 541 | `QueueSubEventGoalKind4` | 542 | `QueueSubEventGoalKind4` | 543 | `QueueSubEventGoalKind5` |
-| 544 | `QueueSubEventGoalKind5` | 545 | `QueueSubEventGoalKind6` | 546 | `QueueSubEventCraftGoal` |
-| 547 | `QueueSubEventGoalKind10` | 548 | `CompleteAllSubEventGoals` | 549 | `FinishCurrentSubEvent` |
+| 535 | `GetQuestRemainingByItem` | 536 | `StartReservedSubEvent` | 537 | `AddTownEventItemGoal` |
+| 538 | `AddTownEventItemGoal` | 539 | `AddTownEventGiftTierGoal` | 540 | `AddTownEventGiftTierGoal` |
+| 541 | `AddTownEventCategoryGoal` | 542 | `AddTownEventCategoryGoal` | 543 | `AddTownEventVisitGoal` |
+| 544 | `AddTownEventVisitGoal` | 545 | `AddTownEventKind6Goal` | 546 | `AddTownEventIngredientGoal` |
+| 547 | `AddTownEventEmptyGoal` | 548 | `CompleteAllSubEventGoals` | 549 | `FinishCurrentSubEvent` |
 | 551 | `ResetSubEventGoals` | 552 | `GetSubEventGoalRemaining` | 553 | `SetNpcSubEventFlag` |
 | 554 | `SetNpcSubEventFlag` | 555 | `SetNpcAttentionRadius` | 556 | `SetNpcAttentionRadius` |
 | 557 | `SetNpcRecognitionFlags` | 558 | `SetNpcRecognitionFlags` | 559 | `StartFestivalContest` |

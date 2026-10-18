@@ -1136,7 +1136,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerMCLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -1438,7 +1438,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerMCRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -1739,7 +1739,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerVishnalLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -2041,7 +2041,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerVishnalRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -2343,7 +2343,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerCloricaLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -2644,7 +2644,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerCloricaRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -2946,7 +2946,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerVolkanonLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -3247,7 +3247,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerVolkanonRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -3548,7 +3548,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerForteLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -3849,7 +3849,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerForteRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -4151,7 +4151,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerKielLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -4452,7 +4452,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerKielRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -4754,7 +4754,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerBadoLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -5054,7 +5054,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerBadoRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -5355,7 +5355,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerMargaretLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -5656,7 +5656,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerMargaretRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -5958,7 +5958,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDylasLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -6260,7 +6260,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDylasRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -6562,7 +6562,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerArthurLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -6863,7 +6863,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerArthurRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -7165,7 +7165,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerPorcolineLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -7466,7 +7466,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerPorcolineRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -7768,7 +7768,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerXiaoPaiLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -8069,7 +8069,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerXiaoPaiRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -8371,7 +8371,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerLinFaLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -8671,7 +8671,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerLinFaRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -8972,7 +8972,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerAmberLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -9273,7 +9273,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerAmberRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -9575,7 +9575,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerIlluminataLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -9876,7 +9876,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerIlluminataRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -10177,7 +10177,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDougLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -10478,7 +10478,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDougRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -10780,7 +10780,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerBlossomLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -11081,7 +11081,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerBlossomRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -11382,7 +11382,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDolceLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -11684,7 +11684,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDolceRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -11986,7 +11986,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerJonesLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -12286,7 +12286,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerJonesRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -12587,7 +12587,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerNancyLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -12888,7 +12888,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerNancyRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -13189,7 +13189,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerLeonLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -13490,7 +13490,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerLeonRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -13793,7 +13793,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerVentuswillLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -14093,7 +14093,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerVentuswillRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -14394,7 +14394,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerSonLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -14694,7 +14694,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerSonRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -14995,7 +14995,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDaughterLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -15281,7 +15281,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerDaughterRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -15581,7 +15581,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerPicoLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -15883,7 +15883,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerPicoRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -16184,7 +16184,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerSoldierLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -16484,7 +16484,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerSoldierRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -16784,7 +16784,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerEthelberdLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -17084,7 +17084,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerEthelberdRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -17384,7 +17384,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerBarrettLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -17684,7 +17684,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerBarrettRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -17984,7 +17984,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerRavenLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -18284,7 +18284,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerRavenRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -18583,7 +18583,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerTravelerLeft",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -18869,7 +18869,7 @@
    "mnemonic": "SetSpeaker",
    "previous_mnemonic": "SetSpeakerTravelerRight",
    "category": "dialogue",
-   "prototype": "SetSpeaker(character, side, face, trigger1, trigger2, trigger3)",
+   "prototype": "SetSpeaker(face, trigger1, trigger2, trigger3)",
    "args": [
     {
      "name": "face",
@@ -39001,7 +39001,21 @@
      "values": "the handler reads no args; the corpus passes 1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "TryMountPlayerOnHostActor(7)",
+       "observed": "called with argument 7 in front of the barn monster menu: Wooly -> reg0 1, reg1 1, the player rides it (mounted flag set, seen on screen); Cluckadoodle 'Clock' and the monster 'Antok' -> reg0 0, reg1 1, not mounted"
+      }
+     ],
+     "value_names": {
+      "7": {
+       "name": "ignored",
+       "text": "",
+       "human_verified": true
+      }
+     }
     }
    ],
    "optional_args_from": null,
@@ -39011,7 +39025,7 @@
    "summary": "Try to make the player ride this monster",
    "details": "target = host+32 (the interaction actor). reg1 = 0 when player render_state_flags & 0x1E (mid-action), else 1. reg0 = 0 when busy; 2 when player status_equip_flags & 0x4000 (already mounted); else (u16) Player_BeginMountTransitionAndInstallTickAndAnchor(player, target) (RF4S.exe+0xA4B70), which starts the ride (sets 0x4000, installs Player_TickMounted) and returns 1/0.",
    "side_effects": "may mount the player on the monster",
-   "evidence": "RF4S.exe+0x212AE0: `if (player->render_state_flags & 0x1E) v6 = 0; else if (player->status_equip_flags & 0x4000) v4 = 2; else v4 = Player_BeginMountTransitionAndInstallTickAndAnchor(player, *(a1+32)); *(a2+64) = v4; *(a2+68) = v6`; corpus: 1 use in the farm-monster menu, then BR_Z reg1 == 0 -> \"This place is too unstable for me to ride\".",
+   "evidence": "RF4S.exe+0x212AE0: `if (player->render_state_flags & 0x1E) v6 = 0; else if (player->status_equip_flags & 0x4000) v4 = 2; else v4 = Player_BeginMountTransitionAndInstallTickAndAnchor(player, *(a1+32)); *(a2+64) = v4; *(a2+68) = v6`; corpus: 1 use in the farm-monster menu, then BR_Z reg1 == 0 -> \"This place is too unstable for me to ride\". In-game test 2026-10-18 (user): TryMountPlayerOnHostActor(7) -> called with argument 7 in front of the barn monster menu: Wooly -> reg0 1, reg1 1, the player rides it (mounted flag set, seen on screen); Cluckadoodle 'Clock' and the monster 'Antok' -> reg0 0, reg1 1, not mounted.",
    "alias_of": null,
    "handler": "Script_VMOp_QueryPlayerCanInteractWithActor",
    "handler_rva": "0x212AE0",
@@ -39028,7 +39042,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": null,
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 1120,
     "pc": "0x8016",
@@ -47585,10 +47599,10 @@
   "507": {
    "op": 507,
    "op_hex": "0x1FB",
-   "mnemonic": "PopulateSlayRequest",
-   "previous_mnemonic": null,
+   "mnemonic": "PostSlayRequest",
+   "previous_mnemonic": "PopulateSlayRequest",
    "category": "quest",
-   "prototype": "PopulateSlayRequest(monster, count, reward_categories)",
+   "prototype": "PostSlayRequest(monster, count, reward_categories)",
    "args": [
     {
      "name": "monster",
@@ -47647,7 +47661,7 @@
      "    RET",
      "L_01be:",
      "    FRAME 2",
-     "    PopulateSlayRequest(0, 0, 51)    ; <--",
+     "    PostSlayRequest(0, 0, 51)    ; <--",
      "    BR_Z (!(reg0)) -> L_01d8",
      "    ContinueNormalTalk()",
      "    RET"
@@ -47657,10 +47671,10 @@
   "508": {
    "op": 508,
    "op_hex": "0x1FC",
-   "mnemonic": "PopulateQuestKind2RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostItemRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind2RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)",
+   "prototype": "PostItemRequestRandomRewards(item, npc, count, reward categories...)",
    "args": [
     {
      "name": "item",
@@ -47732,7 +47746,7 @@
      "    RET",
      "L_01aa:",
      "    CALL L_01d8",
-     "    PopulateQuestKind2RandomRewards(reg0, actor(Dylas), 1, 51)    ; <--",
+     "    PostItemRequestRandomRewards(reg0, actor(Dylas), 1, 51)    ; <--",
      "    GetNpcQuestPreview()",
      "    SetVar1(0, reg0)",
      "    SetVar1(1, reg2)"
@@ -47742,10 +47756,10 @@
   "509": {
    "op": 509,
    "op_hex": "0x1FD",
-   "mnemonic": "PopulateQuestKind2RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostItemRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind2RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind2RandomRewards(item, npc, count, reward categories...)",
+   "prototype": "PostItemRequestRandomRewards(item, npc, count, reward categories...)",
    "args": [
     {
      "name": "item",
@@ -47816,7 +47830,7 @@
      "    RET",
      "L_01f6:",
      "    CALL L_0224",
-     "    PopulateQuestKind2RandomRewards_509(reg0, var:0x40FE, 1, 51)    ; <--",
+     "    PostItemRequestRandomRewards_509(reg0, var:0x40FE, 1, 51)    ; <--",
      "    GetNpcQuestPreview()",
      "    SetVar1(0, reg0)",
      "    SetVar1(1, reg2)"
@@ -47826,13 +47840,13 @@
   "510": {
    "op": 510,
    "op_hex": "0x1FE",
-   "mnemonic": "PopulateQuestKind2LiteralRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostItemRequest",
+   "previous_mnemonic": "PopulateQuestKind2LiteralRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind2LiteralRewards(target_item, param, count, reward1, reward2, reward3, reward4)",
+   "prototype": "PostItemRequest(item, npc, count, reward1, reward2, reward3, reward4)",
    "args": [
     {
-     "name": "target_item",
+     "name": "item",
      "type": "item id",
      "values": "the requested item (record +2)",
      "required_kind": "any",
@@ -47840,9 +47854,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5 (corpus 0-17)",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "any",
      "notes": "meaning not established",
      "human_verified": false
@@ -47885,7 +47899,14 @@
      "values": "as reward1",
      "required_kind": "any",
      "notes": "further args ignored",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-17",
+       "call": "PostItemRequest(29, 7, 3, 328, 575, 600, 649)",
+       "observed": "boxes 328, 575, 600, 649 then 328, 575, 600, 300: the 4th reward follows argument 7"
+      }
+     ]
     }
    ],
    "optional_args_from": 3,
@@ -47895,7 +47916,7 @@
    "summary": "Post a 'bring an item' request, fixed rewards",
    "details": "RF4S.exe+0x216570: record {kind 2, +2 = arg0, +4 = arg2, +5 = arg1, +10 = host+32 actor char id}. Opcode (host+260) < 0x219 (always, for 510): record = g_npcDailyRequestArray[char id < 24 ? id : 0] (24 bytes); skipped if status word +26 bit 2 set and id != 0; else record written, byte +5 = 1, status = (x & 0xBFFD) | 2 (posted); args 3..6 -> record words 9..12 verbatim (argc - 3 rewards, max 4). The >= 0x219 queue branch (append to the sub-event goal queue when REG_SUBEV_NOW != 0) is dead for this op.",
    "side_effects": "writes the NPC's request record in g_npcDailyRequestArray",
-   "evidence": "RF4S.exe+0x216570; corpus: 13 uses, argc 4 x11 / 6 x2, e.g. (reg0, 7, 1, 51) followed by GetNpcQuestPreview and SetVar1 text setup.",
+   "evidence": "RF4S.exe+0x216570; corpus: 13 uses, argc 4 x11 / 6 x2, e.g. (reg0, 7, 1, 51) followed by GetNpcQuestPreview and SetVar1 text setup. In-game test 2026-10-17 (user): PostItemRequest(29, 7, 3, 328, 575, 600, 649) -> boxes 328, 575, 600, 649 then 328, 575, 600, 300: the 4th reward follows argument 7.",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind2WithLiteralAlternates",
    "handler_rva": "0x216570",
@@ -47921,7 +47942,7 @@
      "    CALL L_01fe",
      "    EVAL (reg2 = reg0)",
      "    CALL L_01fe",
-     "    PopulateQuestKind2LiteralRewards(0, 0, 0, reg0, reg1, reg2)    ; <--",
+     "    PostItemRequest(0, 0, 0, reg0, reg1, reg2)    ; <--",
      "    GetNpcQuestPreview()",
      "    SetVar0_341(0, reg0)",
      "    SetVar3(0, reg1)"
@@ -47931,23 +47952,23 @@
   "511": {
    "op": 511,
    "op_hex": "0x1FF",
-   "mnemonic": "PopulateQuestKind3RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostGiftTierRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind3RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind3RandomRewards(item A, item B, count, param, reward categories...)",
+   "prototype": "PostGiftTierRequestRandomRewards(taste_of, gift_tier, count, npc, reward categories...)",
    "args": [
     {
-     "name": "item A",
+     "name": "taste_of",
      "type": "u16",
-     "values": "record +6",
+     "values": "+6: whose gift taste the item is judged by",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "item B",
+     "name": "gift_tier",
      "type": "u16",
-     "values": "record +8",
+     "values": "+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -47961,9 +47982,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48009,23 +48030,23 @@
   "512": {
    "op": 512,
    "op_hex": "0x200",
-   "mnemonic": "PopulateQuestKind3RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostGiftTierRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind3RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind3RandomRewards(item A, item B, count, param, reward categories...)",
+   "prototype": "PostGiftTierRequestRandomRewards(taste_of, gift_tier, count, npc, reward categories...)",
    "args": [
     {
-     "name": "item A",
+     "name": "taste_of",
      "type": "u16",
-     "values": "record +6",
+     "values": "+6: whose gift taste the item is judged by",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "item B",
+     "name": "gift_tier",
      "type": "u16",
-     "values": "record +8",
+     "values": "+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48039,9 +48060,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48087,23 +48108,23 @@
   "513": {
    "op": 513,
    "op_hex": "0x201",
-   "mnemonic": "PopulateQuestKind4RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostCategoryRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind4RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind4RandomRewards(target, param, count, reward_categories)",
+   "prototype": "PostCategoryRequestRandomRewards(item_category, npc, count, reward_categories)",
    "args": [
     {
-     "name": "target",
+     "name": "item_category",
      "type": "id",
-     "values": "record +2 (corpus 13 / 52 / 46)",
+     "values": "+2: rf3ItemList category byte of the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "char id (stored as a byte)",
-     "values": "record +5 (corpus: a villager char id, actor(Name))",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48161,7 +48182,7 @@
      "    CompleteQuest()",
      "    RET",
      "L_01aa:",
-     "    PopulateQuestKind4RandomRewards(13, actor(Arthur), 1, 51)    ; <--",
+     "    PostCategoryRequestRandomRewards(13, actor(Arthur), 1, 51)    ; <--",
      "    GetNpcQuestPreview()",
      "    SetVar1(0, reg0)",
      "    SetVar1(1, reg2)"
@@ -48171,23 +48192,23 @@
   "514": {
    "op": 514,
    "op_hex": "0x202",
-   "mnemonic": "PopulateQuestKind4RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostCategoryRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind4RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind4RandomRewards(target, param, count, reward_categories)",
+   "prototype": "PostCategoryRequestRandomRewards(item_category, npc, count, reward_categories)",
    "args": [
     {
-     "name": "target",
+     "name": "item_category",
      "type": "id",
-     "values": "record +2 (corpus 13 / 52 / 46)",
+     "values": "+2: rf3ItemList category byte of the item",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "char id (stored as a byte)",
-     "values": "record +5 (corpus: a villager char id, actor(Name))",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48241,23 +48262,23 @@
   "515": {
    "op": 515,
    "op_hex": "0x203",
-   "mnemonic": "PopulateQuestKind4LiteralRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostCategoryRequest",
+   "previous_mnemonic": "PopulateQuestKind4LiteralRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind4LiteralRewards(target_item, param, unused, reward1, reward2, reward3, reward4)",
+   "prototype": "PostCategoryRequest(item_category, npc, unused, reward1, reward2, reward3, reward4)",
    "args": [
     {
-     "name": "target_item",
+     "name": "item_category",
      "type": "item id",
-     "values": "record +2",
+     "values": "+2: rf3ItemList category byte of the item",
      "required_kind": "any",
      "notes": "",
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "any",
      "notes": "",
      "human_verified": false
@@ -48284,7 +48305,14 @@
      "values": "as reward1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-17",
+       "call": "PostCategoryRequest(52, 3, 1, 328, 575, 600, 649)",
+       "observed": "boxes 328, 575, 600, 649 (7 args), then 300, 63, 0, 0 (5 args): rewards 2-4 follow arguments 5-7, missing ones are 0"
+      }
+     ]
     },
     {
      "name": "reward3",
@@ -48292,7 +48320,14 @@
      "values": "as reward1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-17",
+       "call": "PostCategoryRequest(52, 3, 1, 328, 575, 600, 649)",
+       "observed": "boxes 328, 575, 600, 649 (7 args), then 300, 63, 0, 0 (5 args): rewards 2-4 follow arguments 5-7, missing ones are 0"
+      }
+     ]
     },
     {
      "name": "reward4",
@@ -48300,7 +48335,14 @@
      "values": "as reward1",
      "required_kind": "any",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-17",
+       "call": "PostCategoryRequest(52, 3, 1, 328, 575, 600, 649)",
+       "observed": "boxes 328, 575, 600, 649 (7 args), then 300, 63, 0, 0 (5 args): rewards 2-4 follow arguments 5-7, missing ones are 0"
+      }
+     ]
     }
    ],
    "optional_args_from": 3,
@@ -48310,7 +48352,7 @@
    "summary": "Post a kind-4 request, fixed rewards",
    "details": "RF4S.exe+0x216DF0: record {kind 4, +2 = arg0, +4 = 1 (hard-coded), +5 = arg1, +10 = host char id}; same record selection, skip rule and status write as op 510; args 3..6 -> record words 9..12. arg2 is never read. Queue branch (opcode >= 0x219) dead for this op.",
    "side_effects": "writes the NPC's request record",
-   "evidence": "RF4S.exe+0x216DF0; corpus: 1 use (52, 1, 1, 300) in bank 210.",
+   "evidence": "RF4S.exe+0x216DF0; corpus: 1 use (52, 1, 1, 300) in bank 210. In-game test 2026-10-17 (user): PostCategoryRequest(52, 3, 1, 328, 575, 600, 649) -> boxes 328, 575, 600, 649 (7 args), then 300, 63, 0, 0 (5 args): rewards 2-4 follow arguments 5-7, missing ones are 0.",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind4Byte4_1LiteralAlts",
    "handler_rva": "0x216DF0",
@@ -48335,7 +48377,7 @@
      "    CALL L_2100",
      "    RET",
      "L_055c:",
-     "    PopulateQuestKind4LiteralRewards(52, 1, 1, 300)    ; <--",
+     "    PostCategoryRequest(52, 1, 1, 300)    ; <--",
      "    CALL L_2312",
      "    RET",
      "L_056e:"
@@ -48345,15 +48387,15 @@
   "516": {
    "op": 516,
    "op_hex": "0x204",
-   "mnemonic": "PostBoardQuestKind5",
-   "previous_mnemonic": null,
+   "mnemonic": "PostVisitRequest",
+   "previous_mnemonic": "PostBoardQuestKind5",
    "category": "quest",
-   "prototype": "PostBoardQuestKind5(param)",
+   "prototype": "PostVisitRequest(npc)",
    "args": [
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48391,15 +48433,15 @@
   "517": {
    "op": 517,
    "op_hex": "0x205",
-   "mnemonic": "PostBoardQuestKind5",
-   "previous_mnemonic": null,
+   "mnemonic": "PostVisitRequest",
+   "previous_mnemonic": "PostBoardQuestKind5",
    "category": "quest",
-   "prototype": "PostBoardQuestKind5(param)",
+   "prototype": "PostVisitRequest(npc)",
    "args": [
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48437,15 +48479,15 @@
   "518": {
    "op": 518,
    "op_hex": "0x206",
-   "mnemonic": "PostBoardQuestKind6",
-   "previous_mnemonic": null,
+   "mnemonic": "PostKind6Request",
+   "previous_mnemonic": "PostBoardQuestKind6",
    "category": "quest",
-   "prototype": "PostBoardQuestKind6(param, count)",
+   "prototype": "PostKind6Request(npc, count)",
    "args": [
     {
-     "name": "param",
+     "name": "npc",
      "type": "byte",
-     "values": "record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48489,10 +48531,10 @@
   "519": {
    "op": 519,
    "op_hex": "0x207",
-   "mnemonic": "PostBoardCraftQuest",
-   "previous_mnemonic": null,
+   "mnemonic": "PostIngredientRequest",
+   "previous_mnemonic": "PostBoardCraftQuest",
    "category": "quest",
-   "prototype": "PostBoardCraftQuest(category, item, param, count)",
+   "prototype": "PostIngredientRequest(category, item, npc, count)",
    "args": [
     {
      "name": "category",
@@ -48511,9 +48553,9 @@
      "human_verified": false
     },
     {
-     "name": "param",
+     "name": "npc",
      "type": "u8",
-     "values": "stored at record +5",
+     "values": "+5: the NPC who must receive the items",
      "required_kind": "int",
      "notes": "",
      "human_verified": false
@@ -48557,10 +48599,10 @@
   "520": {
    "op": 520,
    "op_hex": "0x208",
-   "mnemonic": "PostQuestGoalNumber",
-   "previous_mnemonic": null,
+   "mnemonic": "PostGoalNumberRequest",
+   "previous_mnemonic": "PostQuestGoalNumber",
    "category": "quest",
-   "prototype": "PostQuestGoalNumber(goal, rewards)",
+   "prototype": "PostGoalNumberRequest(goal, rewards)",
    "args": [
     {
      "name": "goal",
@@ -48611,7 +48653,7 @@
      "    CALL L_2236",
      "    RET",
      "L_058a:",
-     "    PostQuestGoalNumber(1, 1049)    ; <--",
+     "    PostGoalNumberRequest(1, 1049)    ; <--",
      "    CALL L_3b24",
      "    RET",
      "L_0598:"
@@ -48621,10 +48663,10 @@
   "521": {
    "op": 521,
    "op_hex": "0x209",
-   "mnemonic": "PopulateQuestKind9LiteralRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostVisitorWantRequest",
+   "previous_mnemonic": "PopulateQuestKind9LiteralRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind9LiteralRewards(target, rewards)",
+   "prototype": "PostVisitorWantRequest(target, rewards)",
    "args": [
     {
      "name": "target",
@@ -48650,7 +48692,7 @@
    "summary": "Post a visitor's wanted-item request",
    "details": "Record {kind 9, +2 arg0, +10 npc}, state 1, status = (old & 0xBFFD) | 2; not written if already posted (except record 0); host+136 = the record if posted. Reward ids from arg1 on are copied verbatim until a 0. Queue branch as for op 518 when the opcode is >= 537 (not reachable from op 521 itself). Request record = 24 bytes per char id (< 24; others use record 0) at g_npcDailyRequestArray (IDB aliases g_npcQuestRewardTemplates_12u16PerQuest / g_npcQuestFlags): +0 kind, +1 state, +2 target, +4 count, +5 param, +10 npc, +12 progress, +14..+21 rewards[4], +22 status (0x2 posted, 0x4000 fresh).",
    "side_effects": "NPC request record; host+136",
-   "evidence": "RF4S.exe+0x2178D0; corpus 2 uses: GetDailyVisitor(0) -> PopulateQuestKind9LiteralRewards(reg0, 0).",
+   "evidence": "RF4S.exe+0x2178D0; corpus 2 uses: GetDailyVisitor(0) -> PostVisitorWantRequest(reg0, 0).",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind9BackrefLiteralAlts",
    "handler_rva": "0x2178D0",
@@ -48675,7 +48717,7 @@
      "    RET",
      "L_35dc:",
      "    GetDailyVisitor(0)",
-     "    PopulateQuestKind9LiteralRewards(reg0, 0)    ; <--",
+     "    PostVisitorWantRequest(reg0, 0)    ; <--",
      "    SetVar1(0, reg0)",
      "    EVAL (reg0 = 99)",
      "    CALL L_36b0"
@@ -48685,10 +48727,10 @@
   "522": {
    "op": 522,
    "op_hex": "0x20A",
-   "mnemonic": "PopulateQuestKind10RandomRewards",
-   "previous_mnemonic": null,
+   "mnemonic": "PostRewardOnlyRequestRandomRewards",
+   "previous_mnemonic": "PopulateQuestKind10RandomRewards",
    "category": "quest",
-   "prototype": "PopulateQuestKind10RandomRewards(reward categories...)",
+   "prototype": "PostRewardOnlyRequestRandomRewards(reward categories...)",
    "args": [
     {
      "name": "reward categories...",
@@ -48733,7 +48775,7 @@
      "    CompleteQuest()",
      "    RET",
      "L_019a:",
-     "    PopulateQuestKind10RandomRewards(49)    ; <--",
+     "    PostRewardOnlyRequestRandomRewards(49)    ; <--",
      "    GetNpcQuestPreview()",
      "    SetVar1(0, reg2)",
      "    CALL L_01c4"
@@ -48743,10 +48785,10 @@
   "523": {
    "op": 523,
    "op_hex": "0x20B",
-   "mnemonic": "PostQuestLiteralRewards",
-   "previous_mnemonic": "PopulateQuestKind10LiteralRewards",
+   "mnemonic": "PostRewardOnlyRequest",
+   "previous_mnemonic": "PostQuestLiteralRewards",
    "category": "quest",
-   "prototype": "PostQuestLiteralRewards(rewards)",
+   "prototype": "PostRewardOnlyRequest(rewards)",
    "args": [
     {
      "name": "rewards",
@@ -48783,7 +48825,7 @@
    },
    "confidence": "high",
    "notes": "",
-   "change_reason": "Same posting logic as PostQuestGoalNumber (op 520) with kind 10 and no goal; renamed to the Post... family and without the technical 'Kind10'.",
+   "change_reason": "Same posting logic as PostGoalNumberRequest (op 520) with kind 10 and no goal; renamed to the Post... family and without the technical 'Kind10'.",
    "human_verified": false,
    "example": {
     "bank": 210,
@@ -48792,7 +48834,7 @@
      "L_04e4:",
      "    RET",
      "L_04e6:",
-     "    PostQuestLiteralRewards(753, 753, 753, 753)    ; <--",
+     "    PostRewardOnlyRequest(753, 753, 753, 753)    ; <--",
      "    CALL L_1734",
      "    BR_Z (reg0) -> L_0500",
      "    EVAL (var:0x32D = 1)"
@@ -49399,10 +49441,10 @@
   "537": {
    "op": 537,
    "op_hex": "0x219",
-   "mnemonic": "QueueSubEventGoalKind2",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventItemGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind2",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind2(item, npc, count, ignored...)",
+   "prototype": "AddTownEventItemGoal(item, npc, count, ignored...)",
    "args": [
     {
      "name": "item",
@@ -49418,7 +49460,14 @@
      "values": "+5 (corpus: actor(Margaret))",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventItemGoal(29, actor(Margaret), 3)",
+       "observed": "goal Turnip x3 for npc 7 (Margaret): 1 Turnip given to Forte -> delivered stayed 0 (read live); then 3 gifts to Margaret -> delivered 3, state 2 (done; not read between the gifts); visit 2 box 0. Only the named NPC fills the goal"
+      }
+     ]
     },
     {
      "name": "count",
@@ -49444,7 +49493,7 @@
    "summary": "Add a 'bring item' goal to the town event",
    "details": "Opcode >= 537 path of the op-508 handler: if not state 0x401000 and REG_SUBEV_NOW != 0 and fewer than 20 entries: appends the 24-byte entry {kind 2, +2 item, +4 count, +5 npc, +10 host id, state byte +1 = 1 (active)} at request-array word 350 + 12*n and increments the count (request-array byte 3). The NPC record is not touched; no rewards are rolled. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
-   "evidence": "RF4S.exe+0x216250 (shared by 508/509/537/538); the dispatcher SceneAction_DispatchTableWithCleanup (+0x1F4AC0) stores the opcode in g_lastScriptOpcode (host+260) right before the call, and the handler branches on host+260 >= 0x219 (537); corpus: op 537 1 use (19, tag3(7), 3) right after StartReservedSubEvent, op 538 unused.",
+   "evidence": "RF4S.exe+0x216250 (shared by 508/509/537/538); the dispatcher SceneAction_DispatchTableWithCleanup (+0x1F4AC0) stores the opcode in g_lastScriptOpcode (host+260) right before the call, and the handler branches on host+260 >= 0x219 (537); corpus: op 537 1 use (19, tag3(7), 3) right after StartReservedSubEvent, op 538 unused. In-game test 2026-10-18 (user): AddTownEventItemGoal(29, actor(Margaret), 3) -> goal Turnip x3 for npc 7 (Margaret): 1 Turnip given to Forte -> delivered stayed 0 (read live); then 3 gifts to Margaret -> delivered 3, state 2 (done; not read between the gifts); visit 2 box 0. Only the named NPC fills the goal.",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind2WithRandomCats",
    "handler_rva": "0x216250",
@@ -49473,7 +49522,7 @@
      "L_0128:",
      "    CALL L_01b2",
      "    StartReservedSubEvent()",
-     "    QueueSubEventGoalKind2(19, actor(Margaret), 3)    ; <--",
+     "    AddTownEventItemGoal(19, actor(Margaret), 3)    ; <--",
      "    EVAL (var:0x11AA = 1)",
      "    RET",
      "L_0140:"
@@ -49483,10 +49532,10 @@
   "538": {
    "op": 538,
    "op_hex": "0x21A",
-   "mnemonic": "QueueSubEventGoalKind2",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventItemGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind2",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind2(item, npc, count, ignored...)",
+   "prototype": "AddTownEventItemGoal(item, npc, count, ignored...)",
    "args": [
     {
      "name": "item",
@@ -49502,7 +49551,14 @@
      "values": "+5 (corpus: actor(Margaret))",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventItemGoal(29, actor(Margaret), 3)",
+       "observed": "goal Turnip x3 for npc 7 (Margaret): 1 Turnip given to Forte -> delivered stayed 0 (read live); then 3 gifts to Margaret -> delivered 3, state 2 (done; not read between the gifts); visit 2 box 0. Only the named NPC fills the goal"
+      }
+     ]
     },
     {
      "name": "count",
@@ -49553,10 +49609,10 @@
   "539": {
    "op": 539,
    "op_hex": "0x21B",
-   "mnemonic": "QueueSubEventGoalKind3",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventGiftTierGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind3",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)",
+   "prototype": "AddTownEventGiftTierGoal(taste_of, gift_tier, count, npc, ignored...)",
    "args": [
     {
      "name": "taste_of",
@@ -49564,7 +49620,14 @@
      "values": "+6: whose gift taste the item is judged by",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))",
+       "observed": "goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11)"
+      }
+     ]
     },
     {
      "name": "gift_tier",
@@ -49572,7 +49635,14 @@
      "values": "+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))",
+       "observed": "goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11)"
+      }
+     ]
     },
     {
      "name": "count",
@@ -49588,7 +49658,14 @@
      "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))",
+       "observed": "goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11)"
+      }
+     ]
     },
     {
      "name": "ignored...",
@@ -49606,7 +49683,7 @@
    "summary": "Add a kind-3 goal to the town event",
    "details": "Opcode >= 537 path of the op-511 handler: with REG_SUBEV_NOW != 0 and < 20 entries, appends {kind 3, +4 count, +5 param, +6 item A, +8 item B, +10 host id, state byte +1 = 1}. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
-   "evidence": "RF4S.exe+0x216820 queue branch (host+260 >= 0x219); corpus: unused.",
+   "evidence": "RF4S.exe+0x216820 queue branch (host+260 >= 0x219); corpus: unused. In-game test 2026-10-18 (user): AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret)) -> goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11).",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind3TwoItemsRandomCats",
    "handler_rva": "0x216820",
@@ -49631,10 +49708,10 @@
   "540": {
    "op": 540,
    "op_hex": "0x21C",
-   "mnemonic": "QueueSubEventGoalKind3",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventGiftTierGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind3",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind3(taste_of, gift_tier, count, npc, ignored...)",
+   "prototype": "AddTownEventGiftTierGoal(taste_of, gift_tier, count, npc, ignored...)",
    "args": [
     {
      "name": "taste_of",
@@ -49642,7 +49719,14 @@
      "values": "+6: whose gift taste the item is judged by",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))",
+       "observed": "goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11)"
+      }
+     ]
     },
     {
      "name": "gift_tier",
@@ -49650,7 +49734,14 @@
      "values": "+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))",
+       "observed": "goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11)"
+      }
+     ]
     },
     {
      "name": "count",
@@ -49666,7 +49757,14 @@
      "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))",
+       "observed": "goal: 3 gifts Margaret (taste_of 7) rates tier 4 (loved), for npc 7 Margaret. 1 Turnip (neutral) to Margaret -> delivered stayed 0 (read live); 1 Pink Melon (loved) -> delivered 3, state 2 (done); visit 2 box 0. Open: one Pink Melon from GivePlayerItem(5, 2, 1) added 3, not 1 (the hand-over adds the given item's word >> 11)"
+      }
+     ]
     },
     {
      "name": "ignored...",
@@ -49709,10 +49807,10 @@
   "541": {
    "op": 541,
    "op_hex": "0x21D",
-   "mnemonic": "QueueSubEventGoalKind4",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventCategoryGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind4",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind4(item_category, npc, count)",
+   "prototype": "AddTownEventCategoryGoal(item_category, npc, count)",
    "args": [
     {
      "name": "item_category",
@@ -49720,7 +49818,14 @@
      "values": "+2: rf3ItemList category byte of the item (0 = crops)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventCategoryGoal(0, actor(Margaret), 3)",
+       "observed": "goal: 3 items of category 0 (crops) for npc 7 Margaret. Toyherb (category 2) to Margaret -> delivered stayed 0 (read live); 1 Turnip (category 0, held alone) -> delivered 3, state 2 (done); visit 2 box 0. Open: one matching gift filled the whole count of 3 (also seen with ops 537/539)"
+      }
+     ]
     },
     {
      "name": "npc",
@@ -49728,7 +49833,14 @@
      "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventCategoryGoal(0, actor(Margaret), 3)",
+       "observed": "goal: 3 items of category 0 (crops) for npc 7 Margaret. Toyherb (category 2) to Margaret -> delivered stayed 0 (read live); 1 Turnip (category 0, held alone) -> delivered 3, state 2 (done); visit 2 box 0. Open: one matching gift filled the whole count of 3 (also seen with ops 537/539)"
+      }
+     ]
     },
     {
      "name": "count",
@@ -49746,7 +49858,7 @@
    "summary": "Add a kind-4 goal to the town event",
    "details": "Queue mode (opcode >= 0x219 = 537, read from host+260): only when GF_REG_SUBEV_NOW != 0, append the entry (state byte = 1) to the sub-event goal queue (g_npcGeneralThrowTemplates_24B, max 20, count g_npcGeneralThrowEntryCount); no record write and no reward rolls. Entry {kind 4, +2 arg0, +5 arg1, +4 arg2, +10 host npc}. Further args are ignored. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
-   "evidence": "RF4S.exe+0x216B20 queue branch (host+260 >= 0x219); unused in rf3.mc.",
+   "evidence": "RF4S.exe+0x216B20 queue branch (host+260 >= 0x219); unused in rf3.mc. In-game test 2026-10-18 (user): AddTownEventCategoryGoal(0, actor(Margaret), 3) -> goal: 3 items of category 0 (crops) for npc 7 Margaret. Toyherb (category 2) to Margaret -> delivered stayed 0 (read live); 1 Turnip (category 0, held alone) -> delivered 3, state 2 (done); visit 2 box 0. Open: one matching gift filled the whole count of 3 (also seen with ops 537/539).",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind4ChainedRandom",
    "handler_rva": "0x216B20",
@@ -49771,10 +49883,10 @@
   "542": {
    "op": 542,
    "op_hex": "0x21E",
-   "mnemonic": "QueueSubEventGoalKind4",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventCategoryGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind4",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind4(item_category, npc, count)",
+   "prototype": "AddTownEventCategoryGoal(item_category, npc, count)",
    "args": [
     {
      "name": "item_category",
@@ -49782,7 +49894,14 @@
      "values": "+2: rf3ItemList category byte of the item (0 = crops)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventCategoryGoal(0, actor(Margaret), 3)",
+       "observed": "goal: 3 items of category 0 (crops) for npc 7 Margaret. Toyherb (category 2) to Margaret -> delivered stayed 0 (read live); 1 Turnip (category 0, held alone) -> delivered 3, state 2 (done); visit 2 box 0. Open: one matching gift filled the whole count of 3 (also seen with ops 537/539)"
+      }
+     ]
     },
     {
      "name": "npc",
@@ -49790,7 +49909,14 @@
      "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventCategoryGoal(0, actor(Margaret), 3)",
+       "observed": "goal: 3 items of category 0 (crops) for npc 7 Margaret. Toyherb (category 2) to Margaret -> delivered stayed 0 (read live); 1 Turnip (category 0, held alone) -> delivered 3, state 2 (done); visit 2 box 0. Open: one matching gift filled the whole count of 3 (also seen with ops 537/539)"
+      }
+     ]
     },
     {
      "name": "count",
@@ -49833,10 +49959,10 @@
   "543": {
    "op": 543,
    "op_hex": "0x21F",
-   "mnemonic": "QueueSubEventGoalKind5",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventVisitGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind5",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind5(npc)",
+   "prototype": "AddTownEventVisitGoal(npc)",
    "args": [
     {
      "name": "npc",
@@ -49883,7 +50009,7 @@
      "    EVAL (var:0x71C2 = 4)",
      "    EVAL (var:0x14C = 1)",
      "    EVAL (var:0x366 = 1)",
-     "    QueueSubEventGoalKind5(actor(Dylas))    ; <--",
+     "    AddTownEventVisitGoal(actor(Dylas))    ; <--",
      "    JMP L_027a",
      "L_0222:",
      "    BR_Z (var:0x71C2 == 4) -> L_0230"
@@ -49893,10 +50019,10 @@
   "544": {
    "op": 544,
    "op_hex": "0x220",
-   "mnemonic": "QueueSubEventGoalKind5",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventVisitGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind5",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind5(npc)",
+   "prototype": "AddTownEventVisitGoal(npc)",
    "args": [
     {
      "name": "npc",
@@ -49939,10 +50065,10 @@
   "545": {
    "op": 545,
    "op_hex": "0x221",
-   "mnemonic": "QueueSubEventGoalKind6",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventKind6Goal",
+   "previous_mnemonic": "QueueSubEventGoalKind6",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind6(npc, count)",
+   "prototype": "AddTownEventKind6Goal(npc, count)",
    "args": [
     {
      "name": "npc",
@@ -49991,10 +50117,10 @@
   "546": {
    "op": 546,
    "op_hex": "0x222",
-   "mnemonic": "QueueSubEventCraftGoal",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventIngredientGoal",
+   "previous_mnemonic": "QueueSubEventCraftGoal",
    "category": "quest",
-   "prototype": "QueueSubEventCraftGoal(category, item, npc, count)",
+   "prototype": "AddTownEventIngredientGoal(category, item, npc, count)",
    "args": [
     {
      "name": "category",
@@ -50018,7 +50144,14 @@
      "values": "+5: the NPC who must receive the item",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "AddTownEventIngredientGoal(7, 215, actor(Margaret), 5)",
+       "observed": "goal: ingredients of Boiled Spinach (pan, 215) x5 for npc 7 Margaret. Spinach to Forte -> delivered 0; Turnip to Margaret -> 0; 1 Spinach to Margaret -> delivered 5 (= count), state 2; visit 2 box 0. One matching gift completes the goal whatever the count"
+      }
+     ]
     },
     {
      "name": "count",
@@ -50032,11 +50165,11 @@
    "optional_args_from": null,
    "returns": "reg0 = number of recipe ingredients, reg1..reg6 = ingredient item ids",
    "blocking": "no",
-   "description": "Queue form of PostBoardCraftQuest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.",
+   "description": "Queue form of PostIngredientRequest: while a sub-event is running, adds a 'craft this item' goal to the sub-event goal queue, and returns the recipe ingredients like op 519. Unused by the shipped scripts.",
    "summary": "Add a 'craft this item' goal to the town event",
    "details": "Same record as op 519 {kind 7, +2 item, +4 count, +5 param, +8 category, +10 host NPC}. Because the opcode is >= 537, it is appended to the 20-entry sub-event goal queue (g_npcGeneralThrowTemplates_24B, byte1 = 1, count g_npcGeneralThrowEntryCount) only when GF_REG_SUBEV_NOW != 0 and the queue has room; request record 0 is not touched. Then the recipe lookup runs in both modes: CraftData_ResolveArchiveIdFromCategory(category) (RF4S.exe+0x1F5D20), load that archive, find the record whose first word == item; its non-zero ingredient words 1..6 go to reg1..reg6 and their count to reg0 (registers untouched if the item has no recipe). Releases the archive. The goal is matched when the player gives an NPC an item: Quest_FindGeneralReceivingEntryForItem (RF4S.exe+0x1EDEE0) -> Item_MatchesNpcPreferencePredicate (+0x1EC160) requires entry +5 == the receiving NPC's char id for kinds 2-7; kind 2: item == +2 (items 48-53 all match each other); kind 3: the low word of Npc_GetGiftAffinityHashByItemAndCharId(+6, item) == +8 (gift tier of char +6: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 the signature dislike); kind 4: the item's rf3ItemList category byte == +2; kind 5: any item; kind 6: Player_OnGiftThrown_CheckBonus (player state 1108); kind 7: the item is an ingredient of the recipe for +2 in craft category +8. A match adds the item count to the delivered byte (+12; +1 for kind 6), and the entry's state becomes 2 once delivered >= +4.",
    "side_effects": "sub-event goal queue",
-   "evidence": "RF4S.exe+0x217340 (shared with op 519, opcode branch `*(u16*)(a1+260) >= 0x219`): `GameFlags_ReadField(&out, 0, GF_REG_SUBEV_NOW, 9); if (out && count + 1 <= 0x14) { g_npcGeneralThrowTemplates_24B[count] = v34; ++g_npcGeneralThrowEntryCount; }`; corpus: 0 uses.",
+   "evidence": "RF4S.exe+0x217340 (shared with op 519, opcode branch `*(u16*)(a1+260) >= 0x219`): `GameFlags_ReadField(&out, 0, GF_REG_SUBEV_NOW, 9); if (out && count + 1 <= 0x14) { g_npcGeneralThrowTemplates_24B[count] = v34; ++g_npcGeneralThrowEntryCount; }`; corpus: 0 uses. In-game test 2026-10-18 (user): AddTownEventIngredientGoal(7, 215, actor(Margaret), 5) -> goal: ingredients of Boiled Spinach (pan, 215) x5 for npc 7 Margaret. Spinach to Forte -> delivered 0; Turnip to Margaret -> 0; 1 Spinach to Margaret -> delivered 5 (= count), state 2; visit 2 box 0. One matching gift completes the goal whatever the count.",
    "alias_of": null,
    "handler": "Script_VMOp_PopulateQuestRequestKind7CraftRecipeExpose",
    "handler_rva": "0x217340",
@@ -50059,10 +50192,10 @@
   "547": {
    "op": 547,
    "op_hex": "0x223",
-   "mnemonic": "QueueSubEventGoalKind10",
-   "previous_mnemonic": null,
+   "mnemonic": "AddTownEventEmptyGoal",
+   "previous_mnemonic": "QueueSubEventGoalKind10",
    "category": "quest",
-   "prototype": "QueueSubEventGoalKind10(ignored...)",
+   "prototype": "AddTownEventEmptyGoal(ignored...)",
    "args": [
     {
      "name": "ignored...",

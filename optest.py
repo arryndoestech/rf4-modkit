@@ -428,14 +428,70 @@ def plan_open(t, test):
     return any(i < len(r["args"]) and not r["args"][i].get("human_verified") for i in v.get("args", ()))
 
 
-def plan_listing(test, note_ids):
-    """The test scene: a short wait, then each step's note in a box and its statements."""
+NUMBER_SLOT = "＠数字０＠"     # the SetVar3 slot-0 value, as line NUMBER_LINE shows it
+_PLAIN_OPS = {"SetVar3", "SetSpeaker", "EndDialogue", "Wait"}
+
+
+def box_labels(test):
+    """Per step, a label for each number box (`DIALOG #NUMBER_LINE`): the step's own `labels`
+    in order, else what produced the number -- the call (or EVAL) that last set the register
+    SetVar3 shows, or "value" for a literal. Each label carries the number slot."""
+    out, origin = [], {}
+    for step in test["steps"]:
+        own = list(step.get("labels") or ())
+        labels, shown = [], None
+        for x in (step.get("do") or "").splitlines():
+            x = x.strip()
+            m = re.match(r"EVAL \((reg\d+) = (.+)\)$", x)
+            if m:
+                origin[m.group(1)] = origin.get(m.group(2), m.group(2))
+                continue
+            m = re.match(r"SetVar3\(0, (.+)\)$", x)
+            if m:
+                shown = m.group(1)
+                continue
+            if x == "DIALOG #%d" % NUMBER_LINE:
+                if own:
+                    lab = own.pop(0)
+                elif shown is None or re.fullmatch(r"-?\d+", shown):
+                    lab = "Value"
+                else:
+                    lab = "%s -> %s =" % (origin[shown], shown) if shown in origin else "%s =" % shown
+                labels.append(lab if NUMBER_SLOT in lab else "%s %s" % (lab, NUMBER_SLOT))
+                continue
+            m = re.match(r"([A-Za-z_]\w*)\(", x)
+            if m and m.group(1) not in _PLAIN_OPS:
+                for i in range(7):                     # calls answer in reg0..reg6
+                    origin["reg%d" % i] = x
+        out.append(labels)
+    return out
+
+
+def plan_listing(test, note_ids, box_ids=None, title_id=None):
+    """The test scene: a short wait, a box naming the test (title_id), then each step's note
+    in a box and its statements; number boxes use their labels' lines (box_ids, per step)."""
     lines = ["Wait(6000)"]
+    if title_id is not None:
+        lines += ["SetSpeaker(MC, Left, 0, 0)", "DIALOG #%d" % title_id, "EndDialogue()"]
     for k, step in enumerate(test["steps"]):
         if step.get("say"):
             lines += ["SetSpeaker(MC, Left, 0, 0)", "DIALOG #%d" % note_ids[k], "EndDialogue()"]
-        lines += [x for x in (step.get("do") or "").splitlines() if x.strip()]
+        boxes = iter(box_ids[k]) if box_ids else None
+        for x in (step.get("do") or "").splitlines():
+            if not x.strip():
+                continue
+            if boxes is not None and x.strip() == "DIALOG #%d" % NUMBER_LINE:
+                x = "DIALOG #%d" % next(boxes)
+            lines.append(x)
     return "\n".join(lines + ["RET"]) + "\n"
+
+
+def plan_title(test, r):
+    """The first box of a test: the instruction and what the test checks (`r` = its table row)."""
+    v = test.get("verifies") or {}
+    what = (["what it does"] if v.get("op") else []) + [
+        r["args"][i]["name"] if i < len(r["args"]) else "argument %d" % i for i in v.get("args", ())]
+    return "TEST %s (op %d)\nchecks: %s" % (test["mnemonic"], test["ops"][0], ", ".join(what) or "-")
 
 
 def plan_describe(test):
@@ -484,13 +540,22 @@ def plan_cmd(a):
     elif a.action == "run":
         test = plan_find(tests, a.id)
         notes = [st.get("say") or "" for st in test["steps"]]
+        labels = box_labels(test)
+        title = plan_title(test, find_op(t, test["ops"][0]))
         if a.dry:                                  # the notes are not written anywhere
+            print(title)
+            for k, labs in enumerate(labels):
+                for lab in labs:
+                    print("  step %d box: %s" % (k + 1, lab))
             print(plan_listing(test, [NUMBER_LINE] * len(notes)))
             return
-        ids = test_lines([n for n in notes if n])
-        it = iter(ids)
-        note_ids = [next(it) if n else None for n in notes]
-        listing = plan_listing(test, note_ids)
+        texts = [title] + [n for n in notes if n]
+        for labs in labels:
+            texts += [lab for lab in labs if lab not in texts]
+        ids = dict(zip(texts, test_lines(texts)))
+        note_ids = [ids[n] if n else None for n in notes]
+        box_ids = [[ids[lab] for lab in labs] for labs in labels]
+        listing = plan_listing(test, note_ids, box_ids, ids[title])
         if test.get("scene"):                      # a talk scene of another bank, not a map's entry
             sc = test["scene"]
             pc = install_in_scene(sc, listing)

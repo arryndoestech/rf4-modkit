@@ -9713,7 +9713,7 @@
   "steps": [
    {
     "say": "Posting a request with rewards Turnip, Cabbage, Pink Melon, Broadsword.",
-    "do": "PostQuestLiteralRewards(29, 1, 5, 328)\nWait(6000)"
+    "do": "PostRewardOnlyRequest(29, 1, 5, 328)\nWait(6000)"
    },
    {
     "say": "Next: ShowQuestReward() shows that request's rewards.",
@@ -10722,11 +10722,11 @@
   "hard": true
  },
  {
-  "id": "PopulateSlayRequest-args",
+  "id": "PostSlayRequest-args",
   "ops": [
    507
   ],
-  "mnemonic": "PopulateSlayRequest",
+  "mnemonic": "PostSlayRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -10740,19 +10740,19 @@
   "steps": [
    {
     "say": "Next: slay monster 48, count 3, reward category 2. Boxes: result, then target, count, reward 1.",
-    "do": "PopulateSlayRequest(48, 3, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostSlayRequest(48, 3, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: monster 0 (random), count 0 (random 1-4), category 5. Boxes: result, target, count, reward 1.",
-    "do": "PopulateSlayRequest(0, 0, 5)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostSlayRequest(0, 0, 5)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: monster 60, count 2, category -1 (skip). Boxes: target, count, reward 1.",
-    "do": "PopulateSlayRequest(60, 2, -1)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostSlayRequest(60, 2, -1)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 1, 48, 3, an id in 63-110. Step 2: 1, a random monster id (48-253), 1-4, a dish id. Step 3: 60, 2, 0 (skipped).",
-  "call": "PopulateSlayRequest(48, 3, 2)",
+  "call": "PostSlayRequest(48, 3, 2)",
   "values": {
    "0": {
     "0": "random"
@@ -10766,12 +10766,12 @@
   }
  },
  {
-  "id": "PopulateQuestKind2RandomRewards-args",
+  "id": "PostItemRequestRandomRewards-args",
   "ops": [
    508,
    509
   ],
-  "mnemonic": "PopulateQuestKind2RandomRewards",
+  "mnemonic": "PostItemRequestRandomRewards",
   "verifies": {
    "op": true,
    "args": [
@@ -10786,22 +10786,22 @@
   "steps": [
    {
     "say": "Next: bring Turnip (29), npc Forte (4), count 3, categories 2 and 51. Boxes: target, count, reward 1, reward 2, extra byte.",
-    "do": "PopulateQuestKind2RandomRewards(29, actor(Forte), 3, 2, 51)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequestRandomRewards(29, actor(Forte), 3, 2, 51)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: Cabbage (1), npc Kiel (5), count 1, category 5. Boxes: target, count, reward 1, extra byte.",
-    "do": "PopulateQuestKind2RandomRewards(1, actor(Kiel), 1, 5)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequestRandomRewards(1, actor(Kiel), 1, 5)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 29, 3, an id in 63-110 (never 29), an id in 813-984, 4. Step 2: 1, 1, a dish id, 5. Record the extra byte if it is not the npc id.",
-  "call": "PopulateQuestKind2RandomRewards(29, actor(Forte), 3, 2, 51)"
+  "call": "PostItemRequestRandomRewards(29, actor(Forte), 3, 2, 51)"
  },
  {
-  "id": "PopulateQuestKind2LiteralRewards-args",
+  "id": "PostItemRequest-args",
   "ops": [
    510
   ],
-  "mnemonic": "PopulateQuestKind2LiteralRewards",
+  "mnemonic": "PostItemRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -10818,27 +10818,27 @@
   "steps": [
    {
     "say": "Next: (Turnip 29, param 7, count 3, rewards 328, 575, 600). Boxes: target, count, rewards 1-3, extra byte.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 7, 3, 328, 575, 600)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: (Cabbage 1, param 2, count 1, rewards 63, 0, 5). Boxes: target, count, rewards 1-3, extra byte.",
-    "do": "PopulateQuestKind2LiteralRewards(1, 2, 1, 63, 0, 5)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(1, 2, 1, 63, 0, 5)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: (Pink Melon 5, param 0, count 2, reward 649). Boxes: target, count, rewards 1-2.",
-    "do": "PopulateQuestKind2LiteralRewards(5, 0, 2, 649)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(5, 0, 2, 649)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 29, 3, 328, 575, 600, then 7 or 1 (the code forces +5 = 1: record which). Step 2: 1, 1, 63, 0, 5, 2 or 1. Step 3: 5, 2, 649, 0.",
-  "call": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600)"
+  "call": "PostItemRequest(29, 7, 3, 328, 575, 600)"
  },
  {
-  "id": "PopulateQuestKind3RandomRewards-args",
+  "id": "PostGiftTierRequestRandomRewards-args",
   "ops": [
    511,
    512
   ],
-  "mnemonic": "PopulateQuestKind3RandomRewards",
+  "mnemonic": "PostGiftTierRequestRandomRewards",
   "verifies": {
    "op": true,
    "args": [
@@ -10854,24 +10854,24 @@
   "steps": [
    {
     "say": "Next: (A Turnip, B Cabbage, count 3, param 6, categories 2, 51, 5). Boxes: target, count, rewards 1-3, extra byte.",
-    "do": "PopulateQuestKind3RandomRewards(29, 1, 3, 6, 2, 51, 5)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostGiftTierRequestRandomRewards(29, 1, 3, 6, 2, 51, 5)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: (A Pink Melon, B Toyherb, count 1, param 2, category 51). Boxes: count, reward 1, reward 2, extra byte.",
-    "do": "PopulateQuestKind3RandomRewards(5, 63, 1, 2, 51)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostGiftTierRequestRandomRewards(5, 63, 1, 2, 51)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: target 0, count 3, reward 1 = 0, reward 2 in 63-110, reward 3 in 813-984, 6 (the third category is dropped). Step 2: 1, 0, an id in 813-984, 2. Record what the requests list shows for items A/B.",
-  "call": "PopulateQuestKind3RandomRewards(29, 1, 3, 6, 2, 51, 5)",
+  "call": "PostGiftTierRequestRandomRewards(29, 1, 3, 6, 2, 51, 5)",
   "hard": true
  },
  {
-  "id": "PopulateQuestKind4RandomRewards-args",
+  "id": "PostCategoryRequestRandomRewards-args",
   "ops": [
    513,
    514
   ],
-  "mnemonic": "PopulateQuestKind4RandomRewards",
+  "mnemonic": "PostCategoryRequestRandomRewards",
   "verifies": {
    "op": true,
    "args": [
@@ -10886,22 +10886,22 @@
   "steps": [
    {
     "say": "Next: (target 13, param Arthur 9, count 2, category 2). Boxes: target, count, reward 1, extra byte.",
-    "do": "PopulateQuestKind4RandomRewards(13, actor(Arthur), 2, 2)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostCategoryRequestRandomRewards(13, actor(Arthur), 2, 2)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: (target 52, param Forte 4, count 1, category 51). Boxes: target, count, reward 1, extra byte.",
-    "do": "PopulateQuestKind4RandomRewards(52, actor(Forte), 1, 51)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostCategoryRequestRandomRewards(52, actor(Forte), 1, 51)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 13, 2, an id in 63-110, 9. Step 2: 52, 1, an id in 813-984, 4.",
-  "call": "PopulateQuestKind4RandomRewards(13, actor(Arthur), 1, 51)"
+  "call": "PostCategoryRequestRandomRewards(13, actor(Arthur), 1, 51)"
  },
  {
-  "id": "PopulateQuestKind4LiteralRewards-args",
+  "id": "PostCategoryRequest-args",
   "ops": [
    515
   ],
-  "mnemonic": "PopulateQuestKind4LiteralRewards",
+  "mnemonic": "PostCategoryRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -10916,15 +10916,15 @@
   "steps": [
    {
     "say": "Next: (target 52, param 3, unused 9, reward 328). Boxes: target, count, reward 1, reward 2, extra byte.",
-    "do": "PopulateQuestKind4LiteralRewards(52, 3, 9, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostCategoryRequest(52, 3, 9, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: (target 13, param 1, unused 5, reward 300). Boxes: target, count, reward 1, extra byte.",
-    "do": "PopulateQuestKind4LiteralRewards(13, 1, 5, 300)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostCategoryRequest(13, 1, 5, 300)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 52, 1 (count forced to 1 although 9 was passed), 328, 0, 3 (or 1). Step 2: 13, 1, 300, 1. Rewards 2-4 (args 4-6) cannot be passed: the assembler allows only 4 arguments (shipped form).",
-  "call": "PopulateQuestKind4LiteralRewards(52, 1, 1, 300)",
+  "call": "PostCategoryRequest(52, 1, 1, 300)",
   "values": {
    "2": {
     "9": "ignored"
@@ -10932,12 +10932,12 @@
   }
  },
  {
-  "id": "PostBoardQuestKind5-param",
+  "id": "PostVisitRequest-param",
   "ops": [
    516,
    517
   ],
-  "mnemonic": "PostBoardQuestKind5",
+  "mnemonic": "PostVisitRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -10949,26 +10949,26 @@
   "steps": [
    {
     "say": "First a kind-2 request with target Turnip. Box = target.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 0, 3, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 0, 3, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
-    "say": "Next: PostBoardQuestKind5(6). Boxes: target, count, reward 1, extra byte, accepted.",
-    "do": "PostBoardQuestKind5(6)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "say": "Next: PostVisitRequest(6). Boxes: target, count, reward 1, extra byte, accepted.",
+    "do": "PostVisitRequest(6)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
-    "say": "Next: PostBoardQuestKind5(11). Box = extra byte.",
-    "do": "PostBoardQuestKind5(11)\nGetNpcQuestPreview()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "say": "Next: PostVisitRequest(11). Box = extra byte.",
+    "do": "PostVisitRequest(11)\nGetNpcQuestPreview()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "1) 29. 2) 0, 0, 0 (record overwritten, no item/count/rewards), 6, 0. 3) 11.",
-  "call": "PostBoardQuestKind5(6)"
+  "call": "PostVisitRequest(6)"
  },
  {
-  "id": "PostBoardQuestKind6-args",
+  "id": "PostKind6Request-args",
   "ops": [
    518
   ],
-  "mnemonic": "PostBoardQuestKind6",
+  "mnemonic": "PostKind6Request",
   "verifies": {
    "op": true,
    "args": [
@@ -10980,23 +10980,23 @@
   "setup": "Runs in the map entry scene, so no NPC is talking: the request lands in request record 0 (the Request Box record) and GetNpcQuestPreview reads that same record back. Changes your save: use a throwaway save.",
   "steps": [
    {
-    "say": "Next: PostBoardQuestKind6(6, 3). Boxes: target, count, reward 1, extra byte.",
-    "do": "PostBoardQuestKind6(6, 3)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "say": "Next: PostKind6Request(6, 3). Boxes: target, count, reward 1, extra byte.",
+    "do": "PostKind6Request(6, 3)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
-    "say": "Next: PostBoardQuestKind6(12, 7). Boxes: count, extra byte.",
-    "do": "PostBoardQuestKind6(12, 7)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "say": "Next: PostKind6Request(12, 7). Boxes: count, extra byte.",
+    "do": "PostKind6Request(12, 7)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 0, 3, 0, 6. Step 2: 7, 12.",
-  "call": "PostBoardQuestKind6(6, 3)"
+  "call": "PostKind6Request(6, 3)"
  },
  {
-  "id": "PostBoardCraftQuest-recipe-lookup",
+  "id": "PostIngredientRequest-recipe-lookup",
   "ops": [
    519
   ],
-  "mnemonic": "PostBoardCraftQuest",
+  "mnemonic": "PostIngredientRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -11011,27 +11011,27 @@
   "steps": [
    {
     "say": "Category 0..3 with Broadsword. Each box = ingredient count (99 = no recipe found).",
-    "do": "EVAL (reg0 = 99)\nPostBoardCraftQuest(0, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostBoardCraftQuest(1, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostBoardCraftQuest(2, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostBoardCraftQuest(3, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg0 = 99)\nPostIngredientRequest(0, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostIngredientRequest(1, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostIngredientRequest(2, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostIngredientRequest(3, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Category 4..6 with Broadsword. Then boxes reg1, reg2 of the last call.",
-    "do": "EVAL (reg0 = 99)\nPostBoardCraftQuest(4, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostBoardCraftQuest(5, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostBoardCraftQuest(6, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg0 = 99)\nPostIngredientRequest(4, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostIngredientRequest(5, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nPostIngredientRequest(6, 328, 2, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Request read back: target, count, extra byte (expect 328, 4, 9).",
-    "do": "PostBoardCraftQuest(0, 328, 9, 4)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostIngredientRequest(0, 328, 9, 4)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Boxes stay 99 for categories that do not hold the Broadsword recipe; the right forging category shows its ingredient count (2-6) and reg1/reg2 show ingredient item ids (e.g. Iron 1xx): record which category. Last step: 328, 4, 9.",
-  "call": "PostBoardCraftQuest(0, 328, 2, 1)",
+  "call": "PostIngredientRequest(0, 328, 2, 1)",
   "hard": true
  },
  {
-  "id": "PostQuestGoalNumber-args",
+  "id": "PostGoalNumberRequest-args",
   "ops": [
    520
   ],
-  "mnemonic": "PostQuestGoalNumber",
+  "mnemonic": "PostGoalNumberRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -11044,26 +11044,26 @@
   "steps": [
    {
     "say": "Next: goal 5, reward 1049. Boxes: count, reward 1, reward 2.",
-    "do": "PostQuestGoalNumber(5, 1049)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostGoalNumberRequest(5, 1049)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: goal 12, reward 575. Boxes: count, reward 1.",
-    "do": "PostQuestGoalNumber(12, 575)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostGoalNumberRequest(12, 575)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: goal 3, reward 0 (no reward). Boxes: count, reward 1.",
-    "do": "PostQuestGoalNumber(3, 0)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostGoalNumberRequest(3, 0)\nGetNpcQuestPreview()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 5, 1049, 0. Step 2: 12, 575. Step 3: 3, 0.",
-  "call": "PostQuestGoalNumber(5, 1049)"
+  "call": "PostGoalNumberRequest(5, 1049)"
  },
  {
-  "id": "PopulateQuestKind9LiteralRewards-args",
+  "id": "PostVisitorWantRequest-args",
   "ops": [
    521
   ],
-  "mnemonic": "PopulateQuestKind9LiteralRewards",
+  "mnemonic": "PostVisitorWantRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -11076,22 +11076,22 @@
   "steps": [
    {
     "say": "Next: target Turnip, reward 328. Boxes: target, rewards 1-2.",
-    "do": "PopulateQuestKind9LiteralRewards(29, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostVisitorWantRequest(29, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: target Cabbage, reward 0. Boxes: target, reward 1.",
-    "do": "PopulateQuestKind9LiteralRewards(1, 0)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostVisitorWantRequest(1, 0)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 29, 328, 0. Step 2: 1, 0.",
-  "call": "PopulateQuestKind9LiteralRewards(29, 328)"
+  "call": "PostVisitorWantRequest(29, 328)"
  },
  {
-  "id": "PopulateQuestKind10RandomRewards-cats",
+  "id": "PostRewardOnlyRequestRandomRewards-cats",
   "ops": [
    522
   ],
-  "mnemonic": "PopulateQuestKind10RandomRewards",
+  "mnemonic": "PostRewardOnlyRequestRandomRewards",
   "verifies": {
    "op": true,
    "args": [
@@ -11103,26 +11103,26 @@
   "steps": [
    {
     "say": "Next: category 2. Boxes: target, rewards 1-2.",
-    "do": "PopulateQuestKind10RandomRewards(2)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequestRandomRewards(2)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: category 51. Box: reward 1.",
-    "do": "PopulateQuestKind10RandomRewards(51)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequestRandomRewards(51)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: category 0 (ends the list at once). Box: reward 1.",
-    "do": "PopulateQuestKind10RandomRewards(0)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequestRandomRewards(0)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 0, an id in 63-110, 0. Step 2: an id in 813-984. Step 3: 0.",
-  "call": "PopulateQuestKind10RandomRewards(49)"
+  "call": "PostRewardOnlyRequestRandomRewards(49)"
  },
  {
-  "id": "PostQuestLiteralRewards-rewards",
+  "id": "PostRewardOnlyRequest-rewards",
   "ops": [
    523
   ],
-  "mnemonic": "PostQuestLiteralRewards",
+  "mnemonic": "PostRewardOnlyRequest",
   "verifies": {
    "op": true,
    "args": [
@@ -11134,19 +11134,19 @@
   "steps": [
    {
     "say": "Next: rewards 753 x4. Boxes: target, rewards 1-3, reward 4.",
-    "do": "PostQuestLiteralRewards(753, 753, 753, 753)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequest(753, 753, 753, 753)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: rewards 328, 575, 0, 600. Boxes: rewards 1-3.",
-    "do": "PostQuestLiteralRewards(328, 575, 0, 600)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequest(328, 575, 0, 600)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: lone 0 = no reward. Box: reward 1.",
-    "do": "PostQuestLiteralRewards(0)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequest(0)\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "Step 1: 0, 753, 753, 753, 753. Step 2: 328, 575, 0. Step 3: 0.",
-  "call": "PostQuestLiteralRewards(753, 753, 753, 753)"
+  "call": "PostRewardOnlyRequest(753, 753, 753, 753)"
  },
  {
   "id": "CompleteQuest-board",
@@ -11167,7 +11167,7 @@
    },
    {
     "say": "Posting a request with reward Turnip and accepting it.",
-    "do": "PostQuestLiteralRewards(29)\nCommitQuestAcceptance()\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequest(29)\nCommitQuestAcceptance()\nGetNpcQuestPreview()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: CompleteQuest(). Boxes: PP, REG_RQ_COUNT, preview reward 1, accepted.",
@@ -11196,7 +11196,7 @@
   "steps": [
    {
     "say": "Posting rewards 328, 575, 600, 649. Boxes: index 0, 1, 2, 3, 4.",
-    "do": "PostQuestLiteralRewards(328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 4)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostRewardOnlyRequest(328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 4)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Record 4 (Forte's request), index 0: a different value unless she has none (0).",
@@ -11226,7 +11226,7 @@
   "steps": [
    {
     "say": "Posting a request (target Turnip). Box = target.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 0, 1, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 0, 1, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: ClearAllRequestRecords(). Boxes: target (77 = nothing posted), Forte's reward 1.",
@@ -11251,7 +11251,7 @@
   "steps": [
    {
     "say": "Posting a request (target Turnip x3). Box = accepted?",
-    "do": "PopulateQuestKind2LiteralRewards(29, 0, 3, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 0, 3, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: CommitQuestAcceptance(). Box = accepted?",
@@ -11276,7 +11276,7 @@
   "steps": [
    {
     "say": "Posting a request (target Turnip). Box = target.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 0, 1, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 0, 1, 328)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: ClearBoardRequest(). Box = target (77 = nothing posted).",
@@ -11301,7 +11301,7 @@
   "steps": [
    {
     "say": "Posting (Turnip, param 7, count 3, rewards 328, 575, 600). Boxes reg0-reg6.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 7, 3, 328, 575, 600)\nGetNpcQuestPreview()\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg1)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg2)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg3)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg4)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg5)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg6)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Accepting it. Box = reg6.",
@@ -11328,11 +11328,11 @@
   "steps": [
    {
     "say": "Posting 'bring 3 Turnips'. Boxes: remaining for Turnip, for Cabbage (99 = untouched).",
-    "do": "PopulateQuestKind2LiteralRewards(29, 0, 3, 328)\nEVAL (reg0 = 99)\nGetQuestRemainingByItem(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nGetQuestRemainingByItem(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 0, 3, 328)\nEVAL (reg0 = 99)\nGetQuestRemainingByItem(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nGetQuestRemainingByItem(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Posting 'bring 5 Cabbages'. Box: remaining for Cabbage.",
-    "do": "PopulateQuestKind2LiteralRewards(1, 0, 5, 328)\nEVAL (reg0 = 99)\nGetQuestRemainingByItem(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(1, 0, 5, 328)\nEVAL (reg0 = 99)\nGetQuestRemainingByItem(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    }
   ],
   "expect": "If it searches record 0: 3, then 99 or 0, then 5. Any other numbers (or 99 throughout) show the broken loop bound: record them.",
@@ -11404,12 +11404,12 @@
   "hard": true
  },
  {
-  "id": "QueueSubEventGoalKind2-item-count",
+  "id": "AddTownEventItemGoal-item-count",
   "ops": [
    537,
    538
   ],
-  "mnemonic": "QueueSubEventGoalKind2",
+  "mnemonic": "AddTownEventItemGoal",
   "verifies": {
    "op": true,
    "args": [
@@ -11422,27 +11422,27 @@
   "steps": [
    {
     "say": "Queue: bring Turnip x3 to Margaret. Box = remaining Turnips.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind2(29, actor(Margaret), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventItemGoal(29, actor(Margaret), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Queue: Cabbage x5. Boxes: Cabbage, Turnip.",
-    "do": "QueueSubEventGoalKind2(1, actor(Forte), 5)\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "AddTownEventItemGoal(1, actor(Forte), 5)\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Without a running event nothing is queued: box Pink Melon.",
-    "do": "EVAL (REG_SUBEV_NOW = 0)\nQueueSubEventGoalKind2(5, actor(Forte), 4)\nEVAL (REG_SUBEV_NOW = 1)\nGetSubEventGoalRemaining(5)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "EVAL (REG_SUBEV_NOW = 0)\nAddTownEventItemGoal(5, actor(Forte), 4)\nEVAL (REG_SUBEV_NOW = 1)\nGetSubEventGoalRemaining(5)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "Boxes: 3; 5, 3; 0 (not queued while no event ran). The npc argument has no script reader (not checked here).",
-  "call": "QueueSubEventGoalKind2(29, actor(Margaret), 3)"
+  "call": "AddTownEventItemGoal(29, actor(Margaret), 3)"
  },
  {
-  "id": "QueueSubEventGoalKind3-count",
+  "id": "AddTownEventGiftTierGoal-count",
   "ops": [
    539,
    540
   ],
-  "mnemonic": "QueueSubEventGoalKind3",
+  "mnemonic": "AddTownEventGiftTierGoal",
   "verifies": {
    "op": true,
    "args": [
@@ -11454,23 +11454,23 @@
   "steps": [
    {
     "say": "Queue kind 3 (A Turnip, B Cabbage, count 4, param 2). Box = remaining for target 0.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind3(29, 1, 4, 2)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventGiftTierGoal(29, 1, 4, 2)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Reset, then count 2. Box = remaining for target 0.",
-    "do": "ResetSubEventGoals()\nQueueSubEventGoalKind3(29, 1, 2, 2)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "ResetSubEventGoals()\nAddTownEventGiftTierGoal(29, 1, 2, 2)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "Boxes: 4, 0 (items A/B are not in the target field), then 2.",
-  "call": "QueueSubEventGoalKind3(29, 1, 4, 2)"
+  "call": "AddTownEventGiftTierGoal(29, 1, 4, 2)"
  },
  {
-  "id": "QueueSubEventGoalKind4-target-count",
+  "id": "AddTownEventCategoryGoal-target-count",
   "ops": [
    541,
    542
   ],
-  "mnemonic": "QueueSubEventGoalKind4",
+  "mnemonic": "AddTownEventCategoryGoal",
   "verifies": {
    "op": true,
    "args": [
@@ -11483,23 +11483,23 @@
   "steps": [
    {
     "say": "Queue kind 4 (target 13, param 4, count 3). Box = remaining for 13.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind4(13, 4, 3)\nGetSubEventGoalRemaining(13)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventCategoryGoal(13, 4, 3)\nGetSubEventGoalRemaining(13)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Queue kind 4 (target 52, param 4, count 6). Boxes: 52, 13.",
-    "do": "QueueSubEventGoalKind4(52, 4, 6)\nGetSubEventGoalRemaining(52)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(13)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "AddTownEventCategoryGoal(52, 4, 6)\nGetSubEventGoalRemaining(52)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(13)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "Boxes: 3; 6, 3. (param has no script reader.)",
-  "call": "QueueSubEventGoalKind4(13, 4, 3)"
+  "call": "AddTownEventCategoryGoal(13, 4, 3)"
  },
  {
-  "id": "QueueSubEventGoalKind5-occupies-slot",
+  "id": "AddTownEventVisitGoal-occupies-slot",
   "ops": [
    543,
    544
   ],
-  "mnemonic": "QueueSubEventGoalKind5",
+  "mnemonic": "AddTownEventVisitGoal",
   "verifies": {
    "op": true,
    "args": []
@@ -11509,22 +11509,22 @@
   "steps": [
    {
     "say": "19 kind-5 goals, then 'Turnip x3'. Box = Turnip remaining (list max 20).",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nEVAL (reg6 = 19)\nloopa:\nQueueSubEventGoalKind5(actor(Forte))\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopa\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nEVAL (reg6 = 19)\nloopa:\nAddTownEventVisitGoal(actor(Forte))\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopa\nAddTownEventItemGoal(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Reset; 20 kind-5 goals, then 'Turnip x3'. Box = Turnip remaining.",
-    "do": "ResetSubEventGoals()\nEVAL (reg6 = 20)\nloopb:\nQueueSubEventGoalKind5(actor(Forte))\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopb\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "ResetSubEventGoals()\nEVAL (reg6 = 20)\nloopb:\nAddTownEventVisitGoal(actor(Forte))\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopb\nAddTownEventItemGoal(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "3 (the 20th slot was free), then 0 (twenty kind-5 goals filled the list). Shows each call adds one goal. The npc argument has no script reader.",
-  "call": "QueueSubEventGoalKind5(actor(Dylas))"
+  "call": "AddTownEventVisitGoal(actor(Dylas))"
  },
  {
-  "id": "QueueSubEventGoalKind6-count",
+  "id": "AddTownEventKind6Goal-count",
   "ops": [
    545
   ],
-  "mnemonic": "QueueSubEventGoalKind6",
+  "mnemonic": "AddTownEventKind6Goal",
   "verifies": {
    "op": true,
    "args": [
@@ -11536,22 +11536,22 @@
   "steps": [
    {
     "say": "Queue kind 6 (param 3, count 4). Box = remaining for target 0.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind6(3, 4)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventKind6Goal(3, 4)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Reset; kind 6 (param 3, count 7). Box.",
-    "do": "ResetSubEventGoals()\nQueueSubEventGoalKind6(3, 7)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "ResetSubEventGoals()\nAddTownEventKind6Goal(3, 7)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "Boxes: 4, then 7. (param has no script reader.)",
-  "call": "QueueSubEventGoalKind6(3, 4)"
+  "call": "AddTownEventKind6Goal(3, 4)"
  },
  {
-  "id": "QueueSubEventCraftGoal-args",
+  "id": "AddTownEventIngredientGoal-args",
   "ops": [
    546
   ],
-  "mnemonic": "QueueSubEventCraftGoal",
+  "mnemonic": "AddTownEventIngredientGoal",
   "verifies": {
    "op": true,
    "args": [
@@ -11565,7 +11565,7 @@
   "steps": [
    {
     "say": "Craft goal Broadsword x2, categories 0..3. Boxes: ingredient count each (99 = none found).",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nEVAL (reg0 = 99)\nQueueSubEventCraftGoal(0, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nQueueSubEventCraftGoal(1, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nQueueSubEventCraftGoal(2, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nQueueSubEventCraftGoal(3, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nEVAL (reg0 = 99)\nAddTownEventIngredientGoal(0, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nAddTownEventIngredientGoal(1, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nAddTownEventIngredientGoal(2, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nEVAL (reg0 = 99)\nAddTownEventIngredientGoal(3, 328, 1, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Box = remaining Broadswords (first goal).",
@@ -11573,18 +11573,18 @@
    },
    {
     "say": "Reset; craft goal Broadsword x5. Box = remaining.",
-    "do": "ResetSubEventGoals()\nQueueSubEventCraftGoal(0, 328, 1, 5)\nGetSubEventGoalRemaining(328)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "ResetSubEventGoals()\nAddTownEventIngredientGoal(0, 328, 1, 5)\nGetSubEventGoalRemaining(328)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "Step 1: 99 for categories without the Broadsword recipe, an ingredient count for the right one (record which). Step 2: 2. Step 3: 5.",
-  "call": "QueueSubEventCraftGoal(0, 328, 1, 2)"
+  "call": "AddTownEventIngredientGoal(0, 328, 1, 2)"
  },
  {
-  "id": "QueueSubEventGoalKind10-occupies-slot",
+  "id": "AddTownEventEmptyGoal-occupies-slot",
   "ops": [
    547
   ],
-  "mnemonic": "QueueSubEventGoalKind10",
+  "mnemonic": "AddTownEventEmptyGoal",
   "verifies": {
    "op": true,
    "args": [
@@ -11596,15 +11596,15 @@
   "steps": [
    {
     "say": "19 kind-10 goals, then 'Turnip x3'. Box = Turnip remaining.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nEVAL (reg6 = 19)\nloopa:\nQueueSubEventGoalKind10(2, 51)\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopa\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nEVAL (reg6 = 19)\nloopa:\nAddTownEventEmptyGoal(2, 51)\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopa\nAddTownEventItemGoal(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Reset; 20 kind-10 goals (no args), then 'Turnip x3'. Box.",
-    "do": "ResetSubEventGoals()\nEVAL (reg6 = 20)\nloopb:\nQueueSubEventGoalKind10()\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopb\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "ResetSubEventGoals()\nEVAL (reg6 = 20)\nloopb:\nAddTownEventEmptyGoal()\nEVAL (reg6 -= 1)\nBR_NZ (reg6) -> loopb\nAddTownEventItemGoal(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "3, then 0: each call takes a slot of the 20-goal list, with or without the (ignored) category args.",
-  "call": "QueueSubEventGoalKind10()"
+  "call": "AddTownEventEmptyGoal()"
  },
  {
   "id": "CompleteAllSubEventGoals-complete",
@@ -11621,7 +11621,7 @@
   "steps": [
    {
     "say": "Queue Turnip x3 and Cabbage x2. Boxes: remaining Turnip, Cabbage.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nQueueSubEventGoalKind2(1, actor(Forte), 2)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventItemGoal(29, actor(Forte), 3)\nAddTownEventItemGoal(1, actor(Forte), 2)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: CompleteAllSubEventGoals(). Boxes: Turnip, Cabbage.",
@@ -11646,11 +11646,11 @@
   "steps": [
    {
     "say": "Queue Turnip x3. Box = remaining.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventItemGoal(29, actor(Forte), 3)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
    },
    {
     "say": "Next: ResetSubEventGoals(). Box = remaining.",
-    "do": "ResetSubEventGoals()\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nQueueSubEventGoalKind2(1, actor(Forte), 4)\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "ResetSubEventGoals()\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nAddTownEventItemGoal(1, actor(Forte), 4)\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "3, then 0; then 4 (the list accepts new goals again).",
@@ -11673,7 +11673,7 @@
   "steps": [
    {
     "say": "Queue Turnip x3 and Cabbage x5. Boxes: Turnip, Cabbage, Pink Melon.",
-    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nQueueSubEventGoalKind2(29, actor(Forte), 3)\nQueueSubEventGoalKind2(1, actor(Forte), 5)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(5)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
+    "do": "EVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 1)\nAddTownEventItemGoal(29, actor(Forte), 3)\nAddTownEventItemGoal(1, actor(Forte), 5)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetSubEventGoalRemaining(5)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\ndone:"
    }
   ],
   "expect": "3, 5, 0.",
@@ -18128,11 +18128,11 @@
   "call": "SaveCalendarSnapshot()"
  },
  {
-  "id": "PopulateQuestKind2LiteralRewards-reward4",
+  "id": "PostItemRequest-reward4",
   "ops": [
    510
   ],
-  "mnemonic": "PopulateQuestKind2LiteralRewards",
+  "mnemonic": "PostItemRequest",
   "verifies": {
    "op": false,
    "args": [
@@ -18144,22 +18144,34 @@
   "steps": [
    {
     "say": "7 arguments: rewards Broadsword 328, Iron Hammer 575, Turtle Shield 600, Talisman 649. Boxes: reward 1-4.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 7, 3, 328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()",
+    "labels": [
+     "Reward 1 (passed 328):",
+     "Reward 2 (passed 575):",
+     "Reward 3 (passed 600):",
+     "Reward 4 (passed 649):"
+    ]
    },
    {
     "say": "Again with reward 4 = Rice 300. Boxes: reward 1-4.",
-    "do": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600, 300)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostItemRequest(29, 7, 3, 328, 575, 600, 300)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()",
+    "labels": [
+     "Reward 1 (passed 328):",
+     "Reward 2 (passed 575):",
+     "Reward 3 (passed 600):",
+     "Reward 4 (passed 300):"
+    ]
    }
   ],
   "expect": "Step 1: 328, 575, 600, 649. Step 2: 328, 575, 600, 300 (the 4th reward follows argument 7).",
-  "call": "PopulateQuestKind2LiteralRewards(29, 7, 3, 328, 575, 600, 649)"
+  "call": "PostItemRequest(29, 7, 3, 328, 575, 600, 649)"
  },
  {
-  "id": "PopulateQuestKind4LiteralRewards-rewards2-4",
+  "id": "PostCategoryRequest-rewards2-4",
   "ops": [
    515
   ],
-  "mnemonic": "PopulateQuestKind4LiteralRewards",
+  "mnemonic": "PostCategoryRequest",
   "verifies": {
    "op": false,
    "args": [
@@ -18173,23 +18185,35 @@
   "steps": [
    {
     "say": "7 arguments: rewards Broadsword 328, Iron Hammer 575, Turtle Shield 600, Talisman 649. Boxes: reward 1-4.",
-    "do": "PopulateQuestKind4LiteralRewards(52, 3, 1, 328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostCategoryRequest(52, 3, 1, 328, 575, 600, 649)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()",
+    "labels": [
+     "Reward 1 (passed 328):",
+     "Reward 2 (passed 575):",
+     "Reward 3 (passed 600):",
+     "Reward 4 (passed 649):"
+    ]
    },
    {
     "say": "5 arguments: rewards Rice 300 and Toyherb 63 only. Boxes: reward 1-4.",
-    "do": "PopulateQuestKind4LiteralRewards(52, 3, 1, 300, 63)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()"
+    "do": "PostCategoryRequest(52, 3, 1, 300, 63)\nGetRequestRewardItem(0, 0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 2)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nGetRequestRewardItem(0, 3)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()",
+    "labels": [
+     "Reward 1 (passed 300):",
+     "Reward 2 (passed 63):",
+     "Reward 3 (none passed):",
+     "Reward 4 (none passed):"
+    ]
    }
   ],
   "expect": "Step 1: 328, 575, 600, 649. Step 2: 300, 63, then 0 and 0 (the record was rewritten; fewer arguments leave the later rewards empty).",
-  "call": "PopulateQuestKind4LiteralRewards(52, 3, 1, 328, 575, 600, 649)"
+  "call": "PostCategoryRequest(52, 3, 1, 328, 575, 600, 649)"
  },
  {
-  "id": "QueueSubEventGoalKind2-npc-handover",
+  "id": "AddTownEventItemGoal-npc-handover",
   "ops": [
    537,
    538
   ],
-  "mnemonic": "QueueSubEventGoalKind2",
+  "mnemonic": "AddTownEventItemGoal",
   "verifies": {
    "op": false,
    "args": [
@@ -18197,28 +18221,35 @@
    ]
   },
   "map": "MAP_F_ROOM_00",
-  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops. While the stand-in event is on, NPCs often refuse a gift (a thrown item bounces off, a handed one is put down in front of them): try again until it goes through (seen 2026-10-18; gone once the event is off).",
   "hard": true,
   "steps": [
    {
     "say": "Visit 1 sets up, visit 2 checks. Goal: 3 Turnips for Margaret. Give one Turnip to Forte, then two to Margaret.",
-    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind2(29, actor(Margaret), 3)\nGivePlayerItem(29, 3, 1)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nAddTownEventItemGoal(29, actor(Margaret), 3)\nGivePlayerItem(29, 3, 1)\nGetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:",
+    "labels": [
+     "Turnips still wanted (expect 3):",
+     "A town event is running, number:"
+    ]
    },
    {
     "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
-    "do": "GetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+    "do": "GetSubEventGoalRemaining(29)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:",
+    "labels": [
+     "Turnips still wanted (expect 1):"
+    ]
    }
   ],
   "expect": "Visit 1: 3. Visit 2: 1 (only Margaret's two Turnips counted: argument 2 names who must receive it). Also note how Margaret and Forte reacted to the gift.",
-  "call": "QueueSubEventGoalKind2(29, actor(Margaret), 3)"
+  "call": "AddTownEventItemGoal(29, actor(Margaret), 3)"
  },
  {
-  "id": "QueueSubEventGoalKind3-taste-handover",
+  "id": "AddTownEventGiftTierGoal-taste-handover",
   "ops": [
    539,
    540
   ],
-  "mnemonic": "QueueSubEventGoalKind3",
+  "mnemonic": "AddTownEventGiftTierGoal",
   "verifies": {
    "op": false,
    "args": [
@@ -18228,28 +18259,35 @@
    ]
   },
   "map": "MAP_F_ROOM_00",
-  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops. While the stand-in event is on, NPCs often refuse a gift (a thrown item bounces off, a handed one is put down in front of them): try again until it goes through (seen 2026-10-18; gone once the event is off).",
   "hard": true,
   "steps": [
    {
     "say": "Visit 1 sets up, visit 2 checks. Goal: 3 gifts Margaret LOVES (tier 4), for Margaret. Give her the Turnip first, then the two Pink Melons.",
-    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind3(actor(Margaret), 4, 3, actor(Margaret))\nGivePlayerItem(5, 2, 1)\nGivePlayerItem(29, 1, 1)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nAddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))\nGivePlayerItem(5, 2, 1)\nGivePlayerItem(29, 1, 1)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:",
+    "labels": [
+     "Loved gifts still wanted (expect 3):",
+     "A town event is running, number:"
+    ]
    },
    {
     "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
-    "do": "GetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+    "do": "GetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:",
+    "labels": [
+     "Loved gifts still wanted (expect 1):"
+    ]
    }
   ],
   "expect": "Visit 1: 3. Visit 2: 1 (the two Pink Melons, which she loves, counted; the Turnip, neutral, did not: 0 would mean it counted too). Shows argument 1 is whose taste, 2 the gift tier, 4 who receives it.",
-  "call": "QueueSubEventGoalKind3(actor(Margaret), 4, 3, actor(Margaret))"
+  "call": "AddTownEventGiftTierGoal(actor(Margaret), 4, 3, actor(Margaret))"
  },
  {
-  "id": "QueueSubEventGoalKind4-category-handover",
+  "id": "AddTownEventCategoryGoal-category-handover",
   "ops": [
    541,
    542
   ],
-  "mnemonic": "QueueSubEventGoalKind4",
+  "mnemonic": "AddTownEventCategoryGoal",
   "verifies": {
    "op": false,
    "args": [
@@ -18258,27 +18296,34 @@
    ]
   },
   "map": "MAP_F_ROOM_00",
-  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops. While the stand-in event is on, NPCs often refuse a gift (a thrown item bounces off, a handed one is put down in front of them): try again until it goes through (seen 2026-10-18; gone once the event is off).",
   "hard": true,
   "steps": [
    {
     "say": "Visit 1 sets up, visit 2 checks. Goal: 3 items of category 0 (crops) for Margaret. Give her the Toyherb first, then the two Turnips.",
-    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind4(0, actor(Margaret), 3)\nGivePlayerItem(63, 1, 1)\nGivePlayerItem(29, 2, 1)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nAddTownEventCategoryGoal(0, actor(Margaret), 3)\nGivePlayerItem(63, 1, 1)\nGivePlayerItem(29, 2, 1)\nGetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:",
+    "labels": [
+     "Crops still wanted (expect 3):",
+     "A town event is running, number:"
+    ]
    },
    {
     "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
-    "do": "GetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+    "do": "GetSubEventGoalRemaining(0)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:",
+    "labels": [
+     "Crops still wanted (expect 1):"
+    ]
    }
   ],
   "expect": "Visit 1: 3. Visit 2: 1 (the Turnips, category 0, counted; the Toyherb, category 2, did not).",
-  "call": "QueueSubEventGoalKind4(0, actor(Margaret), 3)"
+  "call": "AddTownEventCategoryGoal(0, actor(Margaret), 3)"
  },
  {
-  "id": "QueueSubEventCraftGoal-npc-handover",
+  "id": "AddTownEventIngredientGoal-npc-handover",
   "ops": [
    546
   ],
-  "mnemonic": "QueueSubEventCraftGoal",
+  "mnemonic": "AddTownEventIngredientGoal",
   "verifies": {
    "op": false,
    "args": [
@@ -18286,28 +18331,35 @@
    ]
   },
   "map": "MAP_F_ROOM_00",
-  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops. While the stand-in event is on, NPCs often refuse a gift (a thrown item bounces off, a handed one is put down in front of them): try again until it goes through (seen 2026-10-18; gone once the event is off).",
   "hard": true,
   "steps": [
    {
-    "say": "Visit 1 sets up, visit 2 checks. Goal: ingredients of Boiled Spinach (frying pan) for Margaret. Give Forte one Spinach, then Margaret the Turnip and one Spinach.",
-    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventCraftGoal(7, 215, actor(Margaret), 3)\nGivePlayerItem(27, 2, 1)\nGivePlayerItem(29, 1, 1)\nGetSubEventGoalRemaining(215)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+    "say": "Visit 1 sets up, visit 2 checks. Goal: 5 ingredients of Boiled Spinach (frying pan) for Margaret. Give Forte one Spinach, then Margaret the Turnip and one Spinach.",
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nAddTownEventIngredientGoal(7, 215, actor(Margaret), 5)\nGivePlayerItem(27, 2, 1)\nGivePlayerItem(29, 1, 1)\nGetSubEventGoalRemaining(215)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:",
+    "labels": [
+     "Spinach still wanted (expect 5):",
+     "A town event is running, number:"
+    ]
    },
    {
     "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
-    "do": "GetSubEventGoalRemaining(215)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:"
+    "do": "GetSubEventGoalRemaining(215)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 0)\ndone:",
+    "labels": [
+     "Spinach still wanted (expect 4, or less if a gift counts more than 1):"
+    ]
    }
   ],
-  "expect": "Visit 1: 3. Visit 2: 2 (only the Spinach Margaret got counted: Forte is not the goal's NPC, a Turnip is no ingredient).",
-  "call": "QueueSubEventCraftGoal(7, 215, actor(Margaret), 3)"
+  "expect": "Visit 1: 5. Forte's Spinach and Margaret's Turnip count nothing (read live); Margaret's one Spinach counts. Visit 2: 4 if a gift counts 1, 2 if it adds 3, 0 if one gift completes the goal.",
+  "call": "AddTownEventIngredientGoal(7, 215, actor(Margaret), 5)"
  },
  {
-  "id": "QueueSubEventGoalKind5-npc-handover",
+  "id": "AddTownEventVisitGoal-npc-handover",
   "ops": [
    543,
    544
   ],
-  "mnemonic": "QueueSubEventGoalKind5",
+  "mnemonic": "AddTownEventVisitGoal",
   "verifies": {
    "op": false,
    "args": [
@@ -18315,12 +18367,15 @@
    ]
   },
   "map": "MAP_F_ROOM_00",
-  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops.",
+  "setup": "Throwaway save, a day with no town event running, Margaret and Forte in town. Do both visits on the same day, without sleeping. Visit 1 (walk into the Dragon Room) sets up a stand-in town event (REG_SUBEV_NOW = 104, an empty event slot) with one goal and gives you the items. Then go to town and GIVE the items as gifts, in the order the box says. Visit 2 (walk in again) shows the result and switches the stand-in event off. If a real event is running, visit 1 only shows its number and stops. While the stand-in event is on, NPCs often refuse a gift (a thrown item bounces off, a handed one is put down in front of them): try again until it goes through (seen 2026-10-18; gone once the event is off).",
   "hard": true,
   "steps": [
    {
     "say": "Visit 1 sets up, visit 2 checks. Goal: talk to / visit Margaret (no item, no count). Give one Turnip to Forte, then one to Margaret.",
-    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nQueueSubEventGoalKind5(actor(Margaret))\nGivePlayerItem(29, 2, 1)\n\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:"
+    "do": "EVAL (reg8 = (REG_SUBEV_NOW == 104))\nBR_NZ (reg8) -> visit2\nEVAL (reg9 = REG_SUBEV_NOW)\nBR_NZ (reg9) -> busy\nResetSubEventGoals()\nEVAL (REG_SUBEV_NOW = 104)\nAddTownEventVisitGoal(actor(Margaret))\nGivePlayerItem(29, 2, 1)\n\nJMP done\nbusy:\nSetVar3(0, reg9)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nJMP done\nvisit2:",
+    "labels": [
+     "A town event is running, number:"
+    ]
    },
    {
     "say": "Visit 2: the box shows what is left of the goal. The stand-in event ends now.",
@@ -18328,7 +18383,7 @@
    }
   ],
   "expect": "Margaret's reaction differs from her usual gift reaction (the goal takes the gift; the stand-in event has no scene for it), while Forte reacts as usual. Record what each did and whether each Turnip left your bag.",
-  "call": "QueueSubEventGoalKind5(actor(Margaret))"
+  "call": "AddTownEventVisitGoal(actor(Margaret))"
  },
  {
   "id": "TryMountPlayerOnHostActor-ride",
@@ -18352,7 +18407,11 @@
   "steps": [
    {
     "say": "Next: you get on this monster. Boxes: result (1 = on it, 0 = failed, 2 = already riding), then 1 = you were free to.",
-    "do": "TryMountPlayerOnHostActor(7)\nEVAL (reg8 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg8)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET"
+    "do": "TryMountPlayerOnHostActor(7)\nEVAL (reg8 = reg1)\nSetVar3(0, reg0)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nSetVar3(0, reg8)\nSetSpeaker(MC, Left, 0, 0)\nDIALOG #94412\nEndDialogue()\nRET",
+    "labels": [
+     "Ride result (1 on it, 0 failed, 2 already):",
+     "Free to ride (1 yes, 0 busy):"
+    ]
    }
   ],
   "expect": "Rideable monster: you are riding it, boxes 1, 1. The other monster: record what happens and the boxes (0 if the game refuses). The argument (7 here, 1 in the game) changes nothing.",
