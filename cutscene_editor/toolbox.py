@@ -1336,6 +1336,48 @@ class MapBoxPicker(MapPointPicker):
             self.win.destroy()
 
 
+class _LazyOpts:
+    """[(display, token)] options built only when first needed (a picker opens): a form with
+    target pickers no longer lists every statement of the bank just to open. `quick(token)`
+    gives a value's display text without the list. Displays start with the token (0xPC), so
+    a display maps back to its token even before the list exists."""
+    _TOKEN = re.compile(r"^\s*(0x[0-9a-fA-F]{4})\b")
+
+    def __init__(self, make, quick):
+        self._make, self._quick, self._val, self._map = make, quick, None, None
+
+    def items(self):
+        if self._val is None:
+            self._val = list(self._make())
+            self._map = dict(self._val)
+        return self._val
+
+    def displays(self):
+        return [d for d, _t in self.items()]
+
+    def display(self, token):
+        """The text a picker shows for `token` (from the list once built, else quick)."""
+        if self._val is not None:
+            return next((d for d, t in self._val if t == token), token)
+        return self._quick(token)
+
+    def get(self, disp, default=None):
+        """display -> token (the dict.get a _Field uses)."""
+        if self._map is not None and disp in self._map:
+            return self._map[disp]
+        m = self._TOKEN.match(disp or "")
+        return m.group(1).lower() if m else default
+
+    def __iter__(self):
+        return iter(self.items())
+
+    def __add__(self, other):
+        return self.items() + list(other)
+
+    def __radd__(self, other):
+        return list(other) + self.items()
+
+
 class _Field:
     """One labelled input: an editable, filterable combobox (display -> token) or an entry."""
 
@@ -1343,13 +1385,18 @@ class _Field:
                  tip=None):
         self.row = row
         self.spec = spec                        # argspec.ArgSpec: seconds, live '= 0.5 s' note
-        self.opts = dict(options)
+        lazy = isinstance(options, _LazyOpts)
+        self.opts = options if lazy else dict(options)
         self.parts = []                         # the label, input and hint (hide / show)
         lab = ttk.Label(parent, text=label)
         lab.grid(row=row, column=0, sticky="nw", padx=(0, 6), pady=2)
         self.parts.append(lab)
         self.var = tk.StringVar()
-        if options:
+        if lazy:                                # targets: the list is built when it opens
+            w = FilterCombo(parent, options.displays, on_pick=lambda _t: on_change(), width=width,
+                            textvariable=self.var)
+            self.var.set(options.display(default))
+        elif options:
             w = FilterCombo(parent, [d for d, _t in options], on_pick=lambda _t: on_change(), width=width,
                             textvariable=self.var)
             disp = next((d for d, t in options if t == default), default)
@@ -1880,6 +1927,21 @@ class InstructionPicker:
                         "0x%04x" % pc))
         return out + [o for o in self._bank_targets() if int(o[1], 16) not in sc.stmts]
 
+    def _target_display(self, token):
+        """A target's picker text without building the bank's list: this scene's statements
+        as _targets writes them, any other statement '0xPC  words' (the list adds where it is)."""
+        try:
+            pc = int(token, 16)
+        except (TypeError, ValueError):
+            return token
+        sc = getattr(self.app, "scene", None)
+        if sc is not None and pc in sc.stmts:
+            lab = script.scene_labels(sc).get(pc)
+            return "0x%04x  %s%s" % (pc, (lab + ": ") if lab else "", self._stmt_words(sc.stmts[pc]))
+        bank = getattr(self.app, "bank", None)
+        st = script.decode_statement(bank.data, pc) if bank is not None else None
+        return "0x%04x  %s" % (pc, self._stmt_words(st)) if st is not None else "0x%04x" % pc
+
     def _bank_targets(self):
         """Every statement start of the open bank, (display, token), cached per bank state."""
         bank = getattr(self.app, "bank", None)
@@ -1961,8 +2023,9 @@ class InstructionPicker:
         r = next((x for x in meta.TABLE["control"].values() if x["mnemonic"] == m), {})
         self.title.config(text=r.get("prototype") or m)
         self._set_desc(CONTROL_HELP.get(m, ""))
-        tg = self._targets()
-        tdef = tg[0][1] if tg else "0x0000"
+        tg = _LazyOpts(self._targets, self._target_display)
+        sc = getattr(self.app, "scene", None)
+        tdef = "0x%04x" % next(iter(sc.stmts)) if sc is not None and sc.stmts else "0x0000"
         if m == "DIALOG":
             from . import dialogs
             mr = ttk.Frame(self.form)
@@ -2044,9 +2107,14 @@ class InstructionPicker:
                 Tip(b, tip)
             f._num = num
         for label, opts, default in self._rows_cols:
-            ttk.Label(f, text=label).pack(side="left", padx=(4, 2))
+            if not self._rows_movable:          # a SWITCH row is labelled by its value (=0, =1 …)
+                ttk.Label(f, text=label).pack(side="left", padx=(4, 2))
             var = tk.StringVar()
-            if opts:
+            if isinstance(opts, _LazyOpts):     # targets: the list is built when a picker opens
+                w = FilterCombo(f, opts.displays, on_pick=lambda _t: self._changed(),
+                                width=34, textvariable=var)
+                var.set(opts.display(default))
+            elif opts:
                 w = FilterCombo(f, [d for d, _t in opts], on_pick=lambda _t: self._changed(),
                                 width=34, textvariable=var)
                 var.set(next((d for d, t in opts if t == default), default))
@@ -2055,7 +2123,7 @@ class InstructionPicker:
                 var.set(default)
             w.pack(side="left")
             var.trace_add("write", lambda *_a: self._changed())
-            row.append((var, dict(opts)))
+            row.append((var, opts if isinstance(opts, _LazyOpts) else dict(opts)))
         rm = ttk.Button(f, text="✕", width=3)
         rm.pack(side="left", padx=4)
         entry = (f, row)
@@ -2632,12 +2700,8 @@ class InstructionPicker:
         self.set_instruction(("ctl", m))
         buf = self.app.bank.data
         expr = self._inner(scriptasm.operand_text(buf, st.expr_refs[0])) if st.expr_refs else ""
-        tg = self._targets()
-        tdisp = {t: d for d, t in tg}
-
-        def target_text(pc):
-            tok = "0x%04x" % pc if pc is not None else "0x0000"
-            return tdisp.get(tok, tok)
+        def target_text(pc):                    # no bank-wide list: see _target_display
+            return self._target_display("0x%04x" % pc if pc is not None else "0x0000")
         if m == "EVAL":
             mm = re.match(r"^(.*?[^=!<>|&+*/%-])\s*(\|\|=|&&=|\+=|-=|\*=|/=|%=|=(?!=))\s*(.+)$", expr)
             if mm:
@@ -2659,7 +2723,8 @@ class InstructionPicker:
         elif m in ("JMP", "CALL") and st.code_targets:
             t = st.code_targets[0]
             tok = "0x%04x" % t
-            self.t1.var.set(next((d for d, k in self.t1.opts.items() if k == tok), tok))
+            self.t1.var.set(self.t1.opts.display(tok) if isinstance(self.t1.opts, _LazyOpts)
+                            else next((d for d, k in self.t1.opts.items() if k == tok), tok))
         elif m == "FRAME":
             self.n.var.set(str(st.items[0] if st.items else 0))
         elif m in ("SWITCH", "SWITCH_CLAMP"):

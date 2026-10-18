@@ -462,7 +462,10 @@ class FilterCombo(ttk.Combobox):
     # slow to open (a 13-case SWITCH: 15 statement pickers, ~1.5 s).
 
     def __init__(self, parent, values, on_pick=None, width=30, **kw):
-        self._all = list(values)
+        # `values`: the entries, or a function that makes them (called the first time the
+        # list is needed, for lists that are slow to build)
+        self._make = values if callable(values) else None
+        self._list = None if callable(values) else list(values)
         self._shown = None                # what Tk holds: None (nothing yet), "all", "filtered"
         self._var = kw.pop("textvariable", None) or tk.StringVar()
         super().__init__(parent, textvariable=self._var, values=(), width=width,
@@ -478,6 +481,12 @@ class FilterCombo(ttk.Combobox):
     def var(self):
         return self._var
 
+    @property
+    def _all(self):
+        if self._list is None:
+            self._list = list(self._make())
+        return self._list
+
     def values(self):
         """Every entry (the full list, whatever the dropdown shows now)."""
         return list(self._all)
@@ -489,7 +498,8 @@ class FilterCombo(ttk.Combobox):
             self._shown = "all"
 
     def set_values(self, values):
-        self._all = list(values)
+        self._make = values if callable(values) else None
+        self._list = None if callable(values) else list(values)
         self.configure(values=())
         self._shown = None
 
