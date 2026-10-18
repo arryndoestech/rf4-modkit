@@ -418,7 +418,8 @@ class SceneText:
                 rows.append(Row(addr(pc, st, cont=True) + ind + [("      %-5s → %s" % (val, t), "flow")],
                                 (pc, k), st))
             if m == "SWITCH":
-                rows.append(Row(addr(pc, st, cont=True) + ind + [("      default → next", "flow")],
+                rows.append(Row(addr(pc, st, cont=True) + ind
+                                + [("      %-5s → %s" % ("default", self.target(pc + st.size)), "flow")],
                                 (pc, n), st))
             return speaker
         elif m == "JMP_WEIGHTED":
