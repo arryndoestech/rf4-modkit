@@ -7073,11 +7073,13 @@ Args:
      - `3` = Variant 3
 
 ### `op 369` — TryMountPlayerOnHostActor(unused)
+*verified:* yes, in game
 
 Tries to put the player on the script's host actor (the monster being talked to) as a mount. reg1 = 0 if the player is busy; reg0 = 2 if already riding, else the mount result.
 
 Args:
-  0. unused (the handler reads no args; the corpus passes 1)
+  0. unused (the handler reads no args; the corpus passes 1) — verified in game
+     - `7` = ignored
 
 ### `op 393` — FreezePlayer(release)
 
@@ -9260,7 +9262,7 @@ Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). 
 
 Args:
   0. item (+2)
-  1. npc (+5 (corpus: actor(Margaret)))
+  1. npc (+5 (corpus: actor(Margaret))) — verified in game
   2. count (+4)
   3. ignored... (reward categories are ignored in this mode)
 
@@ -9270,7 +9272,7 @@ Add a kind-2 goal ('bring item') to the running sub-event's goal list (max 20). 
 
 Args:
   0. item (+2)
-  1. npc (+5 (corpus: actor(Margaret)))
+  1. npc (+5 (corpus: actor(Margaret))) — verified in game
   2. count (+4)
   3. ignored... (reward categories are ignored in this mode)
 
@@ -9279,10 +9281,10 @@ Args:
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
 Args:
-  0. taste_of (+6: whose gift taste the item is judged by)
-  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike)
+  0. taste_of (+6: whose gift taste the item is judged by) — verified in game
+  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike) — verified in game
   2. count (+4)
-  3. npc (+5: the NPC who must receive the item)
+  3. npc (+5: the NPC who must receive the item) — verified in game
   4. ignored... (reward categories ignored)
 
 ### `op 540` — AddTownEventGiftTierGoal(taste_of, gift_tier, count, npc, ignored...)
@@ -9290,10 +9292,10 @@ Args:
 Add a kind-3 goal to the running sub-event's goal list (max 20). Unused by the shipped scripts.
 
 Args:
-  0. taste_of (+6: whose gift taste the item is judged by)
-  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike)
+  0. taste_of (+6: whose gift taste the item is judged by) — verified in game
+  1. gift_tier (+8: 1 neutral, 2 disliked, 3 liked, 4 loved, 5 signature dislike) — verified in game
   2. count (+4)
-  3. npc (+5: the NPC who must receive the item)
+  3. npc (+5: the NPC who must receive the item) — verified in game
   4. ignored... (reward categories ignored)
 
 ### `op 541` — AddTownEventCategoryGoal(item_category, npc, count)
@@ -9301,8 +9303,8 @@ Args:
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
 Args:
-  0. item_category (+2: rf3ItemList category byte of the item (0 = crops))
-  1. npc (+5: the NPC who must receive the item)
+  0. item_category (+2: rf3ItemList category byte of the item (0 = crops)) — verified in game
+  1. npc (+5: the NPC who must receive the item) — verified in game
   2. count (entry +4)
 
 ### `op 542` — AddTownEventCategoryGoal(item_category, npc, count)
@@ -9310,8 +9312,8 @@ Args:
 Append a kind-4 goal to the current sub-event's goal queue (only while a sub-event is running).
 
 Args:
-  0. item_category (+2: rf3ItemList category byte of the item (0 = crops))
-  1. npc (+5: the NPC who must receive the item)
+  0. item_category (+2: rf3ItemList category byte of the item (0 = crops)) — verified in game
+  1. npc (+5: the NPC who must receive the item) — verified in game
   2. count (entry +4)
 
 ### `op 543` — AddTownEventVisitGoal(npc)
@@ -9344,7 +9346,7 @@ Args:
   0. category
   1. item
      - *(enum: 1108 values — use the in-editor picker or the id database)*
-  2. npc (+5: the NPC who must receive the item)
+  2. npc (+5: the NPC who must receive the item) — verified in game
   3. count (record +4)
 
 ### `op 547` — AddTownEventEmptyGoal(ignored...)

@@ -413,9 +413,13 @@ def statement_matcher(doc, mode, q):
             qnum = int(q, 0)
         except ValueError:
             qnum = None
-        return lambda _bk, st: st.op < 0xFFF0 and (
-            (qnum is not None and st.op == qnum) or ql in script.opcode_mnemonic(st.op).lower()
-            or ql in script.opcode_name(st.op).lower())
+        def opcode(_bk, st):
+            if qnum is not None and st.op == qnum:
+                return True
+            if st.op >= 0xFFF0:                     # control: SWITCH, JMP, CALL, BR_Z, menus, ...
+                return ql in (st.mnem or "").lower()
+            return ql in script.opcode_mnemonic(st.op).lower() or ql in script.opcode_name(st.op).lower()
+        return opcode
     if mode == "variable":
         tbl = getattr(doc, "emf_vars", None)
         if tbl is None:

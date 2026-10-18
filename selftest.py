@@ -3267,6 +3267,16 @@ def test_script():
         _check("structural search (opcode/speaker) matches genuinely + by-number == by-name",
                len(_r1) > 5 and _op_ok and len(_r2) == len(_r1) and len(_r3) > 5 and _spk_ok
                and not _r4, f"{len(_r1)}/{len(_r2)}/{len(_r3)}/{len(_r4)}")
+        # control instructions are opcodes too: SWITCH / SWITCH_CLAMP by name and by number
+        _r5 = _ceb.find_scenes(_sdoc, "opcode", "switch_clamp")
+        _r6 = _ceb.find_scenes(_sdoc, "opcode", "0xFFF6")
+        _r7 = _ceb.find_scenes(_sdoc, "opcode", "switch")
+        _check("opcode search finds control instructions (SWITCH_CLAMP by name == by 0xFFF6; "
+               "'switch' finds both switches)",
+               _r5 and [(_p, _s.entry_pc) for _p, _s in _r5] == [(_p, _s.entry_pc) for _p, _s in _r6]
+               and len(_r7) > len(_r5)
+               and all(any(_st.mnem == "SWITCH_CLAMP" for _st in _s.stmts.values()) for _p, _s in _r5),
+               f"{len(_r5)}/{len(_r6)}/{len(_r7)}")
         # variable mode: scenes that read or write an emdeb.bin variable by name. The
         # developers' "Related Birthday" menu (bank 252) writes REG_PLAYER_BIRTH_SEASON with EVAL
         from rf4s_modkit import emflags as _vef
@@ -8764,10 +8774,10 @@ def test_switch_case_moves():
         while head is not None and head + 1 + n < len(lines) and ("= %d " % n) in lines[head + 1 + n]:
             n += 1
         cases = lines[head + 1:head + 1 + n] if head is not None else []
-        _check("the Script view shows a switch with one case per line (= 0 → …, then 'other values')",
+        _check("the Script view shows a switch with one case per line (= 0 → …, then 'default')",
                head is not None and lines[head].rstrip().endswith(":")
                and n >= 2 and all("→" in l for l in cases)
-               and "other values" in lines[head + 1 + n], (lines[head:head + n + 2] if head is not None else None))
+               and "default" in lines[head + 1 + n], (lines[head:head + n + 2] if head is not None else None))
         ex.mode.set(mode0); ex._view_mode()
         ex.select((q, None))
         root.update()
