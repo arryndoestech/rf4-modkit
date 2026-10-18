@@ -10892,6 +10892,21 @@ def test_live_names_and_combo_keys():
         _check("Up / Down step a dropdown's value and apply it (stopping at the ends); Alt+Down opens the list",
                got == ["b", "c", "one"] and cb.get() == "c" and fc.get() == "one" and down
                and root.bind_class("TCombobox", "<Alt-Down>") != "", got)
+        # a FilterCombo gives Tk its list only when it is opened or stepped (forms with many
+        # of them, e.g. a SWITCH's target rows, open faster); a typed filter shows its subset,
+        # and the full list comes back after a pick
+        lz = guiutil.FilterCombo(root, ["alpha", "beta", "gamma"])
+        empty = list(lz.cget("values")) == []
+        lz.load()
+        full = list(lz.cget("values")) == ["alpha", "beta", "gamma"]
+        lz.var.set("ga")
+        lz._filter(type("E", (), {"keysym": "a"})())
+        filt = list(lz.cget("values")) == ["gamma"]
+        lz._picked()
+        lz.load()
+        back = list(lz.cget("values")) == ["alpha", "beta", "gamma"] and lz.values() == ["alpha", "beta", "gamma"]
+        _check("a FilterCombo hands Tk its list only when opened; a typed filter narrows it, a pick restores it",
+               empty and full and filt and back, (empty, full, filt, back))
         mc = _shipped("rf3.mc")
         from rf4s_modkit import gamenames as G, gamepaths, textdb
         real = gamepaths.find_bundle_dir()

@@ -427,6 +427,8 @@ def combo_step(widget, d):
     try:
         if str(widget.cget("state")) == "disabled":
             return None
+        if hasattr(widget, "load"):             # a FilterCombo hands Tk its list on demand
+            widget.load()
         vals = list(widget.cget("values"))
     except tk.TclError:
         return None
@@ -455,11 +457,16 @@ class FilterCombo(ttk.Combobox):
     """A combobox whose list narrows to the entries containing what was typed (any word,
     case-insensitive). Picking an entry or pressing Enter calls on_pick(text)."""
 
+    # The list goes to Tk only when it is needed (the dropdown opens, or Up / Down steps
+    # through it): handing Tk thousands of entries per combobox made forms with many of them
+    # slow to open (a 13-case SWITCH: 15 statement pickers, ~1.5 s).
+
     def __init__(self, parent, values, on_pick=None, width=30, **kw):
         self._all = list(values)
+        self._shown = None                # what Tk holds: None (nothing yet), "all", "filtered"
         self._var = kw.pop("textvariable", None) or tk.StringVar()
-        super().__init__(parent, textvariable=self._var, values=self._all, width=width,
-                         height=20, **kw)
+        super().__init__(parent, textvariable=self._var, values=(), width=width,
+                         height=20, postcommand=self.load, **kw)
         self._on_pick = on_pick
         self.bind("<KeyRelease>", self._filter)
         self.bind("<<ComboboxSelected>>", self._picked)
@@ -471,24 +478,45 @@ class FilterCombo(ttk.Combobox):
     def var(self):
         return self._var
 
+    def values(self):
+        """Every entry (the full list, whatever the dropdown shows now)."""
+        return list(self._all)
+
+    def load(self):
+        """Give Tk the full list unless it already shows it or a typed filter's result."""
+        if self._shown is None:
+            self.configure(values=self._all)
+            self._shown = "all"
+
     def set_values(self, values):
         self._all = list(values)
-        self.configure(values=self._all)
+        self.configure(values=())
+        self._shown = None
 
     def _filter(self, e):
         if e.keysym in ("Return", "KP_Enter", "Up", "Down", "Escape", "Tab"):
             return
         words = self._var.get().lower().split()
-        vals = [v for v in self._all if all(w in v.lower() for w in words)] if words else self._all
+        if not words:
+            self._shown = None
+            self.load()
+            return
+        vals = [v for v in self._all if all(w in v.lower() for w in words)]
         self.configure(values=vals[:400])
+        self._shown = "filtered"
+
+    def _reset(self):
+        if self._shown == "filtered":     # back to the full list the next time it opens
+            self.configure(values=())
+            self._shown = None
 
     def _picked(self, _e=None):
-        self.configure(values=self._all)
+        self._reset()
         if self._on_pick:
             self._on_pick(self._var.get())
 
     def _restore(self, _e=None):
-        self.configure(values=self._all)
+        self._reset()
 
 
 def ask_yes_no_optout(parent, title, message, yes="Yes", no="Cancel",
