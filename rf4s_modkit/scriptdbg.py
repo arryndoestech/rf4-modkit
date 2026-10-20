@@ -104,6 +104,7 @@ TEXT_SLOT_RVAS = {0: 0xE9C4E0, 1: 0xE9C520, 2: 0xE9C560, 3: 0xE9C5C0, 4: 0xE9C69
 TEXT_SLOT_COUNTS = {0: 16, 1: 16, 2: 24, 3: 52, 4: 52, 5: 52, 6: 52, 7: 52, 8: 16, 9: 16, 10: 1,
                     11: 16, 13: 16, 14: 16, 15: 16}
 RECOVERY_NAME = "scriptdbg-recovery.json"
+RACE_POLLS = 50                 # polls in a row whose reads may race the game before poll() gives up
 
 
 class DebugError(Exception):
@@ -268,6 +269,7 @@ class ScriptDebugger:
         self.g = hotreload._Game(pid)
         self.bps = {}                   # (bank, pc) -> Breakpoint
         self.held = set()               # VM addresses the debugger holds (paused)
+        self._races = 0                 # polls in a row that raced the game (poll())
         self._saved_wait = {}           # VM address -> the countdown it had when paused
         self._released = {}             # VM address -> (pc, countdown) it was let go with
         self.bufs = {}                  # slot address -> our buffer (bytes the bank + stubs)
@@ -803,7 +805,23 @@ class ScriptDebugger:
         self._write_note()
         return vms
 
-    poll = sync
+    def poll(self):
+        """sync(), unless its reads raced the game: sync() reads with the game running, so a
+        scene the game tears down meanwhile (a map change, an event ending, the title screen)
+        can free a slot between reading its address and reading it. While the game still runs
+        that poll is skipped -- no VMs this time ([], never stale addresses), the next poll
+        reads afresh; sync() writes only while the game is paused, so nothing is half done.
+        Raises when the game exited, or after RACE_POLLS failed polls in a row (a failure
+        that does not go away, e.g. an unknown RF4S.exe build)."""
+        try:
+            vms = self.sync()
+        except hotreload.GameChangedError:
+            self._races += 1
+            if self._races >= RACE_POLLS or not self.g.alive():
+                raise
+            return []
+        self._races = 0
+        return vms
 
     # ---- the resident file ------------------------------------------------------------ #
     def _bank_ref(self, pos):

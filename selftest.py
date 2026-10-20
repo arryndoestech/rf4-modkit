@@ -9298,6 +9298,7 @@ def test_script_debugger():
                 return 0
         def alloc(self, n): return self.m.alloc(n)
         def own_allocation(self, p): return len(self.m.regions.get(p, b""))
+        def alive(self): return True
         def free(self, p): pass
         def suspend(self): pass
         def resume(self): pass
@@ -9353,7 +9354,7 @@ def test_script_debugger():
                           bufs={}, stub_top={}, _stubs={}, user=set(), user_pending={}, _maps={},
                           slot_bank={}, mismatch=set(), parked={}, freeze_clock=False,
                           _res_orig=None, _res_base=None, _res_img=None, _res_dirty=True, _res_free=[],
-                          _clock=None, _note=None, _flags=None, _slots=None, recovered=[])
+                          _clock=None, _note=None, _flags=None, _slots=None, recovered=[], _races=0)
         d._write_note = lambda owner=True: None             # no recovery note from a test
         d._drop_note = lambda: None
         d._set_clock = lambda frozen: None
@@ -9386,6 +9387,34 @@ def test_script_debugger():
     g.frame(); d.poll(); v = d.vms()[0]
     _check("the first Step stops at the next statement", v.addr in d.held and d.logical_pc(v) == Q,
            "%04x" % d.logical_pc(v))
+
+    g = Game(); d = debugger(g)                              # a scene torn down while polled
+    d.add_breakpoint(BANK, P); d.poll()
+    slots = g.slots
+
+    def torn(sc):
+        raise _hr.GameChangedError("cannot read 8 bytes at 0x1 in the game")
+    g.slots = torn
+    skipped = d.poll() == [] and d._races == 1
+    g.slots = slots
+    at(g, P, 2, 0); g.frame(); vms = d.poll()
+    _check("a poll whose reads race the game is skipped, the next one reads afresh",
+           skipped and d._races == 0 and vms and vms[0].addr in d.held)
+    g.slots, g.alive = torn, (lambda: False)
+    try:
+        d.poll()
+        gone = False
+    except _hr.GameChangedError:
+        gone = True
+    g.alive = lambda: True
+    for _ in range(_sd.RACE_POLLS):
+        try:
+            d.poll()
+        except _hr.GameChangedError:
+            break
+    _check("a failed read raises when the game exited, or after RACE_POLLS polls in a row",
+           gone and d._races == _sd.RACE_POLLS)
+    g.slots = slots
 
     g = Game(); d = debugger(g)                              # paused ON a breakpointed statement
     at(g, P, 2, 1000); d.poll(); d.pause(d.vms()[0])
@@ -9770,6 +9799,7 @@ def test_script_debugger_edits():
                 return 0
         def alloc(self, n): return self.m.alloc(n)
         def own_allocation(self, p): return len(self.m.regions.get(p, b""))
+        def alive(self): return True
         def free(self, p): pass
         def suspend(self): pass
         def resume(self): pass

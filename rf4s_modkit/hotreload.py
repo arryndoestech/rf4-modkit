@@ -73,6 +73,13 @@ class HotReloadTechnicalError(HotReloadError):
     technical = True
 
 
+class GameChangedError(HotReloadTechnicalError):
+    """A read of the game's memory failed, or found a structure that is not what it was a
+    moment before: the game freed or reused it meanwhile (a scene torn down while the
+    toolkit read it, unpaused) -- or it is gone for good (the game exited, an unknown
+    RF4S.exe build). Readers that poll the running game retry while it still runs."""
+
+
 class _MBI(ctypes.Structure):
     _fields_ = [("BaseAddress", ctypes.c_void_p), ("AllocationBase", ctypes.c_void_p),
                 ("AllocationProtect", wt.DWORD), ("PartitionId", wt.WORD),
@@ -291,6 +298,11 @@ class _Game:
             k.CloseHandle(snap)
         return None
 
+    def alive(self):
+        """True while the game process runs (GetExitCodeProcess: STILL_ACTIVE)."""
+        code = wt.DWORD()
+        return bool(self.k32.GetExitCodeProcess(self.h, ctypes.byref(code))) and code.value == 259
+
     def close(self):
         if self.suspended:
             self.resume()
@@ -302,7 +314,7 @@ class _Game:
         got = ctypes.c_size_t()
         if not self.k32.ReadProcessMemory(self.h, ctypes.c_void_p(addr), buf, n, ctypes.byref(got)) \
                 or got.value != n:
-            raise HotReloadTechnicalError("cannot read %d bytes at %#x in the game" % (n, addr))
+            raise GameChangedError("cannot read %d bytes at %#x in the game" % (n, addr))
         return buf.raw
 
     def write(self, addr, data):
@@ -494,7 +506,7 @@ class _Game:
             size = self.u32(s + 24)
             loaded = self.u8(s + 28)
             if back != sc or mode != mode_expected:
-                raise HotReloadTechnicalError("the game's %s script slot does not look as expected "
+                raise GameChangedError("the game's %s script slot does not look as expected "
                                      "(unknown RF4S.exe build?)" % name)
             out.append((name, s, mode, bi, buf, size, loaded))
         return out
