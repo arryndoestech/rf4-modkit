@@ -11672,21 +11672,20 @@ def test_explorer_tabs():
         boxes = [w for w in _all_widgets(win) if isinstance(w, gui.ttk.Checkbutton)]
         _box_texts = [b.cget("text") for b in boxes]
         _tabs = [app._options_nb.tab(t, "text") for t in app._options_nb.tabs()]
-        _in = {app._options_nb.tab(str(w.winfo_parent()), "text") if str(w.winfo_parent()) in
-               app._options_nb.tabs() else None: w.cget("text") for w in boxes}
+        _tab_of = lambda w: app._options_pages.get(str(w.winfo_parent()))
+        _in = {_tab_of(w): w.cget("text") for w in boxes}
         _check("Options has the tabs General / Appearance / Map editor / Cutscene Editor / Advanced: group "
                "maps under General, the mouse wheel under Map editor, backups under Advanced",
                _tabs == ["General", "Appearance", "Map editor", "Cutscene Editor", "Advanced"]
                and "Keep each game file's original (copied the first time it is saved)" in [
-                   w.cget("text") for w in boxes if app._options_nb.tab(str(w.winfo_parent()), "text")
-                   == "Advanced"]
+                   w.cget("text") for w in boxes if _tab_of(w) == "Advanced"]
                and _in.get("Map editor") == "Mouse wheel zooms the map", (_tabs, _in))
         _game_txt = app._game_dir.get()
         _b = _gamepaths.find_bundle_dir()
         _check("Options -> General shows the current game folder (like the Change… window) with a Change… button",
                _game_txt == (str(_b.parent) if _b is not None else "(none chosen yet)")
                and any(isinstance(w, gui.ttk.Button) and w.cget("text") == "Change…"
-                       and str(w.winfo_parent()) == app._options_nb.tabs()[0] for w in _all_widgets(win)),
+                       and _tab_of(w) == "General" for w in _all_widgets(win)),
                _game_txt)
         wheel = next(b for b in boxes if b.cget("text") == "Mouse wheel zooms the map")
         ticked_before = app._wheel_zooms.get()
@@ -11757,7 +11756,7 @@ def test_explorer_tabs():
         _check("'Bank listing tab' is in Options -> Advanced, off by default and saved for the editor",
                bool(_bl) and _bl_before is False and _bl_on is True
                and _CE.bank_listing_setting() is False
-               and str(_bl[0].winfo_parent()) == app._options_nb.tabs()[-1], (_bl_before, _bl_on))
+               and _tab_of(_bl[0]) == "Advanced", (_bl_before, _bl_on))
         win.destroy()
         import shortcuts_help as _sh
         hwin = _sh.open_help(app.root)

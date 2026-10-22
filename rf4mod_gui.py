@@ -1163,18 +1163,24 @@ class App:
         win = self._options_win = tk.Toplevel(self.root)
         win.title("Options")
         win.transient(self.root)
-        win.resizable(False, False)
+        win.resizable(False, True)
         body = ttk.Frame(win, padding=12)
         body.pack(fill="both", expand=True)
         nb = ttk.Notebook(body)
-        nb.pack(fill="both", expand=True)
         self._options_nb = nb
+        self._options_pages = {}                # page frame path -> tab title
+        scrolls = []
 
         def tab(title):
-            f = ttk.Frame(nb, padding=12)
-            nb.add(f, text=title)
+            # each tab scrolls on its own, so the window fits on a small screen
+            sf = ScrollFrame(nb)
+            nb.add(sf, text=title)
+            f = ttk.Frame(sf.body, padding=12)
+            f.pack(fill="both", expand=True)
+            scrolls.append((sf, f))
+            self._options_pages[str(f)] = title
             return f
-        from guiutil import Tip
+        from guiutil import ScrollFrame, Tip
         import guitheme
         # -- General: the game folder, the file list, big lists
         gen = tab("General")
@@ -1351,7 +1357,8 @@ class App:
         # bottom row: the toolkit's version (commit + date, selectable for bug reports) on the
         # left, its text sitting on the same line as the bottom of Close on the right
         foot = ttk.Frame(body)
-        foot.pack(fill="x", pady=(12, 0))
+        foot.pack(side="bottom", fill="x", pady=(12, 0))
+        nb.pack(fill="both", expand=True)       # after the footer: a short window shrinks the tabs
         ttk.Button(foot, text="Close", command=win.destroy).pack(side="right")
         import guiutil
         ver = tk.StringVar(value="Modkit version " + guiutil.modkit_version())
@@ -1367,9 +1374,21 @@ class App:
         vent.bind("<<AppearanceChanged>>", match_window, add="+")   # (guitheme, after a switch)
         win.bind("<Escape>", lambda _e: win.destroy())
         win.update_idletasks()
-        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_width()) // 2
-        y = self.root.winfo_rooty() + 80
-        win.geometry(f"+{max(0, x)}+{max(0, y)}")
+        # every tab as wide as the widest page and as tall as the tallest, but the window no
+        # taller than the screen: the rest scrolls
+        pw = max(f.winfo_reqwidth() for _sf, f in scrolls)
+        ph = max(f.winfo_reqheight() for _sf, f in scrolls)
+        for sf, _f in scrolls:
+            sf.canvas.configure(width=pw, height=ph)
+            sf.bind_wheel_tree()
+        win.update_idletasks()
+        top = max(0, self.root.winfo_rooty() + 80)
+        room = win.winfo_screenheight() - 80     # (the taskbar and the title bar)
+        if top + win.winfo_reqheight() > room:
+            top = max(0, min(top, room - win.winfo_reqheight()))
+        h = min(win.winfo_reqheight(), room - top)
+        x = self.root.winfo_rootx() + (self.root.winfo_width() - win.winfo_reqwidth()) // 2
+        win.geometry(f"{win.winfo_reqwidth()}x{h}+{max(0, x)}+{top}")
         return win
 
     def cmd_game_folder(self):
