@@ -197,15 +197,13 @@ class MapView(ttk.Frame):
         return self.background.layers(
             d.grid, self.colors, self.cp, self.ground_image(block), attr_on=L.get("attr", True),
             alpha=self.attr_alpha, edges_on=L.get("edges", True), attr_version=d.attr_version,
-            under=bool(L.get("sprites")), dim=self.ground_dim)
+            dim=self.ground_dim)
 
     # ---- redraw scheduling -------------------------------------------------- #
     def invalidate(self, *groups):
         groups = groups or ("bg",) + render.GROUPS
         if "ent" in groups:                     # the objects' sprites and their collision
-            groups += ("under", "lift", "stamp")
-        if "sel" in groups:                     # the selected sprite above the ATTR fill
-            groups += ("lift",)
+            groups += ("under", "stamp")
         self._dirty.update(groups)
         if not self._pending:
             self._pending = True
@@ -260,7 +258,7 @@ class MapView(ttk.Frame):
             self._items.pop(it, None)
         c.delete(g)
         self._labels[g] = []
-        if g in ("under", "lift") and self.ground_pending():
+        if g == "under" and self.ground_pending():
             return                              # drawn when the ground arrives (_ground_ready)
         for p in render.overlay(g, self.st):
             o = p.opt
@@ -510,8 +508,8 @@ class MapView(ttk.Frame):
     def pick_candidates(self, e, kinds=PICKABLE):
         """Everything a click here can select, in the order a click picks it: precise hits
         (markers, labels, outlines, sprite borders), then the warp zones under the pointer
-        (smallest first), then the insides of sprites -- they lie below the warps
-        and the ATTR fill, so they are the weakest hit (topmost sprite first)."""
+        (smallest first), then the insides of sprites -- they lie below the warps,
+        so they are the weakest hit (topmost sprite first)."""
         x, y = self.canvas_xy(e)
         strong, weak = [], []
         under = set(self.canvas.find_withtag("under"))

@@ -22,12 +22,11 @@ except ImportError:           # the editor still runs, with a plain-rectangle AT
     HAS_PIL = False
 
 # Overlay groups, bottom to top.
-GROUPS = ("under", "lift", "stamp", "grid", "region", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
-# canvas stacking, bottom to top: the ground texture ("bg"), the sprites ("under",
-# drawn as the game draws them, so they sit on the ground), the ATTR fill + cell edges
-# ("attr"), the selected object's sprite again ("lift", so it shines through the fill), then
-# every other overlay group
-STACK = ("bg", "under", "attr", "lift") + tuple(g for g in GROUPS if g not in ("under", "lift"))
+GROUPS = ("under", "stamp", "grid", "region", "warp", "ent", "si", "gate", "spawn", "dest", "sel")
+# canvas stacking, bottom to top: the ground texture ("bg"), the ATTR fill + cell edges
+# ("attr"), the sprites ("under", drawn as the game draws them, above the fill so the
+# objects stay visible), then every other overlay group
+STACK = ("bg", "attr", "under") + tuple(g for g in GROUPS if g != "under")
 
 SEL_COLOR = "#00e5ff"
 WARP_COLOR = "#ffd040"
@@ -224,8 +223,8 @@ class Background:
     def layers(self, grid, colors, cp, ground, *, attr_on, alpha, edges_on, attr_version,
                under=False, dim=0):
         """(ground, attr): the scaled ground texture and the ATTR fill + cell edges as a
-        separate RGBA layer (either may be None), so the sprites can be drawn
-        between them. The fill takes the ATTR opacity when anything lies beneath it (the
+        separate RGBA layer (either may be None); the sprites are drawn above
+        both. The fill takes the ATTR opacity when anything lies beneath it (the
         ground, or sprites when `under`); otherwise it is opaque. `dim` (0..100 %) darkens
         the ground so the objects on it stand out. Callers must not draw on the images."""
         if not HAS_PIL or grid is None:
@@ -878,19 +877,6 @@ def overlay(group, st):
                         o = {"type_id": 0, "pos_x": x, "pos_y": y, "params": ()}
                         out.append(Prim("sprite", _sprite_rect(o, gsrc, cp), key=("gpos", off),
                                         fn=gsrc[0], frame=0, mirror=False))
-    elif group == "lift":
-        # the selected object's sprite once more, above the ATTR fill (no key: the copy in
-        # "under" stays the hit, so the pick order does not change)
-        for sel in (getattr(st, "multi", ()) or (st.sel,)):   # every selected sprite
-            if (sel is None or sel[0] != "mobj" or sel[1] >= len(doc.objs) or not L.get("sprites")
-                    or not HAS_PIL):
-                continue
-            o = doc.objs[sel[1]]
-            if entity_visible(o, L) and not flagstate.hidden(o, getattr(st, "flags", None)):
-                src = st.sprites.source(o)
-                if src is not None:
-                    out.append(Prim("sprite", _sprite_rect(o, src, cp), fn=src[0], frame=src[1],
-                                    mirror=spritequad.mirrored(o)))
     elif group == "ent":
         r = max(3, cp // 2 + 1)
         sprites_on = L.get("sprites") and HAS_PIL

@@ -1359,8 +1359,6 @@ class MapEditorPanel:
         g = LAYER_GROUPS[key]
         if g == "bg":
             self.view.invalidate("bg")
-        elif key == "sprites":                  # sprites under the ATTR fill: its opacity changes
-            self.view.invalidate("bg", g, "sel")
         elif key in ("gates", "gate_art"):      # the gates drawn as sprites go with their markers
             self.view.invalidate(g, "under", "sel")
         else:
@@ -2226,13 +2224,13 @@ class MapEditorPanel:
             d.grid, self.view.colors, st.cp, self.view.ground_image(block=True),
             attr_on=st.layers.get("attr", True), alpha=self.view.attr_alpha,
             edges_on=st.layers.get("edges", True), attr_version=d.attr_version,
-            under=bool(st.layers.get("sprites")), dim=self.view.ground_dim)
-        # the canvas stacking: ground, sprites, ATTR, the other overlays
+            dim=self.view.ground_dim)
+        # the canvas stacking: ground, ATTR, sprites, the other overlays
         img = ground.copy() if ground is not None else Image.new("RGBA", (W * st.cp, H * st.cp), (0, 0, 0, 0))
-        img = render.draw_prims(img, render.overlay("under", st), st.sprites)
         if top is not None:
             img = Image.alpha_composite(img, top)
-        prims = [p for g in render.GROUPS if g not in ("sel", "under", "lift") for p in render.overlay(g, st)]
+        img = render.draw_prims(img, render.overlay("under", st), st.sprites)
+        prims = [p for g in render.GROUPS if g not in ("sel", "under") for p in render.overlay(g, st)]
         return render.draw_prims(img, prims, st.sprites)
 
     def export_png(self):

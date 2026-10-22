@@ -1403,7 +1403,7 @@ class ViewTab(ui.ScrollFrame):
                "the ground. Objects without such a sprite keep their marker.")
         cb(L, "labels", "name labels", 4, 1)
         ui.Tip(cb(L, "sprite_borders", "sprite borders", 5, 0),
-               "A red border around every drawn sprite, above the ATTR fill, so each object's "
+               "A red border around every drawn sprite, so each object's "
                "full extent shows even where its art is faint, invisible or covered.")
         ui.Tip(cb(L, "gate_art", "draw gates", 5, 1),
                "Draw each visible monster gate as the game shows it (the swirling orb). "

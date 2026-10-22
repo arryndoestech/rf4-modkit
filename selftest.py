@@ -18738,11 +18738,12 @@ def test_sprite_quads_and_flags():
         pos = {it: n for n, it in enumerate(cv.find_all())}          # display list, bottom first
         low = lambda tag: min((pos[i] for i in cv.find_withtag(tag)), default=None)
         high = lambda tag: max((pos[i] for i in cv.find_withtag(tag)), default=None)
-        _check("editor: full-size sprites sit right above the ground, below the ATTR fill/edges, "
-               "the warps and the markers",
-               None not in (high("under"), low("attr"), low("warp"), low("ent"))
-               and (high("bg") is None or high("bg") < low("under"))
-               and high("under") < low("attr") < low("warp") and high("under") < low("ent"),
+        _check("editor: full-size sprites sit above the ground and the ATTR fill/edges, "
+               "below the warps and the markers",
+               None not in (high("under"), high("attr"), low("warp"), low("ent"))
+               and (high("bg") is None or high("bg") < low("attr"))
+               and high("attr") < low("under") and high("under") < low("warp")
+               and high("under") < low("ent"),
                "bg %s under %s-%s attr %s warp %s ent %s" % (high("bg"), low("under"), high("under"),
                                                            low("attr"), low("warp"), low("ent")))
         # picking: inside a warp that a sprite covers, the warp wins; clicking again cycles
@@ -18841,24 +18842,6 @@ def test_sprite_quads_and_flags():
                tr and selp and all(p.kind == "rect" for p in selp)
                and any(p.xy == (tr[0][0] - 1, tr[0][1] - 1, tr[0][2] + 1, tr[0][3] + 1) for p in selp),
                "%s / %s" % ([(p.kind, p.xy) for p in selp], tr))
-        panel.select(("mobj", 14))
-        panel.view.flush()
-        cv = panel.view.canvas
-        pos = {it: n for n, it in enumerate(cv.find_all())}
-        lift = [pos[i] for i in cv.find_withtag("lift")]
-        attr_top = max((pos[i] for i in cv.find_withtag("attr")), default=None)
-        warp_low = min((pos[i] for i in cv.find_withtag("warp")), default=None)
-        lp = mrender.overlay("lift", st)
-        _check("editor: the selected sprite shines through the ATTR fill (drawn again right above "
-               "it, below the warps; not a hit target)",
-               len(lp) == 1 and lp[0].kind == "sprite" and lp[0].key is None and lp[0].xy == tr[0]
-               and lift and attr_top is not None and warp_low is not None
-               and attr_top < min(lift) and max(lift) < warp_low,
-               "lift %s attr %s warp %s" % (lift, attr_top, warp_low))
-        panel.select(None)
-        panel.view.flush()
-        _check("editor: nothing is lifted once the selection is cleared",
-               not cv.find_withtag("lift"))
         st.sel = None
         img = panel.render_to_image(scale=4)
         _check("editor: export draws the full-size sprites without errors",
