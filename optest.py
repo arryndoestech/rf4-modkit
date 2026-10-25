@@ -43,6 +43,7 @@ sys.path.insert(0, str(_HERE))
 
 TABLE = _HERE / "refdata" / "opcode_table.json"
 NUMBER_LINE = 94412          # "The result: ＠数字０＠ points" (the number is SetVar3 slot 0)
+BOX_SPEAKER = "SetSpeakerVoice(392, 0)"   # test boxes: name plate '???', no portrait over the scene
 NAME_RE = re.compile(r"[A-Za-z_]\w*\Z")
 
 
@@ -168,7 +169,7 @@ def sweep_listing(call, values, then=None, hold=24000):
         raise SystemExit("the call needs {v} where the value goes, e.g. \"ShowActorEmote(actor(player), {v})\"")
     lines = ["Wait(6000)"]                         # let the map's own fade-in finish
     for v in values:
-        lines += ["SetVar3(0, %d)" % v, "SetSpeaker(MC, Left, 0, 0)", "DIALOG #%d" % NUMBER_LINE,
+        lines += ["SetVar3(0, %d)" % v, BOX_SPEAKER, "DIALOG #%d" % NUMBER_LINE,
                   "EndDialogue()", call.replace("{v}", str(v)), "Wait(%d)" % hold]
         if then:
             lines.append(then.replace("{v}", str(v)))
@@ -431,7 +432,7 @@ def plan_open(t, test):
 
 
 NUMBER_SLOT = "＠数字０＠"     # the SetVar3 slot-0 value, as line NUMBER_LINE shows it
-_PLAIN_OPS = {"SetVar3", "SetSpeaker", "EndDialogue", "Wait"}
+_PLAIN_OPS = {"SetVar3", "SetSpeaker", "SetSpeakerVoice", "EndDialogue", "Wait"}
 
 
 def box_labels(test):
@@ -474,10 +475,10 @@ def plan_listing(test, note_ids, box_ids=None, title_id=None):
     in a box and its statements; number boxes use their labels' lines (box_ids, per step)."""
     lines = ["Wait(6000)"]
     if title_id is not None:
-        lines += ["SetSpeaker(MC, Left, 0, 0)", "DIALOG #%d" % title_id, "EndDialogue()"]
+        lines += [BOX_SPEAKER, "DIALOG #%d" % title_id, "EndDialogue()"]
     for k, step in enumerate(test["steps"]):
         if step.get("say"):
-            lines += ["SetSpeaker(MC, Left, 0, 0)", "DIALOG #%d" % note_ids[k], "EndDialogue()"]
+            lines += [BOX_SPEAKER, "DIALOG #%d" % note_ids[k], "EndDialogue()"]
         boxes = iter(box_ids[k]) if box_ids else None
         for x in (step.get("do") or "").splitlines():
             if not x.strip():

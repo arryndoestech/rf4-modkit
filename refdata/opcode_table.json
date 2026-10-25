@@ -24761,7 +24761,14 @@
      "values": "script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "SpawnEventActor(324, 100, 164, 468, 0)",
+       "observed": "user saw: barrel is spawned (above), barrel jumped right, barrel jumped down"
+      }
+     ]
     },
     {
      "name": "y",
@@ -24769,7 +24776,14 @@
      "values": "script units, 8 per map-editor tile (tile * 8 + 4 = the tile's centre)",
      "required_kind": "int",
      "notes": "",
-     "human_verified": false
+     "human_verified": true,
+     "tests": [
+      {
+       "date": "2026-10-18",
+       "call": "SpawnEventActor(324, 100, 164, 468, 0)",
+       "observed": "user saw: barrel is spawned (above), barrel jumped right, barrel jumped down"
+      }
+     ]
     },
     {
      "name": "facing",
@@ -24787,7 +24801,7 @@
    "summary": "Spawn an event actor (monster, extra) at a spot",
    "details": "Looks up key in g_eventActorMng (40-byte records, count at +1280). Existing record with a live actor: actor x/y = script units << 12, facing +156 and +158 = 181*deg (instant). Otherwise appends a record {key, char, x, y, 181*facing} with the pending-placement bit (WORD1 bit 0) if fewer than 32 exist; the actor streams in later. Special skip: host+346 == 60 and char 269 at (346,300).",
    "side_effects": "calendar-event actor registry (max 32)",
-   "evidence": "RF4S.exe+0x213660 as described; corpus 1046 uses, argc 5, arg0 = char ids 24..376 (269 most common), arg1 = keys 100..1500.",
+   "evidence": "RF4S.exe+0x213660 as described; corpus 1046 uses, argc 5, arg0 = char ids 24..376 (269 most common), arg1 = keys 100..1500. In-game test 2026-10-18 (user): SpawnEventActor(324, 100, 164, 468, 0) -> user saw: barrel is spawned (above), barrel jumped right, barrel jumped down.",
    "alias_of": null,
    "handler": "Script_VMOp_SpawnEventActor",
    "handler_rva": "0x213660",
@@ -24804,7 +24818,7 @@
    "confidence": "high",
    "notes": "",
    "change_reason": "Naming rule: verb first; event-cutscene actors use the noun EventActor (as in SetEventActorFacing / TriggerActionAtEventActor).",
-   "human_verified": false,
+   "human_verified": true,
    "example": {
     "bank": 376,
     "pc": "0x01A0",
