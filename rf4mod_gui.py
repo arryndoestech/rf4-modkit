@@ -308,6 +308,7 @@ class Source:
         self.label = label
         self.entries: list[tuple[str, str, object]] = []  # (name, group, loader)
         self.sizes: list = []                               # bytes per entry (None = unknown)
+        self.paths: dict[str, pathlib.Path] = {}            # loose files that can be saved in place
         self._cats = None
 
     def add(self, name: str, group: str, loader, size=None):
@@ -383,6 +384,7 @@ class Source:
                 if rel in loose:
                     fp = udir / rel
                     src.add(name, bname, (lambda f: (lambda: f.read_bytes()))(fp), loose[rel])
+                    src.paths[name] = fp
                 elif bundle is not None:
                     src.add(name, bname, (lambda b, n: (lambda: b.read(n)))(bundle, name),
                             (info or {}).get("size"))
@@ -421,6 +423,7 @@ class Source:
         for rel, full, size in found:
             group = rel.split("/", 1)[0] if "/" in rel else ""
             src.add(rel, group, (lambda fp: (lambda: pathlib.Path(fp).read_bytes()))(full), size)
+            src.paths[rel] = pathlib.Path(full)
         return src
 
     @classmethod
@@ -428,6 +431,7 @@ class Source:
         p = pathlib.Path(file)
         src = cls(f"File: {p.name}")
         src.add(p.name, "", lambda: p.read_bytes(), p.stat().st_size)
+        src.paths[p.name] = p
         return src
 
 
@@ -739,6 +743,7 @@ class _Doc:
         self.content = frame            # what the viewers build into
         self.frame = frame
         self.key = None                 # (source label, entry name): the same file opens here
+        self.save_path = None           # filesystem path when this tab came from a loose file
         self.saved = None               # the bytes as loaded or last written to a file
         self.header = "Select an asset"
         self.parked = []                # timers that came due while the tab was hidden
@@ -862,39 +867,24 @@ class App:
         self.export_btn.pack(side="left", padx=2)
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         ttk.Button(bar, text="Cutscenes", command=self.cmd_cutscene_editor).pack(side="left", padx=2)
-        # Help (every shortcut) at the very right, then the list filters
+        # Help (every shortcut) at the very right
         import shortcuts_help
         hb = ttk.Button(bar, text="Help", command=lambda: shortcuts_help.open_help(self.root))
         hb.pack(side="right", padx=(2, 4))
         from guiutil import Tip as _Tip
         _Tip(hb, "Every keyboard shortcut and mouse gesture.")
         self._help_btn = hb
-        flt = ttk.Frame(bar)
-        flt.pack(side="right", padx=(0, 4))
-        ttk.Separator(bar, orient="vertical").pack(side="right", fill="y", padx=6)
-        ttk.Label(flt, text="Filter:").pack(side="left")
         self.filter_var = tk.StringVar()
         # Debounced: re-filtering ~38k names on EVERY keystroke made typing stutter; wait
         # until the user pauses (Enter applies immediately).
         self._filter_after = None
         self.filter_var.trace_add("write", lambda *_: self._schedule_filter())
-        fe = ttk.Entry(flt, textvariable=self.filter_var, width=28)
-        fe.pack(side="left", padx=2)
-        fe.bind("<Return>", lambda _e: self._apply_filter_now())
-        ttk.Label(flt, text="Show:").pack(side="left", padx=(8, 0))
         self.cat_var = tk.StringVar(value=self.ALL_CATS)
-        self.cat_cb = ttk.Combobox(flt, textvariable=self.cat_var, state="readonly", width=26,
-                                   values=[self.ALL_CATS])
-        self.cat_cb.pack(side="left", padx=2)
-        self.cat_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter_now())
-        Tip(self.cat_cb, "Show only one kind of file (textures, voice lines, maps...). Works together "
-                         "with the Filter box: Maps + 'city' = every town map.")
-        Tip(fe, "Show only files whose name contains this text (Enter applies at once).")
         # Group maps by area: set in Options… (File list)
         self.group_maps_var = tk.BooleanVar(value=bool(gamepaths.get_setting(GROUP_MAPS_SETTING, True)))
 
     def _build_body(self):
-        from guiutil import Paned
+        from guiutil import Paned, Tip
         paned = Paned(self.root, orient="horizontal")   # no live relayout while dragging
         paned.pack(fill="both", expand=True)
         self._paned = paned
@@ -903,6 +893,21 @@ class App:
         left = ttk.Frame(paned)
         self._left = left
         paned.add(left, weight=0, minsize=160)   # keeps its width; the content gets the rest
+        filters = ttk.Frame(left)
+        filters.pack(fill="x", padx=5, pady=(5, 3))
+        filters.columnconfigure(1, weight=1)
+        ttk.Label(filters, text="Search:").grid(row=0, column=0, sticky="w", padx=(0, 5), pady=2)
+        fe = ttk.Entry(filters, textvariable=self.filter_var, width=18)
+        fe.grid(row=0, column=1, sticky="ew", pady=2)
+        fe.bind("<Return>", lambda _e: self._apply_filter_now())
+        ttk.Label(filters, text="Show:").grid(row=1, column=0, sticky="w", padx=(0, 5), pady=2)
+        self.cat_cb = ttk.Combobox(filters, textvariable=self.cat_var, state="readonly", width=18,
+                                   values=[self.ALL_CATS])
+        self.cat_cb.grid(row=1, column=1, sticky="ew", pady=2)
+        self.cat_cb.bind("<<ComboboxSelected>>", lambda _e: self._apply_filter_now())
+        Tip(self.cat_cb, "Show only one kind of file (textures, voice lines, maps...). Works together "
+                         "with Search: Maps + 'city' = every town map.")
+        Tip(fe, "Show only files whose name contains this text (Enter applies at once).")
         self.tree = ttk.Treeview(left, columns=("cat", "size"), show="tree headings")
         self._sort = ("name", False)
         for col, text in (("#0", "Asset"), ("cat", "Category"), ("size", "Size")):
@@ -942,6 +947,8 @@ class App:
                                    command=lambda: self.cmd_close_others(self._tab_menu_doc))
         self.root.bind("<Control-w>", lambda _e: self.cmd_close_tab())
         self.root.bind("<Control-W>", lambda _e: self.cmd_close_tab())      # (Caps Lock on)
+        self.root.bind("<Control-s>", lambda _e: self.cmd_save())
+        self.root.bind("<Control-S>", lambda _e: self.cmd_save())
         self.root.bind("<Control-Tab>", lambda _e: self._cycle_tab(1) or "break")
         self.root.bind("<Control-Shift-Tab>", lambda _e: self._cycle_tab(-1) or "break")
         try:
@@ -1035,6 +1042,7 @@ class App:
             return None
         doc = self._open_in_tab(("file", str(p.resolve())), p.name, data, "new")
         if doc is not None:
+            doc.save_path = p
             self.status.config(text=f"Opened {p} (with {self.source.label})")
         return doc
 
@@ -1616,6 +1624,8 @@ class App:
         except tk.TclError:
             pass
         for doc in list(self._docs):
+            if not self._save_model_before_close(doc):
+                return
             if not self._confirm_close(doc, "close the toolkit"):
                 return
         self.root.destroy()
@@ -1681,7 +1691,9 @@ class App:
                 messagebox.showerror("Read failed", err_text(e))
                 return
             self.tree.set(iid, "size", human(len(data)))
-        self._open_in_tab(key, name, data, mode)
+        doc = self._open_in_tab(key, name, data, mode)
+        if doc is not None:
+            doc.save_path = self.source.paths.get(name)
 
     def _open_in_tab(self, key, name, data, mode="new"):
         """Show a file: in the tab that already has it; else, by `mode` --
@@ -1813,6 +1825,36 @@ class App:
         if ans is None:
             return False
         return bool(self.cmd_extract()) if ans else True
+
+    def _save_model_before_close(self, doc):
+        """Save edited .model working copies from loose files when the app exits."""
+        if (doc.cur_name or "").lower().endswith(".model") and doc.is_dirty() and doc.save_path:
+            return self._write_doc(doc, doc.save_path)
+        return True
+
+    def _write_doc(self, doc, path):
+        path = pathlib.Path(path)
+        try:
+            path.write_bytes(doc.cur_data)
+        except OSError as e:
+            messagebox.showerror("Save failed", f"Could not save {path}:\n{err_text(e)}", parent=self.root)
+            return False
+        doc.save_path = path
+        self._mark_saved(doc)
+        self.status.config(text=f"Saved {doc.cur_name} → {path}")
+        return True
+
+    def cmd_save(self):
+        """Ctrl+S saves an edited .model over its loose source file."""
+        doc = self._doc
+        if not (doc.cur_name or "").lower().endswith(".model") or doc.cur_data is None:
+            return "break"
+        if doc.save_path is None:
+            messagebox.showinfo("Save model", "This model comes from a packed archive. Use Extract… to save a loose copy.",
+                                parent=self.root)
+            return "break"
+        self._write_doc(doc, doc.save_path)
+        return "break"
 
     def _drop_doc(self, doc):
         for k in ("_anim_after", "_skel_after"):
