@@ -60,11 +60,11 @@ FIELDS = [
     ("str", 5, "core", "int", "STR added"),
     ("int", 6, "core", "int", "INT added"),
     ("vit", 7, "core", "int", "VIT added"),
-    ("hunger_knob", 8, "core", "int", "vector +40 (IDB hunger_drain, clamp 0..500; sometimes labelled crit)"),
+    ("hunger", 8, "core", "int", "hunger inflicted on hit (vector +40 -> stats+44 -> AttackInfo+334, clamp 0..500)"),
     ("unused9", 9, "unused", "int", "never read"),
-    ("x44_q12", 10, "knob", "q12", "vector +44 knob (stats+72, clamp +-4096)"),
-    ("x48_q12", 11, "knob", "q12", "vector +48 knob (stats+56, clamp 0..0x4000)"),
-    ("knockback_scale_q12", 12, "knob", "q12", "vector +52 knockback power scale (clamp 0..0x4000)"),
+    ("crit", 10, "combat", "q12", "critical-hit chance (vector +44 -> stats+72, clamp 0..4096; Combat_ResolveHit rolls it against a 12-bit random)"),
+    ("knockback", 11, "combat", "q12", "knockback the wearer's hits deal (vector +48 -> stats+56; a weapon hit pushes 6 * this, clamp 0..0x4000)"),
+    ("stun", 12, "combat", "q12", "hit-stun the wearer's hits deal (vector +52 -> stats+60; adds 30 * this frames of flinch, clamp 0..0x4000)"),
     ("unused13", 13, "unused", "int", "never read"),
     ("proc_poison", 14, "attack_proc", "q12", "chance to poison on hit (weapon vector +56)"),
     ("proc_seal", 15, "attack_proc", "q12", "chance to seal on hit"),
@@ -75,8 +75,8 @@ FIELDS = [
     ("proc_faint", 20, "attack_proc", "q12", "chance to faint on hit"),
     ("hp_drain_attack", 21, "attack_proc", "q12", "HP drained on hit (vector +84)"),
     ("will_resist", 22, "resist", "q12", "will/stamina resist (vector +120)"),
-    ("x124_q12", 23, "knob", "q12", "vector +124 knob"),
-    ("x128_q12", 24, "knob", "q12", "vector +128 knob"),
+    ("crit_res", 23, "combat", "q12", "critical-hit resist (vector +124 -> stats+76: the attacker's crit chance * (4096 - this))"),
+    ("knockback_res", 24, "combat", "q12", "knockback resist (vector +128 -> stats+64: knockback taken * (4096 - this))"),
     ("res_poison", 25, "resist", "q12", "poison resist (4096 = immune)"),
     ("res_seal", 26, "resist", "q12", "seal resist"),
     ("res_paralysis", 27, "resist", "q12", "paralysis resist"),
@@ -102,9 +102,9 @@ FIELDS = [
     ("buff_str_pct", 47, "fed_buff", "q12", "while fed: STR %"),
     ("buff_int_pct", 48, "fed_buff", "q12", "while fed: INT %"),
     ("buff_vit_pct", 49, "fed_buff", "q12", "while fed: VIT %"),
-    ("buff_x64", 50, "fed_buff", "q12", "while fed: misc knob (stats+72)"),
-    ("buff_x68", 51, "fed_buff", "q12", "while fed: misc knob (stats+64)"),
-    ("buff_x72", 52, "fed_buff", "q12", "while fed: misc knob (stats+76)"),
+    ("fed_crit", 50, "fed_buff", "q12", "while fed: critical-hit chance (dish +64 -> stats+72)"),
+    ("fed_knockback_res", 51, "fed_buff", "q12", "while fed: knockback resist (dish +68 -> stats+64)"),
+    ("fed_crit_res", 52, "fed_buff", "q12", "while fed: critical-hit resist (dish +72 -> stats+76)"),
     ("fed_res_poison", 53, "fed_resist", "q12", "while fed: poison resist"),
     ("fed_res_seal", 54, "fed_resist", "q12", "while fed: seal resist"),
     ("fed_res_paralysis", 55, "fed_resist", "q12", "while fed: paralysis resist"),
@@ -134,7 +134,7 @@ INDEX = {f[0]: f[1] for f in FIELDS}
 UNIT = {f[0]: f[3] for f in FIELDS}
 GROUP = {f[0]: f[2] for f in FIELDS}
 DOC = {f[0]: f[4] for f in FIELDS}
-GROUPS = ("upgrade", "core", "knob", "attack_proc", "resist", "reach", "heal", "status",
+GROUPS = ("upgrade", "core", "combat", "attack_proc", "resist", "reach", "heal", "status",
           "fed_buff", "fed_resist", "fed_proc", "element", "unused")
 
 # S[38]: the same bit layout as the rf3UseItemParam +16 effect word, plus bit 14.
@@ -323,7 +323,7 @@ class StrengtheningTable:
             by_group.setdefault(GROUP[n], []).append((n, v))
         titles = {
             "core": "forged into gear (Item_ComputeStats): core stats",
-            "knob": "forged into gear: knobs",
+            "combat": "forged into gear: crit / knockback / stun",
             "attack_proc": "forged into a weapon: on-hit procs",
             "resist": "forged into gear: resists",
             "reach": "forged into a weapon: reach",

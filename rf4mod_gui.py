@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import struct
 import sys
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
@@ -81,7 +82,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-from guiutil import Tip, err_text, later, wheel_handler
+from guiutil import CellEdit, Tip, err_text, later, wheel_handler
 def _load_actor_names():
     """id -> name: the game's rf3TxtNpc (gamenames), else the built-in list."""
     from rf4s_modkit import gamenames
@@ -2077,7 +2078,7 @@ class App:
         for z, lbl in ((0.5, "½×"), (1, "1×"), (2, "2×"), (4, "4×")):
             ttk.Button(bar, text=lbl, width=4,
                        command=lambda z=z: self._set_zoom(z, doc)).pack(side="left")
-        ttk.Button(bar, text="Replace from PNG…",
+        ttk.Button(bar, text="Replace…",
                    command=lambda: self._replace_texture_png(name)).pack(side="left", padx=(10, 0))
         try:
             if nframes > 1:
@@ -4280,7 +4281,8 @@ class App:
             cap_note = "These skills go up to level 999: every level past 99 costs the last row's XP."
         ttk.Label(head, wraplength=600, justify="left", foreground="#666", text=(
             "Each row is the XP a skill needs at that level to reach the next one. " + cap_note +
-            " Double-click an XP value to change it, or select rows and use Set / Scale.")).pack(anchor="w", fill="x")
+            " Click an XP value and type to change it (with several levels selected, all of them "
+            "change), or use Scale.")).pack(anchor="w", fill="x")
         head.bind("<Configure>", lambda e: [w.config(wraplength=max(200, e.width - 16))
                                              for w in head.winfo_children() if isinstance(w, ttk.Label)
                                              and w.cget("wraplength")], add="+")
@@ -4307,13 +4309,8 @@ class App:
 
         bar = ttk.Frame(foot); bar.pack(fill="x")
         bar2 = ttk.Frame(foot); bar2.pack(fill="x", pady=(4, 0))
-        setv, pctv = tk.StringVar(), tk.StringVar(value="100")
-        ttk.Label(bar, text="Selected levels:").pack(side="left")
-        ttk.Label(bar, text="set to").pack(side="left", padx=(6, 0))
-        se = ttk.Entry(bar, textvariable=setv, width=9); se.pack(side="left", padx=2)
-        ttk.Label(bar, text="XP").pack(side="left")
-        sb_ = ttk.Button(bar, text="Set"); sb_.pack(side="left", padx=(4, 14))
-        ttk.Label(bar, text="scale to").pack(side="left")
+        pctv = tk.StringVar(value="100")
+        ttk.Label(bar, text="Selected levels: scale to").pack(side="left")
         pe = ttk.Entry(bar, textvariable=pctv, width=6); pe.pack(side="left", padx=2)
         ttk.Label(bar, text="%").pack(side="left")
         scb = ttk.Button(bar, text="Scale"); scb.pack(side="left", padx=4)
@@ -4440,12 +4437,7 @@ class App:
         chart.bind("<B1-Motion>", chart_drag)
         chart.bind("<ButtonRelease-1>", chart_release)
         paintv.trace_add("write", lambda *_: (chart.config(cursor="pencil" if paintv.get() else ""), draw()))
-        tv.bind("<<TreeviewSelect>>", lambda _e: (draw(), sel_changed()))
-
-        def sel_changed():
-            sel = [int(i) for i in tv.selection()]
-            if len(sel) == 1:
-                setv.set(str(skillcurve.parse(bytes(buf))[sel[0]]))
+        tv.bind("<<TreeviewSelect>>", lambda _e: draw(), add="+")
 
         history = []                                       # file states before each change (Undo)
 
@@ -4474,15 +4466,6 @@ class App:
                 self.status.config(text="Select one or more levels first (click, Shift / Ctrl + click)")
             return sel
 
-        def do_set():
-            lv = selected()
-            if not lv:
-                return
-            try:
-                set_levels(lv, int(setv.get().replace(",", ""), 0))
-            except ValueError as e:
-                messagebox.showerror("Skill XP curve", err_text(e))
-
         def do_scale(levels=None):
             lv = levels if levels is not None else selected()
             if not lv:
@@ -4506,41 +4489,23 @@ class App:
                 buf[:] = history.pop()
                 changed("Undone")
 
-        sb_.config(command=do_set); scb.config(command=do_scale)
+        scb.config(command=do_scale)
         allb.config(command=lambda: do_scale(list(range(skillcurve.REAL_LEVELS))))
         rvb.config(command=revert); undob.config(command=undo)
         for w_ in (tv, chart):
             w_.bind("<Control-z>", undo)
         chart.bind("<Enter>", lambda _e: chart.focus_set() if paintv.get() else None)
         svb.config(command=lambda: self._save_blob_as(doc, bytes(buf), "skill XP curve"))
-        se.bind("<Return>", lambda _e: do_set()); pe.bind("<Return>", lambda _e: do_scale())
+        pe.bind("<Return>", lambda _e: do_scale())
 
-        # double-click an XP cell: type the new value in place (Enter keeps, Esc cancels)
-        def edit_cell(e):
-            row = tv.identify_row(e.y)
-            if not row or tv.identify_column(e.x) != "#2":
-                return
-            x, y, w, h = tv.bbox(row, "#2")
-            var = tk.StringVar(value=str(skillcurve.parse(bytes(buf))[int(row)]))
-            ent = ttk.Entry(tv, textvariable=var, justify="right")
-            ent.place(x=x, y=y, width=w, height=h)
-            ent.focus_set(); ent.select_range(0, "end")
-
-            def done(keep):
-                if keep:
-                    try:
-                        set_levels([int(row)], int(var.get().replace(",", ""), 0))
-                    except ValueError as err:
-                        messagebox.showerror("Skill XP curve", err_text(err))
-                ent.destroy()
-            ent.bind("<Return>", lambda _e: done(True))
-            ent.bind("<KP_Enter>", lambda _e: done(True))
-            ent.bind("<Escape>", lambda _e: done(False))
-            ent.bind("<FocusOut>", lambda _e: done(True) if ent.winfo_exists() else None)
-            doc._skill_cell_entry = (ent, var, done)          # (selftest)
-        tv.bind("<Double-Button-1>", edit_cell)
+        # type in the XP column (several levels selected: all of them get the value)
+        cells = CellEdit(tv, {"xp": {
+            "get": lambda row: str(skillcurve.parse(bytes(buf))[int(row)]),
+            "put": lambda row, text: set_levels(sorted(int(i) for i in cells.targets(row)),
+                                                int(text.replace(",", "").strip(), 0))}},
+            title="Skill XP curve")
         doc._skill = dict(tree=tv, set=set_levels, scale=scale_levels, revert=revert, used=skill_names,
-                          set_var=setv, pct_var=pctv, do_set=do_set, do_scale=do_scale, edit_cell=edit_cell,
+                          pct_var=pctv, do_scale=do_scale, cells=cells,
                           chart=chart, paint=paintv, undo=undo, history=history, press=chart_click,
                           drag=chart_drag, release=chart_release)
         refresh()
@@ -4608,137 +4573,243 @@ class App:
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
 
-        ed = ttk.Frame(doc.content); ed.pack(fill="x", padx=6, pady=(4, 0))
-        fieldv, valv = tk.StringVar(value="atk"), tk.StringVar()
-        ttk.Label(ed, text="selected item's").pack(side="left")
-        fcb = ttk.Combobox(ed, textvariable=fieldv, values=list(strengthening.NAMES), width=22,
-                           state="readonly")
-        fcb.pack(side="left", padx=2)
-        ttk.Label(ed, text="=").pack(side="left")
-        ttk.Entry(ed, textvariable=valv, width=12).pack(side="left", padx=2)
-        cur = {"i": None}
-
-        def show_field(*_):
-            if cur["i"] is not None and fieldv.get() in strengthening.INDEX:
-                v = t.row(cur["i"])[fieldv.get()]
-                valv.set(("0x%X" % v) if fieldv.get() == "status_word" else str(v))
-        fieldv.trace_add("write", show_field)
-
-        def set_field():
-            if cur["i"] is None:
-                self.status.config(text="Select an item first"); return
-            try:
-                t.set(cur["i"], fieldv.get(), int(valv.get(), 0))
-            except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Strengthening", err_text(e)); return
-            doc.cur_data = t.build()
-            i = cur["i"]; fill()
-            if tv.exists(str(i)):
-                tv.selection_set(str(i)); tv.see(str(i))
-            on_select()
-            self.status.config(text=f"Item {i}: {fieldv.get()} = {valv.get()} — Save as… to write")
-        ttk.Button(ed, text="Set", command=set_field).pack(side="left", padx=4)
-        ttk.Button(ed, text="Save as…",
+        ttk.Button(bar, text="Save as…",
                    command=lambda: self._save_blob_as(doc, t.build(), "rf3ItemStrengthening")).pack(side="right")
-        detail = tk.Text(doc.content, height=12, wrap="word")
-        detail.pack(fill="x", padx=6, pady=4)
+        low = ttk.PanedWindow(doc.content, orient="horizontal")
+        low.pack(fill="x", padx=6, pady=4)
+        pf = ttk.Frame(low); low.add(pf, weight=1)
+        fv = ttk.Treeview(pf, columns=("field", "value"), show="headings", height=11, selectmode="browse")
+        fv.heading("field", text="field"); fv.column("field", width=170)
+        fv.heading("value", text="value"); fv.column("value", width=110)
+        _table_scrollbars(pf, fv)
+        df = ttk.Frame(low); low.add(df, weight=2)
+        detail = tk.Text(df, height=12, wrap="word")
+        detail.pack(fill="both", expand=True)
+        cur = {"i": None}
+        history = []
+
+        def shown(i, fn):
+            v = t.row(i)[fn]
+            return ("0x%X" % v) if fn == "status_word" else str(v)
+
+        def fill_fields():
+            fv.delete(*fv.get_children())
+            if cur["i"] is not None:
+                for fn in strengthening.NAMES:
+                    fv.insert("", "end", iid=fn, values=(fn, shown(cur["i"], fn)))
 
         def on_select(*_):
             sel = tv.selection()
             if not sel:
                 return
-            cur["i"] = int(sel[0]); show_field()
+            cur["i"] = int(sel[0])
+            fill_fields()
             detail.config(state="normal"); detail.delete("1.0", "end")
-            detail.insert("end", t.render(int(sel[0]), names))
+            detail.insert("end", t.render(cur["i"], names))
             detail.config(state="disabled")
-        doc._str_set = set_field; doc._str_vars = (fieldv, valv); doc._str_tree = tv   # (selftest)
         tv.bind("<<TreeviewSelect>>", on_select)
-        detail.insert("end", "Select a row to see all its values.")
+
+        def put(i, fn, text):
+            i = int(i)
+            before = t.build()
+            t.set(i, fn, int(text.strip(), 0))
+            if t.build() != before:
+                history.append(before)
+            doc.cur_data = t.build()
+            fill()
+            if tv.exists(str(i)):
+                tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
+            on_select()
+            self.status.config(text=f"Item {i}: {fn} = {text.strip()} — Save as… to write")
+
+        def undo(*_):
+            if history:
+                t.t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
+                doc.cur_data = t.build()
+                fill(); on_select()
+                self.status.config(text="Undone")
+        for w_ in (tv, fv):
+            w_.bind("<Control-z>", undo)
+
+        cells = CellEdit(tv, {fn: {"get": lambda row, fn=fn: shown(int(row), fn),
+                                   "put": lambda row, text, fn=fn: put(row, fn, text)} for fn in show})
+        fcells = CellEdit(fv, {"value": {"get": lambda fn: shown(cur["i"], fn),
+                                         "put": lambda fn, text: put(cur["i"], fn, text),
+                                         "can": lambda fn: cur["i"] is not None}})
+        doc._str = dict(tree=tv, cells=cells, fields=fcells, undo=undo)       # (selftest)
+        detail.insert("end", "Select a row to see all its values; click a value and type to change it.")
         detail.config(state="disabled")
 
     def _view_gifts(self, name, data):
-        """rf3PresentNpc*.bin NPC gift-preference table (read-only decode, item names)."""
+        """rf3PresentNpc*.bin -- a villager's gift preferences (loved / liked / disliked lists).
+        Edited in the table: the tier cell moves an entry (neutral = take it off the lists,
+        hated = the signature dislike), the item cell replaces the item, the FP cell sets a
+        loved / liked entry's friendship points; the last row adds an item; Delete removes."""
         doc = self._doc
         items = _load_item_names()
         chars = _load_char_names()
         num = int(pathlib.Path(name).stem[13:15]) if pathlib.Path(name).stem[13:15].isdigit() else 0
         name_fn = lambda i: items.get(i, "")
+        table = gifts.GiftTable.parse(data)
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
         who = chars.get(num, "?")
         ttk.Label(bar, text=f"Gift preferences — {who} ({num})").pack(side="left", padx=6)
-        tv = ttk.Treeview(doc.content, columns=("aff", "item", "fp"), show="headings", height=20)
-        for c, w in (("aff", 130), ("item", 320), ("fp", 90)):
+        foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
+        tv = ttk.Treeview(top, columns=("aff", "item", "fp"), show="headings", height=20)
+        for c, w in (("aff", 170), ("item", 340), ("fp", 110)):
             tv.heading(c, text={"aff": "affinity", "item": "item / target", "fp": "FP / note"}[c])
             tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
+        _table_scrollbars(top, tv)
         catbytes = _find_extracted("rf3PresentCategory.bin")
         cats = gifts.load_categories(catbytes) if catbytes else None
-        for g in gifts.parse(data):
-            for aff in gifts.TIERS:              # loved / liked / disliked
-                for e in g[aff]:
-                    if e.kind == "item":
-                        tgt = f"{e.value} {name_fn(e.value)}".strip()
-                    elif e.kind == "xref" and cats:
-                        ids = gifts.category_items(e.value, cats)
-                        preview = ", ".join(name_fn(i) or str(i) for i in ids[:5])
-                        tgt = f"[category #{e.value}: {preview}{', …' if len(ids) > 5 else ''}]"
-                    elif e.kind == "category" and e.value in gifts.ITEM_RANGE_TABLE:
-                        lo, hi, lbl = gifts.ITEM_RANGE_TABLE[e.value]
-                        tgt = f"[all {lbl} (ids {lo}..{hi - 1})]"
-                    else:
-                        tgt = f"[{'category' if e.kind == 'xref' else 'item-range'} #{e.value}]"
-                    fp = gifts.entry_fp(e, aff)
-                    note = f"{fp:+d}" + ("  signature/hated"
-                                         if aff == "disliked" and e.code == gifts.SIGNATURE_DISLIKE_CODE
-                                         else "")
-                    tv.insert("", "end", values=(aff, tgt, note))
-        # ---- edit controls (2026-09-19): tier / FP of an item, signature dislike, remove ----
-        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
-        v_item, v_tier, v_fp = tk.StringVar(), tk.StringVar(value="loved"), tk.StringVar()
-        ttk.Label(ctl, text="item id").pack(side="left")
-        ttk.Entry(ctl, textvariable=v_item, width=7).pack(side="left", padx=2)
-        nm_lbl = ttk.Label(ctl, text="", width=22, foreground="steelblue"); nm_lbl.pack(side="left")
-        v_item.trace_add("write", lambda *_a: nm_lbl.config(
-            text=name_fn(int(v_item.get())) if v_item.get().strip().isdigit() else ""))
-        ttk.Label(ctl, text="tier").pack(side="left", padx=(8, 2))
-        ttk.Combobox(ctl, textvariable=v_tier, values=("loved", "liked", "disliked", "neutral"),
-                     width=9, state="readonly").pack(side="left")
-        ttk.Label(ctl, text="FP").pack(side="left", padx=(8, 2))
-        ttk.Entry(ctl, textvariable=v_fp, width=5).pack(side="left")
+        TIER_CHOICES = ["loved", "liked", "disliked", "hated (signature dislike)", "neutral (not listed)"]
+        history = []
 
-        def _pick(_e=None):
-            sel = tv.selection()
-            if not sel:
-                return
-            aff, tgt, note = tv.item(sel[0], "values")
-            head = str(tgt).split(" ", 1)[0]
-            if head.isdigit():
-                v_item.set(head); v_tier.set(aff)
-                v_fp.set(str(note).split()[0].lstrip("+"))
-        tv.bind("<<TreeviewSelect>>", _pick)
+        def target_text(e):
+            if e.kind == "item":
+                return f"{e.value} {name_fn(e.value)}".strip()
+            if e.kind == "xref" and cats:
+                ids = gifts.category_items(e.value, cats)
+                preview = ", ".join(name_fn(i) or str(i) for i in ids[:5])
+                return f"[category #{e.value}: {preview}{', …' if len(ids) > 5 else ''}]"
+            if e.kind == "category" and e.value in gifts.ITEM_RANGE_TABLE:
+                lo, hi, lbl = gifts.ITEM_RANGE_TABLE[e.value]
+                return f"[all {lbl} (ids {lo}..{hi - 1})]"
+            return f"[{'category' if e.kind == 'xref' else 'item-range'} #{e.value}]"
 
-        def _edit(action):
+        def entry_of(iid):
+            g, tier, k = iid.split(":")
+            return int(g), tier, int(k), table.tier(tier, int(g))[int(k)]
+
+        def aff_text(tier, e):
+            if tier == "disliked" and e.code == gifts.SIGNATURE_DISLIKE_CODE:
+                return "hated (signature dislike)"
+            return tier
+
+        def fill(select=None):
+            tv.delete(*tv.get_children())
+            for gi in range(len(table.groups)):
+                for tier in gifts.TIERS:              # loved / liked / disliked
+                    for k, e in enumerate(table.tier(tier, gi)):
+                        tv.insert("", "end", iid=f"{gi}:{tier}:{k}",
+                                  values=(aff_text(tier, e), target_text(e), f"{gifts.entry_fp(e, tier):+d}"))
+            tv.insert("", "end", iid="new", values=("", "＋ type or pick an item to add it (loved)", ""))
+            if select and tv.exists(select):
+                tv.selection_set(select); tv.focus(select); tv.see(select)
+
+        def changed(msg, select=None):
+            doc.cur_data = table.build()
+            undo_b.config(state="normal" if history else "disabled")
+            fill(select)
+            self.status.config(text=msg + " — Save table… / Extract… to write")
+
+        def find_iid(kind, value):
+            hit = table.find(kind, value)
+            return f"{hit[0][0]}:{hit[0][1]}:{hit[0][2]}" if hit else None
+
+        def restore(blob):
+            new = gifts.GiftTable.parse(blob)
+            table.groups, table.build_date = new.groups, new.build_date
+
+        def edit(fn):
+            """Run one change; a refused one (or a list past the game's 255 limit) undoes itself."""
+            before = table.build()
             try:
-                iid = int(v_item.get(), 0)
-                fp = int(v_fp.get(), 0) if v_fp.get().strip() else None
-            except ValueError:
-                messagebox.showerror("Bad value", "item id (and FP) must be integers"); return
-            t = gifts.GiftTable.parse(doc.cur_data)
-            try:
-                if action == "set":
-                    t.set_item(iid, v_tier.get(), fp)
-                elif action == "signature":
-                    t.set_signature(iid)
+                msg, sel = fn()
+                table.build()
+            except Exception:
+                restore(before)
+                raise
+            history.append(before)
+            changed(msg, sel)
+
+        def put_aff(iid, text):
+            g, tier, k, e = entry_of(iid)
+            q = text.strip().lower()
+            want = next((c for c in TIER_CHOICES if q and c.startswith(q)), None)
+            if want is None:
+                raise ValueError(f"pick one of: {', '.join(TIER_CHOICES)}")
+
+            def do():
+                if want.startswith("neutral"):
+                    table.remove(e.kind, e.value, g)
+                    return f"{target_text(e)}: neutral (off the lists)", None
+                if want.startswith("hated"):
+                    if e.kind != "item":
+                        raise ValueError("only an item can be the signature dislike")
+                    table.set_signature(e.value, g)
+                elif want == "disliked":
+                    table.add(want, gifts.Entry(e.kind, e.value, gifts.GENERIC_DISLIKE_CODE), g)
+                else:                                       # loved / liked: keep a loved / liked FP
+                    code = e.code if tier in gifts.DEFAULT_FP else gifts.DEFAULT_FP[want]
+                    table.add(want, gifts.Entry(e.kind, e.value, code), g)
+                return f"{target_text(e)}: {want}", find_iid(e.kind, e.value)
+            edit(do)
+
+        def put_item(iid, text):
+            it = _parse_item(text, items)
+            gifts.encode_target("item", it)
+            if iid == "new":
+                def add():
+                    table.set_item(it, "loved")
+                    return f"Added {items.get(it, it)} (loved)", find_iid("item", it)
+                return edit(add)
+            g, tier, k, e = entry_of(iid)
+
+            def do():
+                table.remove("item", it, g)                     # an item sits in one list only
+                lst = table.groups[g][tier]
+                k2 = next((j for j, x in enumerate(lst) if x is e), None)
+                if k2 is None:
+                    lst.append(gifts.Entry("item", it, e.code))
                 else:
-                    t.remove("item", iid)
-                blob = t.build()
-            except Exception as ex:  # noqa: BLE001 - surface the module's own message
-                messagebox.showerror("Edit failed", str(ex)); return
-            doc.cur_data = blob
-            self.status.config(text=f"gift table edited ({action} item {iid}) — Save table… / Extract… to write")
-            self._show(doc.cur_name, blob, doc)
+                    lst[k2] = gifts.Entry("item", it, e.code)
+                return f"{target_text(e)} → {items.get(it, it)}", find_iid("item", it)
+            edit(do)
+
+        def put_fp(iid, text):
+            g, tier, k, e = entry_of(iid)
+            fp = int(text.split()[0].lstrip("+"), 0)
+            if not -0x8000 <= fp <= 0x7FFF:
+                raise ValueError("friendship must be -32768..32767 (the game reads it as signed 16-bit)")
+
+            def do():
+                table.groups[g][tier][k] = gifts.Entry(e.kind, e.value, fp & 0xFFFF)
+                return f"{target_text(e)}: {fp:+d} FP", iid
+            edit(do)
+
+        def remove(*_):
+            ents = [entry_of(i) for i in tv.selection() if i != "new"]
+            if not ents:
+                return
+
+            def do():
+                for g, _tier, _k, e in ents:
+                    table.remove(e.kind, e.value, g)
+                return f"Removed {len(ents)} entr{'y' if len(ents) == 1 else 'ies'}", None
+            edit(do)
+
+        def undo(*_):
+            if history:
+                restore(history.pop())
+                changed("Undone")
+
+        def revert():
+            if table.build() != data:
+                history.append(table.build()); restore(data); changed("Back to the file as opened")
+
+        item_choices = lambda: [_item_text(i, items) for i in sorted(items) if 0 < i <= gifts.MAX_ITEM_ID]
+        cells = CellEdit(tv, {
+            "aff": {"get": lambda iid: aff_text(entry_of(iid)[1], entry_of(iid)[3]), "put": put_aff,
+                    "choices": TIER_CHOICES, "can": lambda iid: iid != "new"},
+            "item": {"get": lambda iid: "" if iid == "new" else _item_text(entry_of(iid)[3].value, items),
+                     "put": put_item, "choices": item_choices,
+                     "can": lambda iid: iid == "new" or entry_of(iid)[3].kind == "item"},
+            "fp": {"get": lambda iid: str(gifts.entry_fp(entry_of(iid)[3], entry_of(iid)[1])), "put": put_fp,
+                   "can": lambda iid: iid != "new" and entry_of(iid)[1] in gifts.DEFAULT_FP}})
+        tv.bind("<Delete>", remove)
+        tv.bind("<Control-z>", undo)
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
@@ -4746,9 +4817,18 @@ class App:
                                              filetypes=[("gift table", "*.bin"), ("All", "*.*")])
             if f:
                 pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
-        for lbl, act in (("Set tier", "set"), ("Signature dislike", "signature"), ("Remove item", "remove")):
-            ttk.Button(ctl, text=lbl, command=lambda a=act: _edit(a)).pack(side="left", padx=2)
-        ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
+        hint = ttk.Label(foot, foreground="#555", text="Click a cell and type to change it (FP: loved / liked "
+                                                       "only; a dislike is always −5, the signature one −10); "
+                                                       "Delete removes the selected rows.")
+        hint.pack(side="left")
+        ttk.Button(foot, text="Save table…", command=_save).pack(side="right", padx=2)
+        ttk.Button(foot, text="Revert", command=revert).pack(side="right", padx=2)
+        undo_b = ttk.Button(foot, text="Undo", command=undo, state="disabled")
+        undo_b.pack(side="right", padx=2)
+        ttk.Button(foot, text="Remove selected", command=remove).pack(side="right", padx=(2, 12))
+        fill()
+        doc._gifts = dict(tree=tv, cells=cells, remove=remove, undo=undo, revert=revert,
+                          table=lambda: table)                                 # (selftest)
 
     def _view_schedule(self, name, data):
         """rf3Schedule -- NPC daily routines. Pick an NPC and which kind of day (the game picks
@@ -4818,8 +4898,9 @@ class App:
         foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
         body = ttk.PanedWindow(doc.content, orient="vertical"); body.pack(fill="both", expand=True, padx=6)
         top = ttk.Frame(body); body.add(top, weight=3)
-        tv = ttk.Treeview(top, columns=("time", "where", "kind"), show="headings", height=14)
-        for c, t_, w in (("time", "Time", 120), ("where", "Where", 520), ("kind", "Spot kind", 80)):
+        tv = ttk.Treeview(top, columns=("time", "where", "kind", "rand"), show="headings", height=14)
+        for c, t_, w in (("time", "Time", 120), ("where", "Where", 480), ("kind", "Spot kind", 80),
+                         ("rand", "Random departure", 120)):
             tv.heading(c, text=t_); tv.column(c, width=w, anchor="w", stretch=(c == "where"))
         _table_scrollbars(top, tv)
         low = ttk.LabelFrame(body, text="Spots of the selected stop's kind (rf3ScheduleID)")
@@ -4832,19 +4913,13 @@ class App:
         _table_scrollbars(low, sp_tv)
 
         row1 = ttk.Frame(foot); row1.pack(fill="x")
-        row1b = ttk.Frame(foot); row1b.pack(fill="x", pady=(4, 0))
         row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
-        v_time, v_spot, v_rand = tk.StringVar(), tk.StringVar(), tk.BooleanVar()
-        ttk.Label(row1, text="Time").pack(side="left")
-        te = ttk.Entry(row1, textvariable=v_time, width=7); te.pack(side="left", padx=(2, 10))
-        ttk.Label(row1, text="Spot kind").pack(side="left")
-        kc = ttk.Combobox(row1, textvariable=v_spot, values=kind_choices, width=40)
-        kc.pack(side="left", padx=2)
-        rcb = ttk.Checkbutton(row1, text="random departure", variable=v_rand); rcb.pack(side="left", padx=8)
-        apb = ttk.Button(row1b, text="Apply to stop"); apb.pack(side="left")
-        adb = ttk.Button(row1b, text="Add stop"); adb.pack(side="left", padx=4)
-        rmb = ttk.Button(row1b, text="Remove stop"); rmb.pack(side="left")
-        ttk.Label(row2, text="Copy this routine to:").pack(side="left")
+        ttk.Label(row1, foreground="#555", text="Click a cell and type to change it: the time "
+                  "(HH:MM), the place (a spot kind: type its number or part of a room name) or "
+                  "random departure (yes / no).").pack(side="left")
+        adb = ttk.Button(row2, text="Add stop"); adb.pack(side="left")
+        rmb = ttk.Button(row2, text="Remove stop"); rmb.pack(side="left", padx=4)
+        ttk.Label(row2, text="Copy this routine to:").pack(side="left", padx=(12, 0))
         copy_v = tk.StringVar()
         copy_cb = ttk.Combobox(row2, textvariable=copy_v, state="readonly", width=38,
                                values=[state_label(s) for s in range(schedule.COLS)])
@@ -4852,11 +4927,9 @@ class App:
         cpb = ttk.Button(row2, text="Copy"); cpb.pack(side="left", padx=2)
         rvb = ttk.Button(row2, text="Revert"); rvb.pack(side="left", padx=(12, 2))
         svb = ttk.Button(row2, text="Save as…"); svb.pack(side="right")
-        Tip(te, "HH:MM in 15-minute steps (06:00 = start of the day; 24:00 and later = after midnight).")
-        Tip(kc, "Where the NPC goes: a spot kind from rf3ScheduleID. Type the number or pick from "
-                "the list; a kind with several spots picks one of them each day (by weight).")
-        Tip(rcb, "The NPC leaves for the next stop at a random moment between this stop's time "
-                 "and the next one's, instead of exactly on time.")
+        Tip(adb, "Add a stop after the selected one (15 minutes later, or halfway to the next "
+                 "stop), at the same place; then change its time and place in the table.")
+        Tip(rmb, "Remove the selected stop (Delete key).")
         Tip(cpb, "Replace (or create) the chosen day's routine of this NPC with a copy of the one "
                  "shown.")
         Tip(rvb, "Throw away every change: back to the file as it was opened.")
@@ -4894,17 +4967,20 @@ class App:
             day_v.set(state_label(s) if s is not None else "")
             fill()
 
+        def stops():
+            return (st["sc"].get(cur_npc(), cur_state()) if cur_state() is not None else None) or []
+
         def fill(select=None):
             tv.delete(*tv.get_children())
             sp_tv.delete(*sp_tv.get_children())
-            lst = st["sc"].get(cur_npc(), cur_state()) if cur_state() is not None else None
-            for k, wp in enumerate(lst or []):
+            lst = stops()
+            for k, wp in enumerate(lst):
                 nxt = lst[k + 1].slot if k + 1 < len(lst) else None
                 span = schedule.slot_to_time(wp.slot) + (f" – {schedule.slot_to_time(nxt)}" if nxt is not None else "")
-                where = kind_short(wp.spot) + ("   [random departure]" if wp.flags & 1 else "")
-                tv.insert("", "end", iid=str(k), values=(span, where, wp.spot))
+                tv.insert("", "end", iid=str(k), values=(span, kind_short(wp.spot), wp.spot,
+                                                         "yes" if wp.flags & 1 else "no"))
             if select is not None and tv.exists(str(select)):
-                tv.selection_set(str(select)); tv.see(str(select))
+                tv.selection_set(str(select)); tv.focus(str(select)); tv.see(str(select))
 
         def show_spots(k):
             sp_tv.delete(*sp_tv.get_children())
@@ -4920,55 +4996,77 @@ class App:
 
         def pick(_e=None):
             sel = tv.selection()
-            lst = st["sc"].get(cur_npc(), cur_state())
-            if not sel or not lst:
-                return
-            wp = lst[int(sel[0])]
-            v_time.set(schedule.slot_to_time(wp.slot))
-            v_spot.set(kind_choices[wp.spot] if 0 <= wp.spot < len(kind_choices) else str(wp.spot))
-            v_rand.set(bool(wp.flags & 1))
-            show_spots(wp.spot)
-        tv.bind("<<TreeviewSelect>>", pick)
+            lst = stops()
+            if sel and lst:
+                show_spots(lst[int(sel[0])].spot)
+        tv.bind("<<TreeviewSelect>>", pick, add="+")
         npc_cb.bind("<<ComboboxSelected>>", lambda _e: fill_days(cur_state()))
         day_cb.bind("<<ComboboxSelected>>", lambda _e: fill())
-        kc.bind("<<ComboboxSelected>>", lambda _e: show_spots(parse_kind(v_spot.get())))
 
         def changed(msg, select=None):
             doc.cur_data = st["sc"].build()
             self.status.config(text=msg + " — Save as… to write the file")
             fill_npcs(cur_npc()); fill_days(cur_state()); fill(select)
 
-        def edit(action):
+        def edit_stop(idx, msg, **kw):
+            """Change one stop (slot= / spot= / flags=); a refused change leaves the file as it was."""
+            n, s = cur_npc(), cur_state()
+            sc = st["sc"]
+            before = sc.build()
+            try:
+                new = sc.set_slice(n, s, idx, **kw)
+                sc.build()                          # validates before the view changes
+            except Exception:
+                st["sc"] = schedule.Schedule.parse(before)
+                raise
+            changed(f"{npc_text(n)}, {state_label(s)}: {msg}", sc.get(n, s).index(new))
+
+        def put_time(row, text):
+            edit_stop(int(row), "time set", slot=schedule.time_to_slot(text.split("–")[0]))
+
+        def put_spot(row, text):
+            edit_stop(int(row), "place set", spot=parse_kind(text))
+
+        def put_rand(row, text):
+            q = text.strip().lower()
+            if q not in ("yes", "no", "y", "n", "1", "0", "true", "false"):
+                raise ValueError("random departure: yes or no")
+            old = stops()[int(row)]
+            on = q in ("yes", "y", "1", "true")
+            edit_stop(int(row), "random departure " + ("on" if on else "off"),
+                      flags=(old.flags & ~1) | (1 if on else 0))
+
+        def add():
             n, s = cur_npc(), cur_state()
             if n is None or s is None:
                 return
+            lst = stops()
             sel = tv.selection()
-            idx = int(sel[0]) if sel else None
+            k = int(sel[0]) if sel else len(lst) - 1
+            if lst:
+                cur, nxt = lst[k], (lst[k + 1].slot if k + 1 < len(lst) else None)
+                slot = cur.slot + max(1, (nxt - cur.slot) // 2) if nxt is not None else cur.slot + 1
+                spot = cur.spot
+            else:
+                slot, spot = schedule.time_to_slot("06:00"), 0
             sc = st["sc"]
             try:
-                slot = schedule.time_to_slot(v_time.get()) if v_time.get().strip() else None
-                spot = parse_kind(v_spot.get()) if v_spot.get().strip() else None
-                if action == "apply":
-                    if idx is None:
-                        messagebox.showinfo("Schedule", "Select a stop first."); return
-                    old = sc.get(n, s)[idx]
-                    new = sc.set_slice(n, s, idx, slot=slot, spot=spot,
-                                       flags=(old.flags & ~1) | (1 if v_rand.get() else 0))
-                    at = sc.get(n, s).index(new)
-                elif action == "add":
-                    if slot is None or spot is None:
-                        messagebox.showinfo("Schedule", "Give a time and a spot kind."); return
-                    at = sc.add_slice(n, s, slot, spot, 1 if v_rand.get() else 0)
-                else:
-                    if idx is None:
-                        messagebox.showinfo("Schedule", "Select a stop first."); return
-                    sc.remove_slice(n, s, idx)
-                    at = min(idx, len(sc.get(n, s)) - 1)
-                sc.build()                          # validates before the view changes
+                at = sc.add_slice(n, s, slot, spot, 0)
+                sc.build()
             except (ValueError, schedule.ScheduleError) as ex:
+                st["sc"] = schedule.Schedule.parse(doc.cur_data)
                 messagebox.showerror("Schedule", err_text(ex)); return
-            changed(f"{npc_text(n)}, {state_label(s)}: stop {'changed' if action == 'apply' else action + 'ed' if action == 'add' else 'removed'}",
-                    at)
+            changed(f"{npc_text(n)}, {state_label(s)}: stop added at {schedule.slot_to_time(slot)}", at)
+
+        def remove(*_):
+            n, s = cur_npc(), cur_state()
+            sel = tv.selection()
+            if n is None or s is None or not sel:
+                return
+            idx = int(sel[0])
+            sc = st["sc"]
+            sc.remove_slice(n, s, idx)
+            changed(f"{npc_text(n)}, {state_label(s)}: stop removed", min(idx, len(sc.get(n, s)) - 1))
 
         def copy_to():
             n, s = cur_npc(), cur_state()
@@ -4998,13 +5096,22 @@ class App:
             if f:
                 pathlib.Path(f).write_bytes(st["sc"].build()); self._mark_saved(doc)
                 self.status.config(text=f"Saved → {f}")
-        apb.config(command=lambda: edit("apply")); adb.config(command=lambda: edit("add"))
-        rmb.config(command=lambda: edit("remove")); cpb.config(command=copy_to)
+        spot_spec = {"get": lambda row: kind_choices[stops()[int(row)].spot]
+                     if 0 <= stops()[int(row)].spot < len(kind_choices) else str(stops()[int(row)].spot),
+                     "put": put_spot, "choices": kind_choices}
+        cells = CellEdit(tv, {"time": {"get": lambda row: schedule.slot_to_time(stops()[int(row)].slot),
+                                       "put": put_time},
+                              "where": spot_spec, "kind": spot_spec,
+                              "rand": {"get": lambda row: "yes" if stops()[int(row)].flags & 1 else "no",
+                                       "put": put_rand, "choices": ["yes", "no"]}},
+                         title="Schedule")
+        adb.config(command=add); rmb.config(command=remove); cpb.config(command=copy_to)
         rvb.config(command=revert); svb.config(command=save)
+        tv.bind("<Delete>", remove)
         fill_npcs(); fill_days()
-        doc._sched = dict(npc=npc_v, day=day_v, tree=tv, spots=sp_tv, time=v_time, spot=v_spot,
-                          rand=v_rand, edit=edit, copy=copy_to, copy_var=copy_v, revert=revert,
-                          fill_days=fill_days, npc_text=npc_text, state_label=state_label, st=st)
+        doc._sched = dict(npc=npc_v, day=day_v, tree=tv, spots=sp_tv, cells=cells, add=add, remove=remove,
+                          copy=copy_to, copy_var=copy_v, revert=revert, fill_days=fill_days,
+                          npc_text=npc_text, state_label=state_label, st=st)
 
     def _view_gift_categories(self, name, data):
         """rf3PresentCategory -- the 21 shared gift categories. A villager's gift list
@@ -5081,24 +5188,14 @@ class App:
             mt.heading(c, text=t_); mt.column(c, width=w, anchor="w")
         _table_scrollbars(mf, mt)
 
-        row1 = ttk.Frame(foot); row1.pack(fill="x")
-        row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
-        catv, itemv, fpv = tk.StringVar(value="0"), tk.StringVar(), tk.StringVar()
-        ttk.Label(row1, text="Item").pack(side="left")
-        ip = _item_picker(row1, itemv, items, width=30); ip.pack(side="left", padx=(2, 8))
-        ttk.Label(row1, text="Friendship").pack(side="left")
-        fp_cb = ttk.Combobox(row1, textvariable=fpv, width=6, values=("15", "9", "6")); fp_cb.pack(side="left", padx=2)
-        add_b = ttk.Button(row1, text="Add to category"); add_b.pack(side="left", padx=(8, 2))
-        set_b = ttk.Button(row2, text="Set for selected"); set_b.pack(side="left")
-        rm_b = ttk.Button(row2, text="Remove selected"); rm_b.pack(side="left", padx=(4, 12))
-        undo_b = ttk.Button(row2, text="Undo", state="disabled"); undo_b.pack(side="left")
-        rv_b = ttk.Button(row2, text="Revert"); rv_b.pack(side="left", padx=4)
+        row2 = ttk.Frame(foot); row2.pack(fill="x")
+        ttk.Label(row2, foreground="#555", text="Click an item or friendship cell and type to change "
+                  "it (with several items selected, a friendship value goes to all of them); the last "
+                  "row adds an item.").pack(side="left")
         sv_b = ttk.Button(row2, text="Save as…"); sv_b.pack(side="right")
-        Tip(ip, "Pick an item or type part of its name (Down opens the filtered list); the id works too.")
-        Tip(fp_cb, "Friendship points the item gives a villager who loves or likes this category "
-                   "(the game's own values: 15, 9, 6). Once per day per villager; doubled on their "
-                   "birthday.")
-        Tip(set_b, "Give the selected items the friendship value above.")
+        rv_b = ttk.Button(row2, text="Revert"); rv_b.pack(side="right", padx=4)
+        undo_b = ttk.Button(row2, text="Undo", state="disabled"); undo_b.pack(side="right")
+        rm_b = ttk.Button(row2, text="Remove selected"); rm_b.pack(side="right", padx=(4, 12))
         Tip(rm_b, "Take the selected items out of the category (Delete key).")
         Tip(undo_b, "Undo the last change (Ctrl+Z).")
 
@@ -5130,22 +5227,20 @@ class App:
 
         def fill_members(select=()):
             g = cur()
-            catv.set(str(g))
             mt.delete(*mt.get_children())
             for k, e in enumerate(members(g)):
                 if e.kind == "item":
                     mt.insert("", "end", iid=str(k), values=(items.get(e.value, "?"), e.value, f"{fp_of(e):+d}"))
                 else:                                       # not used by the shipped file
                     mt.insert("", "end", iid=str(k), values=(gifts._fmt(e, items.get), "", "(ignored)"))
+            mt.insert("", "end", iid="new", values=("＋ type or pick an item to add it", "", ""))
             for k in select:
                 if mt.exists(str(k)):
-                    mt.selection_add(str(k)); mt.see(str(k))
+                    mt.selection_add(str(k)); mt.focus(str(k)); mt.see(str(k))
             title.config(text=f"Category {g} — {len(members(g))} items")
             used_lbl.config(text="Used by  " + used_text(g))
-            if not fpv.get().strip():
-                fpv.set(str(default_fp(g)))
 
-        ct.bind("<<TreeviewSelect>>", lambda _e: (fpv.set(str(default_fp(cur()))), fill_members()))
+        ct.bind("<<TreeviewSelect>>", lambda _e: fill_members())
 
         # ---- edits ------------------------------------------------------------------------
         history = []
@@ -5163,77 +5258,64 @@ class App:
             new = gifts.GiftTable.parse(blob)
             table.groups, table.build_date = new.groups, new.build_date
 
-        def parse_fp():
-            v = int(fpv.get().strip().lstrip("+"), 0)
+        def parse_fp(text):
+            v = int(str(text).strip().lstrip("+"), 0)
             if not -0x8000 <= v <= 0x7FFF:
                 raise ValueError("friendship must be -32768..32767 (the game reads it as signed 16-bit)")
             return v
 
-        def target():
-            """(category, item id) from the controls (the selftest drives catv / itemv)."""
+        def add(g, it, fp=None):
+            fp = default_fp(g) if fp is None else fp
+            before = table.build()
             try:
-                g = int(catv.get())
-                it = _parse_item(itemv.get(), items)
-            except ValueError as e:
-                messagebox.showerror("Gift categories", err_text(e)); return None
-            if not 0 <= g < ncat:
-                messagebox.showerror("Gift categories", f"category 0..{ncat - 1}"); return None
-            return g, it
-
-        def add():
-            tg = target()
-            if tg is None:
-                return
-            g, it = tg
-            try:
-                fp = parse_fp() if fpv.get().strip() else default_fp(g)
-                before = table.build()
                 if any(e.kind == "item" and e.value == it for e in members(g)):
                     raise gifts.GiftError(f"{items.get(it, it)} is already in category {g}")
+                gifts.encode_target("item", it)
                 lst = table.groups[g].get("disliked")
                 if lst is None:
                     table.groups[g]["disliked"] = lst = []
                 lst.append(gifts.Entry("item", it, fp & 0xFFFF))
-                gifts.encode_target("item", it)
                 table.build()                               # validates the 255-entry limit
-            except (ValueError, gifts.GiftError) as e:
+            except (ValueError, gifts.GiftError):
                 restore(before)
-                messagebox.showerror("Gift categories", err_text(e)); return
+                raise
             history.append(before)
-            ct.selection_set(str(g)); ct.see(str(g))
             changed(f"Added {items.get(it, it)} to category {g} ({fp:+d})", (len(members(g)) - 1,))
 
-        def remove():
-            sel = [int(k) for k in mt.selection()]
+        def put_item(iid, text):
+            g, it = cur(), _parse_item(text, items)
+            if iid == "new":
+                return add(g, it)
+            k = int(iid)
+            lst = members(g)
+            if any(e.kind == "item" and e.value == it for j, e in enumerate(lst) if j != k):
+                raise gifts.GiftError(f"{items.get(it, it)} is already in category {g}")
+            gifts.encode_target("item", it)
+            snapshot()
+            old = lst[k]
+            lst[k] = gifts.Entry("item", it, old.code)
+            changed(f"Category {g}: {items.get(old.value, old.value)} → {items.get(it, it)}", (k,))
+
+        def put_fp(iid, text):
+            fp = parse_fp(text)
             g = cur()
-            if not sel:                                     # (selftest / typed item) -> by item id
-                tg = target()
-                if tg is None:
-                    return
-                g, it = tg
-                sel = [k for k, e in enumerate(members(g)) if e.kind == "item" and e.value == it]
-                if not sel:
-                    self.status.config(text=f"{items.get(it, it)} is not in category {g}"); return
+            lst = members(g)
+            sel = [int(k) for k in cells.targets(iid) if k != "new"]
+            snapshot()
+            for k in sel:
+                lst[k] = gifts.Entry(lst[k].kind, lst[k].value, fp & 0xFFFF)
+            changed(f"{len(sel)} item(s) set to {fp:+d}", sel)
+
+        def remove(*_):
+            sel = [int(k) for k in mt.selection() if k != "new"]
+            g = cur()
+            if not sel:
+                return
             snapshot()
             lst = members(g)
             names = [items.get(lst[k].value, str(lst[k].value)) for k in sel]
             table.groups[g]["disliked"] = [e for k, e in enumerate(lst) if k not in set(sel)]
             changed(f"Removed {', '.join(names[:3])}{' …' if len(names) > 3 else ''} from category {g}")
-
-        def set_fp():
-            sel = [int(k) for k in mt.selection()]
-            if not sel:
-                self.status.config(text="Select items in the category first"); return
-            try:
-                fp = parse_fp()
-            except ValueError as e:
-                messagebox.showerror("Gift categories", err_text(e)); return
-            snapshot()
-            g = cur()
-            lst = members(g)
-            for k in sel:
-                lst[k] = gifts.Entry(lst[k].kind, lst[k].value, fp & 0xFFFF)
-            changed(f"{len(sel)} item(s) set to {fp:+d}", sel)
 
         def undo(*_):
             if history:
@@ -5244,19 +5326,19 @@ class App:
             if table.build() != data:
                 snapshot(); restore(data); changed("Back to the file as opened")
 
-        def pick_member(_e=None):
-            sel = mt.selection()
-            if len(sel) == 1:
-                e = members(cur())[int(sel[0])]
-                if e.kind == "item":
-                    itemv.set(_item_text(e.value, items)); fpv.set(str(fp_of(e)))
-        mt.bind("<<TreeviewSelect>>", pick_member)
-        mt.bind("<Delete>", lambda _e: remove())
-        mt.bind("<Double-Button-1>", lambda _e: (pick_member(), fp_cb.focus_set(), fp_cb.select_range(0, "end")))
+        item_choices = lambda: [_item_text(i, items) for i in sorted(items) if 0 < i <= gifts.MAX_ITEM_ID]
+        is_item = lambda iid: iid != "new" and members(cur())[int(iid)].kind == "item"
+        cells = CellEdit(mt, {
+            "item": {"get": lambda iid: "" if iid == "new" else _item_text(members(cur())[int(iid)].value, items),
+                     "put": put_item, "choices": item_choices,
+                     "can": lambda iid: iid == "new" or is_item(iid)},
+            "fp": {"get": lambda iid: str(fp_of(members(cur())[int(iid)])), "put": put_fp,
+                   "choices": ["15", "9", "6"], "can": is_item}},
+            title="Gift categories")
+        mt.bind("<Delete>", remove)
         for w in (ct, mt):
             w.bind("<Control-z>", undo)
-        ip.bind("<Return>", lambda _e: add())
-        add_b.config(command=add); set_b.config(command=set_fp); rm_b.config(command=remove)
+        rm_b.config(command=remove)
         undo_b.config(command=undo); rv_b.config(command=revert)
         sv_b.config(command=lambda: self._save_blob_as(doc, table.build(), "gift categories"))
         fill_cats(); fill_members()
@@ -5268,63 +5350,110 @@ class App:
                 sash_done["d"] = True
                 later(body, lambda: body.sashpos(0, e.width // 2))
         body.bind("<Configure>", first_layout, add="+")
-        doc._gift_add, doc._gift_remove, doc._gift_vars = add, remove, (catv, itemv)   # (selftest)
-        doc._gift = dict(cats=ct, members=mt, fp=fpv, set_fp=set_fp, undo=undo, revert=revert,
-                         users=users, table=lambda: table)
+        doc._gift = dict(cats=ct, members=mt, cells=cells, add=add, remove=remove, undo=undo,
+                         revert=revert, users=users, table=lambda: table)      # (selftest)
 
     def _view_montame(self, name, data):
-        """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849)."""
+        """rf3MonsterPresent — per-species monster taming-food preferences (archive 14849): one row
+        per species (id 48+) with its four item / bonus slots, edited in the table."""
         doc = self._doc
         from rf4s_modkit import montame
         items = _load_item_names()
         chars = _load_char_names()
-        ttk.Label(doc.content, text=f"Monster taming-food preferences — {montame.species_count(data)} "
-                                     f"species (id 48+), each with up to 4 favored items + tame bonus"
-                  ).pack(fill="x", padx=6, pady=2)
-        tv = ttk.Treeview(doc.content, columns=("sp", "who", "items"), show="headings", height=22)
-        for c, w in (("sp", 70), ("who", 150), ("items", 640)):
-            tv.heading(c, text={"sp": "species", "who": "name", "items": "tame items (+bonus)"}[c])
-            tv.column(c, width=w, anchor="w")
-        vs = ttk.Scrollbar(doc.content, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y"); tv.pack(fill="both", expand=True)
-        for sid in range(montame.FIRST_SPECIES, montame.FIRST_SPECIES + montame.species_count(data)):
-            pr = montame.prefs(data, sid)
-            if not pr:
-                continue
-            txt = ", ".join(f"{items.get(i, i)} (+{b})" for i, b in pr)
-            tv.insert("", "end", values=(sid, chars.get(sid, ""), txt))
-        # ---- edit controls (2026-09-19): set / remove one of a species' four tame items ----
-        ctl = ttk.Frame(doc.content); ctl.pack(fill="x", padx=6, pady=3)
-        v_sp, v_item, v_bonus = tk.StringVar(), tk.StringVar(), tk.StringVar(value="15")
-        for lbl, var, w in (("species", v_sp, 6), ("item id", v_item, 7), ("bonus", v_bonus, 5)):
-            ttk.Label(ctl, text=lbl).pack(side="left", padx=(6, 2))
-            ttk.Entry(ctl, textvariable=var, width=w).pack(side="left")
-        nm_lbl = ttk.Label(ctl, text="", width=22, foreground="steelblue"); nm_lbl.pack(side="left", padx=4)
-        v_item.trace_add("write", lambda *_a: nm_lbl.config(
-            text=items.get(int(v_item.get()), "") if v_item.get().strip().isdigit() else ""))
-        tv.bind("<<TreeviewSelect>>", lambda _e: v_sp.set(tv.item(tv.selection()[0], "values")[0])
-                if tv.selection() else None)
+        buf = bytearray(data)
+        bar = ttk.Frame(doc.content); bar.pack(fill="x")
+        ttk.Label(bar, text=f"Monster taming-food preferences — {montame.species_count(data)} "
+                            f"species (id 48+), each with up to 4 favored items + tame bonus"
+                  ).pack(side="left", padx=6, pady=2)
+        ttk.Label(bar, text="Search #/name:").pack(side="left", padx=(12, 0))
+        sv = tk.StringVar(); ttk.Entry(bar, textvariable=sv, width=16).pack(side="left", padx=2)
+        only = tk.BooleanVar(value=False)
+        ttk.Checkbutton(bar, text="only species with tame items", variable=only).pack(side="left", padx=6)
+        foot = ttk.Frame(doc.content, padding=(6, 2, 6, 4)); foot.pack(side="bottom", fill="x")
+        top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
+        slot_cols = [c for k in range(montame.ENTRIES) for c in (f"item{k + 1}", f"bonus{k + 1}")]
+        cols = ["sp", "who"] + slot_cols
+        tv = ttk.Treeview(top, columns=cols, show="headings", height=22)
+        for c in cols:
+            tv.heading(c, text={"sp": "species", "who": "name"}.get(c, c))
+            tv.column(c, width={"sp": 60, "who": 140}.get(c, 150 if c.startswith("item") else 55), anchor="w")
+        _table_scrollbars(top, tv)
+        last = min(montame.FIRST_SPECIES + montame.species_count(data) - 1, montame.LAST_SPECIES)
+        history = []
 
-        def _edit(remove=False):
-            try:
-                sp, iid = int(v_sp.get(), 0), int(v_item.get(), 0)
-                bonus = int(v_bonus.get(), 0)
-            except ValueError:
-                messagebox.showerror("Bad value", "species, item id and bonus must be integers"); return
-            buf = bytearray(doc.cur_data)
-            try:
-                if remove:
-                    if not montame.remove_item(buf, sp, iid):
-                        messagebox.showinfo("Taming foods", f"species {sp} does not list item {iid}"); return
-                else:
-                    montame.set_item(buf, sp, iid, bonus)
-            except Exception as ex:  # noqa: BLE001
-                messagebox.showerror("Edit failed", str(ex)); return
-            blob = bytes(buf)
-            doc.cur_data = blob
-            self.status.config(text=f"taming foods edited (species {sp}, item {iid}) — Save table… / Extract… to write")
-            self._show(doc.cur_name, blob, doc)
+        def fill(*_):
+            keep = tv.focus()
+            tv.delete(*tv.get_children())
+            q = sv.get().lower().strip()
+            for sid in range(montame.FIRST_SPECIES, last + 1):
+                sl = montame.slots(bytes(buf), sid)
+                if only.get() and not any(i for i, _b in sl):
+                    continue
+                who = chars.get(sid, "")
+                if q and q not in str(sid) and q not in who.lower():
+                    continue
+                vals = [sid, who]
+                for item, bonus in sl:
+                    vals += [items.get(item, str(item)) if item else "", f"+{bonus}" if item else ""]
+                tv.insert("", "end", iid=str(sid), values=vals)
+            if keep and tv.exists(keep):
+                tv.selection_set(keep); tv.focus(keep); tv.see(keep)
+        sv.trace_add("write", fill); only.trace_add("write", fill)
+
+        def changed(msg):
+            doc.cur_data = bytes(buf)
+            undo_b.config(state="normal" if history else "disabled")
+            fill()
+            self.status.config(text=msg + " — Save table… / Extract… to write")
+
+        def put_item(row, k, text):
+            sid = int(row)
+            it = 0 if not text.strip() else _parse_item(text, items)
+            before = bytes(buf)
+            if it == 0:
+                montame.clear_pref(buf, sid, k)
+            else:
+                other = montame.find_slot(bytes(buf), sid, it)
+                if other is not None and other != k:
+                    raise ValueError(f"species {sid} already lists {items.get(it, it)} (slot {other + 1}); "
+                                     f"the game only uses the first match")
+                bonus = montame.slots(bytes(buf), sid)[k][1] or 15
+                montame.set_pref(buf, sid, k, it, bonus)
+            if bytes(buf) != before:
+                history.append(before)
+            changed(f"species {sid}, slot {k + 1}: " + (items.get(it, str(it)) if it else "emptied"))
+
+        def put_bonus(row, k, text):
+            sid = int(row)
+            item = montame.slots(bytes(buf), sid)[k][0]
+            if not item:
+                raise ValueError("pick an item for this slot first")
+            before = bytes(buf)
+            montame.set_pref(buf, sid, k, item, int(text.strip().lstrip("+"), 0))
+            if bytes(buf) != before:
+                history.append(before)
+            changed(f"species {sid}, slot {k + 1}: bonus {text.strip()}")
+
+        def undo(*_):
+            if history:
+                buf[:] = history.pop()
+                changed("Undone")
+
+        def revert():
+            if bytes(buf) != data:
+                history.append(bytes(buf)); buf[:] = data; changed("Back to the file as opened")
+
+        item_choices = lambda: [_item_text(i, items) for i in sorted(items) if 0 < i <= 0x7FF]
+        specs = {}
+        for k in range(montame.ENTRIES):
+            specs[f"item{k + 1}"] = {"get": lambda row, k=k: (_item_text(montame.slots(bytes(buf), int(row))[k][0], items)
+                                                              if montame.slots(bytes(buf), int(row))[k][0] else ""),
+                                     "put": lambda row, text, k=k: put_item(row, k, text), "choices": item_choices}
+            specs[f"bonus{k + 1}"] = {"get": lambda row, k=k: str(montame.slots(bytes(buf), int(row))[k][1]),
+                                      "put": lambda row, text, k=k: put_bonus(row, k, text),
+                                      "can": lambda row, k=k: bool(montame.slots(bytes(buf), int(row))[k][0])}
+        cells = CellEdit(tv, specs, title="Taming foods")
+        tv.bind("<Control-z>", undo)
 
         def _save():
             f = filedialog.asksaveasfilename(defaultextension=".bin",
@@ -5332,9 +5461,15 @@ class App:
                                              filetypes=[("taming table", "*.bin"), ("All", "*.*")])
             if f:
                 pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
-        ttk.Button(ctl, text="Set item", command=lambda: _edit(False)).pack(side="left", padx=2)
-        ttk.Button(ctl, text="Remove item", command=lambda: _edit(True)).pack(side="left", padx=2)
-        ttk.Button(ctl, text="Save table…", command=_save).pack(side="right", padx=2)
+        ttk.Label(foot, foreground="#555", text="Click an item or bonus cell and type to change it; clear "
+                  "an item cell (BackSpace, Enter) to empty the slot. The game uses the first slot that "
+                  "lists the fed item.").pack(side="left")
+        ttk.Button(foot, text="Save table…", command=_save).pack(side="right", padx=2)
+        ttk.Button(foot, text="Revert", command=revert).pack(side="right", padx=2)
+        undo_b = ttk.Button(foot, text="Undo", command=undo, state="disabled")
+        undo_b.pack(side="right", padx=2)
+        fill()
+        doc._montame = dict(tree=tv, cells=cells, undo=undo, revert=revert)    # (selftest)
 
     def _view_route(self, name, data):
         """rf3route.bin — the NPC town-navigation graph (rooms -> nodes -> edges): tree view,
@@ -5492,43 +5627,27 @@ class App:
 
         try:
             search_items.parse_nlcl_footer(data)
-            footer_txt = "footer: valid (engine ignores it)"
         except Exception:
-            footer_txt = "footer: anomalous (harmless, engine ignores it)"
-
-        bar = ttk.Frame(doc.content); bar.pack(fill="x")
-        ttk.Label(bar, text=f"Search-item spots — engine rolls daily: 1-in-N chance per "
-                            f"spot, max 2 spawns/map/day, sleep rerolls.",
-                  wraplength=720).pack(side="left", padx=6)
-        ttk.Label(bar, text=footer_txt, foreground="#888").pack(side="right", padx=6)
+            bar = ttk.Frame(doc.content); bar.pack(fill="x")
+            ttk.Label(bar, text="footer: anomalous (harmless, engine ignores it)",
+                      foreground="#888").pack(side="right", padx=6)
 
         paned = ttk.PanedWindow(doc.content, orient="horizontal")
         paned.pack(fill="both", expand=True, padx=4, pady=4)
 
         # ------------------------- left: SPOTS ----------------------------- #
-        lf = ttk.LabelFrame(paned, text="Spots (position + assigned pool)")
+        lf = ttk.LabelFrame(paned, text="Spots")
         paned.add(lf, weight=1)
         sp_tv = ttk.Treeview(lf, columns=("x", "y", "tile", "pool"), show="headings", height=10)
         for c, w, a in (("x", 70, "e"), ("y", 70, "e"), ("tile", 90, "center"), ("pool", 80, "center")):
             sp_tv.heading(c, text=c); sp_tv.column(c, width=w, anchor=a)
         sp_tv.pack(fill="both", expand=True, padx=4, pady=2)
 
-        spf = ttk.Frame(lf); spf.pack(fill="x", padx=4, pady=2)
-        ttk.Label(spf, text="x:").pack(side="left")
-        sx = tk.StringVar(); ttk.Entry(spf, textvariable=sx, width=7).pack(side="left", padx=(2, 8))
-        ttk.Label(spf, text="y:").pack(side="left")
-        sy = tk.StringVar(); ttk.Entry(spf, textvariable=sy, width=7).pack(side="left", padx=(2, 8))
-        ttk.Label(spf, text="pool:").pack(side="left")
-        spool = tk.StringVar()
-        spool_cb = ttk.Combobox(spf, textvariable=spool, width=9, state="readonly")
-        spool_cb.pack(side="left", padx=2)
-        sp_tile = ttk.Label(spf, text="", foreground="#888"); sp_tile.pack(side="left", padx=8)
-
         spb = ttk.Frame(lf); spb.pack(fill="x", padx=4, pady=(0, 4))
         # (buttons wired below, after the helper closures exist)
 
         # ------------------------- right: POOLS ---------------------------- #
-        rf = ttk.LabelFrame(paned, text="Pools (item tables — assign to spots on the left)")
+        rf = ttk.LabelFrame(paned, text="Pools")
         paned.add(rf, weight=2)
         pl_tv = ttk.Treeview(rf, columns=("entries", "total", "used"), show="tree headings", height=4)
         pl_tv.heading("#0", text="pool"); pl_tv.column("#0", width=80)
@@ -5542,13 +5661,8 @@ class App:
             en_tv.heading(c, text={"id": "item id", "pct": "~%"}.get(c, c))
             en_tv.column(c, width=w, anchor=a)
         en_tv.pack(fill="both", expand=True, padx=4, pady=2)
-
-        enf = ttk.Frame(rf); enf.pack(fill="x", padx=4, pady=2)
-        ttk.Label(enf, text="item id:").pack(side="left")
-        ei = tk.StringVar(); ttk.Entry(enf, textvariable=ei, width=7).pack(side="left", padx=(2, 8))
-        ttk.Label(enf, text="weight:").pack(side="left")
-        ew = tk.StringVar(); ttk.Entry(enf, textvariable=ew, width=7).pack(side="left", padx=2)
-        en_name = ttk.Label(enf, text="", foreground="#888"); en_name.pack(side="left", padx=8)
+        # The engine keeps 11 bits of item id, so only ids up to 0x7FF can be picked.
+        pick_names = {i: n for i, n in item_names.items() if i <= 0x7FF}
 
         enb = ttk.Frame(rf); enb.pack(fill="x", padx=4, pady=(0, 4))
 
@@ -5587,9 +5701,8 @@ class App:
             for i, s in enumerate(f.spots):
                 sp_tv.insert("", "end", iid=str(i), text=str(i),
                              values=(s.x, s.y, f"({s.tile_x},{s.tile_y})", f"#{pool_no(s.pool)}"))
-            spool_cb["values"] = [f"#{k}" for k in range(len(pools))]
             if keep is not None and keep < len(f.spots):
-                sp_tv.selection_set(str(keep))
+                sp_tv.selection_set(str(keep)); sp_tv.focus(str(keep))
 
         def refresh_pools():
             keep = sel_pool()
@@ -5607,6 +5720,7 @@ class App:
                 pl_tv.selection_set("0")
 
         def refresh_entries():
+            keep = sel_entry()
             en_tv.delete(*en_tv.get_children())
             k = sel_pool()
             if k is None or k >= len(pools):
@@ -5618,47 +5732,63 @@ class App:
                              values=(e.effective_item_id,
                                      item_names.get(e.effective_item_id, ""),
                                      e.effective_weight, f"{pct:4.1f}"))
+            if keep is not None and en_tv.exists(str(keep)):
+                en_tv.selection_set(str(keep)); en_tv.focus(str(keep))
 
-        # ------------------------- selection handlers ---------------------- #
-        def on_spot_sel(_e=None):
-            i = sel_spot()
-            if i is None:
-                return
-            s = f.spots[i]
-            sx.set(str(s.x)); sy.set(str(s.y)); spool.set(f"#{pool_no(s.pool)}")
-            sp_tile.config(text=f"tile ({s.tile_x},{s.tile_y})")
-        sp_tv.bind("<<TreeviewSelect>>", on_spot_sel)
+        pl_tv.bind("<<TreeviewSelect>>", lambda _e: refresh_entries())
 
-        def on_pool_sel(_e=None):
-            refresh_entries()
-        pl_tv.bind("<<TreeviewSelect>>", on_pool_sel)
-
-        def on_entry_sel(_e=None):
-            k, j = sel_pool(), sel_entry()
-            if k is None or j is None:
-                return
-            e = pools[k].entries[j]
-            ei.set(str(e.effective_item_id)); ew.set(str(e.effective_weight))
-            en_name.config(text=item_names.get(e.effective_item_id, ""))
-        en_tv.bind("<<TreeviewSelect>>", on_entry_sel)
-
-        # ------------------------- spot actions ---------------------------- #
-        def spot_apply():
-            i = sel_spot()
-            if i is None:
-                messagebox.showinfo("Apply", "Select a spot first."); return
-            try:
-                x, y = int(sx.get(), 0), int(sy.get(), 0)
-            except ValueError as e:
-                messagebox.showerror("Bad value", err_text(e)); return
-            if not (0 <= x <= 0xFFFF and 0 <= y <= 0xFFFF):
-                messagebox.showerror("Bad value", "x/y must be 0..65535 sub-units"); return
-            f.spots[i].x, f.spots[i].y = x, y
-            pk = spool.get().lstrip("#")
-            if pk.isdigit() and int(pk) < len(pools):
-                f.spots[i].pool = pools[int(pk)]
+        # ------------------------- cells (type in the tables) -------------- #
+        def put_xy(row, col, text):
+            v = int(text.strip(), 0)
+            if not 0 <= v <= 0xFFFF:
+                raise ValueError("x / y are 0..65535 sub-units (8 per tile)")
+            setattr(f.spots[int(row)], col, v)
             commit()
 
+        def put_pool(row, text):
+            pk = text.strip().lstrip("#")
+            if not pk.isdigit() or int(pk) >= len(pools):
+                raise ValueError(f"pick a pool: #0..#{len(pools) - 1}")
+            f.spots[int(row)].pool = pools[int(pk)]
+            commit()
+
+        def put_item(row, text):
+            a = _parse_item(text, pick_names)
+            if not 0 <= a <= 0x7FF:
+                raise ValueError("item id must be 0..2047 (engine uses 11 bits)")
+            pools[sel_pool()].entries[int(row)].item_id = a
+            commit()
+
+        def put_weight(row, text):
+            b = int(text.strip(), 0)
+            if not 0 <= b <= 255:
+                raise ValueError("weight must be 0..255 (engine reads one byte)")
+            k = sel_pool()
+            pools[k].entries[int(row)].weight = b
+            if pools[k].total_weight() > 255:
+                messagebox.showwarning(
+                    "Weight overflow",
+                    f"Pool #{k} total is now {pools[k].total_weight()} — the engine sums "
+                    f"weights in a u8, so it wraps to {pools[k].engine_total_weight()} and "
+                    f"skews the odds (worst case: only the first entry can drop). "
+                    f"Keep the pool total ≤ 255.")
+            commit()
+
+        sp_cells = CellEdit(sp_tv, {
+            "x": {"get": lambda row: str(f.spots[int(row)].x), "put": lambda row, t_: put_xy(row, "x", t_)},
+            "y": {"get": lambda row: str(f.spots[int(row)].y), "put": lambda row, t_: put_xy(row, "y", t_)},
+            "pool": {"get": lambda row: f"#{pool_no(f.spots[int(row)].pool)}", "put": put_pool,
+                     "choices": lambda: [f"#{k}" for k in range(len(pools))]}}, title="Search items")
+        item_spec = {"get": lambda row: _item_text(pools[sel_pool()].entries[int(row)].effective_item_id, item_names),
+                     "put": put_item,
+                     "choices": lambda: [_item_text(i, pick_names) for i in sorted(set(pick_names) | {0})]}
+        en_cells = CellEdit(en_tv, {
+            "id": item_spec, "name": item_spec,
+            "weight": {"get": lambda row: str(pools[sel_pool()].entries[int(row)].effective_weight),
+                       "put": put_weight}}, title="Search items")
+        doc._si_cells = (sp_cells, en_cells)                                   # (selftest)
+
+        # ------------------------- spot actions ---------------------------- #
         def spot_add():
             pool = pools[sel_pool()] if sel_pool() is not None else pools[0]
             if f.spots:
@@ -5675,7 +5805,6 @@ class App:
             del f.spots[i]
             commit()
 
-        ttk.Button(spb, text="Apply spot", command=spot_apply).pack(side="left", padx=2)
         ttk.Button(spb, text="+ spot", command=spot_add).pack(side="left", padx=2)
         ttk.Button(spb, text="− spot", command=spot_del).pack(side="left", padx=2)
 
@@ -5701,29 +5830,6 @@ class App:
             del pools[k]
             commit()
 
-        def entry_apply():
-            k, j = sel_pool(), sel_entry()
-            if k is None or j is None:
-                messagebox.showinfo("Apply", "Select a pool entry first."); return
-            try:
-                a, b = int(ei.get(), 0), int(ew.get(), 0)
-            except ValueError as e:
-                messagebox.showerror("Bad value", err_text(e)); return
-            if not (0 <= a <= 0x7FF):
-                messagebox.showerror("Bad value", "item id must be 0..2047 (engine uses 11 bits)"); return
-            if not (0 <= b <= 255):
-                messagebox.showerror("Bad value", "weight must be 0..255 (engine reads one byte)"); return
-            pools[k].entries[j].item_id = a
-            pools[k].entries[j].weight = b
-            if pools[k].total_weight() > 255:
-                messagebox.showwarning(
-                    "Weight overflow",
-                    f"Pool #{k} total is now {pools[k].total_weight()} — the engine sums "
-                    f"weights in a u8, so it wraps to {pools[k].engine_total_weight()} and "
-                    f"skews the odds (worst case: only the first entry can drop). "
-                    f"Keep the pool total ≤ 255.")
-            commit()
-
         def entry_add():
             k = sel_pool()
             if k is None:
@@ -5740,7 +5846,6 @@ class App:
             del pools[k].entries[j]
             commit()
 
-        ttk.Button(enb, text="Apply entry", command=entry_apply).pack(side="left", padx=2)
         ttk.Button(enb, text="+ entry", command=entry_add).pack(side="left", padx=2)
         ttk.Button(enb, text="− entry", command=entry_del).pack(side="left", padx=2)
         ttk.Separator(enb, orient="vertical").pack(side="left", fill="y", padx=8)
@@ -5856,52 +5961,50 @@ class App:
                 tv.insert("", "end", iid=str(i), values=(i, cid, nm, cat, lbl))
         sv.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(doc.content, text="Edit selected quest  (client_id + category; save writes the table)")
-        ed.pack(fill="x", padx=6, pady=4)
-        row = ttk.Frame(ed); row.pack(fill="x", padx=4, pady=4)
-        ttk.Label(row, text="client_id:").pack(side="left")
-        cid_v = tk.StringVar(); ttk.Entry(row, textvariable=cid_v, width=6).pack(side="left", padx=2)
-        cid_name = ttk.Label(row, text="", width=20); cid_name.pack(side="left", padx=(0, 8))
-        ttk.Label(row, text="category:").pack(side="left")
-        cat_v = tk.StringVar(); ttk.Entry(row, textvariable=cat_v, width=6).pack(side="left", padx=2)
-        cat_lbl = ttk.Label(row, text="", width=44); cat_lbl.pack(side="left", padx=(0, 8))
-        sel = {"i": None}
+        history = []
 
-        def on_cid(*_):
-            try:
-                cid_name.config(text=cname(int(cid_v.get(), 0)))
-            except Exception:
-                cid_name.config(text="")
-        cid_v.trace_add("write", on_cid)
-
-        def on_cat(*_):
-            try:
-                cat_lbl.config(text=cat_label(int(cat_v.get(), 0)))
-            except Exception:
-                cat_lbl.config(text="")
-        cat_v.trace_add("write", on_cat)
-
-        def on_sel(_e=None):
-            s = tv.selection()
-            if not s:
-                return
-            i = int(s[0]); sel["i"] = i
-            cid_v.set(str(t.get(i, 0, "u8"))); cat_v.set(str(t.get(i, 1, "u8")))
-        tv.bind("<<TreeviewSelect>>", on_sel)
-
-        def apply_edit():
-            if sel["i"] is None:
-                return
-            i = sel["i"]
-            try:
-                t.set(i, 0, int(cid_v.get(), 0), "u8")
-                t.set(i, 1, int(cat_v.get(), 0), "u8")
-            except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", err_text(e)); return
+        def changed(i, msg):
             doc.cur_data = t.build()
+            undo_b.config(state="normal" if history else "disabled")
             fill()
-            tv.selection_set(str(i)); tv.see(str(i))
-            self.status.config(text=f"Applied quest {i} — Save table… or Extract… to write")
+            if tv.exists(str(i)):
+                tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
+            self.status.config(text=msg + " — Save table… or Extract… to write")
+
+        def put(row, off, text, names, what):
+            i = int(row)
+            v = _parse_item(text, names)
+            before = t.build()
+            t.set(i, off, v, "u8")
+            if t.build() != before:
+                history.append(before)
+            changed(i, f"Request {i}: {what} set")
+
+        client_names = {c: cname(c) for c in range(256) if cname(c)}
+        cat_names_all = {c: cat_label(c) for c in range(34) if cat_label(c)}
+        cells = CellEdit(tv, {
+            "client_id": {"get": lambda row: _item_text(t.get(int(row), 0, "u8"), client_names),
+                          "put": lambda row, text: put(row, 0, text, client_names, "client"),
+                          "choices": lambda: [_item_text(c, client_names) for c in sorted(client_names)]},
+            "category": {"get": lambda row: _item_text(t.get(int(row), 1, "u8"), cat_names_all),
+                         "put": lambda row, text: put(row, 1, text, cat_names_all, "type"),
+                         "choices": lambda: [_item_text(c, cat_names_all) for c in sorted(cat_names_all)]}},
+            title="Requests")
+        cells.cols["client"] = cells.cols["client_id"]
+        cells.cols["type"] = cells.cols["category"]
+
+        def undo(*_):
+            if history:
+                t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
+                keep = tv.focus()
+                changed(int(keep) if keep else 0, "Undone")
+
+        def revert():
+            if t.build() != data:
+                history.append(t.build())
+                t.__dict__.update(nlcl.NlclTable(data).__dict__)
+                keep = tv.focus()
+                changed(int(keep) if keep else 0, "Back to the file as opened")
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -5911,8 +6014,15 @@ class App:
             if f:
                 pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved quest DB → {f}")
+        row = ttk.Frame(doc.content); row.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
+        ttk.Label(row, foreground="#555", text="Click the client or the type and type to change it "
+                  "(a name, part of one, or the number).").pack(side="left")
         ttk.Button(row, text="Save table…", command=save_tbl).pack(side="right", padx=4)
-        ttk.Button(row, text="Apply", command=apply_edit).pack(side="right", padx=4)
+        ttk.Button(row, text="Revert", command=revert).pack(side="right", padx=4)
+        undo_b = ttk.Button(row, text="Undo", command=undo, state="disabled")
+        undo_b.pack(side="right", padx=4)
+        tv.bind("<Control-z>", undo)
+        doc._quest = dict(tree=tv, cells=cells, undo=undo, revert=revert)      # (selftest)
 
     def _view_param(self, name, data):
         """Generic NLCL table view, used by every table without a bespoke editor.
@@ -6051,7 +6161,9 @@ class App:
         info = ttk.Label(doc.content, foreground="#555", justify="left", padding=(6, 2))
         info.pack(fill="x")
         info.bind("<Configure>", lambda e: info.config(wraplength=max(200, e.width - 16)))
-        base_text = {"t": "Hover a column heading for what it means; double-click a cell to edit it."}
+        base_text = {"t": "Click a cell and type to change it (F2 or double-click edits what is there; "
+                          "Enter keeps, Tab moves on, Esc cancels). Hover a column heading for what it "
+                          "means."}
         if pre_cols:
             base_text["t"] = ("'spot kind' = the number a schedule stop uses to send an NPC here; a "
                               "kind with several spots picks one of them each day by weight. Type "
@@ -6072,10 +6184,13 @@ class App:
                 bits.append(notes[n])
             if n in pick_f:
                 bits.append("Shown by name; the file stores the number.")
-            if nlcl.fixed_bits(stem, n) is not None:
-                bits.append("Fixed-point: shown as a percentage.")
+            fb = nlcl.fixed_bits(stem, n)
+            if fb is not None:
+                one = nlcl.fixed_scale(fb)
+                bits.append(f"Shown as a percentage: the file stores the fraction × {one} ({one} = "
+                            f"100%). Type a percentage (150%) or the stored whole number.")
             if nlcl.flag_bits(stem, n) is not None:
-                bits.append("A set of bits: use Flags… to tick them.")
+                bits.append("A set of bits: double-click (or F2) for a tick box per bit.")
             col_help[n] = f"{typ} at +{_o}. " + " ".join(bits) if bits else f"{typ} at +{_o}."
         hover = {"col": None}
 
@@ -6162,84 +6277,48 @@ class App:
                 restore(data)
                 self.status.config(text="Back to the file as opened")
 
-        # ---- edit form --------------------------------------------------------------------
-        ed = ttk.LabelFrame(doc.content, text="Edit selected record")
-        ed.pack(fill="x", padx=6, pady=4)
-        grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=4)
-        evars = []
+        # ---- cell editing (type in the table) ---------------------------------------------
         sel = {"i": None}
+        foff = {n: (o, ty) for n, o, ty in fields}
 
-        def open_flags(var, fn, typ):
-            if sel["i"] is None:
-                self.status.config(text="Select a record first")
-                return None
-            try:
-                cur = nlcl.parse_value(var.get(), typ)
-            except nlcl.NlclError:
-                cur = t.get(sel["i"], dict((n, o) for n, o, _ty in fields)[fn], typ)
+        def open_flags(i, fn, typ):
+            off = foff[fn][0]
 
             def done(new):
-                var.set(nlcl.format_flags(new, typ))
-                apply_edit()
-            return _flag_dialog(doc.content, f"{stem} #{sel['i']} — {fn}", typ, cur,
+                before = t.build()
+                t.set(i, off, new, typ)
+                if t.build() != before:
+                    history.append(before); undo_b.config(state="normal")
+                changed(i, f"Record {i}: {fn} set")
+            return _flag_dialog(doc.content, f"{stem} #{i} — {fn}", typ, t.get(i, off, typ),
                                 nlcl.flag_bits(stem, fn), done)
         doc._param_open_flags = open_flags          # (selftest)
-        gpos = [0, 0]                               # (row, column); a picker takes 2 columns
-        # balanced rows: at most 8 columns each, split evenly (10 fields -> 5 + 5, not 8 + 2)
-        units = sum(2 if fn in pick_f else 1 for fn, _o, _t in fields if fn not in unused)
-        per_row = max(1, -(-units // -(-units // 8))) if units else 8
-        for fn, off, typ in fields:
-            if fn in unused:
-                continue
-            span = 2 if fn in pick_f else 1
-            if gpos[1] + span > per_row and gpos[1] > 0:
-                gpos[:] = [gpos[0] + 1, 0]
-            cell = ttk.Frame(grid); cell.grid(row=gpos[0], column=gpos[1], columnspan=span, padx=2, pady=1,
-                                              sticky="w")
-            gpos[1] += span
-            lbl = ttk.Label(cell, text=f"{fn}", font=("Segoe UI", 7)); lbl.pack()
-            if notes.get(fn):
-                Tip(lbl, notes[fn])
-            v = tk.StringVar()
-            if fn in pick_f:
-                en = _item_picker(cell, v, choices(fn))
-                Tip(en, (notes.get(fn, "") + "\n" if notes.get(fn) else "")
-                    + "Pick from the list or type part of a name (Down opens the filtered list); the "
-                      "number works too." + (" Item 0 = an empty slot." if fn in item_f else ""))
-            else:
-                en = ttk.Entry(cell, textvariable=v, width=9)
-                bits = nlcl.fixed_bits(stem, fn)
-                if bits is not None:
-                    Tip(en, lambda v=v, typ=typ, bits=bits: _fixed_tip(v.get(), typ, bits))
-                elif notes.get(fn):
-                    Tip(en, notes[fn])
-            en.pack()
-            en.bind("<Return>", lambda _e: apply_edit())
-            if nlcl.flag_bits(stem, fn) is not None:
-                fb = ttk.Button(cell, text="Flags…", width=7,
-                                command=lambda v=v, fn=fn, typ=typ: open_flags(v, fn, typ))
-                fb.pack()
-                Tip(fb, "Set or clear each bit of this field with a tick box.")
-            evars.append((v, off, typ, fn))
-        if any(nlcl.fixed_bits(stem, fn) is not None for fn, _o, _t in fields):
-            fx = set(nlcl.FIXED_FIELDS.get(nlcl.canonical_stem(stem), {}).values())
-            ones = sorted({nlcl.fixed_scale(b) for b in fx})
-            hint_lbl = ttk.Label(ed, foreground="#777", justify="left", wraplength=600, text=(
-                "Fields shown as a percentage: the file stores the fraction × "
-                + " / ".join(str(o) for o in ones)
-                + " (so " + " / ".join(f"{o} = 100%" for o in ones)
-                + f"). Type a percentage (150%) or the stored whole number ({ones[-1] * 3 // 2})."))
-            hint_lbl.pack(fill="x", padx=6)
-            hint_lbl.bind("<Configure>", lambda e, w=hint_lbl: w.config(wraplength=max(200, e.width - 8)))
-        # generic offset editor (for raw edits beyond the shown fields)
-        gen_row = ttk.Frame(ed); gen_row.pack(fill="x", padx=4, pady=(0, 2))
-        ttk.Label(gen_row, text="raw  off:").pack(side="left")
-        off_v = tk.StringVar(); ttk.Entry(gen_row, textvariable=off_v, width=5).pack(side="left")
-        ttk.Label(gen_row, text="type:").pack(side="left")
-        typ_v = tk.StringVar(value="s32"); ttk.Combobox(gen_row, textvariable=typ_v, width=4,
-                 values=list(nlcl._FMT.keys())).pack(side="left", padx=2)
-        ttk.Label(gen_row, text="=").pack(side="left")
-        rawval_v = tk.StringVar(); ttk.Entry(gen_row, textvariable=rawval_v, width=8).pack(side="left", padx=2)
+
+        def put_field(n, row, text):
+            i = int(row)
+            off, typ = foff[n]
+            val = parse_field(n, typ, text)
+            before = t.build()
+            try:
+                t.set(i, off, val, typ)
+            except (ValueError, nlcl.NlclError):
+                t.__dict__.update(nlcl.NlclTable(before).__dict__)
+                raise
+            if t.build() != before:
+                history.append(before); undo_b.config(state="normal")
+            changed(i, f"Record {i}: {n} set")
+
+        def cell_spec(n, typ):
+            if nlcl.flag_bits(stem, n) is not None:
+                return {"action": lambda row, n=n, typ=typ: open_flags(int(row), n, typ)}
+            spec = {"get": lambda row, n=n, typ=typ: edit_text(n, t.get(int(row), foff[n][0], typ), typ),
+                    "put": lambda row, text, n=n: put_field(n, row, text)}
+            if n in pick_f:
+                spec["choices"] = lambda n=n: [_item_text(i, choices(n))
+                                               for i in sorted(set(choices(n)) | {0})]
+            return spec
+        cells = CellEdit(tv, {n: cell_spec(n, typ) for n, _o, typ in fields})
+        doc._param_cells = cells                                              # (selftest)
 
         def on_sel(_e=None):
             s = tv.selection()
@@ -6253,104 +6332,60 @@ class App:
                                                       "no attack timeline fires it (fired from game code, or unused)")
                 if hover["col"] is None:
                     info.config(text=base_text["t"])
-            for v, off, typ, fn in evars:
-                v.set(edit_text(fn, t.get(i, off, typ), typ))
-        tv.bind("<<TreeviewSelect>>", on_sel)
-        doc._param_select = lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel())   # (selftest)
+        tv.bind("<<TreeviewSelect>>", on_sel, add="+")
+        doc._param_select = lambda i: (tv.selection_set(str(i)), tv.focus(str(i)), tv.see(str(i)), on_sel())   # (selftest)
 
         def changed(i, msg):
             doc.cur_data = t.build()
             fill()
             if tv.exists(str(i)):
-                tv.selection_set(str(i)); tv.see(str(i)); on_sel()
+                tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i)); on_sel()
             self.status.config(text=msg + " — Save table… or Extract… to write")
-
-        def apply_edit():
-            if sel["i"] is None:
-                return
-            i = sel["i"]
-            try:
-                new = [(off, parse_field(fn, typ, v.get()), typ) for v, off, typ, fn in evars]
-                raw = None
-                if off_v.get().strip() and rawval_v.get().strip():
-                    raw = (int(off_v.get(), 0), int(rawval_v.get(), 0), typ_v.get())
-            except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", err_text(e)); return
-            before = t.build()
-            try:
-                for off, val, typ in new:
-                    t.set(i, off, val, typ)
-                if raw:
-                    t.set(i, *raw)
-            except (ValueError, nlcl.NlclError) as e:
-                t.__dict__.update(nlcl.NlclTable(before).__dict__)
-                messagebox.showerror("Edit failed", err_text(e)); return
-            if t.build() != before:
-                history.append(before); undo_b.config(state="normal")
-            changed(i, f"Applied record {i}")
-        doc._param_apply = apply_edit                                         # (selftest)
-        doc._param_vars = {fn: v for v, _o, _t, fn in evars}
         doc._param_tree = tv
 
-        # double-click a cell: edit that one field in place (Enter keeps, Esc cancels)
-        def edit_cell(e):
-            row = tv.identify_row(e.y)
-            cid = tv.identify_column(e.x)
-            if not row or not cid.startswith("#"):
-                return
-            try:
-                col = tv["displaycolumns"][int(cid[1:]) - 1]
-            except (ValueError, IndexError):
-                return
-            fld = next(((n, o, ty) for n, o, ty in fields if n == col), None)
-            if fld is None:
-                return "break"
-            n, off, typ = fld
-            if nlcl.flag_bits(stem, n) is not None:
-                doc._param_select(int(row))
-                open_flags(doc._param_vars[n], n, typ)
-                return "break"
-            x, y, w, h = tv.bbox(row, cid)
-            var = tk.StringVar(value=edit_text(n, t.get(int(row), off, typ), typ))
-            ent = (_item_picker(tv, var, choices(n)) if n in pick_f
-                   else ttk.Entry(tv, textvariable=var))
-            ent.place(x=x, y=y, width=max(w, 180 if n in pick_f else w), height=h)
-            ent.focus_set()
-            try:
-                ent.select_range(0, "end")
-            except tk.TclError:
-                pass
-            done_flag = {"d": False}
+        def raw_edit():
+            """A value at any byte offset of the selected record (beyond the named fields)."""
+            if sel["i"] is None:
+                self.status.config(text="Select a record first"); return
+            i = sel["i"]
+            win = tk.Toplevel(doc.content)
+            win.title(f"{stem} #{i} — raw edit")
+            win.transient(doc.content.winfo_toplevel())
+            f = ttk.Frame(win, padding=8); f.pack(fill="both")
+            off_v, typ_v, val_v = tk.StringVar(), tk.StringVar(value="s32"), tk.StringVar()
+            ttk.Label(f, text=f"byte offset in the record (0..{t.record_size - 1})").grid(row=0, column=0, sticky="w")
+            oe = ttk.Entry(f, textvariable=off_v, width=8); oe.grid(row=0, column=1, sticky="w", padx=4)
+            ttk.Label(f, text="type").grid(row=1, column=0, sticky="w")
+            ttk.Combobox(f, textvariable=typ_v, width=5, state="readonly",
+                         values=list(nlcl._FMT.keys())).grid(row=1, column=1, sticky="w", padx=4)
+            ttk.Label(f, text="value").grid(row=2, column=0, sticky="w")
+            ttk.Entry(f, textvariable=val_v, width=12).grid(row=2, column=1, sticky="w", padx=4)
 
-            def done(keep):
-                if done_flag["d"]:
-                    return
-                done_flag["d"] = True
-                if keep:
-                    i = int(row)
-                    try:
-                        val = parse_field(n, typ, var.get())
-                        before = t.build()
-                        t.set(i, off, val, typ)
-                    except (ValueError, nlcl.NlclError) as err:
-                        ent.destroy()
-                        messagebox.showerror("Edit failed", err_text(err)); return
-                    if t.build() != before:
-                        history.append(before); undo_b.config(state="normal")
-                    ent.destroy()
-                    changed(i, f"Record {i}: {n} set")
-                    return
-                ent.destroy()
-            ent.bind("<Return>", lambda _e: done(True))
-            ent.bind("<KP_Enter>", lambda _e: done(True))
-            ent.bind("<Escape>", lambda _e: done(False))
-            ent.bind("<<ComboboxSelected>>", lambda _e: done(True))
-            ent.bind("<FocusOut>", lambda _e: done(True) if ent.winfo_exists() and not isinstance(
-                ent, ttk.Combobox) else None)
-            doc._param_cell = (ent, var, done)                                  # (selftest)
-            return "break"
-        tv.bind("<Double-Button-1>", edit_cell)
-        doc._param_edit_cell = edit_cell                                        # (selftest)
+            def show_cur(*_):
+                try:
+                    val_v.set(str(t.get(i, int(off_v.get(), 0), typ_v.get())))
+                except (ValueError, nlcl.NlclError, struct.error):
+                    pass
+            off_v.trace_add("write", show_cur); typ_v.trace_add("write", show_cur)
+
+            def ok(_e=None):
+                before = t.build()
+                try:
+                    t.set(i, int(off_v.get(), 0), int(val_v.get(), 0), typ_v.get())
+                except (ValueError, nlcl.NlclError, struct.error) as e:
+                    t.__dict__.update(nlcl.NlclTable(before).__dict__)
+                    messagebox.showerror("Edit failed", err_text(e), parent=win); return
+                if t.build() != before:
+                    history.append(before); undo_b.config(state="normal")
+                win.destroy()
+                changed(i, f"Record {i}: +{off_v.get()} set")
+            bb = ttk.Frame(f); bb.grid(row=3, column=0, columnspan=2, sticky="e", pady=(8, 0))
+            ttk.Button(bb, text="OK", command=ok).pack(side="right")
+            ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+            win.bind("<Return>", ok); win.bind("<Escape>", lambda _e: win.destroy())
+            oe.focus_set()
+            return win
+        doc._param_raw = raw_edit                                             # (selftest)
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -6400,23 +6435,28 @@ class App:
             sel["i"] = None
             changed(min(i, t.entry_count - 1), f"Deleted record {i}; {t.entry_count} records")
 
-        ttk.Button(gen_row, text="Apply", command=apply_edit).pack(side="left", padx=(12, 4))
-        btn_row = ttk.Frame(ed); btn_row.pack(fill="x", padx=4, pady=(2, 2))
+        ed = ttk.Frame(doc.content)
+        ed.pack(fill="x", padx=6, pady=4)
+        btn_row = ttk.Frame(ed); btn_row.pack(fill="x", pady=(2, 2))
         for text_, cmd in (("Add row (copy of selected)", add_row), ("Delete row", del_row)):
             ttk.Button(btn_row, text=text_, command=cmd).pack(side="left", padx=(0, 4))
         undo_b = ttk.Button(btn_row, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="left", padx=(12, 4))
         Tip(undo_b, "Undo the last change (Ctrl+Z).")
         ttk.Button(btn_row, text="Revert", command=revert).pack(side="left", padx=4)
+        rb = ttk.Button(btn_row, text="Raw edit…", command=raw_edit)
+        rb.pack(side="left", padx=(12, 4))
+        Tip(rb, "Change the value at any byte offset of the selected record (for bytes no column "
+                "shows).")
         for text_, cmd in (("Export CSV…", export_csv), ("Save table…", save_tbl)):
             ttk.Button(btn_row, text=text_, command=cmd).pack(side="right", padx=4)
         tv.bind("<Control-z>", undo)
         doc._param_undo, doc._param_revert = undo, revert                       # (selftest)
         grow_text = t.grow_info(stem)[1]
         grow_lbl = ttk.Label(ed, text=grow_text, foreground="#555", justify="left")
-        grow_lbl.pack(fill="x", padx=6)
+        grow_lbl.pack(fill="x")
         grow_lbl.bind("<Configure>", lambda e: grow_lbl.config(wraplength=max(200, e.width - 16)))
-        # the edit form and the info line are laid out before the table, so a short window
+        # the buttons and the info line are laid out before the table, so a short window
         # shrinks the table and never squeezes the buttons away
         ed.pack_configure(side="bottom", before=top)
         info.pack_configure(side="bottom", before=top)
@@ -6473,64 +6513,89 @@ class App:
                     break
         sv.trace_add("write", fill); only_crops.trace_add("write", fill); fill()
 
-        ed = ttk.LabelFrame(doc.content, text="Edit selected crop")
-        ed.pack(fill="x", padx=6, pady=4)
-        grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=2)
         ftyp = {n: (o, ty) for n, o, ty in t.schema(stem)["fields"]}
-        editable = ["stage1", "stage2", "stage3", "regrow", "water", "grow_cap",
-                    "gmul_size", "gmul_1", "gmul_2", "gmul_3", "harvest", "seed"]
-        evars = []
-        for idx, fn in enumerate(editable):
-            cell = ttk.Frame(grid); cell.grid(row=idx // 6, column=idx % 6, padx=2, pady=1)
-            ttk.Label(cell, text=fn, font=("Segoe UI", 7)).pack()
-            v = tk.StringVar(); ttk.Entry(cell, textvariable=v, width=9).pack()
-            evars.append((v, fn))
-        srow = ttk.Frame(ed); srow.pack(fill="x", padx=4, pady=(3, 4))
-        ttk.Label(srow, text="grows in:").pack(side="left")
-        seavars = {}
-        for s in nlcl.CROP_SEASONS:
-            bv = tk.BooleanVar(); ttk.Checkbutton(srow, text=s, variable=bv).pack(side="left")
-            seavars[s] = bv
-        allyear = tk.BooleanVar()
-        ttk.Checkbutton(srow, text="all-year (no off-season penalty)",
-                        variable=allyear).pack(side="left", padx=10)
-        sel = {"i": None}
+        history = []
 
-        def on_sel(_e=None):
-            s = tv.selection()
-            if not s:
-                return
-            i = int(s[0]); sel["i"] = i
-            row = t.row(i, stem)
-            for v, fn in evars:
-                v.set(nlcl.format_value(row[fn], nlcl.fixed_bits(stem, fn)))
-            dec = nlcl.crop_season_decode(row["season"])
+        def changed(i, msg):
+            doc.cur_data = t.build()
+            undo_b.config(state="normal" if history else "disabled")
+            fill()
+            if tv.exists(str(i)):
+                tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
+            self.status.config(text=msg + " — Save table… or Extract… writes the file")
+
+        def put(fn, row, text):
+            i = int(row)
+            off, ty = ftyp[fn]
+            val = (_parse_item(text, tbl) if fn in ("harvest", "seed")
+                   else nlcl.parse_value(text, ty, nlcl.fixed_bits(stem, fn)))
+            before = t.build()
+            t.set(i, off, val, ty)
+            if t.build() != before:
+                history.append(before)
+            changed(i, f"Crop {i}: {fn} set")
+
+        def seasons(row):
+            """Which season(s) the crop grows in (the +104 boost / penalty bits)."""
+            i = int(row)
+            dec = nlcl.crop_season_decode(t.get(i, 104, "u32"))
             grows = set() if dec["grows"] == ["all-season"] else set(dec["grows"])
-            for s2, bv in seavars.items():
-                bv.set(s2 in grows)
-            allyear.set(not grows or not dec["penalized"])
-        tv.bind("<<TreeviewSelect>>", on_sel)
+            win = tk.Toplevel(doc.content)
+            win.title(f"Crop {i} — seasons")
+            win.transient(doc.content.winfo_toplevel())
+            f = ttk.Frame(win, padding=8); f.pack(fill="both")
+            ttk.Label(f, text=f"{namefn(t.get(i, 96, 'u32')) or 'Crop ' + str(i)} grows in:").pack(anchor="w")
+            bv = {}
+            for s2 in nlcl.CROP_SEASONS:
+                bv[s2] = tk.BooleanVar(value=s2 in grows)
+                ttk.Checkbutton(f, text=s2, variable=bv[s2]).pack(anchor="w")
+            allyear = tk.BooleanVar(value=not grows or not dec["penalized"])
+            ttk.Checkbutton(f, text="all-year (no off-season penalty)", variable=allyear).pack(anchor="w", pady=(6, 0))
 
-        def apply_edit():
-            if sel["i"] is None:
-                return
-            i = sel["i"]
-            try:
-                for v, fn in evars:
-                    off, ty = ftyp[fn]
-                    t.set(i, off, nlcl.parse_value(v.get(), ty, nlcl.fixed_bits(stem, fn)), ty)
-                chosen = [s for s, bv in seavars.items() if bv.get()]
+            def ok(_e=None):
+                chosen = [s2 for s2, v in bv.items() if v.get()]
                 old = t.get(i, 104, "u32")
                 if chosen:
-                    t.set(i, 104, nlcl.crop_season_encode(old, chosen,
-                                                          single=not allyear.get()), "u32")
+                    new = nlcl.crop_season_encode(old, chosen, single=not allyear.get())
                 elif allyear.get():
-                    t.set(i, 104, old & ~nlcl._CROP_SEASON_MASK, "u32")   # grow everywhere
-            except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", err_text(e)); return
-            doc.cur_data = t.build()
-            fill(); tv.selection_set(str(i)); tv.see(str(i))
-            self.status.config(text=f"Applied crop {i} — Save table… or Extract… writes the file")
+                    new = old & ~nlcl._CROP_SEASON_MASK                  # grow everywhere
+                else:
+                    new = old
+                win.destroy()
+                if new != old:
+                    history.append(t.build())
+                    t.set(i, 104, new, "u32")
+                    changed(i, f"Crop {i}: seasons set")
+            bb = ttk.Frame(f); bb.pack(fill="x", pady=(8, 0))
+            ttk.Button(bb, text="OK", command=ok).pack(side="right")
+            ttk.Button(bb, text="Cancel", command=win.destroy).pack(side="right", padx=4)
+            win.bind("<Return>", ok); win.bind("<Escape>", lambda _e: win.destroy())
+            return win, bv, allyear, ok
+
+        item_choices = lambda: [_item_text(i, tbl) for i in sorted(set(tbl) | {0})]
+        specs = {}
+        for fn in show_cols:
+            specs[fn] = {"get": (lambda row, fn=fn: _item_text(t.get(int(row), *ftyp[fn]), tbl)) if fn in ("harvest", "seed")
+                         else (lambda row, fn=fn: nlcl.format_value(t.get(int(row), *ftyp[fn]), nlcl.fixed_bits(stem, fn))),
+                         "put": lambda row, text, fn=fn: put(fn, row, text)}
+            if fn in ("harvest", "seed"):
+                specs[fn]["choices"] = item_choices
+        specs["grows"] = {"action": seasons}
+        cells = CellEdit(tv, specs)
+
+        def undo(*_):
+            if history:
+                blob = history.pop()
+                t.__dict__.update(nlcl.NlclTable(blob).__dict__)
+                keep = tv.focus()
+                changed(int(keep) if keep else 0, "Undone")
+
+        def revert():
+            if t.build() != data:
+                history.append(t.build())
+                t.__dict__.update(nlcl.NlclTable(data).__dict__)
+                keep = tv.focus()
+                changed(int(keep) if keep else 0, "Back to the file as opened")
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -6540,9 +6605,16 @@ class App:
             if f:
                 pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved crop table → {f}")
-        btns = ttk.Frame(ed); btns.pack(fill="x", padx=4, pady=(0, 3))
+        btns = ttk.Frame(doc.content); btns.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
+        hint = ttk.Label(btns, foreground="#555", text="Click a cell and type to change it; the "
+                         "'grows' cell opens the season tick boxes (double-click or F2).")
+        hint.pack(side="left")
         ttk.Button(btns, text="Save table…", command=save_tbl).pack(side="right", padx=4)
-        ttk.Button(btns, text="Apply", command=apply_edit).pack(side="right", padx=4)
+        ttk.Button(btns, text="Revert", command=revert).pack(side="right", padx=4)
+        undo_b = ttk.Button(btns, text="Undo", command=undo, state="disabled")
+        undo_b.pack(side="right", padx=4)
+        tv.bind("<Control-z>", undo)
+        doc._crop = dict(cells=cells, seasons=seasons, undo=undo, revert=revert, tree=tv)   # (selftest)
 
     def _view_monster(self, name, data):
         """rf3NpcParam — friendly monster/character template editor (archive 14812).
@@ -6577,24 +6649,40 @@ class App:
         _table_scrollbars(left, tv)
 
         right = ttk.Frame(body); right.pack(side="left", fill="both", expand=True)
-        sheet = tk.Text(right, wrap="word", width=52, height=15, font=("Consolas", 9))
+        sheet = tk.Text(right, wrap="word", width=52, height=12, font=("Consolas", 9))
         sheet.pack(fill="both", expand=True, padx=4, pady=2); sheet.config(state="disabled")
-        ed = ttk.LabelFrame(right, text="Edit fields — Apply, then Save…")
-        ed.pack(fill="x", padx=4, pady=2)
-        grid = ttk.Frame(ed); grid.pack(fill="x", padx=4, pady=2)
+        pf = ttk.LabelFrame(right, text="Fields — click a value and type to change it")
+        pf.pack(fill="both", expand=True, padx=4, pady=2)
         fields = sch["fields"]
-        evars = []
-        for idx, (fn, off, typ) in enumerate(fields):
-            cell = ttk.Frame(grid); cell.grid(row=idx // 6, column=idx % 6, padx=1, pady=1)
-            ttk.Label(cell, text=fn, font=("Segoe UI", 7)).pack()
-            v = tk.StringVar(); ttk.Entry(cell, textvariable=v, width=8).pack()
-            evars.append((v, off, typ, fn))
+        ftyp = {fn: (off, typ) for fn, off, typ in fields}
+        about, notes = nlcl.schema_notes(stem)
+        drop_ids = {fn for fn, _o, _t in fields if fn.startswith("drop") and fn.endswith("_id")}
+        fv = ttk.Treeview(pf, columns=("field", "value"), show="headings", height=10, selectmode="browse")
+        fv.heading("field", text="field"); fv.column("field", width=150)
+        fv.heading("value", text="value"); fv.column("value", width=200)
+        _table_scrollbars(pf, fv)
         sel = {"i": None}
+        history = []
 
         def render_sheet(cid):
             sheet.config(state="normal"); sheet.delete("1.0", "end")
             sheet.insert("end", monster.render(t, cid, species, items))
             sheet.config(state="disabled")
+
+        def val_text(i, fn):
+            off, typ = ftyp[fn]
+            v = t.get(i, off, typ)
+            if fn in drop_ids:
+                return _item_text(v & 0x7FF, items) if v else "(none) (0)"
+            return nlcl.format_value(v, nlcl.fixed_bits(stem, fn))
+
+        def fill_fields():
+            fv.delete(*fv.get_children())
+            i = sel["i"]
+            if i is None:
+                return
+            for fn, _o, _t in fields:
+                fv.insert("", "end", iid=fn, values=(fn, val_text(i, fn)))
 
         def fill(*_):
             tv.delete(*tv.get_children())
@@ -6618,23 +6706,58 @@ class App:
             if not s:
                 return
             i = int(s[0]); sel["i"] = i
-            for v, off, typ, fn in evars:
-                v.set(nlcl.format_value(t.get(i, off, typ), nlcl.fixed_bits(stem, fn)))
+            fill_fields()
             render_sheet(i)
         tv.bind("<<TreeviewSelect>>", on_sel)
 
-        def apply_edit():
-            if sel["i"] is None:
-                return
-            i = sel["i"]
-            try:
-                for v, off, typ, fn in evars:
-                    t.set(i, off, nlcl.parse_value(v.get(), typ, nlcl.fixed_bits(stem, fn)), typ)
-            except (ValueError, nlcl.NlclError) as e:
-                messagebox.showerror("Edit failed", err_text(e)); return
+        def changed(i, msg, fn=None):
             doc.cur_data = t.build()
-            fill(); tv.selection_set(str(i)); tv.see(str(i)); render_sheet(i)
-            self.status.config(text=f"Applied #{i} — Save… writes the file")
+            undo_b.config(state="normal" if history else "disabled")
+            fill()
+            if tv.exists(str(i)):
+                tv.selection_set(str(i)); tv.see(str(i))
+            sel["i"] = i
+            fill_fields(); render_sheet(i)
+            if fn and fv.exists(fn):
+                fv.selection_set(fn); fv.focus(fn); fv.see(fn)
+            self.status.config(text=msg + " — Save… writes the file")
+
+        def put(fn, text):
+            i = sel["i"]
+            off, typ = ftyp[fn]
+            val = (_parse_item(text, items) if fn in drop_ids
+                   else nlcl.parse_value(text, typ, nlcl.fixed_bits(stem, fn)))
+            if fn in drop_ids and val > 0x7FF:
+                raise ValueError("a drop item id is 0..2047 (the game keeps 11 bits of it)")
+            before = t.build()
+            t.set(i, off, val, typ)
+            if t.build() != before:
+                history.append(before)
+            changed(i, f"#{i}: {fn} set", fn)
+
+        item_choices = lambda: [_item_text(i, items) for i in sorted(set(items) | {0}) if i <= 0x7FF]
+        # a drop's item id gets the item drop-down; every other field a plain edit box
+        cells = CellEdit(fv, {"value": {"get": lambda fn: val_text(sel["i"], fn),
+                                        "put": put,
+                                        "choices_for": lambda fn: item_choices if fn in drop_ids else None,
+                                        "can": lambda fn: sel["i"] is not None}})
+
+        def on_field(_e=None):
+            f = fv.focus()
+            if f and notes.get(f):
+                self.status.config(text=f"{f}: {notes[f]}")
+        fv.bind("<<TreeviewSelect>>", on_field, add="+")
+
+        def undo(*_):
+            if history:
+                t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
+                changed(sel["i"] if sel["i"] is not None else 0, "Undone")
+
+        def revert():
+            if t.build() != data:
+                history.append(t.build())
+                t.__dict__.update(nlcl.NlclTable(data).__dict__)
+                changed(sel["i"] if sel["i"] is not None else 0, "Back to the file as opened")
 
         def save_tbl():
             blob = t.build(); doc.cur_data = blob
@@ -6644,9 +6767,15 @@ class App:
                 pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
                 self.status.config(text=f"Saved rf3NpcParam → {f}")
 
-        btns = ttk.Frame(ed); btns.pack(fill="x", padx=4, pady=2)
+        btns = ttk.Frame(right); btns.pack(fill="x", padx=4, pady=2)
         ttk.Button(btns, text="Save…", command=save_tbl).pack(side="right", padx=3)
-        ttk.Button(btns, text="Apply", command=apply_edit).pack(side="right", padx=3)
+        ttk.Button(btns, text="Revert", command=revert).pack(side="right", padx=3)
+        undo_b = ttk.Button(btns, text="Undo", command=undo, state="disabled")
+        undo_b.pack(side="right", padx=3)
+        for w_ in (tv, fv):
+            w_.bind("<Control-z>", undo)
+        doc._monster = dict(tree=tv, fields=fv, cells=cells, undo=undo, revert=revert,
+                            select=lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel()))   # (selftest)
 
     def _view_hex(self, name, data, error: str | None = None):
         doc = self._doc

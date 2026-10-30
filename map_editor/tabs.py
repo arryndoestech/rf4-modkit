@@ -837,6 +837,12 @@ class EncountersTab(ui.ScrollFrame):
             self.gates.column(c, width=w, anchor="w" if c == "kind" else "e", stretch=(c == "kind"))
         self.gates.pack(fill="x")
         self.gates.bind("<<TreeviewSelect>>", self._gate_picked)
+        # click a gate's kind or weight and type (the form below holds its other settings)
+        self.gate_cells = ui.CellEdit(self.gates, {
+            "kind": {"get": lambda iid: data.gate_label(self._gate_at(iid).gate_kind),
+                     "put": self._put_gate_kind, "choices": data.gate_choices},
+            "w": {"get": lambda iid: str(self._gate_at(iid).weight), "put": self._put_gate_weight}},
+            title="Gates")
         f = ttk.Frame(g)
         f.pack(fill="x", pady=(4, 0))
         ttk.Label(f, text="kind").grid(row=0, column=0, sticky="w")
@@ -958,35 +964,31 @@ class EncountersTab(ui.ScrollFrame):
             self.mpts.column(c, width=w, anchor="w" if c != "r" else "e", stretch=(c == "tile"))
         self.mpts.pack(fill="x", pady=(4, 0))
         self.mpts.bind("<<TreeviewSelect>>", self._mpt_picked)
-        rf = ttk.Frame(g)
-        rf.pack(fill="x", pady=(2, 0))
-        ttk.Label(rf, text="radius").pack(side="left")
-        self.vrad = tk.StringVar()
-        ren = commit_entry(rf, self.vrad, self._commit_radius, width=7)
-        ren.pack(side="left", padx=(4, 0))
-        ui.Tip(ren, "Scatter radius of the selected spawn point, in sub-units (8 per tile): each "
-                    "monster appears at a random angle and distance below this from the point, "
-                    "on a walkable tile (up to 63 random samples, then on the point itself). 0 = "
-                    "always on the point.")
+        self.mpt_cells = ui.CellEdit(self.mpts, {"r": {"get": lambda iid: str(self.mpts.set(iid, "r")),
+                                                       "put": self._put_radius}}, title="Spawn points")
+        hint(g, "radius (click it and type): the scatter radius in sub-units (8 per tile): each "
+                "monster appears at a random angle and distance below this from the point, on a "
+                "walkable tile (up to 63 random samples, then on the point itself). 0 = always on "
+                "the point.").pack(anchor="w", pady=(2, 0))
         r = section(b, "Roster of the selected gate")
         self.roster = ttk.Treeview(r, columns=("mon", "lv", "w"), show="headings", height=6, selectmode="browse")
         for c, t, w in (("mon", "monster", 170), ("lv", "pick wt", 52), ("w", "weights", 80)):
             self.roster.heading(c, text=t)
             self.roster.column(c, width=w, anchor="w" if c != "lv" else "e", stretch=(c == "mon"))
         self.roster.pack(fill="x")
-        self.roster.bind("<<TreeviewSelect>>", self._mon_picked)
-        mf = ttk.Frame(r)
-        mf.pack(fill="x", pady=(4, 0))
-        self.mon = ui.FilterCombo(mf, data.monster_choices(), None, width=24)
-        self.mon.pack(side="left", fill="x", expand=True)
-        ttk.Label(mf, text=" weight").pack(side="left")
-        self.lv = tk.StringVar(value="10")
-        ttk.Entry(mf, textvariable=self.lv, width=4).pack(side="left")
+        self.roster_cells = ui.CellEdit(self.roster, {
+            "mon": {"get": lambda iid: self._mon_text(self._entry().spawns[int(iid)].monster_id),
+                    "put": self._put_mon, "choices": data.monster_choices},
+            "lv": {"get": lambda iid: str(self._entry().spawns[int(iid)].pick_weight), "put": self._put_pick},
+            "w": {"get": lambda iid: " ".join(map(str, self._entry().spawns[int(iid)].weights)),
+                  "put": self._put_weights}}, title="Roster")
         mb = ttk.Frame(r)
         mb.pack(fill="x", pady=(2, 0))
-        ttk.Button(mb, text="Add monster", command=self._add_mon).pack(side="left")
-        ttk.Button(mb, text="Replace", command=self._replace_mon).pack(side="left", padx=2)
-        ttk.Button(mb, text="Remove", command=self._remove_mon).pack(side="left")
+        ab = ttk.Button(mb, text="Add monster", command=self._add_mon)
+        ab.pack(side="left")
+        ui.Tip(ab, "Add a copy of the selected monster (an Orc when none is selected); then click "
+                   "its name, pick weight or weights and type to change them.")
+        ttk.Button(mb, text="Remove", command=self._remove_mon).pack(side="left", padx=2)
         hint(b, "Gates (kind 359-390) are picked by weight; the roster lists the monsters a gate "
                 "spawns (id 48-254), each with a pick weight (its relative chance; stock uses 5 or 10) and one "
                 "weight per monster spawn point. On the map: "
@@ -1111,7 +1113,6 @@ class EncountersTab(ui.ScrollFrame):
         keep = t.selection()
         t.delete(*t.get_children())
         if e is None or self.ed.doc is None or self.ed.doc.gen is None:
-            self.vrad.set("")
             return
         for i, (off, x, y) in enumerate(self.ed.doc.gen.monster_positions_off(e)):
             t.insert("", "end", iid=str(off), values=(f"#{i + 1}", f"({x >> 3}, {y >> 3})",
@@ -1123,9 +1124,7 @@ class EncountersTab(ui.ScrollFrame):
             pick = t.get_children()[0]
         if pick is not None:
             t.selection_set(pick)
-            self.vrad.set(str(t.set(pick, "r")))
-        else:
-            self.vrad.set("")
+            t.focus(pick)
 
     def _mpt_index(self):
         """(entry, index) of the spawn point selected in the list, or (None, None)."""
@@ -1139,15 +1138,17 @@ class EncountersTab(ui.ScrollFrame):
         s = self.mpts.selection()
         if not s:
             return
-        self.vrad.set(str(self.mpts.set(s[0], "r")))
         k = ("mpos", int(s[0]))
         if hasattr(self.ed, "select") and getattr(self.ed, "sel", None) != k:
             self.ed.select(k)
 
-    def _commit_radius(self):
+    def _put_radius(self, iid, text):
+        self.mpts.selection_set(iid)
         e, i = self._mpt_index()
-        r = ui.to_int(self.vrad.get())
-        if e is None or r is None or not 0 <= r <= 0xFFFF or (e.mon_pos.points[i][2] & 0xFFFF) == r:
+        r = ui.to_int(text)
+        if r is None or not 0 <= r <= 0xFFFF:
+            raise ValueError("the radius is 0..65535 sub-units (8 per tile)")
+        if e is None or (e.mon_pos.points[i][2] & 0xFFFF) == r:
             return
         pi, ei = self.ed.gate_index
         self.ed.apply(f"Set spawn point radius {r}", "gen",
@@ -1265,8 +1266,7 @@ class EncountersTab(ui.ScrollFrame):
             return
         grid = getattr(doc, "grid", None)
         x, y = ((grid[0] // 2) * 8 + 4, (grid[1] // 2) * 8 + 4) if grid else (64, 64)
-        mid = data.leading_int(self.mon.var.get())
-        mid = mid if mid is not None and gen.MONSTER_LO <= mid <= gen.MONSTER_HI else gen.MONSTER_LO
+        mid = self._picked_monster()
         if self.ed.apply("New gate", "gen", lambda: doc.gen.new_gate(x, y, mid)):
             self.ed.set_active_gate((0, len(self.ed.doc.gen.patterns[0]) - 1))
             self.ed.status(f"Added a gate at tile ({x >> 3}, {y >> 3}) with "
@@ -1305,46 +1305,85 @@ class EncountersTab(ui.ScrollFrame):
             self.ed.apply("Make gate private", "gen",
                           lambda: self.ed.doc.gen.unshare(self.ed.doc.gen.patterns[pi][ei]))
 
-    def _mon_picked(self, _e=None):
-        e = self._entry()
-        s = self.roster.selection()
-        if e is None or not s:
-            return
-        sp = e.spawns[int(s[0])]
-        self.mon.var.set(f"{sp.monster_id}  {data.actor_name(sp.monster_id)}".strip())
-        self.lv.set(str(sp.pick_weight))
+    # ---- cells typed in the lists ----------------------------------------------------------
+    def _gate_at(self, iid):
+        pi, ei = (int(x) for x in iid.split(":"))
+        return self.ed.doc.gen.patterns[pi][ei]
 
-    def _mon_values(self):
-        mid, lv = data.leading_int(self.mon.var.get()), ui.to_int(self.lv.get())
-        if mid is None or lv is None:
-            self.ed.status("Pick a monster and a pick weight first.")
-            return None
-        return mid & 0xFFFF, lv & 0xFFFF
-
-    def _add_mon(self):
-        v = self._mon_values()
-        gi = self.ed.gate_index
-        if v is None or gi is None:
+    def _put_gate_kind(self, iid, text):
+        kind = data.leading_int(text)
+        if kind is None or not 0 <= kind <= 0xFFFF:
+            raise ValueError("pick a gate from the list (or type its number)")
+        pi, ei = (int(x) for x in iid.split(":"))
+        e = self._gate_at(iid)
+        if kind == e.gate_kind:
             return
-        pi, ei = gi
-        self.ed.apply(f"Add monster {v[0]}", "gen",
-                      lambda: self.ed.doc.gen.add_spawn(self.ed.doc.gen.patterns[pi][ei], *v))
-
-    def _replace_mon(self):
-        v = self._mon_values()
-        gi = self.ed.gate_index
-        s = self.roster.selection()
-        if v is None or gi is None or not s:
-            return
-        pi, ei = gi
-        k = int(s[0])
 
         def do():
             g = self.ed.doc.gen
-            sp = g.patterns[pi][ei].spawns[k]
-            g.set_spawn_monster(sp, v[0])
-            g.set_spawn_pick_weight(sp, v[1])
-        self.ed.apply("Edit roster monster", "gen", do)
+            g.set_gate_kind(pi, ei, kind)
+            if gen.GLIDE_KIND_LO <= kind <= gen.GLIDE_KIND_HI and e.hdr.flag >> 8:
+                g.set_hdr(e, flag=e.hdr.flag & 0xFF)     # a gliding gate cannot also teleport
+        self.ed.apply(f"Gate {pi}:{ei} kind {kind}", "gen", do)
+
+    def _put_gate_weight(self, iid, text):
+        w = ui.to_int(text)
+        if w is None or not 0 <= w <= 0xFFFF:
+            raise ValueError("the weight is 0..65535")
+        pi, ei = (int(x) for x in iid.split(":"))
+        if w != self._gate_at(iid).weight:
+            self.ed.apply(f"Gate {pi}:{ei} weight {w}", "gen", lambda: self.ed.doc.gen.set_weight(pi, ei, w))
+
+    @staticmethod
+    def _mon_text(mid):
+        return f"{mid}  {data.actor_name(mid)}".strip()
+
+    def _picked_monster(self):
+        """The monster selected in the roster (else an Orc, the first monster id)."""
+        e, s = self._entry(), self.roster.selection()
+        if e is not None and s and int(s[0]) < len(e.spawns):
+            mid = e.spawns[int(s[0])].monster_id
+            if gen.MONSTER_LO <= mid <= gen.MONSTER_HI:
+                return mid
+        return gen.MONSTER_LO
+
+    def _spawn_edit(self, iid, msg, fn):
+        pi, ei = self.ed.gate_index
+        k = int(iid)
+        self.ed.apply(msg, "gen", lambda: fn(self.ed.doc.gen, self.ed.doc.gen.patterns[pi][ei].spawns[k]))
+
+    def _put_mon(self, iid, text):
+        mid = data.leading_int(text)
+        if mid is None or not 0 <= mid <= 0xFFFF:
+            raise ValueError("pick a monster from the list (or type its number)")
+        self._spawn_edit(iid, f"Roster monster {mid}", lambda g, sp: g.set_spawn_monster(sp, mid))
+
+    def _put_pick(self, iid, text):
+        v = ui.to_int(text)
+        if v is None or not 0 <= v <= 0xFFFF:
+            raise ValueError("the pick weight is 0..65535 (stock uses 5 or 10)")
+        self._spawn_edit(iid, f"Roster pick weight {v}", lambda g, sp: g.set_spawn_pick_weight(sp, v))
+
+    def _put_weights(self, iid, text):
+        try:
+            ws = [int(x, 0) for x in text.replace(",", " ").split()]
+        except ValueError:
+            raise ValueError("weights: one number per monster spawn point, separated by spaces") from None
+        if any(not 0 <= w <= 0xFFFF for w in ws):
+            raise ValueError("each weight is 0..65535")
+        self._spawn_edit(iid, "Roster weights", lambda g, sp: g.set_spawn_weights(sp, ws))
+
+    def _add_mon(self):
+        gi = self.ed.gate_index
+        if gi is None:
+            return
+        pi, ei = gi
+        e, s = self._entry(), self.roster.selection()
+        src = e.spawns[int(s[0])] if e is not None and s and int(s[0]) < len(e.spawns) else None
+        mid = self._picked_monster()
+        pick = src.pick_weight if src is not None else 10
+        self.ed.apply(f"Add monster {mid}", "gen",
+                      lambda: self.ed.doc.gen.add_spawn(self.ed.doc.gen.patterns[pi][ei], mid, pick))
 
     def _remove_mon(self):
         gi = self.ed.gate_index

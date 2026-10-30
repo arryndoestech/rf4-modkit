@@ -293,7 +293,7 @@ Selecting an asset shows a **type-aware viewer**:
 
 | Selected | Viewer |
 |---|---|
-| `.texture` | decoded image with ½×/1×/2×/4× zoom; **Export View → PNG**; **Replace from PNG…** (own format; a PNG of another size asks first, showing old → new and what it does in game) |
+| `.texture` | decoded image with ½×/1×/2×/4× zoom; **Export View → PNG**; **Replace…** (from a PNG; own format; a PNG of another size asks first, showing old → new and what it does in game) |
 | `.model` | **Textures** tab: every embedded BNTX card with preview / Export / Export all; **Replace texture…** swaps the selected card from a PNG (in place at the same size; another size asks first, then rebuilds the `.model`) · Structure tab |
 | `rf3mc.*` / TEXT | searchable string table; **Export → JSON** |
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON**. `Manifest.plist`: every bundle's files with their size and offset, a **Filter** on the file name, and **Copy** (selected rows, or all shown: bundle / file / size / offset, tab-separated) |

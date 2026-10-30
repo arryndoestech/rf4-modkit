@@ -529,6 +529,231 @@ class FilterCombo(ttk.Combobox):
         self._reset()
 
 
+class CellEdit:
+    """Spreadsheet-style editing of a ttk.Treeview's cells, instead of a form under the table.
+
+    Click a cell to put the cell cursor (an outline) on it, then type to replace its value, or
+    press F2 / Enter or double-click to edit what is there. In the edit box Enter keeps the
+    value, Tab keeps it and moves to the next cell, Esc throws it away. Left / Right move the
+    cursor between the editable columns, Up / Down between the rows. When the edited row is
+    one of several selected rows, the viewer's put() may apply the value to all of them
+    (`targets(iid)`).
+
+    `cols` maps a column id to a dict:
+      get(iid) -> str     the text the edit box starts with
+      put(iid, text)      store the typed text (raise an error with a message to refuse it);
+                          the viewer refills the tree itself
+      choices             optional: the entries of a filtering drop-down (a list of str, or a
+                          function returning one); typing narrows it, Down opens it
+      choices_for(iid)    optional, instead of choices: per row (None = a plain edit box)
+      action(iid)         optional: a dialog instead of an edit box (bit sets, seasons ...)
+      can(iid) -> bool    optional: whether this row's cell can be edited
+
+    Build it after the table's scroll bars, so the outline follows scrolling."""
+
+    COLOR = "#f08c00"                       # shows on a selected (blue) row and on a plain one
+
+    def __init__(self, tv, cols, title="Edit failed"):
+        self.tv, self.cols, self.title = tv, cols, title
+        self.cur = None                         # (iid, column) under the cell cursor
+        self.box = None                         # the open edit box
+        self._outline = [tk.Frame(tv, background=self.COLOR, width=2, height=2) for _ in range(4)]
+        for seq, fn in (("<ButtonRelease-1>", self._click), ("<Double-Button-1>", self._dbl),
+                        ("<<TreeviewSelect>>", self._selected), ("<Key>", self._key),
+                        ("<Configure>", lambda _e: self.redraw())):
+            tv.bind(seq, fn, add="+")
+        for seq, fn in (("<F2>", lambda _e: self._edit_key()), ("<Return>", lambda _e: self._edit_key()),
+                        ("<KP_Enter>", lambda _e: self._edit_key()),
+                        ("<BackSpace>", lambda _e: self._edit_key("")),
+                        ("<Left>", lambda _e: self.move(-1)), ("<Right>", lambda _e: self.move(1)),
+                        ("<Tab>", lambda _e: self.move(1)), ("<Shift-Tab>", lambda _e: self.move(-1))):
+            tv.bind(seq, fn)
+        for opt in ("yscrollcommand", "xscrollcommand"):
+            self._follow(opt)
+
+    # ---- the cell cursor ------------------------------------------------------------------
+    def _follow(self, opt):
+        orig = self.tv.tk.splitlist(str(self.tv.cget(opt)))
+
+        def cmd(*a):
+            if orig:
+                self.tv.tk.call(*orig, *a)
+            self.redraw()
+        self.tv.configure(**{opt: cmd})
+
+    def _shown(self):
+        dc = [str(c) for c in self.tv["displaycolumns"]]
+        return [str(c) for c in self.tv["columns"]] if dc in ([], ["#all"]) else dc
+
+    def editable(self):
+        """The editable columns in the order they are shown."""
+        return [c for c in self._shown() if c in self.cols]
+
+    def _col_at(self, x):
+        cid = self.tv.identify_column(x)
+        try:
+            return self._shown()[int(cid[1:]) - 1]
+        except (ValueError, IndexError):
+            return None
+
+    def redraw(self):
+        for f in self._outline:
+            f.place_forget()
+        if self.cur is None or self.box is not None:
+            return
+        iid, col = self.cur
+        try:
+            bb = self.tv.bbox(iid, col) if self.tv.exists(iid) else ""
+        except tk.TclError:
+            bb = ""
+        if not bb:
+            return
+        x, y, w, h = bb
+        for f, (fx, fy, fw, fh) in zip(self._outline, ((x, y, w, 2), (x, y + h - 2, w, 2),
+                                                       (x, y, 2, h), (x + w - 2, y, 2, h))):
+            f.place(x=fx, y=fy, width=fw, height=fh)
+
+    def _selected(self, _e=None):
+        f = self.tv.focus()
+        cols = self.editable()
+        if not f or not cols:
+            return
+        col = self.cur[1] if self.cur and self.cur[1] in cols else cols[0]
+        self.cur = (f, col)
+        self.tv.after_idle(self.redraw)
+
+    def _click(self, e):
+        if self.tv.identify_region(e.x, e.y) != "cell":
+            return
+        row, col = self.tv.identify_row(e.y), self._col_at(e.x)
+        if row and col in self.cols:
+            self.cur = (row, col)
+            self.redraw()
+
+    def move(self, d):
+        """Move the cell cursor d editable columns sideways (it stays inside the row)."""
+        cols = self.editable()
+        if self.cur is None or not cols:
+            return None
+        i = cols.index(self.cur[1]) if self.cur[1] in cols else 0
+        self.cur = (self.cur[0], cols[min(max(i + d, 0), len(cols) - 1)])
+        self.tv.see(self.cur[0])
+        self.redraw()
+        return "break"
+
+    def targets(self, iid):
+        """The rows an edit of `iid` applies to: the whole selection when iid is part of it."""
+        sel = list(self.tv.selection())
+        return sel if iid in sel and len(sel) > 1 else [iid]
+
+    # ---- the edit box ---------------------------------------------------------------------
+    def _dbl(self, e):
+        row, col = self.tv.identify_row(e.y), self._col_at(e.x)
+        if row and col in self.cols:
+            self.cur = (row, col)
+            self.edit(row, col)
+            return "break"
+        return None
+
+    def _key(self, e):
+        if self.box is not None or self.cur is None or e.state & 0x20004:     # Ctrl / Alt
+            return None
+        if len(e.char) == 1 and e.char.isprintable():
+            self.edit(initial=e.char)
+            return "break"
+        return None
+
+    def _edit_key(self, initial=None):
+        if self.cur is None:
+            return None
+        self.edit(initial=initial)
+        return "break"
+
+    def edit(self, iid=None, col=None, initial=None):
+        """Open the edit box on a cell (the cursor's by default); `initial` replaces its text."""
+        if self.box is not None:
+            self.finish(True)
+        if iid is None or col is None:
+            if self.cur is None:
+                return
+            iid, col = self.cur
+        spec = self.cols.get(col)
+        if spec is None or not self.tv.exists(iid) or (spec.get("can") and not spec["can"](iid)):
+            return
+        self.cur = (iid, col)
+        if spec.get("action"):
+            spec["action"](iid)
+            return
+        self.tv.see(iid)
+        self.tv.update_idletasks()
+        bb = self.tv.bbox(iid, col)
+        if not bb:
+            return
+        x, y, w, h = bb
+        start = spec["get"](iid)
+        var = tk.StringVar(value=start if initial is None else initial)
+        choices = spec["choices_for"](iid) if "choices_for" in spec else spec.get("choices")
+        if choices is not None:
+            box = FilterCombo(self.tv, choices, None, width=1, textvariable=var)
+            w = max(w, 240)
+            box.bind("<Down>", lambda _e: (box.load(), box.tk.call("ttk::combobox::Post", box), "break")[2])
+            box.bind("<<ComboboxSelected>>", lambda _e: self.finish(True), add="+")
+        else:
+            box = ttk.Entry(self.tv, textvariable=var)
+        x = min(x, max(0, self.tv.winfo_width() - w))
+        self.box, self._var, self._start, self._at = box, var, start, (iid, col)
+        self.redraw()
+        box.place(x=x, y=y, width=w, height=h)
+        box.focus_set()
+        if initial is None:
+            box.select_range(0, "end")
+        else:
+            box.icursor("end")
+            if isinstance(box, FilterCombo):
+                box._filter(type("E", (), {"keysym": "a"})())
+        for seq, keep, d in (("<Return>", True, 0), ("<KP_Enter>", True, 0), ("<Tab>", True, 1),
+                             ("<Shift-Tab>", True, -1), ("<Escape>", False, 0)):
+            box.bind(seq, lambda _e, k=keep, d=d: (self.finish(k, d), "break")[1], add="+")
+        box.bind("<FocusOut>", lambda _e: self.tv.after(30, self._focus_left), add="+")
+
+    def _focus_left(self):
+        if self.box is None:
+            return
+        try:
+            w = self.tv.focus_get()
+        except (KeyError, tk.TclError):         # the drop-down list (Tk-only widget) has it
+            return
+        if w is None or str(w).startswith(str(self.box)):
+            return                              # another program, or the drop-down list
+        self.finish(True)
+
+    def finish(self, keep, move=0):
+        """Close the edit box; keep = store what was typed (a refused value shows why)."""
+        box = self.box
+        if box is None:
+            return
+        self.box = None
+        text, (iid, col) = self._var.get(), self._at
+        box.destroy()
+        self.tv.focus_set()
+        if keep and text != self._start:
+            try:
+                self.cols[col]["put"](iid, text)
+            except Exception as e:  # noqa: BLE001 - the viewer's own message
+                from tkinter import messagebox
+                messagebox.showerror(self.title, err_text(e, f"{self.title}: {col}"))
+        if self.tv.exists(iid):
+            self.tv.focus(iid)
+        if move:
+            self.move(move)
+        self.tv.after_idle(self.redraw)
+
+    def set(self, iid, col, text):
+        """Store `text` in a cell as typed there (errors are raised, not shown) -- for scripts
+        and the selftest."""
+        self.cols[col]["put"](str(iid), str(text))
+
+
 def ask_yes_no_optout(parent, title, message, yes="Yes", no="Cancel",
                       optout="Don't ask again this session"):
     """A modal yes / no question with an opt-out checkbox (a messagebox has no room for

@@ -264,10 +264,19 @@ FIELD_SCHEMAS = {
             # with the target id hard-coded (Ambrosia's caterpillar calls action 11 at <= 65 %
             # HP, AI_mb40_1.bin). Informational: editing it changes nothing in game.
             ("transform_into", 276, "u16"),
+            # 2026-10-30, Actor_RecomputeAllStats (+0xAD440) / Actor_LoadBaseStatsFromTemplate
+            # (+0xAF940) copy these into the actor's stats (Q12): will resist (stats+48),
+            # knockback its hits deal (+56) and hit-stun they deal (+60), knockback resist (+64),
+            # how much hit-stun it takes (+68, Combat_ResolveHit), crit chance (+72) and crit
+            # resist (+76); +216 its hits' HP drain; +254 nonzero = rideable (status 0x8000, the
+            # mount gate)
+            ("will_res", 112, "s32"), ("knockback", 116, "s32"), ("stun", 120, "s32"),
+            ("knockback_res", 124, "s32"), ("stun_taken", 128, "s32"), ("crit", 132, "s32"),
+            ("crit_res", 136, "s32"), ("hp_drain", 216, "s16"), ("rideable", 254, "u8"),
             # +292: the monster's home map (Orc -> Yokmir Forest, Wooly -> Selphia Plain);
             # op 440 GetNpcMapID reads it for hunting requests ("Go to <map> and get
             # rid of N <monster>"). 0 for villagers.
-            ("home_map", 292, "u16"),
+            ("home_map", 292, "s16"),     # op 440 reads it as a signed 16-bit
         ],
     },
     "rf3CropParam": {
@@ -303,6 +312,11 @@ FIELD_SCHEMAS = {
         #                  an all-season crop sets none of 0x1000..0x80000. Low bits also
         #                  carry harvest-method (0x400=tool / 0x600=hand-pickup) + misc
         #                  crop-property flags -- edit season bits, keep the low bits.
+        #   +12 spawn_weight  CORRECTED 2026-10-30 (was "growth", a u32): a u16 weight that
+        #                  FarmFieldTask_Spawn (+0x1842B0) copies into the field's per-kind lists
+        #                  (rows 0..25 debris / grass, 26..37 rocks, and crop rows with +104 bit 0x80
+        #                  or 0x100) for Map_SpawnDailyRandomEntities' weighted picks (+0x186850):
+        #                  how often that thing appears on its own (Branch 300, grasses 55 / 2 / 1).
         # To reseason a crop: clear its old 0x1000..0x80000 bits, set the new boost bit
         # (+ the 3 off-season penalty bits if you want a single-season crop).
         # ADD ROW (2026-09-19): rows are addressed by the SEED ITEM's crop-link id -- the
@@ -312,12 +326,14 @@ FIELD_SCHEMAS = {
         # 94th crop is reachable once a seed item links to it (`param set rf3ItemList.bin
         # <seed> crop_link=93`). Caveat: FarmFieldTask_Spawn also copies FIXED row ranges
         # (0..25, 26..37, 38..87 by kind flag) into per-kind lists at spawn, so a new row is
-        # outside those lists.
-        "grow": "id-indexed:the seed item's crop_link (rf3ItemList +16)",
+        # outside those lists. AND (2026-10-30) Crop_TickGrowthForTile (+0x185240) only ticks tile
+        # kinds 38..87 (the tile kind = the crop row, 7 bits): a planted row outside 38..87 never
+        # grows, so a new crop has to reuse one of rows 38..87.
+        "grow": "fixed:88",
         "names": "item", "name_field": "harvest",
         "fields": [
             ("stage1", 0, "u8"), ("stage2", 1, "u8"), ("stage3", 2, "u8"),
-            ("regrow", 3, "u8"), ("growth", 12, "u32"), ("grow_cap", 16, "u32"),
+            ("regrow", 3, "u8"), ("spawn_weight", 12, "u16"), ("grow_cap", 16, "u32"),
             ("water", 40, "u16"),
             ("gmul_size", 64, "u32"), ("gmul_1", 68, "u32"),
             ("gmul_2", 72, "u32"), ("gmul_3", 76, "u32"),
@@ -356,7 +372,10 @@ FIELD_SCHEMAS = {
         #   +60 buff_vit_pct   the %-of-max/base scalers paired with +24..+40 (Q12)
         #   +160..+172 perm_hp / perm_str / perm_int / perm_vit  PERMANENT raises of the
         #                      base HP / STR / INT / VIT (stat-up seeds/dishes)
-        #   +176 level_scale   appraisal/cooking-level base multiplier, Q12 (~4096 = 1.0)
+        #   +176 level_scale   per-level bonus: Item_ComputeEffectiveStats (+0x422C0) scales the
+        #                      heal / buff fields by (item level * (level_scale >> 3) + 4096) / 4096,
+        #                      i.e. level_scale / 32768 per item level (4096 = +12.5% a level,
+        #                      0 = the level changes nothing); shown as that per-level percentage
         # ADD ROW (2026-09-19): ptr_68 = archive 14848 + 28 (ItemDatabase_AllocateAndInit
         # +0x3FBE0, count never read); Item_ComputeEffectiveStats (+0x422C0) reads
         # `ptr_68 + 180*item_id` only for items whose rf3ItemList category byte (+4) is
@@ -373,7 +392,9 @@ FIELD_SCHEMAS = {
             ("buff_hp_pct", 44, "s32"), ("buff_rp_pct", 48, "s32"),
             ("buff_str_pct", 52, "s32"), ("buff_int_pct", 56, "s32"),
             ("buff_vit_pct", 60, "s32"),
-            ("buff_x64", 64, "s32"), ("buff_x68", 68, "s32"), ("buff_x72", 72, "s32"),
+            # +64/+68/+72: Actor_RecomputeStats (+0xB0180) adds them to stats+72 crit chance,
+            # stats+64 knockback resist, stats+76 crit resist while fed (Q12)
+            ("fed_crit", 64, "s32"), ("fed_knockback_res", 68, "s32"), ("fed_crit_res", 72, "s32"),
         ] + [(f"fed_res_{s}", 76 + 4 * k, "s32") for k, s in enumerate(
             ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
         ] + [(f"fed_proc_{s}", 104 + 4 * k, "s32") for k, s in enumerate(
@@ -403,12 +424,32 @@ FIELD_SCHEMAS = {
         # 1106 rows already leave ids 1106/1107 reading past the table).
         "grow": "fixed:1108",
         "names": "item",
+        # FULL LAYOUT 2026-10-30 (Item_ComputeStats +0x43E60 loads every field below and adds the
+        # forged materials' rf3ItemStrengthening dwords; Equip_AccumulateItemStats +0xB11A0 merges
+        # them into the wearer's stats, with the clamps noted): +40 hunger inflicted on hit
+        # (stats+44 -> AttackInfo+334, 0..500), +44 crit chance (stats+72, 0..4096), +48 knockback
+        # dealt (stats+56: a weapon hit pushes 6x it), +52 hit-stun dealt (stats+60: +30x it frames),
+        # +56..+80 on-hit status chances poison..faint and +84 HP drain (Attack_PopulateAttackInfo
+        # FromWeaponAndStatus -> AttackInfo+340..+354), +88..+116 element affinities fire, water,
+        # earth, wind, light, dark, love, neutral (-16384..8192, +4096 = weak), +120 will resist,
+        # +124 crit resist (stats+76), +128 knockback resist (stats+64), +132..+156 status resists
+        # poison..faint, +160 HP-drain resist, +164 farm-tool charge scale, +168 hit reach scale,
+        # +172 hit arc scale, +176 the held model's archive offset. All Q12 except +40 and +176.
         "fields": [
+            ("boots_word", 4, "u32"), ("special_bit", 8, "u32"),
             ("atk", 12, "s32"), ("mat", 16, "s32"), ("def", 20, "s32"),
             ("mdf", 24, "s32"), ("str", 28, "s32"), ("int", 32, "s32"),
-            ("vit", 36, "s32"), ("knob40", 40, "s32"),
-            ("boots_word", 4, "u32"), ("special_bit", 8, "u32"),
-        ],
+            ("vit", 36, "s32"), ("hunger", 40, "s32"),
+            ("crit", 44, "s32"), ("knockback", 48, "s32"), ("stun", 52, "s32"),
+        ] + [(f"proc_{s}", 56 + 4 * k, "s32") for k, s in enumerate(
+            ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
+        ] + [("hp_drain", 84, "s32")] + [(f"el_{s}", 88 + 4 * k, "s32") for k, s in enumerate(
+            ("fire", "water", "earth", "wind", "light", "dark", "love", "neutral"))
+        ] + [("will_res", 120, "s32"), ("crit_res", 124, "s32"), ("knockback_res", 128, "s32")
+        ] + [(f"res_{s}", 132 + 4 * k, "s32") for k, s in enumerate(
+            ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint"))
+        ] + [("res_drain", 160, "s32"), ("tool_charge", 164, "s32"), ("reach", 168, "s32"),
+             ("arc", 172, "s32"), ("model", 176, "s32")],
     },
     "rf3Parameter": {
         # 200 x 24-byte CHARACTER-LEVEL curve = archive 14813 (row = character level 0..199).
@@ -485,21 +526,22 @@ FIELD_SCHEMAS = {
         #         dish and is skipped in the medicine level average (Crafting_CraftFromInputs
         #         +0x3DC86/+0x3DF1E). The low bits of S[38] are the dish effect word (cures 0x1..0x20,
         #         inflicts 0x40..0x1000, 0x2000 leveliser) ORed in by Item_ComputeEffectiveStats.
-        # S[1..8] core stats, S[10..12] knobs, S[14..21] on-hit procs + HP drain, S[22..33]
+        # S[1..8] core stats (S[8] = hunger inflicted on hit), S[10..12] crit / knockback / stun,
+        # S[23..24] crit / knockback resist (2026-10-30, see rf3ItemEquipmentParam), S[14..21] on-hit procs + HP drain, S[22..33]
         # resists + reach, S[34..37] heals, S[40..52] fed buff, S[53..66] fed resists/procs,
         # S[67..73] element affinities. S[9], S[13], S[39] are unread; S[61..66] are summed
         # into the dish record but zero in the shipped file.
         "names": "item",
         "fields": [(n, 4 * k, "s32") for k, n in enumerate([
-            "difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "hunger_knob",
-            "unused9", "x44_q12", "x48_q12", "knockback_scale_q12", "unused13",
+            "difficulty", "atk", "mat", "def", "mdf", "str", "int", "vit", "hunger",
+            "unused9", "crit", "knockback", "stun", "unused13",
             "proc_poison", "proc_seal", "proc_paralysis", "proc_sleep", "proc_fatigue",
-            "proc_cold", "proc_faint", "hp_drain_attack", "will_resist", "x124_q12", "x128_q12",
+            "proc_cold", "proc_faint", "hp_drain_attack", "will_resist", "crit_res", "knockback_res",
             "res_poison", "res_seal", "res_paralysis", "res_sleep", "res_fatigue", "res_cold",
             "res_faint", "res_drain", "reach_scale", "heal_hp", "heal_rp", "heal_hp_pct",
             "heal_rp_pct", "status_word", "unused39", "buff_hp", "buff_rp", "buff_str",
             "buff_int", "buff_vit", "buff_hp_pct", "buff_rp_pct", "buff_str_pct",
-            "buff_int_pct", "buff_vit_pct", "buff_x64", "buff_x68", "buff_x72",
+            "buff_int_pct", "buff_vit_pct", "fed_crit", "fed_knockback_res", "fed_crit_res",
             "fed_res_poison", "fed_res_seal", "fed_res_paralysis", "fed_res_sleep",
             "fed_res_fatigue", "fed_res_cold", "fed_res_faint", "fed_proc_poison",
             "fed_proc_seal", "fed_proc_paralysis", "fed_proc_sleep", "fed_proc_fatigue",
@@ -525,7 +567,10 @@ FIELD_SCHEMAS = {
             ("mat_scalar", 40, "s32"),   # Q12, x attacker MAT_total
             ("dmg_mult", 44, "s32"),     # Q12 overall damage multiplier (4096 = 1.0x)
             ("efflvl_mult", 48, "s32"),  # Q12 effect-level (charge/spell-tier) scaling
-            ("elem_resist", 52, "s32"),  # Q12 (-> AttackInfo+308 via *24576>>12)
+            ("knockback", 52, "s32"),    # Q12 horizontal knockback: AttackInfo+308 = this * 24576 >> 12
+                                         # (Combat_ApplyKnockbackDirectionalForce, Combat_ResolveHit
+                                         # scales it by the target's 4096 - knockback resist);
+                                         # 4096 = 100% = a plain weapon hit's 24576
             ("stagger", 56, "s32"),      # Q12 hit-stun multiplier: the attack's stun word =
                                          # stagger*30>>12 (+0x97250 -> AttackInfo+332);
                                          # Combat_ResolveHit (+0xA3D..) scales it by the
@@ -534,7 +579,9 @@ FIELD_SCHEMAS = {
                                          # frames, the same as a plain weapon hit
                                          # (Attack_PopulateAttackInfoFromWeaponAndStatus
                                          # writes 30); 0 = the target does not flinch
-            ("status_proc", 60, "s32"),  # status-infliction weight (-> *-10240>>12)
+            ("launch", 60, "s32"),       # upward launch: AttackInfo+312 = this * -10240 >> 12, the
+                                         # target's vertical velocity (Combat_ResolveHit, gravity
+                                         # +316 = -1536); 0 = stays on the ground
             # the STATUS block, copied as u16 (the low half of each dword) into the attack
             # (Combat_CopyAttackEntryAndScaleDamageToItemRecord +0x97250 and
             # Combat_FillAttackInfoFromEffectKind +0xED2D0 -> AttackInfo +334 / +340..+354)
@@ -810,7 +857,8 @@ PREFIX_SCHEMAS = {
             ("result", 0, "u16"),
             ("ing1", 2, "u16"), ("ing2", 4, "u16"), ("ing3", 6, "u16"),
             ("ing4", 8, "u16"), ("ing5", 10, "u16"), ("ing6", 12, "u16"),
-            ("level", 14, "u16"), ("recipe_id", 16, "u16"),
+            ("level", 14, "u16"),
+            ("recipe_id", 16, "u32"),   # read as a dword (CraftData_IsRecipeLearned +0x47BC0)
         ],
     },
 }
@@ -837,20 +885,30 @@ _CROP_SEASON_MASK = 0xFF000  # the 8 season bits (0x1000..0x80000)
 PERCENT = "pct"
 FIXED_FIELDS = {
     "rf3ParamMagic": {f: 12 for f in ("atk_scalar", "mat_scalar", "dmg_mult", "efflvl_mult",
-                                      "elem_resist", "stagger", "Psn Atk%", "Seal Atk%",
+                                      "knockback", "stagger", "Psn Atk%", "Seal Atk%",
                                       "Par Atk%", "Slp Atk%", "Ftg Atk%", "Sick Atk%",
                                       "Faint Atk%", "Drain Atk%", "RP% Cost")},
     "rf3NpcParam": {**{f"elem_{e}": 12 for e in ("fire", "water", "earth", "wind", "light",
                                                  "dark", "none", "love")},
                     **{f"res_{s}": 12 for s in ("poison", "seal", "paralysis", "sleep",
-                                                "fatigue", "cold", "faint", "drain")}},
-    "rf3UseItemParam": {f: 12 for f in ("hp_recover_pct", "rp_recover_pct", "buff_hp_pct",
-                                        "buff_rp_pct", "buff_str_pct", "buff_int_pct",
-                                        "buff_vit_pct", "level_scale")},
+                                                "fatigue", "cold", "faint", "drain")},
+                    **{f: 12 for f in ("will_res", "knockback", "stun", "knockback_res",
+                                       "stun_taken", "crit", "crit_res", "hp_drain")}},
+    "rf3UseItemParam": {**{f: 12 for f in ("hp_recover_pct", "rp_recover_pct", "buff_hp_pct",
+                                           "buff_rp_pct", "buff_str_pct", "buff_int_pct",
+                                           "buff_vit_pct", "fed_crit", "fed_knockback_res",
+                                           "fed_crit_res")},
+                        "level_scale": 15},                 # % per item level (4096 = 12.5%)
     "rf3ParamSkill": {f: 12 for f in ("hp_growth", "rp_growth", "str_growth", "int_growth",
                                       "vit_growth", "rp_discount")},
     "rf3MapMiniPos": {"scale_x": 12, "scale_y": 12},
-    "rf3ItemStrengthening": {"knockback_scale_q12": 12},
+    "rf3ItemStrengthening": {"stun": 12},
+    "rf3ItemEquipmentParam": {f: 12 for f in (
+        ["crit", "knockback", "stun", "hp_drain", "will_res", "crit_res", "knockback_res",
+         "res_drain", "tool_charge", "reach", "arc"]
+        + [f"proc_{s}" for s in ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint")]
+        + [f"res_{s}" for s in ("poison", "seal", "paralysis", "sleep", "fatigue", "cold", "faint")]
+        + [f"el_{s}" for s in ("fire", "water", "earth", "wind", "light", "dark", "love", "neutral")])},
     "rf3CropParam": {f: 7 for f in ("gmul_size", "gmul_1", "gmul_2", "gmul_3")},
     # Item_ComputeStackGoldValue (RF4S.exe+0x454A0): gold = price * value / 100
     "rf3PriceTable": {f"Lv {j}": PERCENT for j in range(1, 11)},

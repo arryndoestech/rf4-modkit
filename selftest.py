@@ -1170,18 +1170,22 @@ def test_bin_editors():
         txt.delete("1.0", "end"); txt.insert("1.0", body + "\nBogusOp(1)\n")
         bad = doc._aibn_assemble() is None
         res["ai"] = (same, bad)
-        # skill curve: select level 1, set it, scale it; the header names the skills; revert
+        # skill curve: type level 1's XP, set two selected levels at once, scale; the header
+        # names the skills; revert
         d = (B / "rf3ParamSkillExpFarm.bin").read_bytes()
         app._show("rf3ParamSkillExpFarm.bin", d); doc = app._doc
         sk = doc._skill
         sk["tree"].selection_set("1")
-        sk["set_var"].set("777"); sk["do_set"]()
+        sk["cells"].set("1", "xp", "777")
         one = skillcurve.parse(doc.cur_data)[1]
+        sk["tree"].selection_set("2", "3")
+        sk["cells"].set("2", "xp", "1,234")
+        both = skillcurve.parse(doc.cur_data)[2:4] == [1234, 1234]
         sk["tree"].selection_set("1"); sk["pct_var"].set("50"); sk["do_scale"]()
         half = skillcurve.parse(doc.cur_data)[1]
         size_ok = len(doc.cur_data) == len(d)
         sk["revert"]()
-        res["skill"] = (one, half, size_ok, doc.cur_data == d, "Farming" in sk["used"])
+        res["skill"] = (one, half, size_ok, doc.cur_data == d, "Farming" in sk["used"], both)
         # paint: one stroke from level 10 (high) to level 20 (low) fills every level in between,
         # leaves level 9 alone, is one Undo step
         import types
@@ -1203,14 +1207,17 @@ def test_bin_editors():
             sd = doc._sched
             first = (sd["npc"].get(), sd["day"].get(), len(sd["tree"].get_children()))
             n0 = len(sd["tree"].get_children())
-            sd["tree"].selection_remove(*sd["tree"].selection())
-            sd["time"].set("12:15"); sd["spot"].set("80: whatever"); sd["rand"].set(False)
-            sd["edit"]("add")
+            sd["tree"].selection_set("0")
+            sd["add"]()
+            k = sd["tree"].selection()[0]
+            sd["cells"].set(k, "time", "12:15")
+            k = sd["tree"].selection()[0]
+            sd["cells"].set(k, "kind", "80: whatever")
             lst = sd["st"]["sc"].get(1, 0)
             added = len(lst) == n0 + 1 and any(w.slot == 49 and w.spot == 80 for w in lst) \
                 and [w.slot for w in lst] == sorted(w.slot for w in lst)
             sd["tree"].selection_set(str(next(k for k, w in enumerate(lst) if w.slot == 49)))
-            sd["edit"]("remove")
+            sd["remove"]()
             removed = doc.cur_data == d
             sd["copy_var"].set(sd["state_label"](16)); sd["copy"]()
             copied = sd["st"]["sc"].get(1, 16) == sd["st"]["sc"].get(1, 0)
@@ -1265,13 +1272,13 @@ def test_bin_editors():
             tvc = doc._param_tree
             shown = (tvc.set("0", "char_id"), tvc.set("1", "char_id"), tvc.set("12", "season"))
             doc._param_select(1)
-            pv = doc._param_vars
-            form = (pv["char_id"].get(), pv["season"].get())
-            pv["season"].set("summer"); doc._param_apply()
+            pc = doc._param_cells
+            form = (pc.cols["char_id"]["get"]("1"), pc.cols["season"]["get"]("1"))
+            pc.set(1, "season", "summer")
             moved = nlcl.NlclTable(doc.cur_data).get(1, 1, "u8")
             doc._param_undo()
             undone = doc.cur_data == d
-            pv["day"].set("9"); doc._param_apply(); doc._param_revert()
+            pc.set(1, "day", "9"); doc._param_revert()
             reverted = doc.cur_data == d
             about = doc._param_about(); about_ok = "CALENDAR" in about.winfo_children()[0].get("1.0", "end")
             about.destroy()
@@ -1285,46 +1292,50 @@ def test_bin_editors():
             app._show("rf3RecipeAcce.bin", d); doc = app._doc
             row = doc._param_tree.set("1")
             doc._param_select(1)
-            pv = doc._param_vars
-            shown = (row["result"], row["ing1"], row["ing2"], pv["ing1"].get(), "name" in row)
-            pv["ing2"].set("minerals"); doc._param_apply()
+            pc = doc._param_cells
+            shown = (row["result"], row["ing1"], row["ing2"], pc.cols["ing1"]["get"]("1"), "name" in row)
+            pc.set(1, "ing2", "minerals")
             by_name = nlcl.NlclTable(doc.cur_data).get(1, 4, "u16")
-            pv["ing2"].set("(none) (0)"); doc._param_apply()
+            pc.set(1, "ing2", "(none) (0)")
             res["recipe"] = shown + (by_name, doc.cur_data == d)
         # strengthening: set a field of the selected row
         d = (B / "rf3ItemStrengthening.bin").read_bytes()
         app._show("rf3ItemStrengthening.bin", d); doc = app._doc
-        tv = doc._str_tree
+        tv = doc._str["tree"]
         first = tv.get_children()[0]
         tv.selection_set(first); root.update()
-        fieldv, valv = doc._str_vars
-        fieldv.set("atk"); valv.set("123"); doc._str_set()
-        res["str"] = strengthening.StrengtheningTable(doc.cur_data).row(int(first))["atk"]
+        doc._str["cells"].set(first, "atk", "123")
+        doc._str["fields"].set("heal_hp", "value", "45")
+        row = strengthening.StrengtheningTable(doc.cur_data).row(int(first))
+        res["str"] = (row["atk"], row["heal_hp"])
         # gift categories: add then remove an item
         d = (B / "rf3PresentCategory.bin").read_bytes()
         app._show("rf3PresentCategory.bin", d); doc = app._doc
-        catv, itemv = doc._gift_vars
-        catv.set("3"); itemv.set("1100"); doc._gift_add()
+        gf = doc._gift
+        gf["cats"].selection_set("3"); root.update()
+        gf["cells"].set("new", "item", "1100")
         added = 1100 in [e.value for e in gifts.GiftTable.parse(doc.cur_data).groups[3]["disliked"]]
-        doc._gift_remove()
+        gf["members"].selection_set(gf["members"].selection()[0])
+        gf["remove"]()
         res["gift"] = (added, doc.cur_data == d)
     finally:
         root.destroy()
     _check("AI script: the shown listing assembles back to the same file; a bad line is refused",
            res.get("ai") == (True, True), res.get("ai"))
-    _check("skill XP curve: the header names the skills (Farming...); Set changes the selected level, "
-           "Scale 50% halves it, the file keeps its size, Revert restores it",
-           res.get("skill") == (777, 389, True, True, True), res.get("skill"))
+    _check("skill XP curve: the header names the skills (Farming...); a typed XP cell changes that "
+           "level (every selected level when several are), Scale 50% halves it, the file keeps its "
+           "size, Revert restores it",
+           res.get("skill") == (777, 389, True, True, True, True), res.get("skill"))
     _check("skill XP curve: a paint stroke across the chart sets every level it crosses (a straight "
            "line between the drag points), is one history step, and Undo restores the file",
-           res.get("paint") == (True, 4, True), res.get("paint"))
+           res.get("paint") == (True, 5, True), res.get("paint"))
     if "psbview" in res:
         _check("E-mote viewer: 00_PLAYER_M lists 85 parts, a click on part 0000's rectangle selects it, "
                "the tree's 'source' node expands to 'tex'",
                res["psbview"] == (85, "0000", ["tex"]), res["psbview"])
     if "generic" in res:
         _check("table editor: ids and values show names (calendar char 30 = (festival), 21 = Ventuswill, "
-               "season 1 = Summer), the form picks 'Ventuswill (21)' / 'Spring (0)', a typed name sets the "
+               "season 1 = Summer), the cells edit as 'Ventuswill (21)' / 'Spring (0)', a typed name sets the "
                "number, Undo and Revert restore the file, About shows the notes, rf3ParamSkill rows are "
                "named by skill",
                res["generic"] == (("(festival)", "Ventuswill", "Summer"), ("Ventuswill (21)", "Spring (0)"),
@@ -1349,8 +1360,8 @@ def test_bin_editors():
         _check("rf3Recipe*: item fields show item names (Yarn <- Furs), the picker shows "
                "'Furs (1088)', a typed name sets the id, (none) clears it (file byte-exact after)",
                res["recipe"] == ("Yarn", "Furs", "", "Furs (1088)", False, 1083, True), res["recipe"])
-    _check("rf3ItemStrengthening: Set writes the chosen field of the selected item", res.get("str") == 123,
-           res.get("str"))
+    _check("rf3ItemStrengthening: a typed table cell and a typed value in the selected item's field "
+           "list write those fields", res.get("str") == (123, 45), res.get("str"))
     _check("rf3PresentCategory: Add puts an item in a category, Remove takes it out again (file "
            "byte-exact afterwards)", res.get("gift") == (True, True), res.get("gift"))
 
@@ -13570,8 +13581,8 @@ def test_map_editor_sidecar_files():
         pts = enc.mpts.get_children()
         if pts:
             enc.mpts.selection_set(pts[0])
-        enc.vrad.set("48")
-        enc._commit_radius()
+        if pts:
+            enc.mpt_cells.set(enc.mpts.selection()[0], "r", "48")
         ent = b2.active_gate
         _check("Gates tab on an empty table (MAP_DUNG_B02): New adds a first gate with a spawn "
                "point and a monster, valid; the level field sets param_a, the radius field the "
