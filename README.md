@@ -137,7 +137,8 @@ of these from the command line.
 files goes where the game loads it (over its loose copy, or into `Bundle\00_mods` when the game
 only has it packed; with backups on, the original is kept in `ModdingBackup`), a file opened
 from disk is saved over itself, and a map tab saves through its map editor. *Extract…* writes a
-copy anywhere else. To throw away a tab's changes, close it without saving.
+copy anywhere else. To throw away a tab's changes, close it without saving. **Undo** (next to
+*Save*, or Ctrl+Z) takes back the current tab's last change, one step at a time, in every editor.
 
 ### Verifying the install
 

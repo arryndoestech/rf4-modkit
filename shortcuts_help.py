@@ -13,6 +13,7 @@ SHORTCUTS = [
     ("Explorer", [
         ("Tabs", [
             ("Ctrl+S", "save the current tab's file (a game file where the game loads it)"),
+            ("Ctrl+Z", "undo the last change in the current tab (in a box being typed in: the typing)"),
             ("Ctrl+W", "close the current tab (asks if it has unsaved changes; closing without "
                        "saving throws the changes away)"),
             ("Ctrl+Tab / Ctrl+Shift+Tab", "next / previous tab"),

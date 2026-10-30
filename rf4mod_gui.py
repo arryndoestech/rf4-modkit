@@ -493,6 +493,7 @@ class _GenHost:
         self._pending = None             # 'gpos' / 'mpos' while waiting for a click on the map
         self._drag = None
         self._lbl = None
+        self.history = []                # [(label, Gen file before that edit)] for Undo
 
     # ---- what the Gates pane calls -------------------------------------------- #
     @property
@@ -516,13 +517,29 @@ class _GenHost:
         then). Here set_active_gate already redrew the picture with that gate's points bright."""
 
     def apply(self, label, _aspects, fn):
+        before = self.doc.gen.build()
         try:
             fn()
         except Exception as e:  # noqa: BLE001 - report the refusal, keep the view alive
+            self.doc.gen = gen.GenTable(before)
             messagebox.showerror("Not applied", f"{label}:\n{err_text(e)}")
             return False
+        if self.doc.gen.build() != before:
+            self.history.append((label, before))
         self._changed(label)
         return True
+
+    def undo(self):
+        """The toolbar Undo / Ctrl+Z: the Gen file as it was before the last edit."""
+        if not self.history:
+            return
+        label, blob = self.history.pop()
+        self.doc.gen = gen.GenTable(blob)
+        if self.gate_index is not None:
+            pi, ei = self.gate_index
+            if pi >= len(self.doc.gen.patterns) or ei >= len(self.doc.gen.patterns[pi]):
+                self.gate_index = None
+        self._changed(f"Undid: {label}")
 
     def status(self, msg):
         self.app.status.config(text=msg)
@@ -760,7 +777,9 @@ class _Doc:
             "_anim_after", "_tex_playing", "_tex_frames", "_tex_fi", "_model_playing", "_skel_after",
             "_map_panel", "_map_view", "_map_view_hide", "_rf4m", "_gen", "_gen_host", "_param",
             "_si", "_bplist_files", "_bntx_lbl", "_ev_textarc", "_ev_textarc_done",
-            "_events_new_scene", "_text_tab", "_manifest_after", "_manifest_filter")
+            "_events_new_scene", "_text_tab", "_manifest_after", "_manifest_filter",
+            "_before_save", "_undo", "_can_undo")
+    HISTORY = 30                        # working copies kept for Undo (views without their own)
 
     def __init__(self, frame, on_data=None):
         for name in self.VIEW:
@@ -774,11 +793,33 @@ class _Doc:
         self.header = "Select an asset"
         self.parked = []                # timers that came due while the tab was hidden
         self.on_data = on_data          # called after cur_data changes (the tab's • mark)
+        self.history = []               # earlier working copies of this file (Undo)
+        self.recording = True           # off while a new file loads or Undo puts one back
 
     def __setattr__(self, name, value):
+        if name == "cur_data":
+            prev = self.__dict__.get("cur_data")
+            # every change of the working copy is an Undo step -- except in a map tab (its
+            # editor keeps its own undo) and while a file loads or Undo restores one
+            if (self.__dict__.get("recording", False) and prev is not None and value is not None
+                    and value is not prev and self.__dict__.get("_map_panel") is None and value != prev):
+                self.history.append(prev)
+                del self.history[:-self.HISTORY]
         object.__setattr__(self, name, value)
         if name == "cur_data" and self.on_data is not None:
             self.on_data()
+
+    def load(self, name, data):
+        """A file (re)loads into this tab: a different file starts a fresh Undo history."""
+        if name != self.cur_name:
+            self.history = []
+            self.recording = False
+            try:
+                self.cur_name, self.cur_data = name, data
+            finally:
+                self.recording = True
+        else:
+            self.cur_name, self.cur_data = name, data
 
     def map_panel(self):
         """This tab's map editor (built the first time it shows a map), or None."""
@@ -880,6 +921,8 @@ class App:
         self._open_btn.pack(side="left", padx=2, pady=3)
         self._save_btn = ttk.Button(bar, text="Save", command=self.cmd_save)
         self._save_btn.pack(side="left", padx=2, pady=3)
+        self._undo_btn = ttk.Button(bar, text="Undo", command=self.cmd_undo, state="disabled")
+        self._undo_btn.pack(side="left", padx=2, pady=3)
         ttk.Button(bar, text="Options…", command=self.cmd_options).pack(side="left", padx=2)
         # shown only while something other than the game is listed (see load_source)
         self._back_btn = ttk.Button(bar, text="Back to the game", command=self.cmd_back_to_game)
@@ -892,6 +935,8 @@ class App:
                             "(over its loose copy, or into Bundle\\00_mods when the game only has it "
                             "packed); a file opened from disk is saved over itself. Extract… saves a "
                             "copy anywhere else. To throw your changes away, close the tab.")
+        Tip(self._undo_btn, "Undo the last change in the file shown (Ctrl+Z), one step at a time. "
+                            "(In a box you are typing in, Ctrl+Z undoes the typing.)")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         self.extract_btn = ttk.Button(bar, text="Extract…", command=self.cmd_extract, state="disabled")
         self.extract_btn.pack(side="left", padx=2)
@@ -981,6 +1026,8 @@ class App:
         self.root.bind("<Control-W>", lambda _e: self.cmd_close_tab())      # (Caps Lock on)
         self.root.bind("<Control-s>", lambda _e: self.cmd_save())
         self.root.bind("<Control-S>", lambda _e: self.cmd_save())
+        self.root.bind("<Control-z>", self._undo_key)
+        self.root.bind("<Control-Z>", self._undo_key)
         self.root.bind("<Control-Tab>", lambda _e: self._cycle_tab(1) or "break")
         self.root.bind("<Control-Shift-Tab>", lambda _e: self._cycle_tab(-1) or "break")
         try:
@@ -1803,6 +1850,7 @@ class App:
                 doc.frame.pack(fill="both", expand=True)
             self.tabbar.select(doc)
         self._activate(doc)
+        self._update_undo_btn()
 
     def _cycle_tab(self, step):
         """Ctrl+Tab / Ctrl+Shift+Tab: the next / previous tab (wraps around)."""
@@ -1880,6 +1928,57 @@ class App:
         self._mark_saved(doc)
         self.status.config(text=f"Saved {doc.cur_name} → {path}")
         return True
+
+    # ---- Undo (the toolbar button, Ctrl+Z): the shown tab's last change ---------------------
+    def can_undo(self, doc):
+        """Something to undo in `doc`: its map editor's history, its view's own (doc._can_undo),
+        else the tab's earlier working copies."""
+        if doc is self._blank:
+            return False
+        panel = doc._map_panel
+        if panel is not None:
+            return bool(getattr(panel.doc, "undo_stack", None)) if panel.doc is not None else False
+        if doc._can_undo is not None:
+            return bool(doc._can_undo())
+        return bool(doc.history)
+
+    def undo_doc(self, doc):
+        """Undo the last change in `doc`: a map tab through its editor, a view with its own
+        history (keeps the selection) through doc._undo, any other view by putting the previous
+        working copy back and showing it again."""
+        panel = doc._map_panel
+        if panel is not None:
+            panel.undo()
+        elif doc._undo is not None:
+            doc._undo()
+        elif doc.history:
+            prev = doc.history.pop()
+            doc.recording = False
+            try:
+                self._show(doc.cur_name, prev, doc)
+            finally:
+                doc.recording = True
+            self.status.config(text="Undone")
+        else:
+            self.status.config(text="Nothing to undo")
+        self._update_undo_btn()
+
+    def cmd_undo(self):
+        if self._doc is not self._blank:
+            self.undo_doc(self._doc)
+        return "break"
+
+    def _undo_key(self, e):
+        """Ctrl+Z: a text box being typed in undoes its own typing; anywhere else the tab's."""
+        if e.widget.winfo_class() in ("Entry", "TEntry", "Text", "TCombobox", "Spinbox", "TSpinbox"):
+            return None
+        return self.cmd_undo()
+
+    def _update_undo_btn(self):
+        try:
+            self._undo_btn.state(["!disabled"] if self.can_undo(self._doc) else ["disabled"])
+        except (tk.TclError, AttributeError):
+            pass
 
     def cmd_save(self):
         """Save (the toolbar button, Ctrl+S): the shown tab (save_doc)."""
@@ -1997,6 +2096,7 @@ class App:
         self._mark_pending = False
         for d in self._docs:
             self._retitle(d)
+        self._update_undo_btn()
 
     def _poll_marks(self):
         # saves that don't change the working copy (the map editor's Save) clear the mark here
@@ -2047,6 +2147,7 @@ class App:
         doc._tex_playing = False
         doc._model_playing = False
         doc._tex_frames = None
+        doc._before_save = doc._undo = doc._can_undo = None     # the new view sets its own
         mv = getattr(doc, "_map_view", None)
         for w in doc.content.winfo_children():
             if mv is not None and w is mv["nb"]:
@@ -2074,7 +2175,7 @@ class App:
         # The shown bytes ARE the working copy: every editing panel reads/writes
         # doc.cur_data, so keep it in sync whatever path called us (file browser,
         # a panel re-rendering after an edit, or a programmatic open).
-        doc.cur_name, doc.cur_data = name, data
+        doc.load(name, data)
         self.extract_btn.config(state="normal")
         ft = ident.identify(data[:0x4000], filename=name)
         self.header.config(text=f"{name}    —    {ft.fmt}: {ft.desc}    ({human(len(data))})")
@@ -2663,7 +2764,7 @@ class App:
                 if doc.is_dirty():                 # never replace unsaved edits: a new tab
                     self._open_in_tab(key, name, data, "new")
                     return
-                doc.cur_name, doc.cur_data = name, data
+                doc.load(name, data)
                 doc.key, doc.saved = key, data
                 self._show(name, data, doc)
                 self._retitle(doc)
@@ -4221,6 +4322,7 @@ class App:
         host = _GenHost(self, name, g, doc)
         doc._gen_host = host
         doc._before_save = host.before_save
+        doc._undo, doc._can_undo = host.undo, lambda: bool(host.history)
         nmfn = _load_actor_names()
         rtxt = ", ".join(f"{nmfn(i) or i}×{c}" for i, c in g.roster().most_common()) or "(none)"
         ttk.Label(doc.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
@@ -4415,7 +4517,6 @@ class App:
         paintv = tk.BooleanVar(value=False)
         pcb = ttk.Checkbutton(cbar, text="Paint the curve with the mouse", variable=paintv)
         pcb.pack(side="left")
-        undob = ttk.Button(cbar, text="Undo", state="disabled"); undob.pack(side="right")
         chart = tk.Canvas(right, height=300, highlightthickness=0,
                           background=ttk.Style(body).lookup("Treeview", "fieldbackground") or "#ffffff")
         chart.pack(fill="both", expand=True)
@@ -4434,7 +4535,6 @@ class App:
         Tip(pcb, "On: drag across the chart to draw the bars (each level gets the height under the "
                  "mouse). The scale leaves 25% headroom so you can paint above the current top; paint "
                  "again to go higher. Off: clicking a bar selects that level.")
-        Tip(undob, "Undo the last change (Ctrl+Z). Every paint stroke is one step.")
         info = ttk.Label(foot, foreground="#666"); info.pack(fill="x", pady=(4, 0))
 
         def label(lvl):
@@ -4553,7 +4653,6 @@ class App:
 
         def changed(msg):
             doc.cur_data = bytes(buf)
-            undob.config(state="normal" if history else "disabled")
             refresh()
             self.status.config(text=msg + " — Save (Ctrl+S) to write the file")
 
@@ -4598,12 +4697,10 @@ class App:
             if history:
                 buf[:] = history.pop()
                 changed("Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         scb.config(command=do_scale)
         allb.config(command=lambda: do_scale(list(range(skillcurve.REAL_LEVELS))))
-        undob.config(command=undo)
-        for w_ in (tv, chart):
-            w_.bind("<Control-z>", undo)
         chart.bind("<Enter>", lambda _e: chart.focus_set() if paintv.get() else None)
         pe.bind("<Return>", lambda _e: do_scale())
 
@@ -4735,8 +4832,7 @@ class App:
                 doc.cur_data = t.build()
                 fill(); on_select()
                 self.status.config(text="Undone")
-        for w_ in (tv, fv):
-            w_.bind("<Control-z>", undo)
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         cells = CellEdit(tv, {fn: {"get": lambda row, fn=fn: shown(int(row), fn),
                                    "put": lambda row, text, fn=fn: put(row, fn, text)} for fn in show})
@@ -4835,7 +4931,6 @@ class App:
 
         def changed(msg, select=None):
             doc.cur_data = table.build()
-            undo_b.config(state="normal" if history else "disabled")
             fill(select)
             self.status.config(text=msg + " — Save (Ctrl+S) to write")
 
@@ -4935,6 +5030,7 @@ class App:
             if history:
                 restore(history.pop())
                 changed("Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if table.build() != data:
@@ -4957,7 +5053,6 @@ class App:
                    "can": lambda iid: iid != "new" and entry_of(iid)[1] in gifts.DEFAULT_FP
                    and entry_of(iid)[3].kind != "xref"}})
         tv.bind("<Delete>", remove)
-        tv.bind("<Control-z>", undo)
 
         hint = ttk.Label(foot, foreground="#555", text="Click a cell and type to change it; the item cell also "
                                                        "takes a gift category or an item range (FP: loved / liked "
@@ -4965,8 +5060,6 @@ class App:
                                                        "signature one −10); "
                                                        "Delete removes the selected rows.")
         _hint_line(hint)
-        undo_b = ttk.Button(foot, text="Undo", command=undo, state="disabled")
-        undo_b.pack(side="right", padx=2)
         ttk.Button(foot, text="Remove selected", command=remove).pack(side="right", padx=(2, 12))
         fill()
         doc._gifts = dict(tree=tv, cells=cells, remove=remove, undo=undo, revert=revert,
@@ -5324,10 +5417,8 @@ class App:
         _hint_line(ttk.Label(row2, foreground="#555", text="Click an item or friendship cell and type to change "
                   "it (with several items selected, a friendship value goes to all of them); the last "
                   "row adds an item; Remove selected (or Delete) takes items out."))
-        undo_b = ttk.Button(row2, text="Undo", state="disabled"); undo_b.pack(side="right")
         rm_b = ttk.Button(row2, text="Remove selected"); rm_b.pack(side="right", padx=(4, 12))
         Tip(rm_b, "Take the selected items out of the category (Delete key).")
-        Tip(undo_b, "Undo the last change (Ctrl+Z).")
 
         # ---- fill -------------------------------------------------------------------------
         def used_text(g, short=False):
@@ -5377,7 +5468,6 @@ class App:
 
         def changed(msg, select=()):
             doc.cur_data = table.build()
-            undo_b.config(state="normal" if history else "disabled")
             fill_cats(); fill_members(select)
             self.status.config(text=msg + " — Save (Ctrl+S) to write the file")
 
@@ -5451,6 +5541,7 @@ class App:
             if history:
                 restore(history.pop())
                 changed("Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if table.build() != data:
@@ -5466,10 +5557,7 @@ class App:
                    "choices": ["15", "9", "6"], "can": is_item}},
             title="Gift categories")
         mt.bind("<Delete>", remove)
-        for w in (ct, mt):
-            w.bind("<Control-z>", undo)
         rm_b.config(command=remove)
-        undo_b.config(command=undo)
         fill_cats(); fill_members()
         # the category list gets half the width once the window is laid out (room for "Used by")
         sash_done = {"d": False}
@@ -5531,7 +5619,6 @@ class App:
 
         def changed(msg):
             doc.cur_data = bytes(buf)
-            undo_b.config(state="normal" if history else "disabled")
             fill()
             self.status.config(text=msg + " — Save (Ctrl+S) to write")
 
@@ -5567,6 +5654,7 @@ class App:
             if history:
                 buf[:] = history.pop()
                 changed("Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if bytes(buf) != data:
@@ -5582,13 +5670,10 @@ class App:
                                       "put": lambda row, text, k=k: put_bonus(row, k, text),
                                       "can": lambda row, k=k: bool(montame.slots(bytes(buf), int(row))[k][0])}
         cells = CellEdit(tv, specs, title="Taming foods")
-        tv.bind("<Control-z>", undo)
 
         _hint_line(ttk.Label(foot, foreground="#555", text="Click an item or bonus cell and type to change it; clear "
                   "an item cell (BackSpace, Enter) to empty the slot. The game uses the first slot that "
                   "lists the fed item."))
-        undo_b = ttk.Button(foot, text="Undo", command=undo, state="disabled")
-        undo_b.pack(side="right", padx=2)
         fill()
         doc._montame = dict(tree=tv, cells=cells, undo=undo, revert=revert)    # (selftest)
 
@@ -6075,7 +6160,6 @@ class App:
 
         def changed(i, msg):
             doc.cur_data = t.build()
-            undo_b.config(state="normal" if history else "disabled")
             fill()
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
@@ -6108,6 +6192,7 @@ class App:
                 t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
                 keep = tv.focus()
                 changed(int(keep) if keep else 0, "Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if t.build() != data:
@@ -6119,9 +6204,6 @@ class App:
         row = ttk.Frame(doc.content); row.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
         _hint_line(ttk.Label(row, foreground="#555", text="Click the client or the type and type to change it "
                   "(a name, part of one, or the number)."))
-        undo_b = ttk.Button(row, text="Undo", command=undo, state="disabled")
-        undo_b.pack(side="right", padx=4)
-        tv.bind("<Control-z>", undo)
         doc._quest = dict(tree=tv, cells=cells, undo=undo, revert=revert)      # (selftest)
 
     def _view_param(self, name, data):
@@ -6353,7 +6435,6 @@ class App:
 
         def snapshot():
             history.append(t.build())
-            undo_b.config(state="normal")
 
         def restore(blob):
             t.__dict__.update(nlcl.NlclTable(blob).__dict__)
@@ -6366,8 +6447,8 @@ class App:
         def undo(*_):
             if history:
                 restore(history.pop())
-                undo_b.config(state="normal" if history else "disabled")
                 self.status.config(text="Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if t.build() != data:
@@ -6386,7 +6467,7 @@ class App:
                 before = t.build()
                 t.set(i, off, new, typ)
                 if t.build() != before:
-                    history.append(before); undo_b.config(state="normal")
+                    history.append(before)
                 changed(i, f"Record {i}: {fn} set")
             return _flag_dialog(doc.content, f"{stem} #{i} — {fn}", typ, t.get(i, off, typ),
                                 nlcl.flag_bits(stem, fn), done)
@@ -6403,7 +6484,7 @@ class App:
                 t.__dict__.update(nlcl.NlclTable(before).__dict__)
                 raise
             if t.build() != before:
-                history.append(before); undo_b.config(state="normal")
+                history.append(before)
             changed(i, f"Record {i}: {n} set")
 
         def cell_spec(n, typ):
@@ -6474,7 +6555,7 @@ class App:
                     t.__dict__.update(nlcl.NlclTable(before).__dict__)
                     messagebox.showerror("Edit failed", err_text(e), parent=win); return
                 if t.build() != before:
-                    history.append(before); undo_b.config(state="normal")
+                    history.append(before)
                 win.destroy()
                 changed(i, f"Record {i}: +{off_v.get()} set")
             bb = ttk.Frame(f); bb.grid(row=3, column=0, columnspan=2, sticky="e", pady=(8, 0))
@@ -6504,7 +6585,7 @@ class App:
                 idx = t.append_record(t.record(src) if src is not None else None)
             except nlcl.NlclError as e:
                 messagebox.showerror("Add row failed", err_text(e)); return
-            history.append(before); undo_b.config(state="normal")
+            history.append(before)
             changed(idx, f"Added record {idx} ({'copy of ' + str(src) if src is not None else 'zero row'}); "
                          f"{t.entry_count} records")
 
@@ -6520,7 +6601,7 @@ class App:
                 t.delete_record(i)
             except nlcl.NlclError as e:
                 messagebox.showerror("Delete row failed", err_text(e)); return
-            history.append(before); undo_b.config(state="normal")
+            history.append(before)
             sel["i"] = None
             changed(min(i, t.entry_count - 1), f"Deleted record {i}; {t.entry_count} records")
 
@@ -6529,16 +6610,12 @@ class App:
         btn_row = ttk.Frame(ed); btn_row.pack(fill="x", pady=(2, 2))
         for text_, cmd in (("Add row (copy of selected)", add_row), ("Delete row", del_row)):
             ttk.Button(btn_row, text=text_, command=cmd).pack(side="left", padx=(0, 4))
-        undo_b = ttk.Button(btn_row, text="Undo", command=undo, state="disabled")
-        undo_b.pack(side="left", padx=(12, 4))
-        Tip(undo_b, "Undo the last change (Ctrl+Z).")
         rb = ttk.Button(btn_row, text="Raw edit…", command=raw_edit)
         rb.pack(side="left", padx=(12, 4))
         Tip(rb, "Change the value at any byte offset of the selected record (for bytes no column "
                 "shows).")
         for text_, cmd in (("Export CSV…", export_csv),):
             ttk.Button(btn_row, text=text_, command=cmd).pack(side="right", padx=4)
-        tv.bind("<Control-z>", undo)
         doc._param_undo, doc._param_revert = undo, revert                       # (selftest)
         grow_text = t.grow_info(stem)[1]
         grow_lbl = ttk.Label(ed, text=grow_text, foreground="#555", justify="left")
@@ -6606,7 +6683,6 @@ class App:
 
         def changed(i, msg):
             doc.cur_data = t.build()
-            undo_b.config(state="normal" if history else "disabled")
             fill()
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
@@ -6677,6 +6753,7 @@ class App:
                 t.__dict__.update(nlcl.NlclTable(blob).__dict__)
                 keep = tv.focus()
                 changed(int(keep) if keep else 0, "Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if t.build() != data:
@@ -6689,9 +6766,6 @@ class App:
         hint = ttk.Label(btns, foreground="#555", text="Click a cell and type to change it; the "
                          "'grows' cell opens the season tick boxes (double-click or F2).")
         _hint_line(hint)
-        undo_b = ttk.Button(btns, text="Undo", command=undo, state="disabled")
-        undo_b.pack(side="right", padx=4)
-        tv.bind("<Control-z>", undo)
         doc._crop = dict(cells=cells, seasons=seasons, undo=undo, revert=revert, tree=tv)   # (selftest)
 
     def _view_monster(self, name, data):
@@ -6790,7 +6864,6 @@ class App:
 
         def changed(i, msg, fn=None):
             doc.cur_data = t.build()
-            undo_b.config(state="normal" if history else "disabled")
             fill()
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.see(str(i))
@@ -6830,6 +6903,7 @@ class App:
             if history:
                 t.__dict__.update(nlcl.NlclTable(history.pop()).__dict__)
                 changed(sel["i"] if sel["i"] is not None else 0, "Undone")
+        doc._undo, doc._can_undo = undo, lambda: bool(history)   # the toolbar Undo / Ctrl+Z
 
         def revert():
             if t.build() != data:
@@ -6838,10 +6912,6 @@ class App:
                 changed(sel["i"] if sel["i"] is not None else 0, "Back to the file as opened")
 
         btns = ttk.Frame(right); btns.pack(fill="x", padx=4, pady=2)
-        undo_b = ttk.Button(btns, text="Undo", command=undo, state="disabled")
-        undo_b.pack(side="right", padx=3)
-        for w_ in (tv, fv):
-            w_.bind("<Control-z>", undo)
         doc._monster = dict(tree=tv, fields=fv, cells=cells, undo=undo, revert=revert,
                             select=lambda i: (tv.selection_set(str(i)), tv.see(str(i)), on_sel()))   # (selftest)
 
