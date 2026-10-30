@@ -116,11 +116,21 @@ def map_id_for_file(name):
     base = str(name).replace("\\", "/").rsplit("/", 1)[-1]
     if base.lower().endswith(".rf4m"):
         base = base[:-5]
-    base = base.upper()
-    for i, f in enumerate(_files()):
-        if f.upper() == base:
-            return i
-    return None
+    return _ids_by_file().get(base.upper())
+
+
+_IDS = {"files": None, "ids": {}}
+
+
+def _ids_by_file() -> dict:
+    """{upper-case MAP_* base name: its first map id}, built once per _files() list."""
+    files = _files()
+    if _IDS["files"] is not files:
+        ids = {}
+        for i, f in enumerate(files):
+            ids.setdefault(f.upper(), i)
+        _IDS["files"], _IDS["ids"] = files, ids
+    return _IDS["ids"]
 
 
 # --------------------------------------------------------------------------- #

@@ -43,6 +43,12 @@ __all__ = ["ATTR_BIT_HELP", "KNOWN_ATTR_VALUES", "PAINT_FLAGS", "STAIR_CHOICES",
 def warm_caches():
     """Build the lookups the first map open would otherwise pay for (safe on a thread)."""
     from . import data
+    from rf4s_modkit import gamenames, map_names, soundtable
     data.extracted_index()
     data.load_rooms()
     data.item_names()
+    map_names._ids_by_file()
+    data.map_summaries()            # the MGRP / gate / chest checks of every map
+    data.rf3mc_path()               # walks the whole Bundle folder for the game's rf3.mc
+    len(soundtable.SOUND_LABELS)    # the MGRP panel's area music
+    gamenames.table("characters")   # gate monsters, script NPCs

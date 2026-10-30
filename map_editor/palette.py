@@ -39,11 +39,14 @@ class PaletteTab(ttk.Frame):
     NAME_LINES = 4                         # the name wraps onto up to this many lines
     UNUSED, USED = "#d8d8e0", "#9fe39f"    # name colour; green = already on this map
     BATCH = 6                              # pictures made per idle step
+    _FITTED = {}                           # (font metrics, text) -> _fit result, every palette
+
 
     def __init__(self, parent, ed):
         super().__init__(parent)
         self.ed = ed
         self.font = tkfont.Font(family="Segoe UI", size=self.FONT_SIZE)
+        self._metrics = self.font.measure("0123456789 abcdefghijklmnopqrstuvwxyz_-")
         top = ttk.Frame(self)
         top.pack(fill="x", padx=4, pady=(4, 2))
         ttk.Label(top, text="Find").pack(side="left")
@@ -232,6 +235,13 @@ class PaletteTab(ttk.Frame):
     def _fit(self, text):
         """`text` word-wrapped onto at most NAME_LINES lines of the cell's width; only what
         still does not fit is cut (with an ellipsis). Hover shows the full name."""
+        key = (self._metrics, self.CELL_W, text)
+        hit = self._FITTED.get(key)
+        if hit is None:
+            hit = self._FITTED[key] = self._fit_uncached(text)
+        return hit
+
+    def _fit_uncached(self, text):
         room = self.CELL_W - 8
         lines, cur = [], ""
         for word in re.sub(r"([-_])(?=\w)", r"\1 ", text).split(" "):

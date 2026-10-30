@@ -399,10 +399,10 @@ def _save_summary_cache():
     try:
         _SUMMARY_CACHE.parent.mkdir(parents=True, exist_ok=True)
         tmp = _SUMMARY_CACHE.with_suffix(".tmp")
-        with open(tmp, "wb") as f:
-            pickle.dump((_SUMMARY_CACHE_VERSION, _MAP_SUMMARY), f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(tmp, "wb") as f:       # a copy: the warm-up thread may be adding to it
+            pickle.dump((_SUMMARY_CACHE_VERSION, dict(_MAP_SUMMARY)), f, protocol=pickle.HIGHEST_PROTOCOL)
         os.replace(tmp, _SUMMARY_CACHE)
-    except OSError:
+    except (OSError, RuntimeError, pickle.PicklingError):
         pass
 
 
