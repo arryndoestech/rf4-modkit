@@ -8,7 +8,8 @@ double click opens it in the Script tab. Green arrows = the branch taken when it
 true, red = when it is false, orange = switch / choice / random slots; back edges (loops) run
 up the right-hand side of their group. The scene body is drawn on top and every CALLed
 subroutine as its own titled group below it; a CALL block carries a "-> sub @xxxx" link that
-scrolls to that group (the thin "return" arrow continues after the call).
+scrolls to that group (the thin "return" arrow continues after the call). Back (Alt+Left, the
+mouse's back button) returns to where each followed link was clicked, newest first.
 """
 from __future__ import annotations
 
@@ -45,6 +46,11 @@ class GraphTab(ttk.Frame):
         self.app = app
         bar = ttk.Frame(self)
         bar.pack(fill="x", padx=2, pady=2)
+        self.back_btn = ttk.Button(bar, text="◀ Back", command=self.go_back, width=8,
+                                   state="disabled")
+        self.back_btn.pack(side="left", padx=(1, 6))
+        Tip(self.back_btn, "Return to where you followed a call link (Alt+Left, or the mouse's "
+                           "back button).")
         for text, cmd, tip in (("Fit", self.fit, "Show the whole scene."),
                                ("100 %", lambda: self.set_zoom(1.0), "Actual size."),
                                ("−", lambda: self.set_zoom(self.zoom / 1.25), "Zoom out (mouse wheel)."),
@@ -78,6 +84,11 @@ class GraphTab(ttk.Frame):
         c.bind("<Shift-MouseWheel>", lambda e: self._wheel(e, horizontal=True))
         c.bind("<Control-MouseWheel>", self._wheel)
         c.bind("<Configure>", lambda _e: self._fit_if_new())
+        c.bind("<Alt-Left>", lambda _e: self.go_back())
+        # the mouse's back button: Button-4 from Tk 8.6 on Windows, Button-8 elsewhere / Tk 9
+        # (X11's Button-4 is the wheel)
+        back = "<Button-4>" if c.tk.call("tk", "windowingsystem") == "win32" and             c.tk.call("info", "tclversion").startswith("8.") else "<Button-8>"
+        c.bind(back, lambda _e: self.go_back())
         self.zoom = 1.0
         self.blocks = {}
         self.back = set()
@@ -98,6 +109,7 @@ class GraphTab(ttk.Frame):
         self._needs_fit = False
         self._shown_sel = None           # the selection the graph last scrolled to / marked
         self._fonts = {}                 # pixel size -> tkfont.Font
+        self._history = []               # [(zoom, world x, world y)]: views a followed link left
         base = self._font(BASE_PX)
         self.char_w = float(base.measure("0"))
         self.line_h = float(base.metrics("linespace") + 2)
@@ -114,6 +126,8 @@ class GraphTab(ttk.Frame):
             return
         new_scene = self._key is None or key[:2] != self._key[:2]
         self._key = key
+        if new_scene:
+            self._set_history([])
         if sc is None or bank is None:
             self.blocks, self.back, self.size, self.groups = {}, set(), (0.0, 0.0), []
             self.info.config(text="open a scene on the left")
@@ -425,6 +439,29 @@ class GraphTab(ttk.Frame):
         self._view_at(max(gx0 * z - 20, cx - c.winfo_width() / 2), (gy0 - 20) * z)
         self.app.status("%s" % g.title)
 
+    # ---- back history ----------------------------------------------------------- #
+    def _set_history(self, h):
+        self._history = h
+        self.back_btn.config(state="normal" if h else "disabled")
+
+    def _remember_view(self):
+        """Push the current view (zoom + the world point at the top-left) for go_back."""
+        c, z = self.canvas, self.zoom
+        self._set_history(self._history + [(z, c.canvasx(0) / z, c.canvasy(0) / z)])
+
+    def go_back(self):
+        """Return to the view the newest followed link left."""
+        if not self._history:
+            return "break"
+        z, wx, wy = self._history[-1]
+        self._set_history(self._history[:-1])
+        if z != self.zoom:
+            self.zoom = z
+            self.draw()
+        self._view_at(wx * z, wy * z)
+        self.app.status("back" + (" (%d more)" % len(self._history) if self._history else ""))
+        return "break"
+
     def show_selection(self):
         self._mark_selection(see=True)
 
@@ -445,6 +482,7 @@ class GraphTab(ttk.Frame):
         return None
 
     def _press(self, e):
+        self.canvas.focus_set()                     # for Alt+Left
         self.canvas.scan_mark(e.x, e.y)
         self._press_at = (e.x, e.y)
         self._dragged = False
@@ -491,6 +529,7 @@ class GraphTab(ttk.Frame):
         x, y = c.canvasx(e.x), c.canvasy(e.y)
         for it in c.find_overlapping(x - 1, y - 1, x + 1, y + 1):
             if it in self._link_items:
+                self._remember_view()
                 self.show_group(self._link_items[it])
                 return
         pc = self._pc_at(e)

@@ -10023,7 +10023,7 @@ def test_scene_log():
 
 def test_cutscene_graph():
     """The Graph tab: the scene's basic blocks and labelled edges (cutscene_editor.cfg), laid out
-    and drawn; a click on a line selects the statement."""
+    and drawn; a click on a line selects the statement; Back returns from a followed CALL link."""
     print("cutscene editor: control-flow graph:")
     try:
         import tkinter as tk
@@ -10181,6 +10181,41 @@ def test_cutscene_graph():
         g.reset_layout()
         undone = (g._moved.get(g._scene_key()) is None
                   and g.blocks[0x1CCA].x == g._base[0x1CCA][0])
+        # follow two CALL links (the second at another zoom), then Back: Alt+Left and the
+        # mouse's back button return to each click's view, newest first; a new scene forgets them
+        def _view():
+            return (round(g.zoom, 3), round(cv.canvasx(0)), round(cv.canvasy(0)))
+
+        def _follow(k):
+            it = list(g._link_items)[k]
+            lx0, ly0, lx1, ly1 = cv.bbox(it)
+            g._view_at(lx0 - 50, ly0 - 50)
+            root.update()
+            was = _view()
+            e_ = _E(int((lx0 + lx1) / 2 - cv.canvasx(0)), int((ly0 + ly1) / 2 - cv.canvasy(0)))
+            g._press(e_)
+            g._release(e_)
+            root.update()
+            return was, _view()
+        g.set_zoom(1.0)
+        bk1, at1 = _follow(0)
+        g.set_zoom(1.5)
+        bk2, at2 = _follow(1)
+        hist_n = len(g._history)
+        cv.focus_force()
+        root.update()
+        cv.event_generate("<Alt-Left>")
+        root.update()
+        back1 = _view()
+        g.go_back()                          # what the mouse's back button and ◀ Back call
+        back2 = _view()
+        back_off = str(g.back_btn.cget("state")) == "disabled"
+        _follow(0)
+        ex.open_scene(ex.doc.container.n_primary + 196, sc.entry_pc)
+        ex.nb.select(ex.graph)
+        ex._tab_changed()
+        root.update()
+        forgot = not g._history and str(g.back_btn.cget("state")) == "disabled"
         # "Inspector" hides the right-hand pane and brings it back at the right
         ex.toggle_inspector()
         n3 = len(ex._paned.panes())
@@ -10211,6 +10246,10 @@ def test_cutscene_graph():
            and kept == (round(off1[0]), round(off1[1])) and undone, (off1, kept, undone))
     _check("'Inspector' hides the arguments pane and restores it on the right",
            n3 == n0 - 1 and last, (n0, n3, last))
+    _check("Graph: after following two CALL links, Alt+Left and Back return to each click's "
+           "view (zoom included), newest first; Back then greys out; a new scene clears it",
+           at1 != bk1 and at2 != bk2 and hist_n == 2 and back1 == bk2 and back2 == bk1
+           and back_off and forgot, (bk1, at1, bk2, at2, back1, back2, back_off, forgot))
 
 
 def test_cutscene_editor_authoring():

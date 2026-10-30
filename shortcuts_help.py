@@ -115,6 +115,8 @@ SHORTCUTS = [
             ("Drag a block", "move it (Reset layout puts every block back)"),
             ("Drag the background", "pan"),
             ("Double-click a statement", "go to it in the Script tab"),
+            ("Click a CALL's \"-> sub\" link", "scroll to that subroutine"),
+            ("Alt+Left / mouse back button", "back to where you followed the link (◀ Back)"),
             ("Wheel", "zoom at the pointer"),
             ("Ctrl+wheel / Shift+wheel", "scroll up and down / sideways"),
         ]),
