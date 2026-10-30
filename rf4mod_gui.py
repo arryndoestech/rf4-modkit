@@ -6101,14 +6101,13 @@ class App:
             used = magicnames.names_for_game()
         used_col = ["used by"] if stem == "rf3ParamMagic" else []
         pre_cols, pre_vals = [], None
-        if stem == "rf3ScheduleID":                 # the spot kind each spot belongs to + its room
+        if stem == "rf3ScheduleID":                 # the spot kind each spot belongs to
 
-            pre_cols = ["spot kind", "room name"]
+            pre_cols = ["spot kind"]
 
             def pre_vals(i):
                 kr = schedule.kind_of_record(i)
-                return [f"{kr[0]}  ({kr[1] + 1} of {kr[2]})" if kr else "",
-                        map_names.map_name(t.get(i, 0, "u16")) or ""]
+                return [f"{kr[0]}  ({kr[1] + 1} of {kr[2]})" if kr else ""]
 
         # ---- top bar ----------------------------------------------------------------------
         bar = ttk.Frame(doc.content); bar.pack(fill="x")
@@ -6130,7 +6129,7 @@ class App:
         cols = (["#"] + (["name"] if name_col else []) + used_col + pre_cols + [f[0] for f in fields])
         top = ttk.Frame(doc.content); top.pack(fill="both", expand=True)
         tv = ttk.Treeview(top, columns=cols, show="headings", height=16)
-        widths = {"name": 170, "used by": 300, "spot kind": 110, "room name": 200}
+        widths = {"name": 170, "used by": 300, "spot kind": 110}
         for c in cols:
             tv.heading(c, text=c)
             tv.column(c, width=widths.get(c, 130 if c in pick_f else 70), anchor="w")
@@ -6160,8 +6159,7 @@ class App:
         col_help = {"#": "The row number" + (f" ({rk} id)" if rk in ("item", "room", "skill") else ""),
                     "name": "What the row is (from the game's names; not stored in this file).",
                     "used by": "What fires this row (spell item, monster moves, timelines).",
-                    "spot kind": "The schedule spot kind this spot belongs to (fixed in the exe).",
-                    "room name": "The name of the spot's room."}
+                    "spot kind": "The schedule spot kind this spot belongs to (fixed in the exe)."}
         for n, _o, typ in fields:
             bits = []
             if notes.get(n):

@@ -1232,12 +1232,12 @@ def test_bin_editors():
             res["magic"] = (tvm["columns"][:2], tvm.set("0", "used by"), tvm.set("25", "used by").split(";")[0],
                             "Orc Archer" in tvm.set("53", "used by"), tvm.set("136", "used by"),
                             tvm.set("171", "used by"))
-        # rf3ScheduleID: spot kind + room name after the id; "kind 26" lists that kind's spots
+        # rf3ScheduleID: the spot kind after the id, the room by name; "kind 26" lists that kind's spots
         if (B / "rf3ScheduleID.bin").exists():
             d = (B / "rf3ScheduleID.bin").read_bytes()
             app._show("rf3ScheduleID.bin", d); doc = app._doc
             tvs = doc._param_tree
-            first = (tuple(tvs["columns"][:3]), tvs.set("30", "spot kind"), tvs.set("30", "room name"))
+            first = (tuple(tvs["columns"][:3]), tvs.set("30", "spot kind"), tvs.set("30", "room"))
             import tkinter.ttk as _ttk
             ents = []
 
@@ -1347,9 +1347,9 @@ def test_bin_editors():
                res["magic"] == (("#", "used by"), "Fireball", "Double Sonic", True,
                                 "Ancient Bone (boss move 4)", "staff shot: Fire, level 0-1"), res["magic"])
     if "sid" in res:
-        _check("rf3ScheduleID: 'spot kind' and 'room name' follow the id (record 30 = kind 26, 1 of 10, "
+        _check("rf3ScheduleID: 'spot kind' follows the id, 'room' shows the room's name (record 30 = kind 26, 1 of 10, "
                "Butler's Room); searching 'kind 26' lists exactly records 30..39",
-               res["sid"] == (("#", "spot kind", "room name"), "26  (1 of 10)", "Butler's Room", True), res["sid"])
+               res["sid"] == (("#", "spot kind", "room"), "26  (1 of 10)", "Butler's Room", True), res["sid"])
     if "sched" in res:
         _check("rf3Schedule editor: opens on Herbert's normal-day routine (19 stops), Add puts a stop in "
                "time order, Remove restores the file, Copy makes another day's routine, Revert, "
