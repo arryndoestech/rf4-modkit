@@ -140,22 +140,6 @@ def _parse_item(text: str, names: dict) -> int:
                      if hits or s else "a name field is empty")
 
 
-def _item_picker(parent, var, names: dict, width=24):
-    """A combobox of every item as "Name (id)"; typing filters the list (press Down to open
-    it). Read the value back with _parse_item."""
-    allv = [_item_text(i, names) for i in sorted(set(names) | {0})]
-    cb = ttk.Combobox(parent, textvariable=var, values=allv, width=width)
-
-    def filt(e):
-        if e.keysym in ("Up", "Down", "Return", "KP_Enter", "Escape", "Tab"):
-            return
-        q = var.get().strip().lower()
-        cb.config(values=[v for v in allv if q in v.lower()] if q else allv)
-    cb.bind("<KeyRelease>", filt)
-    cb.bind("<FocusOut>", lambda _e: cb.config(values=allv), add="+")
-    return cb
-
-
 def _find_extracted(basename: str):
     """Locate a bundle file by basename (for cross-file resolution, e.g. rf3PresentCategory).
     Uses the map editor's cached index of the extracted tree instead of an rglob per call."""

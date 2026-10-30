@@ -543,8 +543,9 @@ class CellEdit:
       get(iid) -> str     the text the edit box starts with
       put(iid, text)      store the typed text (raise an error with a message to refuse it);
                           the viewer refills the tree itself
-      choices             optional: the entries of a filtering drop-down (a list of str, or a
-                          function returning one); typing narrows it, Down opens it
+      choices             optional: the entries of a suggestion list (a list of str, or a
+                          function returning one) shown under the cell while it is edited;
+                          typing narrows it, Up / Down move the highlight, Enter takes it
       choices_for(iid)    optional, instead of choices: per row (None = a plain edit box)
       action(iid)         optional: a dialog instead of an edit box (bit sets, seasons ...)
       can(iid) -> bool    optional: whether this row's cell can be edited
@@ -693,15 +694,12 @@ class CellEdit:
         start = spec["get"](iid)
         var = tk.StringVar(value=start if initial is None else initial)
         choices = spec["choices_for"](iid) if "choices_for" in spec else spec.get("choices")
+        box = ttk.Entry(self.tv, textvariable=var)
         if choices is not None:
-            box = FilterCombo(self.tv, choices, None, width=1, textvariable=var)
             w = max(w, 240)
-            box.bind("<Down>", lambda _e: (box.load(), box.tk.call("ttk::combobox::Post", box), "break")[2])
-            box.bind("<<ComboboxSelected>>", lambda _e: self.finish(True), add="+")
-        else:
-            box = ttk.Entry(self.tv, textvariable=var)
         x = min(x, max(0, self.tv.winfo_width() - w))
         self.box, self._var, self._start, self._at = box, var, start, (iid, col)
+        self._list = None
         self.redraw()
         box.place(x=x, y=y, width=w, height=h)
         box.focus_set()
@@ -709,22 +707,141 @@ class CellEdit:
             box.select_range(0, "end")
         else:
             box.icursor("end")
-            if isinstance(box, FilterCombo):
-                box._filter(type("E", (), {"keysym": "a"})())
+        if choices is not None:
+            self._open_list(list(choices() if callable(choices) else choices), typed=initial is not None)
         for seq, keep, d in (("<Return>", True, 0), ("<KP_Enter>", True, 0), ("<Tab>", True, 1),
                              ("<Shift-Tab>", True, -1), ("<Escape>", False, 0)):
             box.bind(seq, lambda _e, k=keep, d=d: (self.finish(k, d), "break")[1], add="+")
         box.bind("<FocusOut>", lambda _e: self.tv.after(30, self._focus_left), add="+")
+
+    # ---- the suggestion list: open under the cell while it is edited, narrowed as you type;
+    # the edit box keeps the keyboard (Up / Down move the highlight, Enter / Tab take it, a click
+    # picks an entry) ---------------------------------------------------------------------------
+    LIST_ROWS = 12
+    LIST_MAX = 5000                         # every item fits (the current one gets highlighted)
+
+    def _open_list(self, values, typed):
+        box = self.box
+        top = tk.Toplevel(box)
+        top.wm_overrideredirect(True)
+        try:
+            top.wm_attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        lb = tk.Listbox(top, height=self.LIST_ROWS, activestyle="dotbox", exportselection=False,
+                        takefocus=0, highlightthickness=1, borderwidth=0)
+        sb = ttk.Scrollbar(top, orient="vertical", command=lb.yview)
+        lb.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        lb.pack(side="left", fill="both", expand=True)
+        st = {"all": values, "shown": [], "moved": False}
+        self._list = (top, lb, st)
+
+        def fill(narrow):
+            words = self._var.get().lower().split() if narrow else []
+            shown = [v for v in st["all"] if all(wd in v.lower() for wd in words)][:self.LIST_MAX]
+            st["shown"] = shown
+            lb.delete(0, "end")
+            for v in shown:
+                lb.insert("end", v)
+            pick = None
+            if shown:
+                cur = self._var.get().strip()
+                exact = [k for k, v in enumerate(shown)
+                         if v.lower() == cur.lower() or (cur.isdigit() and v.endswith(f"({cur})"))]
+                pick = exact[0] if exact else (0 if narrow else None)
+            highlight(pick)
+            place()
+
+        def highlight(k):
+            lb.selection_clear(0, "end")
+            if k is not None and 0 <= k < lb.size():
+                lb.selection_set(k)
+                lb.activate(k)
+                lb.see(k)
+
+        def place():
+            if not st["shown"]:
+                top.withdraw()
+                return
+            box.update_idletasks()
+            bx, by, bw, bh = box.winfo_rootx(), box.winfo_rooty(), box.winfo_width(), box.winfo_height()
+            rows = min(self.LIST_ROWS, len(st["shown"]))
+            lb.configure(height=rows)
+            top.update_idletasks()
+            lh = top.winfo_reqheight()
+            sh = box.winfo_screenheight()
+            y = by + bh if by + bh + lh <= sh else max(0, by - lh)
+            import tkinter.font as tkfont
+            f = tkfont.Font(font=lb.cget("font"))
+            lw = max(bw, min(640, max(f.measure(v) for v in st["shown"][:600]) + 40))
+            lw = min(lw, box.winfo_screenwidth())
+            lx = min(bx, box.winfo_screenwidth() - lw)
+            top.geometry(f"{lw}x{lh}+{lx}+{y}")
+            top.deiconify()
+            top.lift()
+
+        def step(d):
+            if not st["shown"]:
+                return "break"
+            sel = lb.curselection()
+            k = (sel[0] + d) if sel else (0 if d > 0 else len(st["shown"]) - 1)
+            highlight(min(max(k, 0), len(st["shown"]) - 1))
+            st["moved"] = True
+            return "break"
+
+        def typed_key(e):
+            if e.keysym in ("Up", "Down", "Prior", "Next", "Return", "KP_Enter", "Tab", "Escape",
+                            "Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L", "Alt_R"):
+                return
+            st["moved"] = False
+            fill(True)
+
+        def click(e):
+            k = lb.nearest(e.y)
+            if 0 <= k < len(st["shown"]):
+                highlight(k)                    # finish() takes the highlighted entry
+                self.finish(True)
+            return "break"
+        box.bind("<Down>", lambda _e: step(1))
+        box.bind("<Up>", lambda _e: step(-1))
+        box.bind("<Next>", lambda _e: step(self.LIST_ROWS))
+        box.bind("<Prior>", lambda _e: step(-self.LIST_ROWS))
+        box.bind("<KeyRelease>", typed_key, add="+")
+        lb.bind("<ButtonPress-1>", click)
+        lb.bind("<MouseWheel>", lambda e: (lb.yview_scroll(-1 if e.delta > 0 else 1, "units"), "break")[1])
+        fill(typed)
+
+    def _take_highlight(self):
+        """The highlighted suggestion goes into the edit box (Enter / Tab)."""
+        if self._list is None:
+            return
+        _top, lb, st = self._list
+        sel = lb.curselection()
+        if sel and sel[0] < len(st["shown"]):
+            self._var.set(st["shown"][sel[0]])
+
+    def _close_list(self):
+        if self._list is not None:
+            try:
+                self._list[0].destroy()
+            except tk.TclError:
+                pass
+            self._list = None
 
     def _focus_left(self):
         if self.box is None:
             return
         try:
             w = self.tv.focus_get()
-        except (KeyError, tk.TclError):         # the drop-down list (Tk-only widget) has it
+        except (KeyError, tk.TclError):
             return
-        if w is None or str(w).startswith(str(self.box)):
-            return                              # another program, or the drop-down list
+        if w is None:                           # another program: hide the list, keep editing
+            if self._list is not None:
+                self._list[0].withdraw()
+            return
+        if str(w).startswith(str(self.box)):
+            return
         self.finish(True)
 
     def finish(self, keep, move=0):
@@ -732,6 +849,9 @@ class CellEdit:
         box = self.box
         if box is None:
             return
+        if keep:
+            self._take_highlight()
+        self._close_list()
         self.box = None
         text, (iid, col) = self._var.get(), self._at
         box.destroy()
