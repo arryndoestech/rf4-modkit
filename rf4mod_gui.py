@@ -82,7 +82,7 @@ def _use_game_paths():
     if md is not None:
         md.BUNDLE_DIR, md.EXTRACTED, md._EXTRACTED_INDEX = BUNDLE_DIR, EXTRACTED, None
 from rf4s_modkit.refdata import refdata_path as _refdata_path
-from guiutil import CellEdit, Tip, err_text, later, wheel_handler
+from guiutil import CellEdit, TableSort, Tip, err_text, later, wheel_handler
 def _load_actor_names():
     """id -> name: the game's rf3TxtNpc (gamenames), else the built-in list."""
     from rf4s_modkit import gamenames
@@ -4894,7 +4894,7 @@ class App:
         for c, t_, w in (("rec", "Record", 60), ("room", "Room", 260), ("pos", "x, y", 90),
                          ("facing", "Facing", 60), ("wander", "Wander", 60), ("weight", "Weight", 60)):
             sp_tv.heading(c, text=t_); sp_tv.column(c, width=w, anchor="w")
-        _table_scrollbars(low, sp_tv)
+        _table_scrollbars(low, sp_tv); TableSort(sp_tv)
 
         row1 = ttk.Frame(foot); row1.pack(fill="x")
         row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
@@ -5164,7 +5164,7 @@ class App:
         for c, t_, w in (("n", "#", 36), ("items", "Items", 50), ("preview", "Contains", 260),
                          ("used", "Used by", 260)):
             ct.heading(c, text=t_); ct.column(c, width=w, anchor="w")
-        _table_scrollbars(left, ct)
+        _table_scrollbars(left, ct); TableSort(ct)
 
         mf = ttk.Frame(right); mf.pack(fill="both", expand=True)
         mt = ttk.Treeview(mf, columns=("item", "id", "fp"), show="headings", selectmode="extended", height=14)
@@ -6628,7 +6628,7 @@ class App:
         tv = ttk.Treeview(left, columns=cols, show="headings", height=20)
         for c in cols:
             tv.heading(c, text=c); tv.column(c, width=widths[c], anchor="w")
-        _table_scrollbars(left, tv)
+        _table_scrollbars(left, tv); TableSort(tv)
 
         right = ttk.Frame(body); right.pack(side="left", fill="both", expand=True)
         sheet = tk.Text(right, wrap="word", width=52, height=12, font=("Consolas", 9))

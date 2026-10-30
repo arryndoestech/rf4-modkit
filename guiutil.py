@@ -3,6 +3,7 @@ the no-live-resize PanedWindow, hover tips, filterable comboboxes, commit-on-lea
 entries, a scrollable column, and destroy-safe after() scheduling."""
 from __future__ import annotations
 
+import re
 import tkinter as tk
 from tkinter import ttk
 
@@ -529,6 +530,90 @@ class FilterCombo(ttk.Combobox):
         self._reset()
 
 
+def _sort_key(text):
+    """Natural order of a cell: numbers by value (12, 1,234, -5, 150%, '26  (1 of 10)', 'Turnip (29)'
+    by its leading number), then text alphabetically, empty cells last."""
+    s = str(text).strip()
+    if not s:
+        return (2, 0, "")
+    m = re.match(r"[+-]?\d[\d,]*(\.\d+)?", s)
+    if m:
+        try:
+            return (0, float(m.group(0).replace(",", "")), s.lower())
+        except ValueError:
+            pass
+    return (1, 0, s.lower())
+
+
+class TableSort:
+    """Click a column heading to sort the rows by it: ascending, descending, then back to the
+    order the viewer put them in (the file's order); the heading shows ▲ / ▼. The sort is
+    re-applied whenever the viewer refills the table, so it survives edits. Rows in `pinned`
+    (the "＋ add" rows) stay at the end."""
+
+    ARROWS = (" ▲", " ▼")
+
+    def __init__(self, tv, pinned=("new",)):
+        self.tv, self.pinned = tv, set(pinned)
+        self.col, self.desc = None, False
+        self._seq = {k: i for i, k in enumerate(tv.get_children(""))}   # iid -> the viewer's order
+        self._n = len(self._seq)
+        self._pending = False
+        tv._table_sort = self
+        insert = tv.insert
+
+        def tracked_insert(parent, index, iid=None, **kw):
+            out = insert(parent, index, iid=iid, **kw)
+            self._seq[out] = self._n
+            self._n += 1
+            if self.col is not None and not self._pending:
+                self._pending = True
+                tv.after_idle(self._resort)
+            return out
+        tv.insert = tracked_insert
+        for c in tv["columns"]:
+            tv.heading(c, command=lambda c=c: self.click(c))
+
+    def _base(self, c):
+        t = str(self.tv.heading(c, "text"))
+        for a in self.ARROWS:
+            if t.endswith(a):
+                return t[:-len(a)]
+        return t
+
+    def click(self, c):
+        """Ascending -> descending -> unsorted."""
+        if self.col != c:
+            self.col, self.desc = c, False
+        elif not self.desc:
+            self.desc = True
+        else:
+            self.col = None
+        for k in self.tv["columns"]:
+            self.tv.heading(k, text=self._base(k) + (self.ARROWS[self.desc] if k == self.col else ""))
+        self._resort()
+
+    def _resort(self):
+        self._pending = False
+        tv = self.tv
+        try:
+            kids = list(tv.get_children(""))
+        except tk.TclError:                     # the table is gone
+            return
+        rest = [k for k in kids if k not in self.pinned]
+        if self.col is None:
+            rest.sort(key=lambda k: self._seq.get(k, 0))
+        else:
+            rest.sort(key=lambda k: _sort_key(tv.set(k, self.col)), reverse=self.desc)
+        order = rest + [k for k in kids if k in self.pinned]
+        if order != kids:
+            for i, k in enumerate(order):
+                tv.move(k, "", i)
+        sel = tv.selection()
+        if sel:
+            tv.see(sel[0])
+
+
 class CellEdit:
     """Spreadsheet-style editing of a ttk.Treeview's cells, instead of a form under the table.
 
@@ -537,7 +622,7 @@ class CellEdit:
     value, Tab keeps it and moves to the next cell, Esc throws it away. Left / Right move the
     cursor between the editable columns, Up / Down between the rows. When the edited row is
     one of several selected rows, the viewer's put() may apply the value to all of them
-    (`targets(iid)`).
+    (`targets(iid)`). The table also sorts by a heading click (TableSort).
 
     `cols` maps a column id to a dict:
       get(iid) -> str     the text the edit box starts with
@@ -558,6 +643,8 @@ class CellEdit:
         self.tv, self.cols, self.title = tv, cols, title
         self.cur = None                         # (iid, column) under the cell cursor
         self.box = None                         # the open edit box
+        if not hasattr(tv, "_table_sort"):      # every edited table sorts by a heading click too
+            TableSort(tv)
         self._outline = [tk.Frame(tv, background=self.COLOR, width=2, height=2) for _ in range(4)]
         for seq, fn in (("<ButtonRelease-1>", self._click), ("<Double-Button-1>", self._dbl),
                         ("<<TreeviewSelect>>", self._selected), ("<Key>", self._key),
