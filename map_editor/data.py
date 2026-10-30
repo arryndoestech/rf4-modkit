@@ -377,15 +377,44 @@ def chest_loot(rec):
 
 
 _MAP_SUMMARY = {}
+# the summaries outlive the process: a cold disk takes ~8 s to open all 872 maps, a stat ~0.01 s
+_SUMMARY_CACHE = pathlib.Path(__file__).resolve().parent.parent / "cache" / "map_summaries.pickle"
+_SUMMARY_CACHE_VERSION = 1          # bump when a summary's fields change
+
+
+def _load_summary_cache():
+    import pickle
+    try:
+        with open(_SUMMARY_CACHE, "rb") as f:
+            ver, hits = pickle.load(f)
+    except Exception:  # noqa: BLE001 - missing / damaged / old: rebuilt
+        return
+    if ver == _SUMMARY_CACHE_VERSION and isinstance(hits, dict):
+        for k, v in hits.items():
+            _MAP_SUMMARY.setdefault(k, v)
+
+
+def _save_summary_cache():
+    import pickle
+    try:
+        _SUMMARY_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _SUMMARY_CACHE.with_suffix(".tmp")
+        with open(tmp, "wb") as f:
+            pickle.dump((_SUMMARY_CACHE_VERSION, _MAP_SUMMARY), f, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, _SUMMARY_CACHE)
+    except OSError:
+        pass
 
 
 def map_summaries():
     """{MAP_* name: (mgrp, [(entity index, collected flag f13, loot row f8) per chest],
     (grid width, height) or None)} for
-    every map in the game folder (the copy the game loads), read once per file change -- all
-    872 maps take well under a second."""
+    every map in the game folder (the copy the game loads), read once per file change and
+    kept in cache/map_summaries.pickle between runs."""
     from rf4s_modkit import rf4m
-    out = {}
+    if not _MAP_SUMMARY:
+        _load_summary_cache()
+    out, changed = {}, False
     for low, paths in extracted_index().items():
         if not (low.startswith("map_") and low.endswith(".rf4m")):
             continue
@@ -402,13 +431,16 @@ def map_summaries():
                 chests = [(i, r[13], r[8]) for i, r in enumerate(m.mobj_records())
                           if (r[0] & 0xFFFF) == 44]
                 g = m.attr_grid()
-                hit = (key, (m.mgrp(), chests, (g[0], g[1]) if g else None))
-                _MAP_FLAGS[p.stem] = _flag_uses(m.mobj_records(), m.mapj_records())
+                hit = (key, (m.mgrp(), chests, (g[0], g[1]) if g else None),
+                       _flag_uses(m.mobj_records(), m.mapj_records()))
             except Exception:  # noqa: BLE001 - a damaged map: left out
-                hit = (key, (None, [], None))
-                _MAP_FLAGS[p.stem] = (set(), [])
+                hit = (key, (None, [], None), (set(), []))
             _MAP_SUMMARY[str(p)] = hit
+            changed = True
+        _MAP_FLAGS[p.stem] = hit[2]
         out[p.stem] = hit[1]
+    if changed:
+        _save_summary_cache()
     return out
 
 
