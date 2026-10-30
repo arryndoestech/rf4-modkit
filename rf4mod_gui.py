@@ -4666,6 +4666,34 @@ class App:
             g, tier, k = iid.split(":")
             return int(g), tier, int(k), table.tier(tier, int(g))[int(k)]
 
+        # what the item cell can point at: an item, a gift category of rf3PresentCategory (the
+        # game then pays that category entry's own friendship) or an item-id range
+        ncat = len(cats) if cats else 21
+        special = {target_text(gifts.Entry("xref", n, 0)): ("xref", n) for n in range(ncat)}
+        special.update({target_text(gifts.Entry("category", n, 0)): ("category", n)
+                        for n in sorted(gifts.ITEM_RANGE_TABLE)})
+
+        def parse_target(text):
+            t = text.strip()
+            if t in special:
+                return special[t]
+            m = re.match(r"\[?category #(\d+)", t)
+            if m:
+                return "xref", int(m.group(1))
+            m = re.match(r"\[?(?:item-)?range #(\d+)", t)
+            if m:
+                return "category", int(m.group(1))
+            return "item", _parse_item(t, items)
+
+        def target_name(kind, value):
+            return items.get(value, str(value)) if kind == "item" else target_text(gifts.Entry(kind, value, 0))
+
+        def fp_text(tier, e):
+            if e.kind == "xref" and tier in gifts.DEFAULT_FP:
+                fps = gifts.category_fp(e.value, cats) if cats else []
+                return ("/".join(f"{v:+d}" for v in fps) or "?") + "  (the category's own)"
+            return f"{gifts.entry_fp(e, tier):+d}"
+
         def aff_text(tier, e):
             if tier == "disliked" and e.code == gifts.SIGNATURE_DISLIKE_CODE:
                 return "hated (signature dislike)"
@@ -4677,8 +4705,8 @@ class App:
                 for tier in gifts.TIERS:              # loved / liked / disliked
                     for k, e in enumerate(table.tier(tier, gi)):
                         tv.insert("", "end", iid=f"{gi}:{tier}:{k}",
-                                  values=(aff_text(tier, e), target_text(e), f"{gifts.entry_fp(e, tier):+d}"))
-            tv.insert("", "end", iid="new", values=("", "＋ type or pick an item to add it (loved)", ""))
+                                  values=(aff_text(tier, e), target_text(e), fp_text(tier, e)))
+            tv.insert("", "end", iid="new", values=("", "＋ type or pick an item or a category to add it (loved)", ""))
             if select and tv.exists(select):
                 tv.selection_set(select); tv.focus(select); tv.see(select)
 
@@ -4732,24 +4760,30 @@ class App:
             edit(do)
 
         def put_item(iid, text):
-            it = _parse_item(text, items)
-            gifts.encode_target("item", it)
+            kind, val = parse_target(text)
+            gifts.encode_target(kind, val)                      # validates the id / category / range
+            if kind == "xref" and not 0 <= val < ncat:
+                raise ValueError(f"gift categories are 0..{ncat - 1} (rf3PresentCategory)")
             if iid == "new":
                 def add():
-                    table.set_item(it, "loved")
-                    return f"Added {items.get(it, it)} (loved)", find_iid("item", it)
+                    table.add("loved", gifts.Entry(kind, val, gifts.DEFAULT_FP["loved"]))
+                    return f"Added {target_name(kind, val)} (loved)", find_iid(kind, val)
                 return edit(add)
             g, tier, k, e = entry_of(iid)
 
             def do():
-                table.remove("item", it, g)                     # an item sits in one list only
+                table.remove(kind, val, g)                      # a target sits in one list only
                 lst = table.groups[g][tier]
                 k2 = next((j for j, x in enumerate(lst) if x is e), None)
+                code = e.code
+                if tier in gifts.DEFAULT_FP and e.kind == "xref" and kind != "xref":
+                    code = gifts.DEFAULT_FP[tier]               # a category entry's own code is unused
+                new = gifts.Entry(kind, val, code)
                 if k2 is None:
-                    lst.append(gifts.Entry("item", it, e.code))
+                    lst.append(new)
                 else:
-                    lst[k2] = gifts.Entry("item", it, e.code)
-                return f"{target_text(e)} → {items.get(it, it)}", find_iid("item", it)
+                    lst[k2] = new
+                return f"{target_text(e)} → {target_name(kind, val)}", find_iid(kind, val)
             edit(do)
 
         def put_fp(iid, text):
@@ -4783,15 +4817,22 @@ class App:
             if table.build() != data:
                 history.append(table.build()); restore(data); changed("Back to the file as opened")
 
-        item_choices = lambda: [_item_text(i, items) for i in sorted(items) if 0 < i <= gifts.MAX_ITEM_ID]
+        target_choices = lambda: list(special) + [_item_text(i, items) for i in sorted(items)
+                                                  if 0 < i <= gifts.MAX_ITEM_ID]
+
+        def target_get(iid):
+            if iid == "new":
+                return ""
+            e = entry_of(iid)[3]
+            return _item_text(e.value, items) if e.kind == "item" else target_text(e)
         cells = CellEdit(tv, {
             "aff": {"get": lambda iid: aff_text(entry_of(iid)[1], entry_of(iid)[3]), "put": put_aff,
                     "choices": TIER_CHOICES, "can": lambda iid: iid != "new"},
-            "item": {"get": lambda iid: "" if iid == "new" else _item_text(entry_of(iid)[3].value, items),
-                     "put": put_item, "choices": item_choices,
-                     "can": lambda iid: iid == "new" or entry_of(iid)[3].kind == "item"},
+            "item": {"get": target_get, "put": put_item, "choices": target_choices},
+            # a category entry pays the category's own friendship, so its FP cell is not editable
             "fp": {"get": lambda iid: str(gifts.entry_fp(entry_of(iid)[3], entry_of(iid)[1])), "put": put_fp,
-                   "can": lambda iid: iid != "new" and entry_of(iid)[1] in gifts.DEFAULT_FP}})
+                   "can": lambda iid: iid != "new" and entry_of(iid)[1] in gifts.DEFAULT_FP
+                   and entry_of(iid)[3].kind != "xref"}})
         tv.bind("<Delete>", remove)
         tv.bind("<Control-z>", undo)
 
@@ -4801,8 +4842,10 @@ class App:
                                              filetypes=[("gift table", "*.bin"), ("All", "*.*")])
             if f:
                 pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
-        hint = ttk.Label(foot, foreground="#555", text="Click a cell and type to change it (FP: loved / liked "
-                                                       "only; a dislike is always −5, the signature one −10); "
+        hint = ttk.Label(foot, foreground="#555", text="Click a cell and type to change it; the item cell also "
+                                                       "takes a gift category or an item range (FP: loved / liked "
+                                                       "only; a category pays its own; a dislike is always −5, the "
+                                                       "signature one −10); "
                                                        "Delete removes the selected rows.")
         hint.pack(side="left")
         ttk.Button(foot, text="Save table…", command=_save).pack(side="right", padx=2)
