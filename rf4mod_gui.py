@@ -165,6 +165,46 @@ def _load_char_names() -> dict[int, str]:
     from rf4s_modkit import gamenames
     return dict(gamenames.table("characters"))
 
+
+# the protagonist's two bodies (rf3NpcParam calls both "Earthmate"); Frey confirmed in game
+_PLAYER_MODELS = {"NPC_PLAYER_00": "Lest (player)", "NPC_PLAYER_01": "Frey (player)"}
+_MODEL_OWNERS = None
+
+
+def _model_owner(file_name):
+    """Who wears a .model -- 'Frey (player)', 'Clorica', 'Orc / Orc Archer' -- from the character
+    templates (refdata/char_models.json: rf3NpcParam +272, resolved the way the game loads it,
+    names from the game's text); outfit files (_PAJAMA, _SWIM, _WED, ...) take their base
+    model's owners. '' when no character uses it."""
+    global _MODEL_OWNERS
+    if _MODEL_OWNERS is None:
+        import json
+        own = {}
+        try:
+            d = json.loads(_refdata_path("char_models.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            d = {}
+        names = _load_char_names()
+        for k, v in d.items():
+            if k == "_meta" or not isinstance(v, dict) or not v.get("model"):
+                continue
+            stem = v["model"].upper()
+            nm = _PLAYER_MODELS.get(stem) or names.get(int(k)) or v.get("name") or ""
+            if nm and nm not in own.setdefault(stem, []):
+                own[stem].append(nm)
+        for stem, nm in _PLAYER_MODELS.items():
+            own[stem] = [nm]
+        _MODEL_OWNERS = {s: " / ".join(v[:4]) + (" …" if len(v) > 4 else "") for s, v in own.items()}
+    stem = pathlib.PurePosixPath(file_name.replace("\\", "/")).name
+    if not stem.lower().endswith(".model"):
+        return ""
+    parts = stem[:-6].upper().split("_")
+    for n in range(len(parts), 0, -1):          # NPC_PLAYER_01_PAJAMA -> NPC_PLAYER_01
+        hit = _MODEL_OWNERS.get("_".join(parts[:n]))
+        if hit:
+            return hit
+    return ""
+
 def _table_scrollbars(top, tv, widths=None):
     """Scroll bars for a wide Treeview table: every column keeps its width (wide enough for its
     heading, or widths[col]) instead of being squeezed into the window, a horizontal bar appears
@@ -1496,7 +1536,9 @@ class App:
         return "%d B" % n
 
     def _row_values(self, i):
-        return (assetcat.title(self.source.categories()[i]), self._fmt_size(self.source.sizes[i]))
+        cat = assetcat.title(self.source.categories()[i])
+        who = _model_owner(self.source.entries[i][0])
+        return (f"{cat} · {who}" if who else cat, self._fmt_size(self.source.sizes[i]))
 
     def _sorted(self, idxs):
         """Entry indices in the order the clicked column header asks for."""
@@ -1540,10 +1582,12 @@ class App:
 
     def _lower_names(self):
         """Lower-cased entry names, computed once per source (the filter compares against
-        every name on each refresh)."""
+        every name on each refresh). A model's text also holds who wears it, so 'frey' finds
+        NPC_PLAYER_01.model."""
         src = self.source
         if getattr(src, "_lower", None) is None or len(src._lower) != len(src.entries):
-            src._lower = [e[0].lower() for e in src.entries]
+            src._lower = [(e[0] + ("  " + who if (who := _model_owner(e[0])) else "")).lower()
+                          for e in src.entries]
         return src._lower
 
     def _refresh_tree(self):
@@ -1888,6 +1932,17 @@ class App:
                 self.status.config(text=f"Saved {name} → {shown}" + (
                     f" (original kept in {gamepaths.BACKUP_DIR})" if backed else "")
                     + " -- the game reads it the next time it loads the file")
+                try:                            # a packed patch bundle wins over every loose file
+                    from rf4s_modkit import mbundle
+                    shadow = mbundle.patch_shadows(bdir).get(name) if bdir is not None else None
+                except Exception:  # noqa: BLE001 -- no manifest: nothing to say
+                    shadow = None
+                if shadow:
+                    messagebox.showwarning(
+                        "Saved, but the game won't use it",
+                        f"Saved {shown}, but the game ignores it while {shadow} (packed) holds {name}: "
+                        f"that archive is loaded ahead of the Bundle folder. Unpack it (rf4mod unpack) "
+                        f"or move it out of the Bundle folder.", parent=self.root)
                 others = targets[None].get(name)
                 if others:
                     messagebox.showwarning(
@@ -2215,7 +2270,7 @@ class App:
         doc.cur_data = blob
         self._show(name, blob, doc)
         self.status.config(text=f"Imported {len(plan)} shape(s) from {pathlib.Path(f).name} -> "
-                                f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
+                                f"{len(blob):,} bytes (was {before:,}); Save (Ctrl+S) puts it in the game")
         return True
 
     def _import_model_glb(self, name, glb_path=None, choose=None, bones=None, add=None, new=None):
@@ -2296,7 +2351,7 @@ class App:
         self.status.config(text=f"Rebuilt {len(changed)} shape(s)"
                                 + (f", moved {len(rep.bones_moved)} bone(s)" if rep.bones_moved else "")
                                 + f" from {pathlib.Path(f).name} -> "
-                                f"{len(blob):,} bytes (was {before:,}); Extract to save the working copy")
+                                f"{len(blob):,} bytes (was {before:,}); Save (Ctrl+S) puts it in the game")
         return True
 
     def _glb_add_dialog(self, m, meshes):
@@ -2371,7 +2426,7 @@ class App:
         doc.cur_data = blob
         self._show(name, blob, doc)
         self.status.config(text=f"Changed {len(changes)} material(s) in place (same size); "
-                                f"Extract to save the working copy")
+                                f"Save (Ctrl+S) puts it in the game")
         return True
 
     def _material_dialog(self, mats):
@@ -2493,7 +2548,7 @@ class App:
         format (BC7/BC3/BC1 at the same size, raw kept -- see texture.encode_into). A PNG of
         another size is stored at that size after a confirm listing old -> new and what it
         does in game (texture.size_warnings). For a flipbook only the frame being shown is replaced.
-        Updates the working copy (cur_data) like the other editors; Extract writes it."""
+        Updates the working copy (cur_data) like the other editors; Save writes it."""
         doc = self._doc
         if doc.cur_data is None:
             return
@@ -2525,7 +2580,7 @@ class App:
         if changes:
             size += "; " + ", ".join("%dx%d -> %dx%d" % (c["old"] + c["new"]) for c in changes)
         self.status.config(text=f"Replaced {which}pixels from {pathlib.Path(f).name} -> "
-                                f"{len(blob):,} bytes ({size}; Extract to save the working copy)")
+                                f"{len(blob):,} bytes ({size}; Save (Ctrl+S) puts it in the game)")
 
     def _export_texture_gif(self, name):
         """Save the current flipbook as an animated GIF (120 ms/frame, looped)."""
@@ -3763,7 +3818,12 @@ class App:
             messagebox.showerror("Import motion", f"cannot read {pathlib.Path(f).name}:\n{err_text(e)}")
             return None
         if not anims:
-            messagebox.showerror("Import motion", f"{pathlib.Path(f).name} has no animation.")
+            messagebox.showerror(
+                "Import motion",
+                f"{pathlib.Path(f).name} has no animation in it (a model in the same file is fine; "
+                f"the export just wrote no animation track). In Blender's glTF export, tick "
+                f"Animation and keep the action on the armature (or push it to an NLA track), or "
+                f"use File > Export > RF4S motions (.glb) from the toolkit's Blender add-on.")
             return None
         k = 0
         if len(anims) > 1:
@@ -4095,7 +4155,7 @@ class App:
         """Replace the selected embedded texture of a .model from a PNG, re-encoded in its own
         format (texture.bntx_replace): IN PLACE at the same size (file size and every container
         field unchanged), or -- after a confirm showing old -> new -- at another size, with the
-        BNTX and the .model rebuilt around it. Updates cur_data; Extract writes it."""
+        BNTX and the .model rebuilt around it. Updates cur_data; Save writes it."""
         doc = self._doc
         sel = tv.selection()
         if not sel or doc.cur_data is None:
@@ -4131,7 +4191,7 @@ class App:
                f"{old_size[0]}x{old_size[1]} -> {new_size[0]}x{new_size[1]}, .model rebuilt -> "
                f"{len(blob):,} bytes (was {before:,})")
         self.status.config(text=f"Replaced texture {idx} from {pathlib.Path(f).name} {how} "
-                                f"(Extract to save the working copy)")
+                                f"(Save (Ctrl+S) puts it in the game)")
 
     def _export_all_bntx(self, name, data, lst):
         d = filedialog.askdirectory(title="Export all textures to folder…")
@@ -4283,7 +4343,7 @@ class App:
             doc.cur_data = blob
             self.status.config(text="Timeline assembled (" + (f"{len(warns)} warning(s): {warns[0]}"
                                                                if warns else "no warnings") +
-                                    ") — use Extract… / Save to write")
+                                    ") — Save (Ctrl+S) to write")
             self._show(doc.cur_name, blob, doc)
         ttk.Button(eb, text="Assemble & apply", command=apply_listing).pack(side="right", padx=6)
         shown = edit.get("1.0", "end")
@@ -6494,7 +6554,7 @@ class App:
         `rf4mod crop` CLI). The grid decodes each crop's growing season; the editor lets
         you pick which season(s) a crop grows in via checkboxes (writes the +104
         boost/penalty bits) alongside per-field editing (water, growth-rate mults, stages).
-        Byte-surgical; Apply updates the in-memory table, Save…/Extract… writes it out."""
+        Byte-surgical; edits update the in-memory table, Save (Ctrl+S) writes it out."""
         doc = self._doc
         t = nlcl.NlclTable(data)
         doc._param = t
