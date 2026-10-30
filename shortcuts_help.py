@@ -12,7 +12,9 @@ from tkinter import ttk
 SHORTCUTS = [
     ("Explorer", [
         ("Tabs", [
-            ("Ctrl+W", "close the current tab (asks if it has unsaved changes)"),
+            ("Ctrl+S", "save the current tab's file (a game file where the game loads it)"),
+            ("Ctrl+W", "close the current tab (asks if it has unsaved changes; closing without "
+                       "saving throws the changes away)"),
             ("Ctrl+Tab / Ctrl+Shift+Tab", "next / previous tab"),
             ("Click a tab", "show it"),
             ("Middle-click a tab, or its ×", "close it"),

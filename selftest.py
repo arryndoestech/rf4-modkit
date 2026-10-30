@@ -11854,7 +11854,6 @@ _TAB_VIEWERS = {
     "strengthening": "rf3ItemStrengthening.bin", "strings": "Localization-de.strings",
     "text": "", "textdb": "rf3mc.eng", "texture": "confetti.texture",
 }
-_TAB_SAVE_LABELS = ("Save table…", "Save…", "Save graph…")   # buttons that write the working copy
 
 
 def test_viewer_tabs():
@@ -11886,14 +11885,6 @@ def test_viewer_tabs():
         for c in w.winfo_children():
             n += 1 + widgets(c)
         return n
-
-    def find_buttons(w):
-        out = []
-        for c in w.winfo_children():
-            if c.winfo_class() == "TButton" and str(c.cget("text")) in _TAB_SAVE_LABELS:
-                out.append(c)
-            out += find_buttons(c)
-        return out
     try:
         app = gui.App(root, initial=str(BUNDLE_DIR))
         byname = {}
@@ -11921,17 +11912,21 @@ def test_viewer_tabs():
                     and widgets(d1.frame) == w1 and app.header.cget("text") == header1)
             what = "opens, keeps its data, widgets and header across a tab switch"
             ok = not notes and kept
-            saves = find_buttons(d1.frame)
-            if saves:
+            if d1._map_panel is None and d1.cur_data:
+                # the explorer's Save (toolbar / Ctrl+S), pointed at a scratch file: the test
+                # never writes into the game folder (a map tab would, so it is left out)
                 d1.cur_data = d1.cur_data[:-1] + bytes([d1.cur_data[-1] ^ 1])   # an edit
                 dirty = d1.is_dirty()
                 out = tmp / f"{viewer}.bin"
-                box["save"] = str(out)
-                saves[0].invoke()
+                d1.save_path = out
+                if d1._text_tab is not None:
+                    d1.key = ("file", str(out))     # the text editor saves to its file then
+                app._game_label = None
+                saved = app.save_doc(d1)
                 root.update_idletasks()
-                box["save"] = ""
-                what += f"; '{saves[0].cget('text')}' clears the tab's unsaved mark"
-                ok = ok and dirty and out.is_file() and not d1.is_dirty()
+                what += "; Save writes the tab's file and clears its unsaved mark"
+                ok = ok and saved and dirty and out.is_file() and out.read_bytes() == d1.cur_data \
+                    and not d1.is_dirty()
             _check(f"{viewer} viewer in a tab: {what}", ok,
                    f"notes={notes[:1]} kept={kept} {fname or n}")
             box["yesnocancel"] = False

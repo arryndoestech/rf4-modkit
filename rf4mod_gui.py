@@ -140,6 +140,15 @@ def _parse_item(text: str, names: dict) -> int:
                      if hits or s else "a name field is empty")
 
 
+def _hint_line(lbl):
+    """A hint above a row of buttons: its own line, wrapped to the width. (Packed side=left on
+    the buttons' row, a long hint took the whole row and pushed the buttons out of sight.)"""
+    lbl.config(wraplength=500, justify="left")
+    lbl.pack(side="top", fill="x", pady=(0, 2))
+    lbl.bind("<Configure>", lambda e: lbl.config(wraplength=max(200, e.width - 8)))
+    return lbl
+
+
 def _find_extracted(basename: str):
     """Locate a bundle file by basename (for cross-file resolution, e.g. rf3PresentCategory).
     Uses the map editor's cached index of the extracted tree instead of an rglob per call."""
@@ -427,7 +436,7 @@ class _GenHost:
     """Everything map_editor.tabs.EncountersTab asks of an editor (doc.gen, the selected gate,
     apply, status, start_add), for a Gen file shown on its own: the explorer's Gen view uses
     the map editor's Gates pane with a flat picture of the map instead of the editor.
-    Edits change the working copy at once (Save table… writes it)."""
+    Edits change the working copy at once (Save / Ctrl+S writes it)."""
 
     PICTURE_PX = 440
     PICTURE_PAD = 12                     # the picture column's padx (6 + 6)
@@ -494,7 +503,7 @@ class _GenHost:
         if self.pane is not None:
             self.pane.refresh()
         self.redraw()
-        self.status(label + "  — Save table… (or Extract…) writes the file")
+        self.status(label + "  — Save (Ctrl+S) writes the file")
 
     # ---- the map row ------------------------------------------------------------- #
     def build_map_row(self, maps):
@@ -531,19 +540,11 @@ class _GenHost:
             ob = ttk.Button(row, text="Open in map editor", command=lambda: app._open_map_encounters(self.map))
             ob.pack(side="left", padx=8)
             Tip(ob, "Open this map in the full map editor, on its Gates tab.")
-        sb = ttk.Button(row, text="Save table…", command=self.save)
-        sb.pack(side="right")
-        Tip(sb, "Write this Gen file (with your edits) to disk.")
 
-    def save(self):
-        blob = self.doc.gen.build()
-        self.tab.cur_data = blob
-        f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile=pathlib.Path(self.name).name,
-                                         filetypes=[("Gen table", "*.bin"), ("All", "*.*")])
-        if f:
-            pathlib.Path(f).write_bytes(blob)
-            self.app._mark_saved(self.tab)
-            self.status(f"Saved the monster spawns → {f}")
+    def before_save(self):
+        """Save (toolbar / Ctrl+S) writes the Gen file built from the edits."""
+        self.tab.cur_data = self.doc.gen.build()
+        return True
 
     # ---- the flat map picture ------------------------------------------------------- #
     def _grid(self):
@@ -837,6 +838,8 @@ class App:
         om.add_command(label="File…", command=self.cmd_open_file)
         om.add_command(label="Folder…", command=self.cmd_open_folder)
         self._open_btn.pack(side="left", padx=2, pady=3)
+        self._save_btn = ttk.Button(bar, text="Save", command=self.cmd_save)
+        self._save_btn.pack(side="left", padx=2, pady=3)
         ttk.Button(bar, text="Options…", command=self.cmd_options).pack(side="left", padx=2)
         # shown only while something other than the game is listed (see load_source)
         self._back_btn = ttk.Button(bar, text="Back to the game", command=self.cmd_back_to_game)
@@ -845,6 +848,10 @@ class App:
                             "its files), or every file in a folder (a downloaded mod, "
                             "Bundle\\00_mods, exported files).")
         Tip(self._back_btn, "List the game's files again.")
+        Tip(self._save_btn, "Save the file shown (Ctrl+S): a game file goes where the game loads it "
+                            "(over its loose copy, or into Bundle\\00_mods when the game only has it "
+                            "packed); a file opened from disk is saved over itself. Extract… saves a "
+                            "copy anywhere else. To throw your changes away, close the tab.")
         ttk.Separator(bar, orient="vertical").pack(side="left", fill="y", padx=6)
         self.extract_btn = ttk.Button(bar, text="Extract…", command=self.cmd_extract, state="disabled")
         self.extract_btn.pack(side="left", padx=2)
@@ -978,6 +985,7 @@ class App:
             return
         self.root.title(f"RF4S Modding Toolkit — {self.source.label}")
         if game:
+            self._game_label = self.source.label        # tabs from this list save into the game
             self._back_btn.pack_forget()
         else:
             self._back_btn.pack(side="left", padx=2, after=self._open_btn)
@@ -1805,11 +1813,11 @@ class App:
                 return True
         ans = messagebox.askyesnocancel(
             "Unsaved changes", f"{doc.title().rstrip(' •')} has changes that are not saved to a "
-            f"file.\n\nSave it before you {action}?\n(Yes = save with Extract…, No = discard, "
+            f"file.\n\nSave it before you {action}?\n(Yes = save, No = discard, "
             "Cancel = stay here)", parent=self.root)
         if ans is None:
             return False
-        return bool(self.cmd_extract()) if ans else True
+        return self.save_doc(doc) if ans else True
 
     def _save_model_before_close(self, doc):
         """Save edited .model working copies from loose files when the app exits."""
@@ -1830,16 +1838,67 @@ class App:
         return True
 
     def cmd_save(self):
-        """Ctrl+S saves an edited .model over its loose source file."""
-        doc = self._doc
-        if not (doc.cur_name or "").lower().endswith(".model") or doc.cur_data is None:
-            return "break"
-        if doc.save_path is None:
-            messagebox.showinfo("Save model", "This model comes from a packed archive. Use Extract… to save a loose copy.",
-                                parent=self.root)
-            return "break"
-        self._write_doc(doc, doc.save_path)
+        """Save (the toolbar button, Ctrl+S): the shown tab (save_doc)."""
+        if self._doc is not self._blank:
+            self.save_doc(self._doc)
         return "break"
+
+    def save_doc(self, doc):
+        """Write a tab's working copy where it belongs; True when it was written (or there was
+        nothing to write).
+          * a map tab: its editor's Save (the map, its search spots and monster gates);
+          * one of the game's files: where the game loads it -- over the copy it reads now, else
+            Bundle\\00_mods when it only has it packed (gamepaths.game_targets; originals and
+            earlier versions kept as set in Options);
+          * a file opened from disk: over that file;
+          * otherwise (a packed file with no game folder chosen): a Save as dialog, and later
+            saves go to the file picked there.
+        A viewer that keeps edits outside the working copy (an assembler listing, the Gen view)
+        sets doc._before_save, which brings cur_data up to date or returns False to stop."""
+        if doc.cur_data is None:
+            return True
+        panel = doc._map_panel
+        if panel is not None:
+            try:
+                return bool(panel.save_to_game())
+            except tk.TclError:
+                return False
+        if doc._text_tab is not None:           # the text editor saves the same way, plus its notes
+            return doc._text_tab.save() is not None
+        prep = getattr(doc, "_before_save", None)
+        if prep is not None and prep() is False:
+            return False
+        name = pathlib.PurePosixPath((doc.cur_name or "").replace("\\", "/")).name
+        game_label = self.__dict__.get("_game_label")
+        if doc.key is not None and game_label is not None and doc.key[0] == game_label and name:
+            from rf4s_modkit import gamepaths
+            targets = gamepaths.game_targets([name])
+            if targets is not None:
+                target = targets[name]
+                try:
+                    backed = gamepaths.write_game_file(target, doc.cur_data)
+                except OSError as e:
+                    messagebox.showerror("Save failed", f"Could not write {target}:\n{err_text(e)}\n\n"
+                                                        "(Is the game running with the file open?)", parent=self.root)
+                    return False
+                doc.save_path = target
+                self._mark_saved(doc)
+                bdir = gamepaths.find_bundle_dir()
+                shown = target.relative_to(bdir.parent) if bdir and bdir.parent in target.parents else target
+                self.status.config(text=f"Saved {name} → {shown}" + (
+                    f" (original kept in {gamepaths.BACKUP_DIR})" if backed else "")
+                    + " -- the game reads it the next time it loads the file")
+                others = targets[None].get(name)
+                if others:
+                    messagebox.showwarning(
+                        "Other copies", f"Saved {shown}. The game ignores these other copies of "
+                        f"{name} (they sort later, or differ only in upper / lower case):\n\n"
+                        + "\n".join(f"• {o}" for o in others[:8]), parent=self.root)
+                return True
+        if doc.save_path is not None:
+            return self._write_doc(doc, doc.save_path)
+        f = filedialog.asksaveasfilename(title="Save", initialfile=name or None, parent=self.root)
+        return self._write_doc(doc, f) if f else False
 
     def _drop_doc(self, doc):
         for k in ("_anim_after", "_skel_after"):
@@ -3077,18 +3136,14 @@ class App:
             doc.cur_data = blob
             same = blob == data
             msg.config(text=("Assembled — unchanged from the file" if same else
-                             f"Assembled ({len(blob)} bytes) — Save as… to write it"), foreground="#1d7a3a")
+                             f"Assembled ({len(blob)} bytes) — Save (Ctrl+S) writes it"), foreground="#1d7a3a")
             return blob
 
-        def save_as():
-            blob = assemble()
-            if blob is not None:
-                self._save_blob_as(doc, blob, "AI script")
+        doc._before_save = lambda: assemble() is not None   # Save writes the assembled listing
         b1 = ttk.Button(bar, text="Assemble", command=assemble); b1.pack(side="left", padx=4)
-        b2 = ttk.Button(bar, text="Save as…", command=save_as); b2.pack(side="left", padx=2)
         from guiutil import Tip
         Tip(b1, "Rebuild the AI file from the listing (checks it; errors name the line). The tab "
-                "then holds the new file: Save as… or Extract… writes it.")
+                "then holds the new file: Save (Ctrl+S) writes it.")
         msg.pack(side="left", padx=8)
         doc._aibn_assemble = assemble             # (selftest)
         doc._aibn_text = txt
@@ -4097,7 +4152,7 @@ class App:
         """A monster generator: the flat picture of its map (gates ◆, monster points ●, drag
         them; '+ gate' / '+ spawn' then click the picture) beside the map editor's own
         Gates pane (gates, weights, counts, rosters). 'Open in map editor' switches to the
-        full editor; 'Save table…' writes the file."""
+        full editor; Save (Ctrl+S) writes the file."""
         doc = self._doc
         from map_editor import tabs as me_tabs
         g = gen.GenTable(data)
@@ -4105,6 +4160,7 @@ class App:
         maps = self._maps_for_gen(name)
         host = _GenHost(self, name, g, doc)
         doc._gen_host = host
+        doc._before_save = host.before_save
         nmfn = _load_actor_names()
         rtxt = ", ".join(f"{nmfn(i) or i}×{c}" for i, c in g.roster().most_common()) or "(none)"
         ttk.Label(doc.content, text=f"Monster spawns (a monster generator) — roster: {rtxt}",
@@ -4230,6 +4286,19 @@ class App:
                                     ") — use Extract… / Save to write")
             self._show(doc.cur_name, blob, doc)
         ttk.Button(eb, text="Assemble & apply", command=apply_listing).pack(side="right", padx=6)
+        shown = edit.get("1.0", "end")
+
+        def before_save():
+            """Save (toolbar / Ctrl+S): an edited listing is assembled first."""
+            if edit.get("1.0", "end") == shown:
+                return True
+            try:
+                doc.cur_data = asatk.assemble(edit.get("1.0", "end"))
+            except asatk.AsatkError as ex:
+                messagebox.showerror("Assemble failed", str(ex))
+                return False
+            return True
+        doc._before_save = before_save
         doc._export_kind = "disasm"; doc._export_text = asatk.render(data)
         self.export_btn.config(state="normal")
 
@@ -4299,12 +4368,9 @@ class App:
         ttk.Label(bar, text="%").pack(side="left")
         scb = ttk.Button(bar, text="Scale"); scb.pack(side="left", padx=4)
         allb = ttk.Button(bar2, text="Scale all levels"); allb.pack(side="left")
-        rvb = ttk.Button(bar2, text="Revert"); rvb.pack(side="left", padx=4)
-        svb = ttk.Button(bar2, text="Save as…"); svb.pack(side="right")
         from guiutil import Tip
         Tip(pe, "100 = unchanged, 50 = those levels need half the XP (levelling twice as fast), "
                 "200 = twice the XP.")
-        Tip(rvb, "Throw away the changes: back to the file as it was opened.")
         Tip(pcb, "On: drag across the chart to draw the bars (each level gets the height under the "
                  "mouse). The scale leaves 25% headroom so you can paint above the current top; paint "
                  "again to go higher. Off: clicking a bar selects that level.")
@@ -4429,7 +4495,7 @@ class App:
             doc.cur_data = bytes(buf)
             undob.config(state="normal" if history else "disabled")
             refresh()
-            self.status.config(text=msg + " — Save as… to write the file")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write the file")
 
         def set_levels(levels, value):
             history.append(bytes(buf))
@@ -4475,11 +4541,10 @@ class App:
 
         scb.config(command=do_scale)
         allb.config(command=lambda: do_scale(list(range(skillcurve.REAL_LEVELS))))
-        rvb.config(command=revert); undob.config(command=undo)
+        undob.config(command=undo)
         for w_ in (tv, chart):
             w_.bind("<Control-z>", undo)
         chart.bind("<Enter>", lambda _e: chart.focus_set() if paintv.get() else None)
-        svb.config(command=lambda: self._save_blob_as(doc, bytes(buf), "skill XP curve"))
         pe.bind("<Return>", lambda _e: do_scale())
 
         # type in the XP column (several levels selected: all of them get the value)
@@ -4557,8 +4622,6 @@ class App:
         sv.trace_add("write", fill); only_nz.trace_add("write", fill); flagv.trace_add("write", fill)
         fill()
 
-        ttk.Button(bar, text="Save as…",
-                   command=lambda: self._save_blob_as(doc, t.build(), "rf3ItemStrengthening")).pack(side="right")
         low = ttk.PanedWindow(doc.content, orient="horizontal")
         low.pack(fill="x", padx=6, pady=4)
         pf = ttk.Frame(low); low.add(pf, weight=1)
@@ -4604,7 +4667,7 @@ class App:
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
             on_select()
-            self.status.config(text=f"Item {i}: {fn} = {text.strip()} — Save as… to write")
+            self.status.config(text=f"Item {i}: {fn} = {text.strip()} — Save (Ctrl+S) to write")
 
         def undo(*_):
             if history:
@@ -4714,7 +4777,7 @@ class App:
             doc.cur_data = table.build()
             undo_b.config(state="normal" if history else "disabled")
             fill(select)
-            self.status.config(text=msg + " — Save table… / Extract… to write")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write")
 
         def find_iid(kind, value):
             hit = table.find(kind, value)
@@ -4836,20 +4899,12 @@ class App:
         tv.bind("<Delete>", remove)
         tv.bind("<Control-z>", undo)
 
-        def _save():
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(doc.cur_name).name,
-                                             filetypes=[("gift table", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         hint = ttk.Label(foot, foreground="#555", text="Click a cell and type to change it; the item cell also "
                                                        "takes a gift category or an item range (FP: loved / liked "
                                                        "only; a category pays its own; a dislike is always −5, the "
                                                        "signature one −10); "
                                                        "Delete removes the selected rows.")
-        hint.pack(side="left")
-        ttk.Button(foot, text="Save table…", command=_save).pack(side="right", padx=2)
-        ttk.Button(foot, text="Revert", command=revert).pack(side="right", padx=2)
+        _hint_line(hint)
         undo_b = ttk.Button(foot, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="right", padx=2)
         ttk.Button(foot, text="Remove selected", command=remove).pack(side="right", padx=(2, 12))
@@ -4941,25 +4996,23 @@ class App:
 
         row1 = ttk.Frame(foot); row1.pack(fill="x")
         row2 = ttk.Frame(foot); row2.pack(fill="x", pady=(4, 0))
-        ttk.Label(row1, foreground="#555", text="Click a cell and type to change it: the time "
+        row3 = ttk.Frame(foot); row3.pack(fill="x", pady=(4, 0))
+        _hint_line(ttk.Label(row1, foreground="#555", text="Click a cell and type to change it: the time "
                   "(HH:MM), the place (a spot kind: type its number or part of a room name) or "
-                  "random departure (yes / no).").pack(side="left")
+                  "random departure (yes / no)."))
         adb = ttk.Button(row2, text="Add stop"); adb.pack(side="left")
         rmb = ttk.Button(row2, text="Remove stop"); rmb.pack(side="left", padx=4)
-        ttk.Label(row2, text="Copy this routine to:").pack(side="left", padx=(12, 0))
+        ttk.Label(row3, text="Copy this routine to:").pack(side="left")
         copy_v = tk.StringVar()
-        copy_cb = ttk.Combobox(row2, textvariable=copy_v, state="readonly", width=38,
+        copy_cb = ttk.Combobox(row3, textvariable=copy_v, state="readonly", width=38,
                                values=[state_label(s) for s in range(schedule.COLS)])
         copy_cb.pack(side="left", padx=2)
-        cpb = ttk.Button(row2, text="Copy"); cpb.pack(side="left", padx=2)
-        rvb = ttk.Button(row2, text="Revert"); rvb.pack(side="left", padx=(12, 2))
-        svb = ttk.Button(row2, text="Save as…"); svb.pack(side="right")
+        cpb = ttk.Button(row3, text="Copy"); cpb.pack(side="left", padx=2)
         Tip(adb, "Add a stop after the selected one (15 minutes later, or halfway to the next "
                  "stop), at the same place; then change its time and place in the table.")
         Tip(rmb, "Remove the selected stop (Delete key).")
         Tip(cpb, "Replace (or create) the chosen day's routine of this NPC with a copy of the one "
                  "shown.")
-        Tip(rvb, "Throw away every change: back to the file as it was opened.")
 
         def npc_list():
             return st["sc"].npcs()
@@ -5032,7 +5085,7 @@ class App:
 
         def changed(msg, select=None):
             doc.cur_data = st["sc"].build()
-            self.status.config(text=msg + " — Save as… to write the file")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write the file")
             fill_npcs(cur_npc()); fill_days(cur_state()); fill(select)
 
         def edit_stop(idx, msg, **kw):
@@ -5108,7 +5161,7 @@ class App:
             sc.cells[(n, dst)] = list(sc.get(n, s))
             doc.cur_data = sc.build()
             fill_npcs(n); fill_days(dst)
-            self.status.config(text=f"Copied to '{state_label(dst)}' — Save as… to write the file")
+            self.status.config(text=f"Copied to '{state_label(dst)}' — Save (Ctrl+S) to write the file")
 
         def revert():
             st["sc"] = schedule.Schedule.parse(data)
@@ -5116,13 +5169,6 @@ class App:
             fill_npcs(cur_npc()); fill_days(cur_state())
             self.status.config(text="Back to the file as opened")
 
-        def save():
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(doc.cur_name).name,
-                                             filetypes=[("schedule", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(st["sc"].build()); self._mark_saved(doc)
-                self.status.config(text=f"Saved → {f}")
         spot_spec = {"get": lambda row: kind_choices[stops()[int(row)].spot]
                      if 0 <= stops()[int(row)].spot < len(kind_choices) else str(stops()[int(row)].spot),
                      "put": put_spot, "choices": kind_choices}
@@ -5133,7 +5179,6 @@ class App:
                                        "put": put_rand, "choices": ["yes", "no"]}},
                          title="Schedule")
         adb.config(command=add); rmb.config(command=remove); cpb.config(command=copy_to)
-        rvb.config(command=revert); svb.config(command=save)
         tv.bind("<Delete>", remove)
         fill_npcs(); fill_days()
         doc._sched = dict(npc=npc_v, day=day_v, tree=tv, spots=sp_tv, cells=cells, add=add, remove=remove,
@@ -5216,11 +5261,9 @@ class App:
         _table_scrollbars(mf, mt)
 
         row2 = ttk.Frame(foot); row2.pack(fill="x")
-        ttk.Label(row2, foreground="#555", text="Click an item or friendship cell and type to change "
+        _hint_line(ttk.Label(row2, foreground="#555", text="Click an item or friendship cell and type to change "
                   "it (with several items selected, a friendship value goes to all of them); the last "
-                  "row adds an item.").pack(side="left")
-        sv_b = ttk.Button(row2, text="Save as…"); sv_b.pack(side="right")
-        rv_b = ttk.Button(row2, text="Revert"); rv_b.pack(side="right", padx=4)
+                  "row adds an item; Remove selected (or Delete) takes items out."))
         undo_b = ttk.Button(row2, text="Undo", state="disabled"); undo_b.pack(side="right")
         rm_b = ttk.Button(row2, text="Remove selected"); rm_b.pack(side="right", padx=(4, 12))
         Tip(rm_b, "Take the selected items out of the category (Delete key).")
@@ -5276,7 +5319,7 @@ class App:
             doc.cur_data = table.build()
             undo_b.config(state="normal" if history else "disabled")
             fill_cats(); fill_members(select)
-            self.status.config(text=msg + " — Save as… to write the file")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write the file")
 
         def snapshot():
             history.append(table.build())
@@ -5366,8 +5409,7 @@ class App:
         for w in (ct, mt):
             w.bind("<Control-z>", undo)
         rm_b.config(command=remove)
-        undo_b.config(command=undo); rv_b.config(command=revert)
-        sv_b.config(command=lambda: self._save_blob_as(doc, table.build(), "gift categories"))
+        undo_b.config(command=undo)
         fill_cats(); fill_members()
         # the category list gets half the width once the window is laid out (room for "Used by")
         sash_done = {"d": False}
@@ -5431,7 +5473,7 @@ class App:
             doc.cur_data = bytes(buf)
             undo_b.config(state="normal" if history else "disabled")
             fill()
-            self.status.config(text=msg + " — Save table… / Extract… to write")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write")
 
         def put_item(row, k, text):
             sid = int(row)
@@ -5482,17 +5524,9 @@ class App:
         cells = CellEdit(tv, specs, title="Taming foods")
         tv.bind("<Control-z>", undo)
 
-        def _save():
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                                             initialfile=pathlib.Path(doc.cur_name).name,
-                                             filetypes=[("taming table", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
-        ttk.Label(foot, foreground="#555", text="Click an item or bonus cell and type to change it; clear "
+        _hint_line(ttk.Label(foot, foreground="#555", text="Click an item or bonus cell and type to change it; clear "
                   "an item cell (BackSpace, Enter) to empty the slot. The game uses the first slot that "
-                  "lists the fed item.").pack(side="left")
-        ttk.Button(foot, text="Save table…", command=_save).pack(side="right", padx=2)
-        ttk.Button(foot, text="Revert", command=revert).pack(side="right", padx=2)
+                  "lists the fed item."))
         undo_b = ttk.Button(foot, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="right", padx=2)
         fill()
@@ -5587,13 +5621,8 @@ class App:
                 pathlib.Path(f).write_bytes(route.RouteResult.compute(g).build())
                 self.status.config(text=f"next-hop matrix rebuilt from this graph → {f}")
 
-        def _save():
-            f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3route.bin",
-                                             filetypes=[("route graph", "*.bin")])
-            if f:
-                pathlib.Path(f).write_bytes(doc.cur_data); self._mark_saved(doc); self.status.config(text=f"Saved → {f}")
         for lbl, cmd in (("Export JSON…", _export), ("Import JSON…", _import),
-                         ("Rebuild next-hop matrix…", _rebuild), ("Save graph…", _save)):
+                         ("Rebuild next-hop matrix…", _rebuild)):
             ttk.Button(ctl, text=lbl, command=cmd).pack(side="right", padx=2)
 
     def _view_route_result(self, name, data):
@@ -5718,7 +5747,7 @@ class App:
             orphans = [k for k, p in enumerate(pools) if not used_by(p)]
             note = (f"  (pool(s) {', '.join('#%d' % k for k in orphans)} unassigned — "
                     f"NOT saved until assigned to a spot)" if orphans else "")
-            self.status.config(text="Applied — use Save table… or Extract… to write" + note)
+            self.status.config(text="Applied — Save (Ctrl+S) to write" + note)
             if refill:
                 refresh_spots(); refresh_pools(); refresh_entries()
 
@@ -5879,22 +5908,16 @@ class App:
         ttk.Button(enb, text="+ pool", command=pool_add).pack(side="left", padx=2)
         ttk.Button(enb, text="− pool", command=pool_del).pack(side="left", padx=2)
 
-        def save_tbl():
-            blob = f.build(); doc.cur_data = blob
+        def before_save():
+            """Save (toolbar / Ctrl+S): unassigned pools are not part of the file -- ask first."""
+            doc.cur_data = f.build()
             orphans = [k for k, p in enumerate(pools) if not used_by(p)]
-            if orphans:
-                if not messagebox.askokcancel(
-                        "Unassigned pools",
-                        f"Pool(s) {', '.join('#%d' % k for k in orphans)} are not assigned "
-                        f"to any spot and will NOT be in the saved file. Save anyway?"):
-                    return
-            fpath = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(doc.cur_name).name,
-                filetypes=[("SI table", "*.bin"), ("All", "*.*")])
-            if fpath:
-                pathlib.Path(fpath).write_bytes(blob); self._mark_saved(doc)
-                self.status.config(text=f"Saved search-item table → {fpath}")
-        ttk.Button(enb, text="Save table…", command=save_tbl).pack(side="right", padx=4)
+            return not orphans or messagebox.askokcancel(
+                "Unassigned pools",
+                f"Pool(s) {', '.join('#%d' % k for k in orphans)} are not assigned "
+                f"to any spot and will NOT be in the saved file. Save anyway?")
+        doc._before_save = before_save
+
 
         refresh_spots(); refresh_pools(); refresh_entries()
         if f.spots:
@@ -5996,7 +6019,7 @@ class App:
             fill()
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
-            self.status.config(text=msg + " — Save table… or Extract… to write")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write")
 
         def put(row, off, text, names, what):
             i = int(row)
@@ -6033,19 +6056,9 @@ class App:
                 keep = tv.focus()
                 changed(int(keep) if keep else 0, "Back to the file as opened")
 
-        def save_tbl():
-            blob = t.build(); doc.cur_data = blob
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(doc.cur_name).name,
-                filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
-                self.status.config(text=f"Saved quest DB → {f}")
         row = ttk.Frame(doc.content); row.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
-        ttk.Label(row, foreground="#555", text="Click the client or the type and type to change it "
-                  "(a name, part of one, or the number).").pack(side="left")
-        ttk.Button(row, text="Save table…", command=save_tbl).pack(side="right", padx=4)
-        ttk.Button(row, text="Revert", command=revert).pack(side="right", padx=4)
+        _hint_line(ttk.Label(row, foreground="#555", text="Click the client or the type and type to change it "
+                  "(a name, part of one, or the number)."))
         undo_b = ttk.Button(row, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="right", padx=4)
         tv.bind("<Control-z>", undo)
@@ -6365,7 +6378,7 @@ class App:
             fill()
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i)); on_sel()
-            self.status.config(text=msg + " — Save table… or Extract… to write")
+            self.status.config(text=msg + " — Save (Ctrl+S) to write")
         doc._param_tree = tv
 
         def raw_edit():
@@ -6411,15 +6424,6 @@ class App:
             oe.focus_set()
             return win
         doc._param_raw = raw_edit                                             # (selftest)
-
-        def save_tbl():
-            blob = t.build(); doc.cur_data = blob
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(doc.cur_name).name,
-                filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
-                self.status.config(text=f"Saved param table → {f}")
 
         def export_csv():
             """Every record as CSV: the stored (raw) values plus the row-name column."""
@@ -6468,12 +6472,11 @@ class App:
         undo_b = ttk.Button(btn_row, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="left", padx=(12, 4))
         Tip(undo_b, "Undo the last change (Ctrl+Z).")
-        ttk.Button(btn_row, text="Revert", command=revert).pack(side="left", padx=4)
         rb = ttk.Button(btn_row, text="Raw edit…", command=raw_edit)
         rb.pack(side="left", padx=(12, 4))
         Tip(rb, "Change the value at any byte offset of the selected record (for bytes no column "
                 "shows).")
-        for text_, cmd in (("Export CSV…", export_csv), ("Save table…", save_tbl)):
+        for text_, cmd in (("Export CSV…", export_csv),):
             ttk.Button(btn_row, text=text_, command=cmd).pack(side="right", padx=4)
         tv.bind("<Control-z>", undo)
         doc._param_undo, doc._param_revert = undo, revert                       # (selftest)
@@ -6547,7 +6550,7 @@ class App:
             fill()
             if tv.exists(str(i)):
                 tv.selection_set(str(i)); tv.focus(str(i)); tv.see(str(i))
-            self.status.config(text=msg + " — Save table… or Extract… writes the file")
+            self.status.config(text=msg + " — Save (Ctrl+S) writes the file")
 
         def put(fn, row, text):
             i = int(row)
@@ -6622,20 +6625,10 @@ class App:
                 keep = tv.focus()
                 changed(int(keep) if keep else 0, "Back to the file as opened")
 
-        def save_tbl():
-            blob = t.build(); doc.cur_data = blob
-            f = filedialog.asksaveasfilename(defaultextension=".bin",
-                initialfile=pathlib.Path(doc.cur_name).name,
-                filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
-                self.status.config(text=f"Saved crop table → {f}")
         btns = ttk.Frame(doc.content); btns.pack(side="bottom", fill="x", padx=6, pady=4, before=top)
         hint = ttk.Label(btns, foreground="#555", text="Click a cell and type to change it; the "
                          "'grows' cell opens the season tick boxes (double-click or F2).")
-        hint.pack(side="left")
-        ttk.Button(btns, text="Save table…", command=save_tbl).pack(side="right", padx=4)
-        ttk.Button(btns, text="Revert", command=revert).pack(side="right", padx=4)
+        _hint_line(hint)
         undo_b = ttk.Button(btns, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="right", padx=4)
         tv.bind("<Control-z>", undo)
@@ -6647,7 +6640,7 @@ class App:
         Resolved roster (name + kind) on the left; the selected monster's full decoded
         sheet (drops with item names, element affinities as %, status resists) on the right,
         with per-field entry boxes for every schema field (stats/drops/elements/resists/AI/
-        model). Apply writes into the in-memory table; Save… writes a loose-override .bin.
+        model). Edits go into the in-memory table; Save (Ctrl+S) writes it where the game loads it.
         Editing is byte-surgical — only the touched record changes."""
         doc = self._doc
         from rf4s_modkit import monster
@@ -6745,7 +6738,7 @@ class App:
             fill_fields(); render_sheet(i)
             if fn and fv.exists(fn):
                 fv.selection_set(fn); fv.focus(fn); fv.see(fn)
-            self.status.config(text=msg + " — Save… writes the file")
+            self.status.config(text=msg + " — Save (Ctrl+S) writes the file")
 
         def put(fn, text):
             i = sel["i"]
@@ -6784,17 +6777,7 @@ class App:
                 t.__dict__.update(nlcl.NlclTable(data).__dict__)
                 changed(sel["i"] if sel["i"] is not None else 0, "Back to the file as opened")
 
-        def save_tbl():
-            blob = t.build(); doc.cur_data = blob
-            f = filedialog.asksaveasfilename(defaultextension=".bin", initialfile="rf3NpcParam.bin",
-                filetypes=[("NLCL param", "*.bin"), ("All", "*.*")])
-            if f:
-                pathlib.Path(f).write_bytes(blob); self._mark_saved(doc)
-                self.status.config(text=f"Saved rf3NpcParam → {f}")
-
         btns = ttk.Frame(right); btns.pack(fill="x", padx=4, pady=2)
-        ttk.Button(btns, text="Save…", command=save_tbl).pack(side="right", padx=3)
-        ttk.Button(btns, text="Revert", command=revert).pack(side="right", padx=3)
         undo_b = ttk.Button(btns, text="Undo", command=undo, state="disabled")
         undo_b.pack(side="right", padx=3)
         for w_ in (tv, fv):

@@ -133,6 +133,12 @@ reads textures and text from the game like the game's own files (a map opened th
 back to its own file with Ctrl+S, not into the game folder). **Back to the game** lists the game's files again. `python rf4mod_gui.py <path>` opens any
 of these from the command line.
 
+**Save** (next to *Open*, or Ctrl+S) saves the file shown in the current tab: one of the game's
+files goes where the game loads it (over its loose copy, or into `Bundle\00_mods` when the game
+only has it packed; with backups on, the original is kept in `ModdingBackup`), a file opened
+from disk is saved over itself, and a map tab saves through its map editor. *Extract…* writes a
+copy anywhere else. To throw away a tab's changes, close it without saving.
+
 ### Verifying the install
 
 ```bash
@@ -208,7 +214,7 @@ the dungeon); untick it for the plain file list. The choice is
 kept in `settings.json` and shared with the standalone map editor's map list (`map_explorer.py`),
 which groups its maps the same way.
 
-**Editing .bin files.** Every game `.bin` can be changed from the explorer: the data tables in the table editor, **AI scripts** (`AI_*.bin`) by editing their listing and pressing *Assemble* (the same assembler as `rf4mod ai asm`; every shipped script rebuilds byte-exact), the **skill XP curves** (`rf3ParamSkillExp*`: set one level or scale every level to a percentage), **rf3ItemStrengthening** (set any field of the selected item), **rf3PresentCategory** (add / remove an item of a gift category), em.bin through *Open Event Manager…*, and rf3RouteResult by *Recompute from rf3route.bin* (it is derived from the route graph). *Save as…* writes the file.
+**Editing .bin files.** Every game `.bin` can be changed from the explorer: the data tables in the table editor, **AI scripts** (`AI_*.bin`) by editing their listing and pressing *Assemble* (the same assembler as `rf4mod ai asm`; every shipped script rebuilds byte-exact), the **skill XP curves** (`rf3ParamSkillExp*`: set one level or scale every level to a percentage), **rf3ItemStrengthening** (set any field of the selected item), **rf3PresentCategory** (add / remove an item of a gift category), em.bin through *Open Event Manager…*, and rf3RouteResult by *Recompute from rf3route.bin* (it is derived from the route graph). The tables are edited by typing in them (click a cell and type; a column heading sorts). *Save* (Ctrl+S) writes the file.
 
 **Editing text.** Every text file opens in a text editor: the TEXT archives, i.e. all
 `rf3Txt*` / `rf4Txt*` files and the cutscene dialogue `rf3mc.<locale>`, plus the
@@ -220,9 +226,9 @@ checker problems are shown in orange, and changed lines in blue. *Show* narrows 
 changed lines or lines with problems. *＋ New line* appends a line whose number is its id.
 TEXT lines are addressed by number, so they can't be removed. `.strings` files also take
 *＋ New key…* and *Delete key*. *Revert line* goes back to the text as the file was opened.
-*Save* writes the file where the game loads it (`Bundle\00_mods` when the game only has it
+*Save* (Ctrl+S) writes the file where the game loads it (`Bundle\00_mods` when the game only has it
 packed), or back to the file you opened from disk.
-*Save as…* writes anywhere. The game keeps the dialogue text (`rf3mc.<locale>`) in memory:
+*Extract…* writes anywhere. The game keeps the dialogue text (`rf3mc.<locale>`) in memory:
 the Cutscene Editor's *🐞 Debug → ⟳ Reload in game* swaps it in, otherwise restart. Other text needs a game
 restart, but the editors' character, item, map and skill names follow the saved file at once.
 
@@ -299,7 +305,7 @@ Selecting an asset shows a **type-aware viewer**:
 | `.minterface` / `.plist` / `Manifest` | expandable bplist tree; **Export → JSON**. `Manifest.plist`: every bundle's files with their size and offset, a **Filter** on the file name, and **Copy** (selected rows, or all shown: bundle / file / size / offset, tab-separated) |
 | `.rf4m` | **embedded Map editor** tab (map + its search spots and encounter table, one undo history; see *Map Editor*; its sidebar gains an **Events** tab: the map's cutscene scenes, opened in the Cutscene editor) · Chunks · read-only Hex |
 | `.bin` (AIBN) | opcode disassembly; **Export → .txt** |
-| `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Gates** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save table…** writes the file |
+| `Gen*.bin` | monster spawns: a **picture of the table's map** with its gates (◆) and monster points (●) — drag them, or `+ gate` / `+ spawn` then click the picture — beside the map editor's **Gates** pane (gates, weight, delay, min/max, rosters with pick weights). **Open in map editor** switches to the full editor on that map; **Save** (Ctrl+S) writes the file |
 | `rf3NpcParam.bin` | **monster/character editor** — resolved roster (name + kind) + full sheet (drops w/ item names, element affinities %, status resists, AI file) + per-field edit (stats/drops/8 elements/8 resists) + loose-override Save |
 | `SI_*.bin` | **search-item spot editor** — daily ground-pickup spots, two panes: **Spots** (move x/y with live tile preview, assign a pool per spot) and **Pools** (first-class: add/delete pools, edit item id/weight per entry with names + live ~% odds, shared-pool "used by" display). Guards: u8 weight-wrap warnings, in-use pool delete block, unassigned-pool not-saved warnings. |
 | `rf3*.bin` (NLCL) | param-table grid editor (named fields where decoded); **Add row (copy of selected) / Delete row** with the per-table "does the engine read an added row" verdict shown above the editor |

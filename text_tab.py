@@ -11,9 +11,10 @@ Two kinds of file, one editor:
 A line is checked the way the game will read it (rf4s_modkit.textlint) while it is typed: a
 line the game could crash on cannot be applied. Characters that can't be typed or seen (the
 colour and shift control bytes, the button icons) are shown and typed as backslash escapes
-(rf4s_modkit.textesc: \\red, \\btn(a) ...); the Insert menu lists them and the ＠ codes. *Save* writes the file where the game loads it
+(rf4s_modkit.textesc: \\red, \\btn(a) ...); the Insert menu lists them and the ＠ codes. The
+explorer's *Save* (toolbar, Ctrl+S) calls TextTab.save: the file goes where the game loads it
 (Bundle\\00_mods when the game only has it packed; with backups on, the original is kept in
-ModdingBackup), or back to the file it was opened from; *Save as…* writes anywhere. Names the other
+ModdingBackup), or back to the file it was opened from; *Extract…* writes anywhere. Names the other
 editors show (characters, items, maps, skills) follow a saved name file by themselves.
 """
 from __future__ import annotations
@@ -148,12 +149,6 @@ class TextTab:
         m, c = self.m, self.doc.content
         bar = ttk.Frame(c)
         bar.pack(fill="x", pady=(2, 2))
-        sa = ttk.Button(bar, text="Save as…", command=self.save_as)      # right side first:
-        sa.pack(side="right", padx=4)                                     # never squeezed out
-        Tip(sa, "Write the file anywhere.")
-        sv = ttk.Button(bar, text="Save", command=self.save)
-        sv.pack(side="right", padx=2)
-        Tip(sv, "Write the file where the game loads it, or back to the file it was opened from.")
         self.count = ttk.Label(bar)
         self.count.pack(side="left", padx=6)
         ttk.Label(bar, text="Search:").pack(side="left")
